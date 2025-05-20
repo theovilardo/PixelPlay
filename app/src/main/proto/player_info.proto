@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+option java_package = "com.theveloper.pixelplay"; // Cambia al package que prefieras
+option java_multiple_files = true;
+
+message PlayerInfoProto {
+  string song_title = 1;
+  string artist_name = 2;
+  bool is_playing = 3;
+  string album_art_uri = 4;
+  bytes album_art_bitmap_data = 5;
+  int64 current_position_ms = 6; // Nuevo para la barra de progreso
+  int64 total_duration_ms = 7;   // Nuevo para la barra de progreso
+  // bool is_favorite = 8; // Podríamos añadirlo si la acción del widget fuera más compleja
+}

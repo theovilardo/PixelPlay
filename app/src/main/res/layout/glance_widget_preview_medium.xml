@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="200dp"
+    android:layout_height="120dp"
+    android:orientation="horizontal"
+    android:background="#FF2C1D4D"
+    android:gravity="center_vertical"
+    android:padding="12dp"
+    android:id="@+id/widget_preview_root"
+    android:theme="@android:style/Theme.DeviceDefault">
+
+    <!-- Carátula de ejemplo -->
+    <ImageView
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:id="@+id/album_art_preview"
+        android:src="@drawable/rounded_album_24" />
+
+    <!-- Título y artista de ejemplo -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:layout_marginStart="10dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Título de Canción"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Artista"
+            android:textColor="#E0E0E0"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- Icono Play de ejemplo -->
+    <ImageView
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:src="@drawable/rounded_play_arrow_24"
+        android:layout_marginStart="8dp"
+        app:tint="@android:color/white" />
+</LinearLayout>

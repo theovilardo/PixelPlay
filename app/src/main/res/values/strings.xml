@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">PixelPlay</string>
+    <string name="glance_widget_description">Controla tu música desde la pantalla de inicio.</string>
+</resources>

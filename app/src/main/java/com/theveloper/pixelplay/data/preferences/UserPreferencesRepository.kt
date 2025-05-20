@@ -1,0 +1,209 @@
+package com.theveloper.pixelplay.data.preferences
+
+import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import com.theveloper.pixelplay.data.model.Playlist
+import com.theveloper.pixelplay.data.model.Song
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.serialization.json.Json
+import java.io.File
+import java.util.UUID
+import javax.inject.Inject
+import javax.inject.Singleton
+
+val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
+
+object ThemePreference {
+    const val DEFAULT = "default"       // Tema PixelPlay predeterminado
+    const val DYNAMIC = "dynamic"       // Tema dinámico del sistema (Android 12+)
+    const val ALBUM_ART = "album_art"   // Tema basado en carátula
+    const val GLOBAL = "global"         // Para que el reproductor siga el tema global
+}
+
+@Singleton
+class UserPreferencesRepository @Inject constructor(
+    private val dataStore: DataStore<Preferences>,
+    private val json: Json // Inyectar Json para serialización
+) {
+
+    private object PreferencesKeys {
+        val ALLOWED_DIRECTORIES = stringSetPreferencesKey("allowed_directories")
+        val INITIAL_SETUP_DONE = stringSetPreferencesKey("initial_setup_done_directories")
+        val GLOBAL_THEME_PREFERENCE = stringPreferencesKey("global_theme_preference_v2")
+        val PLAYER_THEME_PREFERENCE = stringPreferencesKey("player_theme_preference_v2")
+        val FAVORITE_SONG_IDS = stringSetPreferencesKey("favorite_song_ids")
+        val USER_PLAYLISTS = stringPreferencesKey("user_playlists_json_v1")
+    }
+
+    val allowedDirectoriesFlow: Flow<Set<String>> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.ALLOWED_DIRECTORIES] ?: emptySet()
+        }
+
+    val initialSetupDoneFlow: Flow<Boolean> = dataStore.data
+        .map { preferences ->
+            // Si INITIAL_SETUP_DONE existe (incluso vacío), significa que el setup se hizo.
+            // Lo usamos para decidir si la primera vez debemos permitir todos los directorios encontrados.
+            preferences.contains(PreferencesKeys.INITIAL_SETUP_DONE)
+        }
+
+    val globalThemePreferenceFlow: Flow<String> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.GLOBAL_THEME_PREFERENCE] ?: ThemePreference.DYNAMIC
+        }
+
+    val playerThemePreferenceFlow: Flow<String> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.PLAYER_THEME_PREFERENCE] ?: ThemePreference.GLOBAL
+        }
+
+    val favoriteSongIdsFlow: Flow<Set<String>> = dataStore.data // Nuevo flujo para favoritos
+        .map { preferences ->
+            preferences[PreferencesKeys.FAVORITE_SONG_IDS] ?: emptySet()
+        }
+
+    val userPlaylistsFlow: Flow<List<Playlist>> = dataStore.data
+        .map { preferences ->
+            val jsonString = preferences[PreferencesKeys.USER_PLAYLISTS]
+            if (jsonString != null) {
+                try {
+                    json.decodeFromString<List<Playlist>>(jsonString)
+                } catch (e: Exception) {
+                    // Error al deserializar, devolver lista vacía o manejar error
+                    emptyList()
+                }
+            } else {
+                emptyList()
+            }
+        }
+
+    private suspend fun savePlaylists(playlists: List<Playlist>) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.USER_PLAYLISTS] = json.encodeToString(playlists)
+        }
+    }
+
+    suspend fun createPlaylist(name: String): Playlist {
+        val currentPlaylists = userPlaylistsFlow.first().toMutableList()
+        val newPlaylist = Playlist(
+            id = UUID.randomUUID().toString(),
+            name = name,
+            songIds = emptyList()
+        )
+        currentPlaylists.add(newPlaylist)
+        savePlaylists(currentPlaylists)
+        return newPlaylist
+    }
+
+    suspend fun deletePlaylist(playlistId: String) {
+        val currentPlaylists = userPlaylistsFlow.first().toMutableList()
+        currentPlaylists.removeAll { it.id == playlistId }
+        savePlaylists(currentPlaylists)
+    }
+
+    suspend fun renamePlaylist(playlistId: String, newName: String) {
+        val currentPlaylists = userPlaylistsFlow.first().toMutableList()
+        val index = currentPlaylists.indexOfFirst { it.id == playlistId }
+        if (index != -1) {
+            currentPlaylists[index] = currentPlaylists[index].copy(name = newName, lastModified = System.currentTimeMillis())
+            savePlaylists(currentPlaylists)
+        }
+    }
+
+    suspend fun addSongsToPlaylist(playlistId: String, songIdsToAdd: List<String>) {
+        val currentPlaylists = userPlaylistsFlow.first().toMutableList()
+        val index = currentPlaylists.indexOfFirst { it.id == playlistId }
+        if (index != -1) {
+            val playlist = currentPlaylists[index]
+            // Evitar duplicados, añadir solo los nuevos
+            val newSongIds = (playlist.songIds + songIdsToAdd).distinct()
+            currentPlaylists[index] = playlist.copy(songIds = newSongIds, lastModified = System.currentTimeMillis())
+            savePlaylists(currentPlaylists)
+        }
+    }
+
+    suspend fun removeSongFromPlaylist(playlistId: String, songIdToRemove: String) {
+        val currentPlaylists = userPlaylistsFlow.first().toMutableList()
+        val index = currentPlaylists.indexOfFirst { it.id == playlistId }
+        if (index != -1) {
+            val playlist = currentPlaylists[index]
+            currentPlaylists[index] = playlist.copy(
+                songIds = playlist.songIds.filterNot { it == songIdToRemove },
+                lastModified = System.currentTimeMillis()
+            )
+            savePlaylists(currentPlaylists)
+        }
+    }
+
+    suspend fun reorderSongsInPlaylist(playlistId: String, newSongOrderIds: List<String>) {
+        val currentPlaylists = userPlaylistsFlow.first().toMutableList()
+        val index = currentPlaylists.indexOfFirst { it.id == playlistId }
+        if (index != -1) {
+            currentPlaylists[index] = currentPlaylists[index].copy(songIds = newSongOrderIds, lastModified = System.currentTimeMillis())
+            savePlaylists(currentPlaylists)
+        }
+    }
+
+    suspend fun updateAllowedDirectories(allowedPaths: Set<String>) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.ALLOWED_DIRECTORIES] = allowedPaths
+            if (!preferences.contains(PreferencesKeys.INITIAL_SETUP_DONE)) {
+                preferences[PreferencesKeys.INITIAL_SETUP_DONE] = emptySet() // Marcar que el setup se hizo
+            }
+        }
+    }
+
+    suspend fun setGlobalThemePreference(themeMode: String) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.GLOBAL_THEME_PREFERENCE] = themeMode
+        }
+    }
+
+    suspend fun setPlayerThemePreference(themeMode: String) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.PLAYER_THEME_PREFERENCE] = themeMode
+        }
+    }
+
+    suspend fun toggleFavoriteSong(songId: String) { // Nueva función para favoritos
+        dataStore.edit { preferences ->
+            val currentFavorites = preferences[PreferencesKeys.FAVORITE_SONG_IDS] ?: emptySet()
+            if (currentFavorites.contains(songId)) {
+                preferences[PreferencesKeys.FAVORITE_SONG_IDS] = currentFavorites - songId
+            } else {
+                preferences[PreferencesKeys.FAVORITE_SONG_IDS] = currentFavorites + songId
+            }
+        }
+    }
+
+    // Obtener todos los directorios únicos que contienen archivos de audio
+    // Esta función podría estar en MusicRepository, pero la ponemos aquí para que SettingsViewModel la use.
+//    suspend fun getAllAudioDirectories(allSongs: List<Song>): Set<String> {
+//        return allSongs.mapNotNull { song ->
+//            try {
+//                // Intentar obtener el directorio padre de la URI del contenido.
+//                // Esto puede ser dependiente de la implementación de la URI.
+//                // Una forma más robusta sería si Song tuviera un campo `filePath`.
+//                // Por ahora, asumimos que contentUri.path nos da algo útil o usamos MediaStore.Audio.Media.DATA
+//                // que ya tenemos en MusicRepositoryImpl (aunque no lo pasamos al modelo Song directamente).
+//                // Modificaremos MusicRepositoryImpl para que devuelva el filePath y lo usemos aquí.
+//                File(song.contentUri.path!!).parent // Esto puede fallar si el path no es un path de archivo directo
+//            } catch (e: Exception) {
+//                // Si song.contentUri.path es null o no es un path de archivo, intentar obtenerlo de otra forma
+//                // o ignorar esta canción para la extracción de directorios.
+//                // Para una solución robusta, Song debería tener el filePath.
+//                // Por ahora, si falla, no se incluirá ese directorio.
+//                null
+//            }
+//        }.filterNotNull().toSet()
+//    }
+}
