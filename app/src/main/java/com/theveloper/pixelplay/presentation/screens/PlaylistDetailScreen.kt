@@ -176,11 +176,11 @@ fun PlaylistDetailScreen(
                         shape = AbsoluteSmoothCornerShape(
                             cornerRadiusTL = 60.dp,
                             smoothnessAsPercentTR = 60,
-                            cornerRadiusTR = 16.dp,
+                            cornerRadiusTR = 14.dp,
                             smoothnessAsPercentTL = 60,
                             cornerRadiusBL = 60.dp,
                             smoothnessAsPercentBR = 60,
-                            cornerRadiusBR = 16.dp,
+                            cornerRadiusBR = 14.dp,
                             smoothnessAsPercentBL = 60
                         )
                     ) {
@@ -200,11 +200,11 @@ fun PlaylistDetailScreen(
                             .height(76.dp),
                         enabled = localReorderableSongs.isNotEmpty(),
                         shape = AbsoluteSmoothCornerShape(
-                            cornerRadiusTL = 16.dp,
+                            cornerRadiusTL = 14.dp,
                             smoothnessAsPercentTR = 60,
                             cornerRadiusTR = 60.dp,
                             smoothnessAsPercentTL = 60,
-                            cornerRadiusBL = 16.dp,
+                            cornerRadiusBL = 14.dp,
                             smoothnessAsPercentBR = 60,
                             cornerRadiusBR = 60.dp,
                             smoothnessAsPercentBL = 60

@@ -4,6 +4,8 @@ import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.TargetedFlingBehavior
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,6 +46,9 @@ import androidx.compose.material3.MediumFloatingActionButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.carousel.CarouselDefaults
+import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
+import androidx.compose.material3.carousel.rememberCarouselState
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -55,17 +60,22 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.AlbumArtCollage3
+import com.theveloper.pixelplay.presentation.components.DailyMixSection
 import com.theveloper.pixelplay.presentation.components.GradientTopBar
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.NavBarPersistentHeight
@@ -449,25 +459,79 @@ fun FeaturedPlaylistsSection() {
 }
 
 // Mood based section example
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MoodBasedSection(
     songs: List<Song>,
     playerViewModel: PlayerViewModel,
-    navController: NavController
+    navController: NavController // navController no se usa directamente en la lógica del Carousel aquí, pero se mantiene por si se necesita
 ) {
+    // El estado del carrusel ahora solo necesita itemCount.
+    // initialItem por defecto es 0.
+    val carouselState = rememberCarouselState(
+        itemCount = { songs.size }
+    )
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
+            .padding(start = 16.dp) // Padding para toda la sección
     ) {
         SectionHeader(
             title = "Para Relajarse",
             showViewAll = true,
-            onViewAllClick = { /* Navigate to mood section */ }
+            onViewAllClick = { /* Lógica para navegar a la sección del mood */ }
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Es una buena práctica verificar si la lista de canciones no está vacía
+        // antes de mostrar el carrusel para evitar errores con itemCount = 0.
+        if (songs.isNotEmpty()) {
+            HorizontalMultiBrowseCarousel(
+                state = carouselState,
+                //itemCount = songs.size, // El número total de ítems en el carrusel
+                modifier = Modifier.fillMaxWidth(), // El carrusel ocupará todo el ancho disponible
+                preferredItemWidth = 120.dp, // Ancho del ítem principal (enfocado)
+                itemSpacing = 10.dp, // Espacio entre ítems
+                flingBehavior = CarouselDefaults.multiBrowseFlingBehavior(state = carouselState), // Comportamiento de snapping
+                // minSmallItemWidth y maxSmallItemWidth definen el tamaño de los ítems "pequeños"
+                // a los lados del ítem principal en HorizontalMultiBrowseCarousel.
+                // Ajusta estos valores según el aspecto deseado.
+                minSmallItemWidth = 70.dp,
+                maxSmallItemWidth = 70.dp,
+                // contentPadding es el padding *dentro* del área de contenido del carrusel.
+                // Si tus ítems ya tienen padding o si el padding de la Column es suficiente,
+                // puedes usar PaddingValues() o un valor pequeño.
+                contentPadding = PaddingValues(horizontal = 0.dp) // Sin padding extra dentro del carrusel
+            ) { index ->
+                // Obtenemos la canción para el índice actual
+                val song = songs[index]
+
+                // Aquí va el composable de tu ítem.
+                // SongListItemFavsWrapper debería estar diseñado para ocupar el preferredItemWidth
+                // o ser flexible para que el carrusel lo escale/maneje adecuadamente.
+                SongListItemFavsWrapper(
+                    song = song,
+                    playerViewModel = playerViewModel,
+                    onClick = { /* tu lógica de click */ },
+                    itemWidth = 120.dp // Pasa el ancho aquí
+                    // modifier = Modifier // Puedes añadir modifiers adicionales si el carrusel los necesita para cada ítem
+                )
+            }
+        } else {
+            // Opcional: Mostrar un mensaje si no hay canciones
+            Text(
+                text = "No hay canciones para relajarse en este momento.",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp)
+            )
+        }
+
+        // La LazyRow ha sido reemplazada por HorizontalMultiBrowseCarousel.
+        // Ya no necesitas el siguiente bloque:
+        /*
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(end = 16.dp)
@@ -487,152 +551,153 @@ fun MoodBasedSection(
                 )
             }
         }
+        */
     }
 }
 
-// Daily Mix section example
-@Composable
-fun DailyMixSection(
-    songs: List<Song>,
-    playerViewModel: PlayerViewModel,
-    navController: NavController
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-    ) {
-        SectionHeader(
-            title = "Your Daily Mix",
-            showViewAll = true,
-            onViewAllClick = { /* Navigate to daily mix */ }
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
-            ),
-            elevation = CardDefaults.elevatedCardElevation(0.dp)
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                // Header with visual elements
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(80.dp)
-                        .background(
-                            brush = Brush.horizontalGradient(
-                                colors = listOf(
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                                    MaterialTheme.colorScheme.tertiary.copy(alpha = 0.7f)
-                                )
-                            )
-                        ),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    // Album art collage effect
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Daily Mix icon/text
-                        Column(
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text(
-                                text = "DAILY MIX",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-
-                            Text(
-                                text = "Basado en tu historial",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
-                            )
-                        }
-
-                        // Album art thumbnails with overlap effect
-                        Row(modifier = Modifier.padding(end = 16.dp)) {
-                            songs.take(3).forEachIndexed { index, song ->
-                                Box(
-                                    modifier = Modifier
-                                        .offset(x = (-16 * index).dp)
-                                        .size(48.dp)
-                                        .clip(CircleShape)
-                                        .border(
-                                            2.dp,
-                                            MaterialTheme.colorScheme.surface,
-                                            CircleShape
-                                        )
-                                ) {
-                                    SmartImage(
-                                        model = song.albumArtUri ?: R.drawable.rounded_album_24,
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-//                                    AsyncImage(
+//// Daily Mix section example
+//@Composable
+//fun DailyMixSection(
+//    songs: List<Song>,
+//    playerViewModel: PlayerViewModel,
+//    navController: NavController
+//) {
+//    Column(
+//        modifier = Modifier
+//            .fillMaxWidth()
+//            .padding(horizontal = 16.dp)
+//    ) {
+//        SectionHeader(
+//            title = "Your Daily Mix",
+//            showViewAll = true,
+//            onViewAllClick = { /* Navigate to daily mix */ }
+//        )
+//
+//        Spacer(modifier = Modifier.height(16.dp))
+//
+//        Card(
+//            modifier = Modifier.fillMaxWidth(),
+//            shape = RoundedCornerShape(16.dp),
+//            colors = CardDefaults.cardColors(
+//                containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
+//            ),
+//            elevation = CardDefaults.elevatedCardElevation(0.dp)
+//        ) {
+//            Column(modifier = Modifier.fillMaxWidth()) {
+//                // Header with visual elements
+//                Box(
+//                    modifier = Modifier
+//                        .fillMaxWidth()
+//                        .height(80.dp)
+//                        .background(
+//                            brush = Brush.horizontalGradient(
+//                                colors = listOf(
+//                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+//                                    MaterialTheme.colorScheme.tertiary.copy(alpha = 0.7f)
+//                                )
+//                            )
+//                        ),
+//                    contentAlignment = Alignment.CenterStart
+//                ) {
+//                    // Album art collage effect
+//                    Row(
+//                        modifier = Modifier
+//                            .fillMaxWidth()
+//                            .padding(start = 16.dp),
+//                        verticalAlignment = Alignment.CenterVertically
+//                    ) {
+//                        // Daily Mix icon/text
+//                        Column(
+//                            modifier = Modifier.weight(1f)
+//                        ) {
+//                            Text(
+//                                text = "DAILY MIX",
+//                                style = MaterialTheme.typography.titleMedium,
+//                                fontWeight = FontWeight.Bold,
+//                                color = MaterialTheme.colorScheme.onPrimary
+//                            )
+//
+//                            Text(
+//                                text = "Basado en tu historial",
+//                                style = MaterialTheme.typography.bodySmall,
+//                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+//                            )
+//                        }
+//
+//                        // Album art thumbnails with overlap effect
+//                        Row(modifier = Modifier.padding(end = 16.dp)) {
+//                            songs.take(3).forEachIndexed { index, song ->
+//                                Box(
+//                                    modifier = Modifier
+//                                        .offset(x = (-16 * index).dp)
+//                                        .size(48.dp)
+//                                        .clip(CircleShape)
+//                                        .border(
+//                                            2.dp,
+//                                            MaterialTheme.colorScheme.surface,
+//                                            CircleShape
+//                                        )
+//                                ) {
+//                                    SmartImage(
 //                                        model = song.albumArtUri ?: R.drawable.rounded_album_24,
 //                                        contentDescription = null,
 //                                        contentScale = ContentScale.Crop,
 //                                        modifier = Modifier.fillMaxSize()
 //                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Song list
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    songs.take(4).forEach { song -> // Limiting for example, ideally use LazyColumn
-                        SongListItemFavsWrapper(
-                            song = song,
-                            playerViewModel = playerViewModel,
-                            onClick = {
-                                playerViewModel.playSongs(
-                                    songsToPlay = songs,
-                                    startSong = song,
-                                    queueName = "SongListItemFavsWrapper2"
-                                )
-                                // Example: navController.navigate("player_screen/${song.id}")
-                            },
-                            modifier = Modifier.padding(vertical = 4.dp) // Add some padding between items
-                        )
-                    }
-
-                    // "Ver más" button
-                    TextButton(
-                        onClick = { /* TODO: Navigate to a screen showing all daily mix songs */ },
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
-                    ) {
-                        Text(
-                            text = "Ver todo el Daily Mix",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
-
-                        Spacer(modifier = Modifier.width(4.dp))
-
-                        Icon(
-                            painter = painterResource(R.drawable.rounded_keyboard_arrow_right_24),
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
+////                                    AsyncImage(
+////                                        model = song.albumArtUri ?: R.drawable.rounded_album_24,
+////                                        contentDescription = null,
+////                                        contentScale = ContentScale.Crop,
+////                                        modifier = Modifier.fillMaxSize()
+////                                    )
+//                                }
+//                            }
+//                        }
+//                    }
+//                }
+//
+//                // Song list
+//                Column(modifier = Modifier.fillMaxWidth()) {
+//                    songs.take(4).forEach { song -> // Limiting for example, ideally use LazyColumn
+//                        SongListItemFavsWrapper(
+//                            song = song,
+//                            playerViewModel = playerViewModel,
+//                            onClick = {
+//                                playerViewModel.playSongs(
+//                                    songsToPlay = songs,
+//                                    startSong = song,
+//                                    queueName = "SongListItemFavsWrapper2"
+//                                )
+//                                // Example: navController.navigate("player_screen/${song.id}")
+//                            },
+//                            modifier = Modifier.padding(vertical = 4.dp) // Add some padding between items
+//                        )
+//                    }
+//
+//                    // "Ver más" button
+//                    TextButton(
+//                        onClick = { /* TODO: Navigate to a screen showing all daily mix songs */ },
+//                        modifier = Modifier.align(Alignment.CenterHorizontally)
+//                    ) {
+//                        Text(
+//                            text = "Ver todo el Daily Mix",
+//                            style = MaterialTheme.typography.bodyMedium,
+//                            fontWeight = FontWeight.Medium
+//                        )
+//
+//                        Spacer(modifier = Modifier.width(4.dp))
+//
+//                        Icon(
+//                            painter = painterResource(R.drawable.rounded_keyboard_arrow_right_24),
+//                            contentDescription = null,
+//                            modifier = Modifier.size(20.dp)
+//                        )
+//                    }
+//                }
+//            }
+//        }
+//    }
+//}
 
 @Composable
 fun SongListItem(
@@ -779,6 +844,139 @@ fun SongListItemFavs(
     }
 }
 
+/**
+ * Composable presentacional para un ítem de canción en el carrusel, diseñado como una tarjeta vertical.
+ */
+@Composable
+fun SongCardCarouselItem(
+    modifier: Modifier = Modifier,
+    title: String,
+    artist: String,
+    albumArtUrl: String?,
+    isPlaying: Boolean,
+    onClick: () -> Unit,
+    itemWidth: Dp // Ancho esperado para el ítem, usualmente el preferredItemWidth del carrusel
+) {
+    Card(
+        onClick = onClick,
+        modifier = modifier.width(itemWidth), // La tarjeta toma el ancho especificado
+        shape = RoundedCornerShape(12.dp), // Esquinas redondeadas
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 2.dp,
+            pressedElevation = 4.dp // Elevación sutil
+        )
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth() // La columna interna llena el ancho de la tarjeta
+        ) {
+            // Sección de la carátula del álbum con indicador de reproducción superpuesto
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f) // Mantiene la carátula cuadrada (ej: 90dp x 90dp)
+            ) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(albumArtUrl)
+                        .crossfade(true) // Animación suave al cargar la imagen
+                        .build(),
+                    contentDescription = "Carátula de $title", // Descripción para accesibilidad
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)), // Redondea solo las esquinas superiores de la imagen
+                    contentScale = ContentScale.Crop, // Escala la imagen para llenar el espacio cortando si es necesario
+                    // Reemplaza con tu propio placeholder:
+                    placeholder = painterResource(id = android.R.drawable.ic_menu_gallery), // Placeholder genérico de Android
+                    error = painterResource(id = android.R.drawable.ic_menu_report_image) // Error placeholder genérico
+                )
+                if (isPlaying) {
+                    // Superposición semi-transparente para indicar reproducción
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                // Usa el color scrim del tema para la superposición
+                                MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f),
+                                // Aplica la misma forma que la imagen para que la superposición también esté redondeada
+                                shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
+                            )
+                    )
+                    Icon(
+                        imageVector = Icons.Filled.GraphicEq, // Ícono de ecualizador
+                        contentDescription = "Reproduciendo",
+                        tint = Color.White, // Ícono blanco sobre la superposición oscura
+                        modifier = Modifier
+                            .align(Alignment.Center) // Centra el ícono
+                            .size(32.dp) // Tamaño del ícono
+                    )
+                }
+            }
+
+            // Sección de texto (título y artista)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 10.dp) // Padding para el texto
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelLarge, // Estilo de Material 3 para títulos en tarjetas
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, // Limita a una línea para mantener la UI compacta
+                    overflow = TextOverflow.Ellipsis // Añade "..." si el texto es muy largo
+                )
+                Spacer(modifier = Modifier.height(2.dp)) // Pequeño espacio entre título y artista
+                Text(
+                    text = artist,
+                    style = MaterialTheme.typography.labelMedium, // Estilo para texto secundario
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant // Color más sutil para el artista
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Wrapper Composable para SongCardCarouselItem que aísla la observación del estado.
+ * Este wrapper no cambia su lógica, solo llama al nuevo composable presentacional.
+ */
+@Composable
+fun SongListItemFavsWrapper(
+    song: Song,
+    playerViewModel: PlayerViewModel,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    itemWidth: Dp = 90.dp // Ancho que se espera para el ítem en el carrusel (ej: preferredItemWidth)
+) {
+    // 1) Observamos sólo el ID de la canción que está sonando globalmente:
+    val currentPlayingSongId by playerViewModel
+        .stablePlayerState
+        .map { it.currentSong?.id }
+        .collectAsState(initial = null)
+
+    // 2) Observamos sólo si está sonando o no:
+    val isGlobalPlaying by playerViewModel
+        .stablePlayerState
+        .map { it.isPlaying }
+        .collectAsState(initial = false)
+
+    // 3) Derivamos si esta tarjeta corresponde a la canción en reproducción:
+    val isThisSongPlaying = song.id == currentPlayingSongId && isGlobalPlaying
+
+    // 4) Llamamos al nuevo composable presentacional pasándole sólo lo que necesita:
+    SongCardCarouselItem(
+        modifier = modifier, // El modifier se aplica a la Card
+        title = song.title,
+        artist = song.artist, // Usamos song.artist
+        albumArtUrl = song.albumArtUri.toString(), // Usamos song.albumArtUri
+        isPlaying = isThisSongPlaying,
+        onClick = onClick,
+        itemWidth = itemWidth // Pasamos el ancho al composable de la tarjeta
+    )
+}
+
 // Wrapper Composable for SongListItemFavs to isolate state observation
 // Wrapper Composable for SongListItemFavs to isolate state observation
 @Composable
@@ -813,6 +1011,7 @@ fun SongListItemFavsWrapper(
         onClick       = onClick
     )
 }
+
 //@Composable
 //fun SongListItemFavsWrapper(
 //    song: Song,
