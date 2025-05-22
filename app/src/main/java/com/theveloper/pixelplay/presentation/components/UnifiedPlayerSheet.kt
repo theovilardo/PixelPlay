@@ -3,6 +3,7 @@ package com.theveloper.pixelplay.presentation.components
 import android.app.Activity
 import androidx.activity.BackEventCompat
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.compose.PredictiveBackHandler
@@ -280,8 +281,8 @@ fun UnifiedPlayerSheet(
             val fraction = playerContentExpansionFraction.value
             if (fraction < 0.2f) {
                 // Interpolar de 12dp a 0dp en los primeros 20% de la expansión
-                lerp(12.dp, 26.dp, (fraction / 0.2f).coerceIn(0f, 1f))
-            } else { 26.dp }
+                lerp(12.dp, 18.dp, (fraction / 0.2f).coerceIn(0f, 1f))
+            } else { 18.dp }
         } else { 12.dp },
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
@@ -533,7 +534,7 @@ fun UnifiedPlayerSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .graphicsLayer {
-                        alpha = 1f - navBarHideFraction
+                        //alpha = 1f - navBarHideFraction
                         translationY = navBarHeightPx * navBarHideFraction
                     }
                     // NUEVO: Navigation bar sin interferir con gestos del player
@@ -1035,7 +1036,7 @@ private fun BottomToggleRow(
 ) {
     // Parámetros de estilo
     val rowCorners = 60.dp
-    val inactiveBg = LocalMaterialTheme.current.onSurface.copy(alpha = 0.12f)
+    val inactiveBg = LocalMaterialTheme.current.primary.copy(alpha = 0.08f)
 
     // Fonde de la fila segmentada
     Box(

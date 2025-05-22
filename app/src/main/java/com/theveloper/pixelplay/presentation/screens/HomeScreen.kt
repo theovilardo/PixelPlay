@@ -35,9 +35,12 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeFloatingActionButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MediumFloatingActionButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -69,6 +72,7 @@ import com.theveloper.pixelplay.presentation.components.NavBarPersistentHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import kotlinx.coroutines.flow.map
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 // Modern HomeScreen with collapsible top bar and staggered grid layout
 @OptIn(ExperimentalMaterial3Api::class)
@@ -148,6 +152,7 @@ fun HomeScreen(
                 item {
                     YourMixHeader(
                         albumArtUris = recentUrisForHeader,
+                        isPlatyingAndCsNotNull = false,
                         onPlayRandomSong = {
                             //make it grab song from Your Mix
                             playerViewModel.playPause()
@@ -166,9 +171,9 @@ fun HomeScreen(
                     )
                 }
 
-                item {
-                    FeaturedPlaylistsSection()
-                }
+//                item {
+//                    FeaturedPlaylistsSection()
+//                }
 
                 item {
                     MoodBasedSection(
@@ -190,12 +195,20 @@ fun HomeScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun YourMixHeader(
     albumArtUris: List<Uri?>,
+    isPlatyingAndCsNotNull : Boolean = false,
     onPlayRandomSong: () -> Unit
 ) {
     val recentUris = albumArtUris
+
+    val buttonCorners = 68.dp
+
+    val smallButtonCorners = 14.dp
+
+    val playPauseIcon = if (isPlatyingAndCsNotNull) R.drawable.rounded_pause_24 else R.drawable.rounded_play_arrow_24
 
     Box(
         modifier = Modifier
@@ -230,21 +243,25 @@ fun YourMixHeader(
             )
         }
         // Play Button
-        Box(
+        LargeFloatingActionButton(
             modifier = Modifier
-                .size(80.dp)
-                .aspectRatio(1f)
                 .align(Alignment.BottomEnd)
-                .padding(end = 16.dp)
-                .clip(CircleShape)
-                .background(Color(0xFF9EC8FF))
-                .clickable { onPlayRandomSong() },
-            contentAlignment = Alignment.Center
+                .padding(end = 12.dp),
+            onClick = onPlayRandomSong,
+            shape = AbsoluteSmoothCornerShape(
+                cornerRadiusTL = buttonCorners,
+                smoothnessAsPercentTR = 60,
+                cornerRadiusBR = buttonCorners,
+                smoothnessAsPercentTL = 60,
+                cornerRadiusBL = buttonCorners,
+                smoothnessAsPercentBR = 60,
+                cornerRadiusTR = buttonCorners,
+                smoothnessAsPercentBL = 60,
+            )
         ) {
             Icon(
                 painter = painterResource(R.drawable.rounded_play_arrow_24),
                 contentDescription = "Reproducir",
-                tint = Color.Black,
                 modifier = Modifier.size(40.dp)
             )
         }
@@ -550,7 +567,11 @@ fun DailyMixSection(
                                         .offset(x = (-16 * index).dp)
                                         .size(48.dp)
                                         .clip(CircleShape)
-                                        .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                                        .border(
+                                            2.dp,
+                                            MaterialTheme.colorScheme.surface,
+                                            CircleShape
+                                        )
                                 ) {
                                     SmartImage(
                                         model = song.albumArtUri ?: R.drawable.rounded_album_24,
@@ -705,7 +726,9 @@ fun SongListItemFavs(
         elevation = CardDefaults.cardElevation(defaultElevation = if (isPlaying) 4.dp else 1.dp)
     ) {
         Row(
-            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             SmartImage(

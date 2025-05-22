@@ -38,9 +38,12 @@ import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 import com.theveloper.pixelplay.utils.formatTotalDuration
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import kotlin.math.abs
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalDndApi::class)
+@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalFoundationApi::class, ExperimentalDndApi::class,
+    ExperimentalMaterial3Api::class
+)
 @Composable
 fun PlaylistDetailScreen(
     playlistId: String,
@@ -77,46 +80,66 @@ fun PlaylistDetailScreen(
 
     Scaffold(
         modifier = Modifier
-            .padding(paddingValues) // Aplicar padding del Scaffold externo
+            .padding(bottom = paddingValues.calculateBottomPadding()) // Aplicar padding del Scaffold externo
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            MediumTopAppBar(
+            LargeFlexibleTopAppBar(
                 title = {
-                    Column {
-                        Text(
-                            currentPlaylist?.name ?: "Playlist",
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            "${songsInPlaylist.size} canciones • ${formatTotalDuration(songsInPlaylist)}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    Text(
+                        modifier = Modifier.padding(start = 8.dp),
+                        text = currentPlaylist?.name ?: "Playlist",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                subtitle = {
+                    Text(
+                        modifier = Modifier.padding(start = 8.dp),
+                        text = "${songsInPlaylist.size} canciones • ${formatTotalDuration(songsInPlaylist)}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    FilledTonalIconButton(
+                        modifier = Modifier.padding(start = 10.dp),
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        onClick = { navController.popBackStack() }
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showRenameDialog = true }) { Icon(Icons.Filled.Edit, "Renombrar") }
-                    IconButton(onClick = {
-                        currentPlaylist?.let { playlistViewModel.deletePlaylist(it.id) }
-                        navController.popBackStack()
-                    }) { Icon(Icons.Filled.DeleteOutline, "Eliminar Playlist") }
+                    FilledTonalIconButton(
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        onClick = { showRenameDialog = true }
+                    ) { Icon(Icons.Filled.Edit, "Renombrar") }
+                    FilledTonalIconButton(
+                        modifier = Modifier.padding(end = 10.dp),
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        onClick = {
+                            currentPlaylist?.let { playlistViewModel.deletePlaylist(it.id) }
+                            navController.popBackStack()
+                        }
+                    ) {
+                        Icon(Icons.Filled.DeleteOutline, "Eliminar Playlist")
+                    }
                 },
-                scrollBehavior = scrollBehavior,
-                colors = TopAppBarDefaults.mediumTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp),
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(8.dp)
-                )
+                scrollBehavior = scrollBehavior
             )
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                modifier = Modifier.padding(bottom = bottomBarHeightDp + MiniPlayerHeight),
+                modifier = Modifier.padding(bottom = bottomBarHeightDp + MiniPlayerHeight, end = 10.dp),
                 onClick = { showAddSongsDialog = true },
                 icon = { Icon(Icons.Filled.Add, "Añadir canciones") },
                 text = { Text("Add Songs") },
@@ -135,8 +158,9 @@ fun PlaylistDetailScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        .height(76.dp)
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Button(
                         onClick = {
@@ -145,13 +169,24 @@ fun PlaylistDetailScreen(
                                 playerStableState.isShuffleEnabled.let { if(it) playerViewModel.toggleShuffle() } // Desactivar shuffle si estaba activo
                             }
                         },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(76.dp),
                         enabled = localReorderableSongs.isNotEmpty(),
-                        shape = RoundedCornerShape(16.dp)
+                        shape = AbsoluteSmoothCornerShape(
+                            cornerRadiusTL = 60.dp,
+                            smoothnessAsPercentTR = 60,
+                            cornerRadiusTR = 16.dp,
+                            smoothnessAsPercentTL = 60,
+                            cornerRadiusBL = 60.dp,
+                            smoothnessAsPercentBR = 60,
+                            cornerRadiusBR = 16.dp,
+                            smoothnessAsPercentBL = 60
+                        )
                     ) {
-                        Icon(Icons.Filled.PlayArrow, contentDescription = "Reproducir todo", modifier = Modifier.size(ButtonDefaults.IconSize))
+                        Icon(Icons.Filled.PlayArrow, contentDescription = "Play", modifier = Modifier.size(ButtonDefaults.IconSize))
                         Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                        Text("Reproducir todo")
+                        Text("Play it")
                     }
                     OutlinedButton(
                         onClick = {
@@ -160,13 +195,24 @@ fun PlaylistDetailScreen(
                                 playerViewModel.playSongs(localReorderableSongs, localReorderableSongs.random(), currentPlaylist.name)
                             }
                         },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(76.dp),
                         enabled = localReorderableSongs.isNotEmpty(),
-                        shape = RoundedCornerShape(16.dp)
+                        shape = AbsoluteSmoothCornerShape(
+                            cornerRadiusTL = 16.dp,
+                            smoothnessAsPercentTR = 60,
+                            cornerRadiusTR = 60.dp,
+                            smoothnessAsPercentTL = 60,
+                            cornerRadiusBL = 16.dp,
+                            smoothnessAsPercentBR = 60,
+                            cornerRadiusBR = 60.dp,
+                            smoothnessAsPercentBL = 60
+                        )
                     ) {
-                        Icon(Icons.Filled.Shuffle, contentDescription = "Aleatorio", modifier = Modifier.size(ButtonDefaults.IconSize))
+                        Icon(Icons.Filled.Shuffle, contentDescription = "Shuffle", modifier = Modifier.size(ButtonDefaults.IconSize))
                         Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                        Text("Aleatorio")
+                        Text("Shuffle")
                     }
                 }
 

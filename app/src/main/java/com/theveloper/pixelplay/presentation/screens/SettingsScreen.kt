@@ -108,11 +108,6 @@ fun SettingsScreen(
                         }
                     }
                 },
-//                colors = TopAppBarDefaults.largeTopAppBarColors(
-//                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-//                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceVariant
-//                ),
-                //scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
             )
         },
         modifier = Modifier

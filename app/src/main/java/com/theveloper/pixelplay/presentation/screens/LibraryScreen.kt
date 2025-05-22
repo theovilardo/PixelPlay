@@ -757,10 +757,10 @@ fun LibraryAlbumsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, b
     } else {
         Box(modifier = Modifier.fillMaxSize()) {
             LazyVerticalGrid(
-                modifier = Modifier.padding(bottom = bottomBarHeight),
+                modifier = Modifier.padding(bottom = bottomBarHeight - 6.dp),
                 state = gridState,
                 columns = GridCells.Fixed(2), // O GridCells.Adaptive(minSize = 160.dp)
-                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = MiniPlayerHeight + bottomBarHeight + 20.dp), // Espacio para el FAB
+                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = MiniPlayerHeight + bottomBarHeight + 28.dp), // Espacio para el FAB
                 verticalArrangement = Arrangement.spacedBy(14.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
