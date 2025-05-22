@@ -123,6 +123,7 @@ class PlayerViewModel @Inject constructor(
     val predictiveBackCollapseFraction: StateFlow<Float> = _predictiveBackCollapseFraction.asStateFlow()
 
     private val _currentAlbumArtColorSchemePair = MutableStateFlow<ColorSchemePair?>(null)
+    val currentAlbumArtColorSchemePair: StateFlow<ColorSchemePair?> = _currentAlbumArtColorSchemePair.asStateFlow()
     private val _globalThemePreference = MutableStateFlow(ThemePreference.DYNAMIC) // Default a DYNAMIC
     val globalThemePreference: StateFlow<String> = _globalThemePreference.asStateFlow()
     private val _playerThemePreference = MutableStateFlow(ThemePreference.GLOBAL)

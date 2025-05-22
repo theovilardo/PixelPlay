@@ -47,6 +47,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -108,6 +109,11 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.StablePlayerState
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import com.theveloper.pixelplay.ui.theme.PixelPlayTheme
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.runtime.staticCompositionLocalOf
+
+// Definir un CompositionLocal para el tema del álbum
 import com.theveloper.pixelplay.utils.formatDuration
 import com.theveloper.pixelplay.utils.luminance
 import kotlinx.coroutines.async
@@ -120,6 +126,8 @@ import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
+
+private val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error("No ColorScheme provided") }
 
 val MiniPlayerHeight = 64.dp
 val PlayerSheetExpandedCornerRadius = 32.dp // Totalmente expandido -> sin esquinas
@@ -335,13 +343,21 @@ fun UnifiedPlayerSheet(
         color = Color.Transparent
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // MEJORADO: Área del player con gestos restringidos solo a esta zona
+            // MEJORADO: Área del player con gestos restringidos solo a esta zona y tema dinámico
+            // Obtener el color scheme del álbum actual si está disponible
+            val currentAlbumColorSchemePair by playerViewModel.currentAlbumArtColorSchemePair.collectAsState()
+            val isDarkTheme = isSystemInDarkTheme()
+            val albumColorScheme = remember(currentAlbumColorSchemePair, isDarkTheme) {
+                if (isDarkTheme) currentAlbumColorSchemePair?.dark else currentAlbumColorSchemePair?.light
+            }
+            
+            // Crear un CompositionLocalProvider para aplicar el tema solo al área del player
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(playerContentAreaActualHeightDp)
                     .background(
-                        color = MaterialTheme.colorScheme.primaryContainer,
+                        color = albumColorScheme?.primaryContainer ?: MaterialTheme.colorScheme.primaryContainer,
                         shape = RoundedCornerShape(bottomStart = playerContentActualBottomRadius, bottomEnd = playerContentActualBottomRadius)
                     )
                     .clipToBounds()
@@ -458,29 +474,39 @@ fun UnifiedPlayerSheet(
                     val currentSong = stablePlayerState.currentSong!!
                     val miniPlayerAlpha by remember { derivedStateOf { (1f - playerContentExpansionFraction.value * 2f).coerceIn(0f, 1f) } }
                     if (miniPlayerAlpha > 0.01f) {
-                        Box(modifier = Modifier.alpha(miniPlayerAlpha)) {
-                            MiniPlayerContentInternal(
-                                song = currentSong, isPlaying = stablePlayerState.isPlaying,
-                                onPlayPause = { playerViewModel.playPause() }, onNext = { playerViewModel.nextSong() },
-                                modifier = Modifier.fillMaxSize()
-                            )
+                        // Aplicar el tema del álbum al mini player
+                        CompositionLocalProvider(
+                            LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
+                        ) {
+                            Box(modifier = Modifier.alpha(miniPlayerAlpha)) {
+                                MiniPlayerContentInternal(
+                                    song = currentSong, isPlaying = stablePlayerState.isPlaying,
+                                    onPlayPause = { playerViewModel.playPause() }, onNext = { playerViewModel.nextSong() },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
                         }
                     }
 
                     val fullPlayerAlpha by remember { derivedStateOf { playerContentExpansionFraction.value.pow(2) } }
                     if (fullPlayerAlpha > 0.01f) {
-                        Box(modifier = Modifier.alpha(fullPlayerAlpha)) {
-                            FullPlayerContentInternal(
-                                currentPosition = playerUiState.currentPosition, 
-                                stablePlayerState = stablePlayerState,
-                                onPlayPause = { playerViewModel.playPause() }, onSeek = { playerViewModel.seekTo(it) },
-                                onNext = { playerViewModel.nextSong() }, onPrevious = { playerViewModel.previousSong() },
-                                onCollapse = { playerViewModel.collapsePlayerSheet() }, expansionFraction = playerContentExpansionFraction.value,
-                                currentSheetState = currentSheetContentState, onShowQueueClicked = { showQueueSheet = true },
-                                onShuffleToggle = { playerViewModel.toggleShuffle() },      // ADDED
-                                onRepeatToggle = { playerViewModel.cycleRepeatMode() },    // ADDED
-                                onFavoriteToggle = { playerViewModel.toggleFavorite() }   // ADDED
-                            )
+                        // Aplicar el tema del álbum al full player
+                        CompositionLocalProvider(
+                            LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
+                        ) {
+                            Box(modifier = Modifier.alpha(fullPlayerAlpha)) {
+                                FullPlayerContentInternal(
+                                    currentPosition = playerUiState.currentPosition, 
+                                    stablePlayerState = stablePlayerState,
+                                    onPlayPause = { playerViewModel.playPause() }, onSeek = { playerViewModel.seekTo(it) },
+                                    onNext = { playerViewModel.nextSong() }, onPrevious = { playerViewModel.previousSong() },
+                                    onCollapse = { playerViewModel.collapsePlayerSheet() }, expansionFraction = playerContentExpansionFraction.value,
+                                    currentSheetState = currentSheetContentState, onShowQueueClicked = { showQueueSheet = true },
+                                    onShuffleToggle = { playerViewModel.toggleShuffle() },      // ADDED
+                                    onRepeatToggle = { playerViewModel.cycleRepeatMode() },    // ADDED
+                                    onFavoriteToggle = { playerViewModel.toggleFavorite() }   // ADDED
+                                )
+                            }
                         }
                     }
                 }
@@ -569,7 +595,7 @@ private fun MiniPlayerContentInternal(
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = (-0.2).sp
                 ),
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                color = LocalMaterialTheme.current.onPrimaryContainer,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -579,7 +605,7 @@ private fun MiniPlayerContentInternal(
                     fontSize = 13.sp,
                     letterSpacing = 0.sp
                 ),
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                color = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -591,17 +617,17 @@ private fun MiniPlayerContentInternal(
             modifier = Modifier
                 .size(36.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary) //.copy(alpha = 0.2f))
+                .background(LocalMaterialTheme.current.primary) //.copy(alpha = 0.2f))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = ripple(bounded = false, color = MaterialTheme.colorScheme.onPrimary)
+                    indication = ripple(bounded = false, color = LocalMaterialTheme.current.onPrimary)
                 ) { onPlayPause() },
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 painter = if (isPlaying) painterResource(R.drawable.rounded_pause_24) else painterResource(R.drawable.rounded_play_arrow_24),
                 contentDescription = if (isPlaying) "Pausar" else "Reproducir",
-                tint = MaterialTheme.colorScheme.onPrimary,
+                tint = LocalMaterialTheme.current.onPrimary,
                 modifier = Modifier.size(22.dp)
             )
         }
@@ -613,17 +639,17 @@ private fun MiniPlayerContentInternal(
             modifier = Modifier
                 .size(36.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                .background(LocalMaterialTheme.current.primary.copy(alpha = 0.2f))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = ripple(bounded = false, color = MaterialTheme.colorScheme.onPrimary)
+                    indication = ripple(bounded = false, color = LocalMaterialTheme.current.onPrimary)
                 ) { onNext() },
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 painter = painterResource(R.drawable.rounded_skip_next_24),
                 contentDescription = "Siguiente",
-                tint = MaterialTheme.colorScheme.primary,
+                tint = LocalMaterialTheme.current.primary,
                 modifier = Modifier.size(22.dp)
             )
         }
@@ -672,9 +698,9 @@ private fun FullPlayerContentInternal(
                 modifier = Modifier.alpha(expansionFraction.coerceIn(0f, 1f)),
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    titleContentColor = LocalMaterialTheme.current.onPrimaryContainer,
+                    actionIconContentColor = LocalMaterialTheme.current.onPrimaryContainer,
+                    navigationIconContentColor = LocalMaterialTheme.current.onPrimaryContainer
                 ),
                 title = {
                     Text(
@@ -743,7 +769,7 @@ private fun FullPlayerContentInternal(
                         fontFamily = GoogleSansRounded
                         //letterSpacing = (-0.5).sp
                     ),
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    color = LocalMaterialTheme.current.onPrimaryContainer,
                     maxLines = 1, // Forzamos una sola línea
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center
@@ -752,7 +778,7 @@ private fun FullPlayerContentInternal(
                 Text(
                     text = song.artist,
                     style = MaterialTheme.typography.titleMedium.copy(letterSpacing = 0.sp),
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                    color = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.8f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center
@@ -783,9 +809,9 @@ private fun FullPlayerContentInternal(
                         .padding(vertical = 8.dp),
                     trackHeight = 6.dp,
                     thumbRadius = 8.dp,
-                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                    inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                    thumbColor = MaterialTheme.colorScheme.primary,
+                    activeTrackColor = LocalMaterialTheme.current.primary,
+                    inactiveTrackColor = LocalMaterialTheme.current.primary.copy(alpha = 0.2f),
+                    thumbColor = LocalMaterialTheme.current.primary,
                     waveAmplitude = 3.dp,
                     waveFrequency = 0.08f,
                     isPlaying = (stablePlayerState.isPlaying && currentSheetState == PlayerSheetState.EXPANDED) // Pasamos el estado de reproducción
@@ -800,13 +826,13 @@ private fun FullPlayerContentInternal(
                     Text(
                         formatDuration(currentPosition), 
                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                        color = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f),
                         fontSize = 12.sp
                     )
                     Text(
                         formatDuration(stablePlayerState.totalDuration),
                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                        color = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f),
                         fontSize = 12.sp
                     )
                 }
@@ -865,10 +891,10 @@ fun AnimatedPlaybackControls(
     releaseDelay: Long = 300L,
     playPauseCornerPlaying: Dp = 70.dp,
     playPauseCornerPaused: Dp = 26.dp,
-    colorOtherButtons: Color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-    colorPlayPause: Color = MaterialTheme.colorScheme.primary,
-    tintPlayPauseIcon: Color = MaterialTheme.colorScheme.onPrimary,
-    tintOtherIcons: Color = MaterialTheme.colorScheme.primary,
+    colorOtherButtons: Color = LocalMaterialTheme.current.primary.copy(alpha = 0.15f),
+    colorPlayPause: Color = LocalMaterialTheme.current.primary,
+    tintPlayPauseIcon: Color = LocalMaterialTheme.current.onPrimary,
+    tintOtherIcons: Color = LocalMaterialTheme.current.primary,
     playPauseIconSize: Dp = 36.dp,
     iconSize: Dp = 32.dp
 ) {
@@ -1009,12 +1035,12 @@ private fun BottomToggleRow(
 ) {
     // Parámetros de estilo
     val rowCorners = 60.dp
-    val inactiveBg = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+    val inactiveBg = LocalMaterialTheme.current.onSurface.copy(alpha = 0.12f)
 
     // Fonde de la fila segmentada
     Box(
         modifier = modifier.background(
-            color = MaterialTheme.colorScheme.onPrimary,
+            color = LocalMaterialTheme.current.onPrimary,
             shape = AbsoluteSmoothCornerShape(
                 cornerRadiusBL = rowCorners,
                 smoothnessAsPercentTR = 60,
@@ -1055,9 +1081,9 @@ private fun BottomToggleRow(
             ToggleSegmentButton(
                 modifier = commonModifier,
                 active = isShuffleEnabled,
-                activeColor = MaterialTheme.colorScheme.primary,
+                activeColor = LocalMaterialTheme.current.primary,
                 activeCornerRadius = rowCorners,
-                activeContentColor = MaterialTheme.colorScheme.onPrimary,
+                activeContentColor = LocalMaterialTheme.current.onPrimary,
                 inactiveColor = inactiveBg,
                 onClick = onShuffleToggle,
                 icon = painterResource(R.drawable.rounded_shuffle_24),
@@ -1073,9 +1099,9 @@ private fun BottomToggleRow(
             ToggleSegmentButton(
                 modifier = commonModifier,
                 active = repeatActive,
-                activeColor = MaterialTheme.colorScheme.secondary,
+                activeColor = LocalMaterialTheme.current.secondary,
                 activeCornerRadius = rowCorners,
-                activeContentColor = MaterialTheme.colorScheme.onSecondary,
+                activeContentColor = LocalMaterialTheme.current.onSecondary,
                 inactiveColor = inactiveBg,
                 onClick = onRepeatToggle,
                 icon = repeatIcon,
@@ -1085,9 +1111,9 @@ private fun BottomToggleRow(
             ToggleSegmentButton(
                 modifier = commonModifier,
                 active = isFavorite,
-                activeColor = MaterialTheme.colorScheme.tertiary,
+                activeColor = LocalMaterialTheme.current.tertiary,
                 activeCornerRadius = rowCorners,
-                activeContentColor = MaterialTheme.colorScheme.onTertiary,
+                activeContentColor = LocalMaterialTheme.current.onTertiary,
                 inactiveColor = inactiveBg,
                 onClick = onFavoriteToggle,
                 icon = painterResource(R.drawable.round_favorite_24),
@@ -1103,7 +1129,7 @@ fun ToggleSegmentButton(
     active: Boolean,
     activeColor: Color,
     inactiveColor: Color = Color.Gray,
-    activeContentColor: Color = MaterialTheme.colorScheme.onPrimary,
+    activeContentColor: Color = LocalMaterialTheme.current.onPrimary,
     activeCornerRadius: Dp = 8.dp,
     onClick: () -> Unit,
     icon: Painter,
@@ -1132,7 +1158,7 @@ fun ToggleSegmentButton(
         Icon(
             painter = icon,
             contentDescription = contentDesc,
-            tint = if (active) activeContentColor else MaterialTheme.colorScheme.primary,
+            tint = if (active) activeContentColor else LocalMaterialTheme.current.primary,
             modifier = Modifier.size(24.dp)
         )
     }

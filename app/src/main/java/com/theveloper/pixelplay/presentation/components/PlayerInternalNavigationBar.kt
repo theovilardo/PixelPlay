@@ -9,12 +9,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -36,8 +38,12 @@ fun PlayerInternalNavigationBar(
         modifier = modifier
             .fillMaxWidth()
             .height(NavBarPersistentHeight)
+            .shadow(
+                elevation = 4.dp,
+                shape = RoundedCornerShape(topStart = topCornersRadius, topEnd = topCornersRadius) // Aplicar radios
+            )
             .background(
-                color = MaterialTheme.colorScheme.onPrimary,
+                color = NavigationBarDefaults.containerColor,
                 shape = RoundedCornerShape(topStart = topCornersRadius, topEnd = topCornersRadius) // Aplicar radios
             )
             .padding(horizontal = 0.dp),
@@ -61,13 +67,6 @@ fun PlayerInternalNavigationBar(
                         restoreState = false
                     }
                 },
-//                onClick = {
-//                    navController.navigate(item.screen.route) {
-//                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-//                        launchSingleTop = true
-//                        restoreState = true
-//                    }
-//                },
                 icon = { Icon(if (isSelected) item.selectedIcon ?: item.icon else item.icon, item.label) },
                 label = { Text(item.label) },
                 alwaysShowLabel = true,
@@ -75,8 +74,8 @@ fun PlayerInternalNavigationBar(
                     indicatorColor = MaterialTheme.colorScheme.primary,
                     selectedIconColor = MaterialTheme.colorScheme.onPrimary,
                     selectedTextColor = MaterialTheme.colorScheme.primary,
-                    unselectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    unselectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurface,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         }
