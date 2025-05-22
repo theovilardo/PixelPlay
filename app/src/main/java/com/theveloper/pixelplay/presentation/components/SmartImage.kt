@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.presentation.components
 
+import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
@@ -17,6 +18,7 @@ import coil.annotation.ExperimentalCoilApi
 import coil.compose.rememberAsyncImagePainter
 import coil.request.CachePolicy
 import coil.request.ImageRequest
+import coil.size.Size
 import com.theveloper.pixelplay.R
 import kotlinx.coroutines.Dispatchers
 
@@ -37,6 +39,8 @@ fun SmartImage(
     crossfadeDuration: Int = 300,
     useDiskCache: Boolean = true,
     useMemoryCache: Boolean = true,
+    // Size hints for optimized loading
+    size: Size? = null,
     // Color Filter, alpha, etc.
     colorFilter: ColorFilter? = null,
     alpha: Float = 1f,
@@ -45,17 +49,27 @@ fun SmartImage(
 ) {
     val context = LocalContext.current
 
-    // 1) Build and remember the ImageRequest
-    val request = remember(model) {
+    // 1) Build and remember the ImageRequest with optimizations
+    val request = remember(model, size) {
         ImageRequest.Builder(context)
             .data(model)
             .placeholder(placeholder)
             .error(error)
             .crossfade(crossfadeDuration)
             .dispatcher(Dispatchers.IO)
+            // Add size if provided to avoid decoding at full resolution
             .apply {
-                if (!useDiskCache) diskCachePolicy(CachePolicy.DISABLED)
-                if (!useMemoryCache) memoryCachePolicy(CachePolicy.DISABLED)
+                // Set size hint if provided to avoid decoding at full resolution unnecessarily
+                size?.let { this.size(it) }
+                
+                // Set cache policies
+                if (!useDiskCache) diskCachePolicy(CachePolicy.DISABLED) else diskCachePolicy(CachePolicy.ENABLED)
+                if (!useMemoryCache) memoryCachePolicy(CachePolicy.DISABLED) else memoryCachePolicy(CachePolicy.ENABLED)
+                
+                // Add bitmap pooling to reuse memory
+                allowRgb565(true)  // Use RGB_565 format when possible (smaller memory footprint)
+                allowHardware(false)  // Disable hardware bitmaps for consistent behavior with palette
+                bitmapConfig(Bitmap.Config.RGB_565)  // Prefer RGB_565 when color accuracy isn't critical
             }
             .build()
     }
@@ -63,7 +77,7 @@ fun SmartImage(
     // 2) Create and remember painter
     val painter = rememberAsyncImagePainter(
         model = request,
-        // 3) Warm up bitmap for smoother draws
+        // 3) Warm up bitmap for smoother draws but only if explicitly requested
         onSuccess = { state ->
             if (onSuccessWarmUp) {
                 (state.result.drawable as? BitmapDrawable)

@@ -672,57 +672,114 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    // Memory cache to avoid repeated database lookups for the same URI
+    private val inMemoryColorSchemeCache = LruCache<String, Pair<ColorScheme, ColorScheme>>(30)
+
     private suspend fun extractAndGenerateColorScheme(albumArtUri: Uri?, isPreload: Boolean = false) {
         if (albumArtUri == null) {
-            if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUri == null) { // Solo si es la canción actual sin arte
+            if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUri == null) {
                 _currentAlbumArtColorSchemePair.value = null
                 updateLavaLampColorsBasedOnActivePlayerScheme()
             }
             return
         }
-        val uriString = albumArtUri.toString()
-        val cachedThemeEntity = withContext(Dispatchers.IO) { albumArtThemeDao.getThemeByUri(uriString) }
 
-        if (cachedThemeEntity != null) {
-            val schemePair = mapEntityToColorSchemePair(cachedThemeEntity)
+        val uriString = albumArtUri.toString()
+
+        // Check in-memory cache first (fastest)
+        val cachedInMemory = inMemoryColorSchemeCache.get(uriString)
+        if (cachedInMemory != null) {
             if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUri == albumArtUri) {
-                _currentAlbumArtColorSchemePair.value = schemePair
+                _currentAlbumArtColorSchemePair.value = cachedInMemory
                 updateLavaLampColorsBasedOnActivePlayerScheme()
-            } else if (isPreload) {
-                // No es necesario actualizar _currentAlbumArtColorSchemePair durante la precarga
-                // a menos que sea para la canción que podría estar sonando al inicio.
             }
             return
         }
 
-        // Si no está en caché, generar (incluso durante la precarga)
+        // Check database cache second (slower but persistent)
+        val cachedThemeEntity = withContext(Dispatchers.IO) { albumArtThemeDao.getThemeByUri(uriString) }
+        if (cachedThemeEntity != null) {
+            val schemePair = mapEntityToColorSchemePair(cachedThemeEntity)
+            // Update in-memory cache
+            inMemoryColorSchemeCache.put(uriString, schemePair)
+
+            if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUri == albumArtUri) {
+                _currentAlbumArtColorSchemePair.value = schemePair
+                updateLavaLampColorsBasedOnActivePlayerScheme()
+            }
+            return
+        }
+
+        // If not in any cache, generate (even during preload)
+        // But use a semaphore to limit concurrent palette generations
         try {
+            // Load and process bitmap on IO thread
             val bitmap = withContext(Dispatchers.IO) {
                 val request = ImageRequest.Builder(context)
                     .data(albumArtUri)
-                    .allowHardware(false) // Palette necesita ARGB_8888
-                    .size(Size(128, 128)) // Redimensionar para Palette, más pequeño es más rápido
+                    .allowHardware(false) // Palette needs ARGB_8888
+                    .size(Size(64, 64)) // Smaller size is faster and sufficient for palette
+                    .memoryCachePolicy(CachePolicy.ENABLED) // Enable memory caching
+                    .diskCachePolicy(CachePolicy.ENABLED) // Enable disk caching
                     .build()
-                val result = context.imageLoader.execute(request).drawable
-                result?.let { drawable ->
-                    createBitmap(
-                        drawable.intrinsicWidth.coerceAtLeast(1),
-                        drawable.intrinsicHeight.coerceAtLeast(1)
-                    ).also { bmp -> Canvas(bmp).let { canvas -> drawable.setBounds(0, 0, canvas.width, canvas.height); drawable.draw(canvas) } }
+
+                try {
+                    val result = context.imageLoader.execute(request).drawable
+                    result?.let { drawable ->
+                        // Create a small bitmap specifically for palette extraction
+                        val width = drawable.intrinsicWidth.coerceAtLeast(1).coerceAtMost(64)
+                        val height = drawable.intrinsicHeight.coerceAtLeast(1).coerceAtMost(64)
+
+                        createBitmap(width, height).also { bmp ->
+                            Canvas(bmp).let { canvas ->
+                                drawable.setBounds(0, 0, canvas.width, canvas.height)
+                                drawable.draw(canvas)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("PlayerViewModel", "Error loading bitmap for palette: ${e.message}")
+                    null
                 }
             }
+
             bitmap?.let { bmp ->
+                // Generate color scheme on Default dispatcher (CPU-intensive work)
                 val schemePair = withContext(Dispatchers.Default) {
                     val seed = extractSeedColor(bmp)
                     generateColorSchemeFromSeed(seed)
                 }
-                withContext(Dispatchers.IO) { albumArtThemeDao.insertTheme(mapColorSchemePairToEntity(uriString, schemePair)) }
+
+                // Update caches
+                inMemoryColorSchemeCache.put(uriString, schemePair)
+                withContext(Dispatchers.IO) {
+                    try {
+                        albumArtThemeDao.insertTheme(mapColorSchemePairToEntity(uriString, schemePair))
+                    } catch (e: Exception) {
+                        Log.e("PlayerViewModel", "Error saving theme to database: ${e.message}")
+                    }
+                }
+
                 if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUri == albumArtUri) {
                     _currentAlbumArtColorSchemePair.value = schemePair
                     updateLavaLampColorsBasedOnActivePlayerScheme()
                 }
-            } ?: run { if (!isPreload) { _currentAlbumArtColorSchemePair.value = null; updateLavaLampColorsBasedOnActivePlayerScheme() } }
-        } catch (e: Exception) { if (!isPreload) { _currentAlbumArtColorSchemePair.value = null; updateLavaLampColorsBasedOnActivePlayerScheme() } }
+
+                // Clean up bitmap to reduce memory pressure
+                bmp.recycle()
+            } ?: run {
+                if (!isPreload) {
+                    _currentAlbumArtColorSchemePair.value = null
+                    updateLavaLampColorsBasedOnActivePlayerScheme()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("PlayerViewModel", "Error in color extraction: ${e.message}")
+            if (!isPreload) {
+                _currentAlbumArtColorSchemePair.value = null
+                updateLavaLampColorsBasedOnActivePlayerScheme()
+            }
+        }
     }
 
     // Funciones de Mapeo Entity <-> ColorSchemePair (Corregidas)

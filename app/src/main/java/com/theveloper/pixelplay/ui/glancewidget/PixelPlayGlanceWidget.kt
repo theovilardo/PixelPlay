@@ -281,11 +281,53 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 
     @Composable
     fun AlbumArtImageGlance(bitmapData: ByteArray?, size: Dp, modifier: GlanceModifier = GlanceModifier, cornerRadius: Dp = 16.dp) {
+        // Use a placeholder initially to avoid UI blocking
+        val defaultImageProvider = ImageProvider(R.drawable.rounded_album_24)
+        
+        // Only decode if we have data
         val imageProvider = bitmapData?.let {
             try {
-                BitmapFactory.decodeByteArray(it, 0, it.size)?.let { bmp -> ImageProvider(bmp) }
-            } catch (e: Exception) { null }
-        } ?: ImageProvider(R.drawable.rounded_album_24)
+                // Create bitmap options to optimize decoding
+                val options = BitmapFactory.Options().apply {
+                    // Decode at a smaller size for the widget (based on the requested size)
+                    val targetSize = size.value.toInt()
+                    if (targetSize > 0) {
+                        // First decode with inJustDecodeBounds=true to check dimensions
+                        inJustDecodeBounds = true
+                        BitmapFactory.decodeByteArray(bitmapData, 0, bitmapData.size, this)
+                        
+                        // Calculate inSampleSize
+                        val width = outWidth
+                        val height = outHeight
+                        var inSampleSize = 1
+                        
+                        if (width > targetSize || height > targetSize) {
+                            val halfWidth = width / 2
+                            val halfHeight = height / 2
+                            
+                            // Calculate the largest inSampleSize value that is a power of 2 and keeps both
+                            // height and width larger than the requested size
+                            while ((halfWidth / inSampleSize) >= targetSize && 
+                                   (halfHeight / inSampleSize) >= targetSize) {
+                                inSampleSize *= 2
+                            }
+                        }
+                        
+                        // Now decode with actual sampling
+                        inJustDecodeBounds = false
+                        inSampleSize = inSampleSize
+                    }
+                }
+                
+                // Perform the actual decoding with the optimized options
+                BitmapFactory.decodeByteArray(bitmapData, 0, bitmapData.size, options)?.let { bmp ->
+                    ImageProvider(bmp)
+                }
+            } catch (e: Exception) {
+                Log.e("AlbumArtImageGlance", "Error decoding bitmap: ${e.message}")
+                null
+            }
+        } ?: defaultImageProvider
 
         Image(
             provider = imageProvider,
