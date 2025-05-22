@@ -300,6 +300,3 @@ data class ImageConfig(
     val offsetX: Dp,
     val offsetY: Dp
 )
-
-// Mantienes tus funciones de formas personalizadas (createHexagonShape, createRoundedTriangleShape, createSemiCircleShape) aquí o en un archivo separado
-// ... (Código de createHexagonShape, createRoundedTriangleShape, createSemiCircleShape)

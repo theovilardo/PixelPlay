@@ -13,6 +13,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.calculateEndPadding
@@ -64,11 +66,11 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import coil.compose.AsyncImage
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.components.GhostFAB
-import com.theveloper.pixelplay.presentation.components.PillCornerRadius
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerUiState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
@@ -81,159 +83,173 @@ data class BottomNavItem(
 )
 
 // Updated MainLayout with improved floating navigation and animations
-@OptIn(ExperimentalMaterial3Api::class)
+// --- MainLayout Modificado ---
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun MainLayout(
-    navController: NavController,
-    playerViewModel: PlayerViewModel = hiltViewModel(),
+    navController: NavHostController,
+    navItems: List<BottomNavItem>,
     content: @Composable (PaddingValues) -> Unit
 ) {
-    val navItems = listOf(
-        BottomNavItem(
-            "Home",
-            painterResource(R.drawable.rounded_home_24),
-            painterResource(R.drawable.rounded_home_24),
-            Screen.Home
-        ),
-        BottomNavItem(
-            "Search",
-            painterResource(R.drawable.rounded_search_24),
-            painterResource(R.drawable.rounded_search_24),
-            Screen.Search
-        ),
-        BottomNavItem(
-            "Library",
-            painterResource(R.drawable.rounded_library_music_24),
-            painterResource(R.drawable.rounded_library_music_24),
-            Screen.Library
-        )
-    )
-
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
-    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState() // Para el estado del reproductor
-    val showBottomBar = currentRoute != null
-    val bottomBarBlackList = listOf(
-        Screen.PlaylistDetail.route,
-        Screen.Settings.route
-    )
-    val isSheetVisible by playerViewModel.isSheetVisible.collectAsState()
-
-    val topPlayerEnabledCorners by animateDpAsState(
-        targetValue = if ((isSheetVisible || stablePlayerState.isPlaying) || navController.currentDestination?.route == Screen.Library.route) 12.dp else 60.dp,
-        label = "navBarCornerAnimation" // Rótulo opcional para ferramentas de depuração
-    )
-
-    // Actualizar la altura de la bottom bar en el ViewModel cuando cambie
-    LaunchedEffect(showBottomBar) {
-        if (!showBottomBar) {
-            playerViewModel.updateBottomBarHeight(0)
-        }
-        // Si showBottomBar se vuelve true, onSizeChanged de la NavigationBar lo actualizará.
-    }
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        // Main content
-        Scaffold(
-            bottomBar = {
-                AnimatedVisibility(
-                    visible = (!bottomBarBlackList.contains(navController.currentDestination?.route)) && showBottomBar,
-                    enter = fadeIn() + slideInVertically { it },
-                    exit = fadeOut() + slideOutVertically { it }
-                ) {
-                    val barCorners = 70.dp
-                    //val topPlayerEnabledCorners = 12.dp // if (stablePlayerState.isPlaying) 12.dp else 70.dp
-                    Box(
-                        modifier = Modifier
-                            .padding(end = 22.dp, start = 22.dp, bottom = 0.dp)
-                            .navigationBarsPadding()
-                            .shadow(
-                                elevation = 3.0.dp,
-                                shape = AbsoluteSmoothCornerShape(
-                                    cornerRadiusTL = topPlayerEnabledCorners,
-                                    smoothnessAsPercentTL = 60,
-                                    cornerRadiusBL = barCorners,
-                                    smoothnessAsPercentBL = 60,
-                                    cornerRadiusBR = barCorners,
-                                    smoothnessAsPercentBR = 60,
-                                    cornerRadiusTR = topPlayerEnabledCorners,
-                                    smoothnessAsPercentTR = 60
-                                )
-                            )
-                            .background(
-                                color = NavigationBarDefaults.containerColor,
-                                shape = AbsoluteSmoothCornerShape(
-                                    cornerRadiusTL = topPlayerEnabledCorners,
-                                    smoothnessAsPercentTL = 60,
-                                    cornerRadiusBL = barCorners,
-                                    smoothnessAsPercentBL = 60,
-                                    cornerRadiusBR = barCorners,
-                                    smoothnessAsPercentBR = 60,
-                                    cornerRadiusTR = topPlayerEnabledCorners,
-                                    smoothnessAsPercentTR = 60
-                                )
-                            )
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .onSizeChanged { size ->
-                                    playerViewModel.updateBottomBarHeight(size.height) // Reportar altura en Px
-                                },
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            navItems.forEach { item ->
-                                val isSelected = currentRoute == item.screen.route
-                                val icon = if (isSelected) item.selectedIcon ?: item.icon else item.icon
-                                NavigationBarItem(
-                                    modifier = Modifier
-                                        .align(Alignment.CenterVertically)
-                                        .padding(top = 2.dp),
-                                    selected = isSelected,
-                                    onClick = {
-                                        navController.navigate(item.screen.route) {
-                                            // 1) Limpia TODO el back-stack (incluyendo la 'raíz')
-                                            popUpTo(navController.graph.id) {
-                                                inclusive = true     // elimina TODO lo anterior
-                                                saveState = false
-                                            }
-                                            // 2) Evita duplicados
-                                            launchSingleTop = true
-                                            // 3) No recuperes absolutamente ningún estado previo
-                                            restoreState = false
-                                        }
-                                    },
-                                    icon = {
-                                        Icon(
-                                            painter = item.icon,
-                                            contentDescription = item.label
-                                        )
-                                    },
-                                    enabled = true,
-                                    label = {
-                                        Text(item.label)
-                                    },
-                                    alwaysShowLabel = true
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            floatingActionButtonPosition = FabPosition.Center, // Posición estándar del FAB
-            containerColor = MaterialTheme.colorScheme.background
-        ) { innerPadding ->
-
-            val contentPadding = PaddingValues(
-                top = innerPadding.calculateTopPadding(),
-                start = innerPadding.calculateStartPadding(LayoutDirection.Ltr),
-                end = innerPadding.calculateEndPadding(LayoutDirection.Ltr),
-                //bottom = bottomPadding
-            )
-
-            // Render main content
-            content(contentPadding)
-        }
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background
+    ) { innerPadding ->
+        content(innerPadding) // El contenido principal de la app
     }
 }
+
+//@OptIn(ExperimentalMaterial3Api::class)
+//@Composable
+//fun MainLayout(
+//    navController: NavController,
+//    playerViewModel: PlayerViewModel = hiltViewModel(),
+//    content: @Composable (PaddingValues) -> Unit
+//) {
+//    val navItems = listOf(
+//        BottomNavItem(
+//            "Home",
+//            painterResource(R.drawable.rounded_home_24),
+//            painterResource(R.drawable.rounded_home_24),
+//            Screen.Home
+//        ),
+//        BottomNavItem(
+//            "Search",
+//            painterResource(R.drawable.rounded_search_24),
+//            painterResource(R.drawable.rounded_search_24),
+//            Screen.Search
+//        ),
+//        BottomNavItem(
+//            "Library",
+//            painterResource(R.drawable.rounded_library_music_24),
+//            painterResource(R.drawable.rounded_library_music_24),
+//            Screen.Library
+//        )
+//    )
+//
+//    val navBackStackEntry by navController.currentBackStackEntryAsState()
+//    val currentRoute = navBackStackEntry?.destination?.route
+//    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState() // Para el estado del reproductor
+//    val showBottomBar = currentRoute != null
+//    val bottomBarBlackList = listOf(
+//        Screen.PlaylistDetail.route,
+//        Screen.Settings.route
+//    )
+//    val isSheetVisible by playerViewModel.isSheetVisible.collectAsState()
+//
+//    val topPlayerEnabledCorners by animateDpAsState(
+//        targetValue = if ((isSheetVisible || stablePlayerState.isPlaying) || navController.currentDestination?.route == Screen.Library.route) 12.dp else 60.dp,
+//        label = "navBarCornerAnimation" // Rótulo opcional para ferramentas de depuração
+//    )
+//
+//    // Actualizar la altura de la bottom bar en el ViewModel cuando cambie
+//    LaunchedEffect(showBottomBar) {
+//        if (!showBottomBar) {
+//            playerViewModel.updateBottomBarHeight(0)
+//        }
+//        // Si showBottomBar se vuelve true, onSizeChanged de la NavigationBar lo actualizará.
+//    }
+//
+//    Box(modifier = Modifier.fillMaxSize()) {
+//        // Main content
+//        Scaffold(
+//            bottomBar = {
+//                AnimatedVisibility(
+//                    visible = (!bottomBarBlackList.contains(navController.currentDestination?.route)) && showBottomBar,
+//                    enter = fadeIn() + slideInVertically { it },
+//                    exit = fadeOut() + slideOutVertically { it }
+//                ) {
+//                    val barCorners = 70.dp
+//                    Box(
+//                        modifier = Modifier
+//                            .padding(end = 22.dp, start = 22.dp, bottom = 0.dp)
+//                            .navigationBarsPadding()
+//                            .shadow(
+//                                elevation = 3.0.dp,
+//                                shape = AbsoluteSmoothCornerShape(
+//                                    cornerRadiusTL = topPlayerEnabledCorners,
+//                                    smoothnessAsPercentTL = 60,
+//                                    cornerRadiusBL = barCorners,
+//                                    smoothnessAsPercentBL = 60,
+//                                    cornerRadiusBR = barCorners,
+//                                    smoothnessAsPercentBR = 60,
+//                                    cornerRadiusTR = topPlayerEnabledCorners,
+//                                    smoothnessAsPercentTR = 60
+//                                )
+//                            )
+//                            .background(
+//                                color = NavigationBarDefaults.containerColor,
+//                                shape = AbsoluteSmoothCornerShape(
+//                                    cornerRadiusTL = topPlayerEnabledCorners,
+//                                    smoothnessAsPercentTL = 60,
+//                                    cornerRadiusBL = barCorners,
+//                                    smoothnessAsPercentBL = 60,
+//                                    cornerRadiusBR = barCorners,
+//                                    smoothnessAsPercentBR = 60,
+//                                    cornerRadiusTR = topPlayerEnabledCorners,
+//                                    smoothnessAsPercentTR = 60
+//                                )
+//                            )
+//                    ) {
+//                        Row(
+//                            modifier = Modifier
+//                                .fillMaxWidth()
+//                                .onSizeChanged { size ->
+//                                    playerViewModel.updateBottomBarHeight(size.height) // Reportar altura en Px
+//                                },
+//                            horizontalArrangement = Arrangement.SpaceBetween,
+//                            verticalAlignment = Alignment.CenterVertically
+//                        ) {
+//                            navItems.forEach { item ->
+//                                val isSelected = currentRoute == item.screen.route
+//                                val icon = if (isSelected) item.selectedIcon ?: item.icon else item.icon
+//                                NavigationBarItem(
+//                                    modifier = Modifier
+//                                        .align(Alignment.CenterVertically)
+//                                        .padding(top = 2.dp),
+//                                    selected = isSelected,
+//                                    onClick = {
+//                                        navController.navigate(item.screen.route) {
+//                                            // 1) Limpia TODO el back-stack (incluyendo la 'raíz')
+//                                            popUpTo(navController.graph.id) {
+//                                                inclusive = true     // elimina TODO lo anterior
+//                                                saveState = false
+//                                            }
+//                                            // 2) Evita duplicados
+//                                            launchSingleTop = true
+//                                            // 3) No recuperes absolutamente ningún estado previo
+//                                            restoreState = false
+//                                        }
+//                                    },
+//                                    icon = {
+//                                        Icon(
+//                                            painter = item.icon,
+//                                            contentDescription = item.label
+//                                        )
+//                                    },
+//                                    enabled = true,
+//                                    label = {
+//                                        Text(item.label)
+//                                    },
+//                                    alwaysShowLabel = true
+//                                )
+//                            }
+//                        }
+//                    }
+//                }
+//            },
+//            floatingActionButtonPosition = FabPosition.Center, // Posición estándar del FAB
+//            containerColor = MaterialTheme.colorScheme.background
+//        ) { innerPadding ->
+//
+//            val contentPadding = PaddingValues(
+//                top = innerPadding.calculateTopPadding(),
+//                start = innerPadding.calculateStartPadding(LayoutDirection.Ltr),
+//                end = innerPadding.calculateEndPadding(LayoutDirection.Ltr),
+//                //bottom = bottomPadding
+//            )
+//
+//            // Render main content
+//            content(contentPadding)
+//        }
+//    }
+//}

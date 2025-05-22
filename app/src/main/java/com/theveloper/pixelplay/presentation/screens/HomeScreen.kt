@@ -60,14 +60,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import coil.compose.AsyncImage
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.AlbumArtCollage3
 import com.theveloper.pixelplay.presentation.components.GradientTopBar
+import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
+import com.theveloper.pixelplay.presentation.components.NavBarPersistentHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
-
+import kotlinx.coroutines.flow.map
 
 // Modern HomeScreen with collapsible top bar and staggered grid layout
 @OptIn(ExperimentalMaterial3Api::class)
@@ -78,15 +79,19 @@ fun HomeScreen(
     playerViewModel: PlayerViewModel = hiltViewModel(),
     updateScrollState: (Boolean) -> Unit = {}
 ) {
-    val uiState by playerViewModel.playerUiState.collectAsState()
+    val currentUiState by playerViewModel.stablePlayerState.collectAsState()
+    val playerUiState by playerViewModel.playerUiState.collectAsState()
     val scrollState = rememberLazyListState()
 
-    // Extraer las URIs de los últimos 4 reproducidos
-    val recentUris = uiState.allSongs.take(6).map { it.albumArtUri }
+    // Calculate recentUris for YourMixHeader, remembered against changes in STABLE allSongs list
+    val recentUrisForHeader = remember(playerUiState.allSongs) {
+        playerUiState.allSongs.take(6).map { it.albumArtUri }
+    }
 
-    val bottomBarHeigh = playerViewModel.bottomBarHeight.collectAsState()
+    //testing padding inferior
+    val isPlayerVsisibleBottomPadding = if (currentUiState.currentSong != null) MiniPlayerHeight else 0.dp
 
-    if (uiState.allSongs.isEmpty()) {
+    if (playerUiState.allSongs.isEmpty()) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -108,7 +113,7 @@ fun HomeScreen(
                 )
             }
         }
-    } else if (uiState.allSongs.isEmpty()) {
+    } else if (playerUiState.allSongs.isEmpty()) {
         EmptyMusicView(paddingValues = paddingValuesParent)
     } else {
         Scaffold(
@@ -135,20 +140,17 @@ fun HomeScreen(
                     ),
                 contentPadding = PaddingValues(
                     top = paddingValues.calculateTopPadding(),
-                    bottom = paddingValuesParent.calculateBottomPadding() + bottomBarHeigh.value.dp + 48.dp
+                    bottom = paddingValuesParent.calculateBottomPadding() + 18.dp + NavBarPersistentHeight + isPlayerVsisibleBottomPadding//+ bottomBarHeigh.value.dp + 48.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 // Large "Your Mix" header with play button
                 item {
                     YourMixHeader(
-                        playerViewModel = playerViewModel,
+                        albumArtUris = recentUrisForHeader,
                         onPlayRandomSong = {
-                            // Play a random song when the big play button is clicked
-                            val randomSong = uiState.allSongs.firstOrNull()
-                            randomSong?.let {
-                                //playerViewModel.playSong(it)
-                            }
+                            //make it grab song from Your Mix
+                            playerViewModel.playPause()
                         }
                     )
                 }
@@ -158,7 +160,7 @@ fun HomeScreen(
                     AlbumArtCollage3(
                         modifier = Modifier
                             .fillMaxWidth(),
-                        albumArts = recentUris,
+                        albumArts = recentUrisForHeader,
                         padding = 14.dp,
                         height = 400.dp,
                     )
@@ -168,17 +170,17 @@ fun HomeScreen(
                     FeaturedPlaylistsSection()
                 }
 
-//                item {
-//                    MoodBasedSection(
-//                        songs = uiState.allSongs.take(5),
-//                        playerViewModel = playerViewModel,
-//                        navController = navController
-//                    )
-//                }
+                item {
+                    MoodBasedSection(
+                        songs = playerUiState.allSongs.take(5),
+                        playerViewModel = playerViewModel,
+                        navController = navController
+                    )
+                }
 
                 item {
                     DailyMixSection(
-                        songs = uiState.allSongs.take(10),
+                        songs = playerUiState.allSongs.take(10),
                         playerViewModel = playerViewModel,
                         navController = navController
                     )
@@ -190,19 +192,21 @@ fun HomeScreen(
 
 @Composable
 fun YourMixHeader(
-    playerViewModel: PlayerViewModel,
+    albumArtUris: List<Uri?>,
     onPlayRandomSong: () -> Unit
 ) {
+    val recentUris = albumArtUris
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(210.dp)
-            //.background(Color.Black)
             .padding(16.dp)
     ) {
         Column(
             modifier = Modifier
                 .align(Alignment.TopStart)
+                //.width(160.dp)
                 .padding(top = 48.dp, start = 16.dp)
         ) {
             // Your Mix Title
@@ -211,7 +215,7 @@ fun YourMixHeader(
                 style = MaterialTheme.typography.displayLarge.copy(
                     fontWeight = FontWeight.Bold,
                     lineHeight = 56.sp,
-                    letterSpacing = (-1).sp
+                    letterSpacing = (1).sp
                 ),
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier
@@ -225,7 +229,6 @@ fun YourMixHeader(
                 modifier = Modifier
             )
         }
-
         // Play Button
         Box(
             modifier = Modifier
@@ -452,94 +455,18 @@ fun MoodBasedSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(end = 16.dp)
         ) {
-            items(songs) { song ->
-                MoodSongCard(
+            items(songs, key = { song -> song.id }) { song ->
+                SongListItemFavsWrapper(
                     song = song,
+                    playerViewModel = playerViewModel,
                     onClick = {
-                        //playerViewModel.loadAndPlaySong(song)
-                        playerViewModel.showAndPlaySong(song) // Llama a la nueva función
+                        playerViewModel.playSongs(
+                            startSong = song,
+                            songsToPlay = songs,
+                            queueName = "SongListItemFavsWrapper"
+                        )
                         //navController.navigate(Screen.Player.createRoute(song.id))
                     }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun MoodSongCard(
-    song: Song,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .width(180.dp)
-            .height(240.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Album art
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
-            ) {
-                SmartImage(
-                    model = song.albumArtUri ?: R.drawable.rounded_album_24,
-                    contentDescription = song.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-//                AsyncImage(
-//                    model = song.albumArtUri ?: R.drawable.rounded_album_24,
-//                    contentDescription = song.title,
-//                    contentScale = ContentScale.Crop,
-//                    modifier = Modifier.fillMaxSize()
-//                )
-
-                // Play button overlay
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .size(48.dp)
-                        .background(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
-                            CircleShape
-                        )
-                        .clickable(onClick = onClick),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.rounded_play_arrow_24),
-                        contentDescription = "Reproducir",
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-
-            // Song info
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp)
-            ) {
-                Text(
-                    text = song.title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Text(
-                    text = song.artist,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -570,8 +497,9 @@ fun DailyMixSection(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-            )
+                containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
+            ),
+            elevation = CardDefaults.elevatedCardElevation(0.dp)
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 // Header with visual elements
@@ -644,26 +572,26 @@ fun DailyMixSection(
 
                 // Song list
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    songs.take(4).forEach { song ->
-                        SongListItem(
+                    songs.take(4).forEach { song -> // Limiting for example, ideally use LazyColumn
+                        SongListItemFavsWrapper(
                             song = song,
+                            playerViewModel = playerViewModel,
                             onClick = {
-                                //playerViewModel.loadAndPlaySong(song)
-                                playerViewModel.showAndPlaySong(song) // Llama a la nueva función
-                                //navController.navigate(Screen.Player.createRoute(song.id))
-                            }
+                                playerViewModel.playSongs(
+                                    songsToPlay = songs,
+                                    startSong = song,
+                                    queueName = "SongListItemFavsWrapper2"
+                                )
+                                // Example: navController.navigate("player_screen/${song.id}")
+                            },
+                            modifier = Modifier.padding(vertical = 4.dp) // Add some padding between items
                         )
                     }
 
                     // "Ver más" button
                     TextButton(
-                        onClick = { /* View more */ },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = MaterialTheme.colorScheme.primary
-                        )
+                        onClick = { /* TODO: Navigate to a screen showing all daily mix songs */ },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
                     ) {
                         Text(
                             text = "Ver todo el Daily Mix",
@@ -757,10 +685,11 @@ fun SongListItem(
 // SongListItem (modificado para aceptar parámetros individuales)
 @Composable
 fun SongListItemFavs(
+    modifier: Modifier = Modifier,
     title: String,
     artist: String,
     albumArtUrl: Uri?,
-    isPlaying: Boolean, // Nuevo parámetro para indicar si esta canción se está reproduciendo
+    isPlaying: Boolean,
     onClick: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
@@ -768,7 +697,9 @@ fun SongListItemFavs(
     val contentColor = if (isPlaying) colors.onPrimaryContainer else colors.onSurface
 
     Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isPlaying) 4.dp else 1.dp)
@@ -824,3 +755,61 @@ fun SongListItemFavs(
         }
     }
 }
+
+// Wrapper Composable for SongListItemFavs to isolate state observation
+// Wrapper Composable for SongListItemFavs to isolate state observation
+@Composable
+fun SongListItemFavsWrapper(
+    song: Song,
+    playerViewModel: PlayerViewModel,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    // 1) Observamos sólo el ID de la canción que está sonando globalmente:
+    val currentPlayingSongId by playerViewModel
+        .stablePlayerState           // StateFlow<PlayerUiState>
+        .map { it.currentSong?.id }  // Flow<String?>
+        .collectAsState(initial = null)
+
+    // 2) Observamos sólo si está sonando o no:
+    val isGlobalPlaying by playerViewModel
+        .stablePlayerState
+        .map { it.isPlaying }    // Flow<Boolean>
+        .collectAsState(initial = false)
+
+    // 3) Derivamos si esta fila corresponde a la canción en reproducción:
+    val isThisSongPlaying = song.id == currentPlayingSongId && isGlobalPlaying
+
+    // 4) Llamamos al presentacional pasándole sólo lo que necesita:
+    SongListItemFavs(
+        modifier      = modifier,
+        title         = song.title,
+        artist        = song.artist,
+        albumArtUrl   = song.albumArtUri,
+        isPlaying     = isThisSongPlaying,
+        onClick       = onClick
+    )
+}
+//@Composable
+//fun SongListItemFavsWrapper(
+//    song: Song,
+//    playerViewModel: PlayerViewModel,
+//    onClick: () -> Unit,
+//    modifier: Modifier = Modifier
+//) {
+//    // Observe only the necessary parts of playerUiState for *this specific song*
+//    val currentPlayingSongId by playerViewModel.playerUiState.map { it.currentSong?.id }.collectAsState(initial = null)
+//    val isGlobalPlaying by playerViewModel.playerUiState.map { it.isPlaying }.collectAsState(initial = false)
+//
+//    val isThisSongPlaying = song.id == currentPlayingSongId && isGlobalPlaying
+//
+//    // Call the presentational Composable with the derived state
+//    SongListItemFavs(
+//        modifier = modifier,
+//        title = song.title,
+//        artist = song.artist,
+//        albumArtUrl = song.albumArtUri,
+//        isPlaying = isThisSongPlaying,
+//        onClick = onClick
+//    )
+//}

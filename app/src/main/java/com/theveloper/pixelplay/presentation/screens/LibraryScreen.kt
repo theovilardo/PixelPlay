@@ -113,6 +113,7 @@ import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.InfiniteGridHandler
 import com.theveloper.pixelplay.presentation.components.InfiniteListHandler
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
+import com.theveloper.pixelplay.presentation.components.NavBarPersistentHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.ColorSchemePair
@@ -159,8 +160,8 @@ fun LibraryScreen(
     val fabState by remember { derivedStateOf { pagerState.currentPage } }
     val transition = updateTransition(targetState = fabState, label = "FAB Transition")
 
-    val bottomBarHeightPx by playerViewModel.bottomBarHeight.collectAsState()
-    val bottomBarHeightDp = with(LocalDensity.current) { bottomBarHeightPx.toDp() }
+    //val bottomBarHeightPx by playerViewModel.bottomBarHeight.collectAsState()
+    val bottomBarHeightDp = NavBarPersistentHeight //with(LocalDensity.current) { bottomBarHeightPx.toDp() }
     val fabBottomMarginIfPlaying = if (stablePlayerState.isPlaying || sheetVisibility) MiniPlayerHeight else 0.dp
     val fabBottomMargin by animateDpAsState(
         targetValue = fabBottomMarginIfPlaying,
@@ -185,7 +186,7 @@ fun LibraryScreen(
 
     Scaffold(
         modifier = Modifier
-            .padding(bottom = paddingValues.calculateBottomPadding())
+            //.padding(bottom = paddingValues.calculateBottomPadding())
             .background(
                 brush = Brush.verticalGradient(
                     listOf(
@@ -199,13 +200,13 @@ fun LibraryScreen(
             TopAppBar(
                 title = {
                     Text(
-                        modifier = Modifier.padding(start = 6.dp),
+                        modifier = Modifier.padding(start = 8.dp),
                         text = "Library",
                         style = MaterialTheme.typography.headlineLargeEmphasized,
-                        fontWeight = FontWeight.Black,
-                        fontFamily = FontFamily.SansSerif,
+                        fontWeight = FontWeight.ExtraBold,
+                        //fontFamily = FontFamily.SansSerif,
                         //fontStyle = FontStyle.Italic,
-                        letterSpacing = 2.sp
+                        letterSpacing = 1.sp
                     )
                 },
                 actions = {
@@ -234,8 +235,8 @@ fun LibraryScreen(
             // FAB con animación morphing según la tab
             MediumFloatingActionButton(
                 modifier = Modifier
-                    .padding(bottom = bottomBarHeightDp + fabBottomMargin,
-                        end = 14.dp
+                    .padding(bottom = fabBottomMargin + bottomBarHeightDp,
+                        end = 12.dp
                     ),
                 shape = AbsoluteSmoothCornerShape(
                     cornerRadiusTL = 26.dp,
@@ -534,10 +535,10 @@ fun LibrarySongsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, bo
     else {
         Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
-                modifier = Modifier.padding(bottom = bottomBarHeight),
+                modifier = Modifier.padding(bottom = bottomBarHeight - 6.dp),
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(top = 8.dp, bottom = MiniPlayerHeight + 96.dp) // Espacio para el FAB
+                contentPadding = PaddingValues(top = 8.dp, bottom = MiniPlayerHeight + bottomBarHeight + 16.dp) // Espacio para el FAB
             ) {
                 item {
                     Box(
@@ -759,7 +760,7 @@ fun LibraryAlbumsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, b
                 modifier = Modifier.padding(bottom = bottomBarHeight),
                 state = gridState,
                 columns = GridCells.Fixed(2), // O GridCells.Adaptive(minSize = 160.dp)
-                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = MiniPlayerHeight + 96.dp), // Espacio para el FAB
+                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = MiniPlayerHeight + bottomBarHeight + 20.dp), // Espacio para el FAB
                 verticalArrangement = Arrangement.spacedBy(14.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {

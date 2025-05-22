@@ -23,9 +23,17 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 
 @SuppressLint("UnrememberedGetBackStackEntry")
 @Composable
-fun AppNavigation(playerViewModel: PlayerViewModel, navController: NavHostController) {
+fun AppNavigation(
+    playerViewModel: PlayerViewModel,
+    navController: NavHostController,
+    navItems: List<BottomNavItem>
+) {
     //val navController = rememberNavController()
-    MainLayout(navController = navController) { paddingValues -> // paddingValues del Scaffold principal
+    MainLayout(
+        navController = navController,
+        navItems = navItems,
+        //bottomBarBlackList = bottomBarBlackList
+    ) { paddingValues -> // paddingValues del Scaffold principal
         NavHost(navController = navController, startDestination = Screen.Home.route) {
             composable(Screen.Home.route) {
                 // Compartir mismo ViewModel entre pantallas

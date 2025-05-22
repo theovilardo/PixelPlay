@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -51,10 +52,13 @@ import androidx.navigation.compose.rememberNavController
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import com.theveloper.pixelplay.data.service.MusicService
+import com.theveloper.pixelplay.presentation.components.CollapsedPlayerContentSpacerHeight
 import com.theveloper.pixelplay.presentation.components.LoadingScreen
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
+import com.theveloper.pixelplay.presentation.components.NavBarPersistentHeight
 import com.theveloper.pixelplay.presentation.components.UnifiedPlayerSheet
 import com.theveloper.pixelplay.presentation.navigation.AppNavigation
+import com.theveloper.pixelplay.presentation.navigation.BottomNavItem
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
@@ -85,86 +89,60 @@ class MainActivity : ComponentActivity() {
         checkAndRequestPermissions()
         setContent {
             val playerViewModel: PlayerViewModel = hiltViewModel()
-            val isThemePreloadComplete by playerViewModel.isInitialThemePreloadComplete.collectAsState()
-            var isReadyThemePreload by remember { mutableStateOf(false) }
-            LaunchedEffect(Unit) {
-                playerViewModel.isInitialThemePreloadComplete
-                    .first { it }
-                isReadyThemePreload = true
-            }
-            val globalColorSchemePairForApp by playerViewModel.activeGlobalColorSchemePair.collectAsState()
-            val playerSpecificColorSchemePairForSheet by playerViewModel.activePlayerColorSchemePair.collectAsState()
             val useDarkTheme = isSystemInDarkTheme()
+            val appGlobalTheme = if (useDarkTheme) DarkColorScheme else LightColorScheme
 
-            val appGlobalTheme = globalColorSchemePairForApp?.let {
-                if (useDarkTheme) it.dark else it.light
-            } ?: if (useDarkTheme) DarkColorScheme else LightColorScheme
+            val globalColorSchemePairForApp by playerViewModel.activeGlobalColorSchemePair.collectAsState()
 
             PixelPlayTheme(
                 darkTheme = useDarkTheme,
                 colorSchemePairOverride = globalColorSchemePairForApp
             ) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    if (!isReadyThemePreload) {
-                        LoadingScreen("Preparando tu biblioteca...")
-                    } else {
-                        val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
-                        val isSheetVisible by playerViewModel.isSheetVisible.collectAsState()
-                        val currentSheetState by playerViewModel.sheetState.collectAsState()
-                        val bottomBarHeightPx by playerViewModel.bottomBarHeight.collectAsState()
-                        val navController = rememberNavController()
+                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState() // Para initialY
+                    val navController = rememberNavController()
+                    val commonNavItems = listOf(
+                        BottomNavItem("Home", painterResource(id = R.drawable.rounded_home_24), painterResource(id = R.drawable.rounded_home_24), Screen.Home),
+                        BottomNavItem("Search", painterResource(id = R.drawable.rounded_search_24), painterResource(id = R.drawable.rounded_search_24), Screen.Search),
+                        BottomNavItem("Library", painterResource(id = R.drawable.rounded_library_music_24), painterResource(id = R.drawable.rounded_library_music_24), Screen.Library)
+                    )
 
-                        val playerBlackListDestinations = listOf(
-                            Screen.Settings.route
-                        )
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        AppNavigation(playerViewModel = playerViewModel, navController = navController, navItems = commonNavItems)
 
-                        Box(modifier = Modifier.fillMaxSize()) {
-                            AppNavigation(playerViewModel = playerViewModel, navController = navController)
+                        // UnifiedPlayerSheet AHORA SE COMPONE SIEMPRE
+                        val density = LocalDensity.current
+                        val configuration = LocalConfiguration.current
+                        val screenHeightPx = remember(configuration) { with(density) { configuration.screenHeightDp.dp.toPx() } }
+                        val collapsedStateBottomMargin = 22.dp // AJUSTA ESTE VALOR SEGÚN TU DISEÑO
 
-                            if ((isSheetVisible && stablePlayerState.currentSong != null) || stablePlayerState.isPlaying) {
-                                val density = LocalDensity.current
-                                val configuration = LocalConfiguration.current
-                                val screenHeightPx = remember(configuration) { with(density) { configuration.screenHeightDp.dp.toPx() } }
-                                val miniPlayerHeightPx = remember { with(density) { MiniPlayerHeight.toPx() } }
-                                val restingTargetTranslationY = if (currentSheetState == PlayerSheetState.EXPANDED) 0f else (screenHeightPx - miniPlayerHeightPx - bottomBarHeightPx)
-                                //val restingTargetTranslationY = if (currentSheetState == PlayerSheetState.EXPANDED) { 0f } else { screenHeightPx - miniPlayerHeightPx - bottomBarHeightPx }
+                        val navBarH = with(density) { NavBarPersistentHeight.toPx() }
+                        val collapsedMarginPx = with(density) { collapsedStateBottomMargin.toPx() }
 
-                                // Envolver UnifiedPlayerSheet en su propio MaterialTheme para aplicar su tema específico
-                                //val playerThemeToApply = if (useDarkTheme) playerSpecificColorSchemePair.dark else playerSpecificColorSchemePair.light
-                                val collapsedBottomMarginPx = 30.dp //with(density) { 36.dp.toPx() }
-                                // Determinar el tema específico para el reproductor
-                                val playerThemeToApply = playerSpecificColorSchemePairForSheet?.let {
-                                    if (useDarkTheme) it.dark else it.light
-                                } ?: appGlobalTheme // Fallback al tema global de la app si el específico del player es null
-                                MaterialTheme(
-                                    colorScheme = playerThemeToApply
-                                ){
-                                    if (!(playerBlackListDestinations.contains(navController.currentDestination?.route))) {
-                                        UnifiedPlayerSheet(
-                                            playerViewModel = playerViewModel,
-                                            initialTargetTranslationY = restingTargetTranslationY,
-                                            collapsedStateHorizontalPadding = 22.dp,
-                                            collapsedStateBottomMargin = collapsedBottomMarginPx
-                                        )
-                                    }
-                                }
-//                                PixelPlayTheme(
-//                                    darkTheme = useDarkTheme,
-//                                    colorSchemePairOverride = playerSpecificColorSchemePairForSheet // Puede ser null
-//                                ){
-//                                    if (!(playerBlackListDestinations.contains(navController.currentDestination?.route))) {
-//                                        UnifiedPlayerSheet(
-//                                            playerViewModel = playerViewModel,
-//                                            initialTargetTranslationY = restingTargetTranslationY,
-//                                            collapsedStateHorizontalPadding = 22.dp,
-//                                            collapsedStateBottomMargin = collapsedBottomMarginPx
-//                                        )
-//                                    }
-//                                }
-                            }
+                        // Determinar si hay contenido de player al inicio (podría venir de un estado restaurado)
+                        val showPlayerContentInitially = stablePlayerState.currentSong != null
+                        val miniPlayerH = with(density) { MiniPlayerHeight.toPx() }
+                        val spacerH = with(density) { CollapsedPlayerContentSpacerHeight.toPx() }
+
+                        val initialContentHeightPx = if (showPlayerContentInitially) miniPlayerH + spacerH else 0f
+                        val initialTotalSheetHeightPx = initialContentHeightPx + navBarH
+
+                        val initialY = screenHeightPx - initialTotalSheetHeightPx - collapsedMarginPx
+
+                        val playerSheetTheme = playerViewModel.activePlayerColorSchemePair.value?.let {
+                            if (useDarkTheme) it.dark else it.light
+                        } ?: appGlobalTheme
+
+                        PixelPlayTheme(
+                            darkTheme = useDarkTheme,
+                            colorSchemePairOverride = globalColorSchemePairForApp
+                        ) {
+                            UnifiedPlayerSheet(
+                                playerViewModel = playerViewModel, navController = navController, navItems = commonNavItems,
+                                initialTargetTranslationY = initialY,
+                                collapsedStateHorizontalPadding = 22.dp, // AJUSTA ESTE VALOR
+                                collapsedStateBottomMargin = collapsedStateBottomMargin,
+                            )
                         }
                     }
                 }
@@ -173,7 +151,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun isMusicServiceRunning(): Boolean {
-        val manager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val manager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
         for (service in manager.getRunningServices(Integer.MAX_VALUE)) {
             if (MusicService::class.java.name == service.service.className) {
                 return true
