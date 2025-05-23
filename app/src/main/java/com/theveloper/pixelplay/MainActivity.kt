@@ -101,11 +101,13 @@ class MainActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState() // Para initialY
                     val navController = rememberNavController()
-                    val commonNavItems = listOf(
-                        BottomNavItem("Home", painterResource(id = R.drawable.rounded_home_24), painterResource(id = R.drawable.rounded_home_24), Screen.Home),
-                        BottomNavItem("Search", painterResource(id = R.drawable.rounded_search_24), painterResource(id = R.drawable.rounded_search_24), Screen.Search),
-                        BottomNavItem("Library", painterResource(id = R.drawable.rounded_library_music_24), painterResource(id = R.drawable.rounded_library_music_24), Screen.Library)
-                    )
+                    val commonNavItems = remember {
+                        listOf(
+                            BottomNavItem("Home", R.drawable.rounded_home_24, R.drawable.rounded_home_24, Screen.Home),
+                            BottomNavItem("Search", R.drawable.rounded_search_24, R.drawable.rounded_search_24, Screen.Search),
+                            BottomNavItem("Library", R.drawable.rounded_library_music_24, R.drawable.rounded_library_music_24, Screen.Library)
+                        )
+                    }
 
                     Box(modifier = Modifier.fillMaxSize()) {
                         AppNavigation(playerViewModel = playerViewModel, navController = navController, navItems = commonNavItems)

@@ -75,10 +75,14 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerUiState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
+import androidx.annotation.DrawableRes
+import androidx.compose.runtime.Immutable
+
+@Immutable // Explicitly mark as immutable for Compose compiler, good practice
 data class BottomNavItem(
     val label: String,
-    val icon: Painter,
-    val selectedIcon: Painter? = null,
+    @DrawableRes val iconResId: Int, // Changed from Painter to Int ResId
+    @DrawableRes val selectedIconResId: Int? = null, // Changed from Painter to Int ResId
     val screen: Screen
 )
 
@@ -108,20 +112,20 @@ fun MainLayout(
 //    val navItems = listOf(
 //        BottomNavItem(
 //            "Home",
-//            painterResource(R.drawable.rounded_home_24),
-//            painterResource(R.drawable.rounded_home_24),
+//            R.drawable.rounded_home_24,
+//            R.drawable.rounded_home_24,
 //            Screen.Home
 //        ),
 //        BottomNavItem(
 //            "Search",
-//            painterResource(R.drawable.rounded_search_24),
-//            painterResource(R.drawable.rounded_search_24),
+//            R.drawable.rounded_search_24,
+//            R.drawable.rounded_search_24,
 //            Screen.Search
 //        ),
 //        BottomNavItem(
 //            "Library",
-//            painterResource(R.drawable.rounded_library_music_24),
-//            painterResource(R.drawable.rounded_library_music_24),
+//            R.drawable.rounded_library_music_24,
+//            R.drawable.rounded_library_music_24,
 //            Screen.Library
 //        )
 //    )
@@ -201,7 +205,7 @@ fun MainLayout(
 //                        ) {
 //                            navItems.forEach { item ->
 //                                val isSelected = currentRoute == item.screen.route
-//                                val icon = if (isSelected) item.selectedIcon ?: item.icon else item.icon
+//                                val icon = if (isSelected) item.selectedIconResId ?: item.iconResId else item.iconResId
 //                                NavigationBarItem(
 //                                    modifier = Modifier
 //                                        .align(Alignment.CenterVertically)
@@ -222,7 +226,7 @@ fun MainLayout(
 //                                    },
 //                                    icon = {
 //                                        Icon(
-//                                            painter = item.icon,
+//                                            painter = painterResource(icon),
 //                                            contentDescription = item.label
 //                                        )
 //                                    },

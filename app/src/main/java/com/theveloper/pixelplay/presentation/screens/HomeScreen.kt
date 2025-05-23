@@ -160,113 +160,6 @@ fun HomeScreen(
     }
 }
 
-//@OptIn(ExperimentalMaterial3Api::class)
-//@Composable
-//fun HomeScreen(
-//    navController: NavController,
-//    paddingValuesParent: PaddingValues,
-//    playerViewModel: PlayerViewModel = hiltViewModel()
-//) {
-//    val currentUiState by playerViewModel.stablePlayerState.collectAsState()
-//    val playerUiState by playerViewModel.playerUiState.collectAsState()
-//    val scrollState = rememberLazyListState()
-//
-//    // Calculate recentUris for YourMixHeader, remembered against changes in STABLE allSongs list
-//    val recentUrisForHeader = remember(playerUiState.allSongs) {
-//        playerUiState.allSongs.take(6).map { it.albumArtUri }
-//    }
-//
-//    //testing padding inferior
-//    val isPlayerVsisibleBottomPadding = if (currentUiState.currentSong != null) MiniPlayerHeight else 0.dp
-//
-//    if (playerUiState.allSongs.isEmpty()) {
-//        Box(
-//            modifier = Modifier
-//                .fillMaxSize()
-//                .padding(paddingValuesParent),
-//            contentAlignment = Alignment.Center
-//        ) {
-//            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-//                CircularProgressIndicator(
-//                    color = MaterialTheme.colorScheme.primary,
-//                    modifier = Modifier.size(48.dp)
-//                )
-//
-//                Spacer(modifier = Modifier.height(16.dp))
-//
-//                Text(
-//                    "Cargando tu música...",
-//                    style = MaterialTheme.typography.bodyLarge,
-//                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
-//                )
-//            }
-//        }
-//    } else if (playerUiState.allSongs.isEmpty()) {
-//        EmptyMusicView(paddingValues = paddingValuesParent)
-//    } else {
-//        Scaffold(
-//            modifier = Modifier
-//                .fillMaxSize()
-//                .background(MaterialTheme.colorScheme.background),
-//            topBar = {
-//                GradientTopBar(
-//                    navController = navController
-//                )
-//            }
-//        ) { paddingValues ->
-//            LazyColumn(
-//                state = scrollState,
-//                modifier = Modifier
-//                    .fillMaxSize()
-//                    .background(
-//                        brush = Brush.verticalGradient(
-//                            colors = listOf(
-//                                MaterialTheme.colorScheme.background,
-//                                MaterialTheme.colorScheme.background
-//                            )
-//                        )
-//                    ),
-//                contentPadding = PaddingValues(
-//                    top = paddingValues.calculateTopPadding(),
-//                    bottom = paddingValuesParent.calculateBottomPadding() + 18.dp + NavBarPersistentHeight + isPlayerVsisibleBottomPadding//+ bottomBarHeigh.value.dp + 48.dp
-//                ),
-//                verticalArrangement = Arrangement.spacedBy(24.dp)
-//            ) {
-//                // Large "Your Mix" header with play button
-//                item {
-//                    YourMixHeader(
-//                        albumArtUris = recentUrisForHeader,
-//                        isPlatyingAndCsNotNull = false,
-//                        onPlayRandomSong = {
-//                            //make it grab song from Your Mix
-//                            playerViewModel.playPause()
-//                        }
-//                    )
-//                }
-//
-//                // Artistic album displays with various shapes
-//                item {
-//                    AlbumArtCollage3(
-//                        modifier = Modifier
-//                            .fillMaxWidth(),
-//                        albumArts = recentUrisForHeader,
-//                        padding = 14.dp,
-//                        height = 400.dp,
-//                    )
-//                }
-//
-//                item {
-//                    DailyMixSection(
-//                        songs = playerUiState.allSongs.take(10),
-//                        playerViewModel = playerViewModel,
-//                        navController = navController
-//                    )
-//                }
-//            }
-//        }
-//    }
-//}
-
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun YourMixHeader(
@@ -520,81 +413,6 @@ fun FeaturedPlaylistsSection() {
     }
 }
 
-//@OptIn(ExperimentalMaterial3Api::class)
-//@Composable
-//fun MoodBasedSection(
-//    songs: List<Song>,
-//    playerViewModel: PlayerViewModel,
-//    navController: NavController
-//) {
-//    // 1. Observar una única vez todo playerUiState
-//    val uiState by playerViewModel.stablePlayerState.collectAsState()
-//
-//    // 2. Creamos el estado del carrusel; la lambda se invoca solo cuando cambia `songs.size`
-//    val carouselState = rememberCarouselState(itemCount = { songs.size })
-//
-//    Column(
-//        modifier = Modifier
-//            .fillMaxWidth()
-//            .padding(horizontal = 16.dp)
-//    ) {
-//        SectionHeader(
-//            title = "Para Relajarse",
-//            showViewAll = true,
-//            onViewAllClick = { /* navegar a la pantalla mood */ }
-//        )
-//
-//        Spacer(Modifier.height(16.dp))
-//
-//        if (songs.isEmpty()) {
-//            Text(
-//                text = "No hay canciones para relajarse en este momento.",
-//                style = MaterialTheme.typography.bodyMedium,
-//                modifier = Modifier
-//                    .fillMaxWidth()
-//                    .padding(vertical = 16.dp)
-//            )
-//            return
-//        }
-//
-//        HorizontalMultiBrowseCarousel(
-//            state = carouselState,
-//            modifier = Modifier.fillMaxWidth(),
-//            preferredItemWidth = 120.dp,
-//            itemSpacing = 10.dp,
-//            flingBehavior = CarouselDefaults.multiBrowseFlingBehavior(state = carouselState),
-//            minSmallItemWidth = 70.dp,
-//            maxSmallItemWidth = 70.dp,
-//            contentPadding = PaddingValues(horizontal = 0.dp)
-//        ) { index ->
-//            // 3. Para cada ítem, cogemos la canción y su estado de reproducción
-//            val song = songs[index]
-//            val isPlaying = uiState.currentSong?.id == song.id && uiState.isPlaying
-//
-//            // 4. Memoizamos el callback de click por canción
-//            val onClick = remember(song) {
-//                {
-//                    playerViewModel.playSongs(
-//                        songsToPlay = songs,
-//                        startSong = song,
-//                        queueName = "MoodBasedSection"
-//                    )
-//                }
-//            }
-//
-//            // 5. Llamamos al ítem presentacional pasando solo lo necesario
-//            SongListItemFavs(
-//                modifier = Modifier.width(120.dp),
-//                title = song.title,
-//                artist = song.artist,
-//                albumArtUrl = song.albumArtUri,
-//                isPlaying = isPlaying,
-//                onClick = onClick
-//            )
-//        }
-//    }
-//}
-
 
 // SongListItem (modificado para aceptar parámetros individuales)
 @Composable
@@ -616,7 +434,7 @@ fun SongListItemFavs(
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isPlaying) 4.dp else 1.dp)
+        elevation = CardDefaults.cardElevation(0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -631,14 +449,6 @@ fun SongListItemFavs(
                 shape = RoundedCornerShape(8.dp),
                 modifier = Modifier.size(48.dp)
             )
-//            AsyncImage(
-//                model = albumArtUrl ?: Icons.Filled.MusicNote,
-//                contentDescription = "Carátula de $title",
-//                modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp))
-//                    .background(colors.onSurface.copy(alpha = 0.1f)),
-//                contentScale = ContentScale.Crop,
-//                //error = { Icon(Icons.Filled.MusicNote, "Carátula", modifier = Modifier.size(48.dp), tint = contentColor.copy(alpha = 0.7f)) }
-//            )
             Spacer(Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(

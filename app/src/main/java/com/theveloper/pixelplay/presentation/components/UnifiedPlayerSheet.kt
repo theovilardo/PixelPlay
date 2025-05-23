@@ -176,7 +176,8 @@ fun UnifiedPlayerSheet(
 
     val screenHeightPx = remember(configuration) { with(density) { configuration.screenHeightDp.dp.toPx() } }
     val miniPlayerContentHeightPx = remember { with(density) { MiniPlayerHeight.toPx() } }
-    val navBarHeightPx = remember { with(density) { NavBarPersistentHeight.toPx() } }
+    val navBarHeightPx = remember(density, NavBarPersistentHeight) { with(density) { NavBarPersistentHeight.toPx() } }
+    val miniPlayerAndSpacerHeightPx = remember(density, MiniPlayerHeight, CollapsedPlayerContentSpacerHeight) { with(density) { (MiniPlayerHeight + CollapsedPlayerContentSpacerHeight).toPx() } }
     val spacerHeightPx = remember { with(density) { CollapsedPlayerContentSpacerHeight.toPx() } }
 
     val showPlayerContentArea by remember { derivedStateOf { stablePlayerState.currentSong != null } }
@@ -199,7 +200,7 @@ fun UnifiedPlayerSheet(
     }
     val playerContentAreaActualHeightDp = with(density) { playerContentAreaActualHeightPx.toDp() }
 
-    val totalSheetHeightWhenContentCollapsedPx = (if (showPlayerContentArea) miniPlayerContentHeightPx + spacerHeightPx else 0f) + navBarHeightPx
+    val totalSheetHeightWhenContentCollapsedPx = (if (showPlayerContentArea) miniPlayerAndSpacerHeightPx else 0f) + navBarHeightPx
     val animatedTotalSheetHeightPx by remember(showPlayerContentArea, playerContentExpansionFraction, screenHeightPx, totalSheetHeightWhenContentCollapsedPx) {
         derivedStateOf {
             if (showPlayerContentArea) {
@@ -358,12 +359,21 @@ fun UnifiedPlayerSheet(
                     .fillMaxWidth()
                     .height(playerContentAreaActualHeightDp)
                     .background(
-                        color = albumColorScheme?.primaryContainer ?: MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(bottomStart = playerContentActualBottomRadius, bottomEnd = playerContentActualBottomRadius)
+                        color = albumColorScheme?.primaryContainer
+                            ?: MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(
+                            bottomStart = playerContentActualBottomRadius,
+                            bottomEnd = playerContentActualBottomRadius
+                        )
                     )
                     .clipToBounds()
                     // NUEVO: Gestos aplicados solo al área del player
-                    .pointerInput(showPlayerContentArea, sheetCollapsedTargetY, sheetExpandedTargetY, currentSheetContentState) {
+                    .pointerInput(
+                        showPlayerContentArea,
+                        sheetCollapsedTargetY,
+                        sheetExpandedTargetY,
+                        currentSheetContentState
+                    ) {
                         if (!showPlayerContentArea) return@pointerInput
                         var initialFractionOnDragStart = 0f
                         var initialYOnDragStart = 0f
@@ -387,12 +397,19 @@ fun UnifiedPlayerSheet(
                                 scope.launch {
                                     // La traslación Y sigue directamente al dedo
                                     val newY = (currentSheetTranslationY.value + dragAmount)
-                                        .coerceIn(sheetExpandedTargetY - miniPlayerContentHeightPx * 0.2f, sheetCollapsedTargetY + miniPlayerContentHeightPx * 0.2f)
+                                        .coerceIn(
+                                            sheetExpandedTargetY - miniPlayerContentHeightPx * 0.2f,
+                                            sheetCollapsedTargetY + miniPlayerContentHeightPx * 0.2f
+                                        )
                                     currentSheetTranslationY.snapTo(newY)
 
                                     // La fracción de expansión del contenido se calcula basada en la nueva posición Y
-                                    val dragRatio = (initialYOnDragStart - newY) / (sheetCollapsedTargetY - sheetExpandedTargetY).coerceAtLeast(1f)
-                                    val newFraction = (initialFractionOnDragStart + dragRatio).coerceIn(0f, 1f)
+                                    val dragRatio =
+                                        (initialYOnDragStart - newY) / (sheetCollapsedTargetY - sheetExpandedTargetY).coerceAtLeast(
+                                            1f
+                                        )
+                                    val newFraction =
+                                        (initialFractionOnDragStart + dragRatio).coerceIn(0f, 1f)
                                     playerContentExpansionFraction.snapTo(newFraction)
                                 }
                                 velocityTracker.addPosition(change.uptimeMillis, change.position)
@@ -404,8 +421,10 @@ fun UnifiedPlayerSheet(
                                 val currentExpansionFraction = playerContentExpansionFraction.value
 
                                 // CORREGIDO: Umbrales aún más sensibles para evitar rebotes
-                                val minDragThresholdPx = with(density) { 5.dp.toPx() } // Reducido de 8dp a 5dp
-                                val velocityThresholdForInstantTrigger = 150f // Reducido de 200f a 150f
+                                val minDragThresholdPx =
+                                    with(density) { 5.dp.toPx() } // Reducido de 8dp a 5dp
+                                val velocityThresholdForInstantTrigger =
+                                    150f // Reducido de 200f a 150f
 
                                 // CORREGIDO: Lógica de decisión que respeta la intención del gesto
                                 val targetContentState = when {
@@ -430,13 +449,19 @@ fun UnifiedPlayerSheet(
                                         launch {
                                             currentSheetTranslationY.animateTo(
                                                 targetValue = sheetExpandedTargetY,
-                                                animationSpec = tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
+                                                animationSpec = tween(
+                                                    durationMillis = ANIMATION_DURATION_MS,
+                                                    easing = FastOutSlowInEasing
+                                                )
                                             )
                                         }
                                         launch {
                                             playerContentExpansionFraction.animateTo(
                                                 targetValue = 1f,
-                                                animationSpec = tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
+                                                animationSpec = tween(
+                                                    durationMillis = ANIMATION_DURATION_MS,
+                                                    easing = FastOutSlowInEasing
+                                                )
                                             )
                                         }
                                         playerViewModel.expandPlayerSheet()
@@ -444,13 +469,19 @@ fun UnifiedPlayerSheet(
                                         launch {
                                             currentSheetTranslationY.animateTo(
                                                 targetValue = sheetCollapsedTargetY,
-                                                animationSpec = tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
+                                                animationSpec = tween(
+                                                    durationMillis = ANIMATION_DURATION_MS,
+                                                    easing = FastOutSlowInEasing
+                                                )
                                             )
                                         }
                                         launch {
                                             playerContentExpansionFraction.animateTo(
                                                 targetValue = 0f,
-                                                animationSpec = tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
+                                                animationSpec = tween(
+                                                    durationMillis = ANIMATION_DURATION_MS,
+                                                    easing = FastOutSlowInEasing
+                                                )
                                             )
                                         }
                                         playerViewModel.collapsePlayerSheet()
@@ -479,7 +510,7 @@ fun UnifiedPlayerSheet(
                         CompositionLocalProvider(
                             LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
                         ) {
-                            Box(modifier = Modifier.alpha(miniPlayerAlpha)) {
+                            Box(modifier = Modifier.graphicsLayer { alpha = miniPlayerAlpha }) {
                                 MiniPlayerContentInternal(
                                     song = currentSong, isPlaying = stablePlayerState.isPlaying,
                                     onPlayPause = { playerViewModel.playPause() }, onNext = { playerViewModel.nextSong() },
@@ -495,10 +526,15 @@ fun UnifiedPlayerSheet(
                         CompositionLocalProvider(
                             LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
                         ) {
-                            Box(modifier = Modifier.alpha(fullPlayerAlpha)) {
+                            Box(modifier = Modifier.graphicsLayer { alpha = fullPlayerAlpha }) {
                                 FullPlayerContentInternal(
-                                    currentPosition = playerUiState.currentPosition, 
-                                    stablePlayerState = stablePlayerState,
+                                    currentPosition = playerUiState.currentPosition,
+                                    currentSong = stablePlayerState.currentSong,
+                                    isPlaying = stablePlayerState.isPlaying,
+                                    isShuffleEnabled = stablePlayerState.isShuffleEnabled,
+                                    repeatMode = stablePlayerState.repeatMode,
+                                    isFavorite = stablePlayerState.isCurrentSongFavorite,
+                                    totalDuration = stablePlayerState.totalDuration,
                                     onPlayPause = { playerViewModel.playPause() }, onSeek = { playerViewModel.seekTo(it) },
                                     onNext = { playerViewModel.nextSong() }, onPrevious = { playerViewModel.previousSong() },
                                     onCollapse = { playerViewModel.collapsePlayerSheet() }, expansionFraction = playerContentExpansionFraction.value,
@@ -526,23 +562,26 @@ fun UnifiedPlayerSheet(
             // MEJORADO: Navigation bar sin gestos de drag
             val navBarHideFraction = if (showPlayerContentArea) playerContentExpansionFraction.value.pow(2) else 0f
             val navBackStackEntry by navController.currentBackStackEntryAsState()
+            val rememberedCurrentRoute = remember(navBackStackEntry?.destination?.route) {
+                navBackStackEntry?.destination?.route
+            }
+
+            val playerInternalNavBarModifier = remember {
+                Modifier
+                    .fillMaxWidth()
+                    .pointerInput(Unit) {
+                        detectTapGestures { /* Permitir taps normales en nav items */ }
+                    }
+            }
+
             PlayerInternalNavigationBar(
                 navController = navController,
                 navItems = navItems,
-                currentRoute = navBackStackEntry?.destination?.route,
-                topCornersRadius = navBarActualTopRadius,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .graphicsLayer {
-                        //alpha = 1f - navBarHideFraction
-                        translationY = navBarHeightPx * navBarHideFraction
-                    }
-                    // NUEVO: Navigation bar sin interferir con gestos del player
-                    .pointerInput(Unit) {
-                        // Consumir eventos touch para evitar que interfieran con el área del player
-                        // pero permitir navegación normal
-                        detectTapGestures { /* Permitir taps normales en nav items */ }
-                    }
+                currentRoute = rememberedCurrentRoute,
+                topCornersRadiusDp = navBarActualTopRadius,
+                navBarHideFraction = navBarHideFraction,
+                navBarHeightPx = navBarHeightPx,
+                modifier = playerInternalNavBarModifier
             )
         }
     }
@@ -621,7 +660,10 @@ private fun MiniPlayerContentInternal(
                 .background(LocalMaterialTheme.current.primary) //.copy(alpha = 0.2f))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = ripple(bounded = false, color = LocalMaterialTheme.current.onPrimary)
+                    indication = ripple(
+                        bounded = false,
+                        color = LocalMaterialTheme.current.onPrimary
+                    )
                 ) { onPlayPause() },
             contentAlignment = Alignment.Center
         ) {
@@ -643,7 +685,10 @@ private fun MiniPlayerContentInternal(
                 .background(LocalMaterialTheme.current.primary.copy(alpha = 0.2f))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = ripple(bounded = false, color = LocalMaterialTheme.current.onPrimary)
+                    indication = ripple(
+                        bounded = false,
+                        color = LocalMaterialTheme.current.onPrimary
+                    )
                 ) { onNext() },
             contentAlignment = Alignment.Center
         ) {
@@ -665,8 +710,13 @@ private enum class ButtonType {
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun FullPlayerContentInternal(
-    currentPosition: Long, 
-    stablePlayerState: StablePlayerState,
+    currentPosition: Long,
+    currentSong: Song?,
+    isPlaying: Boolean,
+    isShuffleEnabled: Boolean,
+    repeatMode: Int,
+    isFavorite: Boolean,
+    totalDuration: Long,
     onPlayPause: () -> Unit,
     onSeek: (Long) -> Unit,
     onNext: () -> Unit,
@@ -679,17 +729,12 @@ private fun FullPlayerContentInternal(
     onRepeatToggle: () -> Unit,     // ADDED
     onFavoriteToggle: () -> Unit    // ADDED
 ) {
-    val song = stablePlayerState.currentSong ?: return // Obtener canción de stablePlayerState
-
-    // Acceder a los estados de control directamente desde uiState
-    val isShuffleEnabled = stablePlayerState.isShuffleEnabled
-    val repeatMode = stablePlayerState.repeatMode
-    val isFavorite = stablePlayerState.isCurrentSongFavorite
+    val song = currentSong ?: return // Obtener canción de stablePlayerState
 
     // Cálculo de la fracción de progreso
-    val progressFraction = remember(currentPosition, stablePlayerState.totalDuration) { 
+    val progressFraction = remember(currentPosition, totalDuration) { 
         (currentPosition.coerceAtLeast(0).toFloat() / 
-                stablePlayerState.totalDuration.coerceAtLeast(1).toFloat())
+                totalDuration.coerceAtLeast(1).toFloat())
     }.coerceIn(0f, 1f)
 
     Scaffold(
@@ -800,7 +845,7 @@ private fun FullPlayerContentInternal(
                 WavyMusicSlider(
                     value = progressFraction,
                     onValueChange = { frac ->
-                        onSeek((frac * stablePlayerState.totalDuration).roundToLong())
+                        onSeek((frac * totalDuration).roundToLong())
                     },
                     onValueChangeFinished = {
                         // Opcional: acciones cuando el usuario termina de arrastrar
@@ -815,7 +860,7 @@ private fun FullPlayerContentInternal(
                     thumbColor = LocalMaterialTheme.current.primary,
                     waveAmplitude = 3.dp,
                     waveFrequency = 0.08f,
-                    isPlaying = (stablePlayerState.isPlaying && currentSheetState == PlayerSheetState.EXPANDED) // Pasamos el estado de reproducción
+                    isPlaying = (isPlaying && currentSheetState == PlayerSheetState.EXPANDED) // Pasamos el estado de reproducción
                 )
 
                 Row(
@@ -831,7 +876,7 @@ private fun FullPlayerContentInternal(
                         fontSize = 12.sp
                     )
                     Text(
-                        formatDuration(stablePlayerState.totalDuration),
+                        formatDuration(totalDuration),
                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                         color = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f),
                         fontSize = 12.sp
@@ -845,7 +890,7 @@ private fun FullPlayerContentInternal(
             AnimatedPlaybackControls(
                 modifier = Modifier
                     .padding(horizontal = 12.dp, vertical = 8.dp),
-                isPlaying = stablePlayerState.isPlaying,
+                isPlaying = isPlaying,
                 onPrevious = onPrevious,
                 onPlayPause = onPlayPause,
                 onNext = onNext,
