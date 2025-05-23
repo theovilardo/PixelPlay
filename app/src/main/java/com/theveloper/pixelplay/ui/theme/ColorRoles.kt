@@ -1,6 +1,7 @@
 package com.theveloper.pixelplay.ui.theme
 
 import android.graphics.Bitmap
+import android.util.LruCache
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -52,14 +53,50 @@ private fun Color.withChroma(targetChroma: Float): Color {
 private fun Float.toByteInt(): Int = (this * 255f).toInt()
 
 
-// --- Color Scheme Generation ---
+// Cache for extracted colors to avoid repeated palette generation
+private val extractedColorCache = LruCache<Int, Color>(20) // Cache for 20 bitmaps
+
+// --- Optimized Color Scheme Generation ---
 fun extractSeedColor(bitmap: Bitmap): Color {
-    val palette = Palette.from(bitmap).maximumColorCount(24).generate() // Más colores para mejor selección
+    // Generate a hash based on bitmap content for cache key
+    val bitmapHash = bitmap.hashCode()
+    
+    // Check cache first
+    extractedColorCache.get(bitmapHash)?.let { return it }
+    
+    // If not in cache, create a scaled-down version for palette generation
+    // to reduce computation cost
+    val scaledBitmap = if (bitmap.width > 200 || bitmap.height > 200) {
+        val scale = 200f / max(bitmap.width, bitmap.height)
+        val scaledWidth = (bitmap.width * scale).toInt()
+        val scaledHeight = (bitmap.height * scale).toInt()
+        Bitmap.createScaledBitmap(bitmap, scaledWidth, scaledHeight, true)
+    } else {
+        bitmap
+    }
+    
+    // Use fewer colors (16 instead of 24) for faster generation
+    val palette = Palette.Builder(scaledBitmap)
+        .maximumColorCount(16)
+        .resizeBitmapArea(0) // Don't resize again
+        .clearFilters() // Don't apply default filters
+        .generate()
+    
     // Prioridad: Vibrant > Muted > Dominant
-    return palette.vibrantSwatch?.rgb?.let { Color(it) }
+    val color = palette.vibrantSwatch?.rgb?.let { Color(it) }
         ?: palette.mutedSwatch?.rgb?.let { Color(it) }
         ?: palette.dominantSwatch?.rgb?.let { Color(it) }
         ?: DarkColorScheme.primary // Fallback
+    
+    // Store in cache
+    extractedColorCache.put(bitmapHash, color)
+    
+    // Clean up the scaled bitmap if we created one
+    if (scaledBitmap != bitmap) {
+        scaledBitmap.recycle()
+    }
+    
+    return color
 }
 
 fun generateColorSchemeFromSeed(seedColor: Color): ColorSchemePair {

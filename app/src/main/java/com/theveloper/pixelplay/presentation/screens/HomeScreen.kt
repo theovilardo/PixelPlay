@@ -85,117 +85,72 @@ import kotlinx.coroutines.flow.map
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 // Modern HomeScreen with collapsible top bar and staggered grid layout
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     navController: NavController,
     paddingValuesParent: PaddingValues,
-    playerViewModel: PlayerViewModel = hiltViewModel(),
-    updateScrollState: (Boolean) -> Unit = {}
+    playerViewModel: PlayerViewModel = hiltViewModel()
 ) {
-    val currentUiState by playerViewModel.stablePlayerState.collectAsState()
-    val playerUiState by playerViewModel.playerUiState.collectAsState()
-    val scrollState = rememberLazyListState()
+    // 1) Observar sólo la lista de canciones, que cambia con poca frecuencia
+    val allSongs by playerViewModel.allSongsFlow.collectAsState(initial = emptyList())
 
-    // Calculate recentUris for YourMixHeader, remembered against changes in STABLE allSongs list
-    val recentUrisForHeader = remember(playerUiState.allSongs) {
-        playerUiState.allSongs.take(6).map { it.albumArtUri }
+    // 2) Observar sólo el currentSong (o null) para saber si mostrar padding
+    val currentSong by playerViewModel.stablePlayerState
+        .map { it.currentSong }
+        .collectAsState(initial = null)
+
+    // 3) Calcular y recordar los URIs para el header
+    val recentUrisForHeader = remember(allSongs) {
+        allSongs.take(6).map { it.albumArtUri }
     }
 
-    //testing padding inferior
-    val isPlayerVsisibleBottomPadding = if (currentUiState.currentSong != null) MiniPlayerHeight else 0.dp
+    // Padding inferior si hay canción en reproducción
+    val bottomPadding = if (currentSong != null) MiniPlayerHeight else 0.dp
 
-    if (playerUiState.allSongs.isEmpty()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValuesParent),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator(
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(48.dp)
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    "Cargando tu música...",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
-                )
-            }
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        topBar = {
+            GradientTopBar(navController = navController)
         }
-    } else if (playerUiState.allSongs.isEmpty()) {
-        EmptyMusicView(paddingValues = paddingValuesParent)
-    } else {
-        Scaffold(
+    ) { innerPadding ->
+        LazyColumn(
+            state = rememberLazyListState(),
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background),
-            topBar = {
-                GradientTopBar(
-                    navController = navController
+            contentPadding = PaddingValues(
+                top = innerPadding.calculateTopPadding(),
+                bottom = paddingValuesParent.calculateBottomPadding()
+                        + 18.dp + NavBarPersistentHeight + bottomPadding
+            ),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            // Your Mix
+            item {
+                YourMixHeader(
+                    albumArtUris = recentUrisForHeader,
+                    isPlatyingAndCsNotNull = false,
+                    onPlayRandomSong = { playerViewModel.playPause() }
                 )
             }
-        ) { paddingValues ->
-            LazyColumn(
-                state = scrollState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.background,
-                                MaterialTheme.colorScheme.background
-                            )
-                        )
-                    ),
-                contentPadding = PaddingValues(
-                    top = paddingValues.calculateTopPadding(),
-                    bottom = paddingValuesParent.calculateBottomPadding() + 18.dp + NavBarPersistentHeight + isPlayerVsisibleBottomPadding//+ bottomBarHeigh.value.dp + 48.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
-                // Large "Your Mix" header with play button
-                item {
-                    YourMixHeader(
-                        albumArtUris = recentUrisForHeader,
-                        isPlatyingAndCsNotNull = false,
-                        onPlayRandomSong = {
-                            //make it grab song from Your Mix
-                            playerViewModel.playPause()
-                        }
-                    )
-                }
 
-                // Artistic album displays with various shapes
+            // Collage
+            if (recentUrisForHeader.isNotEmpty()) {
                 item {
                     AlbumArtCollage3(
-                        modifier = Modifier
-                            .fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth(),
                         albumArts = recentUrisForHeader,
                         padding = 14.dp,
-                        height = 400.dp,
+                        height = 400.dp
                     )
                 }
+            }
 
-//                item {
-//                    FeaturedPlaylistsSection()
-//                }
-
-                item {
-                    MoodBasedSection(
-                        songs = playerUiState.allSongs.take(5),
-                        playerViewModel = playerViewModel,
-                        navController = navController
-                    )
-                }
-
+            // Daily Mix
+            if (allSongs.isNotEmpty()) {
                 item {
                     DailyMixSection(
-                        songs = playerUiState.allSongs.take(10),
+                        songs = allSongs.take(10),
                         playerViewModel = playerViewModel,
                         navController = navController
                     )
@@ -204,6 +159,113 @@ fun HomeScreen(
         }
     }
 }
+
+//@OptIn(ExperimentalMaterial3Api::class)
+//@Composable
+//fun HomeScreen(
+//    navController: NavController,
+//    paddingValuesParent: PaddingValues,
+//    playerViewModel: PlayerViewModel = hiltViewModel()
+//) {
+//    val currentUiState by playerViewModel.stablePlayerState.collectAsState()
+//    val playerUiState by playerViewModel.playerUiState.collectAsState()
+//    val scrollState = rememberLazyListState()
+//
+//    // Calculate recentUris for YourMixHeader, remembered against changes in STABLE allSongs list
+//    val recentUrisForHeader = remember(playerUiState.allSongs) {
+//        playerUiState.allSongs.take(6).map { it.albumArtUri }
+//    }
+//
+//    //testing padding inferior
+//    val isPlayerVsisibleBottomPadding = if (currentUiState.currentSong != null) MiniPlayerHeight else 0.dp
+//
+//    if (playerUiState.allSongs.isEmpty()) {
+//        Box(
+//            modifier = Modifier
+//                .fillMaxSize()
+//                .padding(paddingValuesParent),
+//            contentAlignment = Alignment.Center
+//        ) {
+//            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+//                CircularProgressIndicator(
+//                    color = MaterialTheme.colorScheme.primary,
+//                    modifier = Modifier.size(48.dp)
+//                )
+//
+//                Spacer(modifier = Modifier.height(16.dp))
+//
+//                Text(
+//                    "Cargando tu música...",
+//                    style = MaterialTheme.typography.bodyLarge,
+//                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+//                )
+//            }
+//        }
+//    } else if (playerUiState.allSongs.isEmpty()) {
+//        EmptyMusicView(paddingValues = paddingValuesParent)
+//    } else {
+//        Scaffold(
+//            modifier = Modifier
+//                .fillMaxSize()
+//                .background(MaterialTheme.colorScheme.background),
+//            topBar = {
+//                GradientTopBar(
+//                    navController = navController
+//                )
+//            }
+//        ) { paddingValues ->
+//            LazyColumn(
+//                state = scrollState,
+//                modifier = Modifier
+//                    .fillMaxSize()
+//                    .background(
+//                        brush = Brush.verticalGradient(
+//                            colors = listOf(
+//                                MaterialTheme.colorScheme.background,
+//                                MaterialTheme.colorScheme.background
+//                            )
+//                        )
+//                    ),
+//                contentPadding = PaddingValues(
+//                    top = paddingValues.calculateTopPadding(),
+//                    bottom = paddingValuesParent.calculateBottomPadding() + 18.dp + NavBarPersistentHeight + isPlayerVsisibleBottomPadding//+ bottomBarHeigh.value.dp + 48.dp
+//                ),
+//                verticalArrangement = Arrangement.spacedBy(24.dp)
+//            ) {
+//                // Large "Your Mix" header with play button
+//                item {
+//                    YourMixHeader(
+//                        albumArtUris = recentUrisForHeader,
+//                        isPlatyingAndCsNotNull = false,
+//                        onPlayRandomSong = {
+//                            //make it grab song from Your Mix
+//                            playerViewModel.playPause()
+//                        }
+//                    )
+//                }
+//
+//                // Artistic album displays with various shapes
+//                item {
+//                    AlbumArtCollage3(
+//                        modifier = Modifier
+//                            .fillMaxWidth(),
+//                        albumArts = recentUrisForHeader,
+//                        padding = 14.dp,
+//                        height = 400.dp,
+//                    )
+//                }
+//
+//                item {
+//                    DailyMixSection(
+//                        songs = playerUiState.allSongs.take(10),
+//                        playerViewModel = playerViewModel,
+//                        navController = navController
+//                    )
+//                }
+//            }
+//        }
+//    }
+//}
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -458,315 +520,81 @@ fun FeaturedPlaylistsSection() {
     }
 }
 
-// Mood based section example
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun MoodBasedSection(
-    songs: List<Song>,
-    playerViewModel: PlayerViewModel,
-    navController: NavController // navController no se usa directamente en la lógica del Carousel aquí, pero se mantiene por si se necesita
-) {
-    // El estado del carrusel ahora solo necesita itemCount.
-    // initialItem por defecto es 0.
-    val carouselState = rememberCarouselState(
-        itemCount = { songs.size }
-    )
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp) // Padding para toda la sección
-    ) {
-        SectionHeader(
-            title = "Para Relajarse",
-            showViewAll = true,
-            onViewAllClick = { /* Lógica para navegar a la sección del mood */ }
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Es una buena práctica verificar si la lista de canciones no está vacía
-        // antes de mostrar el carrusel para evitar errores con itemCount = 0.
-        if (songs.isNotEmpty()) {
-            HorizontalMultiBrowseCarousel(
-                state = carouselState,
-                //itemCount = songs.size, // El número total de ítems en el carrusel
-                modifier = Modifier.fillMaxWidth(), // El carrusel ocupará todo el ancho disponible
-                preferredItemWidth = 120.dp, // Ancho del ítem principal (enfocado)
-                itemSpacing = 10.dp, // Espacio entre ítems
-                flingBehavior = CarouselDefaults.multiBrowseFlingBehavior(state = carouselState), // Comportamiento de snapping
-                // minSmallItemWidth y maxSmallItemWidth definen el tamaño de los ítems "pequeños"
-                // a los lados del ítem principal en HorizontalMultiBrowseCarousel.
-                // Ajusta estos valores según el aspecto deseado.
-                minSmallItemWidth = 70.dp,
-                maxSmallItemWidth = 70.dp,
-                // contentPadding es el padding *dentro* del área de contenido del carrusel.
-                // Si tus ítems ya tienen padding o si el padding de la Column es suficiente,
-                // puedes usar PaddingValues() o un valor pequeño.
-                contentPadding = PaddingValues(horizontal = 0.dp) // Sin padding extra dentro del carrusel
-            ) { index ->
-                // Obtenemos la canción para el índice actual
-                val song = songs[index]
-
-                // Aquí va el composable de tu ítem.
-                // SongListItemFavsWrapper debería estar diseñado para ocupar el preferredItemWidth
-                // o ser flexible para que el carrusel lo escale/maneje adecuadamente.
-                SongListItemFavsWrapper(
-                    song = song,
-                    playerViewModel = playerViewModel,
-                    onClick = { /* tu lógica de click */ },
-                    itemWidth = 120.dp // Pasa el ancho aquí
-                    // modifier = Modifier // Puedes añadir modifiers adicionales si el carrusel los necesita para cada ítem
-                )
-            }
-        } else {
-            // Opcional: Mostrar un mensaje si no hay canciones
-            Text(
-                text = "No hay canciones para relajarse en este momento.",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 16.dp)
-            )
-        }
-
-        // La LazyRow ha sido reemplazada por HorizontalMultiBrowseCarousel.
-        // Ya no necesitas el siguiente bloque:
-        /*
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(end = 16.dp)
-        ) {
-            items(songs, key = { song -> song.id }) { song ->
-                SongListItemFavsWrapper(
-                    song = song,
-                    playerViewModel = playerViewModel,
-                    onClick = {
-                        playerViewModel.playSongs(
-                            startSong = song,
-                            songsToPlay = songs,
-                            queueName = "SongListItemFavsWrapper"
-                        )
-                        //navController.navigate(Screen.Player.createRoute(song.id))
-                    }
-                )
-            }
-        }
-        */
-    }
-}
-
-//// Daily Mix section example
+//@OptIn(ExperimentalMaterial3Api::class)
 //@Composable
-//fun DailyMixSection(
+//fun MoodBasedSection(
 //    songs: List<Song>,
 //    playerViewModel: PlayerViewModel,
 //    navController: NavController
 //) {
+//    // 1. Observar una única vez todo playerUiState
+//    val uiState by playerViewModel.stablePlayerState.collectAsState()
+//
+//    // 2. Creamos el estado del carrusel; la lambda se invoca solo cuando cambia `songs.size`
+//    val carouselState = rememberCarouselState(itemCount = { songs.size })
+//
 //    Column(
 //        modifier = Modifier
 //            .fillMaxWidth()
 //            .padding(horizontal = 16.dp)
 //    ) {
 //        SectionHeader(
-//            title = "Your Daily Mix",
+//            title = "Para Relajarse",
 //            showViewAll = true,
-//            onViewAllClick = { /* Navigate to daily mix */ }
+//            onViewAllClick = { /* navegar a la pantalla mood */ }
 //        )
 //
-//        Spacer(modifier = Modifier.height(16.dp))
+//        Spacer(Modifier.height(16.dp))
 //
-//        Card(
+//        if (songs.isEmpty()) {
+//            Text(
+//                text = "No hay canciones para relajarse en este momento.",
+//                style = MaterialTheme.typography.bodyMedium,
+//                modifier = Modifier
+//                    .fillMaxWidth()
+//                    .padding(vertical = 16.dp)
+//            )
+//            return
+//        }
+//
+//        HorizontalMultiBrowseCarousel(
+//            state = carouselState,
 //            modifier = Modifier.fillMaxWidth(),
-//            shape = RoundedCornerShape(16.dp),
-//            colors = CardDefaults.cardColors(
-//                containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
-//            ),
-//            elevation = CardDefaults.elevatedCardElevation(0.dp)
-//        ) {
-//            Column(modifier = Modifier.fillMaxWidth()) {
-//                // Header with visual elements
-//                Box(
-//                    modifier = Modifier
-//                        .fillMaxWidth()
-//                        .height(80.dp)
-//                        .background(
-//                            brush = Brush.horizontalGradient(
-//                                colors = listOf(
-//                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-//                                    MaterialTheme.colorScheme.tertiary.copy(alpha = 0.7f)
-//                                )
-//                            )
-//                        ),
-//                    contentAlignment = Alignment.CenterStart
-//                ) {
-//                    // Album art collage effect
-//                    Row(
-//                        modifier = Modifier
-//                            .fillMaxWidth()
-//                            .padding(start = 16.dp),
-//                        verticalAlignment = Alignment.CenterVertically
-//                    ) {
-//                        // Daily Mix icon/text
-//                        Column(
-//                            modifier = Modifier.weight(1f)
-//                        ) {
-//                            Text(
-//                                text = "DAILY MIX",
-//                                style = MaterialTheme.typography.titleMedium,
-//                                fontWeight = FontWeight.Bold,
-//                                color = MaterialTheme.colorScheme.onPrimary
-//                            )
+//            preferredItemWidth = 120.dp,
+//            itemSpacing = 10.dp,
+//            flingBehavior = CarouselDefaults.multiBrowseFlingBehavior(state = carouselState),
+//            minSmallItemWidth = 70.dp,
+//            maxSmallItemWidth = 70.dp,
+//            contentPadding = PaddingValues(horizontal = 0.dp)
+//        ) { index ->
+//            // 3. Para cada ítem, cogemos la canción y su estado de reproducción
+//            val song = songs[index]
+//            val isPlaying = uiState.currentSong?.id == song.id && uiState.isPlaying
 //
-//                            Text(
-//                                text = "Basado en tu historial",
-//                                style = MaterialTheme.typography.bodySmall,
-//                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
-//                            )
-//                        }
-//
-//                        // Album art thumbnails with overlap effect
-//                        Row(modifier = Modifier.padding(end = 16.dp)) {
-//                            songs.take(3).forEachIndexed { index, song ->
-//                                Box(
-//                                    modifier = Modifier
-//                                        .offset(x = (-16 * index).dp)
-//                                        .size(48.dp)
-//                                        .clip(CircleShape)
-//                                        .border(
-//                                            2.dp,
-//                                            MaterialTheme.colorScheme.surface,
-//                                            CircleShape
-//                                        )
-//                                ) {
-//                                    SmartImage(
-//                                        model = song.albumArtUri ?: R.drawable.rounded_album_24,
-//                                        contentDescription = null,
-//                                        contentScale = ContentScale.Crop,
-//                                        modifier = Modifier.fillMaxSize()
-//                                    )
-////                                    AsyncImage(
-////                                        model = song.albumArtUri ?: R.drawable.rounded_album_24,
-////                                        contentDescription = null,
-////                                        contentScale = ContentScale.Crop,
-////                                        modifier = Modifier.fillMaxSize()
-////                                    )
-//                                }
-//                            }
-//                        }
-//                    }
-//                }
-//
-//                // Song list
-//                Column(modifier = Modifier.fillMaxWidth()) {
-//                    songs.take(4).forEach { song -> // Limiting for example, ideally use LazyColumn
-//                        SongListItemFavsWrapper(
-//                            song = song,
-//                            playerViewModel = playerViewModel,
-//                            onClick = {
-//                                playerViewModel.playSongs(
-//                                    songsToPlay = songs,
-//                                    startSong = song,
-//                                    queueName = "SongListItemFavsWrapper2"
-//                                )
-//                                // Example: navController.navigate("player_screen/${song.id}")
-//                            },
-//                            modifier = Modifier.padding(vertical = 4.dp) // Add some padding between items
-//                        )
-//                    }
-//
-//                    // "Ver más" button
-//                    TextButton(
-//                        onClick = { /* TODO: Navigate to a screen showing all daily mix songs */ },
-//                        modifier = Modifier.align(Alignment.CenterHorizontally)
-//                    ) {
-//                        Text(
-//                            text = "Ver todo el Daily Mix",
-//                            style = MaterialTheme.typography.bodyMedium,
-//                            fontWeight = FontWeight.Medium
-//                        )
-//
-//                        Spacer(modifier = Modifier.width(4.dp))
-//
-//                        Icon(
-//                            painter = painterResource(R.drawable.rounded_keyboard_arrow_right_24),
-//                            contentDescription = null,
-//                            modifier = Modifier.size(20.dp)
-//                        )
-//                    }
+//            // 4. Memoizamos el callback de click por canción
+//            val onClick = remember(song) {
+//                {
+//                    playerViewModel.playSongs(
+//                        songsToPlay = songs,
+//                        startSong = song,
+//                        queueName = "MoodBasedSection"
+//                    )
 //                }
 //            }
+//
+//            // 5. Llamamos al ítem presentacional pasando solo lo necesario
+//            SongListItemFavs(
+//                modifier = Modifier.width(120.dp),
+//                title = song.title,
+//                artist = song.artist,
+//                albumArtUrl = song.albumArtUri,
+//                isPlaying = isPlaying,
+//                onClick = onClick
+//            )
 //        }
 //    }
 //}
 
-@Composable
-fun SongListItem(
-    song: Song,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Album art
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(8.dp))
-        ) {
-            SmartImage(
-                model = song.albumArtUri ?: R.drawable.rounded_album_24,
-                contentDescription = song.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-//            AsyncImage(
-//                model = song.albumArtUri ?: R.drawable.rounded_album_24,
-//                contentDescription = song.title,
-//                contentScale = ContentScale.Crop,
-//                modifier = Modifier.fillMaxSize()
-//            )
-        }
-
-        // Song info
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 16.dp)
-        ) {
-            Text(
-                text = song.title,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            Text(
-                text = song.artist,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-
-        // Play button
-        IconButton(
-            onClick = onClick,
-            modifier = Modifier.size(40.dp)
-        ) {
-            Icon(
-                painter = painterResource(id = R.drawable.rounded_play_arrow_24),
-                contentDescription = "Reproducir",
-                tint = MaterialTheme.colorScheme.primary
-            )
-        }
-    }
-}
 
 // SongListItem (modificado para aceptar parámetros individuales)
 @Composable

@@ -132,7 +132,7 @@ private val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error("
 
 val MiniPlayerHeight = 64.dp
 val PlayerSheetExpandedCornerRadius = 32.dp // Totalmente expandido -> sin esquinas
-val PlayerSheetCollapsedCornerRadius = 28.dp // Cuando está colapsado -> forma de píldora
+val PlayerSheetCollapsedCornerRadius = 32.dp // Cuando está colapsado -> forma de píldora
 val CollapsedPlayerContentSpacerHeight = 6.dp
 const val ANIMATION_DURATION_MS = 300 // Duración para animaciones con tween
 
@@ -574,7 +574,7 @@ private fun MiniPlayerContentInternal(
         modifier = modifier
             .fillMaxWidth()
             .height(MiniPlayerHeight)
-            .padding(start = 10.dp, end = 14.dp),
+            .padding(start = 11.dp, end = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         SmartImage(

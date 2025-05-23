@@ -42,9 +42,9 @@ fun OptimizedAlbumArt(
     val request = remember(uri) {
         ImageRequest.Builder(context)
             .data(uri)
-            .size(Size.ORIGINAL)                       // load at original resolution :contentReference[oaicite:0]{index=0}
+            // .size(Size.ORIGINAL) // Removed to allow Coil to determine size dynamically
             .crossfade(true)                           // subtle fade-in
-            .dispatcher(Dispatchers.IO)                // offload decode to IO :contentReference[oaicite:1]{index=1}
+            .dispatcher(Dispatchers.IO)                // offload decode to IO
             .memoryCachePolicy(CachePolicy.ENABLED)    // keep in memory
             .diskCachePolicy(CachePolicy.ENABLED)      // disk cache for faster repeat loads
             .build()

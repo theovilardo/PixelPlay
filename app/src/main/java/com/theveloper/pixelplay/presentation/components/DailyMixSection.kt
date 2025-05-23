@@ -2,6 +2,7 @@ package com.theveloper.pixelplay.presentation.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +14,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -23,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,30 +43,21 @@ import com.theveloper.pixelplay.presentation.screens.SongListItemFavsWrapper
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 
 
+// 2) DailyMixSection y DailyMixCard quedan igual de ligeras...
 @Composable
 fun DailyMixSection(
     songs: List<Song>,
     playerViewModel: PlayerViewModel,
     navController: NavController
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-    ) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         SectionHeader(
             title = "Your Daily Mix",
             showViewAll = true,
-            onViewAllClick = { /* Navigate to daily mix */ }
+            onViewAllClick = { /* navegar */ }
         )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        DailyMixCard(
-            songs = songs,
-            playerViewModel = playerViewModel,
-            navController = navController
-        )
+        Spacer(Modifier.height(16.dp))
+        DailyMixCard(songs, playerViewModel, navController)
     }
 }
 
@@ -73,20 +68,14 @@ private fun DailyMixCard(
     navController: NavController
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
-        ),
-        elevation = CardDefaults.elevatedCardElevation(0.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)),
+        elevation = CardDefaults.elevatedCardElevation(0.dp),
+        modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            DailyMixHeader(songs.take(3))
-            DailyMixSongList(
-                songs = songs.take(4),
-                playerViewModel = playerViewModel,
-                navController = navController
-            )
+            DailyMixHeader(thumbnails = songs.take(3))
+            DailyMixSongList(songs = songs.take(4), playerViewModel, navController)
             ViewAllDailyMixButton()
         }
     }
@@ -155,7 +144,10 @@ private fun DailyMixSongList(
     playerViewModel: PlayerViewModel,
     navController: NavController
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
         songs.forEach { song ->
             SongListItemFavsWrapper(
                 song = song,
@@ -166,9 +158,8 @@ private fun DailyMixSongList(
                         startSong = song,
                         queueName = "DailyMix"
                     )
-                    // navController.navigate("player_screen/${song.id}")
                 },
-                modifier = Modifier.padding(vertical = 4.dp)
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }

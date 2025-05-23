@@ -19,6 +19,7 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import coil.imageLoader
+import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Size
 import com.google.common.util.concurrent.ListenableFuture
@@ -59,6 +60,7 @@ import kotlinx.coroutines.isActive
 import android.util.Log
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 
 // Nuevo enum para el estado del sheet
 enum class PlayerSheetState {
@@ -137,6 +139,12 @@ class PlayerViewModel @Inject constructor(
     private var currentAlbumPage = 1
     private var currentArtistPage = 1
 
+    // Flow dedicado sólo a la lista de canciones:
+    val allSongsFlow: StateFlow<List<Song>> =
+        _playerUiState
+            .map { it.allSongs }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     val activeGlobalColorSchemePair: StateFlow<ColorSchemePair?> = combine(
         _globalThemePreference, _currentAlbumArtColorSchemePair
     ) { globalPref, albumScheme ->
@@ -205,12 +213,6 @@ class PlayerViewModel @Inject constructor(
                 // La actualización de stablePlayerState.isCurrentSongFavorite ya se hace en updateFavoriteStatusForCurrentSong
             }
         }
-//        viewModelScope.launch {
-//            userPreferencesRepository.favoriteSongIdsFlow.collect { ids ->
-//                _favoriteSongIds.value = ids
-//                updateFavoriteStatusForCurrentSong()
-//            }
-//        }
         mediaControllerFuture.addListener({
             try {
                 mediaController = mediaControllerFuture.get()
@@ -702,6 +704,9 @@ class PlayerViewModel @Inject constructor(
                     .data(albumArtUri)
                     .allowHardware(false) // Palette necesita ARGB_8888
                     .size(Size(128, 128)) // Redimensionar para Palette, más pequeño es más rápido
+                    .bitmapConfig(Bitmap.Config.ARGB_8888) // Explicitly set config
+                    .memoryCachePolicy(CachePolicy.ENABLED) // Ensure caching
+                    .diskCachePolicy(CachePolicy.ENABLED)
                     .build()
                 val result = context.imageLoader.execute(request).drawable
                 result?.let { drawable ->
