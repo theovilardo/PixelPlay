@@ -1,6 +1,7 @@
 package com.theveloper.pixelplay.presentation.components
 
 import android.app.Activity
+import android.util.Log
 import androidx.activity.BackEventCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -117,6 +118,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 // Definir un CompositionLocal para el tema del álbum
 import com.theveloper.pixelplay.utils.formatDuration
 import com.theveloper.pixelplay.utils.luminance
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -160,7 +162,7 @@ data class AlbumColorPalette(
 fun UnifiedPlayerSheet(
     playerViewModel: PlayerViewModel,
     navController: NavHostController,
-    navItems: List<BottomNavItem>,
+    navItems: ImmutableList<BottomNavItem>,
     initialTargetTranslationY: Float,
     collapsedStateHorizontalPadding: Dp = 12.dp,
     collapsedStateBottomMargin: Dp
@@ -566,9 +568,14 @@ fun UnifiedPlayerSheet(
             // MEJORADO: Navigation bar sin gestos de drag
             val navBarHideFraction = if (showPlayerContentArea) playerContentExpansionFraction.value.pow(2) else 0f
             val navBackStackEntry by navController.currentBackStackEntryAsState()
-            val rememberedCurrentRoute = remember(navBackStackEntry?.destination?.route) {
-                navBackStackEntry?.destination?.route
+            val currentRouteValue = navBackStackEntry?.destination?.route
+            val rememberedCurrentRoute = remember(currentRouteValue) {
+                Log.d("RouteDebug", "rememberedCurrentRoute recalculated. New value: $currentRouteValue")
+                currentRouteValue
             }
+//            val rememberedCurrentRoute = remember(navBackStackEntry?.destination?.route) {
+//                navBackStackEntry?.destination?.route
+//            }
 
             val playerInternalNavBarModifier = remember {
                 Modifier
@@ -582,7 +589,7 @@ fun UnifiedPlayerSheet(
                 navController = navController,
                 navItems = navItems,
                 currentRoute = rememberedCurrentRoute,
-                topCornersRadiusDp = navBarActualTopRadius,
+                //topCornersRadiusDp = navBarActualTopRadius,
                 navBarHideFraction = navBarHideFraction,
                 navBarHeightPx = navBarHeightPx,
                 modifier = playerInternalNavBarModifier

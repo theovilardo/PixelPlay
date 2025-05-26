@@ -164,7 +164,11 @@ dependencies {
     // Protobuf (JavaLite es suficiente para Android y más pequeño)
     implementation(libs.protobuf.javalite) // O la versión más reciente
 
+    //Material library
     implementation(libs.material)
+
+    // Kotlin Collections
+    implementation(libs.kotlinx.collections.immutable) // Verifica la última versión
 }
 
 protobuf {

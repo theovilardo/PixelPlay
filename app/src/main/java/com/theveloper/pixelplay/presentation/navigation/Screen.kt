@@ -1,5 +1,9 @@
 package com.theveloper.pixelplay.presentation.navigation
 
+import androidx.compose.runtime.Immutable
+
+
+@Immutable
 sealed class Screen(val route: String) {
     object Home : Screen("home")
     object Search : Screen("search")

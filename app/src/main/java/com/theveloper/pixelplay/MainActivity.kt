@@ -66,6 +66,7 @@ import com.theveloper.pixelplay.ui.theme.DarkColorScheme
 import com.theveloper.pixelplay.ui.theme.LightColorScheme
 import com.theveloper.pixelplay.ui.theme.PixelPlayTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.first
 
 @AndroidEntryPoint
@@ -102,7 +103,7 @@ class MainActivity : ComponentActivity() {
                     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState() // Para initialY
                     val navController = rememberNavController()
                     val commonNavItems = remember {
-                        listOf(
+                        persistentListOf(
                             BottomNavItem("Home", R.drawable.rounded_home_24, R.drawable.rounded_home_24, Screen.Home),
                             BottomNavItem("Search", R.drawable.rounded_search_24, R.drawable.rounded_search_24, Screen.Search),
                             BottomNavItem("Library", R.drawable.rounded_library_music_24, R.drawable.rounded_library_music_24, Screen.Library)
@@ -140,7 +141,8 @@ class MainActivity : ComponentActivity() {
                             colorSchemePairOverride = globalColorSchemePairForApp
                         ) {
                             UnifiedPlayerSheet(
-                                playerViewModel = playerViewModel, navController = navController, navItems = commonNavItems,
+                                playerViewModel = playerViewModel, navController = navController,
+                                navItems = commonNavItems,
                                 initialTargetTranslationY = initialY,
                                 collapsedStateHorizontalPadding = 22.dp, // AJUSTA ESTE VALOR
                                 collapsedStateBottomMargin = collapsedStateBottomMargin,
