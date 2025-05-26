@@ -37,11 +37,9 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-//    kotlinOptions {
-//        jvmTarget = "11"
-//    }
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.2.0"
+        kotlinCompilerExtensionVersion = "2.1.0"
+        // Para habilitar informes de composición (legibles):
     }
     buildFeatures {
         compose = true
@@ -49,6 +47,15 @@ android {
     }
     kotlinOptions {
         jvmTarget = "11"
+        // Aquí es donde debes agregar freeCompilerArgs para los informes del compilador de Compose.
+        freeCompilerArgs += listOf(
+            "-P",
+            "plugin:androidx.compose.compiler.plugins.kotlin:reportsDestination=${project.buildDir.absolutePath}/compose_compiler_reports"
+        )
+        freeCompilerArgs += listOf(
+            "-P",
+            "plugin:androidx.compose.compiler.plugins.kotlin:metricsDestination=${project.buildDir.absolutePath}/compose_compiler_metrics"
+        )
     }
 }
 

@@ -156,8 +156,9 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun updateAllowedDirectories(allowedPaths: Set<String>) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.ALLOWED_DIRECTORIES] = allowedPaths
+            // Aseguramos que al actualizar directorios, el setup se marque como hecho.
             if (!preferences.contains(PreferencesKeys.INITIAL_SETUP_DONE)) {
-                preferences[PreferencesKeys.INITIAL_SETUP_DONE] = emptySet() // Marcar que el setup se hizo
+                preferences[PreferencesKeys.INITIAL_SETUP_DONE] = emptySet()
             }
         }
     }
@@ -185,25 +186,19 @@ class UserPreferencesRepository @Inject constructor(
         }
     }
 
-    // Obtener todos los directorios únicos que contienen archivos de audio
-    // Esta función podría estar en MusicRepository, pero la ponemos aquí para que SettingsViewModel la use.
-//    suspend fun getAllAudioDirectories(allSongs: List<Song>): Set<String> {
-//        return allSongs.mapNotNull { song ->
-//            try {
-//                // Intentar obtener el directorio padre de la URI del contenido.
-//                // Esto puede ser dependiente de la implementación de la URI.
-//                // Una forma más robusta sería si Song tuviera un campo `filePath`.
-//                // Por ahora, asumimos que contentUri.path nos da algo útil o usamos MediaStore.Audio.Media.DATA
-//                // que ya tenemos en MusicRepositoryImpl (aunque no lo pasamos al modelo Song directamente).
-//                // Modificaremos MusicRepositoryImpl para que devuelva el filePath y lo usemos aquí.
-//                File(song.contentUri.path!!).parent // Esto puede fallar si el path no es un path de archivo directo
-//            } catch (e: Exception) {
-//                // Si song.contentUri.path es null o no es un path de archivo, intentar obtenerlo de otra forma
-//                // o ignorar esta canción para la extracción de directorios.
-//                // Para una solución robusta, Song debería tener el filePath.
-//                // Por ahora, si falla, no se incluirá ese directorio.
-//                null
-//            }
-//        }.filterNotNull().toSet()
-//    }
+    suspend fun setInitialSetupDone(isDone: Boolean) {
+        dataStore.edit { preferences ->
+            if (isDone) {
+                // Si queremos marcarlo como hecho, nos aseguramos de que la clave exista.
+                // Guardar un emptySet es consistente con tu lógica actual en updateAllowedDirectories.
+                if (!preferences.contains(PreferencesKeys.INITIAL_SETUP_DONE)) {
+                    preferences[PreferencesKeys.INITIAL_SETUP_DONE] = emptySet()
+                }
+            } else {
+                // Si queremos marcarlo como NO hecho (por ejemplo, para un reset), eliminamos la clave.
+                // Esto hará que initialSetupDoneFlow emita false.
+                preferences.remove(PreferencesKeys.INITIAL_SETUP_DONE)
+            }
+        }
+    }
 }

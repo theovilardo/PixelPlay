@@ -228,11 +228,12 @@ class PlayerViewModel @Inject constructor(
 
     private fun preloadThemesAndInitialData() {
         viewModelScope.launch { // Main.immediate by default
-            _isInitialThemePreloadComplete.value = false
+            _isInitialThemePreloadComplete.value = false // Mantener esto
 
             // Launch theme preloading in a separate, controlled background job
+            // Este job ahora correrá de forma más independiente en segundo plano.
             val themePreloadingJob: Job = launch(Dispatchers.IO) {
-                val allAlbumArtUris = musicRepository.getAllUniqueAlbumArtUris() // Already on IO dispatcher
+                val allAlbumArtUris = musicRepository.getAllUniqueAlbumArtUris()
                 allAlbumArtUris.forEach { uri ->
                     try {
                         extractAndGenerateColorScheme(uri, isPreload = true)
@@ -240,17 +241,50 @@ class PlayerViewModel @Inject constructor(
                         Log.e("PlayerViewModel", "Error preloading theme for $uri", e)
                     }
                 }
+                // Podrías tener un flag separado para cuando ESTA tarea específica termine, si es necesario.
+                // Por ejemplo: _areAllThemesPreloaded.value = true
             }
 
             // Concurrently load initial UI data
-            resetAndLoadInitialData()
+            resetAndLoadInitialData() // Esto lanza sus propias corrutinas
 
-            // Wait for the theme preloading to complete
-            themePreloadingJob.join()
-            
-            _isInitialThemePreloadComplete.value = true 
+            // *** CAMBIO IMPORTANTE ***
+            // Ya no esperamos a themePreloadingJob.join() aquí.
+            // Indicamos que la carga inicial (de datos, no necesariamente todos los temas) ha comenzado
+            // o que la primera página de datos críticos está en camino.
+            // La UI puede empezar a mostrarse y los temas se irán cargando.
+            _isInitialThemePreloadComplete.value = true
+            // Nota: Si la UI depende de que la *primera página* de canciones/álbumes
+            // esté realmente cargada, necesitarías coordinar esto con los flags
+            // isLoadingInitialSongs / isLoadingLibraryCategories.
+            // Pero para un indicador de carga global, esto puede ser suficiente.
         }
     }
+//    private fun preloadThemesAndInitialData() {
+//        viewModelScope.launch { // Main.immediate by default
+//            _isInitialThemePreloadComplete.value = false
+//
+//            // Launch theme preloading in a separate, controlled background job
+//            val themePreloadingJob: Job = launch(Dispatchers.IO) {
+//                val allAlbumArtUris = musicRepository.getAllUniqueAlbumArtUris() // Already on IO dispatcher
+//                allAlbumArtUris.forEach { uri ->
+//                    try {
+//                        extractAndGenerateColorScheme(uri, isPreload = true)
+//                    } catch (e: Exception) {
+//                        Log.e("PlayerViewModel", "Error preloading theme for $uri", e)
+//                    }
+//                }
+//            }
+//
+//            // Concurrently load initial UI data
+//            resetAndLoadInitialData()
+//
+//            // Wait for the theme preloading to complete
+//            themePreloadingJob.join()
+//
+//            _isInitialThemePreloadComplete.value = true
+//        }
+//    }
 
     private fun resetAndLoadInitialData() {
         currentSongPage = 1

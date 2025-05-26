@@ -60,6 +60,8 @@ interface MusicRepository {
     suspend fun getAllUniqueAudioDirectories(): Set<String>
 
     suspend fun getAllUniqueAlbumArtUris(): List<Uri> // Nuevo para precarga de temas
+
+    suspend fun invalidateCachesDependentOnAllowedDirectories() // Nuevo para precarga de temas
 }
 
 //interface MusicRepository {

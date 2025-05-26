@@ -134,7 +134,7 @@ val MiniPlayerHeight = 64.dp
 val PlayerSheetExpandedCornerRadius = 32.dp // Totalmente expandido -> sin esquinas
 val PlayerSheetCollapsedCornerRadius = 32.dp // Cuando está colapsado -> forma de píldora
 val CollapsedPlayerContentSpacerHeight = 6.dp
-const val ANIMATION_DURATION_MS = 300 // Duración para animaciones con tween
+const val ANIMATION_DURATION_MS = 270 // Duración para animaciones con tween
 
 /**
  * ColorPalette generada desde la portada del álbum
@@ -510,7 +510,11 @@ fun UnifiedPlayerSheet(
                         CompositionLocalProvider(
                             LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
                         ) {
-                            Box(modifier = Modifier.graphicsLayer { alpha = miniPlayerAlpha }) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .graphicsLayer { alpha = miniPlayerAlpha }
+                            ) {
                                 MiniPlayerContentInternal(
                                     song = currentSong, isPlaying = stablePlayerState.isPlaying,
                                     onPlayPause = { playerViewModel.playPause() }, onNext = { playerViewModel.nextSong() },
@@ -550,7 +554,7 @@ fun UnifiedPlayerSheet(
             }
 
             // Spacer entre player y navigation bar (solo visible cuando colapsado)
-            if (showPlayerContentArea && playerContentExpansionFraction.value < 0.1f) {
+            if (showPlayerContentArea && playerContentExpansionFraction.value < 0.4f) {
                 Spacer(
                     Modifier
                         .height(CollapsedPlayerContentSpacerHeight)

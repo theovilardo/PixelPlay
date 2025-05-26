@@ -20,14 +20,6 @@ data class SettingsUiState(
     val playerThemePreference: String = ThemePreference.GLOBAL
 )
 
-//data class SettingsUiState(
-//    val directoryItems: List<DirectoryItem> = emptyList(),
-//    val isLoading: Boolean = true, // Indicador de carga para los directorios
-//    // Almacenar las preferencias de tema como Strings
-//    val globalThemePreference: String = ThemePreference.DEFAULT,
-//    val playerThemePreference: String = ThemePreference.GLOBAL
-//)
-
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
@@ -93,12 +85,33 @@ class SettingsViewModel @Inject constructor(
             } else {
                 currentAllowed.add(directoryItem.path)
             }
-            // Guardar el conjunto actualizado en preferencias
             userPreferencesRepository.updateAllowedDirectories(currentAllowed)
-            // El flujo allowedDirectoriesFlow en loadDirectoryPreferences() detectará el cambio
-            // y regenerará la lista directoryItems automáticamente.
+
+            // --- ¡AÑADIR ESTA LÍNEA! ---
+            musicRepository.invalidateCachesDependentOnAllowedDirectories()
+            // --------------------------
+
+            // El flujo allowedDirectoriesFlow en loadDirectoryPreferences() se actualizará,
+            // y también lo hará la lista de DirectoryItem en la UI de Ajustes.
+            // La invalidación de caché asegura que PlayerViewModel, etc., obtengan datos frescos
+            // la próxima vez que consulten el repositorio.
         }
     }
+
+//    fun toggleDirectoryAllowed(directoryItem: DirectoryItem) {
+//        viewModelScope.launch {
+//            val currentAllowed = userPreferencesRepository.allowedDirectoriesFlow.first().toMutableSet()
+//            if (directoryItem.isAllowed) {
+//                currentAllowed.remove(directoryItem.path)
+//            } else {
+//                currentAllowed.add(directoryItem.path)
+//            }
+//            // Guardar el conjunto actualizado en preferencias
+//            userPreferencesRepository.updateAllowedDirectories(currentAllowed)
+//            // El flujo allowedDirectoriesFlow en loadDirectoryPreferences() detectará el cambio
+//            // y regenerará la lista directoryItems automáticamente.
+//        }
+//    }
 
     // Método para guardar la preferencia de tema global
     fun setGlobalThemePreference(preference: String) {
