@@ -41,12 +41,14 @@ import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.screens.SectionHeader
 import com.theveloper.pixelplay.presentation.screens.SongListItemFavsWrapper
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toImmutableList
 
 
 // 2) DailyMixSection y DailyMixCard quedan igual de ligeras...
 @Composable
 fun DailyMixSection(
-    songs: List<Song>,
+    songs: ImmutableList<Song>,
     playerViewModel: PlayerViewModel,
     navController: NavController
 ) {
@@ -63,10 +65,12 @@ fun DailyMixSection(
 
 @Composable
 private fun DailyMixCard(
-    songs: List<Song>,
+    songs: ImmutableList<Song>,
     playerViewModel: PlayerViewModel,
     navController: NavController
 ) {
+    val headerSongs = songs.take(3).toImmutableList()
+    val songsToPlay = songs.take(4).toImmutableList()
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)),
@@ -74,15 +78,15 @@ private fun DailyMixCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            DailyMixHeader(thumbnails = songs.take(3))
-            DailyMixSongList(songs = songs.take(4), playerViewModel, navController)
+            DailyMixHeader(thumbnails = headerSongs)
+            DailyMixSongList(songs = songsToPlay, playerViewModel, navController)
             ViewAllDailyMixButton()
         }
     }
 }
 
 @Composable
-private fun DailyMixHeader(thumbnails: List<Song>) {
+private fun DailyMixHeader(thumbnails: ImmutableList<Song>) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -140,7 +144,7 @@ private fun DailyMixHeader(thumbnails: List<Song>) {
 
 @Composable
 private fun DailyMixSongList(
-    songs: List<Song>,
+    songs: ImmutableList<Song>,
     playerViewModel: PlayerViewModel,
     navController: NavController
 ) {

@@ -46,6 +46,8 @@ import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.DirectoryItem
 import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.presentation.viewmodel.SettingsViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toImmutableList
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,6 +60,15 @@ fun SettingsScreen(
     val uiState by settingsViewModel.uiState.collectAsState()
     // Estado para controlar la visibilidad del diálogo de directorios
     var showDirectoryDialog by remember { mutableStateOf(false) }
+
+    // --- LA PARTE IMPORTANTE ESTÁ AQUÍ ---
+    // Asegúrate que uiState.directoryItems es una List<DirectoryItem>
+    // y no una List<List<DirectoryItem>>
+    val directoryItems: ImmutableList<DirectoryItem> = remember(uiState.directoryItems) {
+        val list: List<DirectoryItem> = uiState.directoryItems
+        val immutable: ImmutableList<DirectoryItem> = list.toImmutableList() // Now this should work
+        immutable
+    }
 
     // Efecto para animaciones de transición
     val transitionState = remember { MutableTransitionState(false) }
@@ -83,9 +94,6 @@ fun SettingsScreen(
                 title = {
                     Text(
                         "Settings",
-//                        style = MaterialTheme.typography.headlineMedium.copy(
-//                            fontWeight = FontWeight.SemiBold
-//                        )
                     )
                 },
                 navigationIcon = {
@@ -228,7 +236,7 @@ fun SettingsScreen(
     // Diálogo para seleccionar directorios
     if (showDirectoryDialog) {
         DirectoryPickerDialog(
-            directoryItems = uiState.directoryItems,
+            directoryItems = directoryItems,
             isLoading = uiState.isLoadingDirectories,
             onDismiss = { showDirectoryDialog = false },
             onItemToggle = { directoryItem ->
@@ -492,7 +500,7 @@ fun ThemeSelectorItem(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DirectoryPickerDialog(
-    directoryItems: List<DirectoryItem>,
+    directoryItems: ImmutableList<DirectoryItem>,
     isLoading: Boolean,
     onDismiss: () -> Unit,
     onItemToggle: (DirectoryItem) -> Unit

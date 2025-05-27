@@ -742,11 +742,28 @@ private fun FullPlayerContentInternal(
 ) {
     val song = currentSong ?: return // Obtener canción de stablePlayerState
 
+    val rememberedOnPlayPause = remember { onPlayPause } // Si onPlayPause fuera una lambda que cambia
+    // Pero como son playerViewModel::metodo, ya son estables.
+
     // Cálculo de la fracción de progreso
     val progressFraction = remember(currentPosition, totalDuration) { 
         (currentPosition.coerceAtLeast(0).toFloat() / 
                 totalDuration.coerceAtLeast(1).toFloat())
     }.coerceIn(0f, 1f)
+
+    val stableControlAnimationSpec = remember {
+        spring<Float>(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMedium
+        )
+    }
+
+    // Definir colores estables si no dependen del tema dinámico del álbum aquí
+    // Si SÍ dependen del LocalMaterialTheme.current, entonces está bien leerlos directamente.
+    val controlOtherButtonsColor = LocalMaterialTheme.current.primary.copy(alpha = 0.15f)
+    val controlPlayPauseColor = LocalMaterialTheme.current.primary
+    val controlTintPlayPauseIcon = LocalMaterialTheme.current.onPrimary
+    val controlTintOtherIcons = LocalMaterialTheme.current.primary
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -898,19 +915,39 @@ private fun FullPlayerContentInternal(
             Spacer(modifier = Modifier.weight(1f)) // Espaciador flexible para empujar los controles hacia abajo
 
             // Playback Controls - Contenedor con altura fija
+            Log.d("Recomposition", "FullPlayerContentInternal - Calling AnimatedPlaybackControls, isPlaying: $isPlaying")
             AnimatedPlaybackControls(
                 modifier = Modifier
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 isPlaying = isPlaying,
-                onPrevious = onPrevious,
-                onPlayPause = onPlayPause,
-                onNext = onNext,
-                // Configurables (opcional)
+                onPrevious = onPrevious,     // Estas deben ser referencias estables
+                onPlayPause = onPlayPause,   // o lambdas recordadas
+                onNext = onNext,           //
                 height = 80.dp,
-                baseWeight = 1f,
-                expansionWeight = 1.5f,
-                compressionWeight = 0.75f
+                // Pasar la AnimationSpec estable
+                pressAnimationSpec = stableControlAnimationSpec,
+                releaseDelay = 220L, // Más corto
+                // Pasar colores estables (si los defines fuera como hice arriba)
+                // o dejar que AnimatedPlaybackControls los tome del tema si está bien
+                colorOtherButtons = controlOtherButtonsColor,
+                colorPlayPause = controlPlayPauseColor,
+                tintPlayPauseIcon = controlTintPlayPauseIcon,
+                tintOtherIcons = controlTintOtherIcons
             )
+//            // Playback Controls - Contenedor con altura fija
+//            AnimatedPlaybackControls(
+//                modifier = Modifier
+//                    .padding(horizontal = 12.dp, vertical = 8.dp),
+//                isPlaying = isPlaying,
+//                onPrevious = onPrevious,
+//                onPlayPause = onPlayPause,
+//                onNext = onNext,
+//                // Configurables (opcional)
+//                height = 80.dp,
+//                baseWeight = 1f,
+//                expansionWeight = 1.5f,
+//                compressionWeight = 0.75f
+//            )
 
             Spacer(modifier = Modifier.height(14.dp))
 
@@ -931,6 +968,11 @@ private fun FullPlayerContentInternal(
     }
 }
 
+// Define una AnimationSpec estable que se pueda usar como valor por defecto.
+// Puedes poner esto a nivel de archivo o como un objeto companion.
+private val DefaultPlaybackControlAnimationSpec: AnimationSpec<Float> =
+    spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun AnimatedPlaybackControls(
@@ -940,12 +982,12 @@ fun AnimatedPlaybackControls(
     onNext: () -> Unit,
     // Parámetros configurables
     modifier: Modifier = Modifier,
-    height: Dp = 100.dp,
+    height: Dp = 90.dp,
     baseWeight: Float = 1f,
-    expansionWeight: Float = 1.5f,
+    expansionWeight: Float = 1.2f,
     compressionWeight: Float = 0.55f,
-    pressAnimationSpec: AnimationSpec<Float> = tween(durationMillis = 150, easing = FastOutSlowInEasing),
-    releaseDelay: Long = 300L,
+    pressAnimationSpec: AnimationSpec<Float> = DefaultPlaybackControlAnimationSpec,//tween(durationMillis = 150, easing = FastOutSlowInEasing),
+    releaseDelay: Long = 220L,
     playPauseCornerPlaying: Dp = 70.dp,
     playPauseCornerPaused: Dp = 26.dp,
     colorOtherButtons: Color = LocalMaterialTheme.current.primary.copy(alpha = 0.15f),
@@ -1017,8 +1059,16 @@ fun AnimatedPlaybackControls(
             // Animar el corner radius según isPlaying
             val playCorner by animateDpAsState(
                 targetValue = if (!isPlaying) playPauseCornerPlaying else playPauseCornerPaused,
-                animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy, // O MediumBouncy si quieres un leve rebote
+                    stiffness = Spring.StiffnessMedium // Ajusta según necesites
+                ),
+                label = "PlayCornerRadiusAnim" // Añadir label
             )
+//            val playCorner by animateDpAsState(
+//                targetValue = if (!isPlaying) playPauseCornerPlaying else playPauseCornerPaused,
+//                animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
+//            )
             val playShape = AbsoluteSmoothCornerShape(
                 cornerRadiusBL = playCorner,
                 smoothnessAsPercentTR = 60,

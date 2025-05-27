@@ -73,6 +73,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.theveloper.pixelplay.R
+import com.theveloper.pixelplay.data.model.DirectoryItem
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.AlbumArtCollage3
 import com.theveloper.pixelplay.presentation.components.DailyMixSection
@@ -95,6 +96,12 @@ fun HomeScreen(
 ) {
     // 1) Observar sólo la lista de canciones, que cambia con poca frecuencia
     val allSongs by playerViewModel.allSongsFlow.collectAsState(initial = emptyList())
+
+    val dailyMixSongs = remember(allSongs) {
+        val list: List<Song> = allSongs.take(10)
+        val immutable: ImmutableList<Song> = list.toImmutableList() // Now this should work
+        immutable
+    }
 
     // 2) Observar sólo el currentSong (o null) para saber si mostrar padding
     val currentSong by playerViewModel.stablePlayerState
@@ -158,7 +165,7 @@ fun HomeScreen(
             if (allSongs.isNotEmpty()) {
                 item {
                     DailyMixSection(
-                        songs = allSongs.take(10),
+                        songs = dailyMixSongs,
                         playerViewModel = playerViewModel,
                         navController = navController
                     )

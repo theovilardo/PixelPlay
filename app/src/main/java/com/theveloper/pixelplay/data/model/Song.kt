@@ -1,7 +1,9 @@
 package com.theveloper.pixelplay.data.model
 
 import android.net.Uri
+import androidx.compose.runtime.Immutable
 
+@Immutable
 data class Song(
     val id: String, // MediaStore.Audio.Media._ID
     val title: String,
