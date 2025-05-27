@@ -3,7 +3,9 @@ package com.theveloper.pixelplay.presentation.components.scoped
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -83,7 +85,14 @@ fun RowScope.CustomNavigationBarItem(
     Column(
         modifier = modifier
             .weight(1f)
-            .fillMaxHeight(),
+            .fillMaxHeight()
+            .clickable(
+                onClick = onClick,
+                enabled = enabled,
+                role = Role.Tab,
+                interactionSource = interactionSource,
+                indication = null //ripple(bounded = true, radius = 24.dp) // Ripple contenido
+            ),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -96,10 +105,19 @@ fun RowScope.CustomNavigationBarItem(
             // Indicador de fondo (pill shape para Material 3 Expressive)
             androidx.compose.animation.AnimatedVisibility(
                 visible = selected,
-                enter = fadeIn(animationSpec = tween(250)) +
-                        scaleIn(animationSpec = tween(250, easing = EaseOutQuart)),
+                enter = fadeIn(animationSpec = tween(100)) + // Un fade in más rápido
+                        scaleIn(
+                            animationSpec = spring( // Usamos spring para el scaleIn
+                                dampingRatio = Spring.DampingRatioMediumBouncy, // Proporciona un rebote moderado
+                                stiffness = Spring.StiffnessLow // Puedes ajustar la rigidez
+                                // initialScale para que empiece un poco más pequeño si quieres más impacto
+                                // initialScale = 0.8f // (Opcional)
+                            ),
+                            // También puedes ajustar initialScale dentro de scaleIn si es necesario
+                            // initialScale = 0.8f // Este es el valor por defecto de scaleIn si no se especifica dentro de spring
+                        ),
                 exit = fadeOut(animationSpec = tween(100)) +
-                        scaleOut(animationSpec = tween(100, easing = EaseInQuart))
+                        scaleOut(animationSpec = tween(100, easing = EaseInQuart)) // Mantenemos el exit como estaba o lo ajustamos según se necesite
             ) {
                 Box(
                     modifier = Modifier
@@ -107,10 +125,27 @@ fun RowScope.CustomNavigationBarItem(
                         .padding(horizontal = 4.dp)
                         .background(
                             color = indicatorColor,
-                            shape = RoundedCornerShape(16.dp) // Pill shape
+                            shape = RoundedCornerShape(16.dp)
                         )
                 )
             }
+//            androidx.compose.animation.AnimatedVisibility(
+//                visible = selected,
+//                enter = fadeIn(animationSpec = tween(250)) +
+//                        scaleIn(animationSpec = tween(250, easing = EaseOutQuart)),
+//                exit = fadeOut(animationSpec = tween(100)) +
+//                        scaleOut(animationSpec = tween(100, easing = EaseInQuart))
+//            ) {
+//                Box(
+//                    modifier = Modifier
+//                        .fillMaxSize()
+//                        .padding(horizontal = 4.dp)
+//                        .background(
+//                            color = indicatorColor,
+//                            shape = RoundedCornerShape(16.dp) // Pill shape
+//                        )
+//                )
+//            }
 
             // Área clicable del ícono (más pequeña que el container)
             Box(
@@ -118,13 +153,7 @@ fun RowScope.CustomNavigationBarItem(
                 modifier = Modifier
                     .size(48.dp, 24.dp) // Área clicable reducida
                     .clip(RoundedCornerShape(12.dp))
-                    .clickable(
-                        onClick = onClick,
-                        enabled = enabled,
-                        role = Role.Tab,
-                        interactionSource = interactionSource,
-                        indication = null //ripple(bounded = true, radius = 24.dp) // Ripple contenido
-                    )
+
             ) {
                 // Ícono
                 CompositionLocalProvider(LocalContentColor provides iconColor) {

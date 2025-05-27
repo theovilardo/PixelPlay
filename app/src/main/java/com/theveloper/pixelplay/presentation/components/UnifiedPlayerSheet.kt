@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.presentation.components
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.util.Log
 import androidx.activity.BackEventCompat
@@ -114,6 +115,7 @@ import com.theveloper.pixelplay.ui.theme.PixelPlayTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 // Definir un CompositionLocal para el tema del álbum
 import com.theveloper.pixelplay.utils.formatDuration
@@ -122,6 +124,7 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import kotlin.coroutines.cancellation.CancellationException
@@ -129,6 +132,9 @@ import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
+import androidx.lifecycle.compose.collectAsStateWithLifecycle // Recomendado
+import com.theveloper.pixelplay.presentation.components.subcomps.PlayerProgressSection
+import kotlinx.coroutines.flow.map // MUY IMPORTANTE para el operador .map { ... }
 
 private val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error("No ColorScheme provided") }
 
@@ -534,20 +540,21 @@ fun UnifiedPlayerSheet(
                         ) {
                             Box(modifier = Modifier.graphicsLayer { alpha = fullPlayerAlpha }) {
                                 FullPlayerContentInternal(
-                                    currentPosition = playerUiState.currentPosition,
+                                    //currentPosition = playerUiState.currentPosition,
                                     currentSong = stablePlayerState.currentSong,
                                     isPlaying = stablePlayerState.isPlaying,
                                     isShuffleEnabled = stablePlayerState.isShuffleEnabled,
                                     repeatMode = stablePlayerState.repeatMode,
                                     isFavorite = stablePlayerState.isCurrentSongFavorite,
-                                    totalDuration = stablePlayerState.totalDuration,
+                                    //totalDuration = stablePlayerState.totalDuration,
                                     onPlayPause = { playerViewModel.playPause() }, onSeek = { playerViewModel.seekTo(it) },
                                     onNext = { playerViewModel.nextSong() }, onPrevious = { playerViewModel.previousSong() },
                                     onCollapse = { playerViewModel.collapsePlayerSheet() }, expansionFraction = playerContentExpansionFraction.value,
                                     currentSheetState = currentSheetContentState, onShowQueueClicked = { showQueueSheet = true },
                                     onShuffleToggle = { playerViewModel.toggleShuffle() },      // ADDED
                                     onRepeatToggle = { playerViewModel.cycleRepeatMode() },    // ADDED
-                                    onFavoriteToggle = { playerViewModel.toggleFavorite() }   // ADDED
+                                    onFavoriteToggle = { playerViewModel.toggleFavorite() },   // ADDED
+                                    playerViewModel = playerViewModel
                                 )
                             }
                         }
@@ -718,16 +725,16 @@ private enum class ButtonType {
     NONE, PREVIOUS, PLAY_PAUSE, NEXT
 }
 
+
+@SuppressLint("StateFlowValueCalledInComposition")
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun FullPlayerContentInternal(
-    currentPosition: Long,
     currentSong: Song?,
     isPlaying: Boolean,
     isShuffleEnabled: Boolean,
     repeatMode: Int,
     isFavorite: Boolean,
-    totalDuration: Long,
     onPlayPause: () -> Unit,
     onSeek: (Long) -> Unit,
     onNext: () -> Unit,
@@ -735,22 +742,30 @@ private fun FullPlayerContentInternal(
     onCollapse: () -> Unit,
     expansionFraction: Float,
     currentSheetState: PlayerSheetState,
-    onShowQueueClicked: () -> Unit, // Callback para mostrar la cola
-    onShuffleToggle: () -> Unit,    // ADDED
-    onRepeatToggle: () -> Unit,     // ADDED
-    onFavoriteToggle: () -> Unit    // ADDED
+    onShowQueueClicked: () -> Unit,
+    onShuffleToggle: () -> Unit,
+    onRepeatToggle: () -> Unit,
+    onFavoriteToggle: () -> Unit,
+    playerViewModel: PlayerViewModel
 ) {
-    val song = currentSong ?: return // Obtener canción de stablePlayerState
+    val song = currentSong ?: return
 
-    val rememberedOnPlayPause = remember { onPlayPause } // Si onPlayPause fuera una lambda que cambia
-    // Pero como son playerViewModel::metodo, ya son estables.
+    // RECOLECTAR LOS VALORES QUE CAMBIAN FRECUENTEMENTE AQUÍ UNA SOLA VEZ
+    val currentPositionValue by remember(playerViewModel.playerUiState) {
+        playerViewModel.playerUiState.map { it.currentPosition }
+    }.collectAsStateWithLifecycle(initialValue = playerViewModel.playerUiState.value.currentPosition)
 
-    // Cálculo de la fracción de progreso
-    val progressFraction = remember(currentPosition, totalDuration) { 
-        (currentPosition.coerceAtLeast(0).toFloat() / 
-                totalDuration.coerceAtLeast(1).toFloat())
+    val totalDurationValue by remember(playerViewModel.stablePlayerState) {
+        playerViewModel.stablePlayerState.map { it.totalDuration }
+    }.collectAsStateWithLifecycle(initialValue = playerViewModel.stablePlayerState.value.totalDuration)
+
+    // CALCULAR LA FRACCIÓN DE PROGRESO AQUÍ
+    val progressFractionValue = remember(currentPositionValue, totalDurationValue) {
+        (currentPositionValue.coerceAtLeast(0).toFloat() /
+                totalDurationValue.coerceAtLeast(1).toFloat())
     }.coerceIn(0f, 1f)
 
+    // Definir la AnimationSpec estable para los controles de reproducción
     val stableControlAnimationSpec = remember {
         spring<Float>(
             dampingRatio = Spring.DampingRatioNoBouncy,
@@ -758,12 +773,14 @@ private fun FullPlayerContentInternal(
         )
     }
 
-    // Definir colores estables si no dependen del tema dinámico del álbum aquí
-    // Si SÍ dependen del LocalMaterialTheme.current, entonces está bien leerlos directamente.
+    // Leer colores del tema una vez si no cambian con el tema del álbum aquí
+    // Si sí cambian con el tema del álbum, LocalMaterialTheme.current es correcto.
     val controlOtherButtonsColor = LocalMaterialTheme.current.primary.copy(alpha = 0.15f)
     val controlPlayPauseColor = LocalMaterialTheme.current.primary
     val controlTintPlayPauseIcon = LocalMaterialTheme.current.onPrimary
     val controlTintOtherIcons = LocalMaterialTheme.current.primary
+
+    Log.d("Recomposition", "FullPlayerContentInternal RECOMPOSED - Song: ${song.title}, IsPlaying: $isPlaying, ExpFrac: $expansionFraction")
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -871,9 +888,9 @@ private fun FullPlayerContentInternal(
             ) {
                 // IMPLEMENTACIÓN DE WAVY SLIDER CON ESTADO DE REPRODUCCIÓN
                 WavyMusicSlider(
-                    value = progressFraction,
+                    value = progressFractionValue,
                     onValueChange = { frac ->
-                        onSeek((frac * totalDuration).roundToLong())
+                        onSeek((frac * totalDurationValue).roundToLong()) // Lambda estable
                     },
                     onValueChangeFinished = {
                         // Opcional: acciones cuando el usuario termina de arrastrar
@@ -886,7 +903,6 @@ private fun FullPlayerContentInternal(
                     activeTrackColor = LocalMaterialTheme.current.primary,
                     inactiveTrackColor = LocalMaterialTheme.current.primary.copy(alpha = 0.2f),
                     thumbColor = LocalMaterialTheme.current.primary,
-                    waveAmplitude = 3.dp,
                     waveFrequency = 0.08f,
                     isPlaying = (isPlaying && currentSheetState == PlayerSheetState.EXPANDED) // Pasamos el estado de reproducción
                 )
@@ -898,13 +914,13 @@ private fun FullPlayerContentInternal(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        formatDuration(currentPosition), 
+                        formatDuration(currentPositionValue),
                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                         color = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f),
                         fontSize = 12.sp
                     )
                     Text(
-                        formatDuration(totalDuration),
+                        formatDuration(totalDurationValue),
                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                         color = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f),
                         fontSize = 12.sp
@@ -934,20 +950,6 @@ private fun FullPlayerContentInternal(
                 tintPlayPauseIcon = controlTintPlayPauseIcon,
                 tintOtherIcons = controlTintOtherIcons
             )
-//            // Playback Controls - Contenedor con altura fija
-//            AnimatedPlaybackControls(
-//                modifier = Modifier
-//                    .padding(horizontal = 12.dp, vertical = 8.dp),
-//                isPlaying = isPlaying,
-//                onPrevious = onPrevious,
-//                onPlayPause = onPlayPause,
-//                onNext = onNext,
-//                // Configurables (opcional)
-//                height = 80.dp,
-//                baseWeight = 1f,
-//                expansionWeight = 1.5f,
-//                compressionWeight = 0.75f
-//            )
 
             Spacer(modifier = Modifier.height(14.dp))
 
@@ -984,8 +986,8 @@ fun AnimatedPlaybackControls(
     modifier: Modifier = Modifier,
     height: Dp = 90.dp,
     baseWeight: Float = 1f,
-    expansionWeight: Float = 1.2f,
-    compressionWeight: Float = 0.55f,
+    expansionWeight: Float = 1.1f,
+    compressionWeight: Float = 0.65f,
     pressAnimationSpec: AnimationSpec<Float> = DefaultPlaybackControlAnimationSpec,//tween(durationMillis = 150, easing = FastOutSlowInEasing),
     releaseDelay: Long = 220L,
     playPauseCornerPlaying: Dp = 70.dp,
