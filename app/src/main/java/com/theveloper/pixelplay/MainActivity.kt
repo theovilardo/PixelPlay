@@ -111,7 +111,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     Box(modifier = Modifier.fillMaxSize()) {
-                        AppNavigation(playerViewModel = playerViewModel, navController = navController, navItems = commonNavItems)
+                        AppNavigation(playerViewModel = playerViewModel, navController = navController)
 
                         // UnifiedPlayerSheet AHORA SE COMPONE SIEMPRE
                         val density = LocalDensity.current

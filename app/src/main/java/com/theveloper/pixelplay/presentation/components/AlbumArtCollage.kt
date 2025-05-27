@@ -39,6 +39,7 @@ import com.theveloper.pixelplay.utils.shapes.createHexagonShape
 import com.theveloper.pixelplay.utils.shapes.createRoundedTriangleShape
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.utils.shapes.createRoundedHexagonShape
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.Dispatchers
 
 // Asegúrate de que tus recursos R y Song estén disponibles
@@ -55,7 +56,7 @@ import kotlinx.coroutines.Dispatchers
  */
 @Composable
 fun AlbumArtCollage3(
-    albumArts: List<Uri?>,
+    albumArts: ImmutableList<Uri?>,
     modifier: Modifier = Modifier,
     height: Dp = 400.dp,
     padding: Dp = 0.dp

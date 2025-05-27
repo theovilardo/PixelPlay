@@ -23,8 +23,6 @@ data class BottomNavItem(
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun MainLayout(
-    navController: NavHostController,
-    navItems: List<BottomNavItem>,
     content: @Composable (PaddingValues) -> Unit
 ) {
     Scaffold(

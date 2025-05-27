@@ -26,14 +26,9 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 fun AppNavigation(
     playerViewModel: PlayerViewModel,
     navController: NavHostController,
-    navItems: List<BottomNavItem>
 ) {
     //val navController = rememberNavController()
-    MainLayout(
-        navController = navController,
-        navItems = navItems,
-        //bottomBarBlackList = bottomBarBlackList
-    ) { paddingValues -> // paddingValues del Scaffold principal
+    MainLayout { paddingValues -> // paddingValues del Scaffold principal
         NavHost(navController = navController, startDestination = Screen.Home.route) {
             composable(Screen.Home.route) {
                 // Compartir mismo ViewModel entre pantallas

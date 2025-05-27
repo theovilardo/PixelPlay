@@ -81,6 +81,8 @@ import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.NavBarPersistentHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.map
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
@@ -100,9 +102,15 @@ fun HomeScreen(
         .collectAsState(initial = null)
 
     // 3) Calcular y recordar los URIs para el header
-    val recentUrisForHeader = remember(allSongs) {
-        allSongs.take(6).map { it.albumArtUri }
+    val recentUrisForHeader: ImmutableList<Uri?> = remember(allSongs) {
+        allSongs
+            .take(6)
+            .map { it.albumArtUri }
+            .toImmutableList() // Convierte la List resultante a ImmutableList
     }
+//    val recentUrisForHeader = remember(allSongs) {
+//        allSongs.take(6).map { it.albumArtUri }
+//    }
 
     // Padding inferior si hay canción en reproducción
     val bottomPadding = if (currentSong != null) MiniPlayerHeight else 0.dp
