@@ -780,7 +780,7 @@ fun LibraryFavoritesTab(
                 SongListItemFavs(
                     title = song.title,
                     artist = song.artist,
-                    albumArtUrl = song.albumArtUri,
+                    albumArtUrl = song.albumArtUriString,
                     isPlaying = isPlayingThisSong,
                     onClick = { playerViewModel.showAndPlaySong(song) }
                 )
@@ -901,7 +901,7 @@ fun EnhancedSongListItem(
                     .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 SmartImage(
-                    model = song.albumArtUri ?: R.drawable.rounded_album_24,
+                    model = song.albumArtUriString ?: R.drawable.rounded_album_24,
                     contentDescription = song.title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -1018,7 +1018,7 @@ fun LibraryAlbumsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, b
                     Spacer(Modifier.height(8.dp))
                 }
                 items(uiState.albums, key = { "album_${it.id}" }) { album ->
-                    val albumSpecificColorSchemeFlow = playerViewModel.getAlbumColorSchemeFlow(album.albumArtUri)
+                    val albumSpecificColorSchemeFlow = playerViewModel.getAlbumColorSchemeFlow(album.albumArtUriString)
                     AlbumGridItemRedesigned( // Usar el nuevo Composable
                         album = album,
                         albumColorSchemePairFlow = albumSpecificColorSchemeFlow,
@@ -1104,7 +1104,7 @@ fun AlbumGridItemRedesigned(
         ) {
             Box(contentAlignment = Alignment.BottomStart) {
                 SmartImage(
-                    model = album.albumArtUri ?: R.drawable.rounded_album_24,
+                    model = album.albumArtUriString ?: R.drawable.rounded_album_24,
                     contentDescription = "Carátula de ${album.title}",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.aspectRatio(3f/2f).fillMaxSize()
@@ -1143,34 +1143,6 @@ fun AlbumGridItemRedesigned(
     }
 }
 
-//@Composable
-//fun LibraryAlbumsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel) {
-//    val gridState = rememberLazyGridState()
-//    if (uiState.isLoadingLibraryCategories && uiState.albums.isEmpty()) { /* ... Loading ... */ }
-//    else if (uiState.albums.isEmpty() && !uiState.canLoadMoreAlbums) { /* ... No albums ... */ }
-//    else {
-//        LazyVerticalGrid(
-//            state = gridState,
-//            columns = GridCells.Fixed(2),
-//            contentPadding = PaddingValues(16.dp),
-//            verticalArrangement = Arrangement.spacedBy(16.dp),
-//            horizontalArrangement = Arrangement.spacedBy(16.dp)
-//        ) {
-//            items(uiState.albums, key = { it.id }) { album -> AlbumGridItem(album = album) { playerViewModel.playAlbum(album) } }
-//            if (uiState.isLoadingLibraryCategories && uiState.albums.isNotEmpty()) { // Mostrar loader al final si está cargando más
-//                item { Box(Modifier
-//                    .fillMaxWidth()
-//                    .padding(8.dp), Alignment.Center) { CircularProgressIndicator() } }
-//            }
-//        }
-//        InfiniteGridHandler(gridState = gridState) {
-//            if (uiState.canLoadMoreAlbums && !uiState.isLoadingLibraryCategories) {
-//                playerViewModel.loadMoreAlbums()
-//            }
-//        }
-//    }
-//}
-
 @Composable
 fun LibraryArtistsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel) {
     val listState = rememberLazyListState() // Artistas en una lista por ahora
@@ -1206,7 +1178,7 @@ fun AlbumGridItem(album: Album, onClick: () -> Unit) {
     ) {
         Column {
             SmartImage(
-                model = album.albumArtUri ?: R.drawable.rounded_album_24,
+                model = album.albumArtUriString ?: R.drawable.rounded_album_24,
                 contentDescription = "Carátula de ${album.title}",
                 contentScale = ContentScale.Crop,
             )

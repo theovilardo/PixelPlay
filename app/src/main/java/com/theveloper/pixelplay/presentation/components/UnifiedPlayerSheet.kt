@@ -680,7 +680,7 @@ private fun MiniPlayerContentInternal(
         verticalAlignment = Alignment.CenterVertically
     ) {
         SmartImage(
-            model = song.albumArtUri ?: R.drawable.rounded_album_24,
+            model = song.albumArtUriString ?: R.drawable.rounded_album_24,
             contentDescription = "Carátula de ${song.title}",
             shape = CircleShape,
             modifier = Modifier
@@ -879,7 +879,7 @@ private fun FullPlayerContentInternal(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Album Cover - Asegurando suficiente espacio
-            song.albumArtUri?.let {
+            song.albumArtUriString?.let {
                 OptimizedAlbumArt(
                     uri = it,
                     title = song.title,

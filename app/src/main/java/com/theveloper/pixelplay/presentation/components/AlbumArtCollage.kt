@@ -58,7 +58,7 @@ import okhttp3.internal.toImmutableList
  */
 @Composable
 fun AlbumArtCollage(
-    albumArts: ImmutableList<Uri?>,
+    albumArts: ImmutableList<String?>,
     modifier: Modifier = Modifier,
     height: Dp = 400.dp,
     padding: Dp = 0.dp

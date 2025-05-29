@@ -62,6 +62,9 @@ import com.theveloper.pixelplay.data.model.SortOption
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 
 // Nuevo enum para el estado del sheet
 enum class PlayerSheetState {
@@ -91,13 +94,13 @@ data class PlayerUiState(
     val currentPosition: Long = 0L, // Este se actualiza frecuentemente
     val isLoadingInitialSongs: Boolean = true,
     val isLoadingMoreSongs: Boolean = false,
-    val allSongs: List<Song> = emptyList(),
+    val allSongs: ImmutableList<Song> = persistentListOf(),
     val canLoadMoreSongs: Boolean = true,
-    val currentPlaybackQueue: List<Song> = emptyList(),
+    val currentPlaybackQueue: ImmutableList<Song> = persistentListOf(),
     val currentQueueSourceNname: String = "Todas las canciones",
-    val lavaLampColors: List<Color> = emptyList(),
-    val albums: List<Album> = emptyList(),
-    val artists: List<Artist> = emptyList(),
+    val lavaLampColors: ImmutableList<Color> = persistentListOf(),
+    val albums: ImmutableList<Album> = persistentListOf(),
+    val artists: ImmutableList<Artist> = persistentListOf(),
     val isLoadingLibraryCategories: Boolean = true,
     val canLoadMoreAlbums: Boolean = true,
     val canLoadMoreArtists: Boolean = true,
@@ -184,13 +187,21 @@ class PlayerViewModel @Inject constructor(
     private val _favoriteSongIds = MutableStateFlow<Set<String>>(emptySet())
 
     // Nuevo StateFlow para la lista de objetos Song favoritos
-    val favoriteSongs: StateFlow<List<Song>> = combine(
+    val favoriteSongs: StateFlow<ImmutableList<Song>> = combine(
         _favoriteSongIds,
         _playerUiState
     ) { ids, uiState ->
-        val allSongs = uiState.allSongs
-        allSongs.filter { song -> ids.contains(song.id) }
-    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+        val allSongs = uiState.allSongs // Esto ya es ImmutableList
+        // Especifica el tipo de retorno explícitamente aquí
+        allSongs.filter { song -> ids.contains(song.id) }.toImmutableList()
+    }.stateIn(viewModelScope, SharingStarted.Lazily, persistentListOf())
+//    val favoriteSongs: StateFlow<ImmutableList<Song>> = combine( // CAMBIO AQUÍ TAMBIÉN
+//        _favoriteSongIds,
+//        _playerUiState
+//    ) { ids, uiState ->
+//        val allSongs = uiState.allSongs // Esto ya es ImmutableList
+//        allSongs.filter { song -> ids.contains(song.id) }.toImmutableList() // Convertir resultado del filtro
+//    }.stateIn(viewModelScope, SharingStarted.Lazily, persistentListOf())
 
     private var progressJob: Job? = null
 
@@ -233,36 +244,50 @@ class PlayerViewModel @Inject constructor(
 
     private fun preloadThemesAndInitialData() {
         viewModelScope.launch { // Main.immediate by default
+            val overallInitStartTime = System.currentTimeMillis()
             _isInitialThemePreloadComplete.value = false // Mantener esto
 
-            // Launch theme preloading in a separate, controlled background job
-            // Este job ahora correrá de forma más independiente en segundo plano.
-            val themePreloadingJob: Job = launch(Dispatchers.IO) {
-                val allAlbumArtUris = musicRepository.getAllUniqueAlbumArtUris()
-                allAlbumArtUris.forEach { uri ->
-                    try {
-                        extractAndGenerateColorScheme(uri, isPreload = true)
-                    } catch (e: Exception) {
-                        Log.e("PlayerViewModel", "Error preloading theme for $uri", e)
+            // Introduce a delay before starting the theme preloading job
+            launch { // This launch uses viewModelScope's context, which is fine
+                delay(1500L) // Delay for 1.5 seconds (configurable)
+                Log.d("PlayerViewModel", "Delay complete, starting themePreloadingJob.")
+                val themeJobStartTime = System.currentTimeMillis()
+                // Launch theme preloading in a separate, controlled background job
+                val themePreloadingJob: Job = launch(Dispatchers.IO) { // Explicitly Dispatchers.IO
+                    val getAllUrisStartTime = System.currentTimeMillis()
+                    val allAlbumArtUris = musicRepository.getAllUniqueAlbumArtUris()
+                    Log.d("PlayerViewModel", "getAllUniqueAlbumArtUris took ${System.currentTimeMillis() - getAllUrisStartTime} ms")
+                    allAlbumArtUris.forEach { uri ->
+                        if (!isActive) return@forEach // Check if coroutine is still active
+                        try {
+                            extractAndGenerateColorScheme(uri, isPreload = true)
+                        } catch (e: Exception) {
+                            Log.e("PlayerViewModel", "Error preloading theme for $uri", e)
+                            // Consider adding a check !isActive here too if extractAndGenerateColorScheme is very long
+                        }
                     }
+                    Log.d("PlayerViewModel", "themePreloadingJob actual work took ${System.currentTimeMillis() - themeJobStartTime} ms before finishing log")
+                    Log.d("PlayerViewModel", "themePreloadingJob finished.")
                 }
-                // Podrías tener un flag separado para cuando ESTA tarea específica termine, si es necesario.
-                // Por ejemplo: _areAllThemesPreloaded.value = true
+                // Optional: you might want to handle cancellation of themePreloadingJob explicitly
+                // if the viewModel is cleared during the delay or during its execution.
+                // However, viewModelScope cancellation should propagate.
             }
 
-            // Concurrently load initial UI data
+            // Start loading initial UI data (concurrently with the delay timer)
+            val resetLoadDataStartTime = System.currentTimeMillis()
             resetAndLoadInitialData() // Esto lanza sus propias corrutinas
+            Log.d("PlayerViewModel", "resetAndLoadInitialData() call took ${System.currentTimeMillis() - resetLoadDataStartTime} ms (Note: actual loading is async)")
 
-            // *** CAMBIO IMPORTANTE ***
-            // Ya no esperamos a themePreloadingJob.join() aquí.
-            // Indicamos que la carga inicial (de datos, no necesariamente todos los temas) ha comenzado
-            // o que la primera página de datos críticos está en camino.
-            // La UI puede empezar a mostrarse y los temas se irán cargando.
-            _isInitialThemePreloadComplete.value = true
-            // Nota: Si la UI depende de que la *primera página* de canciones/álbumes
-            // esté realmente cargada, necesitarías coordinar esto con los flags
-            // isLoadingInitialSongs / isLoadingLibraryCategories.
-            // Pero para un indicador de carga global, esto puede ser suficiente.
+            // Wait for the initial songs to be loaded before marking initial theme/UI setup as complete.
+            // This ensures that the primary content is available when the loading screen disappears.
+            viewModelScope.launch {
+                // Wait until isLoadingInitialSongs is false
+                _playerUiState.first { !it.isLoadingInitialSongs }
+                // At this point, the first page of songs is loaded.
+                _isInitialThemePreloadComplete.value = true
+                Log.d("PlayerViewModel", "Initial song load complete, _isInitialThemePreloadComplete set to true. Total time since init start: ${System.currentTimeMillis() - overallInitStartTime} ms")
+            }
         }
     }
 
@@ -272,8 +297,12 @@ class PlayerViewModel @Inject constructor(
         currentArtistPage = 1
         _playerUiState.update {
             it.copy(
-                allSongs = emptyList(), albums = emptyList(), artists = emptyList(),
-                canLoadMoreSongs = true, canLoadMoreAlbums = true, canLoadMoreArtists = true
+                allSongs = emptyList<Song>().toImmutableList(),
+                albums = emptyList<Album>().toImmutableList(),
+                artists = emptyList<Artist>().toImmutableList(),
+                canLoadMoreSongs = true,
+                canLoadMoreAlbums = true,
+                canLoadMoreArtists = true
             )
         }
         loadSongsFromRepository(isInitialLoad = true)
@@ -291,7 +320,7 @@ class PlayerViewModel @Inject constructor(
             val newSongs = musicRepository.getAudioFiles(currentSongPage, PAGE_SIZE)
             _playerUiState.update {
                 it.copy(
-                    allSongs = if (isInitialLoad) newSongs else it.allSongs + newSongs,
+                    allSongs = if (isInitialLoad) newSongs.toImmutableList() else (it.allSongs + newSongs).toImmutableList(),
                     isLoadingInitialSongs = false,
                     isLoadingMoreSongs = false,
                     canLoadMoreSongs = newSongs.size == PAGE_SIZE
@@ -315,7 +344,7 @@ class PlayerViewModel @Inject constructor(
                 val newAlbums = musicRepository.getAlbums(currentAlbumPage, PAGE_SIZE)
                 _playerUiState.update {
                     it.copy(
-                        albums = if (isInitialLoad) newAlbums else it.albums + newAlbums,
+                        albums = if (isInitialLoad) newAlbums.toImmutableList() else (it.albums + newAlbums).toImmutableList(),
                         canLoadMoreAlbums = newAlbums.size == PAGE_SIZE
                     )
                 }
@@ -326,7 +355,7 @@ class PlayerViewModel @Inject constructor(
                 val newArtists = musicRepository.getArtists(currentArtistPage, PAGE_SIZE)
                 _playerUiState.update {
                     it.copy(
-                        artists = if (isInitialLoad) newArtists else it.artists + newArtists,
+                        artists = if (isInitialLoad) newArtists.toImmutableList() else (it.artists + newArtists).toImmutableList(),
                         canLoadMoreArtists = newArtists.size == PAGE_SIZE
                     )
                 }
@@ -431,7 +460,7 @@ class PlayerViewModel @Inject constructor(
             val mediaItem = controller.getMediaItemAt(i)
             allSongsMasterList.find { it.id == mediaItem.mediaId }?.let { song -> queue.add(song) }
         }
-        _playerUiState.update { it.copy(currentPlaybackQueue = queue) }
+        _playerUiState.update { it.copy(currentPlaybackQueue = queue.toImmutableList()) }
     }
 
     private fun setupMediaControllerListeners() {
@@ -458,7 +487,9 @@ class PlayerViewModel @Inject constructor(
                 }
                 _playerUiState.update { it.copy(currentPosition = controller.currentPosition.coerceAtLeast(0L)) }
                 viewModelScope.launch { // ver si causa problemas, extractAndGenerateColorScheme ahora es suspend
-                    extractAndGenerateColorScheme(song.albumArtUri)
+                    song.albumArtUriString?.let { Uri.parse(it) }?.let { uri ->
+                        extractAndGenerateColorScheme(uri)
+                    }
                 }
                 updateFavoriteStatusForCurrentSong()
                 if (controller.isPlaying) startProgressUpdates()
@@ -488,7 +519,9 @@ class PlayerViewModel @Inject constructor(
                     _playerUiState.update { it.copy(currentPosition = 0L) } // Reset position
                     song?.let { currentSongValue ->
                         viewModelScope.launch {
-                            extractAndGenerateColorScheme(currentSongValue.albumArtUri)
+                            currentSongValue.albumArtUriString?.let { Uri.parse(it) }?.let { uri ->
+                                extractAndGenerateColorScheme(uri)
+                            }
                         }
                         updateFavoriteStatusForCurrentSong()
                     }
@@ -524,12 +557,12 @@ class PlayerViewModel @Inject constructor(
                 val metadata = MediaMetadata.Builder()
                     .setTitle(song.title)
                     .setArtist(song.artist)
-                    .setArtworkUri(song.albumArtUri)
+                    .setArtworkUri(song.albumArtUriString?.let { Uri.parse(it) })
                     // .setAlbumTitle(song.album) // Opcional: Considerar añadir si es útil
                     .build()
                 MediaItem.Builder()
                     .setMediaId(song.id)
-                    .setUri(song.contentUri)
+                    .setUri(Uri.parse(song.contentUriString))
                     .setMediaMetadata(metadata)
                     .build()
             }
@@ -539,10 +572,12 @@ class PlayerViewModel @Inject constructor(
                 controller.setMediaItems(mediaItems, startIndex, 0L)
                 controller.prepare()
                 controller.play()
-                _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay, currentQueueSourceNname = queueName) }
+                _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceNname = queueName) }
                 //_stablePlayerState.update { it.copy(currentSong = startSong, isPlaying = true) }
                 viewModelScope.launch {
-                    extractAndGenerateColorScheme(startSong.albumArtUri)
+                    startSong.albumArtUriString?.let { Uri.parse(it) }?.let { uri ->
+                        extractAndGenerateColorScheme(uri)
+                    }
                 }
                 updateFavoriteStatusForCurrentSong()
             }
@@ -555,12 +590,12 @@ class PlayerViewModel @Inject constructor(
             val metadata = MediaMetadata.Builder()
                 .setTitle(song.title)
                 .setArtist(song.artist)
-                .setArtworkUri(song.albumArtUri)
+                .setArtworkUri(song.albumArtUriString?.let { Uri.parse(it) })
                 // .setAlbumTitle(song.album) // Opcional: Considerar añadir si es útil
                 .build()
             val mediaItem = MediaItem.Builder()
                 .setMediaId(song.id)
-                .setUri(song.contentUri)
+                .setUri(Uri.parse(song.contentUriString))
                 .setMediaMetadata(metadata)
                 .build()
             if (controller.currentMediaItem?.mediaId == song.id) {
@@ -572,7 +607,9 @@ class PlayerViewModel @Inject constructor(
             }
             _stablePlayerState.update { it.copy(currentSong = song, isPlaying = true) }
             viewModelScope.launch {
-                extractAndGenerateColorScheme(song.albumArtUri, isPreload = false)
+                song.albumArtUriString?.let { Uri.parse(it) }?.let { uri ->
+                    extractAndGenerateColorScheme(uri, isPreload = false)
+                }
             }
             //extractAndGeneratePalette(song.albumArtUri)
         }
@@ -614,7 +651,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     // Función para ser llamada por AlbumGridItem
-    fun getAlbumColorSchemeFlow(albumArtUri: Uri?): StateFlow<ColorSchemePair?> {
+    fun getAlbumColorSchemeFlow(albumArtUri: String?): StateFlow<ColorSchemePair?> {
         val uriString = albumArtUri?.toString() ?: "default_fallback_key" // Usar una clave de fallback si la URI es null
 
         // Devolver flujo existente o crear uno nuevo
@@ -635,14 +672,14 @@ class PlayerViewModel @Inject constructor(
     }
 
     // Modificada para devolver el ColorSchemePair y ser usada por getAlbumColorSchemeFlow y la precarga
-    private suspend fun getOrGenerateColorSchemeForUri(albumArtUri: Uri, isPreload: Boolean): ColorSchemePair? {
+    private suspend fun getOrGenerateColorSchemeForUri(albumArtUri: String, isPreload: Boolean): ColorSchemePair? {
         val uriString = albumArtUri.toString()
         val cachedEntity = withContext(Dispatchers.IO) { albumArtThemeDao.getThemeByUri(uriString) }
 
         if (cachedEntity != null) {
             val schemePair = mapEntityToColorSchemePair(cachedEntity)
             // Si es la canción actual Y no es precarga, actualizar el tema del reproductor
-            if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUri == albumArtUri) {
+            if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) {
                 _currentAlbumArtColorSchemePair.value = schemePair
                 updateLavaLampColorsBasedOnActivePlayerScheme()
             }
@@ -667,20 +704,20 @@ class PlayerViewModel @Inject constructor(
                     generateColorSchemeFromSeed(seed)
                 }
                 withContext(Dispatchers.IO) { albumArtThemeDao.insertTheme(mapColorSchemePairToEntity(uriString, schemePair)) }
-                if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUri == albumArtUri) {
+                if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) {
                     _currentAlbumArtColorSchemePair.value = schemePair
                     updateLavaLampColorsBasedOnActivePlayerScheme()
                 }
                 schemePair
             } ?: run {
-                if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUri == albumArtUri) {
+                if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) {
                     _currentAlbumArtColorSchemePair.value = null
                     updateLavaLampColorsBasedOnActivePlayerScheme()
                 }
                 null
             }
         } catch (e: Exception) {
-            if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUri == albumArtUri) {
+            if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) {
                 _currentAlbumArtColorSchemePair.value = null
                 updateLavaLampColorsBasedOnActivePlayerScheme()
             }
@@ -688,25 +725,25 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    private suspend fun extractAndGenerateColorScheme(albumArtUri: Uri?, isPreload: Boolean = false) {
-        if (albumArtUri == null) {
-            if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUri == null) { // Solo si es la canción actual sin arte
+    private suspend fun extractAndGenerateColorScheme(albumArtUriAsUri: Uri?, isPreload: Boolean = false) {
+        if (albumArtUriAsUri == null) {
+            // Check current song's string URI when determining if it's the one without art
+            if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == null) {
                 _currentAlbumArtColorSchemePair.value = null
                 updateLavaLampColorsBasedOnActivePlayerScheme()
             }
             return
         }
-        val uriString = albumArtUri.toString()
+        val uriString = albumArtUriAsUri.toString()
         val cachedThemeEntity = withContext(Dispatchers.IO) { albumArtThemeDao.getThemeByUri(uriString) }
 
         if (cachedThemeEntity != null) {
             val schemePair = mapEntityToColorSchemePair(cachedThemeEntity)
-            if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUri == albumArtUri) {
+            if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) {
                 _currentAlbumArtColorSchemePair.value = schemePair
                 updateLavaLampColorsBasedOnActivePlayerScheme()
             } else if (isPreload) {
                 // No es necesario actualizar _currentAlbumArtColorSchemePair durante la precarga
-                // a menos que sea para la canción que podría estar sonando al inicio.
             }
             return
         }
@@ -715,7 +752,7 @@ class PlayerViewModel @Inject constructor(
         try {
             val bitmap = withContext(Dispatchers.IO) {
                 val request = ImageRequest.Builder(context)
-                    .data(albumArtUri)
+                    .data(albumArtUriAsUri)
                     .allowHardware(false) // Palette necesita ARGB_8888
                     .size(Size(128, 128)) // Redimensionar para Palette, más pequeño es más rápido
                     .bitmapConfig(Bitmap.Config.ARGB_8888) // Explicitly set config
@@ -736,12 +773,12 @@ class PlayerViewModel @Inject constructor(
                     generateColorSchemeFromSeed(seed)
                 }
                 withContext(Dispatchers.IO) { albumArtThemeDao.insertTheme(mapColorSchemePairToEntity(uriString, schemePair)) }
-                if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUri == albumArtUri) {
+                if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) {
                     _currentAlbumArtColorSchemePair.value = schemePair
                     updateLavaLampColorsBasedOnActivePlayerScheme()
                 }
-            } ?: run { if (!isPreload) { _currentAlbumArtColorSchemePair.value = null; updateLavaLampColorsBasedOnActivePlayerScheme() } }
-        } catch (e: Exception) { if (!isPreload) { _currentAlbumArtColorSchemePair.value = null; updateLavaLampColorsBasedOnActivePlayerScheme() } }
+            } ?: run { if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) { _currentAlbumArtColorSchemePair.value = null; updateLavaLampColorsBasedOnActivePlayerScheme() } }
+        } catch (e: Exception) { if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) { _currentAlbumArtColorSchemePair.value = null; updateLavaLampColorsBasedOnActivePlayerScheme() } }
     }
 
     // Funciones de Mapeo Entity <-> ColorSchemePair (Corregidas)
@@ -790,7 +827,7 @@ class PlayerViewModel @Inject constructor(
             val currentPlayerSchemePair = activePlayerColorSchemePair.first() // Puede ser null
             val schemeForLava = currentPlayerSchemePair?.dark ?: DarkColorScheme // Fallback si es null
             _playerUiState.update {
-                it.copy(lavaLampColors = listOf(schemeForLava.primary, schemeForLava.secondary, schemeForLava.tertiary).distinct())
+                it.copy(lavaLampColors = listOf(schemeForLava.primary, schemeForLava.secondary, schemeForLava.tertiary).distinct().toImmutableList())
             }
         }
     }
