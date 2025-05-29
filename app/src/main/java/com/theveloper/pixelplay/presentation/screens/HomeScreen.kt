@@ -2,10 +2,7 @@ package com.theveloper.pixelplay.presentation.screens
 
 import android.net.Uri
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.TargetedFlingBehavior
-import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,10 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GraphicEq
@@ -35,20 +29,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeFloatingActionButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MediumFloatingActionButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.carousel.CarouselDefaults
-import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
-import androidx.compose.material3.carousel.rememberCarouselState
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -73,14 +60,14 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.theveloper.pixelplay.R
-import com.theveloper.pixelplay.data.model.DirectoryItem
 import com.theveloper.pixelplay.data.model.Song
-import com.theveloper.pixelplay.presentation.components.AlbumArtCollage3
+import com.theveloper.pixelplay.presentation.components.AlbumArtCollage
 import com.theveloper.pixelplay.presentation.components.DailyMixSection
 import com.theveloper.pixelplay.presentation.components.GradientTopBar
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.NavBarPersistentHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
+import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
@@ -103,6 +90,8 @@ fun HomeScreen(
         immutable
     }
 
+    val yourMixSong: String = "Today's Mix for you"
+
     // 2) Observar sólo el currentSong (o null) para saber si mostrar padding
     val currentSong by playerViewModel.stablePlayerState
         .map { it.currentSong }
@@ -115,9 +104,6 @@ fun HomeScreen(
             .map { it.albumArtUri }
             .toImmutableList() // Convierte la List resultante a ImmutableList
     }
-//    val recentUrisForHeader = remember(allSongs) {
-//        allSongs.take(6).map { it.albumArtUri }
-//    }
 
     // Padding inferior si hay canción en reproducción
     val bottomPadding = if (currentSong != null) MiniPlayerHeight else 0.dp
@@ -125,7 +111,11 @@ fun HomeScreen(
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
-            GradientTopBar(navController = navController)
+            GradientTopBar(
+                onNavigationIconClick = {
+                    navController.navigate(Screen.Settings.route)
+                }
+            )
         }
     ) { innerPadding ->
         LazyColumn(
@@ -143,8 +133,7 @@ fun HomeScreen(
             // Your Mix
             item {
                 YourMixHeader(
-                    albumArtUris = recentUrisForHeader,
-                    isPlatyingAndCsNotNull = false,
+                    song = yourMixSong,
                     onPlayRandomSong = { playerViewModel.playPause() }
                 )
             }
@@ -152,7 +141,7 @@ fun HomeScreen(
             // Collage
             if (recentUrisForHeader.isNotEmpty()) {
                 item {
-                    AlbumArtCollage3(
+                    AlbumArtCollage(
                         modifier = Modifier.fillMaxWidth(),
                         albumArts = recentUrisForHeader,
                         padding = 14.dp,
@@ -166,8 +155,7 @@ fun HomeScreen(
                 item {
                     DailyMixSection(
                         songs = dailyMixSongs,
-                        playerViewModel = playerViewModel,
-                        navController = navController
+                        playerViewModel = playerViewModel
                     )
                 }
             }
@@ -178,28 +166,21 @@ fun HomeScreen(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun YourMixHeader(
-    albumArtUris: List<Uri?>,
-    isPlatyingAndCsNotNull : Boolean = false,
+    song: String,
     onPlayRandomSong: () -> Unit
 ) {
-    val recentUris = albumArtUris
 
     val buttonCorners = 68.dp
-
-    val smallButtonCorners = 14.dp
-
-    val playPauseIcon = if (isPlatyingAndCsNotNull) R.drawable.rounded_pause_24 else R.drawable.rounded_play_arrow_24
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(210.dp)
+            .height(216.dp)
             .padding(16.dp)
     ) {
         Column(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                //.width(160.dp)
                 .padding(top = 48.dp, start = 16.dp)
         ) {
             // Your Mix Title
@@ -216,7 +197,7 @@ fun YourMixHeader(
 
             // Artist/Song subtitle
             Text(
-                text = "Traveler, Water Houses",
+                text = song,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 modifier = Modifier
@@ -228,6 +209,8 @@ fun YourMixHeader(
                 .align(Alignment.BottomEnd)
                 .padding(end = 12.dp),
             onClick = onPlayRandomSong,
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
             shape = AbsoluteSmoothCornerShape(
                 cornerRadiusTL = buttonCorners,
                 smoothnessAsPercentTR = 60,
@@ -295,6 +278,7 @@ fun SectionHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(start = 4.dp)
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -312,11 +296,11 @@ fun SectionHeader(
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 Text(
-                    "Ver todo",
+                    "See more",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
-
+                Spacer(modifier = Modifier.width(4.dp))
                 Icon(
                     painter = painterResource(R.drawable.rounded_chevron_right_24),
                     contentDescription = null,

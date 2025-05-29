@@ -38,6 +38,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MusicNote
@@ -67,6 +68,7 @@ import androidx.compose.material3.MediumFloatingActionButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRowDefaults
@@ -122,8 +124,10 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistUiState
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 import com.theveloper.pixelplay.utils.formatDuration
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import okhttp3.internal.toImmutableList
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class,
@@ -132,7 +136,6 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 @Composable
 fun LibraryScreen(
     navController: NavController,
-    paddingValues: PaddingValues,
     playerViewModel: PlayerViewModel = hiltViewModel(),
     playlistViewModel: PlaylistViewModel = hiltViewModel()
 ) {
@@ -147,9 +150,6 @@ fun LibraryScreen(
     val pagerState = rememberPagerState { tabTitles.size }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
 
-    // Scroll behavior para animaciones de la TopAppBar
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-
     LaunchedEffect(Unit) {
         if (uiState.allSongs.isEmpty() && uiState.canLoadMoreSongs) playerViewModel.loadMoreSongs()
         if (uiState.albums.isEmpty() && uiState.canLoadMoreAlbums) playerViewModel.loadMoreAlbums()
@@ -160,8 +160,7 @@ fun LibraryScreen(
     val fabState by remember { derivedStateOf { pagerState.currentPage } }
     val transition = updateTransition(targetState = fabState, label = "FAB Transition")
 
-    //val bottomBarHeightPx by playerViewModel.bottomBarHeight.collectAsState()
-    val bottomBarHeightDp = NavBarPersistentHeight //with(LocalDensity.current) { bottomBarHeightPx.toDp() }
+    val bottomBarHeightDp = NavBarPersistentHeight
     val fabBottomMarginIfPlaying = if (stablePlayerState.isPlaying || sheetVisibility) MiniPlayerHeight else 0.dp
     val fabBottomMargin by animateDpAsState(
         targetValue = fabBottomMarginIfPlaying,
@@ -184,16 +183,19 @@ fun LibraryScreen(
         }
     }
 
+    val gradientColors = listOf(
+        MaterialTheme.colorScheme.primary,
+        Color.Transparent
+    ).toImmutableList()
+
+    val gradientBrush = remember(gradientColors) {
+        Brush.verticalGradient(colors = gradientColors)
+    }
+
     Scaffold(
         modifier = Modifier
-            //.padding(bottom = paddingValues.calculateBottomPadding())
             .background(
-                brush = Brush.verticalGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.primary,
-                        Color.Transparent
-                    )
-                )
+                brush = gradientBrush
             ),
         topBar = {
             // TopBar al estilo de la imagen de referencia
@@ -204,8 +206,6 @@ fun LibraryScreen(
                         text = "Library",
                         style = MaterialTheme.typography.headlineLargeEmphasized,
                         fontWeight = FontWeight.ExtraBold,
-                        //fontFamily = FontFamily.SansSerif,
-                        //fontStyle = FontStyle.Italic,
                         letterSpacing = 1.sp
                     )
                 },
@@ -227,84 +227,8 @@ fun LibraryScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-                ),
-                scrollBehavior = scrollBehavior
-            )
-        },
-        floatingActionButton = {
-            // FAB con animación morphing según la tab
-            MediumFloatingActionButton(
-                modifier = Modifier
-                    .padding(bottom = fabBottomMargin + bottomBarHeightDp,
-                        end = 12.dp
-                    ),
-                shape = AbsoluteSmoothCornerShape(
-                    cornerRadiusTL = 26.dp,
-                    smoothnessAsPercentTR = 60,
-                    cornerRadiusTR = 26.dp,
-                    smoothnessAsPercentTL = 60,
-                    cornerRadiusBL = 26.dp,
-                    smoothnessAsPercentBR = 60,
-                    cornerRadiusBR = 26.dp,
-                    smoothnessAsPercentBL = 60
-                ),
-                onClick = {
-                    when (pagerState.currentPage) {
-                        3 -> showCreatePlaylistDialog = true
-                        else -> playerViewModel.toggleShuffle().also { 
-                            playerViewModel.playPause()
-                        }
-                    }
-                },
-                //shape = fabShape,
-                containerColor = when (pagerState.currentPage) {
-                    3 -> MaterialTheme.colorScheme.primaryContainer
-                    else -> MaterialTheme.colorScheme.primary
-                },
-                contentColor = when (pagerState.currentPage) {
-                    3 -> MaterialTheme.colorScheme.onPrimaryContainer
-                    else -> MaterialTheme.colorScheme.onPrimary
-                },
-                elevation = FloatingActionButtonDefaults.elevation(
-                    defaultElevation = 6.dp,
-                    pressedElevation = 8.dp
                 )
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                ) {
-                    // Contenido del FAB según la tab
-                    when (pagerState.currentPage) {
-                        3 -> {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.PlaylistAdd,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Text(
-                                    "New",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                        }
-                        else -> {
-                            Icon(
-                                imageVector = Icons.Rounded.Shuffle,
-                                contentDescription = "Shuffle Play",
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .rotate(fabIconRotation)
-                            )
-                        }
-                    }
-                }
-            }
+            )
         }
     ) { innerScaffoldPadding ->
         Column(
@@ -365,7 +289,7 @@ fun LibraryScreen(
             Surface(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = 12.dp),
                 color = MaterialTheme.colorScheme.surface,
                 shape = AbsoluteSmoothCornerShape(
                     cornerRadiusTL = 24.dp,
@@ -378,27 +302,112 @@ fun LibraryScreen(
                     smoothnessAsPercentBR = 60
                 )
             ) {
-                // El contenido del pager con animación suave entre tabs
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxSize(),
-                    pageSpacing = 0.dp,
-                    pageContent = { page ->
+                Column(
+                    Modifier.fillMaxSize()
+                ) {
+                    SmallFloatingActionButton(
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .padding(top = 12.dp, bottom = 2.dp)
+                        ,
+                        shape = AbsoluteSmoothCornerShape(
+                            cornerRadiusTL = 26.dp,
+                            smoothnessAsPercentTR = 60,
+                            cornerRadiusTR = 26.dp,
+                            smoothnessAsPercentTL = 60,
+                            cornerRadiusBL = 26.dp,
+                            smoothnessAsPercentBR = 60,
+                            cornerRadiusBR = 26.dp,
+                            smoothnessAsPercentBL = 60
+                        ),
+                        onClick = {
+                            when (pagerState.currentPage) {
+                                3 -> showCreatePlaylistDialog = true
+                                else -> playerViewModel.toggleShuffle().also {
+                                    playerViewModel.playPause()
+                                }
+                            }
+                        },
+                        //shape = fabShape,
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        elevation = FloatingActionButtonDefaults.elevation(
+                            defaultElevation = 6.dp,
+                            pressedElevation = 8.dp
+                        )
+                    ) {
                         Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(top = 8.dp)
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.padding(horizontal = 16.dp)
                         ) {
-                            when (page) {
-                                0 -> LibrarySongsTab(uiState, playerViewModel, bottomBarHeightDp)
-                                1 -> LibraryAlbumsTab(uiState, playerViewModel, bottomBarHeightDp)
-                                2 -> LibraryArtistsTab(uiState, playerViewModel)
-                                3 -> LibraryPlaylistsTab(playlistUiState, navController)
-                                4 -> LibraryFavoritesTab(favoriteSongs, playerViewModel) // Nueva Tab
+                            // Contenido del FAB según la tab
+                            when (pagerState.currentPage) {
+                                3 -> {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.rounded_playlist_play_24),
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .size(20.dp)
+                                                .rotate(fabIconRotation)
+                                        )
+                                        Text(
+                                            "New Playlist",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                                else -> {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.rounded_shuffle_24),
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .size(20.dp)
+                                                .rotate(fabIconRotation)
+                                        )
+                                        Text(
+                                            "Shuffle",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
-                )
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxSize(),
+                        pageSpacing = 0.dp,
+                        pageContent = { page ->
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(top = 8.dp)
+                            ) {
+                                when (page) {
+                                    0 -> LibrarySongsTab(uiState, playerViewModel, bottomBarHeightDp)
+                                    1 -> LibraryAlbumsTab(uiState, playerViewModel, bottomBarHeightDp)
+                                    2 -> LibraryArtistsTab(uiState, playerViewModel)
+                                    3 -> LibraryPlaylistsTab(playlistUiState, navController)
+                                    4 -> LibraryFavoritesTab(
+                                        favoriteSongs,
+                                        playerViewModel
+                                    ) // Nueva Tab
+                                }
+                            }
+                        }
+                    )
+                }
+                // El contenido del pager con animación suave entre tabs
             }
         }
     }
@@ -538,21 +547,10 @@ fun LibrarySongsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, bo
                 modifier = Modifier.padding(bottom = bottomBarHeight - 6.dp),
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(top = 8.dp, bottom = MiniPlayerHeight + bottomBarHeight + 16.dp) // Espacio para el FAB
+                contentPadding = PaddingValues(bottom = MiniPlayerHeight + 16.dp) // Espacio para el FAB
             ) {
                 item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                            .padding(top = 10.dp),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        Text(
-                            modifier = Modifier.align(Alignment.Center),
-                            text = "All Songs"
-                        )
-                    }
+                    Spacer(Modifier.height(8.dp))
                 }
                 items(uiState.allSongs, key = { it.id }) { song ->
                     EnhancedSongListItem(song = song) {
@@ -577,7 +575,7 @@ fun LibrarySongsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, bo
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(22.dp)
+                    .height(14.dp)
                     .background(
                         brush = Brush.verticalGradient(
                             colors = listOf(
@@ -612,8 +610,7 @@ fun EnhancedSongListItem(
             .clickable {
                 onClick()
             }
-            .padding(end = 6.dp, start = 2.dp)
-            .padding(vertical = 4.dp),
+            .padding(end = 6.dp, start = 2.dp),
         shape = AbsoluteSmoothCornerShape(
             cornerRadiusBL = itemCornerRadius,
             smoothnessAsPercentTL = 60,
@@ -764,19 +761,8 @@ fun LibraryAlbumsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, b
                 verticalArrangement = Arrangement.spacedBy(14.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                            .padding(top = 10.dp),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        Text(
-                            modifier = Modifier.align(Alignment.Center),
-                            text = "All Albums"
-                        )
-                    }
+                item {
+                    Spacer(Modifier.height(8.dp))
                 }
                 items(uiState.albums, key = { "album_${it.id}" }) { album ->
                     val albumSpecificColorSchemeFlow = playerViewModel.getAlbumColorSchemeFlow(album.albumArtUri)
@@ -794,7 +780,7 @@ fun LibraryAlbumsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, b
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(22.dp)
+                    .height(14.dp)
                     .background(
                         brush = Brush.verticalGradient(
                             colors = listOf(
@@ -1032,7 +1018,7 @@ fun PlaylistItem(playlist: Playlist, onClick: () -> Unit) {
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                Icons.Filled.QueueMusic,
+                Icons.AutoMirrored.Filled.QueueMusic,
                 contentDescription = "Playlist",
                 modifier = Modifier
                     .size(40.dp)

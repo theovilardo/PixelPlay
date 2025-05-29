@@ -30,6 +30,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +49,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
@@ -110,6 +112,35 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    // NUEVO: Observar la ruta actual para determinar si ocultar navbar
+                    val navBackStackEntry by navController.currentBackStackEntryAsState()
+                    val currentRoute = navBackStackEntry?.destination?.route
+
+                    // NUEVO: Lista de rutas donde la navbar debería estar oculta
+                    val routesWithHiddenNavBar = remember {
+                        setOf(
+                            Screen.Settings.route,
+                            Screen.PlaylistDetail.route
+                        )
+                    }
+
+                    // NUEVO: Determinar si ocultar navbar basado en la ruta actual
+                    val shouldHideNavBar by remember(currentRoute) {
+                        derivedStateOf {
+                            currentRoute?.let { route ->
+                                routesWithHiddenNavBar.any { hiddenRoute ->
+                                    // Para rutas con argumentos como playlist/{playlistId},
+                                    // comparamos solo la parte base de la ruta
+                                    if (hiddenRoute.contains("{")) {
+                                        route.startsWith(hiddenRoute.substringBefore("{"))
+                                    } else {
+                                        route == hiddenRoute
+                                    }
+                                }
+                            } ?: false
+                        }
+                    }
+
                     Box(modifier = Modifier.fillMaxSize()) {
                         AppNavigation(playerViewModel = playerViewModel, navController = navController)
 
@@ -127,8 +158,12 @@ class MainActivity : ComponentActivity() {
                         val miniPlayerH = with(density) { MiniPlayerHeight.toPx() }
                         val spacerH = with(density) { CollapsedPlayerContentSpacerHeight.toPx() }
 
+                        // MEJORADO: Calcular altura inicial considerando navbar oculta
                         val initialContentHeightPx = if (showPlayerContentInitially) miniPlayerH + spacerH else 0f
-                        val initialTotalSheetHeightPx = initialContentHeightPx + navBarH
+                        val initialNavBarHeightPx = if (shouldHideNavBar) 0f else navBarH
+                        val initialTotalSheetHeightPx = initialContentHeightPx + initialNavBarHeightPx
+//                        val initialContentHeightPx = if (showPlayerContentInitially) miniPlayerH + spacerH else 0f
+//                        val initialTotalSheetHeightPx = initialContentHeightPx + navBarH
 
                         val initialY = screenHeightPx - initialTotalSheetHeightPx - collapsedMarginPx
 
@@ -146,6 +181,7 @@ class MainActivity : ComponentActivity() {
                                 initialTargetTranslationY = initialY,
                                 collapsedStateHorizontalPadding = 22.dp, // AJUSTA ESTE VALOR
                                 collapsedStateBottomMargin = collapsedStateBottomMargin,
+                                hideNavBar = shouldHideNavBar
                             )
                         }
                     }

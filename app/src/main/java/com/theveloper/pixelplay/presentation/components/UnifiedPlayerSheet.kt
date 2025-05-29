@@ -171,7 +171,8 @@ fun UnifiedPlayerSheet(
     navItems: ImmutableList<BottomNavItem>,
     initialTargetTranslationY: Float,
     collapsedStateHorizontalPadding: Dp = 12.dp,
-    collapsedStateBottomMargin: Dp
+    collapsedStateBottomMargin: Dp,
+    hideNavBar: Boolean = false // NUEVO: Parámetro para ocultar navbar
 ) {
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
     val playerUiState by playerViewModel.playerUiState.collectAsState()
@@ -208,7 +209,14 @@ fun UnifiedPlayerSheet(
     }
     val playerContentAreaActualHeightDp = with(density) { playerContentAreaActualHeightPx.toDp() }
 
-    val totalSheetHeightWhenContentCollapsedPx = (if (showPlayerContentArea) miniPlayerAndSpacerHeightPx else 0f) + navBarHeightPx
+    // MEJORADO: Cálculo de altura total considerando navbar oculta
+    val totalSheetHeightWhenContentCollapsedPx = remember(showPlayerContentArea, hideNavBar, miniPlayerAndSpacerHeightPx, navBarHeightPx) {
+        val playerHeight = if (showPlayerContentArea) miniPlayerAndSpacerHeightPx else 0f
+        val navHeight = if (hideNavBar) 0f else navBarHeightPx
+        playerHeight + navHeight
+    }
+    //previus:
+//    val totalSheetHeightWhenContentCollapsedPx = (if (showPlayerContentArea) miniPlayerAndSpacerHeightPx else 0f) + navBarHeightPx
     val animatedTotalSheetHeightPx by remember(showPlayerContentArea, playerContentExpansionFraction, screenHeightPx, totalSheetHeightWhenContentCollapsedPx) {
         derivedStateOf {
             if (showPlayerContentArea) {
@@ -245,13 +253,25 @@ fun UnifiedPlayerSheet(
     val overallSheetTopCornerRadius by animateDpAsState(
         targetValue = if (showPlayerContentArea) {
             val fraction = playerContentExpansionFraction.value
-            if (fraction > 0.9f) {
-                PlayerSheetExpandedCornerRadius
-            } else {
-                PlayerSheetCollapsedCornerRadius
+            if (fraction == 1f) { // Totalmente expandido
+                0.dp
+            } else if (hideNavBar) { // Navbar oculta y no totalmente expandido
+                // Interpolar desde el radio de colapsado con navbar oculta (50.dp) hacia 24.dp a medida que se expande,
+                // pero si se expande completamente, la condición anterior (fraction == 1f) se encargará del 0.dp.
+                // Esta interpolación es para el *trayecto* hacia la expansión cuando la navbar está oculta.
+                // Si quieres que el 24.dp sea el objetivo *hasta casi el final* de la expansión:
+                lerp(32.dp, 24.dp, fraction) // Va de 50.dp (colapsado) a 24.dp (casi expandido)
+            } else { // Navbar visible y no totalmente expandido
+                // Interpolar desde el radio de colapsado con navbar visible hacia el radio de expandido (antes de ser 0.dp)
+                // O simplemente usar los valores discretos como antes si no hay un "camino" intermedio específico
+                lerp(PlayerSheetCollapsedCornerRadius, PlayerSheetExpandedCornerRadius, fraction) // O la lógica anterior: if (fraction > 0.9f) PlayerSheetExpandedCornerRadius else PlayerSheetCollapsedCornerRadius
             }
-        } else {
-            PlayerSheetCollapsedCornerRadius
+        } else { // No hay contenido de player
+            if (hideNavBar) {
+                32.dp // Navbar oculta, sin contenido
+            } else {
+                PlayerSheetCollapsedCornerRadius // Navbar visible, sin contenido
+            }
         },
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
@@ -269,14 +289,19 @@ fun UnifiedPlayerSheet(
 
     // CORREGIDO: Animación de esquinas redondeadas basada en la fracción de expansión
     val playerContentActualBottomRadius by animateDpAsState(
-        targetValue = if (showPlayerContentArea) {
-            // Usar interpolación suave basada en la fracción de expansión
+        targetValue = if (hideNavBar) { // Si la NavBar está oculta
+            32.dp // El radio es 50.dp
+        } else if (showPlayerContentArea) { // Si la NavBar NO está oculta Y se muestra el área del player
             val fraction = playerContentExpansionFraction.value
             if (fraction < 0.2f) {
-                // Interpolar de 12dp a 0dp en los primeros 20% de la expansión
+                // Interpolar de 12dp a 26.dp en los primeros 20% de la expansión
                 lerp(12.dp, 26.dp, (fraction / 0.2f).coerceIn(0f, 1f))
-            } else { 26.dp }
-        } else { 12.dp },
+            } else { // Después del 20% de expansión, el radio es 26.dp
+                26.dp
+            }
+        } else { // Si la NavBar NO está oculta Y el área del player NO se muestra
+            12.dp // El radio es 12.dp (estado colapsado por defecto)
+        },
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMedium
@@ -310,7 +335,7 @@ fun UnifiedPlayerSheet(
 
     var showQueueSheet by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
-    var isDraggingPlayerArea by remember { mutableStateOf(false) } // NUEVO: Para distinguir área de drag
+    var isDraggingPlayerArea by remember { mutableStateOf(false) }
     val velocityTracker = remember { VelocityTracker() }
     var accumulatedDragYSinceStart by remember { mutableFloatStateOf(0f) }
 
@@ -343,264 +368,274 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .graphicsLayer { translationY = visualSheetTranslationY }
-            .padding(horizontal = currentHorizontalPadding)
-            .height(animatedTotalSheetHeightDp),
-        shape = sheetShape,
-        color = Color.Transparent
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // MEJORADO: Área del player con gestos restringidos solo a esta zona y tema dinámico
-            // Obtener el color scheme del álbum actual si está disponible
-            val currentAlbumColorSchemePair by playerViewModel.currentAlbumArtColorSchemePair.collectAsState()
-            val isDarkTheme = isSystemInDarkTheme()
-            val albumColorScheme = remember(currentAlbumColorSchemePair, isDarkTheme) {
-                if (isDarkTheme) currentAlbumColorSchemePair?.dark else currentAlbumColorSchemePair?.light
-            }
-            
-            // Crear un CompositionLocalProvider para aplicar el tema solo al área del player
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(playerContentAreaActualHeightDp)
-                    .background(
-                        color = albumColorScheme?.primaryContainer
-                            ?: MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(
-                            bottomStart = playerContentActualBottomRadius,
-                            bottomEnd = playerContentActualBottomRadius
-                        )
-                    )
-                    .clipToBounds()
-                    // NUEVO: Gestos aplicados solo al área del player
-                    .pointerInput(
-                        showPlayerContentArea,
-                        sheetCollapsedTargetY,
-                        sheetExpandedTargetY,
-                        currentSheetContentState
-                    ) {
-                        if (!showPlayerContentArea) return@pointerInput
-                        var initialFractionOnDragStart = 0f
-                        var initialYOnDragStart = 0f
+    // NUEVO: Solo mostrar el Surface si hay contenido para mostrar
+    val shouldShowSheet by remember(showPlayerContentArea, hideNavBar) {
+        derivedStateOf { showPlayerContentArea || !hideNavBar }
+    }
 
-                        detectVerticalDragGestures(
-                            onDragStart = { offset ->
-                                scope.launch {
-                                    currentSheetTranslationY.stop()
-                                    playerContentExpansionFraction.stop()
-                                }
-                                isDragging = true
-                                isDraggingPlayerArea = true
-                                velocityTracker.resetTracking()
-                                initialFractionOnDragStart = playerContentExpansionFraction.value
-                                initialYOnDragStart = currentSheetTranslationY.value
-                                accumulatedDragYSinceStart = 0f
-                            },
-                            onVerticalDrag = { change, dragAmount ->
-                                change.consume()
-                                accumulatedDragYSinceStart += dragAmount
-                                scope.launch {
-                                    // La traslación Y sigue directamente al dedo
-                                    val newY = (currentSheetTranslationY.value + dragAmount)
-                                        .coerceIn(
-                                            sheetExpandedTargetY - miniPlayerContentHeightPx * 0.2f,
-                                            sheetCollapsedTargetY + miniPlayerContentHeightPx * 0.2f
-                                        )
-                                    currentSheetTranslationY.snapTo(newY)
+    if (shouldShowSheet) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer { translationY = visualSheetTranslationY }
+                .padding(horizontal = currentHorizontalPadding)
+                .height(animatedTotalSheetHeightDp),
+            //shape = sheetShape,
+            color = Color.Transparent
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                val currentAlbumColorSchemePair by playerViewModel.currentAlbumArtColorSchemePair.collectAsState()
+                val isDarkTheme = isSystemInDarkTheme()
+                val albumColorScheme = remember(currentAlbumColorSchemePair, isDarkTheme) {
+                    if (isDarkTheme) currentAlbumColorSchemePair?.dark else currentAlbumColorSchemePair?.light
+                }
 
-                                    // La fracción de expansión del contenido se calcula basada en la nueva posición Y
-                                    val dragRatio =
-                                        (initialYOnDragStart - newY) / (sheetCollapsedTargetY - sheetExpandedTargetY).coerceAtLeast(
-                                            1f
-                                        )
-                                    val newFraction =
-                                        (initialFractionOnDragStart + dragRatio).coerceIn(0f, 1f)
-                                    playerContentExpansionFraction.snapTo(newFraction)
-                                }
-                                velocityTracker.addPosition(change.uptimeMillis, change.position)
-                            },
-                            onDragEnd = {
-                                isDragging = false
-                                isDraggingPlayerArea = false
-                                val verticalVelocity = velocityTracker.calculateVelocity().y
-                                val currentExpansionFraction = playerContentExpansionFraction.value
-
-                                // CORREGIDO: Umbrales aún más sensibles para evitar rebotes
-                                val minDragThresholdPx =
-                                    with(density) { 5.dp.toPx() } // Reducido de 8dp a 5dp
-                                val velocityThresholdForInstantTrigger =
-                                    150f // Reducido de 200f a 150f
-
-                                // CORREGIDO: Lógica de decisión que respeta la intención del gesto
-                                val targetContentState = when {
-                                    // 1. Prioridad absoluta: Si hay movimiento mínimo, respetarlo SIEMPRE
-                                    abs(accumulatedDragYSinceStart) > minDragThresholdPx -> {
-                                        if (accumulatedDragYSinceStart < 0) PlayerSheetState.EXPANDED else PlayerSheetState.COLLAPSED
-                                    }
-                                    // 2. Si hay velocidad pero poco movimiento, considerar la velocidad
-                                    abs(verticalVelocity) > velocityThresholdForInstantTrigger -> {
-                                        if (verticalVelocity < 0) PlayerSheetState.EXPANDED else PlayerSheetState.COLLAPSED
-                                    }
-                                    // 3. Solo si NO hay movimiento ni velocidad significativa, usar posición actual
-                                    else -> {
-                                        // Usar un umbral más conservador solo para gestos muy pequeños
-                                        if (currentExpansionFraction > 0.5f) PlayerSheetState.EXPANDED else PlayerSheetState.COLLAPSED
-                                    }
-                                }
-
-                                // Actualiza el estado del ViewModel y coordina la animación
-                                scope.launch {
-                                    if (targetContentState == PlayerSheetState.EXPANDED) {
-                                        launch {
-                                            currentSheetTranslationY.animateTo(
-                                                targetValue = sheetExpandedTargetY,
-                                                animationSpec = tween(
-                                                    durationMillis = ANIMATION_DURATION_MS,
-                                                    easing = FastOutSlowInEasing
-                                                )
-                                            )
-                                        }
-                                        launch {
-                                            playerContentExpansionFraction.animateTo(
-                                                targetValue = 1f,
-                                                animationSpec = tween(
-                                                    durationMillis = ANIMATION_DURATION_MS,
-                                                    easing = FastOutSlowInEasing
-                                                )
-                                            )
-                                        }
-                                        playerViewModel.expandPlayerSheet()
-                                    } else {
-                                        launch {
-                                            currentSheetTranslationY.animateTo(
-                                                targetValue = sheetCollapsedTargetY,
-                                                animationSpec = tween(
-                                                    durationMillis = ANIMATION_DURATION_MS,
-                                                    easing = FastOutSlowInEasing
-                                                )
-                                            )
-                                        }
-                                        launch {
-                                            playerContentExpansionFraction.animateTo(
-                                                targetValue = 0f,
-                                                animationSpec = tween(
-                                                    durationMillis = ANIMATION_DURATION_MS,
-                                                    easing = FastOutSlowInEasing
-                                                )
-                                            )
-                                        }
-                                        playerViewModel.collapsePlayerSheet()
-                                    }
-                                }
-
-                                accumulatedDragYSinceStart = 0f
-                            }
-                        )
-                    }
-                    // MEJORADO: Click solo en área del player y cuando no se está dragando
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        if (showPlayerContentArea && !isDragging) {
-                            playerViewModel.togglePlayerSheetState()
-                        }
-                    }
-            ) {
+                // MEJORADO: Solo mostrar área del player si hay contenido
                 if (showPlayerContentArea) {
-                    val currentSong = stablePlayerState.currentSong!!
-                    val miniPlayerAlpha by remember { derivedStateOf { (1f - playerContentExpansionFraction.value * 2f).coerceIn(0f, 1f) } }
-                    if (miniPlayerAlpha > 0.01f) {
-                        // Aplicar el tema del álbum al mini player
-                        CompositionLocalProvider(
-                            LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.TopCenter)
-                                    .graphicsLayer { alpha = miniPlayerAlpha }
+                    // Crear un CompositionLocalProvider para aplicar el tema solo al área del player
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(playerContentAreaActualHeightDp)
+                            .background(
+                                color = albumColorScheme?.primaryContainer
+                                    ?: MaterialTheme.colorScheme.primaryContainer,
+                                shape = RoundedCornerShape(
+                                    topStart = overallSheetTopCornerRadius,
+                                    topEnd = overallSheetTopCornerRadius,
+                                    bottomStart = playerContentActualBottomRadius,
+                                    bottomEnd = playerContentActualBottomRadius
+                                )
+                            )
+                            .clipToBounds()
+                            // NUEVO: Gestos aplicados solo al área del player
+                            .pointerInput(
+                                showPlayerContentArea,
+                                sheetCollapsedTargetY,
+                                sheetExpandedTargetY,
+                                currentSheetContentState
                             ) {
-                                MiniPlayerContentInternal(
-                                    song = currentSong, isPlaying = stablePlayerState.isPlaying,
-                                    onPlayPause = { playerViewModel.playPause() }, onNext = { playerViewModel.nextSong() },
-                                    modifier = Modifier.fillMaxSize()
+                                if (!showPlayerContentArea) return@pointerInput
+                                var initialFractionOnDragStart = 0f
+                                var initialYOnDragStart = 0f
+
+                                detectVerticalDragGestures(
+                                    onDragStart = { offset ->
+                                        scope.launch {
+                                            currentSheetTranslationY.stop()
+                                            playerContentExpansionFraction.stop()
+                                        }
+                                        isDragging = true
+                                        isDraggingPlayerArea = true
+                                        velocityTracker.resetTracking()
+                                        initialFractionOnDragStart = playerContentExpansionFraction.value
+                                        initialYOnDragStart = currentSheetTranslationY.value
+                                        accumulatedDragYSinceStart = 0f
+                                    },
+                                    onVerticalDrag = { change, dragAmount ->
+                                        change.consume()
+                                        accumulatedDragYSinceStart += dragAmount
+                                        scope.launch {
+                                            // La traslación Y sigue directamente al dedo
+                                            val newY = (currentSheetTranslationY.value + dragAmount)
+                                                .coerceIn(
+                                                    sheetExpandedTargetY - miniPlayerContentHeightPx * 0.2f,
+                                                    sheetCollapsedTargetY + miniPlayerContentHeightPx * 0.2f
+                                                )
+                                            currentSheetTranslationY.snapTo(newY)
+
+                                            // La fracción de expansión del contenido se calcula basada en la nueva posición Y
+                                            val dragRatio =
+                                                (initialYOnDragStart - newY) / (sheetCollapsedTargetY - sheetExpandedTargetY).coerceAtLeast(
+                                                    1f
+                                                )
+                                            val newFraction =
+                                                (initialFractionOnDragStart + dragRatio).coerceIn(0f, 1f)
+                                            playerContentExpansionFraction.snapTo(newFraction)
+                                        }
+                                        velocityTracker.addPosition(change.uptimeMillis, change.position)
+                                    },
+                                    onDragEnd = {
+                                        isDragging = false
+                                        isDraggingPlayerArea = false
+                                        val verticalVelocity = velocityTracker.calculateVelocity().y
+                                        val currentExpansionFraction = playerContentExpansionFraction.value
+
+                                        // CORREGIDO: Umbrales aún más sensibles para evitar rebotes
+                                        val minDragThresholdPx =
+                                            with(density) { 5.dp.toPx() } // Reducido de 8dp a 5dp
+                                        val velocityThresholdForInstantTrigger =
+                                            150f // Reducido de 200f a 150f
+
+                                        // CORREGIDO: Lógica de decisión que respeta la intención del gesto
+                                        val targetContentState = when {
+                                            // 1. Prioridad absoluta: Si hay movimiento mínimo, respetarlo SIEMPRE
+                                            abs(accumulatedDragYSinceStart) > minDragThresholdPx -> {
+                                                if (accumulatedDragYSinceStart < 0) PlayerSheetState.EXPANDED else PlayerSheetState.COLLAPSED
+                                            }
+                                            // 2. Si hay velocidad pero poco movimiento, considerar la velocidad
+                                            abs(verticalVelocity) > velocityThresholdForInstantTrigger -> {
+                                                if (verticalVelocity < 0) PlayerSheetState.EXPANDED else PlayerSheetState.COLLAPSED
+                                            }
+                                            // 3. Solo si NO hay movimiento ni velocidad significativa, usar posición actual
+                                            else -> {
+                                                // Usar un umbral más conservador solo para gestos muy pequeños
+                                                if (currentExpansionFraction > 0.5f) PlayerSheetState.EXPANDED else PlayerSheetState.COLLAPSED
+                                            }
+                                        }
+
+                                        // Actualiza el estado del ViewModel y coordina la animación
+                                        scope.launch {
+                                            if (targetContentState == PlayerSheetState.EXPANDED) {
+                                                launch {
+                                                    currentSheetTranslationY.animateTo(
+                                                        targetValue = sheetExpandedTargetY,
+                                                        animationSpec = tween(
+                                                            durationMillis = ANIMATION_DURATION_MS,
+                                                            easing = FastOutSlowInEasing
+                                                        )
+                                                    )
+                                                }
+                                                launch {
+                                                    playerContentExpansionFraction.animateTo(
+                                                        targetValue = 1f,
+                                                        animationSpec = tween(
+                                                            durationMillis = ANIMATION_DURATION_MS,
+                                                            easing = FastOutSlowInEasing
+                                                        )
+                                                    )
+                                                }
+                                                playerViewModel.expandPlayerSheet()
+                                            } else {
+                                                launch {
+                                                    currentSheetTranslationY.animateTo(
+                                                        targetValue = sheetCollapsedTargetY,
+                                                        animationSpec = tween(
+                                                            durationMillis = ANIMATION_DURATION_MS,
+                                                            easing = FastOutSlowInEasing
+                                                        )
+                                                    )
+                                                }
+                                                launch {
+                                                    playerContentExpansionFraction.animateTo(
+                                                        targetValue = 0f,
+                                                        animationSpec = tween(
+                                                            durationMillis = ANIMATION_DURATION_MS,
+                                                            easing = FastOutSlowInEasing
+                                                        )
+                                                    )
+                                                }
+                                                playerViewModel.collapsePlayerSheet()
+                                            }
+                                        }
+
+                                        accumulatedDragYSinceStart = 0f
+                                    }
                                 )
                             }
-                        }
-                    }
+                            // MEJORADO: Click solo en área del player y cuando no se está dragando
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                playerViewModel.togglePlayerSheetState()
+//                                if (showPlayerContentArea && !isDragging) {
+//                                    playerViewModel.togglePlayerSheetState()
+//                                }
+                            }
+                    ) {
+                        if (showPlayerContentArea) {
+                            val currentSong = stablePlayerState.currentSong!!
+                            val miniPlayerAlpha by remember { derivedStateOf { (1f - playerContentExpansionFraction.value * 2f).coerceIn(0f, 1f) } }
+                            if (miniPlayerAlpha > 0.01f) {
+                                // Aplicar el tema del álbum al mini player
+                                CompositionLocalProvider(
+                                    LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopCenter)
+                                            .graphicsLayer { alpha = miniPlayerAlpha }
+                                    ) {
+                                        MiniPlayerContentInternal(
+                                            song = currentSong, isPlaying = stablePlayerState.isPlaying,
+                                            onPlayPause = { playerViewModel.playPause() }, onNext = { playerViewModel.nextSong() },
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    }
+                                }
+                            }
 
-                    val fullPlayerAlpha by remember { derivedStateOf { playerContentExpansionFraction.value.pow(2) } }
-                    if (fullPlayerAlpha > 0.01f) {
-                        // Aplicar el tema del álbum al full player
-                        CompositionLocalProvider(
-                            LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
-                        ) {
-                            Box(modifier = Modifier.graphicsLayer { alpha = fullPlayerAlpha }) {
-                                FullPlayerContentInternal(
-                                    //currentPosition = playerUiState.currentPosition,
-                                    currentSong = stablePlayerState.currentSong,
-                                    isPlaying = stablePlayerState.isPlaying,
-                                    isShuffleEnabled = stablePlayerState.isShuffleEnabled,
-                                    repeatMode = stablePlayerState.repeatMode,
-                                    isFavorite = stablePlayerState.isCurrentSongFavorite,
-                                    //totalDuration = stablePlayerState.totalDuration,
-                                    onPlayPause = { playerViewModel.playPause() }, onSeek = { playerViewModel.seekTo(it) },
-                                    onNext = { playerViewModel.nextSong() }, onPrevious = { playerViewModel.previousSong() },
-                                    onCollapse = { playerViewModel.collapsePlayerSheet() }, expansionFraction = playerContentExpansionFraction.value,
-                                    currentSheetState = currentSheetContentState, onShowQueueClicked = { showQueueSheet = true },
-                                    onShuffleToggle = { playerViewModel.toggleShuffle() },      // ADDED
-                                    onRepeatToggle = { playerViewModel.cycleRepeatMode() },    // ADDED
-                                    onFavoriteToggle = { playerViewModel.toggleFavorite() },   // ADDED
-                                    playerViewModel = playerViewModel
-                                )
+                            val fullPlayerAlpha by remember { derivedStateOf { playerContentExpansionFraction.value.pow(2) } }
+                            if (fullPlayerAlpha > 0.01f) {
+                                // Aplicar el tema del álbum al full player
+                                CompositionLocalProvider(
+                                    LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
+                                ) {
+                                    Box(modifier = Modifier.graphicsLayer { alpha = fullPlayerAlpha }) {
+                                        FullPlayerContentInternal(
+                                            //currentPosition = playerUiState.currentPosition,
+                                            currentSong = stablePlayerState.currentSong,
+                                            isPlaying = stablePlayerState.isPlaying,
+                                            isShuffleEnabled = stablePlayerState.isShuffleEnabled,
+                                            repeatMode = stablePlayerState.repeatMode,
+                                            isFavorite = stablePlayerState.isCurrentSongFavorite,
+                                            //totalDuration = stablePlayerState.totalDuration,
+                                            onPlayPause = { playerViewModel.playPause() }, onSeek = { playerViewModel.seekTo(it) },
+                                            onNext = { playerViewModel.nextSong() }, onPrevious = { playerViewModel.previousSong() },
+                                            onCollapse = { playerViewModel.collapsePlayerSheet() }, expansionFraction = playerContentExpansionFraction.value,
+                                            currentSheetState = currentSheetContentState, onShowQueueClicked = { showQueueSheet = true },
+                                            onShuffleToggle = { playerViewModel.toggleShuffle() },      // ADDED
+                                            onRepeatToggle = { playerViewModel.cycleRepeatMode() },    // ADDED
+                                            onFavoriteToggle = { playerViewModel.toggleFavorite() },   // ADDED
+                                            playerViewModel = playerViewModel
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            // Spacer entre player y navigation bar (solo visible cuando colapsado)
-            if (showPlayerContentArea && playerContentExpansionFraction.value < 0.4f) {
-                Spacer(
-                    Modifier
-                        .height(CollapsedPlayerContentSpacerHeight)
-                        .fillMaxWidth()
-                        .background(Color.Transparent)
-                )
-            }
+                // Spacer entre player y navigation bar (solo visible cuando colapsado y hay contenido de player)
+                if (showPlayerContentArea && playerContentExpansionFraction.value < 0.4f && !hideNavBar) {
+                    Spacer(
+                        Modifier
+                            .height(CollapsedPlayerContentSpacerHeight)
+                            .fillMaxWidth()
+                            .background(Color.Transparent)
+                    )
+                }
 
-            // MEJORADO: Navigation bar sin gestos de drag
-            val navBarHideFraction = if (showPlayerContentArea) playerContentExpansionFraction.value.pow(2) else 0f
-            val navBackStackEntry by navController.currentBackStackEntryAsState()
-            val currentRouteValue = navBackStackEntry?.destination?.route
-            val rememberedCurrentRoute = remember(currentRouteValue) {
-                Log.d("RouteDebug", "rememberedCurrentRoute recalculated. New value: $currentRouteValue")
-                currentRouteValue
-            }
-//            val rememberedCurrentRoute = remember(navBackStackEntry?.destination?.route) {
-//                navBackStackEntry?.destination?.route
-//            }
-
-            val playerInternalNavBarModifier = remember {
-                Modifier
-                    .fillMaxWidth()
-                    .pointerInput(Unit) {
-                        detectTapGestures { /* Permitir taps normales en nav items */ }
+                // MEJORADO: Navigation bar sin gestos de drag
+                if (!hideNavBar) {
+                    val navBarHideFraction = if (showPlayerContentArea) playerContentExpansionFraction.value.pow(2) else 0f
+                    val navBackStackEntry by navController.currentBackStackEntryAsState()
+                    val currentRouteValue = navBackStackEntry?.destination?.route
+                    val rememberedCurrentRoute = remember(currentRouteValue) {
+                        Log.d("RouteDebug", "rememberedCurrentRoute recalculated. New value: $currentRouteValue")
+                        currentRouteValue
                     }
-            }
 
-            PlayerInternalNavigationBar(
-                navController = navController,
-                navItems = navItems,
-                currentRoute = rememberedCurrentRoute,
-                //topCornersRadiusDp = navBarActualTopRadius,
-                navBarHideFraction = navBarHideFraction,
-                navBarHeightPx = navBarHeightPx,
-                modifier = playerInternalNavBarModifier
-            )
+                    val playerInternalNavBarModifier = remember {
+                        Modifier
+                            .fillMaxWidth()
+                            .pointerInput(Unit) {
+                                detectTapGestures { /* Permitir taps normales en nav items */ }
+                            }
+                    }
+
+                    PlayerInternalNavigationBar(
+                        navController = navController,
+                        navItems = navItems,
+                        currentRoute = rememberedCurrentRoute,
+                        navBarHideFraction = navBarHideFraction,
+                        bottomCornersRadiusDp = PlayerSheetCollapsedCornerRadius,
+                        navBarHeightPx = navBarHeightPx,
+                        modifier = playerInternalNavBarModifier
+                    )
+                }
+            }
         }
     }
 
@@ -675,7 +710,7 @@ private fun MiniPlayerContentInternal(
             modifier = Modifier
                 .size(36.dp)
                 .clip(CircleShape)
-                .background(LocalMaterialTheme.current.primary) //.copy(alpha = 0.2f))
+                .background(LocalMaterialTheme.current.primary)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = ripple(
@@ -988,7 +1023,7 @@ fun AnimatedPlaybackControls(
     baseWeight: Float = 1f,
     expansionWeight: Float = 1.1f,
     compressionWeight: Float = 0.65f,
-    pressAnimationSpec: AnimationSpec<Float> = DefaultPlaybackControlAnimationSpec,//tween(durationMillis = 150, easing = FastOutSlowInEasing),
+    pressAnimationSpec: AnimationSpec<Float>, //= DefaultPlaybackControlAnimationSpec,//tween(durationMillis = 150, easing = FastOutSlowInEasing),
     releaseDelay: Long = 220L,
     playPauseCornerPlaying: Dp = 70.dp,
     playPauseCornerPaused: Dp = 26.dp,
@@ -1195,15 +1230,15 @@ private fun BottomToggleRow(
                 activeContentColor = LocalMaterialTheme.current.onPrimary,
                 inactiveColor = inactiveBg,
                 onClick = onShuffleToggle,
-                icon = painterResource(R.drawable.rounded_shuffle_24),
+                iconId = R.drawable.rounded_shuffle_24,
                 contentDesc = "Aleatorio"
             )
             // Repeat
             val repeatActive = repeatMode != Player.REPEAT_MODE_OFF
             val repeatIcon = when (repeatMode) {
-                Player.REPEAT_MODE_ONE -> painterResource(R.drawable.rounded_repeat_one_on_24)
-                Player.REPEAT_MODE_ALL -> painterResource(R.drawable.rounded_repeat_on_24)
-                else -> painterResource(R.drawable.rounded_repeat_24)
+                Player.REPEAT_MODE_ONE -> R.drawable.rounded_repeat_one_on_24
+                Player.REPEAT_MODE_ALL -> R.drawable.rounded_repeat_on_24
+                else -> R.drawable.rounded_repeat_24
             }
             ToggleSegmentButton(
                 modifier = commonModifier,
@@ -1213,7 +1248,7 @@ private fun BottomToggleRow(
                 activeContentColor = LocalMaterialTheme.current.onSecondary,
                 inactiveColor = inactiveBg,
                 onClick = onRepeatToggle,
-                icon = repeatIcon,
+                iconId = repeatIcon,
                 contentDesc = "Repetir"
             )
             // Favorite
@@ -1225,7 +1260,7 @@ private fun BottomToggleRow(
                 activeContentColor = LocalMaterialTheme.current.onTertiary,
                 inactiveColor = inactiveBg,
                 onClick = onFavoriteToggle,
-                icon = painterResource(R.drawable.round_favorite_24),
+                iconId = R.drawable.round_favorite_24,
                 contentDesc = "Favorito"
             )
         }
@@ -1241,7 +1276,7 @@ fun ToggleSegmentButton(
     activeContentColor: Color = LocalMaterialTheme.current.onPrimary,
     activeCornerRadius: Dp = 8.dp,
     onClick: () -> Unit,
-    icon: Painter,
+    iconId: Int,
     contentDesc: String
 ) {
     // Animación de color de fondo
@@ -1265,7 +1300,7 @@ fun ToggleSegmentButton(
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            painter = icon,
+            painter = painterResource(iconId),
             contentDescription = contentDesc,
             tint = if (active) activeContentColor else LocalMaterialTheme.current.primary,
             modifier = Modifier.size(24.dp)

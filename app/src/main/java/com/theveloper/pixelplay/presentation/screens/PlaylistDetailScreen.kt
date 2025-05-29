@@ -47,18 +47,15 @@ import kotlin.math.abs
 @Composable
 fun PlaylistDetailScreen(
     playlistId: String,
-    navController: NavController,
+    onBackClick: () -> Unit,
+    onDeletePlayListClick: () -> Unit,
     playerViewModel: PlayerViewModel,
-    playlistViewModel: PlaylistViewModel = hiltViewModel(),
-    paddingValues: PaddingValues // Padding del Scaffold de MainActivity
+    playlistViewModel: PlaylistViewModel = hiltViewModel()
 ) {
     val uiState by playlistViewModel.uiState.collectAsState()
     val playerStableState by playerViewModel.stablePlayerState.collectAsState() // Para saber qué canción se reproduce
     val currentPlaylist = uiState.currentPlaylistDetails
     val songsInPlaylist = uiState.currentPlaylistSongs
-    val bottomBarHeightPx by playerViewModel.bottomBarHeight.collectAsState()
-    val bottomBarHeightDp = with(LocalDensity.current) { bottomBarHeightPx.toDp() }
-    val scope = rememberCoroutineScope()
 
     LaunchedEffect(playlistId) {
         playlistViewModel.loadPlaylistDetails(playlistId)
@@ -80,7 +77,7 @@ fun PlaylistDetailScreen(
 
     Scaffold(
         modifier = Modifier
-            .padding(bottom = paddingValues.calculateBottomPadding()) // Aplicar padding del Scaffold externo
+            //.padding(bottom = paddingValues.calculateBottomPadding()) // Aplicar padding del Scaffold externo
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeFlexibleTopAppBar(
@@ -107,7 +104,7 @@ fun PlaylistDetailScreen(
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                             contentColor = MaterialTheme.colorScheme.onSurface
                         ),
-                        onClick = { navController.popBackStack() }
+                        onClick = onBackClick
                     ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
                     }
@@ -128,7 +125,7 @@ fun PlaylistDetailScreen(
                         ),
                         onClick = {
                             currentPlaylist?.let { playlistViewModel.deletePlaylist(it.id) }
-                            navController.popBackStack()
+                            onDeletePlayListClick()
                         }
                     ) {
                         Icon(Icons.Filled.DeleteOutline, "Eliminar Playlist")
@@ -139,7 +136,12 @@ fun PlaylistDetailScreen(
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                modifier = Modifier.padding(bottom = bottomBarHeightDp + MiniPlayerHeight, end = 10.dp),
+                modifier = Modifier
+                    .height(if (playerStableState.isPlaying || playerStableState.currentSong != null) MiniPlayerHeight + 60.dp else 66.dp)
+                    .padding(
+                        bottom = if (playerStableState.isPlaying || playerStableState.currentSong != null) MiniPlayerHeight else 10.dp,
+                        end = 10.dp
+                ),
                 onClick = { showAddSongsDialog = true },
                 icon = { Icon(Icons.Filled.Add, "Añadir canciones") },
                 text = { Text("Add Songs") },
@@ -149,11 +151,11 @@ fun PlaylistDetailScreen(
         }
     ) { innerPadding ->
         if (uiState.isLoading && currentPlaylist == null) { // Mostrar carga solo si no hay datos previos
-            Box(Modifier.fillMaxSize().padding(innerPadding), Alignment.Center) { CircularProgressIndicator() }
+            Box(Modifier.fillMaxSize().padding(top = innerPadding.calculateTopPadding()), Alignment.Center) { CircularProgressIndicator() }
         } else if (currentPlaylist == null) {
-            Box(Modifier.fillMaxSize().padding(innerPadding), Alignment.Center) { Text("Playlist no encontrada.") }
+            Box(Modifier.fillMaxSize().padding(top = innerPadding.calculateTopPadding()), Alignment.Center) { Text("Playlist no encontrada.") }
         } else {
-            Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            Column(modifier = Modifier.fillMaxSize().padding(top = innerPadding.calculateTopPadding())) {
                 // Botones de Play All / Shuffle All
                 Row(
                     modifier = Modifier
@@ -233,7 +235,12 @@ fun PlaylistDetailScreen(
                     ) {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+                            contentPadding = PaddingValues(
+                                top = 8.dp,
+                                end = 6.dp,
+                                start = 6.dp,
+                                bottom = if (playerStableState.isPlaying || playerStableState.currentSong != null) MiniPlayerHeight + 32.dp + 104.dp else 10.dp + 104.dp
+                            )
                         ) {
                             itemsIndexed(localReorderableSongs, key = { _, item -> item.id }) { _, song ->
                                 ReorderableItem(

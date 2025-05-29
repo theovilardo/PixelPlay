@@ -1,6 +1,7 @@
 package com.theveloper.pixelplay.presentation.components
 
 import android.graphics.drawable.BitmapDrawable
+import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,7 +32,7 @@ import kotlinx.coroutines.Dispatchers
 @OptIn(ExperimentalCoilApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun OptimizedAlbumArt(
-    uri: Any,
+    uri: Uri,
     title: String,
     expansionFraction: Float,
     modifier: Modifier = Modifier

@@ -189,13 +189,19 @@ fun PlayerInternalNavigationBar(
     currentRoute: String?,
     modifier: Modifier = Modifier,      // For external adjustments
     topCornersRadiusDp: Dp = 12.dp,
+    bottomCornersRadiusDp: Dp = 12.dp,
     navBarHideFraction: Float,
     navBarHeightPx: Float
 ) {
     val animatedAlpha = remember(navBarHideFraction) { derivedStateOf { 1f - navBarHideFraction } }
     val animatedTranslationY = remember(navBarHideFraction, navBarHeightPx) { derivedStateOf { navBarHeightPx * navBarHideFraction } }
     val actualShape = remember(topCornersRadiusDp) {
-        RoundedCornerShape(topStart = topCornersRadiusDp, topEnd = topCornersRadiusDp)
+        RoundedCornerShape(
+            topStart = topCornersRadiusDp,
+            topEnd = topCornersRadiusDp,
+            bottomStart = bottomCornersRadiusDp,
+            bottomEnd = bottomCornersRadiusDp
+        )
     }
 
     Box(
@@ -204,12 +210,7 @@ fun PlayerInternalNavigationBar(
             .height(NavBarPersistentHeight) // RESTORED: Use the Dp constant
             .graphicsLayer {
                 translationY = animatedTranslationY.value
-                //alpha = animatedAlpha.value // RESTORED: Alpha for fade animation
             }
-            .shadow(
-                elevation = 8.dp, // Consider if this shadow needs to animate
-                shape = actualShape
-            )
             .background(
                 color = NavigationBarDefaults.containerColor,
                 shape = actualShape

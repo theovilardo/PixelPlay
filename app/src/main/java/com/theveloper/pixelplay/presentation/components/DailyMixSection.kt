@@ -50,7 +50,6 @@ import kotlinx.collections.immutable.toImmutableList
 fun DailyMixSection(
     songs: ImmutableList<Song>,
     playerViewModel: PlayerViewModel,
-    navController: NavController
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         SectionHeader(
@@ -59,15 +58,14 @@ fun DailyMixSection(
             onViewAllClick = { /* navegar */ }
         )
         Spacer(Modifier.height(16.dp))
-        DailyMixCard(songs, playerViewModel, navController)
+        DailyMixCard(songs, playerViewModel)
     }
 }
 
 @Composable
 private fun DailyMixCard(
     songs: ImmutableList<Song>,
-    playerViewModel: PlayerViewModel,
-    navController: NavController
+    playerViewModel: PlayerViewModel
 ) {
     val headerSongs = songs.take(3).toImmutableList()
     val songsToPlay = songs.take(4).toImmutableList()
@@ -79,7 +77,7 @@ private fun DailyMixCard(
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             DailyMixHeader(thumbnails = headerSongs)
-            DailyMixSongList(songs = songsToPlay, playerViewModel, navController)
+            DailyMixSongList(songs = songsToPlay, playerViewModel)
             ViewAllDailyMixButton()
         }
     }
@@ -104,27 +102,31 @@ private fun DailyMixHeader(thumbnails: ImmutableList<Song>) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(start = 22.dp, end = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Absolute.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "DAILY MIX",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.onPrimary
                 )
                 Text(
-                    text = "Basado en tu historial",
-                    style = MaterialTheme.typography.bodySmall,
+                    text = "Based on History",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Normal,
                     color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
                 )
             }
-            Row(modifier = Modifier.padding(end = 16.dp)) {
+            Row(
+                modifier = Modifier,
+                horizontalArrangement = Arrangement.spacedBy((-16).dp)
+            ) {
                 thumbnails.forEachIndexed { index, song ->
                     Box(
                         modifier = Modifier
-                            .offset(x = (-16 * index).dp)
                             .size(48.dp)
                             .clip(CircleShape)
                             .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
@@ -145,8 +147,7 @@ private fun DailyMixHeader(thumbnails: ImmutableList<Song>) {
 @Composable
 private fun DailyMixSongList(
     songs: ImmutableList<Song>,
-    playerViewModel: PlayerViewModel,
-    navController: NavController
+    playerViewModel: PlayerViewModel
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -172,11 +173,12 @@ private fun DailyMixSongList(
 @Composable
 private fun ViewAllDailyMixButton() {
     TextButton(
+        modifier = Modifier.padding(start = 6.dp),
         onClick = { /* TODO: Navegar a pantalla con todo el Daily Mix */ },
         //modifier = Modifier.align(Alignment.CenterHorizontally)
     ) {
         Text(
-            text = "Ver todo el Daily Mix",
+            text = "Check all of Daily Mix",
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium
         )

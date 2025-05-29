@@ -27,23 +27,23 @@ fun AppNavigation(
     playerViewModel: PlayerViewModel,
     navController: NavHostController,
 ) {
-    //val navController = rememberNavController()
-    MainLayout { paddingValues -> // paddingValues del Scaffold principal
+    MainLayout { paddingValues ->
         NavHost(navController = navController, startDestination = Screen.Home.route) {
             composable(Screen.Home.route) {
-                // Compartir mismo ViewModel entre pantallas
-                //val parentEntry = remember(navController) { navController.getBackStackEntry(Screen.Home.route) }
-                //val playerViewModel: PlayerViewModel = hiltViewModel(parentEntry)
                 HomeScreen(navController = navController, paddingValuesParent = paddingValues, playerViewModel = playerViewModel)
             }
             composable(Screen.Search.route) {
-                SearchScreen(navController = navController, paddingValues = paddingValues)
+                SearchScreen(paddingValues = paddingValues)
             }
             composable(Screen.Library.route) {
-                LibraryScreen(navController = navController, paddingValues = paddingValues, playerViewModel = playerViewModel)
+                LibraryScreen(navController = navController, playerViewModel = playerViewModel)
             }
-            composable(Screen.Settings.route) { // Ruta para Settings
-                SettingsScreen(navController = navController, paddingValues = paddingValues)
+            composable(Screen.Settings.route) {
+                SettingsScreen(
+                    onNavigationIconClick = {
+                        navController.popBackStack()
+                    }
+                )
             }
             composable(
                 route = Screen.PlaylistDetail.route,
@@ -54,10 +54,10 @@ fun AppNavigation(
                 if (playlistId != null) {
                     PlaylistDetailScreen(
                         playlistId = playlistId,
-                        navController = navController,
                         playerViewModel = playerViewModel,
                         playlistViewModel = playlistViewModel,
-                        paddingValues = paddingValues
+                        onBackClick = { navController.popBackStack() },
+                        onDeletePlayListClick = { navController.popBackStack() }
                     )
                 }
             }

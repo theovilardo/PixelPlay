@@ -40,7 +40,9 @@ import com.theveloper.pixelplay.utils.shapes.createRoundedTriangleShape
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.utils.shapes.createRoundedHexagonShape
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
+import okhttp3.internal.toImmutableList
 
 // Asegúrate de que tus recursos R y Song estén disponibles
 // import com.your_app_name.R
@@ -55,7 +57,7 @@ import kotlinx.coroutines.Dispatchers
  * Utiliza BoxWithConstraints para adaptar las dimensiones al contenedor.
  */
 @Composable
-fun AlbumArtCollage3(
+fun AlbumArtCollage(
     albumArts: ImmutableList<Uri?>,
     modifier: Modifier = Modifier,
     height: Dp = 400.dp,
@@ -68,7 +70,7 @@ fun AlbumArtCollage3(
             if (it.size == 6) it
             else it + List(6 - it.size) { null }
         }
-    }
+    }.toImmutableList()
 
     // 2) Prepara las ImageRequest y las configs de forma memoizada
     val requests = remember(artsToShow) {
@@ -83,7 +85,7 @@ fun AlbumArtCollage3(
                     .build()
             }
         }
-    }
+    }.toImmutableList()
     data class Config(val size: Dp, val width: Dp, val height: Dp, val align: Alignment, val rot: Float, val shape: Shape, val offsetX: Dp, val offsetY: Dp)
 
     BoxWithConstraints(
@@ -155,17 +157,17 @@ fun AlbumArtCollage3(
                 offsetX = 0.dp,
                 offsetY = 0.dp
             )
-            val squircle2 = Config(
-                size = bottomMin * 0.5f,
-                width = bottomMin * 0.5f,
-                height = bottomMin * 0.5f,
-                align = Alignment.BottomEnd,
-                rot = 40f,
-                shape = RoundedCornerShape(16.dp),
-                offsetX = -(boxW * 0.1f),
-                offsetY = -(bottomH * 0.1f)
-            )
-            listOf(listOf(pill, circle1, circle2), listOf(squircle1, star, squircle2))
+//            val squircle2 = Config(
+//                size = bottomMin * 0.5f,
+//                width = bottomMin * 0.5f,
+//                height = bottomMin * 0.5f,
+//                align = Alignment.BottomEnd,
+//                rot = 40f,
+//                shape = RoundedCornerShape(16.dp),
+//                offsetX = -(boxW * 0.1f),
+//                offsetY = -(bottomH * 0.1f)
+//            )
+            listOf(listOf(pill, circle1, circle2), listOf(squircle1, star))
         }
 
         // 4) Dibuja sólo lo que toca, usando los configs y las requests memoizadas
@@ -199,7 +201,7 @@ fun AlbumArtCollage3(
                     .height(boxH * 0.4f)
             ) {
                 bottomConfigs.forEachIndexed { j, cfg ->
-                    requests.getOrNull(j + 2)?.let { req ->
+                    requests.getOrNull(j + 3)?.let { req ->
                         AsyncImage(
                             model = req,
                             contentDescription = null,

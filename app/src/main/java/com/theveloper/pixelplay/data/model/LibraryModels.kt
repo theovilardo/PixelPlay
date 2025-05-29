@@ -1,7 +1,9 @@
 package com.theveloper.pixelplay.data.model
 
 import android.net.Uri
+import androidx.compose.runtime.Immutable
 
+@Immutable
 data class Album(
     val id: Long, // MediaStore.Audio.Albums._ID
     val title: String,
@@ -10,6 +12,7 @@ data class Album(
     val songCount: Int
 )
 
+@Immutable
 data class Artist(
     val id: Long, // MediaStore.Audio.Artists._ID
     val name: String,
