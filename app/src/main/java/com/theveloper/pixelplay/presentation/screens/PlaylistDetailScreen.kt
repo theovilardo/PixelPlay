@@ -162,7 +162,7 @@ fun PlaylistDetailScreen(
                         .fillMaxWidth()
                         .height(76.dp)
                         .padding(horizontal = 20.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
                         onClick = {
@@ -374,7 +374,7 @@ fun PlaylistSongItem(
 
     // Efecto de sombra y elevación para el elemento arrastrado
     val backgroundColor = if (isPlaying) {
-        colors.primaryContainer.copy(alpha = 0.7f)
+        colors.primary.copy(alpha = 0.2f)
     } else {
         colors.surfaceColorAtElevation(elevation)
     }
@@ -393,13 +393,13 @@ fun PlaylistSongItem(
             Icon(
                 Icons.Filled.DragHandle,
                 contentDescription = "Arrastrar para reordenar",
-                tint = colors.onSurfaceVariant,
+                tint = if (isPlaying) colors.onPrimaryContainer else colors.onSurface,
                 modifier = Modifier.padding(end = 12.dp)
             )
             SmartImage(
                 model = song.albumArtUri,
                 shape = RoundedCornerShape(8.dp),
-                contentDescription = "Carátula de ${song.title}",
+                contentDescription = "Carátula",
                 modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)),
                 contentScale = ContentScale.Crop
             )
@@ -425,8 +425,16 @@ fun PlaylistSongItem(
                     modifier = Modifier.padding(start = 8.dp)
                 )
             }
-            IconButton(onClick = onRemoveClick, modifier = Modifier.padding(start = 8.dp)) {
-                Icon(Icons.Filled.RemoveCircleOutline, "Quitar de la playlist", tint = colors.onSurfaceVariant)
+            IconButton(
+                onClick = onRemoveClick,
+                modifier = Modifier
+                    .padding(start = 8.dp)
+            ) {
+                Icon(
+                    Icons.Filled.RemoveCircleOutline,
+                    "Quitar de la playlist",
+                    tint = if (isPlaying) colors.onPrimaryContainer else colors.onSurface
+                )
             }
         }
     }

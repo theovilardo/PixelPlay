@@ -373,6 +373,12 @@ fun UnifiedPlayerSheet(
         derivedStateOf { showPlayerContentArea || !hideNavBar }
     }
 
+    val currentAlbumColorSchemePair by playerViewModel.currentAlbumArtColorSchemePair.collectAsState()
+    val isDarkTheme = isSystemInDarkTheme()
+    val albumColorScheme = remember(currentAlbumColorSchemePair, isDarkTheme) {
+        if (isDarkTheme) currentAlbumColorSchemePair?.dark else currentAlbumColorSchemePair?.light
+    }
+
     if (shouldShowSheet) {
         Surface(
             modifier = Modifier
@@ -384,11 +390,11 @@ fun UnifiedPlayerSheet(
             color = Color.Transparent
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                val currentAlbumColorSchemePair by playerViewModel.currentAlbumArtColorSchemePair.collectAsState()
-                val isDarkTheme = isSystemInDarkTheme()
-                val albumColorScheme = remember(currentAlbumColorSchemePair, isDarkTheme) {
-                    if (isDarkTheme) currentAlbumColorSchemePair?.dark else currentAlbumColorSchemePair?.light
-                }
+//                val currentAlbumColorSchemePair by playerViewModel.currentAlbumArtColorSchemePair.collectAsState()
+//                val isDarkTheme = isSystemInDarkTheme()
+//                val albumColorScheme = remember(currentAlbumColorSchemePair, isDarkTheme) {
+//                    if (isDarkTheme) currentAlbumColorSchemePair?.dark else currentAlbumColorSchemePair?.light
+//                }
 
                 // MEJORADO: Solo mostrar área del player si hay contenido
                 if (showPlayerContentArea) {
@@ -641,16 +647,20 @@ fun UnifiedPlayerSheet(
 
     // Queue bottom sheet
     if (showQueueSheet) {
-        QueueBottomSheet(
-            queue = playerUiState.currentPlaybackQueue,
-            currentSongId = stablePlayerState.currentSong?.id,
-            onDismiss = { showQueueSheet = false },
-            onPlaySong = { song ->
-                playerViewModel.playSongs(playerUiState.currentPlaybackQueue, song, playerUiState.currentQueueSourceNname)
-            },
-            onRemoveSong = { songId -> playerViewModel.removeSongFromQueue(songId) },
-            onReorder = { from, to -> playerViewModel.reorderQueueItem(from, to) }
-        )
+        CompositionLocalProvider(
+            LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
+        ) {
+            QueueBottomSheet(
+                queue = playerUiState.currentPlaybackQueue,
+                currentSongId = stablePlayerState.currentSong?.id,
+                onDismiss = { showQueueSheet = false },
+                onPlaySong = { song ->
+                    playerViewModel.playSongs(playerUiState.currentPlaybackQueue, song, playerUiState.currentQueueSourceNname)
+                },
+                onRemoveSong = { songId -> playerViewModel.removeSongFromQueue(songId) },
+                onReorder = { from, to -> playerViewModel.reorderQueueItem(from, to) }
+            )
+        }
     }
 }
 

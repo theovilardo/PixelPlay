@@ -161,15 +161,8 @@ fun LibraryScreen(
     val transition = updateTransition(targetState = fabState, label = "FAB Transition")
 
     val bottomBarHeightDp = NavBarPersistentHeight
-    val fabBottomMarginIfPlaying = if (stablePlayerState.isPlaying || sheetVisibility) MiniPlayerHeight else 0.dp
-    val fabBottomMargin by animateDpAsState(
-        targetValue = fabBottomMarginIfPlaying,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
-        label = "navBarCornerAnimation"
-    )
+
+    val dm = isSystemInDarkTheme()
 
     val fabIconRotation by transition.animateFloat(
         label = "FAB Icon Rotation",
@@ -183,10 +176,17 @@ fun LibraryScreen(
         }
     }
 
-    val gradientColors = listOf(
-        MaterialTheme.colorScheme.primary,
+    val gradientColorsDark = listOf(
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
         Color.Transparent
     ).toImmutableList()
+
+    val gradientColorsLight = listOf(
+        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f),
+        Color.Transparent
+    ).toImmutableList()
+
+    val gradientColors = if (dm) gradientColorsDark else gradientColorsLight
 
     val gradientBrush = remember(gradientColors) {
         Brush.verticalGradient(colors = gradientColors)
@@ -206,6 +206,7 @@ fun LibraryScreen(
                         text = "Library",
                         style = MaterialTheme.typography.headlineLargeEmphasized,
                         fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.primary,
                         letterSpacing = 1.sp
                     )
                 },
@@ -226,7 +227,7 @@ fun LibraryScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                    containerColor = gradientColors[0]//MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                 )
             )
         }
@@ -236,10 +237,7 @@ fun LibraryScreen(
                 .padding(innerScaffoldPadding)
                 .background(
                     brush = Brush.verticalGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                            Color.Transparent
-                        )
+                        gradientColors
                     )
                 )
                 .fillMaxSize()
@@ -719,22 +717,22 @@ fun EnhancedSongListItem(
             Spacer(modifier = Modifier.width(12.dp))
 
             // Play button con animación
-            IconButton(
-                onClick = onClick,
-                colors = IconButtonDefaults.iconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.secondary,
-                    contentColor = MaterialTheme.colorScheme.onSecondary
-                ),
-                modifier = Modifier
-                    .size(30.dp)
-                    .aspectRatio(2f / 3f)
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.rounded_play_arrow_24),
-                    contentDescription = "Reproducir",
-                    tint = MaterialTheme.colorScheme.onSecondary
-                )
-            }
+//            IconButton(
+//                onClick = onClick,
+//                colors = IconButtonDefaults.iconButtonColors(
+//                    containerColor = MaterialTheme.colorScheme.secondary,
+//                    contentColor = MaterialTheme.colorScheme.onSecondary
+//                ),
+//                modifier = Modifier
+//                    .size(30.dp)
+//                    .aspectRatio(2f / 3f)
+//            ) {
+//                Icon(
+//                    painter = painterResource(id = R.drawable.rounded_play_arrow_24),
+//                    contentDescription = "Reproducir",
+//                    tint = MaterialTheme.colorScheme.onSecondary
+//                )
+//            }
         }
     }
 }

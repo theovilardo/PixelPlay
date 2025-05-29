@@ -417,6 +417,7 @@ fun FeaturedPlaylistsSection() {
 @Composable
 fun SongListItemFavs(
     modifier: Modifier = Modifier,
+    cardCorners: Dp = 12.dp,
     title: String,
     artist: String,
     albumArtUrl: Uri?,
@@ -431,7 +432,7 @@ fun SongListItemFavs(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(cardCorners),
         colors = CardDefaults.cardColors(containerColor = containerColor),
         elevation = CardDefaults.cardElevation(0.dp)
     ) {
@@ -641,6 +642,7 @@ fun SongListItemFavsWrapper(
     // 4) Llamamos al presentacional pasándole sólo lo que necesita:
     SongListItemFavs(
         modifier      = modifier,
+        cardCorners = 0.dp,
         title         = song.title,
         artist        = song.artist,
         albumArtUrl   = song.albumArtUri,
