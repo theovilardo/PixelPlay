@@ -49,6 +49,8 @@ class MusicRepositoryImpl @Inject constructor(
     // --- Para getPermittedSongReferences ---
     data class MinimalSongInfo(val songId: String, val albumId: Long, val artistId: Long)
     private var cachedPermittedSongReferences: List<MinimalSongInfo>? = null
+    private var cachedPermittedAlbumSongCounts: Map<Long, Int>? = null
+    private var cachedPermittedArtistSongCounts: Map<Long, Int>? = null
     private val permittedSongReferencesMutex = Mutex() // Mutex dedicado
 
     /**
@@ -122,8 +124,8 @@ class MusicRepositoryImpl @Inject constructor(
                             artistId = songArtistId, // Pasar el artistId al constructor de Song
                             album = albumName,
                             albumId = albumId,
-                            contentUri = contentUri,
-                            albumArtUri = albumArtUri,
+                            contentUriString = contentUri.toString(),
+                            albumArtUriString = albumArtUri?.toString(),
                             duration = duration
                         )
                     )
@@ -136,6 +138,7 @@ class MusicRepositoryImpl @Inject constructor(
 
     // Implementación de getAudioFiles con lógica de "Llenado de Página"
     override suspend fun getAudioFiles(page: Int, pageSize: Int): List<Song> = withContext(Dispatchers.IO) {
+        val getAudioFilesStartTime = System.currentTimeMillis()
         Log.d("MusicRepo/Songs", "getAudioFiles (filling_page_logic) - ViewModel Page: $page, PageSize: $pageSize")
 
         val songsToReturn = mutableListOf<Song>()
@@ -217,8 +220,8 @@ class MusicRepositoryImpl @Inject constructor(
                                 artistId = c.getLong(artistIdCol),
                                 album = c.getString(albumCol) ?: "Álbum Desconocido",
                                 albumId = c.getLong(albumIdCol),
-                                contentUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id),
-                                albumArtUri = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), c.getLong(albumIdCol)),
+                                contentUriString = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id).toString(),
+                                albumArtUriString = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), c.getLong(albumIdCol))?.toString(),
                                 duration = c.getLong(durationCol)
                             )
                         )
@@ -239,6 +242,7 @@ class MusicRepositoryImpl @Inject constructor(
             currentMediaStoreOffset += internalMediaStorePageSize
         }
         Log.i("MusicRepo/Songs", "getAudioFiles (filling_page_logic) - FINAL Returning ${songsToReturn.size} songs for ViewModel Page: $page.")
+        if (page == 1) Log.i("MusicRepo/Songs", "getAudioFiles (page 1) took ${System.currentTimeMillis() - getAudioFilesStartTime} ms to return ${songsToReturn.size} songs.")
         return@withContext songsToReturn
     }
     // Implementación de getAudioFiles con paginación MANUAL
@@ -261,6 +265,7 @@ class MusicRepositoryImpl @Inject constructor(
 //    }
 
     override suspend fun getAlbums(page: Int, pageSize: Int): List<Album> = withContext(Dispatchers.IO) {
+        val getAlbumsStartTime = System.currentTimeMillis()
         Log.d("MusicRepo/Albums", "getAlbums - Page: $page, PageSize: $pageSize")
         val offset = (page - 1) * pageSize
         if (offset < 0) throw IllegalArgumentException("Page number must be 1 or greater")
@@ -342,24 +347,28 @@ class MusicRepositoryImpl @Inject constructor(
                 val id = c.getLong(idCol)
                 val title = c.getString(titleCol) ?: "Álbum Desconocido"
                 val artist = c.getString(artistCol) ?: "Varios Artistas"
-                var songCount = c.getInt(songCountCol) // Este es el conteo total de MediaStore
+                var actualSongCount = c.getInt(songCountCol) // songCount from MediaStore
 
                 if (initialSetupDone) {
-                    // Recalcular el conteo de canciones basado en las permitidas
-                    val permittedSongCountForThisAlbum = permittedAlbumIds?.let { albumIds ->
-                        if (albumIds.contains(id)) { // Solo calcular si el álbum mismo está permitido
-                            getPermittedSongReferences(false).count { it.albumId == id }
-                        } else 0 // Si el álbum no está en la lista de permitidos (no debería pasar si el filtro IN funcionó), conteo 0
-                    } ?: songCount // Fallback al conteo de MediaStore si permittedAlbumIds es null (setup no hecho)
-                    songCount = permittedSongCountForThisAlbum
+                    // If setup is done, the album MUST be in permittedAlbumIds to be considered.
+                    // And its count is from our cache.
+                    if (permittedAlbumIds?.contains(id) == true) {
+                        actualSongCount = cachedPermittedAlbumSongCounts?.get(id) ?: 0
+                    } else {
+                        // This case should ideally not be hit if permittedAlbumIds filter is applied correctly at query time.
+                        // If it is hit, it means an album was returned that isn't in the permitted set.
+                        actualSongCount = 0
+                    }
                 }
 
-                if (songCount > 0) {
-                    albumsToReturn.add(Album(id, title, artist, ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), id), songCount))
+                if (actualSongCount > 0) {
+                    val albumArtUriVal: Uri? = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), id)
+                    albumsToReturn.add(Album(id, title, artist, albumArtUriVal?.toString(), actualSongCount))
                 }
             }
         }
         Log.i("MusicRepo/Albums", "Returning ${albumsToReturn.size} albums for Page: $page.")
+        if (page == 1) Log.i("MusicRepo/Albums", "getAlbums (page 1) took ${System.currentTimeMillis() - getAlbumsStartTime} ms to return ${albumsToReturn.size} albums.")
         return@withContext albumsToReturn
     }
     // Implementación de getAlbums con paginación MANUAL
@@ -415,6 +424,7 @@ class MusicRepositoryImpl @Inject constructor(
 //    }
 
     override suspend fun getArtists(page: Int, pageSize: Int): List<Artist> = withContext(Dispatchers.IO) {
+        val getArtistsStartTime = System.currentTimeMillis()
         Log.d("MusicRepo/Artists", "getArtists - Page: $page, PageSize: $pageSize")
         val offset = (page - 1) * pageSize
         if (offset < 0) throw IllegalArgumentException("Page number must be 1 or greater")
@@ -487,23 +497,23 @@ class MusicRepositoryImpl @Inject constructor(
             while (c.moveToNext()) {
                 val id = c.getLong(idCol)
                 val name = c.getString(nameCol) ?: "Artista Desconocido"
-                var trackCount = c.getInt(trackCountCol) // Conteo total de MediaStore
+                var actualTrackCount = c.getInt(trackCountCol) // trackCount from MediaStore
 
                 if (initialSetupDone) {
-                    val permittedTrackCountForThisArtist = permittedArtistIds?.let { artistIds ->
-                        if (artistIds.contains(id)) {
-                            getPermittedSongReferences(false).count { it.artistId == id }
-                        } else 0
-                    } ?: trackCount
-                    trackCount = permittedTrackCountForThisArtist
+                    if (permittedArtistIds?.contains(id) == true) {
+                        actualTrackCount = cachedPermittedArtistSongCounts?.get(id) ?: 0
+                    } else {
+                        actualTrackCount = 0
+                    }
                 }
 
-                if (trackCount > 0) {
-                    artistsToReturn.add(Artist(id, name, trackCount))
+                if (actualTrackCount > 0) {
+                    artistsToReturn.add(Artist(id, name, actualTrackCount))
                 }
             }
         }
         Log.i("MusicRepo/Artists", "Returning ${artistsToReturn.size} artists for Page: $page.")
+        if (page == 1) Log.i("MusicRepo/Artists", "getArtists (page 1) took ${System.currentTimeMillis() - getArtistsStartTime} ms to return ${artistsToReturn.size} artists.")
         return@withContext artistsToReturn
     }
     // Implementación de getArtists con paginación MANUAL
@@ -580,6 +590,7 @@ class MusicRepositoryImpl @Inject constructor(
     private suspend fun getPermittedSongReferences(forceRefresh: Boolean = false): List<MinimalSongInfo> = withContext(Dispatchers.IO) {
         permittedSongReferencesMutex.withLock {
             if (cachedPermittedSongReferences == null || forceRefresh) {
+                val coldLoadStartTime = System.currentTimeMillis()
                 Log.i("MusicRepo/Refs", "Populating cachedPermittedSongReferences. Force refresh: $forceRefresh")
                 val allPermittedSongs = queryAndFilterSongs(
                     selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ?",
@@ -589,7 +600,11 @@ class MusicRepositoryImpl @Inject constructor(
                 cachedPermittedSongReferences = allPermittedSongs.map { song ->
                     MinimalSongInfo(song.id, song.albumId, song.artistId)
                 }
-                Log.i("MusicRepo/Refs", "Populated cachedPermittedSongReferences with ${cachedPermittedSongReferences?.size} items.")
+                // Populate new caches
+                val refs = cachedPermittedSongReferences ?: emptyList()
+                this.cachedPermittedAlbumSongCounts = refs.groupBy { it.albumId }.mapValues { entry -> entry.value.size }
+                this.cachedPermittedArtistSongCounts = refs.groupBy { it.artistId }.mapValues { entry -> entry.value.size }
+                Log.i("MusicRepo/Refs", "Populated cachedPermittedSongReferences with ${cachedPermittedSongReferences?.size} items. Album counts: ${cachedPermittedAlbumSongCounts?.size}, Artist counts: ${cachedPermittedArtistSongCounts?.size}. Cold load took ${System.currentTimeMillis() - coldLoadStartTime} ms")
             }
         }
         return@withContext cachedPermittedSongReferences ?: emptyList()
@@ -622,6 +637,8 @@ class MusicRepositoryImpl @Inject constructor(
         // No es necesario GlobalScope aquí, simplemente nulificar para la próxima carga.
         // El mutex en getPermittedSongReferences manejará la recarga segura.
         this.cachedPermittedSongReferences = null
+        this.cachedPermittedAlbumSongCounts = null
+        this.cachedPermittedArtistSongCounts = null
         // Considera si cachedAudioDirectories también necesita invalidarse aquí.
         // this.cachedAudioDirectories = null; // Si getAllUniqueAudioDirectories debe re-escanear
     }
