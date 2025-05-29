@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.theveloper.pixelplay.data.model.Playlist
+import com.theveloper.pixelplay.data.model.SortOption // Added import
 import com.theveloper.pixelplay.data.model.Song
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -42,6 +43,13 @@ class UserPreferencesRepository @Inject constructor(
         val PLAYER_THEME_PREFERENCE = stringPreferencesKey("player_theme_preference_v2")
         val FAVORITE_SONG_IDS = stringSetPreferencesKey("favorite_song_ids")
         val USER_PLAYLISTS = stringPreferencesKey("user_playlists_json_v1")
+
+        // Sort Option Keys
+        val SONGS_SORT_OPTION = stringPreferencesKey("songs_sort_option")
+        val ALBUMS_SORT_OPTION = stringPreferencesKey("albums_sort_option")
+        val ARTISTS_SORT_OPTION = stringPreferencesKey("artists_sort_option")
+        val PLAYLISTS_SORT_OPTION = stringPreferencesKey("playlists_sort_option")
+        val LIKED_SONGS_SORT_OPTION = stringPreferencesKey("liked_songs_sort_option")
     }
 
     val allowedDirectoriesFlow: Flow<Set<String>> = dataStore.data
@@ -199,6 +207,63 @@ class UserPreferencesRepository @Inject constructor(
                 // Esto hará que initialSetupDoneFlow emita false.
                 preferences.remove(PreferencesKeys.INITIAL_SETUP_DONE)
             }
+        }
+    }
+
+    // Flows for Sort Options
+    val songsSortOptionFlow: Flow<String> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.SONGS_SORT_OPTION] ?: SortOption.SongTitleAZ.displayName
+        }
+
+    val albumsSortOptionFlow: Flow<String> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.ALBUMS_SORT_OPTION] ?: SortOption.AlbumTitleAZ.displayName
+        }
+
+    val artistsSortOptionFlow: Flow<String> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.ARTISTS_SORT_OPTION] ?: SortOption.ArtistNameAZ.displayName
+        }
+
+    val playlistsSortOptionFlow: Flow<String> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.PLAYLISTS_SORT_OPTION] ?: SortOption.PlaylistNameAZ.displayName
+        }
+
+    val likedSongsSortOptionFlow: Flow<String> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.LIKED_SONGS_SORT_OPTION] ?: SortOption.LikedSongTitleAZ.displayName
+        }
+
+    // Functions to update Sort Options
+    suspend fun setSongsSortOption(optionName: String) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.SONGS_SORT_OPTION] = optionName
+        }
+    }
+
+    suspend fun setAlbumsSortOption(optionName: String) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.ALBUMS_SORT_OPTION] = optionName
+        }
+    }
+
+    suspend fun setArtistsSortOption(optionName: String) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.ARTISTS_SORT_OPTION] = optionName
+        }
+    }
+
+    suspend fun setPlaylistsSortOption(optionName: String) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.PLAYLISTS_SORT_OPTION] = optionName
+        }
+    }
+
+    suspend fun setLikedSongsSortOption(optionName: String) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.LIKED_SONGS_SORT_OPTION] = optionName
         }
     }
 }
