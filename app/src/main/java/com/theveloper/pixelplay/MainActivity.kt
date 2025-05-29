@@ -190,16 +190,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun isMusicServiceRunning(): Boolean {
-        val manager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
-        for (service in manager.getRunningServices(Integer.MAX_VALUE)) {
-            if (MusicService::class.java.name == service.service.className) {
-                return true
-            }
-        }
-        return false
-    }
-
     private fun startMusicServiceIfNeeded() {
         // Aunque startForegroundService es idempotente, esta verificación puede ser útil
         // para evitar lógica redundante si el servicio ya está completamente inicializado y activo.
