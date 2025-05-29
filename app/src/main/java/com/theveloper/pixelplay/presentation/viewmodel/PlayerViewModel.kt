@@ -58,6 +58,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import android.util.Log
+import com.theveloper.pixelplay.data.model.SortOption
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -99,7 +100,11 @@ data class PlayerUiState(
     val artists: List<Artist> = emptyList(),
     val isLoadingLibraryCategories: Boolean = true,
     val canLoadMoreAlbums: Boolean = true,
-    val canLoadMoreArtists: Boolean = true
+    val canLoadMoreArtists: Boolean = true,
+    val currentSongSortOption: SortOption = SortOption.SongTitleAZ,
+    val currentAlbumSortOption: SortOption = SortOption.AlbumTitleAZ,
+    val currentArtistSortOption: SortOption = SortOption.ArtistNameAZ,
+    val currentFavoriteSortOption: SortOption = SortOption.LikedSongTitleAZ
 )
 
 @HiltViewModel
@@ -260,31 +265,6 @@ class PlayerViewModel @Inject constructor(
             // Pero para un indicador de carga global, esto puede ser suficiente.
         }
     }
-//    private fun preloadThemesAndInitialData() {
-//        viewModelScope.launch { // Main.immediate by default
-//            _isInitialThemePreloadComplete.value = false
-//
-//            // Launch theme preloading in a separate, controlled background job
-//            val themePreloadingJob: Job = launch(Dispatchers.IO) {
-//                val allAlbumArtUris = musicRepository.getAllUniqueAlbumArtUris() // Already on IO dispatcher
-//                allAlbumArtUris.forEach { uri ->
-//                    try {
-//                        extractAndGenerateColorScheme(uri, isPreload = true)
-//                    } catch (e: Exception) {
-//                        Log.e("PlayerViewModel", "Error preloading theme for $uri", e)
-//                    }
-//                }
-//            }
-//
-//            // Concurrently load initial UI data
-//            resetAndLoadInitialData()
-//
-//            // Wait for the theme preloading to complete
-//            themePreloadingJob.join()
-//
-//            _isInitialThemePreloadComplete.value = true
-//        }
-//    }
 
     private fun resetAndLoadInitialData() {
         currentSongPage = 1
@@ -879,6 +859,21 @@ class PlayerViewModel @Inject constructor(
                     it.artist.contains(query, ignoreCase = true) ||
                     it.album.contains(query, ignoreCase = true)
         }
+    }
+
+    //Sorting
+    fun sortSongs(sortOption: SortOption) {
+        _playerUiState.value = playerUiState.value.copy(currentSongSortOption = sortOption)
+        // Actual sorting logic here
+    }
+    fun sortAlbums(sortOption: SortOption) {
+        _playerUiState.value = playerUiState.value.copy(currentAlbumSortOption = sortOption)
+    }
+    fun sortArtists(sortOption: SortOption) {
+        _playerUiState.value = playerUiState.value.copy(currentArtistSortOption = sortOption)
+    }
+    fun sortFavoriteSongs(sortOption: SortOption) {
+        _playerUiState.value = playerUiState.value.copy(currentFavoriteSortOption = sortOption)
     }
 
 
