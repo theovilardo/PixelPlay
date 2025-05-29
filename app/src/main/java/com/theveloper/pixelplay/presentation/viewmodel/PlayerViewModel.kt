@@ -63,6 +63,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 
 // Nuevo enum para el estado del sheet
 enum class PlayerSheetState {
@@ -181,13 +182,21 @@ class PlayerViewModel @Inject constructor(
     private val _favoriteSongIds = MutableStateFlow<Set<String>>(emptySet())
 
     // Nuevo StateFlow para la lista de objetos Song favoritos
-    val favoriteSongs: StateFlow<ImmutableList<Song>> = combine( // CAMBIO AQUÍ TAMBIÉN
+    val favoriteSongs: StateFlow<ImmutableList<Song>> = combine(
         _favoriteSongIds,
         _playerUiState
     ) { ids, uiState ->
         val allSongs = uiState.allSongs // Esto ya es ImmutableList
-        allSongs.filter { song -> ids.contains(song.id) }.toImmutableList() // Convertir resultado del filtro
+        // Especifica el tipo de retorno explícitamente aquí
+        allSongs.filter { song -> ids.contains(song.id) }.toImmutableList()
     }.stateIn(viewModelScope, SharingStarted.Lazily, persistentListOf())
+//    val favoriteSongs: StateFlow<ImmutableList<Song>> = combine( // CAMBIO AQUÍ TAMBIÉN
+//        _favoriteSongIds,
+//        _playerUiState
+//    ) { ids, uiState ->
+//        val allSongs = uiState.allSongs // Esto ya es ImmutableList
+//        allSongs.filter { song -> ids.contains(song.id) }.toImmutableList() // Convertir resultado del filtro
+//    }.stateIn(viewModelScope, SharingStarted.Lazily, persistentListOf())
 
     private var progressJob: Job? = null
 
@@ -276,31 +285,6 @@ class PlayerViewModel @Inject constructor(
             }
         }
     }
-//    private fun preloadThemesAndInitialData() {
-//        viewModelScope.launch { // Main.immediate by default
-//            _isInitialThemePreloadComplete.value = false
-//
-//            // Launch theme preloading in a separate, controlled background job
-//            val themePreloadingJob: Job = launch(Dispatchers.IO) {
-//                val allAlbumArtUris = musicRepository.getAllUniqueAlbumArtUris() // Already on IO dispatcher
-//                allAlbumArtUris.forEach { uri ->
-//                    try {
-//                        extractAndGenerateColorScheme(uri, isPreload = true)
-//                    } catch (e: Exception) {
-//                        Log.e("PlayerViewModel", "Error preloading theme for $uri", e)
-//                    }
-//                }
-//            }
-//
-//            // Concurrently load initial UI data
-//            resetAndLoadInitialData()
-//
-//            // Wait for the theme preloading to complete
-//            themePreloadingJob.join()
-//
-//            _isInitialThemePreloadComplete.value = true
-//        }
-//    }
 
     private fun resetAndLoadInitialData() {
         currentSongPage = 1
@@ -308,8 +292,12 @@ class PlayerViewModel @Inject constructor(
         currentArtistPage = 1
         _playerUiState.update {
             it.copy(
-                allSongs = emptyList(), albums = emptyList(), artists = emptyList(),
-                canLoadMoreSongs = true, canLoadMoreAlbums = true, canLoadMoreArtists = true
+                allSongs = emptyList<Song>().toImmutableList(),
+                albums = emptyList<Album>().toImmutableList(),
+                artists = emptyList<Artist>().toImmutableList(),
+                canLoadMoreSongs = true,
+                canLoadMoreAlbums = true,
+                canLoadMoreArtists = true
             )
         }
         loadSongsFromRepository(isInitialLoad = true)
@@ -658,7 +646,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     // Función para ser llamada por AlbumGridItem
-    fun getAlbumColorSchemeFlow(albumArtUri: Uri?): StateFlow<ColorSchemePair?> {
+    fun getAlbumColorSchemeFlow(albumArtUri: String?): StateFlow<ColorSchemePair?> {
         val uriString = albumArtUri?.toString() ?: "default_fallback_key" // Usar una clave de fallback si la URI es null
 
         // Devolver flujo existente o crear uno nuevo
@@ -679,7 +667,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     // Modificada para devolver el ColorSchemePair y ser usada por getAlbumColorSchemeFlow y la precarga
-    private suspend fun getOrGenerateColorSchemeForUri(albumArtUri: Uri, isPreload: Boolean): ColorSchemePair? {
+    private suspend fun getOrGenerateColorSchemeForUri(albumArtUri: String, isPreload: Boolean): ColorSchemePair? {
         val uriString = albumArtUri.toString()
         val cachedEntity = withContext(Dispatchers.IO) { albumArtThemeDao.getThemeByUri(uriString) }
 

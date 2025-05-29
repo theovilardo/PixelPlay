@@ -98,10 +98,10 @@ fun HomeScreen(
         .collectAsState(initial = null)
 
     // 3) Calcular y recordar los URIs para el header
-    val recentUrisForHeader: ImmutableList<Uri?> = remember(allSongs) {
+    val recentUrisForHeader: ImmutableList<String?> = remember(allSongs) {
         allSongs
             .take(6)
-            .map { it.albumArtUri }
+            .map { it.albumArtUriString }
             .toImmutableList() // Convierte la List resultante a ImmutableList
     }
 
@@ -420,7 +420,7 @@ fun SongListItemFavs(
     cardCorners: Dp = 12.dp,
     title: String,
     artist: String,
-    albumArtUrl: Uri?,
+    albumArtUrl: String?,
     isPlaying: Boolean,
     onClick: () -> Unit
 ) {
@@ -608,7 +608,7 @@ fun SongListItemFavsWrapper(
         modifier = modifier, // El modifier se aplica a la Card
         title = song.title,
         artist = song.artist, // Usamos song.artist
-        albumArtUrl = song.albumArtUri.toString(), // Usamos song.albumArtUri
+        albumArtUrl = song.albumArtUriString, // Usamos song.albumArtUri
         isPlaying = isThisSongPlaying,
         onClick = onClick,
         itemWidth = itemWidth // Pasamos el ancho al composable de la tarjeta
@@ -645,32 +645,8 @@ fun SongListItemFavsWrapper(
         cardCorners = 0.dp,
         title         = song.title,
         artist        = song.artist,
-        albumArtUrl   = song.albumArtUri,
+        albumArtUrl   = song.albumArtUriString,
         isPlaying     = isThisSongPlaying,
         onClick       = onClick
     )
 }
-
-//@Composable
-//fun SongListItemFavsWrapper(
-//    song: Song,
-//    playerViewModel: PlayerViewModel,
-//    onClick: () -> Unit,
-//    modifier: Modifier = Modifier
-//) {
-//    // Observe only the necessary parts of playerUiState for *this specific song*
-//    val currentPlayingSongId by playerViewModel.playerUiState.map { it.currentSong?.id }.collectAsState(initial = null)
-//    val isGlobalPlaying by playerViewModel.playerUiState.map { it.isPlaying }.collectAsState(initial = false)
-//
-//    val isThisSongPlaying = song.id == currentPlayingSongId && isGlobalPlaying
-//
-//    // Call the presentational Composable with the derived state
-//    SongListItemFavs(
-//        modifier = modifier,
-//        title = song.title,
-//        artist = song.artist,
-//        albumArtUrl = song.albumArtUri,
-//        isPlaying = isThisSongPlaying,
-//        onClick = onClick
-//    )
-//}

@@ -32,7 +32,7 @@ import kotlinx.coroutines.Dispatchers
 @OptIn(ExperimentalCoilApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun OptimizedAlbumArt(
-    uri: Uri,
+    uri: String,
     title: String,
     expansionFraction: Float,
     modifier: Modifier = Modifier

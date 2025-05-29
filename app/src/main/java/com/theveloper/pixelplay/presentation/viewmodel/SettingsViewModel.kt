@@ -98,21 +98,6 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-//    fun toggleDirectoryAllowed(directoryItem: DirectoryItem) {
-//        viewModelScope.launch {
-//            val currentAllowed = userPreferencesRepository.allowedDirectoriesFlow.first().toMutableSet()
-//            if (directoryItem.isAllowed) {
-//                currentAllowed.remove(directoryItem.path)
-//            } else {
-//                currentAllowed.add(directoryItem.path)
-//            }
-//            // Guardar el conjunto actualizado en preferencias
-//            userPreferencesRepository.updateAllowedDirectories(currentAllowed)
-//            // El flujo allowedDirectoriesFlow en loadDirectoryPreferences() detectará el cambio
-//            // y regenerará la lista directoryItems automáticamente.
-//        }
-//    }
-
     // Método para guardar la preferencia de tema global
     fun setGlobalThemePreference(preference: String) {
         viewModelScope.launch {

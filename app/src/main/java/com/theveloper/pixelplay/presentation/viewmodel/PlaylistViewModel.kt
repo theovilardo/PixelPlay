@@ -29,15 +29,6 @@ data class PlaylistUiState(
     val canLoadMoreSongsForSelection: Boolean = true // Nuevo: para saber si hay más canciones para cargar
 )
 
-//data class PlaylistUiState(
-//    val playlists: List<Playlist> = emptyList(),
-//    val currentPlaylistSongs: List<Song> = emptyList(),
-//    val currentPlaylistDetails: Playlist? = null,
-//    val isLoading: Boolean = false,
-//    val songSelectionForPlaylist: List<Song> = emptyList(), // Para el diálogo de selección
-//    val isLoadingSongSelection: Boolean = false
-//)
-
 @HiltViewModel
 class PlaylistViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,

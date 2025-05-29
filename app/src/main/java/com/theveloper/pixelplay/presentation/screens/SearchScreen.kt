@@ -399,7 +399,7 @@ fun ExpressiveSongListItem(
                     )
             ) {
                 SmartImage(
-                    model = song.albumArtUri,
+                    model = song.albumArtUriString,
                     contentDescription = "Album Art",
                     contentScale = ContentScale.Crop,
                     shape = RoundedCornerShape(18.dp),
