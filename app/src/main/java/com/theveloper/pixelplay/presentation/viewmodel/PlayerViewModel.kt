@@ -199,7 +199,7 @@ class PlayerViewModel @Inject constructor(
             SortOption.LikedSongTitleZA -> favoriteSongsList.sortedByDescending { it.title }
             SortOption.LikedSongArtist -> favoriteSongsList.sortedBy { it.artist }
             SortOption.LikedSongAlbum -> favoriteSongsList.sortedBy { it.album }
-            SortOption.LikedSongDateLiked -> favoriteSongsList.sortedByDescending { it.dateAdded } // Assuming dateAdded for Liked
+            SortOption.LikedSongDateLiked -> favoriteSongsList.sortedByDescending { it.id } // Assuming dateAdded for Liked
             else -> favoriteSongsList // Should not happen
         }.toImmutableList()
     }.stateIn(viewModelScope, SharingStarted.Lazily, persistentListOf())
@@ -223,23 +223,23 @@ class PlayerViewModel @Inject constructor(
     // Helper function to convert SortOption name string to SortOption object
     private fun getSortOptionFromString(optionName: String?): SortOption? {
         return when (optionName) {
-            SortOption.SongTitleAZ.name -> SortOption.SongTitleAZ
-            SortOption.SongTitleZA.name -> SortOption.SongTitleZA
-            SortOption.SongArtist.name -> SortOption.SongArtist
-            SortOption.SongAlbum.name -> SortOption.SongAlbum
-            SortOption.SongDateAdded.name -> SortOption.SongDateAdded
-            SortOption.SongDuration.name -> SortOption.SongDuration
-            SortOption.AlbumTitleAZ.name -> SortOption.AlbumTitleAZ
-            SortOption.AlbumTitleZA.name -> SortOption.AlbumTitleZA
-            SortOption.AlbumArtist.name -> SortOption.AlbumArtist
-            SortOption.AlbumReleaseYear.name -> SortOption.AlbumReleaseYear
-            SortOption.ArtistNameAZ.name -> SortOption.ArtistNameAZ
-            SortOption.ArtistNameZA.name -> SortOption.ArtistNameZA
-            SortOption.LikedSongTitleAZ.name -> SortOption.LikedSongTitleAZ
-            SortOption.LikedSongTitleZA.name -> SortOption.LikedSongTitleZA
-            SortOption.LikedSongArtist.name -> SortOption.LikedSongArtist
-            SortOption.LikedSongAlbum.name -> SortOption.LikedSongAlbum
-            SortOption.LikedSongDateLiked.name -> SortOption.LikedSongDateLiked
+            SortOption.SongTitleAZ.displayName -> SortOption.SongTitleAZ
+            SortOption.SongTitleZA.displayName -> SortOption.SongTitleZA
+            SortOption.SongArtist.displayName -> SortOption.SongArtist
+            SortOption.SongAlbum.displayName -> SortOption.SongAlbum
+            SortOption.SongDateAdded.displayName -> SortOption.SongDateAdded
+            SortOption.SongDuration.displayName -> SortOption.SongDuration
+            SortOption.AlbumTitleAZ.displayName -> SortOption.AlbumTitleAZ
+            SortOption.AlbumTitleZA.displayName -> SortOption.AlbumTitleZA
+            SortOption.AlbumArtist.displayName -> SortOption.AlbumArtist
+            SortOption.AlbumReleaseYear.displayName -> SortOption.AlbumReleaseYear
+            SortOption.ArtistNameAZ.displayName -> SortOption.ArtistNameAZ
+            SortOption.ArtistNameZA.displayName -> SortOption.ArtistNameZA
+            SortOption.LikedSongTitleAZ.displayName -> SortOption.LikedSongTitleAZ
+            SortOption.LikedSongTitleZA.displayName -> SortOption.LikedSongTitleZA
+            SortOption.LikedSongArtist.displayName -> SortOption.LikedSongArtist
+            SortOption.LikedSongAlbum.displayName -> SortOption.LikedSongAlbum
+            SortOption.LikedSongDateLiked.displayName -> SortOption.LikedSongDateLiked
             // Playlist options are not handled by PlayerViewModel
             else -> null // Or a default SortOption if appropriate
         }
@@ -987,14 +987,14 @@ class PlayerViewModel @Inject constructor(
             SortOption.SongTitleZA -> _playerUiState.value.allSongs.sortedByDescending { it.title }
             SortOption.SongArtist -> _playerUiState.value.allSongs.sortedBy { it.artist }
             SortOption.SongAlbum -> _playerUiState.value.allSongs.sortedBy { it.album }
-            SortOption.SongDateAdded -> _playerUiState.value.allSongs.sortedByDescending { it.dateAdded }
+            SortOption.SongDateAdded -> _playerUiState.value.allSongs.sortedByDescending { it.albumId } // need to implement date added for Song
             SortOption.SongDuration -> _playerUiState.value.allSongs.sortedBy { it.duration }
             else -> _playerUiState.value.allSongs
         }.toImmutableList()
         _playerUiState.update { it.copy(allSongs = sortedSongs) } // Update the list
 
         viewModelScope.launch {
-            userPreferencesRepository.setSongsSortOption(sortOption.name)
+            userPreferencesRepository.setSongsSortOption(sortOption.displayName)
         }
     }
 
@@ -1004,14 +1004,14 @@ class PlayerViewModel @Inject constructor(
         val sortedAlbums = when (sortOption) {
             SortOption.AlbumTitleAZ -> _playerUiState.value.albums.sortedBy { it.title }
             SortOption.AlbumTitleZA -> _playerUiState.value.albums.sortedByDescending { it.title }
-            SortOption.AlbumArtist -> _playerUiState.value.albums.sortedBy { it.artistName }
-            SortOption.AlbumReleaseYear -> _playerUiState.value.albums.sortedByDescending { it.year }
+            SortOption.AlbumArtist -> _playerUiState.value.albums.sortedBy { it.artist }
+            SortOption.AlbumReleaseYear -> _playerUiState.value.albums.sortedByDescending { it.id } //need to implement album release date
             else -> _playerUiState.value.albums
         }.toImmutableList()
         _playerUiState.update { it.copy(albums = sortedAlbums) }
 
         viewModelScope.launch {
-            userPreferencesRepository.setAlbumsSortOption(sortOption.name)
+            userPreferencesRepository.setAlbumsSortOption(sortOption.displayName)
         }
     }
 
@@ -1026,7 +1026,7 @@ class PlayerViewModel @Inject constructor(
         _playerUiState.update { it.copy(artists = sortedArtists) }
 
         viewModelScope.launch {
-            userPreferencesRepository.setArtistsSortOption(sortOption.name)
+            userPreferencesRepository.setArtistsSortOption(sortOption.displayName)
         }
     }
 
@@ -1034,7 +1034,7 @@ class PlayerViewModel @Inject constructor(
         _playerUiState.update { it.copy(currentFavoriteSortOption = sortOption) }
         // The actual sorting is handled by the 'favoriteSongs' StateFlow reacting to 'currentFavoriteSortOption'.
         viewModelScope.launch {
-            userPreferencesRepository.setLikedSongsSortOption(sortOption.name)
+            userPreferencesRepository.setLikedSongsSortOption(sortOption.displayName)
         }
     }
 

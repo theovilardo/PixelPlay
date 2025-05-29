@@ -213,27 +213,27 @@ class UserPreferencesRepository @Inject constructor(
     // Flows for Sort Options
     val songsSortOptionFlow: Flow<String> = dataStore.data
         .map { preferences ->
-            preferences[PreferencesKeys.SONGS_SORT_OPTION] ?: SortOption.SongTitleAZ.name
+            preferences[PreferencesKeys.SONGS_SORT_OPTION] ?: SortOption.SongTitleAZ.displayName
         }
 
     val albumsSortOptionFlow: Flow<String> = dataStore.data
         .map { preferences ->
-            preferences[PreferencesKeys.ALBUMS_SORT_OPTION] ?: SortOption.AlbumTitleAZ.name
+            preferences[PreferencesKeys.ALBUMS_SORT_OPTION] ?: SortOption.AlbumTitleAZ.displayName
         }
 
     val artistsSortOptionFlow: Flow<String> = dataStore.data
         .map { preferences ->
-            preferences[PreferencesKeys.ARTISTS_SORT_OPTION] ?: SortOption.ArtistNameAZ.name
+            preferences[PreferencesKeys.ARTISTS_SORT_OPTION] ?: SortOption.ArtistNameAZ.displayName
         }
 
     val playlistsSortOptionFlow: Flow<String> = dataStore.data
         .map { preferences ->
-            preferences[PreferencesKeys.PLAYLISTS_SORT_OPTION] ?: SortOption.PlaylistNameAZ.name
+            preferences[PreferencesKeys.PLAYLISTS_SORT_OPTION] ?: SortOption.PlaylistNameAZ.displayName
         }
 
     val likedSongsSortOptionFlow: Flow<String> = dataStore.data
         .map { preferences ->
-            preferences[PreferencesKeys.LIKED_SONGS_SORT_OPTION] ?: SortOption.LikedSongTitleAZ.name
+            preferences[PreferencesKeys.LIKED_SONGS_SORT_OPTION] ?: SortOption.LikedSongTitleAZ.displayName
         }
 
     // Functions to update Sort Options

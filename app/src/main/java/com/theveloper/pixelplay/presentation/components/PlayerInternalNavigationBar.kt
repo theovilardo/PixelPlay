@@ -1,6 +1,5 @@
 package com.theveloper.pixelplay.presentation.components
 
-import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,15 +12,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBarDefaults
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
@@ -42,7 +38,7 @@ private fun PlayerInternalNavigationItemsRow(
     currentRoute: String?,
     modifier: Modifier = Modifier
 ) {
-    Log.d("Recomposition", "PlayerInternalNavigationItemsRow - currentRoute: $currentRoute, navItemsHash: ${navItems.hashCode()}")
+    //Log.d("Recomposition", "PlayerInternalNavigationItemsRow - currentRoute: $currentRoute, navItemsHash: ${navItems.hashCode()}")
 
     Row(
         modifier = modifier
@@ -108,77 +104,6 @@ private fun PlayerInternalNavigationItemsRow(
                 indicatorColor = indicatorColorFromTheme
             )
         }
-    }
-}
-
-@Composable
-private fun PlayerNavigationItem( // Nota: Renombrado para claridad, o puedes mantener el nombre
-    navController: NavHostController,
-    item: BottomNavItem, // BottomNavItem debe ser @Immutable
-    isCurrentlySelected: Boolean, // Pasar 'isSelected' directamente
-    modifier: Modifier = Modifier // Modifier para el NavigationBarItem
-) {
-    // Log para ver cuándo se recompone este ítem específico
-    Log.d("Recomposition", "PlayerNavigationItem for ${item.label} RECOMPOSED, isSelected: $isCurrentlySelected")
-
-    // Los colores se calculan aquí, dependiendo solo de isCurrentlySelected y el tema.
-    // El tema (MaterialTheme.colorScheme) se asume estable a menos que todo el tema de la app cambie.
-    val itemColors = NavigationBarItemDefaults.colors(
-        selectedIconColor = MaterialTheme.colorScheme.primary,
-        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        selectedTextColor = MaterialTheme.colorScheme.primary,
-        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        indicatorColor = MaterialTheme.colorScheme.secondaryContainer
-    )
-
-    // El modificador para el NavigationBarItem se define una vez aquí.
-    // val individualItemModifier = remember { Modifier.weight(1f) } // Esto estaba en el bucle, ahora es parte del 'modifier' pasado o se define aquí si es fijo.
-
-    val onClickLambda = remember(navController, item.screen.route) { // Claves estables
-        {
-            navController.navigate(item.screen.route) {
-                popUpTo(navController.graph.id) {
-                    inclusive = true
-                    saveState = false
-                }
-                launchSingleTop = true
-                restoreState = false
-            }
-        }
-    }
-
-    val iconPainterResId = if (isCurrentlySelected && item.selectedIconResId != null && item.selectedIconResId != 0) {
-        item.selectedIconResId!!
-    } else {
-        item.iconResId
-    }
-
-    // Estas lambdas se recordarán correctamente si isCurrentlySelected (usada indirectamente vía iconPainterResId) y item.label son estables.
-    val iconLambda: @Composable () -> Unit = remember(iconPainterResId, item.label) {
-        {
-            Icon(
-                painter = painterResource(id = iconPainterResId),
-                contentDescription = item.label
-            )
-        }
-    }
-
-    val labelLambda: @Composable () -> Unit = remember(item.label) {
-        { Text(item.label) }
-    }
-
-    Row(
-        modifier = modifier
-    ) {
-        NavigationBarItem(
-            modifier = modifier, // Usar el modifier pasado (que podría incluir .weight(1f))
-            selected = isCurrentlySelected,
-            onClick = onClickLambda,
-            icon = iconLambda,
-            label = labelLambda,
-            alwaysShowLabel = true,
-            colors = itemColors
-        )
     }
 }
 

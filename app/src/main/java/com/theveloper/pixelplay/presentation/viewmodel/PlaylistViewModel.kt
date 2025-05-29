@@ -49,9 +49,9 @@ class PlaylistViewModel @Inject constructor(
     // Helper function to convert SortOption name string to SortOption object for playlists
     private fun getPlaylistSortOptionFromString(optionName: String?): SortOption {
         return when (optionName) {
-            SortOption.PlaylistNameAZ.name -> SortOption.PlaylistNameAZ
-            SortOption.PlaylistNameZA.name -> SortOption.PlaylistNameZA
-            SortOption.PlaylistDateCreated.name -> SortOption.PlaylistDateCreated
+            SortOption.PlaylistNameAZ.displayName -> SortOption.PlaylistNameAZ
+            SortOption.PlaylistNameZA.displayName -> SortOption.PlaylistNameZA
+            SortOption.PlaylistDateCreated.displayName -> SortOption.PlaylistDateCreated
             else -> SortOption.PlaylistNameAZ // Default if unknown or null
         }
     }
@@ -227,7 +227,7 @@ class PlaylistViewModel @Inject constructor(
         _uiState.update { it.copy(playlists = sortedPlaylists) } // Update with the sorted list
 
         viewModelScope.launch {
-            userPreferencesRepository.setPlaylistsSortOption(sortOption.name)
+            userPreferencesRepository.setPlaylistsSortOption(sortOption.displayName)
         }
     }
 }
