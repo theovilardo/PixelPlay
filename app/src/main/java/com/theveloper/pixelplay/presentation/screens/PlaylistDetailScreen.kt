@@ -397,7 +397,7 @@ fun PlaylistSongItem(
                 modifier = Modifier.padding(end = 12.dp)
             )
             SmartImage(
-                model = song.albumArtUri,
+                model = song.albumArtUriString,
                 shape = RoundedCornerShape(8.dp),
                 contentDescription = "Carátula",
                 modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)),

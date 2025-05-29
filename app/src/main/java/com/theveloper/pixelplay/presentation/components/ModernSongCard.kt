@@ -65,7 +65,7 @@ fun ModernSongCard(
                     .clip(RoundedCornerShape(12.dp))
             ) {
                 AsyncImage(
-                    model = song.albumArtUri ?: painterResource(R.drawable.rounded_music_note_24),
+                    model = song.albumArtUriString ?: painterResource(R.drawable.rounded_music_note_24),
                     contentDescription = "Album art for ${song.title}",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
