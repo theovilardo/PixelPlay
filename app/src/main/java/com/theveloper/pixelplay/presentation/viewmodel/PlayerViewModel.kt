@@ -134,7 +134,9 @@ class PlayerViewModel @Inject constructor(
 
     private val _currentAlbumArtColorSchemePair = MutableStateFlow<ColorSchemePair?>(null)
     val currentAlbumArtColorSchemePair: StateFlow<ColorSchemePair?> = _currentAlbumArtColorSchemePair.asStateFlow()
-    private val _globalThemePreference = MutableStateFlow(ThemePreference.DYNAMIC) // Default a DYNAMIC
+    // Global and Player theme preferences are now managed by UserPreferencesRepository,
+    // but PlayerViewModel still needs to observe them to react to changes.
+    private val _globalThemePreference = MutableStateFlow(ThemePreference.DYNAMIC)
     val globalThemePreference: StateFlow<String> = _globalThemePreference.asStateFlow()
     private val _playerThemePreference = MutableStateFlow(ThemePreference.GLOBAL)
     val playerThemePreference: StateFlow<String> = _playerThemePreference.asStateFlow()
@@ -189,19 +191,18 @@ class PlayerViewModel @Inject constructor(
     // Nuevo StateFlow para la lista de objetos Song favoritos
     val favoriteSongs: StateFlow<ImmutableList<Song>> = combine(
         _favoriteSongIds,
-        _playerUiState
+        _playerUiState // Depends on allSongs and currentFavoriteSortOption from uiState
     ) { ids, uiState ->
-        val allSongs = uiState.allSongs // Esto ya es ImmutableList
-        // Especifica el tipo de retorno explícitamente aquí
-        allSongs.filter { song -> ids.contains(song.id) }.toImmutableList()
+        val favoriteSongsList = uiState.allSongs.filter { song -> ids.contains(song.id) }
+        when (uiState.currentFavoriteSortOption) {
+            SortOption.LikedSongTitleAZ -> favoriteSongsList.sortedBy { it.title }
+            SortOption.LikedSongTitleZA -> favoriteSongsList.sortedByDescending { it.title }
+            SortOption.LikedSongArtist -> favoriteSongsList.sortedBy { it.artist }
+            SortOption.LikedSongAlbum -> favoriteSongsList.sortedBy { it.album }
+            SortOption.LikedSongDateLiked -> favoriteSongsList.sortedByDescending { it.dateAdded } // Assuming dateAdded for Liked
+            else -> favoriteSongsList // Should not happen
+        }.toImmutableList()
     }.stateIn(viewModelScope, SharingStarted.Lazily, persistentListOf())
-//    val favoriteSongs: StateFlow<ImmutableList<Song>> = combine( // CAMBIO AQUÍ TAMBIÉN
-//        _favoriteSongIds,
-//        _playerUiState
-//    ) { ids, uiState ->
-//        val allSongs = uiState.allSongs // Esto ya es ImmutableList
-//        allSongs.filter { song -> ids.contains(song.id) }.toImmutableList() // Convertir resultado del filtro
-//    }.stateIn(viewModelScope, SharingStarted.Lazily, persistentListOf())
 
     private var progressJob: Job? = null
 
@@ -219,26 +220,101 @@ class PlayerViewModel @Inject constructor(
         _predictiveBackCollapseFraction.value = 0f
     }
 
+    // Helper function to convert SortOption name string to SortOption object
+    private fun getSortOptionFromString(optionName: String?): SortOption? {
+        return when (optionName) {
+            SortOption.SongTitleAZ.name -> SortOption.SongTitleAZ
+            SortOption.SongTitleZA.name -> SortOption.SongTitleZA
+            SortOption.SongArtist.name -> SortOption.SongArtist
+            SortOption.SongAlbum.name -> SortOption.SongAlbum
+            SortOption.SongDateAdded.name -> SortOption.SongDateAdded
+            SortOption.SongDuration.name -> SortOption.SongDuration
+            SortOption.AlbumTitleAZ.name -> SortOption.AlbumTitleAZ
+            SortOption.AlbumTitleZA.name -> SortOption.AlbumTitleZA
+            SortOption.AlbumArtist.name -> SortOption.AlbumArtist
+            SortOption.AlbumReleaseYear.name -> SortOption.AlbumReleaseYear
+            SortOption.ArtistNameAZ.name -> SortOption.ArtistNameAZ
+            SortOption.ArtistNameZA.name -> SortOption.ArtistNameZA
+            SortOption.LikedSongTitleAZ.name -> SortOption.LikedSongTitleAZ
+            SortOption.LikedSongTitleZA.name -> SortOption.LikedSongTitleZA
+            SortOption.LikedSongArtist.name -> SortOption.LikedSongArtist
+            SortOption.LikedSongAlbum.name -> SortOption.LikedSongAlbum
+            SortOption.LikedSongDateLiked.name -> SortOption.LikedSongDateLiked
+            // Playlist options are not handled by PlayerViewModel
+            else -> null // Or a default SortOption if appropriate
+        }
+    }
+
     init {
+        // Observe theme preferences
         viewModelScope.launch { userPreferencesRepository.globalThemePreferenceFlow.collect { _globalThemePreference.value = it } }
         viewModelScope.launch { userPreferencesRepository.playerThemePreferenceFlow.collect { _playerThemePreference.value = it } }
-        // Observar favoritos
+
+        // Observe favorite songs
         viewModelScope.launch {
             userPreferencesRepository.favoriteSongIdsFlow.collect { ids ->
                 _favoriteSongIds.value = ids
-                // La actualización de stablePlayerState.isCurrentSongFavorite ya se hace en updateFavoriteStatusForCurrentSong
             }
         }
+
+        // Observe sort option preferences
+        viewModelScope.launch {
+            userPreferencesRepository.songsSortOptionFlow.collect { optionName ->
+                getSortOptionFromString(optionName)?.let { sortOption ->
+                    if (_playerUiState.value.currentSongSortOption != sortOption) { // Avoid re-sorting if option hasn't changed
+                        // Update state first, then call sort which uses the state
+                        _playerUiState.update { it.copy(currentSongSortOption = sortOption) }
+                        if (!_playerUiState.value.isLoadingInitialSongs && _playerUiState.value.allSongs.isNotEmpty()) {
+                             sortSongs(sortOption) // This will use the updated state
+                        }
+                    }
+                }
+            }
+        }
+        viewModelScope.launch {
+            userPreferencesRepository.albumsSortOptionFlow.collect { optionName ->
+                getSortOptionFromString(optionName)?.let { sortOption ->
+                    if (_playerUiState.value.currentAlbumSortOption != sortOption) {
+                        _playerUiState.update { it.copy(currentAlbumSortOption = sortOption) }
+                        if (!_playerUiState.value.isLoadingLibraryCategories && _playerUiState.value.albums.isNotEmpty()) {
+                            sortAlbums(sortOption)
+                        }
+                    }
+                }
+            }
+        }
+        viewModelScope.launch {
+            userPreferencesRepository.artistsSortOptionFlow.collect { optionName ->
+                getSortOptionFromString(optionName)?.let { sortOption ->
+                    if (_playerUiState.value.currentArtistSortOption != sortOption) {
+                        _playerUiState.update { it.copy(currentArtistSortOption = sortOption) }
+                        if (!_playerUiState.value.isLoadingLibraryCategories && _playerUiState.value.artists.isNotEmpty()) {
+                            sortArtists(sortOption)
+                        }
+                    }
+                }
+            }
+        }
+        viewModelScope.launch {
+            userPreferencesRepository.likedSongsSortOptionFlow.collect { optionName ->
+                getSortOptionFromString(optionName)?.let { sortOption ->
+                     // The favoriteSongs flow automatically uses currentFavoriteSortOption from playerUiState.
+                     // Just updating the state is enough to trigger re-composition and re-sorting.
+                    _playerUiState.update { it.copy(currentFavoriteSortOption = sortOption) }
+                }
+            }
+        }
+
         mediaControllerFuture.addListener({
             try {
                 mediaController = mediaControllerFuture.get()
-                setupMediaControllerListeners() // Configurar listeners y sincronizar estado inicial
+                setupMediaControllerListeners()
             } catch (e: Exception) {
-                _playerUiState.update { it.copy(isLoadingInitialSongs = false, isLoadingLibraryCategories = false) } // Asegurar que el loading se detenga en error
-                // Log error
+                _playerUiState.update { it.copy(isLoadingInitialSongs = false, isLoadingLibraryCategories = false) }
+                Log.e("PlayerViewModel", "Error setting up MediaController", e)
             }
         }, MoreExecutors.directExecutor())
-        // Iniciar precarga y carga de datos iniciales
+
         preloadThemesAndInitialData()
     }
 
@@ -279,14 +355,15 @@ class PlayerViewModel @Inject constructor(
             resetAndLoadInitialData() // Esto lanza sus propias corrutinas
             Log.d("PlayerViewModel", "resetAndLoadInitialData() call took ${System.currentTimeMillis() - resetLoadDataStartTime} ms (Note: actual loading is async)")
 
-            // Wait for the initial songs to be loaded before marking initial theme/UI setup as complete.
-            // This ensures that the primary content is available when the loading screen disappears.
+            // Wait for the initial songs, albums, and artists to be loaded before marking initial theme/UI setup as complete.
+            // This ensures that the primary content for all main library tabs is available when the loading screen disappears.
             viewModelScope.launch {
-                // Wait until isLoadingInitialSongs is false
-                _playerUiState.first { !it.isLoadingInitialSongs }
-                // At this point, the first page of songs is loaded.
+                _playerUiState.first { state ->
+                    !state.isLoadingInitialSongs && !state.isLoadingLibraryCategories
+                }
+                // At this point, the first page of songs, albums, and artists has been loaded.
                 _isInitialThemePreloadComplete.value = true
-                Log.d("PlayerViewModel", "Initial song load complete, _isInitialThemePreloadComplete set to true. Total time since init start: ${System.currentTimeMillis() - overallInitStartTime} ms")
+                Log.d("PlayerViewModel", "Initial song, album, and artist load complete, _isInitialThemePreloadComplete set to true. Total time since init start: ${System.currentTimeMillis() - overallInitStartTime} ms")
             }
         }
     }
@@ -900,17 +977,65 @@ class PlayerViewModel @Inject constructor(
 
     //Sorting
     fun sortSongs(sortOption: SortOption) {
-        _playerUiState.value = playerUiState.value.copy(currentSongSortOption = sortOption)
-        // Actual sorting logic here
+        // It's important that currentSongSortOption in uiState is updated BEFORE this function
+        // is called if triggered by the preference flow, or that this function updates it first.
+        // For user-initiated sort, this function is the source of truth for the new option.
+        _playerUiState.update { it.copy(currentSongSortOption = sortOption) } // Ensure state is set
+
+        val sortedSongs = when (sortOption) {
+            SortOption.SongTitleAZ -> _playerUiState.value.allSongs.sortedBy { it.title }
+            SortOption.SongTitleZA -> _playerUiState.value.allSongs.sortedByDescending { it.title }
+            SortOption.SongArtist -> _playerUiState.value.allSongs.sortedBy { it.artist }
+            SortOption.SongAlbum -> _playerUiState.value.allSongs.sortedBy { it.album }
+            SortOption.SongDateAdded -> _playerUiState.value.allSongs.sortedByDescending { it.dateAdded }
+            SortOption.SongDuration -> _playerUiState.value.allSongs.sortedBy { it.duration }
+            else -> _playerUiState.value.allSongs
+        }.toImmutableList()
+        _playerUiState.update { it.copy(allSongs = sortedSongs) } // Update the list
+
+        viewModelScope.launch {
+            userPreferencesRepository.setSongsSortOption(sortOption.name)
+        }
     }
+
     fun sortAlbums(sortOption: SortOption) {
-        _playerUiState.value = playerUiState.value.copy(currentAlbumSortOption = sortOption)
+        _playerUiState.update { it.copy(currentAlbumSortOption = sortOption) }
+
+        val sortedAlbums = when (sortOption) {
+            SortOption.AlbumTitleAZ -> _playerUiState.value.albums.sortedBy { it.title }
+            SortOption.AlbumTitleZA -> _playerUiState.value.albums.sortedByDescending { it.title }
+            SortOption.AlbumArtist -> _playerUiState.value.albums.sortedBy { it.artistName }
+            SortOption.AlbumReleaseYear -> _playerUiState.value.albums.sortedByDescending { it.year }
+            else -> _playerUiState.value.albums
+        }.toImmutableList()
+        _playerUiState.update { it.copy(albums = sortedAlbums) }
+
+        viewModelScope.launch {
+            userPreferencesRepository.setAlbumsSortOption(sortOption.name)
+        }
     }
+
     fun sortArtists(sortOption: SortOption) {
-        _playerUiState.value = playerUiState.value.copy(currentArtistSortOption = sortOption)
+        _playerUiState.update { it.copy(currentArtistSortOption = sortOption) }
+
+        val sortedArtists = when (sortOption) {
+            SortOption.ArtistNameAZ -> _playerUiState.value.artists.sortedBy { it.name }
+            SortOption.ArtistNameZA -> _playerUiState.value.artists.sortedByDescending { it.name }
+            else -> _playerUiState.value.artists
+        }.toImmutableList()
+        _playerUiState.update { it.copy(artists = sortedArtists) }
+
+        viewModelScope.launch {
+            userPreferencesRepository.setArtistsSortOption(sortOption.name)
+        }
     }
+
     fun sortFavoriteSongs(sortOption: SortOption) {
-        _playerUiState.value = playerUiState.value.copy(currentFavoriteSortOption = sortOption)
+        _playerUiState.update { it.copy(currentFavoriteSortOption = sortOption) }
+        // The actual sorting is handled by the 'favoriteSongs' StateFlow reacting to 'currentFavoriteSortOption'.
+        viewModelScope.launch {
+            userPreferencesRepository.setLikedSongsSortOption(sortOption.name)
+        }
     }
 
 
