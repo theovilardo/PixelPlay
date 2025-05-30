@@ -10,14 +10,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,7 +51,7 @@ fun LibraryActionRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = 12.dp, bottom = 8.dp, start = 16.dp, end = 16.dp), // Adjusted bottom padding
+            .padding(start = 6.dp), // Adjusted bottom padding
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -58,10 +60,10 @@ fun LibraryActionRow(
             onClick = onMainActionClick,
             shape = defaultShape, // Using fallback shape, replace with your AbsoluteSmoothCornerShape if available
             // shape = AbsoluteSmoothCornerShape(cornerRadiusTL = 26.dp, ...), // Your custom shape
-//            colors = ButtonDefaults.buttonColors(
-//                containerColor = MaterialTheme.colorScheme.primaryContainer,
-//                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-//            ),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.tertiary,
+                contentColor = MaterialTheme.colorScheme.onTertiary
+            ),
             elevation = ButtonDefaults.buttonElevation(
                 defaultElevation = 4.dp, // Slightly reduced elevation for a normal button
                 pressedElevation = 6.dp
@@ -81,7 +83,7 @@ fun LibraryActionRow(
                     contentDescription = contentDesc,
                     modifier = Modifier
                         .size(20.dp)
-                        .then(if (currentPage != 3) Modifier.rotate(iconRotation) else Modifier) // Only rotate shuffle
+                        .then(Modifier.rotate(iconRotation)) // Only rotate shuffle
                 )
                 Text(
                     text = text,
@@ -94,17 +96,20 @@ fun LibraryActionRow(
         // Sort Button and Dropdown Menu
         if (showSortButton) {
             Box { // Box is needed for DropdownMenu positioning
-                IconButton(onClick = onSortIconClick) {
+                FilledTonalIconButton(onClick = onSortIconClick) {
                     Icon(
-                        imageVector = Icons.Default.Sort,
+                        imageVector = Icons.AutoMirrored.Rounded.Sort,
                         contentDescription = "Sort Options",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant // Good contrast
+                        //tint = MaterialTheme.colorScheme.onSurfaceVariant // Good contrast
                     )
                 }
                 DropdownMenu(
                     expanded = showSortMenu,
                     onDismissRequest = onDismissSortMenu,
-                    modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant) // Custom background for dropdown
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.background(
+                        color = MaterialTheme.colorScheme.surfaceVariant
+                    ) // Custom background for dropdown
                 ) {
                     currentSortOptionsForTab.forEach { option ->
                         DropdownMenuItem(

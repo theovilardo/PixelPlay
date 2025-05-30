@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.rememberTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,6 +38,7 @@ import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material3.AlertDialog
@@ -97,9 +99,6 @@ fun SettingsScreen(
     // Estado para controlar la visibilidad del diálogo de directorios
     var showDirectoryDialog by remember { mutableStateOf(false) }
 
-    // --- LA PARTE IMPORTANTE ESTÁ AQUÍ ---
-    // Asegúrate que uiState.directoryItems es una List<DirectoryItem>
-    // y no una List<List<DirectoryItem>>
     val directoryItems: ImmutableList<DirectoryItem> = remember(uiState.directoryItems) {
         val list: List<DirectoryItem> = uiState.directoryItems
         val immutable: ImmutableList<DirectoryItem> = list.toImmutableList() // Now this should work
@@ -178,8 +177,8 @@ fun SettingsScreen(
             ) {
                 SettingsCard {
                     SettingsItem(
-                        title = "Carpetas de Música Permitidas",
-                        subtitle = "Selecciona qué carpetas incluir en tu biblioteca.",
+                        title = "Allowed Directories",
+                        subtitle = "Choose the directories you want to get the music files from.",
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Outlined.Folder,
@@ -212,7 +211,16 @@ fun SettingsScreen(
                     )
                 }
             ) {
-                SettingsCard {
+                Column(
+                    Modifier
+                        .background(
+                            color = Color.Transparent,
+                            shape = RoundedCornerShape(24.dp)
+                        )
+                        .clip(
+                            shape = RoundedCornerShape(24.dp)
+                        )
+                ){
                     // Selector para Tema Global
                     ThemeSelectorItem(
                         label = "Tema de la Aplicación",
@@ -233,10 +241,12 @@ fun SettingsScreen(
                         }
                     )
 
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
-                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+
+//                    HorizontalDivider(
+//                        modifier = Modifier.padding(horizontal = 16.dp),
+//                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+//                    )
 
                     // Selector para Tema del Reproductor
                     ThemeSelectorItem(
@@ -393,10 +403,10 @@ fun ThemeSelectorItem(
     val selectedOption = options[selectedKey] ?: selectedKey
 
     Surface(
-        color = Color.Transparent,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(10.dp))
             .clickable { expanded = true }
     ) {
         Row(
@@ -434,7 +444,7 @@ fun ThemeSelectorItem(
 
                 Surface(
                     shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -451,7 +461,7 @@ fun ThemeSelectorItem(
                         )
 
                         Icon(
-                            imageVector = Icons.Rounded.ArrowDropDown,
+                            imageVector = Icons.Rounded.KeyboardArrowDown,
                             contentDescription = "Abrir menú",
                             tint = MaterialTheme.colorScheme.onSecondaryContainer
                         )
@@ -586,10 +596,10 @@ fun DirectoryPickerDialog(
                     }
                 }
 
-                HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = 24.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant
-                )
+//                HorizontalDivider(
+//                    modifier = Modifier.padding(horizontal = 24.dp),
+//                    color = MaterialTheme.colorScheme.outlineVariant
+//                )
 
                 // Contenido
                 Box(
@@ -655,11 +665,11 @@ fun DirectoryPickerDialog(
                     }
                 }
 
-                // Footer
-                HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = 24.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant
-                )
+//                // Footer
+//                HorizontalDivider(
+//                    modifier = Modifier.padding(horizontal = 24.dp),
+//                    color = MaterialTheme.colorScheme.outlineVariant
+//                )
 
                 Row(
                     modifier = Modifier
@@ -778,244 +788,3 @@ fun DirectoryItemCard(
         }
     }
 }
-
-//@OptIn(ExperimentalMaterial3Api::class)
-//@Composable
-//fun SettingsScreen(
-//    navController: NavController,
-//    paddingValues: PaddingValues,
-//    settingsViewModel: SettingsViewModel = hiltViewModel()
-//) {
-//    // Recopilar el estado de la UI del ViewModel
-//    val uiState by settingsViewModel.uiState.collectAsState()
-//    // Estado para controlar la visibilidad del diálogo de directorios
-//    var showDirectoryDialog by remember { mutableStateOf(false) }
-//
-//    Scaffold(
-//        topBar = {
-//            TopAppBar(
-//                title = { Text("Ajustes") },
-//                navigationIcon = {
-//                    // Mostrar botón de atrás solo si hay una pantalla anterior en el stack
-//                    if (navController.previousBackStackEntry != null) {
-//                        IconButton(onClick = { navController.popBackStack() }) {
-//                            Icon(painterResource(R.drawable.rounded_arrow_back_24), contentDescription = "Volver")
-//                        }
-//                    }
-//                },
-//                colors = TopAppBarDefaults.topAppBarColors(
-//                    containerColor = MaterialTheme.colorScheme.surfaceVariant // Usar un color del tema
-//                )
-//            )
-//        },
-//        // Aplicar el padding del Scaffold a todo el contenido
-//        modifier = Modifier.padding(paddingValues)
-//    ) { innerPadding ->
-//        Column(
-//            modifier = Modifier
-//                .fillMaxSize()
-//                .padding(innerPadding) // Aplicar el padding del Scaffold
-//                .padding(16.dp) // Padding adicional para el contenido interno
-//        ) {
-//            Text(
-//                "Gestión de Música",
-//                style = MaterialTheme.typography.titleMedium,
-//                modifier = Modifier.padding(bottom = 8.dp)
-//            )
-//            // Item para abrir el diálogo de selección de carpetas
-//            SettingsItem(
-//                title = "Carpetas de Música Permitidas",
-//                subtitle = "Selecciona qué carpetas incluir en tu biblioteca.",
-//                onClick = { showDirectoryDialog = true } // Mostrar el diálogo al hacer clic
-//            )
-//            // Aquí se podrían añadir más opciones de configuración en el futuro
-//            Divider() // Separador visual
-//            Spacer(modifier = Modifier.height(24.dp)) // Espacio vertical
-//
-//            Text("Apariencia", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 8.dp))
-//
-//            // Selector para Tema Global
-//            ThemeSelectorDropDown(
-//                label = "Tema de la Aplicación",
-//                options = mapOf(
-//                    ThemePreference.DEFAULT to "PixelPlay Predeterminado",
-//                    ThemePreference.DYNAMIC to "Dinámico (Sistema)", // Nota: La implementación de Dynamic puede variar
-//                    ThemePreference.ALBUM_ART to "Basado en Carátula" // Solo aplica si el tema global permite carátula
-//                ),
-//                selectedKey = uiState.globalThemePreference,
-//                onSelectionChanged = { settingsViewModel.setGlobalThemePreference(it) } // Llamar al ViewModel al cambiar
-//            )
-//            Spacer(modifier = Modifier.height(8.dp)) // Espacio vertical
-//            Divider() // Separador visual
-//            Spacer(modifier = Modifier.height(16.dp)) // Espacio vertical
-//
-//            // Selector para Tema del Reproductor
-//            ThemeSelectorDropDown(
-//                label = "Tema del Reproductor",
-//                options = mapOf(
-//                    ThemePreference.GLOBAL to "Seguir Tema de Aplicación",
-//                    ThemePreference.ALBUM_ART to "Basado en Carátula",
-//                    ThemePreference.DEFAULT to "PixelPlay Predeterminado"
-//                ),
-//                selectedKey = uiState.playerThemePreference,
-//                onSelectionChanged = { settingsViewModel.setPlayerThemePreference(it) } // Llamar al ViewModel al cambiar
-//            )
-//            Divider() // Separador visual
-//        }
-//    }
-//
-//    // Diálogo para seleccionar directorios
-//    if (showDirectoryDialog) {
-//        DirectoryPickerDialog(
-//            directoryItems = uiState.directoryItems, // Pasar la lista del estado del ViewModel
-//            isLoading = uiState.isLoading, // Pasar el estado de carga del ViewModel
-//            onDismiss = { showDirectoryDialog = false }, // Ocultar diálogo al cancelar
-//            // Eliminamos onSave, ya que el guardado ocurre en onItemToggle
-//            onItemToggle = { directoryItem ->
-//                // Llamar a la función toggleDirectoryAllowed del ViewModel, pasando el DirectoryItem
-//                settingsViewModel.toggleDirectoryAllowed(directoryItem)
-//            }
-//        )
-//    }
-//}
-//
-//@OptIn(ExperimentalMaterial3Api::class)
-//@Composable
-//fun ThemeSelectorDropDown(
-//    label: String,
-//    options: Map<String, String>, // Clave -> Nombre visible
-//    selectedKey: String,
-//    onSelectionChanged: (String) -> Unit
-//) {
-//    var expanded by remember { mutableStateOf(false) } // Estado para controlar si el menú desplegable está expandido
-//
-//    Column(modifier = Modifier.padding(vertical = 8.dp)) {
-//        Text(label, style = MaterialTheme.typography.titleMedium) // Etiqueta del selector
-//        Spacer(modifier = Modifier.height(4.dp)) // Espacio vertical
-//        ExposedDropdownMenuBox(
-//            expanded = expanded,
-//            onExpandedChange = { expanded = !expanded }, // Alternar estado expandido
-//            modifier = Modifier.fillMaxWidth()
-//        ) {
-//            OutlinedTextField(
-//                value = options[selectedKey] ?: selectedKey, // Mostrar el nombre visible de la opción seleccionada
-//                onValueChange = {}, // No editable directamente
-//                readOnly = true, // Hacer el campo de texto de solo lectura
-//                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) }, // Icono de flecha
-//                modifier = Modifier.menuAnchor().fillMaxWidth(), // Ancla para el menú
-//                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors() // Colores del campo de texto
-//            )
-//            // Menú desplegable con las opciones
-//            ExposedDropdownMenu(
-//                expanded = expanded,
-//                onDismissRequest = { expanded = false } // Ocultar menú al descartar
-//            ) {
-//                options.forEach { (key, name) ->
-//                    DropdownMenuItem(
-//                        text = { Text(name) }, // Texto del item del menú
-//                        onClick = {
-//                            onSelectionChanged(key) // Llamar al callback con la clave seleccionada
-//                            expanded = false // Ocultar menú al seleccionar
-//                        }
-//                    )
-//                }
-//            }
-//        }
-//        // Descripción adicional para el selector
-//        Text(
-//            text = when(label){
-//                "Tema de la Aplicación" -> "Define la apariencia general de PixelPlay."
-//                "Tema del Reproductor" -> "Personaliza cómo se ve el reproductor de música."
-//                else -> "" // Sin descripción si no coincide
-//            },
-//            style = MaterialTheme.typography.bodySmall,
-//            color = MaterialTheme.colorScheme.onSurfaceVariant,
-//            modifier = Modifier.padding(top = 4.dp)
-//        )
-//    }
-//}
-//
-//@Composable
-//fun SettingsItem(title: String, subtitle: String, onClick: () -> Unit) {
-//    Column(
-//        modifier = Modifier
-//            .fillMaxWidth()
-//            .clickable(onClick = onClick) // Hacer la columna clickeable
-//            .padding(vertical = 12.dp) // Padding vertical
-//    ) {
-//        Text(title, style = MaterialTheme.typography.bodyLarge) // Título del item
-//        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) // Subtítulo
-//    }
-//    Divider() // Separador visual
-//}
-//
-//@OptIn(ExperimentalMaterial3Api::class)
-//@Composable
-//fun DirectoryPickerDialog(
-//    directoryItems: List<DirectoryItem>, // Lista de directorios con su estado de permitido
-//    isLoading: Boolean, // Estado de carga
-//    onDismiss: () -> Unit, // Callback al descartar el diálogo
-//    // Eliminamos onSave
-//    onItemToggle: (DirectoryItem) -> Unit // Callback al alternar un item, ahora recibe DirectoryItem
-//) {
-//    AlertDialog(
-//        onDismissRequest = onDismiss, // Manejar descarte
-//        title = { Text("Seleccionar Carpetas Permitidas") }, // Título del diálogo
-//        text = {
-//            // Mostrar indicador de carga si está cargando
-//            if (isLoading) {
-//                Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-//                    CircularProgressIndicator()
-//                }
-//                // Mostrar mensaje si no se encontraron directorios y no está cargando
-//            } else if (directoryItems.isEmpty()) {
-//                Text("No se encontraron carpetas con archivos de audio o no se pudo acceder a ellas.")
-//            } else {
-//                // Lista perezosa para mostrar los directorios
-//                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) { // Limitar altura para evitar overflow
-//                    items(directoryItems, key = { it.path }) { item ->
-//                        Row(
-//                            modifier = Modifier
-//                                .fillMaxWidth()
-//                                .clickable { onItemToggle(item) } // Hacer la fila clickeable y pasar el item completo
-//                                .padding(vertical = 8.dp),
-//                            verticalAlignment = Alignment.CenterVertically // Alinear verticalmente
-//                        ) {
-//                            Checkbox(
-//                                checked = item.isAllowed, // Estado del checkbox
-//                                onCheckedChange = { onItemToggle(item) } // Llamar al callback al cambiar el checkbox
-//                            )
-//                            Spacer(Modifier.width(16.dp)) // Espacio horizontal
-//                            Text(item.displayName, style = MaterialTheme.typography.bodyMedium) // Nombre del directorio
-//                        }
-//                    }
-//                }
-//            }
-//        },
-//        // Botón de confirmación (Guardar)
-//        confirmButton = {
-//            // El botón Guardar ya no necesita llamar a saveDirectoryPreferences,
-//            // ya que el guardado ocurre en cada toggle.
-//            // Podríamos eliminar este botón si no hay otras acciones de "guardar" en el diálogo,
-//            // o mantenerlo si el usuario espera una confirmación explícita, aunque la acción ya se realizó.
-//            // Lo mantendremos por ahora, pero su `onClick` no hace nada relacionado con guardar.
-//            Button(onClick = onDismiss, enabled = !isLoading) { // Simplemente cierra el diálogo
-//                Text("Aceptar") // Cambiado el texto para reflejar que no guarda, solo confirma
-//            }
-//        },
-//        // Botón de descarte (Cancelar)
-//        dismissButton = {
-//            TextButton(onClick = onDismiss) { // Cierra el diálogo
-//                Text("Cancelar")
-//            }
-//        },
-//        modifier = Modifier.padding(16.dp) // Padding para el diálogo
-//    )
-//}
-
-// Nota: DirectoryItem debe ser una data class definida en data.model
-// data class DirectoryItem(val path: String, val displayName: String, val isAllowed: Boolean)
-// La función para generar displayName a partir del path debe estar en utils o DirectoryItem
-
-// Nota: ThemePreference debe ser un objeto o enum con las constantes de String
-// object ThemePreference { const val DEFAULT = "default"; const val DYNAMIC = "dynamic"; const val ALBUM_ART = "album_art"; const val GLOBAL = "global" }

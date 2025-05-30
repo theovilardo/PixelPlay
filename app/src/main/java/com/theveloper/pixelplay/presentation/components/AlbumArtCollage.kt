@@ -154,19 +154,9 @@ fun AlbumArtCollage(
                 align = Alignment.BottomEnd,
                 rot = 0f,
                 shape = RoundedStarShape(sides = 5, curve = 0.09, rotation = 0f),
-                offsetX = 0.dp,
+                offsetX = (-42).dp,
                 offsetY = 0.dp
             )
-//            val squircle2 = Config(
-//                size = bottomMin * 0.5f,
-//                width = bottomMin * 0.5f,
-//                height = bottomMin * 0.5f,
-//                align = Alignment.BottomEnd,
-//                rot = 40f,
-//                shape = RoundedCornerShape(16.dp),
-//                offsetX = -(boxW * 0.1f),
-//                offsetY = -(bottomH * 0.1f)
-//            )
             listOf(listOf(pill, circle1, circle2), listOf(squircle1, star))
         }
 

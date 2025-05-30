@@ -208,7 +208,7 @@ fun LibraryScreen(
                     Text(
                         modifier = Modifier.padding(start = 8.dp),
                         text = "Library",
-                        style = MaterialTheme.typography.headlineLarge, // headlineLargeEmphasized is not standard
+                        style = MaterialTheme.typography.headlineLarge,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.primary,
                         letterSpacing = 1.sp
@@ -283,10 +283,10 @@ fun LibraryScreen(
             Surface(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 12.dp, vertical = 8.dp), // Added vertical padding
+                    .padding(horizontal = 14.dp, vertical = 8.dp), // Added vertical padding
                 color = MaterialTheme.colorScheme.surface,
                 // Using RoundedCornerShape as AbsoluteSmoothCornerShape is custom
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 24.dp, bottomEnd = 24.dp)
+                shape = RoundedCornerShape(topStart = 34.dp, topEnd = 34.dp, bottomStart = 0.dp, bottomEnd = 0.dp)
                 // shape = AbsoluteSmoothCornerShape(cornerRadiusTL = 24.dp, smoothnessAsPercentTR = 60, /*...*/) // Your custom shape
             ) {
                 Column(Modifier.fillMaxSize()) {
@@ -327,6 +327,11 @@ fun LibraryScreen(
                     }
 
                     LibraryActionRow(
+                        modifier = Modifier.padding(
+                            top = 10.dp,
+                            start = 10.dp,
+                            end = 10.dp
+                        ),
                         currentPage = pagerState.currentPage,
                         onMainActionClick = {
                             when (pagerState.currentPage) {
@@ -384,298 +389,6 @@ fun LibraryScreen(
         )
     }
 }
-
-//@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class,
-//    ExperimentalMaterial3ExpressiveApi::class, ExperimentalAnimationApi::class
-//)
-//@Composable
-//fun LibraryScreen(
-//    navController: NavController,
-//    playerViewModel: PlayerViewModel = hiltViewModel(),
-//    playlistViewModel: PlaylistViewModel = hiltViewModel()
-//) {
-//    val uiState by playerViewModel.playerUiState.collectAsState()
-//    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
-//    val playlistUiState by playlistViewModel.uiState.collectAsState()
-//    val sheetVisibility by playerViewModel.isSheetVisible.collectAsState()
-//    val favoriteSongs by playerViewModel.favoriteSongs.collectAsState() // Observar canciones favoritas
-//    val scope = rememberCoroutineScope()
-//
-//    val tabTitles = listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "LIKED")
-//    val pagerState = rememberPagerState { tabTitles.size }
-//    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
-//
-//    LaunchedEffect(Unit) {
-//        if (uiState.allSongs.isEmpty() && uiState.canLoadMoreSongs) playerViewModel.loadMoreSongs()
-//        if (uiState.albums.isEmpty() && uiState.canLoadMoreAlbums) playerViewModel.loadMoreAlbums()
-//        if (uiState.artists.isEmpty() && uiState.canLoadMoreArtists) playerViewModel.loadMoreArtists()
-//    }
-//
-//    // Animación para cambio de FAB
-//    val fabState by remember { derivedStateOf { pagerState.currentPage } }
-//    val transition = updateTransition(targetState = fabState, label = "FAB Transition")
-//
-//    val bottomBarHeightDp = NavBarPersistentHeight
-//
-//    val dm = isSystemInDarkTheme()
-//
-//    val fabIconRotation by transition.animateFloat(
-//        label = "FAB Icon Rotation",
-//        transitionSpec = {
-//            tween(durationMillis = 300, easing = FastOutSlowInEasing)
-//        }
-//    ) { page ->
-//        when (page) {
-//            3 -> 0f
-//            else -> 360f
-//        }
-//    }
-//
-//    val gradientColorsDark = listOf(
-//        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-//        Color.Transparent
-//    ).toImmutableList()
-//
-//    val gradientColorsLight = listOf(
-//        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f),
-//        Color.Transparent
-//    ).toImmutableList()
-//
-//    val gradientColors = if (dm) gradientColorsDark else gradientColorsLight
-//
-//    val gradientBrush = remember(gradientColors) {
-//        Brush.verticalGradient(colors = gradientColors)
-//    }
-//
-//    Scaffold(
-//        modifier = Modifier
-//            .background(
-//                brush = gradientBrush
-//            ),
-//        topBar = {
-//            // TopBar al estilo de la imagen de referencia
-//            TopAppBar(
-//                title = {
-//                    Text(
-//                        modifier = Modifier.padding(start = 8.dp),
-//                        text = "Library",
-//                        style = MaterialTheme.typography.headlineLargeEmphasized,
-//                        fontWeight = FontWeight.ExtraBold,
-//                        color = MaterialTheme.colorScheme.primary,
-//                        letterSpacing = 1.sp
-//                    )
-//                },
-//                actions = {
-//                    // Avatar del usuario
-//                    FilledTonalIconButton(
-//                        modifier = Modifier.padding(end = 14.dp),
-//                        onClick = {},
-//                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-//                            containerColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
-//                        )
-//                    ) { // Aquí iría el avatar del usuario
-//                        Icon(
-//                            imageVector = Icons.Rounded.Person,
-//                            contentDescription = null,
-//                            tint = MaterialTheme.colorScheme.primary
-//                        )
-//                    }
-//                },
-//                colors = TopAppBarDefaults.topAppBarColors(
-//                    containerColor = gradientColors[0]//MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-//                )
-//            )
-//        }
-//    ) { innerScaffoldPadding ->
-//        Column(
-//            modifier = Modifier
-//                .padding(innerScaffoldPadding)
-//                .background(
-//                    brush = Brush.verticalGradient(
-//                        gradientColors
-//                    )
-//                )
-//                .fillMaxSize()
-//        ) {
-//            // TabRow mejorada con animaciones
-//            // TabRow mejorada
-//            ScrollableTabRow(
-//                selectedTabIndex = pagerState.currentPage,
-//                containerColor = Color.Transparent, // Hacer transparente
-//                edgePadding = 12.dp, // Padding en los bordes
-//                indicator = { tabPositions ->
-//                    if (pagerState.currentPage < tabPositions.size) {
-//                        TabRowDefaults.PrimaryIndicator(
-//                            modifier = Modifier.tabIndicatorOffset(tabPositions[pagerState.currentPage]),
-//                            height = 3.dp,
-//                            color = MaterialTheme.colorScheme.primary
-//                        )
-//                    }
-//                },
-//                divider = {} // Sin divisor por defecto
-//            ) {
-//                tabTitles.forEachIndexed { index, title ->
-//                    val isSelected = pagerState.currentPage == index
-//                    Tab(
-//                        modifier = Modifier
-//                            .padding(8.dp)
-//                            .background(
-//                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-//                                shape = RoundedCornerShape(50.dp)
-//                            ),
-//                        selected = isSelected,
-//                        onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
-//                        text = {
-//                            Text(
-//                                text = title,
-//                                style = MaterialTheme.typography.labelLarge, // Estilo más expresivo
-//                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-//                            )
-//                        },
-//                        selectedContentColor = MaterialTheme.colorScheme.onPrimary,
-//                        unselectedContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
-//                    )
-//                }
-//            }
-//
-//            // Contenedor principal con fondo y esquinas redondeadas
-//            Surface(
-//                modifier = Modifier
-//                    .fillMaxSize()
-//                    .padding(horizontal = 12.dp),
-//                color = MaterialTheme.colorScheme.surface,
-//                shape = AbsoluteSmoothCornerShape(
-//                    cornerRadiusTL = 24.dp,
-//                    smoothnessAsPercentTR = 60,
-//                    cornerRadiusTR = 24.dp,
-//                    smoothnessAsPercentTL = 60,
-//                    cornerRadiusBR = 24.dp,
-//                    smoothnessAsPercentBL = 60,
-//                    cornerRadiusBL = 24.dp,
-//                    smoothnessAsPercentBR = 60
-//                )
-//            ) {
-//                Column(
-//                    Modifier.fillMaxSize()
-//                ) {
-//                    SmallFloatingActionButton(
-//                        modifier = Modifier
-//                            .align(Alignment.CenterHorizontally)
-//                            .padding(top = 12.dp, bottom = 2.dp)
-//                        ,
-//                        shape = AbsoluteSmoothCornerShape(
-//                            cornerRadiusTL = 26.dp,
-//                            smoothnessAsPercentTR = 60,
-//                            cornerRadiusTR = 26.dp,
-//                            smoothnessAsPercentTL = 60,
-//                            cornerRadiusBL = 26.dp,
-//                            smoothnessAsPercentBR = 60,
-//                            cornerRadiusBR = 26.dp,
-//                            smoothnessAsPercentBL = 60
-//                        ),
-//                        onClick = {
-//                            when (pagerState.currentPage) {
-//                                3 -> showCreatePlaylistDialog = true
-//                                else -> playerViewModel.toggleShuffle().also {
-//                                    playerViewModel.playPause()
-//                                }
-//                            }
-//                        },
-//                        //shape = fabShape,
-//                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-//                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-//                        elevation = FloatingActionButtonDefaults.elevation(
-//                            defaultElevation = 6.dp,
-//                            pressedElevation = 8.dp
-//                        )
-//                    ) {
-//                        Box(
-//                            contentAlignment = Alignment.Center,
-//                            modifier = Modifier.padding(horizontal = 16.dp)
-//                        ) {
-//                            // Contenido del FAB según la tab
-//                            when (pagerState.currentPage) {
-//                                3 -> {
-//                                    Row(
-//                                        verticalAlignment = Alignment.CenterVertically,
-//                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-//                                    ) {
-//                                        Icon(
-//                                            painter = painterResource(R.drawable.rounded_playlist_play_24),
-//                                            contentDescription = null,
-//                                            modifier = Modifier
-//                                                .size(20.dp)
-//                                                .rotate(fabIconRotation)
-//                                        )
-//                                        Text(
-//                                            "New Playlist",
-//                                            style = MaterialTheme.typography.labelLarge,
-//                                            fontWeight = FontWeight.Medium
-//                                        )
-//                                    }
-//                                }
-//                                else -> {
-//                                    Row(
-//                                        verticalAlignment = Alignment.CenterVertically,
-//                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-//                                    ) {
-//                                        Icon(
-//                                            painter = painterResource(R.drawable.rounded_shuffle_24),
-//                                            contentDescription = null,
-//                                            modifier = Modifier
-//                                                .size(20.dp)
-//                                                .rotate(fabIconRotation)
-//                                        )
-//                                        Text(
-//                                            "Shuffle",
-//                                            style = MaterialTheme.typography.labelLarge,
-//                                            fontWeight = FontWeight.Medium
-//                                        )
-//                                    }
-//                                }
-//                            }
-//                        }
-//                    }
-//                    HorizontalPager(
-//                        state = pagerState,
-//                        modifier = Modifier.fillMaxSize(),
-//                        pageSpacing = 0.dp,
-//                        pageContent = { page ->
-//                            Box(
-//                                modifier = Modifier
-//                                    .fillMaxSize()
-//                                    .padding(top = 8.dp)
-//                            ) {
-//                                when (page) {
-//                                    0 -> LibrarySongsTab(uiState, playerViewModel, bottomBarHeightDp)
-//                                    1 -> LibraryAlbumsTab(uiState, playerViewModel, bottomBarHeightDp)
-//                                    2 -> LibraryArtistsTab(uiState, playerViewModel)
-//                                    3 -> LibraryPlaylistsTab(playlistUiState, navController)
-//                                    4 -> LibraryFavoritesTab(
-//                                        favoriteSongs,
-//                                        playerViewModel
-//                                    ) // Nueva Tab
-//                                }
-//                            }
-//                        }
-//                    )
-//                }
-//                // El contenido del pager con animación suave entre tabs
-//            }
-//        }
-//    }
-//
-//    // Diálogo de creación de playlist con diseño Material 3
-//    if (showCreatePlaylistDialog) {
-//        CreatePlaylistDialogRedesigned(
-//            onDismiss = { showCreatePlaylistDialog = false },
-//            onCreate = { name ->
-//                playlistViewModel.createPlaylist(name)
-//                showCreatePlaylistDialog = false
-//            }
-//        )
-//    }
-//}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -797,13 +510,22 @@ fun LibrarySongsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, bo
     else {
         Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
-                modifier = Modifier.padding(bottom = bottomBarHeight - 6.dp),
+                modifier = Modifier
+                    .padding(start = 12.dp, end = 12.dp, bottom = 0.dp)
+                    .clip(
+                        RoundedCornerShape(
+                            topStart = 26.dp,
+                            topEnd = 26.dp,
+                            bottomStart = 26.dp,
+                            bottomEnd = 26.dp
+                        )
+                    ),
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(bottom = MiniPlayerHeight + 16.dp) // Espacio para el FAB
+                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 10.dp) // Espacio para el FAB
             ) {
                 item {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(0.dp))
                 }
                 items(uiState.allSongs, key = { it.id }) { song ->
                     EnhancedSongListItem(song = song) {
@@ -828,7 +550,7 @@ fun LibrarySongsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, bo
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(14.dp)
+                    .height(10.dp)
                     .background(
                         brush = Brush.verticalGradient(
                             colors = listOf(
@@ -860,10 +582,22 @@ fun EnhancedSongListItem(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(
+                AbsoluteSmoothCornerShape(
+                    cornerRadiusBL = itemCornerRadius,
+                    smoothnessAsPercentTL = 60,
+                    cornerRadiusTR = itemCornerRadius,
+                    smoothnessAsPercentTR = 60,
+                    cornerRadiusBR = itemCornerRadius,
+                    smoothnessAsPercentBR = 60,
+                    cornerRadiusTL = itemCornerRadius,
+                    smoothnessAsPercentBL = 60
+                )
+            )
             .clickable {
                 onClick()
-            }
-            .padding(end = 6.dp, start = 2.dp),
+            },
+            //.padding(end = 6.dp, start = 2.dp),
         shape = AbsoluteSmoothCornerShape(
             cornerRadiusBL = itemCornerRadius,
             smoothnessAsPercentTL = 60,
@@ -874,7 +608,7 @@ fun EnhancedSongListItem(
             cornerRadiusTL = itemCornerRadius,
             smoothnessAsPercentBL = 60
         ),
-        color = MaterialTheme.colorScheme.surface,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Row(
             modifier = Modifier
@@ -970,24 +704,6 @@ fun EnhancedSongListItem(
             }
 
             Spacer(modifier = Modifier.width(12.dp))
-
-            // Play button con animación
-//            IconButton(
-//                onClick = onClick,
-//                colors = IconButtonDefaults.iconButtonColors(
-//                    containerColor = MaterialTheme.colorScheme.secondary,
-//                    contentColor = MaterialTheme.colorScheme.onSecondary
-//                ),
-//                modifier = Modifier
-//                    .size(30.dp)
-//                    .aspectRatio(2f / 3f)
-//            ) {
-//                Icon(
-//                    painter = painterResource(id = R.drawable.rounded_play_arrow_24),
-//                    contentDescription = "Reproducir",
-//                    tint = MaterialTheme.colorScheme.onSecondary
-//                )
-//            }
         }
     }
 }
@@ -1007,15 +723,24 @@ fun LibraryAlbumsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, b
     } else {
         Box(modifier = Modifier.fillMaxSize()) {
             LazyVerticalGrid(
-                modifier = Modifier.padding(bottom = bottomBarHeight - 6.dp),
+                modifier = Modifier
+                    .padding(start = 14.dp, end = 14.dp, bottom = 0.dp)
+                    .clip(
+                        RoundedCornerShape(
+                            topStart = 26.dp,
+                            topEnd = 26.dp,
+                            bottomStart = 26.dp,
+                            bottomEnd = 26.dp
+                        )
+                    ),
                 state = gridState,
-                columns = GridCells.Fixed(2), // O GridCells.Adaptive(minSize = 160.dp)
-                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = MiniPlayerHeight + bottomBarHeight + 28.dp), // Espacio para el FAB
+                columns = GridCells.Fixed(2),
+                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 14.dp), // Espacio para el FAB
                 verticalArrangement = Arrangement.spacedBy(14.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                item {
-                    Spacer(Modifier.height(8.dp))
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Spacer(Modifier.height(4.dp))
                 }
                 items(uiState.albums, key = { "album_${it.id}" }) { album ->
                     val albumSpecificColorSchemeFlow = playerViewModel.getAlbumColorSchemeFlow(album.albumArtUriString)

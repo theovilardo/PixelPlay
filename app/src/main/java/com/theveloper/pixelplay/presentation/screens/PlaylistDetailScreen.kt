@@ -2,32 +2,81 @@ package com.theveloper.pixelplay.presentation.screens
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.DragIndicator
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.MusicOff
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.RemoveCircleOutline
+import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LargeFlexibleTopAppBar
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberTopAppBarState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.navigation.NavController
-import coil.compose.AsyncImage
 import com.mohamedrejeb.compose.dnd.annotation.ExperimentalDndApi
 import com.mohamedrejeb.compose.dnd.reorder.ReorderContainer
 import com.mohamedrejeb.compose.dnd.reorder.ReorderableItem
@@ -77,7 +126,6 @@ fun PlaylistDetailScreen(
 
     Scaffold(
         modifier = Modifier
-            //.padding(bottom = paddingValues.calculateBottomPadding()) // Aplicar padding del Scaffold externo
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeFlexibleTopAppBar(
@@ -190,7 +238,7 @@ fun PlaylistDetailScreen(
                         Spacer(Modifier.size(ButtonDefaults.IconSpacing))
                         Text("Play it")
                     }
-                    OutlinedButton(
+                    FilledTonalButton(
                         onClick = {
                             if (localReorderableSongs.isNotEmpty()) {
                                 playerStableState.isShuffleEnabled.let { if(!it) playerViewModel.toggleShuffle() } // Activar shuffle si no estaba activo
@@ -219,7 +267,7 @@ fun PlaylistDetailScreen(
                 }
 
                 if (localReorderableSongs.isEmpty()) {
-                    Box(Modifier.fillMaxSize().weight(1f).padding(16.dp), Alignment.Center) {
+                    Box(Modifier.fillMaxSize().weight(1f), Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Filled.MusicOff, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.height(8.dp))
@@ -234,11 +282,20 @@ fun PlaylistDetailScreen(
                         modifier = Modifier.fillMaxSize().weight(1f)
                     ) {
                         LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 16.dp)
+                                .clip(
+                                    shape = RoundedCornerShape(
+                                        topStart = 16.dp,
+                                        topEnd = 16.dp,
+                                        bottomEnd = 0.dp,
+                                        bottomStart = 0.dp
+                                    )
+                                ),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(
                                 top = 8.dp,
-                                end = 6.dp,
-                                start = 6.dp,
                                 bottom = if (playerStableState.isPlaying || playerStableState.currentSong != null) MiniPlayerHeight + 32.dp + 104.dp else 10.dp + 104.dp
                             )
                         ) {
@@ -374,13 +431,13 @@ fun PlaylistSongItem(
 
     // Efecto de sombra y elevación para el elemento arrastrado
     val backgroundColor = if (isPlaying) {
-        colors.primary.copy(alpha = 0.2f)
+        colors.onPrimary
     } else {
-        colors.surfaceColorAtElevation(elevation)
+        colors.surfaceContainerLowest
     }
 
     Surface(
-        modifier = modifier.padding(vertical = 4.dp, horizontal = 8.dp),
+        modifier = modifier,
         shape = itemShape,
         color = backgroundColor,
         tonalElevation = elevation,
@@ -391,9 +448,9 @@ fun PlaylistSongItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                Icons.Filled.DragHandle,
+                Icons.Filled.DragIndicator,
                 contentDescription = "Arrastrar para reordenar",
-                tint = if (isPlaying) colors.onPrimaryContainer else colors.onSurface,
+                tint = if (isPlaying) colors.primary else colors.onSurface,
                 modifier = Modifier.padding(end = 12.dp)
             )
             SmartImage(
@@ -407,14 +464,14 @@ fun PlaylistSongItem(
             Column(Modifier.weight(1f)) {
                 Text(
                     song.title, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    color = if (isPlaying) colors.onPrimaryContainer else colors.onSurface,
+                    color = if (isPlaying) colors.primary else colors.onSurface,
                     fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Normal,
                     style = MaterialTheme.typography.bodyLarge
                 )
                 Text(
                     song.artist, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = (if (isPlaying) colors.onPrimaryContainer else colors.onSurface).copy(alpha = 0.7f)
+                    color = (if (isPlaying) colors.primary else colors.onSurface).copy(alpha = 0.7f)
                 )
             }
             if (isPlaying) {
@@ -433,7 +490,7 @@ fun PlaylistSongItem(
                 Icon(
                     Icons.Filled.RemoveCircleOutline,
                     "Quitar de la playlist",
-                    tint = if (isPlaying) colors.onPrimaryContainer else colors.onSurface
+                    tint = if (isPlaying) colors.primary else colors.onSurface
                 )
             }
         }
@@ -505,7 +562,6 @@ fun SongPickerDialog(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RenamePlaylistDialog(currentName: String, onDismiss: () -> Unit, onRename: (String) -> Unit) {
     var newName by remember { mutableStateOf(TextFieldValue(currentName)) }

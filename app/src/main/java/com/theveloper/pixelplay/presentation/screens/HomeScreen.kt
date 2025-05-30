@@ -1,6 +1,5 @@
 package com.theveloper.pixelplay.presentation.screens
 
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -36,7 +35,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -425,8 +423,8 @@ fun SongListItemFavs(
     onClick: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
-    val containerColor = if (isPlaying) colors.primaryContainer.copy(alpha = 0.6f) else colors.surfaceColorAtElevation(2.dp)
-    val contentColor = if (isPlaying) colors.onPrimaryContainer else colors.onSurface
+    val containerColor = if (isPlaying) colors.primaryContainer.copy(alpha = 0.46f) else colors.surfaceContainer
+    val contentColor = if (isPlaying) colors.primary else colors.onSurface
 
     Card(
         modifier = modifier
@@ -475,7 +473,7 @@ fun SongListItemFavs(
                 Icon(
                     Icons.Filled.PlayArrow,
                     contentDescription = "Reproducir",
-                    tint = contentColor.copy(alpha = 0.7f)
+                    tint = Color.Transparent//contentColor.copy(alpha = 0.7f)
                 )
             }
         }

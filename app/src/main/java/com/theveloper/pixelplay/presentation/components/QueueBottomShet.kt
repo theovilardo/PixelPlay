@@ -4,8 +4,10 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -81,7 +83,7 @@ fun QueueBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState       = sheetState,
-        containerColor   = colors.onPrimary,
+        containerColor   = colors.surfaceContainer,
         dragHandle       = {
             BottomSheetDefaults.DragHandle(
                 color = colors.primary
@@ -130,7 +132,13 @@ fun QueueBottomSheet(
                         state    = reorderState,
                         modifier = Modifier.weight(1f)
                     ) {  // Habilita DnD :contentReference[oaicite:4]{index=4}
-                        LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(
+                                bottom = 80.dp
+                            )
+                        ) {
                             itemsIndexed(items, key = { _, s -> s.id }) { _, song ->
                                 ReorderableItem(
                                     state             = reorderState,
@@ -170,58 +178,6 @@ fun QueueBottomSheet(
                                         isPlaying = song.id == currentSongId,
                                         onRemoveClick = { onRemoveSong(song.id) },
                                     )
-//                                    Row(
-//                                        modifier = Modifier
-//                                            .fillMaxWidth()
-//                                            .background(
-//                                                colors.onPrimary
-//                                            )
-//                                            .clickable { onPlaySong(song) }
-//                                            .shadow(elevation)
-//                                            .padding(vertical = 4.dp, horizontal = 16.dp),
-//                                        verticalAlignment = Alignment.CenterVertically
-//                                    ) {
-//                                        // Handle visual, pero no capturará drag aparte
-//                                        Icon(
-//                                            painter           = painterResource(R.drawable.rounded_drag_handle_24),
-//                                            contentDescription = "Arrastrar",
-//                                            tint              = colors.onSurface,
-//                                            modifier          = Modifier
-//                                                .padding(end = 8.dp)
-//                                                .size(24.dp)
-//                                        )
-//                                        SmartImage(
-//                                            model = song.albumArtUri ?: R.drawable.rounded_music_note_24,
-//                                            contentDescription = "Carátula",
-//                                            shape = CircleShape,
-//                                            modifier = Modifier
-//                                                .size(40.dp)
-//                                        )
-//                                        Spacer(Modifier.width(16.dp))
-//                                        Column(Modifier.weight(1f)) {
-//                                            Text(
-//                                                text      = song.title,
-//                                                maxLines  = 1,
-//                                                overflow  = TextOverflow.Ellipsis,
-//                                                color     = if (song.id == currentSongId) colors.primary else colors.secondary,
-//                                                fontWeight = if (song.id == currentSongId) FontWeight.Bold else FontWeight.Normal
-//                                            )
-//                                            Text(
-//                                                text      = song.artist,
-//                                                maxLines  = 1,
-//                                                overflow  = TextOverflow.Ellipsis,
-//                                                style     = MaterialTheme.typography.bodySmall,
-//                                                color     = colors.secondary.copy(alpha = 0.8f)
-//                                            )
-//                                        }
-//                                        IconButton(onClick = { onRemoveSong(song.id) }) {
-//                                            Icon(
-//                                                painter           = painterResource(R.drawable.rounded_close_24),
-//                                                contentDescription = "Eliminar",
-//                                                tint              = colors.tertiary
-//                                            )
-//                                        }
-//                                    }
                                 }
                             }
                         }

@@ -136,7 +136,7 @@ fun UnifiedPlayerSheet(
     initialTargetTranslationY: Float,
     collapsedStateHorizontalPadding: Dp = 12.dp,
     collapsedStateBottomMargin: Dp,
-    hideNavBar: Boolean = false // NUEVO: Parámetro para ocultar navbar
+    hideNavBar: Boolean = false
 ) {
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
     val playerUiState by playerViewModel.playerUiState.collectAsState()
@@ -264,7 +264,11 @@ fun UnifiedPlayerSheet(
                 26.dp
             }
         } else { // Si la NavBar NO está oculta Y el área del player NO se muestra
-            12.dp // El radio es 12.dp (estado colapsado por defecto)
+            if (!stablePlayerState.isPlaying || stablePlayerState.currentSong == null){
+                PlayerSheetCollapsedCornerRadius
+            } else {
+                12.dp
+            } // El radio es 12.dp (estado colapsado por defecto)
         },
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
@@ -505,13 +509,11 @@ fun UnifiedPlayerSheet(
                             }
                             // MEJORADO: Click solo en área del player y cuando no se está dragando
                             .clickable(
+                                enabled = true,
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
                             ) {
                                 playerViewModel.togglePlayerSheetState()
-//                                if (showPlayerContentArea && !isDragging) {
-//                                    playerViewModel.togglePlayerSheetState()
-//                                }
                             }
                     ) {
                         if (showPlayerContentArea) {
@@ -600,6 +602,7 @@ fun UnifiedPlayerSheet(
                         navItems = navItems,
                         currentRoute = rememberedCurrentRoute,
                         navBarHideFraction = navBarHideFraction,
+                        topCornersRadiusDp = playerContentActualBottomRadius,
                         bottomCornersRadiusDp = PlayerSheetCollapsedCornerRadius,
                         navBarHeightPx = navBarHeightPx,
                         modifier = playerInternalNavBarModifier

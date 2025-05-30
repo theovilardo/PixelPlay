@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -41,8 +42,10 @@ import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.screens.SectionHeader
 import com.theveloper.pixelplay.presentation.screens.SongListItemFavsWrapper
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 
 // 2) DailyMixSection y DailyMixCard quedan igual de ligeras...
@@ -51,7 +54,9 @@ fun DailyMixSection(
     songs: ImmutableList<Song>,
     playerViewModel: PlayerViewModel,
 ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+    Column(modifier = Modifier
+        .fillMaxWidth()
+        .padding(horizontal = 16.dp)) {
         SectionHeader(
             title = "Your Daily Mix",
             showViewAll = true,
@@ -69,9 +74,19 @@ private fun DailyMixCard(
 ) {
     val headerSongs = songs.take(3).toImmutableList()
     val songsToPlay = songs.take(4).toImmutableList()
+    val cornerRadius = 30.dp
     Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)),
+        shape = AbsoluteSmoothCornerShape(
+            cornerRadiusBR = cornerRadius,
+            smoothnessAsPercentTL = 60,
+            cornerRadiusTR = cornerRadius,
+            smoothnessAsPercentTR = 60,
+            cornerRadiusBL = cornerRadius,
+            smoothnessAsPercentBL = 60,
+            cornerRadiusTL = cornerRadius,
+            smoothnessAsPercentBR = 60
+        ),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         elevation = CardDefaults.elevatedCardElevation(0.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -85,6 +100,7 @@ private fun DailyMixCard(
 
 @Composable
 private fun DailyMixHeader(thumbnails: ImmutableList<Song>) {
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -102,7 +118,7 @@ private fun DailyMixHeader(thumbnails: ImmutableList<Song>) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 22.dp, end = 16.dp),
+                .padding(start = 26.dp, end = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Absolute.SpaceBetween
         ) {
@@ -128,8 +144,8 @@ private fun DailyMixHeader(thumbnails: ImmutableList<Song>) {
                     Box(
                         modifier = Modifier
                             .size(48.dp)
-                            .clip(CircleShape)
-                            .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                            .clip(ThreeShapeSwitch(index))
+                            .border(2.dp, MaterialTheme.colorScheme.surface, ThreeShapeSwitch(index))
                     ) {
                         SmartImage(
                             model = song.albumArtUriString ?: R.drawable.rounded_album_24,
@@ -145,13 +161,26 @@ private fun DailyMixHeader(thumbnails: ImmutableList<Song>) {
 }
 
 @Composable
+fun ThreeShapeSwitch(index: Int): Shape { // Ensure the function returns a Shape
+    return when (index) { // Return the result of the when expression
+        0 -> RoundedStarShape(
+            sides = 6,
+            rotation = 10f
+        )//RoundedCornerShape(topStart = 16.dp, bottomEnd = 16.dp, topEnd = 6.dp, bottomStart = 6.dp)
+        1 -> CircleShape
+        2 -> RoundedCornerShape(16.dp)
+        else -> CircleShape // It's good practice to have a default case
+    }
+}
+
+@Composable
 private fun DailyMixSongList(
     songs: ImmutableList<Song>,
     playerViewModel: PlayerViewModel
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         songs.forEach { song ->
             SongListItemFavsWrapper(
@@ -173,7 +202,9 @@ private fun DailyMixSongList(
 @Composable
 private fun ViewAllDailyMixButton() {
     TextButton(
-        modifier = Modifier.padding(start = 6.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 6.dp),
         onClick = { /* TODO: Navegar a pantalla con todo el Daily Mix */ },
         //modifier = Modifier.align(Alignment.CenterHorizontally)
     ) {

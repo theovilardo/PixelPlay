@@ -6,6 +6,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -128,7 +129,6 @@ fun SearchScreen(
                     )
                 )
                 .padding(top = paddingValues.calculateTopPadding())
-//                .padding(top = 60.dp)
         )
 
         // Contenido principal
@@ -405,14 +405,6 @@ fun ExpressiveSongListItem(
                     shape = RoundedCornerShape(18.dp),
                     modifier = Modifier.fillMaxSize()
                 )
-//                AsyncImage(
-//                    model = song.albumArtUri ?: painterResource(R.drawable.rounded_album_24),
-//                    contentDescription = "Album Art",
-//                    contentScale = ContentScale.Crop,
-//                    modifier = Modifier
-//                        .fillMaxSize()
-//                        .clip(RoundedCornerShape(18.dp))
-//                )
             }
 
             Spacer(modifier = Modifier.width(16.dp))
@@ -549,7 +541,7 @@ fun InitialSearchState(colorScheme: ColorScheme) {
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "Escribe para descubrir canciones, artistas o álbumes que te inspiren",
+            text = "Search to discover songs, artists or albums that inspire you",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
             textAlign = TextAlign.Center,
@@ -560,7 +552,7 @@ fun InitialSearchState(colorScheme: ColorScheme) {
 
         // Sugerencias rápidas de búsqueda
         Text(
-            text = "Prueba buscar:",
+            text = "Try searching:",
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
             modifier = Modifier.align(Alignment.Start).padding(start = 8.dp, bottom = 12.dp)
@@ -573,6 +565,10 @@ fun InitialSearchState(colorScheme: ColorScheme) {
         ) {
             SuggestionChip(
                 onClick = { },
+                border = BorderStroke(
+                    width = 0.dp,
+                    color = Color.Transparent
+                ),
                 label = { Text("Pop") },
                 shape = RoundedCornerShape(24.dp),
                 colors = SuggestionChipDefaults.suggestionChipColors(
@@ -582,7 +578,11 @@ fun InitialSearchState(colorScheme: ColorScheme) {
 
             SuggestionChip(
                 onClick = { },
-                label = { Text("Rock clásico") },
+                border = BorderStroke(
+                    width = 0.dp,
+                    color = Color.Transparent
+                ),
+                label = { Text("Classic Rock") },
                 shape = RoundedCornerShape(24.dp),
                 colors = SuggestionChipDefaults.suggestionChipColors(
                     containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
@@ -591,7 +591,11 @@ fun InitialSearchState(colorScheme: ColorScheme) {
 
             SuggestionChip(
                 onClick = { },
-                label = { Text("Música latina") },
+                border = BorderStroke(
+                    width = 0.dp,
+                    color = Color.Transparent
+                ),
+                label = { Text("Latin Music") },
                 shape = RoundedCornerShape(24.dp),
                 colors = SuggestionChipDefaults.suggestionChipColors(
                     containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f)
@@ -600,6 +604,10 @@ fun InitialSearchState(colorScheme: ColorScheme) {
 
             SuggestionChip(
                 onClick = { },
+                border = BorderStroke(
+                    width = 0.dp,
+                    color = Color.Transparent
+                ),
                 label = { Text("Indie") },
                 shape = RoundedCornerShape(24.dp),
                 colors = SuggestionChipDefaults.suggestionChipColors(
