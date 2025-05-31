@@ -320,11 +320,40 @@ fun UnifiedPlayerSheet(
         label = "NavBarTopRadius"
     )
 
-    val currentHorizontalPadding by remember(showPlayerContentArea, playerContentExpansionFraction, collapsedStateHorizontalPadding) {
+    val currentHorizontalPadding by remember(
+        showPlayerContentArea,
+        playerContentExpansionFraction,
+        collapsedStateHorizontalPadding,
+        predictiveBackCollapseProgress // Add this dependency
+    ) {
         derivedStateOf {
-            if (showPlayerContentArea) {
+            if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
+                // During predictive back (from expanded state), padding goes from 0.dp to collapsedStateHorizontalPadding
+                lerp(0.dp, collapsedStateHorizontalPadding, predictiveBackCollapseProgress)
+            } else if (showPlayerContentArea) {
+                // Normal calculation based on expansion fraction
                 lerp(collapsedStateHorizontalPadding, 0.dp, playerContentExpansionFraction.value)
-            } else { collapsedStateHorizontalPadding }
+            } else {
+                // Default when no content or not in predictive back
+                collapsedStateHorizontalPadding
+            }
+        }
+    }
+
+    val currentDimLayerAlpha by remember(
+        playerContentExpansionFraction,
+        predictiveBackCollapseProgress,
+        currentSheetContentState // Add this dependency
+    ) {
+        derivedStateOf {
+            val baseAlpha = playerContentExpansionFraction.value // Alpha when fully expanded is 1f, collapsed is 0f.
+            if (predictiveBackCollapseProgress > 0f && currentSheetContentState == PlayerSheetState.EXPANDED) {
+                // During predictive back (from expanded state), alpha goes from baseAlpha (should be ~1f) towards 0f.
+                lerp(baseAlpha, 0f, predictiveBackCollapseProgress)
+            } else {
+                // Normal alpha based on expansion fraction.
+                baseAlpha
+            }
         }
     }
 
@@ -334,55 +363,36 @@ fun UnifiedPlayerSheet(
     val velocityTracker = remember { VelocityTracker() }
     var accumulatedDragYSinceStart by remember { mutableFloatStateOf(0f) }
 
-    // Define keys for the PredictiveBackHandler to ensure it recomposes appropriately
-    // if these dependencies change, ensuring the handler's behavior is always based on the latest state.
-    val predictiveBackHandlerKeys = remember(showPlayerContentArea, currentSheetContentState, isDragging, sheetCollapsedTargetY, sheetExpandedTargetY) {
-        arrayOf(showPlayerContentArea, currentSheetContentState, isDragging, sheetCollapsedTargetY, sheetExpandedTargetY)
-    }
-
-    PredictiveBackHandler(
-        keys = predictiveBackHandlerKeys,
+    PredictiveBackHandler( // Removed 'keys' parameter
         enabled = showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED && !isDragging
     ) { progressFlow ->
         try {
             progressFlow.collect { backEvent ->
-                // Update ViewModel with the current progress of the back gesture.
-                // This progress is used by visualSheetTranslationY to show the sheet moving with the gesture.
                 playerViewModel.updatePredictiveBackCollapseFraction(backEvent.progress)
             }
             // On completion (back gesture committed by user)
             scope.launch {
-                // Set progress to 1f to ensure visuals (like visualSheetTranslationY) reflect full collapse intent.
                 playerViewModel.updatePredictiveBackCollapseFraction(1f)
-
-                // Tell ViewModel to collapse the sheet. This updates currentSheetContentState.
-                // The change in currentSheetContentState will trigger LaunchedEffects
-                // that animate currentSheetTranslationY to sheetCollapsedTargetY
-                // and playerContentExpansionFraction to 0f.
                 playerViewModel.collapsePlayerSheet()
-
-                // After collapse logic is initiated and animations start,
-                // reset the predictive back progress for the next gesture.
+                // It's important to reset the fraction *after* the state change has initiated animations.
+                // Consider if this reset should be slightly delayed or part of collapsePlayerSheet's effects.
+                // For now, keeping it as per previous attempt.
                 playerViewModel.updatePredictiveBackCollapseFraction(0f)
             }
         } catch (e: CancellationException) {
             // On cancellation (back gesture cancelled by user)
             scope.launch {
-                // Animate the predictive back progress in ViewModel back to 0.
-                // This will drive visualSheetTranslationY to smoothly revert to currentSheetTranslationY's current animated value.
-                Animatable(playerViewModel.predictiveBackCollapseFraction.value).animateTo(0f, tween(ANIMATION_DURATION_MS)) { progress ->
-                    playerViewModel.updatePredictiveBackCollapseFraction(progress)
+                // Corrected Animatable usage:
+                Animatable(playerViewModel.predictiveBackCollapseFraction.value).animateTo(
+                    targetValue = 0f,
+                    animationSpec = tween(ANIMATION_DURATION_MS)
+                ) { // `this` is Animatable.AnimationScope<Float, AnimationVector1D>
+                    playerViewModel.updatePredictiveBackCollapseFraction(this.value)
                 }
 
-                // Ensure the sheet is restored to its correct logical state.
-                // If currentSheetContentState is EXPANDED, calling expandPlayerSheet()
-                // will ensure that animations for translationY and expansionFraction
-                // complete to their fully expanded states.
                 if (playerViewModel.sheetState.value == PlayerSheetState.EXPANDED) {
                     playerViewModel.expandPlayerSheet()
                 } else {
-                    // If sheetState somehow changed mid-gesture (e.g., to COLLAPSED due to other interaction),
-                    // ensure it respects that and completes collapse. This path is less likely if enabled condition held.
                     playerViewModel.collapsePlayerSheet()
                 }
             }
@@ -440,7 +450,7 @@ fun UnifiedPlayerSheet(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(color = Color.Black.copy(alpha = 1f * playerContentExpansionFraction.value))
+                    .background(color = Color.Black.copy(alpha = currentDimLayerAlpha))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
