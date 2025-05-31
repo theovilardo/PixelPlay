@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.presentation.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -31,6 +32,7 @@ import androidx.navigation.NavController
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.DailyMixHeader
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
+import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
@@ -44,12 +46,17 @@ fun DailyMixScreen(
     paddingValuesParent: PaddingValues // Padding from MainLayout (for bottom nav bar)
 ) {
     val songs = playerViewModel.allSongsFlow.collectAsState() // uso todas pero deberia tener su propio mix
+    val playerSheetState by playerViewModel.sheetState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(rememberTopAppBarState())
 
     // Observe current song to adjust bottom padding for mini player
     val currentSong by playerViewModel.stablePlayerState
         .map { it.currentSong }
         .collectAsState(initial = null)
+
+    BackHandler(enabled = playerSheetState == PlayerSheetState.EXPANDED) {
+        playerViewModel.collapsePlayerSheet()
+    }
 
     val bottomPaddingForMiniPlayer = if (currentSong != null) MiniPlayerHeight else 0.dp
 

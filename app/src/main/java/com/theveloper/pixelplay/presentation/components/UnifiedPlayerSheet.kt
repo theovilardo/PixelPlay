@@ -2,6 +2,7 @@ package com.theveloper.pixelplay.presentation.components
 
 import android.annotation.SuppressLint
 import android.util.Log
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -241,29 +242,36 @@ fun UnifiedPlayerSheet(
     }
 
     // CORREGIDO: Animación suave de esquinas redondeadas del sheet principal con spring
-    val overallSheetTopCornerRadius by animateDpAsState(
-        targetValue = if (showPlayerContentArea) {
-            val fraction = playerContentExpansionFraction.value
-            if (fraction == 1f) { // Totalmente expandido
-                0.dp
-            } else if (hideNavBar) { // Navbar oculta y no totalmente expandido
-                // Interpolar desde el radio de colapsado con navbar oculta (50.dp) hacia 24.dp a medida que se expande,
-                // pero si se expande completamente, la condición anterior (fraction == 1f) se encargará del 0.dp.
-                // Esta interpolación es para el *trayecto* hacia la expansión cuando la navbar está oculta.
-                // Si quieres que el 24.dp sea el objetivo *hasta casi el final* de la expansión:
-                lerp(32.dp, 24.dp, fraction) // Va de 50.dp (colapsado) a 24.dp (casi expandido)
-            } else { // Navbar visible y no totalmente expandido
-                // Interpolar desde el radio de colapsado con navbar visible hacia el radio de expandido (antes de ser 0.dp)
-                // O simplemente usar los valores discretos como antes si no hay un "camino" intermedio específico
-                lerp(PlayerSheetCollapsedCornerRadius, PlayerSheetExpandedCornerRadius, fraction) // O la lógica anterior: if (fraction > 0.9f) PlayerSheetExpandedCornerRadius else PlayerSheetCollapsedCornerRadius
-            }
-        } else { // No hay contenido de player
-            if (hideNavBar) {
-                32.dp // Navbar oculta, sin contenido
+    val overallSheetTopCornerRadiusTargetValue by remember(
+        showPlayerContentArea,
+        playerContentExpansionFraction,
+        hideNavBar,
+        predictiveBackCollapseProgress,
+        currentSheetContentState
+    ) {
+        derivedStateOf {
+            if (showPlayerContentArea) {
+                // Check if a predictive back gesture is in progress on an expanded sheet
+                if (predictiveBackCollapseProgress > 0f && currentSheetContentState == PlayerSheetState.EXPANDED) {
+                    val expandedCorner = 0.dp // Corner radius when fully expanded
+                    val collapsedCornerTarget = if (hideNavBar) 32.dp else PlayerSheetCollapsedCornerRadius
+                    lerp(expandedCorner, collapsedCornerTarget, predictiveBackCollapseProgress)
+                } else {
+                    // Original logic when not in predictive back or sheet not expanded
+                    val fraction = playerContentExpansionFraction.value
+                    val expandedTarget = 0.dp
+                    val collapsedTarget = if (hideNavBar) 32.dp else PlayerSheetCollapsedCornerRadius
+                    lerp(collapsedTarget, expandedTarget, fraction)
+                }
             } else {
-                PlayerSheetCollapsedCornerRadius // Navbar visible, sin contenido
+                // No player content
+                if (hideNavBar) 32.dp else PlayerSheetCollapsedCornerRadius
             }
-        },
+        }
+    }
+
+    val overallSheetTopCornerRadius by animateDpAsState(
+        targetValue = overallSheetTopCornerRadiusTargetValue, // Use the new target
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMedium
@@ -279,24 +287,45 @@ fun UnifiedPlayerSheet(
     )
 
     // CORREGIDO: Animación de esquinas redondeadas basada en la fracción de expansión
-    val playerContentActualBottomRadius by animateDpAsState(
-        targetValue = if (hideNavBar) { // Si la NavBar está oculta
-            32.dp // El radio es 50.dp
-        } else if (showPlayerContentArea) { // Si la NavBar NO está oculta Y se muestra el área del player
-            val fraction = playerContentExpansionFraction.value
-            if (fraction < 0.2f) {
-                // Interpolar de 12dp a 26.dp en los primeros 20% de la expansión
-                lerp(12.dp, 26.dp, (fraction / 0.2f).coerceIn(0f, 1f))
-            } else { // Después del 20% de expansión, el radio es 26.dp
-                26.dp
-            }
-        } else { // Si la NavBar NO está oculta Y el área del player NO se muestra
-            if (!stablePlayerState.isPlaying || stablePlayerState.currentSong == null){
-                PlayerSheetCollapsedCornerRadius
+    val playerContentActualBottomRadiusTargetValue by remember(
+        hideNavBar,
+        showPlayerContentArea,
+        playerContentExpansionFraction,
+        stablePlayerState.isPlaying,
+        stablePlayerState.currentSong,
+        predictiveBackCollapseProgress,
+        currentSheetContentState
+    ) {
+        derivedStateOf {
+            // Check if a predictive back gesture is in progress on an expanded sheet
+            if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
+                val expandedRadius = if (hideNavBar) 32.dp else 26.dp // Value when playerContentExpansionFraction is 1f (fully expanded)
+                val collapsedRadiusTarget = if (hideNavBar) 32.dp else 12.dp // Value when playerContentExpansionFraction is 0f (collapsed)
+                lerp(expandedRadius, collapsedRadiusTarget, predictiveBackCollapseProgress)
             } else {
-                12.dp
-            } // El radio es 12.dp (estado colapsado por defecto)
-        },
+                // Original logic when not in predictive back or sheet not expanded
+                if (hideNavBar) {
+                    32.dp
+                } else if (showPlayerContentArea) {
+                    val fraction = playerContentExpansionFraction.value
+                    if (fraction < 0.2f) {
+                        lerp(12.dp, 26.dp, (fraction / 0.2f).coerceIn(0f, 1f))
+                    } else { // After 20% expansion or fully expanded
+                        26.dp
+                    }
+                } else { // Player area not shown (mini-player state or no song)
+                    if (!stablePlayerState.isPlaying || stablePlayerState.currentSong == null) {
+                        PlayerSheetCollapsedCornerRadius // Or a specific value like 32.dp or 12.dp if that's the design
+                    } else {
+                        12.dp // Default collapsed mini-player bottom radius
+                    }
+                }
+            }
+        }
+    }
+
+    val playerContentActualBottomRadius by animateDpAsState(
+        targetValue = playerContentActualBottomRadiusTargetValue, // Use the new target
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMedium
@@ -320,11 +349,40 @@ fun UnifiedPlayerSheet(
         label = "NavBarTopRadius"
     )
 
-    val currentHorizontalPadding by remember(showPlayerContentArea, playerContentExpansionFraction, collapsedStateHorizontalPadding) {
+    val currentHorizontalPadding by remember(
+        showPlayerContentArea,
+        playerContentExpansionFraction,
+        collapsedStateHorizontalPadding,
+        predictiveBackCollapseProgress // Add this dependency
+    ) {
         derivedStateOf {
-            if (showPlayerContentArea) {
+            if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
+                // During predictive back (from expanded state), padding goes from 0.dp to collapsedStateHorizontalPadding
+                lerp(0.dp, collapsedStateHorizontalPadding, predictiveBackCollapseProgress)
+            } else if (showPlayerContentArea) {
+                // Normal calculation based on expansion fraction
                 lerp(collapsedStateHorizontalPadding, 0.dp, playerContentExpansionFraction.value)
-            } else { collapsedStateHorizontalPadding }
+            } else {
+                // Default when no content or not in predictive back
+                collapsedStateHorizontalPadding
+            }
+        }
+    }
+
+    val currentDimLayerAlpha by remember(
+        playerContentExpansionFraction,
+        predictiveBackCollapseProgress,
+        currentSheetContentState // Add this dependency
+    ) {
+        derivedStateOf {
+            val baseAlpha = playerContentExpansionFraction.value // Alpha when fully expanded is 1f, collapsed is 0f.
+            if (predictiveBackCollapseProgress > 0f && currentSheetContentState == PlayerSheetState.EXPANDED) {
+                // During predictive back (from expanded state), alpha goes from baseAlpha (should be ~1f) towards 0f.
+                lerp(baseAlpha, 0f, predictiveBackCollapseProgress)
+            } else {
+                // Normal alpha based on expansion fraction.
+                baseAlpha
+            }
         }
     }
 
@@ -334,31 +392,64 @@ fun UnifiedPlayerSheet(
     val velocityTracker = remember { VelocityTracker() }
     var accumulatedDragYSinceStart by remember { mutableFloatStateOf(0f) }
 
-    PredictiveBackHandler(enabled = showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED && !isDragging) { progressFlow ->
+    PredictiveBackHandler( // Removed 'keys' parameter
+        enabled = showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED && !isDragging
+    ) { progressFlow ->
         try {
-            var visualYBeforeCommit = visualSheetTranslationY
-            var fractionBeforeCommit = playerContentExpansionFraction.value
             progressFlow.collect { backEvent ->
                 playerViewModel.updatePredictiveBackCollapseFraction(backEvent.progress)
-                visualYBeforeCommit = currentSheetTranslationY.value * (1f - backEvent.progress) + (sheetCollapsedTargetY * backEvent.progress)
-                fractionBeforeCommit = playerContentExpansionFraction.value * (1f - backEvent.progress)
             }
+            // On completion (back gesture committed by user)
             scope.launch {
-                currentSheetTranslationY.snapTo(visualYBeforeCommit)
-                playerContentExpansionFraction.snapTo(fractionBeforeCommit)
-                playerViewModel.collapsePlayerSheet()
+                // 1. Capture the gesture's progress at the point of release/commit.
+                //    This value is crucial for determining the starting point of the ensuing animations.
+                //    At this stage, playerViewModel.predictiveBackCollapseFraction.value holds the latest
+                //    progress reported by the gesture before it's forced to 1f.
+                val progressAtRelease = playerViewModel.predictiveBackCollapseFraction.value
+
+                // 2. Set the *current values* of the main Animatables to reflect their visual state
+                //    at the moment the gesture was released. This makes subsequent animations start smoothly.
+
+                // For currentSheetTranslationY:
+                // It should be at the position dictated by progressAtRelease.
+                val currentVisualY = lerp(sheetExpandedTargetY, sheetCollapsedTargetY, progressAtRelease)
+                currentSheetTranslationY.snapTo(currentVisualY)
+
+                // For playerContentExpansionFraction:
+                // Its visual equivalent is inversely related to gesture progress (1.0 when progress is 0, 0.0 when progress is 1.0).
+                val currentVisualExpansionFraction = (1f - progressAtRelease).coerceIn(0f, 1f)
+                playerContentExpansionFraction.snapTo(currentVisualExpansionFraction)
+
+                // 3. Now, signal the ViewModel to update the overall predictive fraction to 1 (full commit)
+                //    and then trigger the collapse by changing the sheet's logical state.
+                playerViewModel.updatePredictiveBackCollapseFraction(1f) // Visually signals "target is now fully collapsed"
+                playerViewModel.collapsePlayerSheet() // Changes currentSheetContentState to PlayerSheetState.COLLAPSED
+
+                // When currentSheetContentState changes to COLLAPSED, the LaunchedEffects watching it will trigger:
+                // - playerContentExpansionFraction.animateTo(0f, ...) will animate from currentVisualExpansionFraction to 0f.
+                // - currentSheetTranslationY.animateTo(sheetCollapsedTargetY, ...) will animate from currentVisualY to sheetCollapsedTargetY.
+                // This should produce the desired continuous animation from the release point.
+
+                // 4. Reset the overall predictive back progress state for the next gesture.
+                //    This is done after the collapse has been initiated.
+                playerViewModel.updatePredictiveBackCollapseFraction(0f)
             }
         } catch (e: CancellationException) {
+            // On cancellation (back gesture cancelled by user)
             scope.launch {
-                val visualYAtCancel = currentSheetTranslationY.value * (1f - predictiveBackCollapseProgress) + (sheetCollapsedTargetY * predictiveBackCollapseProgress)
-                val fractionAtCancel = playerContentExpansionFraction.value * (1f - predictiveBackCollapseProgress)
-                currentSheetTranslationY.snapTo(visualYAtCancel)
-                playerContentExpansionFraction.snapTo(fractionAtCancel)
-                Animatable(predictiveBackCollapseProgress).animateTo(0f, tween(ANIMATION_DURATION_MS)) {
+                // Corrected Animatable usage:
+                Animatable(playerViewModel.predictiveBackCollapseFraction.value).animateTo(
+                    targetValue = 0f,
+                    animationSpec = tween(ANIMATION_DURATION_MS)
+                ) { // `this` is Animatable.AnimationScope<Float, AnimationVector1D>
                     playerViewModel.updatePredictiveBackCollapseFraction(this.value)
                 }
-                if (currentSheetContentState == PlayerSheetState.EXPANDED) playerViewModel.expandPlayerSheet()
-                else playerViewModel.collapsePlayerSheet()
+
+                if (playerViewModel.sheetState.value == PlayerSheetState.EXPANDED) {
+                    playerViewModel.expandPlayerSheet()
+                } else {
+                    playerViewModel.collapsePlayerSheet()
+                }
             }
         }
     }
@@ -414,7 +505,7 @@ fun UnifiedPlayerSheet(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(color = Color.Black.copy(alpha = 1f * playerContentExpansionFraction.value))
+                    .background(color = if (isSystemInDarkTheme()) Color.Black.copy(alpha = currentDimLayerAlpha) else Color.White.copy(alpha = currentDimLayerAlpha))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
@@ -657,13 +748,27 @@ fun UnifiedPlayerSheet(
                 }
 
                 // Spacer entre player y navigation bar (solo visible cuando colapsado y hay contenido de player)
-                if (showPlayerContentArea && playerContentExpansionFraction.value < 0.4f && !hideNavBar) {
-                    Spacer(
-                        Modifier
-                            .height(CollapsedPlayerContentSpacerHeight)
-                            .fillMaxWidth()
-                            .background(Color.Transparent)
+                // This Spacer is relevant only when the NavBar is potentially visible and there's content.
+                if (showPlayerContentArea && !hideNavBar) {
+                    val spacerTargetHeight = lerp(
+                        start = CollapsedPlayerContentSpacerHeight,
+                        stop = 0.dp,
+                        fraction = (playerContentExpansionFraction.value / 0.4f).coerceIn(0f, 1f)
                     )
+                    val animatedSpacerHeight by animateDpAsState(
+                        targetValue = spacerTargetHeight,
+                        animationSpec = spring(stiffness = Spring.StiffnessMedium), // Using a spring
+                        label = "SpacerHeightAnimation"
+                    )
+
+                    if (animatedSpacerHeight > 0.1.dp) { // Use a small threshold to avoid composing for negligible heights
+                        Spacer(
+                            Modifier
+                                .height(animatedSpacerHeight)
+                                .fillMaxWidth()
+                                .background(Color.Transparent) // Or its original background
+                        )
+                    }
                 }
 
                 // MEJORADO: Navigation bar sin gestos de drag
@@ -699,12 +804,6 @@ fun UnifiedPlayerSheet(
                         Modifier
                             .fillMaxWidth()
                             .padding(horizontal = currentHorizontalPadding)
-                            // NUEVO: Aplicar shadow a la navbar con forma personalizada
-//                            .shadow(
-//                                elevation = navBarElevation,
-//                                shape = conditionalShape,
-//                                clip = false // No recortar la sombra
-//                            )
                             .pointerInput(Unit) {
                                 detectTapGestures { /* Permitir taps normales en nav items */ }
                             }

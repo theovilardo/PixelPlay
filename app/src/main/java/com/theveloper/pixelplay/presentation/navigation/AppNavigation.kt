@@ -41,6 +41,7 @@ fun AppNavigation(
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(
+                    playerViewModel = playerViewModel,
                     onNavigationIconClick = {
                         navController.popBackStack()
                     }

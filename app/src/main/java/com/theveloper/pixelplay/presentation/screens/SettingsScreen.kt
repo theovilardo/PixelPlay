@@ -87,17 +87,28 @@ import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.presentation.viewmodel.SettingsViewModel
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
+import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
+    playerViewModel: PlayerViewModel,
     onNavigationIconClick: () -> Unit,
     settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
     // Recopilar el estado de la UI del ViewModel
     val uiState by settingsViewModel.uiState.collectAsState()
+    val playerSheetState by playerViewModel.sheetState.collectAsState()
     // Estado para controlar la visibilidad del diálogo de directorios
     var showDirectoryDialog by remember { mutableStateOf(false) }
+
+    BackHandler(enabled = playerSheetState == PlayerSheetState.EXPANDED) {
+        playerViewModel.collapsePlayerSheet()
+    }
 
     val directoryItems: ImmutableList<DirectoryItem> = remember(uiState.directoryItems) {
         val list: List<DirectoryItem> = uiState.directoryItems
@@ -664,12 +675,6 @@ fun DirectoryPickerDialog(
                         }
                     }
                 }
-
-//                // Footer
-//                HorizontalDivider(
-//                    modifier = Modifier.padding(horizontal = 24.dp),
-//                    color = MaterialTheme.colorScheme.outlineVariant
-//                )
 
                 Row(
                     modifier = Modifier
