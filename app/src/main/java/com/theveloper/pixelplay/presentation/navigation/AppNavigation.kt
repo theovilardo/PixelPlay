@@ -13,6 +13,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.theveloper.pixelplay.presentation.screens.DailyMixScreen
 import com.theveloper.pixelplay.presentation.screens.HomeScreen
 import com.theveloper.pixelplay.presentation.screens.LibraryScreen
 import com.theveloper.pixelplay.presentation.screens.PlaylistDetailScreen
@@ -43,6 +44,15 @@ fun AppNavigation(
                     onNavigationIconClick = {
                         navController.popBackStack()
                     }
+                )
+            }
+            composable(Screen.DailyMixScreen.route){
+                DailyMixScreen(
+                    onBackClick = {
+                        navController.popBackStack()
+                    },
+                    playerViewModel = playerViewModel,
+                    paddingValuesParent = paddingValues
                 )
             }
             composable(

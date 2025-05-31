@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -18,6 +19,8 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
@@ -26,6 +29,7 @@ import androidx.navigation.NavHostController
 import com.theveloper.pixelplay.presentation.components.scoped.CustomNavigationBarItem
 import com.theveloper.pixelplay.presentation.navigation.BottomNavItem
 import kotlinx.collections.immutable.ImmutableList
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 val NavBarPersistentHeight = 84.dp // Altura estimada o fija para la PlayerInternalNavigationBar
 
@@ -81,15 +85,6 @@ private fun PlayerInternalNavigationItemsRow(
                     }
                 }
             }
-
-//            NavigationBarItem(
-//                modifier = Modifier.weight(1f),
-//                selected = isSelected,
-//                onClick = onClickLambda,
-//                icon = iconLambda,
-//                label = labelLambda,
-//            )
-
             CustomNavigationBarItem(
                 modifier = Modifier.weight(1f),
                 selected = isSelected,
@@ -111,6 +106,9 @@ private fun PlayerInternalNavigationItemsRow(
 fun PlayerInternalNavigationBar(
     navController: NavHostController,
     navItems: ImmutableList<BottomNavItem>,
+    containerShape: Shape,
+    navBarElevation: Dp,
+    isPlayerVisible: Boolean = false,
     currentRoute: String?,
     modifier: Modifier = Modifier,      // For external adjustments
     topCornersRadiusDp: Dp = 12.dp,
@@ -118,29 +116,43 @@ fun PlayerInternalNavigationBar(
     navBarHideFraction: Float,
     navBarHeightPx: Float
 ) {
-    val animatedAlpha = remember(navBarHideFraction) { derivedStateOf { 1f - navBarHideFraction } }
+    remember(navBarHideFraction) { derivedStateOf { 1f - navBarHideFraction } }
     val animatedTranslationY = remember(navBarHideFraction, navBarHeightPx) { derivedStateOf { navBarHeightPx * navBarHideFraction } }
     val actualShape = remember(topCornersRadiusDp) {
-        RoundedCornerShape(
-            topStart = topCornersRadiusDp,
-            topEnd = topCornersRadiusDp,
-            bottomStart = bottomCornersRadiusDp,
-            bottomEnd = bottomCornersRadiusDp
+        AbsoluteSmoothCornerShape(
+            cornerRadiusTL = topCornersRadiusDp,
+            smoothnessAsPercentBR = 60,
+            cornerRadiusTR = topCornersRadiusDp,
+            smoothnessAsPercentTL = 60,
+            cornerRadiusBL = bottomCornersRadiusDp,
+            smoothnessAsPercentTR = 60,
+            cornerRadiusBR = bottomCornersRadiusDp,
+            smoothnessAsPercentBL = 60
         )
     }
 
+//    val conditionalShape = if (isPlayerVisible) {
+//        actualShape
+//    } else {
+//        CircleShape
+//    }
+
     Box(
-        modifier = Modifier // Internal base modifier for the component's structure
+        modifier = modifier // Internal base modifier for the component's structure
             .fillMaxWidth()
             .height(NavBarPersistentHeight) // RESTORED: Use the Dp constant
             .graphicsLayer {
                 translationY = animatedTranslationY.value
             }
+            .shadow(
+                elevation = navBarElevation,
+                shape = containerShape,
+                clip = false // No recortar la sombra
+            )
             .background(
                 color = NavigationBarDefaults.containerColor,
-                shape = actualShape
+                shape = containerShape //conditionalShape
             )
-            .then(modifier) // Apply the passed-in modifier last
     ) {
         PlayerInternalNavigationItemsRow(
             navController = navController,
@@ -149,86 +161,3 @@ fun PlayerInternalNavigationBar(
         )
     }
 }
-
-//@Composable
-//private fun PlayerInternalNavigationItemsRow(
-//    navController: NavHostController,
-//    navItems: ImmutableList<BottomNavItem>, // CLAVE: Asegúrate de que esta lista sea ESTABLE.
-//    // Si se recrea innecesariamente, causará recomposiciones.
-//    currentRoute: String?,
-//    modifier: Modifier = Modifier
-//) {
-//    val rowModifier = remember { // Este remember está bien para el Modifier
-//        Modifier
-//            .fillMaxSize()
-//            .padding(horizontal = 12.dp)
-//    }
-//    Row(
-//        modifier = rowModifier,
-//        horizontalArrangement = Arrangement.SpaceAround,
-//        verticalAlignment = Alignment.CenterVertically
-//    ) {
-//        // navItems.forEach es eficiente si navItems es una lista estable.
-//        navItems.forEach { item ->
-//            val isSelected = currentRoute == item.screen.route
-//
-//            // CORRECTO: Llama a NavigationBarItemDefaults.colors() directamente.
-//            // Es una función @Composable que maneja su propia memoización interna.
-//            val itemColors = NavigationBarItemDefaults.colors(
-//                selectedIconColor = MaterialTheme.colorScheme.primary,
-//                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-//                selectedTextColor = MaterialTheme.colorScheme.primary,
-//                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-//                indicatorColor = MaterialTheme.colorScheme.secondaryContainer
-//                // Puedes omitir parámetros si los defaults de M3 son suficientes para tu caso.
-//                // La función usará los colores del tema y el estado 'selected' para
-//                // determinar los colores apropiados.
-//            )
-//
-//            val itemModifier = remember { Modifier.weight(1f) }
-//
-//            // Tus lambdas recordadas para onClick, icon y label están perfectas.
-//            val onClickLambda = remember(navController, item.screen.route) {
-//                {
-//                    navController.navigate(item.screen.route) {
-//                        popUpTo(navController.graph.id) {
-//                            inclusive = true
-//                            saveState = false // Considera true si quieres guardar el estado de la pantalla de destino
-//                        }
-//                        launchSingleTop = true
-//                        restoreState = false // Considera true si quieres restaurar el estado
-//                    }
-//                }
-//            }
-//
-//            val iconPainterResId = if (isSelected && item.selectedIconResId != null && item.selectedIconResId != 0) {
-//                item.selectedIconResId!! // Asumiendo que selectedIconResId es Int? y 0 no es un ID válido
-//            } else {
-//                item.iconResId
-//            }
-//
-//            val iconLambda: @Composable () -> Unit = remember(iconPainterResId, item.label) {
-//                {
-//                    Icon(
-//                        painter = painterResource(id = iconPainterResId),
-//                        contentDescription = item.label
-//                    )
-//                }
-//            }
-//
-//            val labelLambda: @Composable () -> Unit = remember(item.label) {
-//                { Text(item.label) }
-//            }
-//
-//            NavigationBarItem(
-//                modifier = itemModifier,
-//                selected = isSelected,
-//                onClick = onClickLambda,
-//                icon = iconLambda,
-//                label = labelLambda,
-//                alwaysShowLabel = true, // O según tu preferencia
-//                colors = itemColors // Pasas el resultado de NavigationBarItemDefaults.colors()
-//            )
-//        }
-//    }
-//}

@@ -3,6 +3,7 @@ package com.theveloper.pixelplay.presentation.components
 import android.annotation.SuppressLint
 import android.util.Log
 import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
@@ -12,6 +13,8 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -23,12 +26,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -40,6 +46,7 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -86,6 +93,8 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 // Definir un CompositionLocal para el tema del álbum
@@ -106,7 +115,7 @@ val MiniPlayerHeight = 64.dp
 val PlayerSheetExpandedCornerRadius = 32.dp // Totalmente expandido -> sin esquinas
 val PlayerSheetCollapsedCornerRadius = 32.dp // Cuando está colapsado -> forma de píldora
 val CollapsedPlayerContentSpacerHeight = 6.dp
-const val ANIMATION_DURATION_MS = 270 // Duración para animaciones con tween
+const val ANIMATION_DURATION_MS = 255 // Duración para animaciones con tween
 
 /**
  * ColorPalette generada desde la portada del álbum
@@ -128,6 +137,7 @@ data class AlbumColorPalette(
 )
 
 // --- UnifiedPlayerSheet (Versión mejorada con gestos más sensibles y animaciones suaves) ---
+
 @Composable
 fun UnifiedPlayerSheet(
     playerViewModel: PlayerViewModel,
@@ -135,7 +145,7 @@ fun UnifiedPlayerSheet(
     navItems: ImmutableList<BottomNavItem>,
     initialTargetTranslationY: Float,
     collapsedStateHorizontalPadding: Dp = 12.dp,
-    collapsedStateBottomMargin: Dp,
+    collapsedStateBottomMargin: Dp = 0.dp,
     hideNavBar: Boolean = false
 ) {
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
@@ -151,7 +161,7 @@ fun UnifiedPlayerSheet(
     val miniPlayerContentHeightPx = remember { with(density) { MiniPlayerHeight.toPx() } }
     val navBarHeightPx = remember(density, NavBarPersistentHeight) { with(density) { NavBarPersistentHeight.toPx() } }
     val miniPlayerAndSpacerHeightPx = remember(density, MiniPlayerHeight, CollapsedPlayerContentSpacerHeight) { with(density) { (MiniPlayerHeight + CollapsedPlayerContentSpacerHeight).toPx() } }
-    val spacerHeightPx = remember { with(density) { CollapsedPlayerContentSpacerHeight.toPx() } }
+    remember { with(density) { CollapsedPlayerContentSpacerHeight.toPx() } }
 
     val showPlayerContentArea by remember { derivedStateOf { stablePlayerState.currentSong != null } }
 
@@ -179,8 +189,7 @@ fun UnifiedPlayerSheet(
         val navHeight = if (hideNavBar) 0f else navBarHeightPx
         playerHeight + navHeight
     }
-    //previus:
-//    val totalSheetHeightWhenContentCollapsedPx = (if (showPlayerContentArea) miniPlayerAndSpacerHeightPx else 0f) + navBarHeightPx
+
     val animatedTotalSheetHeightPx by remember(showPlayerContentArea, playerContentExpansionFraction, screenHeightPx, totalSheetHeightWhenContentCollapsedPx) {
         derivedStateOf {
             if (showPlayerContentArea) {
@@ -188,7 +197,25 @@ fun UnifiedPlayerSheet(
             } else { navBarHeightPx }
         }
     }
-    val animatedTotalSheetHeightDp = with(density) { animatedTotalSheetHeightPx.toDp() }
+
+    // NUEVO: Altura con espacio extra para la sombra
+    val navBarElevation = if (!hideNavBar) 3.dp else 0.dp
+    val shadowSpacePx = remember(density, navBarElevation) {
+        with(density) { (navBarElevation * 4).toPx() } // Espacio extra para la sombra
+    }
+
+    val animatedTotalSheetHeightWithShadowPx by remember(animatedTotalSheetHeightPx, hideNavBar, shadowSpacePx) {
+        derivedStateOf {
+            if (hideNavBar) {
+                animatedTotalSheetHeightPx // Sin navbar, no necesitamos espacio extra
+            } else {
+                animatedTotalSheetHeightPx + shadowSpacePx // Con navbar, añadimos espacio para la sombra
+            }
+        }
+    }
+    val animatedTotalSheetHeightWithShadowDp = with(density) { animatedTotalSheetHeightWithShadowPx.toDp() }
+
+    with(density) { animatedTotalSheetHeightPx.toDp() }
 
     val sheetExpandedTargetY = 0f
     val sheetCollapsedTargetY = remember(screenHeightPx, totalSheetHeightWhenContentCollapsedPx, collapsedStateBottomMargin) {
@@ -347,38 +374,98 @@ fun UnifiedPlayerSheet(
         if (isDarkTheme) currentAlbumColorSchemePair?.dark else currentAlbumColorSchemePair?.light
     }
 
+    // NUEVO: Elevation animada para el área del player
+    val playerAreaElevation by animateDpAsState(
+        targetValue = if (showPlayerContentArea) {
+            val fraction = playerContentExpansionFraction.value
+            // Elevation más alta cuando está expandido, menor cuando está colapsado
+            lerp(2.dp, 12.dp, fraction)
+        } else {
+            0.dp
+        },
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "PlayerAreaElevation"
+    )
+
+    // NUEVO: Formas para las sombras del player
+    val playerShadowShape = remember(overallSheetTopCornerRadius, playerContentActualBottomRadius) {
+        AbsoluteSmoothCornerShape(
+            cornerRadiusTL = overallSheetTopCornerRadius,
+            smoothnessAsPercentBL = 60,
+            cornerRadiusTR = overallSheetTopCornerRadius,
+            smoothnessAsPercentBR = 60,
+            cornerRadiusBR = playerContentActualBottomRadius,
+            smoothnessAsPercentTL = 60,
+            cornerRadiusBL = playerContentActualBottomRadius,
+            smoothnessAsPercentTR = 60
+        )
+    }
+
     if (shouldShowSheet) {
+        // CORREGIDO: Dim Layer mejorado
+        AnimatedVisibility(
+            visible = showPlayerContentArea && playerContentExpansionFraction.value > 0f,
+            enter = fadeIn(animationSpec = tween(durationMillis = ANIMATION_DURATION_MS)),
+            exit = fadeOut(animationSpec = tween(durationMillis = ANIMATION_DURATION_MS))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(color = Color.Black.copy(alpha = 1f * playerContentExpansionFraction.value))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        // Colapsar el player al hacer click en el dim layer
+                        if (currentSheetContentState == PlayerSheetState.EXPANDED) {
+                            playerViewModel.collapsePlayerSheet()
+                        }
+                    }
+            )
+        }
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .graphicsLayer { translationY = visualSheetTranslationY }
-                .padding(horizontal = currentHorizontalPadding)
-                .height(animatedTotalSheetHeightDp),
+                .height(animatedTotalSheetHeightWithShadowDp),
+            shadowElevation = 0.dp,
             //shape = sheetShape,
             color = Color.Transparent
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-//                val currentAlbumColorSchemePair by playerViewModel.currentAlbumArtColorSchemePair.collectAsState()
-//                val isDarkTheme = isSystemInDarkTheme()
-//                val albumColorScheme = remember(currentAlbumColorSchemePair, isDarkTheme) {
-//                    if (isDarkTheme) currentAlbumColorSchemePair?.dark else currentAlbumColorSchemePair?.light
-//                }
-
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    //.padding(bottom = if (hideNavBar) 0.dp else (navBarElevation * 2)) // Padding bottom solo cuando hay navbar
+            ) {
                 // MEJORADO: Solo mostrar área del player si hay contenido
                 if (showPlayerContentArea) {
                     // Crear un CompositionLocalProvider para aplicar el tema solo al área del player
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .padding(horizontal = currentHorizontalPadding)
                             .height(playerContentAreaActualHeightDp)
+                            // NUEVO: Aplicar shadow antes del background
+                            .shadow(
+                                elevation = playerAreaElevation,
+                                shape = playerShadowShape,
+                                clip = false // No recortar la sombra
+                            )
                             .background(
                                 color = albumColorScheme?.primaryContainer
                                     ?: MaterialTheme.colorScheme.primaryContainer,
-                                shape = RoundedCornerShape(
-                                    topStart = overallSheetTopCornerRadius,
-                                    topEnd = overallSheetTopCornerRadius,
-                                    bottomStart = playerContentActualBottomRadius,
-                                    bottomEnd = playerContentActualBottomRadius
+                                shape = AbsoluteSmoothCornerShape(
+                                    cornerRadiusTL = overallSheetTopCornerRadius,
+                                    smoothnessAsPercentBL = 60,
+                                    cornerRadiusTR = overallSheetTopCornerRadius,
+                                    smoothnessAsPercentBR = 60,
+                                    cornerRadiusBR = playerContentActualBottomRadius,
+                                    smoothnessAsPercentTL = 60,
+                                    cornerRadiusBL = playerContentActualBottomRadius,
+                                    smoothnessAsPercentTR = 60
                                 )
                             )
                             .clipToBounds()
@@ -589,9 +676,35 @@ fun UnifiedPlayerSheet(
                         currentRouteValue
                     }
 
+                    val actualShape = remember(playerContentActualBottomRadius, showPlayerContentArea) {
+                        AbsoluteSmoothCornerShape(
+                            cornerRadiusTL = playerContentActualBottomRadius,
+                            smoothnessAsPercentBR = 60,
+                            cornerRadiusTR = playerContentActualBottomRadius,
+                            smoothnessAsPercentTL = 60,
+                            cornerRadiusBL = PlayerSheetCollapsedCornerRadius,
+                            smoothnessAsPercentTR = 60,
+                            cornerRadiusBR = PlayerSheetCollapsedCornerRadius,
+                            smoothnessAsPercentBL = 60
+                        )
+                    }
+
+                    val conditionalShape = if (showPlayerContentArea) {
+                        actualShape
+                    } else {
+                        CircleShape
+                    }
+
                     val playerInternalNavBarModifier = remember {
                         Modifier
                             .fillMaxWidth()
+                            .padding(horizontal = currentHorizontalPadding)
+                            // NUEVO: Aplicar shadow a la navbar con forma personalizada
+//                            .shadow(
+//                                elevation = navBarElevation,
+//                                shape = conditionalShape,
+//                                clip = false // No recortar la sombra
+//                            )
                             .pointerInput(Unit) {
                                 detectTapGestures { /* Permitir taps normales en nav items */ }
                             }
@@ -600,6 +713,9 @@ fun UnifiedPlayerSheet(
                     PlayerInternalNavigationBar(
                         navController = navController,
                         navItems = navItems,
+                        containerShape = conditionalShape,
+                        navBarElevation = navBarElevation,
+                        isPlayerVisible = showPlayerContentArea,
                         currentRoute = rememberedCurrentRoute,
                         navBarHideFraction = navBarHideFraction,
                         topCornersRadiusDp = playerContentActualBottomRadius,
@@ -629,6 +745,12 @@ fun UnifiedPlayerSheet(
             )
         }
     }
+}
+
+@Composable
+fun getNavigationBarHeight(): Dp {
+    val insets = WindowInsets.safeDrawing.asPaddingValues()
+    return insets.calculateBottomPadding()
 }
 
 @Composable

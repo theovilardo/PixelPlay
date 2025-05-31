@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -14,8 +15,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -24,9 +23,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,7 +33,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavController
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.screens.SectionHeader
@@ -44,6 +40,7 @@ import com.theveloper.pixelplay.presentation.screens.SongListItemFavsWrapper
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
@@ -53,6 +50,7 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 fun DailyMixSection(
     songs: ImmutableList<Song>,
     playerViewModel: PlayerViewModel,
+    onClickOpen: () -> Unit = {}
 ) {
     Column(modifier = Modifier
         .fillMaxWidth()
@@ -63,13 +61,14 @@ fun DailyMixSection(
             onViewAllClick = { /* navegar */ }
         )
         Spacer(Modifier.height(16.dp))
-        DailyMixCard(songs, playerViewModel)
+        DailyMixCard(songs = songs, playerViewModel = playerViewModel, onClickOpen =  onClickOpen)
     }
 }
 
 @Composable
 private fun DailyMixCard(
     songs: ImmutableList<Song>,
+    onClickOpen: () -> Unit,
     playerViewModel: PlayerViewModel
 ) {
     val headerSongs = songs.take(3).toImmutableList()
@@ -93,13 +92,28 @@ private fun DailyMixCard(
         Column(modifier = Modifier.fillMaxWidth()) {
             DailyMixHeader(thumbnails = headerSongs)
             DailyMixSongList(songs = songsToPlay, playerViewModel)
-            ViewAllDailyMixButton()
+            ViewAllDailyMixButton(
+                onClickOpen = {
+                    onClickOpen()
+                },
+            )
         }
     }
 }
 
 @Composable
-private fun DailyMixHeader(thumbnails: ImmutableList<Song>) {
+fun DailyMixHeader(thumbnails: ImmutableList<Song>) {
+
+    fun shapeConditionalModifier(index: Int): Modifier {
+        if (index == 0){
+            return Modifier.size(50.dp).padding(top = 4.dp)
+        } else {
+            if (index == 1) {
+                return Modifier.size(44.dp).aspectRatio(1f).padding(bottom = 4.dp)
+            }
+            return Modifier.size(48.dp) //.padding( = 4.dp)
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -141,9 +155,10 @@ private fun DailyMixHeader(thumbnails: ImmutableList<Song>) {
                 horizontalArrangement = Arrangement.spacedBy((-16).dp)
             ) {
                 thumbnails.forEachIndexed { index, song ->
+                    val modifier = shapeConditionalModifier(index)
                     Box(
-                        modifier = Modifier
-                            .size(48.dp)
+                        modifier = modifier
+                            //.size(48.dp)
                             .clip(ThreeShapeSwitch(index))
                             .border(2.dp, MaterialTheme.colorScheme.surface, ThreeShapeSwitch(index))
                     ) {
@@ -166,9 +181,18 @@ fun ThreeShapeSwitch(index: Int): Shape { // Ensure the function returns a Shape
         0 -> RoundedStarShape(
             sides = 6,
             rotation = 10f
-        )//RoundedCornerShape(topStart = 16.dp, bottomEnd = 16.dp, topEnd = 6.dp, bottomStart = 6.dp)
+        )
         1 -> CircleShape
-        2 -> RoundedCornerShape(16.dp)
+        2 -> AbsoluteSmoothCornerShape(
+            cornerRadiusBL = 16.dp,
+            cornerRadiusTR = 16.dp,
+            smoothnessAsPercentBL = 60,
+            smoothnessAsPercentTR = 60,
+            cornerRadiusTL = 16.dp,
+            cornerRadiusBR = 16.dp,
+            smoothnessAsPercentTL = 60,
+            smoothnessAsPercentBR = 60
+        )
         else -> CircleShape // It's good practice to have a default case
     }
 }
@@ -200,13 +224,16 @@ private fun DailyMixSongList(
 }
 
 @Composable
-private fun ViewAllDailyMixButton() {
+private fun ViewAllDailyMixButton(
+    onClickOpen: () -> Unit
+) {
     TextButton(
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = 6.dp),
-        onClick = { /* TODO: Navegar a pantalla con todo el Daily Mix */ },
-        //modifier = Modifier.align(Alignment.CenterHorizontally)
+        onClick = {
+            onClickOpen()
+        },
     ) {
         Text(
             text = "Check all of Daily Mix",

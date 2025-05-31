@@ -153,7 +153,7 @@ fun AlbumArtCollage(
                 height = bottomMin * 0.9f,
                 align = Alignment.BottomEnd,
                 rot = 0f,
-                shape = RoundedStarShape(sides = 5, curve = 0.09, rotation = 0f),
+                shape = RoundedStarShape(sides = 6, curve = 0.09, rotation = 45f),
                 offsetX = (-42).dp,
                 offsetY = 0.dp
             )

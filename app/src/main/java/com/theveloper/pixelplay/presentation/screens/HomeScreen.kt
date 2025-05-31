@@ -9,11 +9,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -25,7 +23,6 @@ import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -42,7 +39,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -153,6 +149,9 @@ fun HomeScreen(
                 item {
                     DailyMixSection(
                         songs = dailyMixSongs,
+                        onClickOpen = {
+                            navController.navigate(Screen.DailyMixScreen.route)
+                        },
                         playerViewModel = playerViewModel
                     )
                 }
@@ -305,106 +304,6 @@ fun SectionHeader(
                     modifier = Modifier.size(16.dp),
                     tint = MaterialTheme.colorScheme.primary
                 )
-            }
-        }
-    }
-}
-
-// Placeholder for featured playlists section
-@Composable
-fun FeaturedPlaylistsSection() {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-    ) {
-        SectionHeader(
-            title = "Destacados",
-            showViewAll = true,
-            onViewAllClick = { /* Navigate to featured */ }
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Featured card with "Material You" design principles
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(180.dp),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer
-            )
-        ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                Row(modifier = Modifier.fillMaxSize()) {
-                    // Left content
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(24.dp),
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = "Descubre Nueva Música",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Text(
-                            text = "Explora nuestra selección de canciones recomendadas para ti",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Button(
-                            onClick = { /* Action */ },
-                            shape = RoundedCornerShape(16.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary
-                            )
-                        ) {
-                            Text("Explorar")
-                        }
-                    }
-
-                    // Right decorative elements - abstract music visuals
-                    Box(
-                        modifier = Modifier
-                            .weight(0.7f)
-                            .fillMaxHeight()
-                            .background(
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(
-                                        MaterialTheme.colorScheme.secondaryContainer,
-                                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f)
-                                    )
-                                )
-                            )
-                    ) {
-                        // Decorative music elements
-                        repeat(5) { index ->
-                            val yOffset = remember { 20 + (index * 30) }
-                            val width = remember { 8 + (index % 3) * 8 }
-
-                            Box(
-                                modifier = Modifier
-                                    .offset(x = (60 + index * 20).dp, y = yOffset.dp)
-                                    .width(width.dp)
-                                    .height((40 + (index % 4) * 20).dp)
-                                    .background(
-                                        MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.2f),
-                                        RoundedCornerShape(4.dp)
-                                    )
-                            )
-                        }
-                    }
-                }
             }
         }
     }
@@ -572,45 +471,6 @@ fun SongCardCarouselItem(
             }
         }
     }
-}
-
-/**
- * Wrapper Composable para SongCardCarouselItem que aísla la observación del estado.
- * Este wrapper no cambia su lógica, solo llama al nuevo composable presentacional.
- */
-@Composable
-fun SongListItemFavsWrapper(
-    song: Song,
-    playerViewModel: PlayerViewModel,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    itemWidth: Dp = 90.dp // Ancho que se espera para el ítem en el carrusel (ej: preferredItemWidth)
-) {
-    // 1) Observamos sólo el ID de la canción que está sonando globalmente:
-    val currentPlayingSongId by playerViewModel
-        .stablePlayerState
-        .map { it.currentSong?.id }
-        .collectAsState(initial = null)
-
-    // 2) Observamos sólo si está sonando o no:
-    val isGlobalPlaying by playerViewModel
-        .stablePlayerState
-        .map { it.isPlaying }
-        .collectAsState(initial = false)
-
-    // 3) Derivamos si esta tarjeta corresponde a la canción en reproducción:
-    val isThisSongPlaying = song.id == currentPlayingSongId && isGlobalPlaying
-
-    // 4) Llamamos al nuevo composable presentacional pasándole sólo lo que necesita:
-    SongCardCarouselItem(
-        modifier = modifier, // El modifier se aplica a la Card
-        title = song.title,
-        artist = song.artist, // Usamos song.artist
-        albumArtUrl = song.albumArtUriString, // Usamos song.albumArtUri
-        isPlaying = isThisSongPlaying,
-        onClick = onClick,
-        itemWidth = itemWidth // Pasamos el ancho al composable de la tarjeta
-    )
 }
 
 // Wrapper Composable for SongListItemFavs to isolate state observation

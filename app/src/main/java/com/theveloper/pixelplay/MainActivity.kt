@@ -37,6 +37,7 @@ import com.theveloper.pixelplay.presentation.components.CollapsedPlayerContentSp
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.NavBarPersistentHeight
 import com.theveloper.pixelplay.presentation.components.UnifiedPlayerSheet
+import com.theveloper.pixelplay.presentation.components.getNavigationBarHeight
 import com.theveloper.pixelplay.presentation.navigation.AppNavigation
 import com.theveloper.pixelplay.presentation.navigation.BottomNavItem
 import com.theveloper.pixelplay.presentation.navigation.Screen
@@ -96,7 +97,8 @@ class MainActivity : ComponentActivity() {
                     val routesWithHiddenNavBar = remember {
                         setOf(
                             Screen.Settings.route,
-                            Screen.PlaylistDetail.route
+                            Screen.PlaylistDetail.route,
+                            Screen.DailyMixScreen.route
                         )
                     }
 
@@ -124,7 +126,7 @@ class MainActivity : ComponentActivity() {
                         val density = LocalDensity.current
                         val configuration = LocalConfiguration.current
                         val screenHeightPx = remember(configuration) { with(density) { configuration.screenHeightDp.dp.toPx() } }
-                        val collapsedStateBottomMargin = 22.dp // AJUSTA ESTE VALOR SEGÚN TU DISEÑO
+                        val collapsedStateBottomMargin = getNavigationBarHeight()//22.dp // AJUSTA ESTE VALOR SEGÚN TU DISEÑO
 
                         val navBarH = with(density) { NavBarPersistentHeight.toPx() }
                         val collapsedMarginPx = with(density) { collapsedStateBottomMargin.toPx() }
