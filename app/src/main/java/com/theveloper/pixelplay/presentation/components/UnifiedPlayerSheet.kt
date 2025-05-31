@@ -334,31 +334,57 @@ fun UnifiedPlayerSheet(
     val velocityTracker = remember { VelocityTracker() }
     var accumulatedDragYSinceStart by remember { mutableFloatStateOf(0f) }
 
-    PredictiveBackHandler(enabled = showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED && !isDragging) { progressFlow ->
+    // Define keys for the PredictiveBackHandler to ensure it recomposes appropriately
+    // if these dependencies change, ensuring the handler's behavior is always based on the latest state.
+    val predictiveBackHandlerKeys = remember(showPlayerContentArea, currentSheetContentState, isDragging, sheetCollapsedTargetY, sheetExpandedTargetY) {
+        arrayOf(showPlayerContentArea, currentSheetContentState, isDragging, sheetCollapsedTargetY, sheetExpandedTargetY)
+    }
+
+    PredictiveBackHandler(
+        keys = predictiveBackHandlerKeys,
+        enabled = showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED && !isDragging
+    ) { progressFlow ->
         try {
-            var visualYBeforeCommit = visualSheetTranslationY
-            var fractionBeforeCommit = playerContentExpansionFraction.value
             progressFlow.collect { backEvent ->
+                // Update ViewModel with the current progress of the back gesture.
+                // This progress is used by visualSheetTranslationY to show the sheet moving with the gesture.
                 playerViewModel.updatePredictiveBackCollapseFraction(backEvent.progress)
-                visualYBeforeCommit = currentSheetTranslationY.value * (1f - backEvent.progress) + (sheetCollapsedTargetY * backEvent.progress)
-                fractionBeforeCommit = playerContentExpansionFraction.value * (1f - backEvent.progress)
             }
+            // On completion (back gesture committed by user)
             scope.launch {
-                currentSheetTranslationY.snapTo(visualYBeforeCommit)
-                playerContentExpansionFraction.snapTo(fractionBeforeCommit)
+                // Set progress to 1f to ensure visuals (like visualSheetTranslationY) reflect full collapse intent.
+                playerViewModel.updatePredictiveBackCollapseFraction(1f)
+
+                // Tell ViewModel to collapse the sheet. This updates currentSheetContentState.
+                // The change in currentSheetContentState will trigger LaunchedEffects
+                // that animate currentSheetTranslationY to sheetCollapsedTargetY
+                // and playerContentExpansionFraction to 0f.
                 playerViewModel.collapsePlayerSheet()
+
+                // After collapse logic is initiated and animations start,
+                // reset the predictive back progress for the next gesture.
+                playerViewModel.updatePredictiveBackCollapseFraction(0f)
             }
         } catch (e: CancellationException) {
+            // On cancellation (back gesture cancelled by user)
             scope.launch {
-                val visualYAtCancel = currentSheetTranslationY.value * (1f - predictiveBackCollapseProgress) + (sheetCollapsedTargetY * predictiveBackCollapseProgress)
-                val fractionAtCancel = playerContentExpansionFraction.value * (1f - predictiveBackCollapseProgress)
-                currentSheetTranslationY.snapTo(visualYAtCancel)
-                playerContentExpansionFraction.snapTo(fractionAtCancel)
-                Animatable(predictiveBackCollapseProgress).animateTo(0f, tween(ANIMATION_DURATION_MS)) {
-                    playerViewModel.updatePredictiveBackCollapseFraction(this.value)
+                // Animate the predictive back progress in ViewModel back to 0.
+                // This will drive visualSheetTranslationY to smoothly revert to currentSheetTranslationY's current animated value.
+                Animatable(playerViewModel.predictiveBackCollapseFraction.value).animateTo(0f, tween(ANIMATION_DURATION_MS)) { progress ->
+                    playerViewModel.updatePredictiveBackCollapseFraction(progress)
                 }
-                if (currentSheetContentState == PlayerSheetState.EXPANDED) playerViewModel.expandPlayerSheet()
-                else playerViewModel.collapsePlayerSheet()
+
+                // Ensure the sheet is restored to its correct logical state.
+                // If currentSheetContentState is EXPANDED, calling expandPlayerSheet()
+                // will ensure that animations for translationY and expansionFraction
+                // complete to their fully expanded states.
+                if (playerViewModel.sheetState.value == PlayerSheetState.EXPANDED) {
+                    playerViewModel.expandPlayerSheet()
+                } else {
+                    // If sheetState somehow changed mid-gesture (e.g., to COLLAPSED due to other interaction),
+                    // ensure it respects that and completes collapse. This path is less likely if enabled condition held.
+                    playerViewModel.collapsePlayerSheet()
+                }
             }
         }
     }
