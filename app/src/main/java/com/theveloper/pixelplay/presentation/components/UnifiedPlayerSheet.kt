@@ -391,64 +391,82 @@ fun UnifiedPlayerSheet(
     val velocityTracker = remember { VelocityTracker() }
     var accumulatedDragYSinceStart by remember { mutableFloatStateOf(0f) }
 
-    PredictiveBackHandler( // Removed 'keys' parameter
+    // PredictiveBackHandler( // Removed 'keys' parameter
+    //     enabled = showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED && !isDragging
+    // ) { progressFlow ->
+    //     try {
+    //         progressFlow.collect { backEvent ->
+    //             playerViewModel.updatePredictiveBackCollapseFraction(backEvent.progress)
+    //         }
+    //         // On completion (back gesture committed by user)
+    //         scope.launch {
+    //             // 1. Update gesture progress to 1f (committed for full collapse)
+    //             // Use a local val for clarity in calculations, though playerViewModel.predictiveBackCollapseFraction.value could also be used if updated synchronously.
+    //             playerViewModel.updatePredictiveBackCollapseFraction(1f)
+    //             val finalGestureProgress = 1f // Represents the gesture having been fully swiped to collapse
+    //
+    //             // 2. Calculate the target state for animation drivers consistent with the end of the gesture
+    //             // playerContentExpansionFraction should be 0 if gesture fully collapses the sheet.
+    //             val targetExpansionFractionAtGestureEnd = (1f - finalGestureProgress).coerceIn(0f, 1f)
+    //             // currentSheetTranslationY should be sheetCollapsedTargetY if gesture fully collapses.
+    //             val targetYAtGestureEnd = lerp(sheetExpandedTargetY, sheetCollapsedTargetY, finalGestureProgress)
+    //
+    //             // 3. Snap the main animatables to this end-of-gesture state.
+    //             // This is crucial to ensure that subsequent animations (triggered by collapsePlayerSheet)
+    //             // start from where the gesture visually left off, preventing a jump to full expansion.
+    //             // Ensure `playerContentExpansionFraction` and `currentSheetTranslationY` are the actual Animatable instances.
+    //             playerContentExpansionFraction.snapTo(targetExpansionFractionAtGestureEnd)
+    //             currentSheetTranslationY.snapTo(targetYAtGestureEnd)
+    //
+    //             // 4. Now, call collapsePlayerSheet.
+    //             // This will set currentSheetContentState to PlayerSheetState.COLLAPSED.
+    //             // LaunchedEffects that observe currentSheetContentState will then animate
+    //             // playerContentExpansionFraction to 0f and currentSheetTranslationY to sheetCollapsedTargetY.
+    //             // Since they've just been snapped to these values, these animations should be minimal or instant.
+    //             playerViewModel.collapsePlayerSheet()
+    //
+    //             // 5. Reset predictive back progress for the next gesture.
+    //             // This should ideally happen after the collapsePlayerSheet() has fully propagated its state
+    //             // and animations are settled. If there are still jumps, a slight delay here might be explored,
+    //             // but usually direct reset is fine if states are managed correctly.
+    //             playerViewModel.updatePredictiveBackCollapseFraction(0f)
+    //         }
+    //     } catch (e: CancellationException) {
+    //         // On cancellation (back gesture cancelled by user)
+    //         scope.launch {
+    //             // Corrected Animatable usage:
+    //             Animatable(playerViewModel.predictiveBackCollapseFraction.value).animateTo(
+    //                 targetValue = 0f,
+    //                 animationSpec = tween(ANIMATION_DURATION_MS)
+    //             ) { // `this` is Animatable.AnimationScope<Float, AnimationVector1D>
+    //                 playerViewModel.updatePredictiveBackCollapseFraction(this.value)
+    //             }
+    //
+    //             if (playerViewModel.sheetState.value == PlayerSheetState.EXPANDED) {
+    //                 playerViewModel.expandPlayerSheet()
+    //             } else {
+    //                 playerViewModel.collapsePlayerSheet()
+    //             }
+    //         }
+    //     }
+    // }
+
+    // For diagnostic purposes:
+    BackHandler(
         enabled = showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED && !isDragging
-    ) { progressFlow ->
-        try {
-            progressFlow.collect { backEvent ->
-                playerViewModel.updatePredictiveBackCollapseFraction(backEvent.progress)
-            }
-            // On completion (back gesture committed by user)
-            scope.launch {
-                // 1. Update gesture progress to 1f (committed for full collapse)
-                // Use a local val for clarity in calculations, though playerViewModel.predictiveBackCollapseFraction.value could also be used if updated synchronously.
-                playerViewModel.updatePredictiveBackCollapseFraction(1f)
-                val finalGestureProgress = 1f // Represents the gesture having been fully swiped to collapse
+    ) {
+        // When this handler is invoked (i.e., back gesture performed and enabled is true):
+        // 1. Log or somehow indicate that this handler was triggered (if possible in this environment).
+        //    Since we can't log directly, the action of collapsing is the indicator.
+        // 2. Call playerViewModel.collapsePlayerSheet().
+        //    This is the action it should perform.
+        //    The animation glitch and other refinements are not the focus here;
+        //    only whether it activates and calls collapsePlayerSheet.
 
-                // 2. Calculate the target state for animation drivers consistent with the end of the gesture
-                // playerContentExpansionFraction should be 0 if gesture fully collapses the sheet.
-                val targetExpansionFractionAtGestureEnd = (1f - finalGestureProgress).coerceIn(0f, 1f)
-                // currentSheetTranslationY should be sheetCollapsedTargetY if gesture fully collapses.
-                val targetYAtGestureEnd = lerp(sheetExpandedTargetY, sheetCollapsedTargetY, finalGestureProgress)
+        // To make it obvious if this runs, we can print to system log if that gets captured.
+        // System.out.println("Standard BackHandler in UnifiedPlayerSheet triggered!"); // This line is for local debugging, might not be visible in your environment.
 
-                // 3. Snap the main animatables to this end-of-gesture state.
-                // This is crucial to ensure that subsequent animations (triggered by collapsePlayerSheet)
-                // start from where the gesture visually left off, preventing a jump to full expansion.
-                // Ensure `playerContentExpansionFraction` and `currentSheetTranslationY` are the actual Animatable instances.
-                playerContentExpansionFraction.snapTo(targetExpansionFractionAtGestureEnd)
-                currentSheetTranslationY.snapTo(targetYAtGestureEnd)
-
-                // 4. Now, call collapsePlayerSheet.
-                // This will set currentSheetContentState to PlayerSheetState.COLLAPSED.
-                // LaunchedEffects that observe currentSheetContentState will then animate
-                // playerContentExpansionFraction to 0f and currentSheetTranslationY to sheetCollapsedTargetY.
-                // Since they've just been snapped to these values, these animations should be minimal or instant.
-                playerViewModel.collapsePlayerSheet()
-
-                // 5. Reset predictive back progress for the next gesture.
-                // This should ideally happen after the collapsePlayerSheet() has fully propagated its state
-                // and animations are settled. If there are still jumps, a slight delay here might be explored,
-                // but usually direct reset is fine if states are managed correctly.
-                playerViewModel.updatePredictiveBackCollapseFraction(0f)
-            }
-        } catch (e: CancellationException) {
-            // On cancellation (back gesture cancelled by user)
-            scope.launch {
-                // Corrected Animatable usage:
-                Animatable(playerViewModel.predictiveBackCollapseFraction.value).animateTo(
-                    targetValue = 0f,
-                    animationSpec = tween(ANIMATION_DURATION_MS)
-                ) { // `this` is Animatable.AnimationScope<Float, AnimationVector1D>
-                    playerViewModel.updatePredictiveBackCollapseFraction(this.value)
-                }
-
-                if (playerViewModel.sheetState.value == PlayerSheetState.EXPANDED) {
-                    playerViewModel.expandPlayerSheet()
-                } else {
-                    playerViewModel.collapsePlayerSheet()
-                }
-            }
-        }
+        playerViewModel.collapsePlayerSheet()
     }
 
     // NUEVO: Solo mostrar el Surface si hay contenido para mostrar
