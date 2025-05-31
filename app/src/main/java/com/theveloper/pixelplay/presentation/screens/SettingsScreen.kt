@@ -676,12 +676,6 @@ fun DirectoryPickerDialog(
                     }
                 }
 
-//                // Footer
-//                HorizontalDivider(
-//                    modifier = Modifier.padding(horizontal = 24.dp),
-//                    color = MaterialTheme.colorScheme.outlineVariant
-//                )
-
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

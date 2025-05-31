@@ -2,6 +2,7 @@ package com.theveloper.pixelplay.presentation.components
 
 import android.annotation.SuppressLint
 import android.util.Log
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -504,7 +505,7 @@ fun UnifiedPlayerSheet(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(color = Color.Black.copy(alpha = currentDimLayerAlpha))
+                    .background(color = if (isSystemInDarkTheme()) Color.Black.copy(alpha = currentDimLayerAlpha) else Color.White.copy(alpha = currentDimLayerAlpha))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
@@ -803,12 +804,6 @@ fun UnifiedPlayerSheet(
                         Modifier
                             .fillMaxWidth()
                             .padding(horizontal = currentHorizontalPadding)
-                            // NUEVO: Aplicar shadow a la navbar con forma personalizada
-//                            .shadow(
-//                                elevation = navBarElevation,
-//                                shape = conditionalShape,
-//                                clip = false // No recortar la sombra
-//                            )
                             .pointerInput(Unit) {
                                 detectTapGestures { /* Permitir taps normales en nav items */ }
                             }

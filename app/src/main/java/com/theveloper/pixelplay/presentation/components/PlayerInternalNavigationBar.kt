@@ -118,24 +118,6 @@ fun PlayerInternalNavigationBar(
 ) {
     remember(navBarHideFraction) { derivedStateOf { 1f - navBarHideFraction } }
     val animatedTranslationY = remember(navBarHideFraction, navBarHeightPx) { derivedStateOf { navBarHeightPx * navBarHideFraction } }
-    val actualShape = remember(topCornersRadiusDp) {
-        AbsoluteSmoothCornerShape(
-            cornerRadiusTL = topCornersRadiusDp,
-            smoothnessAsPercentBR = 60,
-            cornerRadiusTR = topCornersRadiusDp,
-            smoothnessAsPercentTL = 60,
-            cornerRadiusBL = bottomCornersRadiusDp,
-            smoothnessAsPercentTR = 60,
-            cornerRadiusBR = bottomCornersRadiusDp,
-            smoothnessAsPercentBL = 60
-        )
-    }
-
-//    val conditionalShape = if (isPlayerVisible) {
-//        actualShape
-//    } else {
-//        CircleShape
-//    }
 
     Box(
         modifier = modifier // Internal base modifier for the component's structure
@@ -143,6 +125,7 @@ fun PlayerInternalNavigationBar(
             .height(NavBarPersistentHeight) // RESTORED: Use the Dp constant
             .graphicsLayer {
                 translationY = animatedTranslationY.value
+                alpha = 1f
             }
             .shadow(
                 elevation = navBarElevation,
