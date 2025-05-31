@@ -103,11 +103,16 @@ fun PlaylistDetailScreen(
 ) {
     val uiState by playlistViewModel.uiState.collectAsState()
     val playerStableState by playerViewModel.stablePlayerState.collectAsState() // Para saber qué canción se reproduce
+    val playerSheetState by playerViewModel.sheetState.collectAsState()
     val currentPlaylist = uiState.currentPlaylistDetails
     val songsInPlaylist = uiState.currentPlaylistSongs
 
     LaunchedEffect(playlistId) {
         playlistViewModel.loadPlaylistDetails(playlistId)
+    }
+
+    BackHandler(enabled = playerSheetState == PlayerSheetState.EXPANDED) {
+        playerViewModel.collapsePlayerSheet()
     }
 
     var showAddSongsDialog by remember { mutableStateOf(false) }

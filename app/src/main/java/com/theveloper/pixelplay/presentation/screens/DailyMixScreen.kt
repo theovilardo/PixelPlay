@@ -44,12 +44,17 @@ fun DailyMixScreen(
     paddingValuesParent: PaddingValues // Padding from MainLayout (for bottom nav bar)
 ) {
     val songs = playerViewModel.allSongsFlow.collectAsState() // uso todas pero deberia tener su propio mix
+    val playerSheetState by playerViewModel.sheetState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(rememberTopAppBarState())
 
     // Observe current song to adjust bottom padding for mini player
     val currentSong by playerViewModel.stablePlayerState
         .map { it.currentSong }
         .collectAsState(initial = null)
+
+    BackHandler(enabled = playerSheetState == PlayerSheetState.EXPANDED) {
+        playerViewModel.collapsePlayerSheet()
+    }
 
     val bottomPaddingForMiniPlayer = if (currentSong != null) MiniPlayerHeight else 0.dp
 
