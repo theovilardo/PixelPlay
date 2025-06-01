@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -65,6 +66,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -104,6 +106,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.theveloper.pixelplay.utils.formatDuration
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
@@ -149,8 +152,8 @@ fun UnifiedPlayerSheet(
     initialTargetTranslationY: Float,
     collapsedStateHorizontalPadding: Dp = 12.dp,
     collapsedStateBottomMargin: Dp = 0.dp,
-    hideNavBar: Boolean = false,
-    isKeyboardVisible: Boolean // Pass the new state
+    hideNavBar: Boolean = false
+    // isKeyboardVisible: Boolean // Removed
 ) {
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
     val playerUiState by playerViewModel.playerUiState.collectAsState()
@@ -462,7 +465,19 @@ fun UnifiedPlayerSheet(
         derivedStateOf { showPlayerContentArea || !hideNavBar }
     }
 
-    val actuallyShowSheetContent = shouldShowSheet && !isKeyboardVisible
+    var internalIsKeyboardVisible by remember { mutableStateOf(false) }
+
+    // Observe IME visibility using snapshotFlow (recommended)
+    val imeInsets = WindowInsets.ime
+    LaunchedEffect(imeInsets, density) { // Relaunch if imeInsets object or density changes
+        snapshotFlow { imeInsets.getBottom(density) > 0 }
+            .collectLatest { isVisible ->
+                internalIsKeyboardVisible = isVisible
+                Log.d("UnifiedPlayerSheet", "Internal Keyboard Visible: $isVisible")
+            }
+    }
+
+    val actuallyShowSheetContent = shouldShowSheet && !internalIsKeyboardVisible
 
     val currentAlbumColorSchemePair by playerViewModel.currentAlbumArtColorSchemePair.collectAsState()
     val isDarkTheme = isSystemInDarkTheme()
@@ -834,7 +849,7 @@ fun UnifiedPlayerSheet(
     }
 
     // Queue bottom sheet
-    if (showQueueSheet && !isKeyboardVisible) { // Condition !isKeyboardVisible added/verified
+    if (showQueueSheet && !internalIsKeyboardVisible) { // Use internalIsKeyboardVisible
         CompositionLocalProvider(
             LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
         ) {

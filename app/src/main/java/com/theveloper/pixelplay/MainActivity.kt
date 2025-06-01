@@ -24,9 +24,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalView
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
+// import androidx.compose.ui.platform.LocalView // No longer needed for this
+// import androidx.core.view.ViewCompat // No longer needed for this
+// import androidx.core.view.WindowInsetsCompat // No longer needed for this
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -94,20 +94,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    // Keyboard visibility
-                    val view = LocalView.current
-                    var isKeyboardVisible by remember { mutableStateOf(false) }
-
-                    DisposableEffect(view) {
-                        val listener = ViewCompat.setOnApplyWindowInsetsListener(view) { _, insets ->
-                            val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
-                            isKeyboardVisible = imeVisible
-                            insets
-                        }
-                        onDispose {
-                            ViewCompat.setOnApplyWindowInsetsListener(view, null)
-                        }
-                    }
+                    // Keyboard visibility logic REMOVED from MainActivity
 
                     // NUEVO: Observar la ruta actual para determinar si ocultar navbar
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -173,8 +160,8 @@ class MainActivity : ComponentActivity() {
                                 initialTargetTranslationY = initialY,
                                 collapsedStateHorizontalPadding = 22.dp, // AJUSTA ESTE VALOR
                                 collapsedStateBottomMargin = collapsedStateBottomMargin,
-                                hideNavBar = shouldHideNavBar,
-                                isKeyboardVisible = isKeyboardVisible // Pass the new state
+                                hideNavBar = shouldHideNavBar
+                                // isKeyboardVisible = isKeyboardVisible // REMOVE THIS ARGUMENT
                             )
                         }
                     }
