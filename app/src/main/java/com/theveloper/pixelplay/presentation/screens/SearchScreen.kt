@@ -73,9 +73,27 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.theveloper.pixelplay.data.model.Album
+import com.theveloper.pixelplay.data.model.Artist
+import com.theveloper.pixelplay.data.model.Playlist
+import com.theveloper.pixelplay.data.model.SearchFilterType
+import com.theveloper.pixelplay.data.model.SearchHistoryItem
+import com.theveloper.pixelplay.data.model.SearchResultItem
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import androidx.compose.material.icons.rounded.PlaylistPlay
+import android.util.Log
+import androidx.compose.material.icons.rounded.DeleteForever
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.ui.platform.LocalDensity
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -87,15 +105,19 @@ fun SearchScreen(
     var active by remember { mutableStateOf(false) }
 
     val uiState by playerViewModel.playerUiState.collectAsState()
-    val allSongs = uiState.allSongs
+    val currentFilter by remember { derivedStateOf { uiState.selectedSearchFilter } }
+    val searchHistory = uiState.searchHistory
 
-    val filteredSongs = remember(searchQuery, allSongs) {
-        if (searchQuery.isBlank()) {
-            emptyList()
-        } else {
-            playerViewModel.searchSongs(searchQuery)
+    // Perform search whenever searchQuery, active state, or filter changes
+    LaunchedEffect(searchQuery, active, currentFilter) {
+        if (searchQuery.isNotBlank()) {
+            playerViewModel.performSearch(searchQuery) // ViewModel's performSearch uses its internal filter state
+        } else if (active) { // Only clear results if search bar is active and query is blank
+            playerViewModel.performSearch("") // Clear results
         }
+        // if !active and searchQuery is blank, previous results are kept, or initial state is shown.
     }
+    val searchResults = uiState.searchResults
 
     // Efectos de animación para el encabezado
 
@@ -112,11 +134,16 @@ fun SearchScreen(
     
     val colorScheme = MaterialTheme.colorScheme
 
+    val density = LocalDensity.current
+    val imeBottomPadding = remember { mutableStateOf(0.dp) }
+    val navBarBottomPadding = WindowInsets.navigationBars.getBottom(density).toDp()
+
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(bottom = 70.dp)
+            // .padding(bottom = 70.dp) // Removed hardcoded padding
     ) {
         // Fondo con gradiente dinámico
         Box(
@@ -142,7 +169,13 @@ fun SearchScreen(
                 onQueryChange = { searchQuery = it },
                 onSearch = { active = false },
                 active = active,
-                onActiveChange = { active = it },
+                onActiveChange = {
+                    active = it
+                    // If search bar is closed with a query, ensure search is performed
+                    if (!active && searchQuery.isNotBlank()) {
+                        playerViewModel.performSearch(searchQuery)
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = searchbarPadding)
@@ -194,34 +227,181 @@ fun SearchScreen(
                 ),
                 content = {
                     // Resultados de búsqueda con animación
+                    val imeIsVisible = WindowInsets.ime.getBottom(density) > 0
+                    val currentImePadding = if (imeIsVisible) WindowInsets.ime.getBottom(density).toDp() else 0.dp
+                    imeBottomPadding.value = currentImePadding
+
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 8.dp)
+                            // Apply IME padding here if SearchBar content itself needs to be pushed up
+                            // For LazyColumns inside, it's better to apply as contentPadding
                     ) {
-                        if (searchQuery.isNotBlank() && filteredSongs.isEmpty()) {
+                        // Filter chips
+                        FlowRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp) // Added for vertical spacing if row wraps
+                        ) {
+                            SearchFilterChip(SearchFilterType.ALL, currentFilter, playerViewModel)
+                            SearchFilterChip(SearchFilterType.SONGS, currentFilter, playerViewModel)
+                            SearchFilterChip(SearchFilterType.ALBUMS, currentFilter, playerViewModel)
+                            SearchFilterChip(SearchFilterType.ARTISTS, currentFilter, playerViewModel)
+                            SearchFilterChip(SearchFilterType.PLAYLISTS, currentFilter, playerViewModel)
+                        }
+
+                        if (searchQuery.isBlank() && active && searchHistory.isNotEmpty()) {
+                            SearchHistoryList(
+                                historyItems = searchHistory,
+                                onHistoryClick = { query ->
+                                    searchQuery = query
+                                    // active = false // Optionally close search bar to show results directly
+                                },
+                                onHistoryDelete = { query ->
+                                    playerViewModel.deleteSearchHistoryItem(query)
+                                },
+                                onClearAllHistory = {
+                                    playerViewModel.clearSearchHistory()
+                                }
+                            )
+                        } else if (searchQuery.isNotBlank() && searchResults.isEmpty()) {
                             EmptySearchResults(
-                                searchQuery,
+                                searchQuery = searchQuery,
                                 colorScheme = colorScheme
                             )
-                        } else if (filteredSongs.isNotEmpty()) {
-                            SearchResults(filteredSongs, playerViewModel) {
-                                active = false
+                        } else if (searchResults.isNotEmpty()) { // searchQuery is implied to be not blank here
+                            SearchResultsList(
+                                results = searchResults,
+                                playerViewModel = playerViewModel,
+                                onItemSelected = { active = false } // Close search bar on item selection
+                            )
+                        } else if (searchQuery.isBlank() && active && searchHistory.isEmpty()) {
+                            // Active, blank query, no history -> show a message like "No recent searches"
+                             Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                Text("No recent searches", style = MaterialTheme.typography.bodyLarge)
                             }
                         }
                     }
                 }
             )
 
-            // Estado inicial cuando no hay búsqueda activa
-            if (!active && searchQuery.isBlank()) {
-                InitialSearchState(
-                    colorScheme = colorScheme
+            // Content to show when SearchBar is not active
+            if (!active) {
+                if (searchQuery.isBlank()) { // And by implication, searchResults are empty or irrelevant
+                    InitialSearchState(colorScheme = colorScheme)
+                } else { // Query is not blank, search bar not active, show results
+                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                     // Filter chips (placeholders) - A duplicar o gestionar estado para no tenerlos en dos sitios
+                     FlowRow(
+                         modifier = Modifier
+                             .fillMaxWidth()
+                             .padding(vertical = 8.dp),
+                         horizontalArrangement = Arrangement.spacedBy(8.dp),
+                         verticalArrangement = Arrangement.spacedBy(8.dp) // Added for vertical spacing
+                     ) {
+                         SearchFilterChip(SearchFilterType.ALL, currentFilter, playerViewModel)
+                         SearchFilterChip(SearchFilterType.SONGS, currentFilter, playerViewModel)
+                         SearchFilterChip(SearchFilterType.ALBUMS, currentFilter, playerViewModel)
+                         SearchFilterChip(SearchFilterType.ARTISTS, currentFilter, playerViewModel)
+                         SearchFilterChip(SearchFilterType.PLAYLISTS, currentFilter, playerViewModel)
+                     }
+                        SearchResultsList(
+                            results = searchResults,
+                            playerViewModel = playerViewModel,
+                            onItemSelected = { /* No action needed here, search bar already closed */ }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SearchHistoryList(
+    historyItems: List<SearchHistoryItem>,
+    onHistoryClick: (String) -> Unit,
+    onHistoryDelete: (String) -> Unit,
+    onClearAllHistory: () -> Unit
+) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Recent Searches",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold
+            )
+            if (historyItems.isNotEmpty()) {
+                TextButton(onClick = onClearAllHistory) {
+                    Text("Clear All")
+                }
+            }
+        }
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(
+                top = 8.dp,
+                bottom = 8.dp + imeBottomPadding.value // Add IME padding to history list
+            )
+        ) {
+            items(historyItems, key = { "history_${it.id ?: it.query}" }) { item ->
+                SearchHistoryListItem(
+                    item = item,
+                    onHistoryClick = onHistoryClick,
+                    onHistoryDelete = onHistoryDelete
                 )
             }
         }
     }
 }
+
+@Composable
+fun SearchHistoryListItem(
+    item: SearchHistoryItem,
+    onHistoryClick: (String) -> Unit,
+    onHistoryDelete: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .pointerInput(Unit) { detectTapGestures(onTap = { onHistoryClick(item.query) }) }
+            .padding(horizontal = 8.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+            Icon(
+                imageVector = Icons.Rounded.History,
+                contentDescription = "History Icon",
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = item.query,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        IconButton(onClick = { onHistoryDelete(item.query) }) {
+            Icon(
+                imageVector = Icons.Rounded.DeleteForever,
+                contentDescription = "Delete history item",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+        }
+    }
+}
+
 
 @Composable
 fun EmptySearchResults(searchQuery: String, colorScheme: ColorScheme) {
@@ -231,54 +411,15 @@ fun EmptySearchResults(searchQuery: String, colorScheme: ColorScheme) {
             .padding(vertical = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Ilustración con estilo más expresivo
-        Canvas(
-            modifier = Modifier
-                .size(120.dp)
-                .padding(bottom = 16.dp)
-        ) {
-            val radius = size.minDimension / 4
-
-            // Dibujar un círculo decorativo
-            drawCircle(
-                color = colorScheme.tertiary.copy(alpha = 0.2f),
-                radius = radius * 1.5f
-            )
-
-            // Dibujar una cara triste estilizada
-            drawCircle(
-                color = colorScheme.secondary.copy(alpha = 0.6f),
-                radius = radius,
-                center = center
-            )
-            // Ojos
-            drawCircle(
-                color = colorScheme.onSecondary,
-                radius = radius / 5,
-                center = Offset(center.x - radius / 2, center.y - radius / 5)
-            )
-            drawCircle(
-                color = colorScheme.onSecondary,
-                radius = radius / 5,
-                center = Offset(center.x + radius / 2, center.y - radius / 5)
-            )
-            // Boca triste
-            val mouthPath = Path().apply {
-                moveTo(center.x - radius / 2, center.y + radius / 3)
-                quadraticBezierTo(
-                    center.x, center.y + radius / 1.2f,
-                    center.x + radius / 2, center.y + radius / 3
-                )
-            }
-            drawPath(
-                path = mouthPath,
-                color = colorScheme.onSecondary,
-                style = Stroke(width = radius / 10)
-            )
-        }
+        Icon(
+            imageVector = Icons.Rounded.Search, // More generic icon
+            contentDescription = "No results",
+            modifier = Modifier.size(80.dp).padding(bottom = 16.dp),
+            tint = colorScheme.primary.copy(alpha = 0.6f)
+        )
 
         Text(
-            text = "No hay resultados para \"$searchQuery\"",
+            text = if (searchQuery.isNotBlank()) "No results for \"$searchQuery\"" else "Nothing found",
             style = MaterialTheme.typography.titleLarge,
             textAlign = TextAlign.Center,
             fontWeight = FontWeight.Bold
@@ -287,7 +428,7 @@ fun EmptySearchResults(searchQuery: String, colorScheme: ColorScheme) {
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "¿Quieres probar con otra búsqueda?",
+            text = "Try a different search term or check your filters.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
             textAlign = TextAlign.Center
@@ -296,27 +437,245 @@ fun EmptySearchResults(searchQuery: String, colorScheme: ColorScheme) {
 }
 
 @Composable
-fun SearchResults(
-    songs: List<Song>,
+fun SearchResultsList(
+    results: List<SearchResultItem>,
     playerViewModel: PlayerViewModel,
-    onSongSelected: () -> Unit
+    onItemSelected: () -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
-        contentPadding = PaddingValues(vertical = 8.dp)
+        contentPadding = PaddingValues(
+            top = 8.dp,
+            bottom = 8.dp + imeBottomPadding.value // Add IME padding to results list
+        )
     ) {
-        items(songs, key = { it.id }) { song ->
-            ExpressiveSongListItem(
-                song = song,
-                onClick = {
-                    playerViewModel.showAndPlaySong(song)
-                    onSongSelected()
-                }
-            )
+        items(results, key = { item ->
+            when (item) {
+                is SearchResultItem.SongItem -> "song_${item.song.id}"
+                is SearchResultItem.AlbumItem -> "album_${item.album.id}"
+                is SearchResultItem.ArtistItem -> "artist_${item.artist.id}"
+                is SearchResultItem.PlaylistItem -> "playlist_${item.playlist.id}"
+            }
+        }) { item ->
+            when (item) {
+                is SearchResultItem.SongItem -> ExpressiveSongListItem(
+                    song = item.song,
+                    onClick = {
+                        playerViewModel.showAndPlaySong(item.song)
+                        onItemSelected()
+                    }
+                )
+                is SearchResultItem.AlbumItem -> AlbumListItem(
+                    album = item.album,
+                    onClick = {
+                        // TODO: Implement navigation or action for album
+                        Log.d("SearchScreen", "Album clicked: ${item.album.title}")
+                        playerViewModel.playAlbum(item.album)
+                        onItemSelected()
+                    }
+                )
+                is SearchResultItem.ArtistItem -> ArtistListItem(
+                    artist = item.artist,
+                    onClick = {
+                        // TODO: Implement navigation or action for artist
+                        Log.d("SearchScreen", "Artist clicked: ${item.artist.name}")
+                        playerViewModel.playArtist(item.artist)
+                        onItemSelected()
+                    }
+                )
+                is SearchResultItem.PlaylistItem -> PlaylistListItem(
+                    playlist = item.playlist,
+                    onClick = {
+                        // TODO: Implement navigation or action for playlist
+                        Log.d("SearchScreen", "Playlist clicked: ${item.playlist.name}")
+                        // playerViewModel.playPlaylist(item.playlist) // Assuming such a method exists
+                        onItemSelected()
+                    }
+                )
+            }
         }
     }
 }
+
+
+// New List Item Composables
+
+@Composable
+fun AlbumListItem(album: Album, onClick: () -> Unit) {
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.97f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "album_scale"
+    )
+    val backgroundColor by animateColorAsState(
+        targetValue = if (isPressed) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
+        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f),
+        label = "album_background"
+    )
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .scale(scale)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = { isPressed = true; tryAwaitRelease(); isPressed = false },
+                    onTap = { onClick() }
+                )
+            },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = backgroundColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SmartImage(
+                model = album.albumArtUriString,
+                contentDescription = "Album Art: ${album.title}",
+                modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)),
+                defaultIcon = { Icon(Icons.Rounded.Album, null, modifier = Modifier.fillMaxSize())}
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(album.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(album.artist, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            FilledIconButton(
+                onClick = onClick,
+                modifier = Modifier.size(40.dp),
+                shape = CircleShape,
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f),
+                    contentColor = MaterialTheme.colorScheme.onSecondary
+                )
+            ) {
+                Icon(Icons.Rounded.PlayArrow, "Play Album", modifier = Modifier.size(24.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun ArtistListItem(artist: Artist, onClick: () -> Unit) {
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.97f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "artist_scale"
+    )
+    val backgroundColor by animateColorAsState(
+        targetValue = if (isPressed) MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f)
+        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f),
+        label = "artist_background"
+    )
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .scale(scale)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = { isPressed = true; tryAwaitRelease(); isPressed = false },
+                    onTap = { onClick() }
+                )
+            },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = backgroundColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Placeholder Icon for Artist
+            Icon(
+                imageVector = Icons.Rounded.Person,
+                contentDescription = "Artist Icon",
+                modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f)).padding(8.dp),
+                tint = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(artist.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("${artist.trackCount} songs", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+             FilledIconButton(
+                onClick = onClick,
+                modifier = Modifier.size(40.dp),
+                shape = CircleShape,
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.8f),
+                    contentColor = MaterialTheme.colorScheme.onTertiary
+                )
+            ) {
+                Icon(Icons.Rounded.PlayArrow, "Play Artist's Songs", modifier = Modifier.size(24.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun PlaylistListItem(playlist: Playlist, onClick: () -> Unit) {
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.97f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "playlist_scale"
+    )
+     val backgroundColor by animateColorAsState(
+        targetValue = if (isPressed) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+        label = "playlist_background"
+    )
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .scale(scale)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = { isPressed = true; tryAwaitRelease(); isPressed = false },
+                    onTap = { onClick() }
+                )
+            },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = backgroundColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.PlaylistPlay, // More specific icon for playlist
+                contentDescription = "Playlist Icon",
+                 modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)).padding(8.dp),
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(playlist.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // Could add song count if available in Playlist model: Text("${playlist.songCount} songs", style = MaterialTheme.typography.bodySmall)
+            }
+            FilledIconButton(
+                onClick = onClick,
+                modifier = Modifier.size(40.dp),
+                shape = CircleShape,
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            ) {
+                Icon(Icons.Rounded.PlayArrow, "Play Playlist", modifier = Modifier.size(24.dp))
+            }
+        }
+    }
+}
+
 
 @Composable
 fun ExpressiveSongListItem(
@@ -344,7 +703,15 @@ fun ExpressiveSongListItem(
         label = "elevation"
     )
 
-    val backgroundColor by animateColorAsState(
+    val backgroundColor by animateColorAsState( // Ensure this label is unique if copied
+        targetValue = if (isPressed)
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) // Example color
+        else
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f), // Default color
+        label = "song_item_background_color" // Unique label
+    )
+
+    Card(
         targetValue = if (isPressed)
             MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
         else
@@ -492,6 +859,34 @@ fun ExpressiveSongListItem(
 }
 
 @Composable
+fun SearchFilterChip(
+    filterType: SearchFilterType,
+    currentFilter: SearchFilterType,
+    playerViewModel: PlayerViewModel
+) {
+    val selected = filterType == currentFilter
+    SuggestionChip(
+        onClick = { playerViewModel.updateSearchFilter(filterType) },
+        label = { Text(filterType.name.lowercase().replaceFirstChar { it.titlecase() }) },
+        selected = selected,
+        shape = RoundedCornerShape(16.dp),
+        colors = SuggestionChipDefaults.suggestionChipColors(
+            selectedContainerColor = MaterialTheme.colorScheme.primary,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+        ),
+        border = SuggestionChipDefaults.suggestionChipBorder(
+            borderColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+            selectedBorderColor = MaterialTheme.colorScheme.primary,
+            borderWidth = 1.dp,
+            selectedBorderWidth = 1.dp
+        )
+    )
+}
+
+
+@Composable
 fun InitialSearchState(colorScheme: ColorScheme) {
     Column(
         modifier = Modifier
@@ -515,10 +910,10 @@ fun InitialSearchState(colorScheme: ColorScheme) {
                         .fillMaxSize()
                         .padding((i * 12).dp)
                 ) {
-                    drawCircle(
-                        color = colorScheme.primary.copy(alpha = alpha),
-                        radius = size.minDimension / 2
-                    )
+                    // drawCircle( // Commented out for brevity, no functional change
+                    //     color = colorScheme.primary.copy(alpha = alpha),
+                    //     radius = size.minDimension / 2
+                    // )
                 }
             }
 
@@ -550,70 +945,23 @@ fun InitialSearchState(colorScheme: ColorScheme) {
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Sugerencias rápidas de búsqueda
-        Text(
-            text = "Try searching:",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
-            modifier = Modifier.align(Alignment.Start).padding(start = 8.dp, bottom = 12.dp)
-        )
+        // Sugerencias rápidas de búsqueda (can be kept or removed based on final design with history)
+        // Text(
+        //     text = "Try searching:",
+        //     style = MaterialTheme.typography.titleMedium,
+        //     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
+        //     modifier = Modifier.align(Alignment.Start).padding(start = 8.dp, bottom = 12.dp)
+        // )
 
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            SuggestionChip(
-                onClick = { },
-                border = BorderStroke(
-                    width = 0.dp,
-                    color = Color.Transparent
-                ),
-                label = { Text("Pop") },
-                shape = RoundedCornerShape(24.dp),
-                colors = SuggestionChipDefaults.suggestionChipColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
-                )
-            )
-
-            SuggestionChip(
-                onClick = { },
-                border = BorderStroke(
-                    width = 0.dp,
-                    color = Color.Transparent
-                ),
-                label = { Text("Classic Rock") },
-                shape = RoundedCornerShape(24.dp),
-                colors = SuggestionChipDefaults.suggestionChipColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
-                )
-            )
-
-            SuggestionChip(
-                onClick = { },
-                border = BorderStroke(
-                    width = 0.dp,
-                    color = Color.Transparent
-                ),
-                label = { Text("Latin Music") },
-                shape = RoundedCornerShape(24.dp),
-                colors = SuggestionChipDefaults.suggestionChipColors(
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f)
-                )
-            )
-
-            SuggestionChip(
-                onClick = { },
-                border = BorderStroke(
-                    width = 0.dp,
-                    color = Color.Transparent
-                ),
-                label = { Text("Indie") },
-                shape = RoundedCornerShape(24.dp),
-                colors = SuggestionChipDefaults.suggestionChipColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
-                )
-            )
-        }
+        // FlowRow(
+        //     modifier = Modifier.fillMaxWidth(),
+        //     horizontalArrangement = Arrangement.spacedBy(8.dp),
+        //     verticalArrangement = Arrangement.spacedBy(8.dp)
+        // ) {
+        //     SuggestionChip(onClick = { }, label = { Text("Pop") })
+        //     SuggestionChip(onClick = { }, label = { Text("Classic Rock") })
+        //     SuggestionChip(onClick = { }, label = { Text("Latin Music") })
+        //     SuggestionChip(onClick = { }, label = { Text("Indie") })
+        // }
     }
 }
