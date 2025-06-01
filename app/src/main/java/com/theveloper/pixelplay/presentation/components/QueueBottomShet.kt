@@ -46,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -59,6 +60,7 @@ import com.mohamedrejeb.compose.dnd.reorder.rememberReorderState
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.screens.PlaylistSongItem
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class,
     ExperimentalMaterial3ExpressiveApi::class
@@ -99,20 +101,20 @@ fun QueueBottomSheet(
             ) {
                 Box(
                     modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
+                        .align(Alignment.Start)
                         .padding(12.dp)
-                        .background(
-                            color = colors.primary.copy(alpha = 0.7f),
-                            shape = RoundedCornerShape(40.dp)
-                        )
+//                        .background(
+//                            color = colors.primary.copy(alpha = 0.7f),
+//                            shape = RoundedCornerShape(40.dp)
+//                        )
                 ) {
                     Text(
                         text     = "Next Up",
-                        style    = MaterialTheme.typography.titleLarge,
-                        color = colors.onPrimary,
+                        style    = MaterialTheme.typography.displayMedium,
+                        //color = colors.onPrimary,
                         modifier = Modifier
                             .padding(horizontal = 12.dp, vertical = 8.dp)
-                            .align(Alignment.Center)
+                            .align(Alignment.CenterStart)
                     )
                 }
 
@@ -133,7 +135,24 @@ fun QueueBottomSheet(
                         modifier = Modifier.weight(1f)
                     ) {  // Habilita DnD :contentReference[oaicite:4]{index=4}
                         LazyColumn(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    horizontal = 16.dp
+                                )
+                                .clip(
+                                    shape = AbsoluteSmoothCornerShape(
+                                        cornerRadiusTR = 26.dp,
+                                        smoothnessAsPercentTL = 60,
+                                        cornerRadiusTL = 26.dp,
+                                        smoothnessAsPercentTR = 60,
+                                        cornerRadiusBR = 0.dp,
+                                        smoothnessAsPercentBL = 60,
+                                        cornerRadiusBL = 0.dp,
+                                        smoothnessAsPercentBR = 60
+
+                                    )
+                                ),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(
                                 bottom = 80.dp
@@ -168,7 +187,7 @@ fun QueueBottomSheet(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             //.then(compressionModifier)
-                                            .padding(horizontal = 10.dp)
+                                            //.padding(horizontal = 10.dp)
                                             .clickable {
                                                 onPlaySong(song)
                                             },

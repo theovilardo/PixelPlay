@@ -55,7 +55,7 @@ class GenreDetailViewModel @Inject constructor(
     }
 
     // Updated function
-    fun fetchSongsForGenre(id: String) {
+    private fun fetchSongsForGenre(id: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoadingSongs = true, error = null) // Reset error specific to song fetching
             try {

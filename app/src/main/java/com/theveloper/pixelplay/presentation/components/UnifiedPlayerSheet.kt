@@ -516,7 +516,7 @@ fun UnifiedPlayerSheet(
     }
 
     AnimatedVisibility(
-        visible = showPlayerContentArea && playerContentExpansionFraction.value > 0f && !isKeyboardVisible,
+        visible = showPlayerContentArea && playerContentExpansionFraction.value > 0f && !internalIsKeyboardVisible,
         enter = fadeIn(animationSpec = tween(ANIMATION_DURATION_MS)),
         exit = fadeOut(animationSpec = tween(ANIMATION_DURATION_MS))
     ) {

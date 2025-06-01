@@ -185,7 +185,7 @@ fun SearchScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = searchbarPadding)
-                    .padding(top = 8.dp, bottom = 16.dp)
+                    .padding(top = 8.dp, bottom = 0.dp)
                     .animateContentSize()
                     .clip(RoundedCornerShape(28.dp)), // Más redondeado para estilo expresivo
                 placeholder = {
@@ -298,7 +298,8 @@ fun SearchScreen(
                             Log.d("SearchScreen", "Genre clicked: ${genre.name} (ID: ${genre.id})")
                             navController.navigate(Screen.GenreDetail.createRoute(genre.id)) // Actual navigation
                         },
-                        modifier = Modifier.padding(paddingValues) // Pass appropriate padding if needed
+                        modifier = Modifier
+                            .padding(top = 12.dp) // Pass appropriate padding if needed
                                          // Consider if paddingValues from SearchScreen is the right one,
                                          // or if GenreCategoriesGrid should handle its own internal padding.
                                          // The grid itself has internal padding, so this might be for overall screen padding.
@@ -372,7 +373,7 @@ fun SearchHistoryList(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(
                 top = 8.dp,
-                bottom = 8.dp + WindowInsets.ime.getBottom(localDensity).dp // Direct IME padding
+               // bottom = 8.dp + WindowInsets.ime.getBottom(localDensity).dp // Direct IME padding
             )
         ) {
             items(historyItems, key = { "history_${it.id ?: it.query}" }) { item ->
@@ -966,91 +967,4 @@ fun SearchFilterChip(
         //     null
         // }
     )
-}
-
-
-@Composable
-fun InitialSearchState(colorScheme: ColorScheme) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 24.dp, vertical = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Top
-    ) {
-        // Elemento decorativo expresivo
-        Box(
-            modifier = Modifier
-                .size(180.dp)
-                .padding(bottom = 24.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            // Círculos concéntricos con un efecto de ondas
-    // for (i in 3 downTo 0) { // Commented out as InitialSearchState is being removed
-    //     val alpha = 0.2f - (i * 0.05f)
-    //     Canvas(
-    //         modifier = Modifier
-    //             .fillMaxSize()
-    //             .padding((i * 12).dp)
-    //     ) {
-    //         // drawCircle(
-    //         //     color = colorScheme.primary.copy(alpha = alpha),
-    //         //     radius = size.minDimension / 2
-    //         // )
-    //     }
-    // }
-
-            // Icono central
-    // Icon( // Commented out as InitialSearchState is being removed
-    //     imageVector = Icons.Rounded.MusicNote,
-    //     contentDescription = null,
-    //     modifier = Modifier.size(72.dp),
-    //     tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-    // )
-        }
-
-// Text( // Commented out as InitialSearchState is being removed
-// text = "Tu biblioteca musical",
-// style = MaterialTheme.typography.headlineMedium,
-// fontWeight = FontWeight.Bold,
-// textAlign = TextAlign.Center
-// )
-
-// Spacer(modifier = Modifier.height(16.dp)) // Commented out
-
-// Text( // Commented out as InitialSearchState is being removed
-// text = "Search to discover songs, artists or albums that inspire you",
-// style = MaterialTheme.typography.bodyLarge,
-// color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-// textAlign = TextAlign.Center,
-// modifier = Modifier.padding(horizontal = 24.dp)
-// )
-
-// Spacer(modifier = Modifier.height(32.dp)) // Commented out
-
-        // Sugerencias rápidas de búsqueda (can be kept or removed based on final design with history)
-        // Text(
-        //     text = "Try searching:",
-        //     style = MaterialTheme.typography.titleMedium,
-        //     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
-        //     modifier = Modifier.align(Alignment.Start).padding(start = 8.dp, bottom = 12.dp)
-        // )
-
-        // FlowRow(
-        //     modifier = Modifier.fillMaxWidth(),
-        //     horizontalArrangement = Arrangement.spacedBy(8.dp),
-        //     verticalArrangement = Arrangement.spacedBy(8.dp)
-        // ) {
-        //     SuggestionChip(onClick = { }, label = { Text("Pop") })
-        //     SuggestionChip(onClick = { }, label = { Text("Classic Rock") })
-        //     SuggestionChip(onClick = { }, label = { Text("Latin Music") })
-        //     SuggestionChip(onClick = { }, label = { Text("Indie") })
-        // }
-// } // This closing brace for InitialSearchState might be an error in the original transform,
-  // as it seems to be closing the Column from the original composable.
-  // However, since the entire InitialSearchState composable is being removed,
-  // this brace will also be removed as part of that.
-  // If it was intended to close a different scope, that needs to be manually reviewed
-  // in the context of the full file after this transformation.
-  // For now, assuming it's part of the InitialSearchState composable that's being deleted.
 }

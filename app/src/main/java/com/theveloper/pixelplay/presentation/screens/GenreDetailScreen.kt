@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.presentation.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.clickable
@@ -44,6 +45,7 @@ import com.theveloper.pixelplay.data.model.Song // Import Song
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight // For MiniPlayerHeight if needed for padding
 import com.theveloper.pixelplay.presentation.components.SmartImage // For a simple song item
 import com.theveloper.pixelplay.presentation.viewmodel.GenreDetailViewModel
+import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel // Assuming PlayerViewModel might be needed
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -55,6 +57,11 @@ fun GenreDetailScreen(
     viewModel: GenreDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val playerSheetState by playerViewModel.sheetState.collectAsState()
+
+    BackHandler(enabled = playerSheetState == PlayerSheetState.EXPANDED) {
+        playerViewModel.collapsePlayerSheet()
+    }
 
     Scaffold(
         topBar = {

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -105,7 +106,8 @@ class MainActivity : ComponentActivity() {
                         setOf(
                             Screen.Settings.route,
                             Screen.PlaylistDetail.route,
-                            Screen.DailyMixScreen.route
+                            Screen.DailyMixScreen.route,
+                            Screen.GenreDetail.route
                         )
                     }
 
