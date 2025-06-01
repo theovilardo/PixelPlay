@@ -101,12 +101,13 @@ import com.theveloper.pixelplay.data.datasource.GenreDataSource
 import com.theveloper.pixelplay.presentation.navigation.Screen // Required for Screen.GenreDetail.createRoute
 import com.theveloper.pixelplay.presentation.screens.search.components.GenreCategoriesGrid
 
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SearchScreen(
     paddingValues: PaddingValues,
-    playerViewModel: PlayerViewModel = hiltViewModel(), // playerViewModel is already here
-    navController: NavHostController // Add navController
+    playerViewModel: PlayerViewModel = hiltViewModel(),
+    navController: NavHostController
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var active by remember { mutableStateOf(false) }
@@ -118,46 +119,34 @@ fun SearchScreen(
     // Perform search whenever searchQuery, active state, or filter changes
     LaunchedEffect(searchQuery, active, currentFilter) {
         if (searchQuery.isNotBlank()) {
-            playerViewModel.performSearch(searchQuery) // ViewModel's performSearch uses its internal filter state
-        } else if (active) { // Only clear results if search bar is active and query is blank
-            playerViewModel.performSearch("") // Clear results
+            playerViewModel.performSearch(searchQuery)
+        } else if (active) {
+            playerViewModel.performSearch("")
         }
-        // if !active and searchQuery is blank, previous results are kept, or initial state is shown.
     }
     val searchResults = uiState.searchResults
 
-    // Efectos de animación para el encabezado
-
+    // Animación para el padding - CORREGIDO: evitar valores negativos
     val searchbarPadding by animateDpAsState(
-        targetValue = if (!active) 24.dp else 0.dp,
-        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium), // Restored spring
+        targetValue = if (!active) 24.dp else 0.dp, // Cambiado de 0.dp a 8.dp para evitar problemas
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium),
         label = "searchbarPadding"
     )
 
-    // val searchbarCornerRadius by animateDpAsState( // Reverted: Animated corner radius
-    //     targetValue = if (!active) 28.dp else 0.dp,
-    //     animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium),
-    //     label = "searchbarCornerRadius"
-    // )
-    val searchbarCornerRadius = 28.dp // Reverted: Static corner radius
+    val searchbarCornerRadius = 28.dp
 
     // Colores con estilo "Expressive"
     val gradientColors = listOf(
         MaterialTheme.colorScheme.surfaceVariant,
         MaterialTheme.colorScheme.background
     )
-    
-    val colorScheme = MaterialTheme.colorScheme
-    val density = LocalDensity.current
 
-    // Directly use WindowInsets for padding in LazyColumn contentPadding
-    // This removes the need for imeBottomPadding mutableState.
+    val colorScheme = MaterialTheme.colorScheme
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            // .padding(bottom = 70.dp) // Removed hardcoded padding
     ) {
         // Fondo con gradiente dinámico
         Box(
@@ -170,22 +159,20 @@ fun SearchScreen(
                     )
                 )
                 .padding(top = paddingValues.calculateTopPadding())
-        ){
-
-        }
+        )
 
         // Contenido principal
         Column(
-            modifier = Modifier
-                .fillMaxSize()
+            modifier = Modifier.fillMaxSize()
         ) {
-            // Wrapper Box for animated horizontal padding
+            // CORREGIDO: Agregamos un padding mínimo para evitar crashes
+            val safePadding = maxOf(8.dp, searchbarPadding)
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = searchbarPadding) // Animated padding applied here
+                    .padding(horizontal = safePadding) // Usar padding seguro
             ) {
-                // SearchBar con estilo Material 3 Expressive
                 SearchBar(
                     query = searchQuery,
                     onQueryChange = { searchQuery = it },
@@ -193,17 +180,15 @@ fun SearchScreen(
                     active = active,
                     onActiveChange = {
                         active = it
-                        // If search bar is closed with a query, ensure search is performed
                         if (!active && searchQuery.isNotBlank()) {
                             playerViewModel.performSearch(searchQuery)
                         }
                     },
                     modifier = Modifier
-                        .fillMaxWidth() // SearchBar fills the padded Box
-                        // Removed: .padding(horizontal = searchbarPadding)
-                        .padding(top = 8.dp, bottom = 0.dp) // Keep this
+                        .fillMaxWidth()
+                        .padding(top = 8.dp, bottom = 0.dp)
                         .animateContentSize()
-                        .clip(RoundedCornerShape(searchbarCornerRadius)), // Use static corner radius
+                        .clip(RoundedCornerShape(searchbarCornerRadius)),
                     placeholder = {
                         Text(
                             "Search...",
@@ -238,18 +223,17 @@ fun SearchScreen(
                         }
                     },
                     colors = SearchBarDefaults.colors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f), // Changed to primaryContainer with alpha
-                        dividerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), // Slightly increased alpha for divider
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                        dividerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
                         inputFieldColors = TextFieldDefaults.colors(
                             focusedTextColor = MaterialTheme.colorScheme.onSurface,
                             unfocusedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                             focusedContainerColor = Color.Transparent,
                             unfocusedContainerColor = Color.Transparent,
-                            cursorColor = MaterialTheme.colorScheme.primary // Ensure cursor uses primary color
+                            cursorColor = MaterialTheme.colorScheme.primary
                         )
                     ),
                     content = {
-                    // Resultados de búsqueda con animación
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -261,7 +245,7 @@ fun SearchScreen(
                                     .fillMaxWidth()
                                     .padding(bottom = 8.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp) // Added for vertical spacing if row wraps
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 SearchFilterChip(SearchFilterType.ALL, currentFilter, playerViewModel)
                                 SearchFilterChip(SearchFilterType.SONGS, currentFilter, playerViewModel)
@@ -271,7 +255,6 @@ fun SearchScreen(
                             }
 
                             if (searchQuery.isBlank() && active && searchHistory.isNotEmpty()) {
-                                // Corrected remember calls:
                                 val rememberedOnHistoryClick: (String) -> Unit = remember(playerViewModel) {
                                     { query -> searchQuery = query }
                                 }
@@ -293,16 +276,20 @@ fun SearchScreen(
                                     searchQuery = searchQuery,
                                     colorScheme = colorScheme
                                 )
-                            } else if (searchResults.isNotEmpty()) { // searchQuery is implied to be not blank here
-                                val rememberedOnItemSelected = remember { { active = false } } // Simplified remember
+                            } else if (searchResults.isNotEmpty()) {
+                                val rememberedOnItemSelected = remember { { active = false } }
                                 SearchResultsList(
                                     results = searchResults,
                                     playerViewModel = playerViewModel,
-                                    onItemSelected = rememberedOnItemSelected // Close search bar on item selection
+                                    onItemSelected = rememberedOnItemSelected
                                 )
                             } else if (searchQuery.isBlank() && active && searchHistory.isEmpty()) {
-                                // Active, blank query, no history -> show a message like "No recent searches"
-                                 Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
                                     Text("No recent searches", style = MaterialTheme.typography.bodyLarge)
                                 }
                             }
@@ -313,21 +300,18 @@ fun SearchScreen(
 
             // Content to show when SearchBar is not active
             if (!active) {
-                if (searchQuery.isBlank()) { // And by implication, searchResults are empty or irrelevant
-                    // playerViewModel, currentFilter are available in this scope if needed by GenreCategoriesGrid later
+                if (searchQuery.isBlank()) {
                     GenreCategoriesGrid(
                         genres = GenreDataSource.staticGenres,
                         onGenreClick = { genre ->
                             Log.d("SearchScreen", "Genre clicked: ${genre.name} (ID: ${genre.id})")
-                            navController.navigate(Screen.GenreDetail.createRoute(genre.id)) // Actual navigation
+                            navController.navigate(Screen.GenreDetail.createRoute(genre.id))
                         },
-                        playerViewModel = playerViewModel, // Pass the PlayerViewModel
-                        modifier = Modifier
-                            .padding(top = 12.dp)
+                        playerViewModel = playerViewModel,
+                        modifier = Modifier.padding(top = 12.dp)
                     )
-                } else { // Query is not blank, search bar not active, show results
+                } else {
                     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                        // Filter chips
                         FlowRow(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -337,14 +321,14 @@ fun SearchScreen(
                         ) {
                             SearchFilterChip(SearchFilterType.ALL, currentFilter, playerViewModel)
                             SearchFilterChip(SearchFilterType.SONGS, currentFilter, playerViewModel)
-                         SearchFilterChip(SearchFilterType.ALBUMS, currentFilter, playerViewModel)
-                         SearchFilterChip(SearchFilterType.ARTISTS, currentFilter, playerViewModel)
-                         SearchFilterChip(SearchFilterType.PLAYLISTS, currentFilter, playerViewModel)
-                     }
+                            SearchFilterChip(SearchFilterType.ALBUMS, currentFilter, playerViewModel)
+                            SearchFilterChip(SearchFilterType.ARTISTS, currentFilter, playerViewModel)
+                            SearchFilterChip(SearchFilterType.PLAYLISTS, currentFilter, playerViewModel)
+                        }
                         SearchResultsList(
                             results = searchResults,
                             playerViewModel = playerViewModel,
-                            onItemSelected = { /* No action needed here, search bar already closed */ }
+                            onItemSelected = { }
                         )
                     }
                 }
