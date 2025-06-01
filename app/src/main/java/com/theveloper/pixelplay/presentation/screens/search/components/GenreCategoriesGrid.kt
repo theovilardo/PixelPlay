@@ -22,6 +22,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -40,6 +41,7 @@ import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.NavBarPersistentHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.components.getNavigationBarHeight
+import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 @Composable
@@ -65,7 +67,7 @@ fun GenreCategoriesGrid(
         columns = GridCells.Fixed(2),
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 12.dp)
+            .padding(horizontal = 16.dp)
             // .clip( // AbsoluteSmoothCornerShape removed for simplicity, standard M3 shapes preferred
             //     shape = AbsoluteSmoothCornerShape(
             //         cornerRadiusTR = 22.dp,
@@ -237,7 +239,7 @@ private fun getGenreBackgroundColor(genreName: String): Color {
 // Función para mapear géneros a recursos de imagen
 private fun getGenreImageResource(genreName: String): Any {
     return when (genreName.lowercase()) {
-        "rock" -> R.drawable.rock
+        "rock" -> R.drawable.rock_guitar_test
         "pop" -> R.drawable.pop_mic
         "jazz" -> R.drawable.sax
         "classical" -> R.drawable.clasic_piano

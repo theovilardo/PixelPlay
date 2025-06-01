@@ -170,7 +170,9 @@ fun SearchScreen(
                     )
                 )
                 .padding(top = paddingValues.calculateTopPadding())
-        )
+        ){
+
+        }
 
         // Contenido principal
         Column(
@@ -205,100 +207,109 @@ fun SearchScreen(
                     placeholder = {
                         Text(
                             "Search...",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Rounded.Search,
-                        contentDescription = "Buscar",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                },
-                trailingIcon = {
-                    if (searchQuery.isNotBlank()) {
-                        IconButton(
-                            onClick = { searchQuery = "" },
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Search,
+                            contentDescription = "Buscar",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotBlank()) {
+                            IconButton(
+                                onClick = { searchQuery = "" },
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                                    )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Limpiar",
+                                    tint = MaterialTheme.colorScheme.primary
                                 )
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = "Limpiar",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
+                            }
                         }
-                    }
-                },
-                colors = SearchBarDefaults.colors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f), // Changed to primaryContainer with alpha
-                    dividerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), // Slightly increased alpha for divider
-                    inputFieldColors = TextFieldDefaults.colors(
-                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
-                        cursorColor = MaterialTheme.colorScheme.primary // Ensure cursor uses primary color
-                    )
-                ),
-                content = {
+                    },
+                    colors = SearchBarDefaults.colors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f), // Changed to primaryContainer with alpha
+                        dividerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), // Slightly increased alpha for divider
+                        inputFieldColors = TextFieldDefaults.colors(
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            cursorColor = MaterialTheme.colorScheme.primary // Ensure cursor uses primary color
+                        )
+                    ),
+                    content = {
                     // Resultados de búsqueda con animación
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        // Filter chips
-                        FlowRow(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(bottom = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp) // Added for vertical spacing if row wraps
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
-                            SearchFilterChip(SearchFilterType.ALL, currentFilter, playerViewModel)
-                            SearchFilterChip(SearchFilterType.SONGS, currentFilter, playerViewModel)
-                            SearchFilterChip(SearchFilterType.ALBUMS, currentFilter, playerViewModel)
-                            SearchFilterChip(SearchFilterType.ARTISTS, currentFilter, playerViewModel)
-                            SearchFilterChip(SearchFilterType.PLAYLISTS, currentFilter, playerViewModel)
-                        }
+                            // Filter chips
+                            FlowRow(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp) // Added for vertical spacing if row wraps
+                            ) {
+                                SearchFilterChip(SearchFilterType.ALL, currentFilter, playerViewModel)
+                                SearchFilterChip(SearchFilterType.SONGS, currentFilter, playerViewModel)
+                                SearchFilterChip(SearchFilterType.ALBUMS, currentFilter, playerViewModel)
+                                SearchFilterChip(SearchFilterType.ARTISTS, currentFilter, playerViewModel)
+                                SearchFilterChip(SearchFilterType.PLAYLISTS, currentFilter, playerViewModel)
+                            }
 
-                        if (searchQuery.isBlank() && active && searchHistory.isNotEmpty()) {
-                            val rememberedOnHistoryClick = remember { query: String -> searchQuery = query }
-                            val rememberedOnHistoryDelete = remember { query: String -> playerViewModel.deleteSearchHistoryItem(query) } // Simplified
-                            val rememberedOnClearAllHistory = remember { playerViewModel.clearSearchHistory() } // Simplified
-                            SearchHistoryList(
-                                historyItems = searchHistory,
-                                onHistoryClick = rememberedOnHistoryClick,
-                                onHistoryDelete = rememberedOnHistoryDelete,
-                                onClearAllHistory = rememberedOnClearAllHistory
-                            )
-                        } else if (searchQuery.isNotBlank() && searchResults.isEmpty()) {
-                            EmptySearchResults(
-                                searchQuery = searchQuery,
-                                colorScheme = colorScheme
-                            )
-                        } else if (searchResults.isNotEmpty()) { // searchQuery is implied to be not blank here
-                            val rememberedOnItemSelected = remember { { active = false } } // Simplified remember
-                            SearchResultsList(
-                                results = searchResults,
-                                playerViewModel = playerViewModel,
-                                onItemSelected = rememberedOnItemSelected // Close search bar on item selection
-                            )
-                        } else if (searchQuery.isBlank() && active && searchHistory.isEmpty()) {
-                            // Active, blank query, no history -> show a message like "No recent searches"
-                             Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                                Text("No recent searches", style = MaterialTheme.typography.bodyLarge)
+                            if (searchQuery.isBlank() && active && searchHistory.isNotEmpty()) {
+                                // Corrected remember calls:
+                                val rememberedOnHistoryClick: (String) -> Unit = remember(playerViewModel) {
+                                    { query -> searchQuery = query }
+                                }
+                                val rememberedOnHistoryDelete: (String) -> Unit = remember(playerViewModel) {
+                                    { query -> playerViewModel.deleteSearchHistoryItem(query) }
+                                }
+                                val rememberedOnClearAllHistory: () -> Unit = remember(playerViewModel) {
+                                    { playerViewModel.clearSearchHistory() }
+                                }
+
+                                SearchHistoryList(
+                                    historyItems = searchHistory,
+                                    onHistoryClick = rememberedOnHistoryClick,
+                                    onHistoryDelete = rememberedOnHistoryDelete,
+                                    onClearAllHistory = rememberedOnClearAllHistory
+                                )
+                            } else if (searchQuery.isNotBlank() && searchResults.isEmpty()) {
+                                EmptySearchResults(
+                                    searchQuery = searchQuery,
+                                    colorScheme = colorScheme
+                                )
+                            } else if (searchResults.isNotEmpty()) { // searchQuery is implied to be not blank here
+                                val rememberedOnItemSelected = remember { { active = false } } // Simplified remember
+                                SearchResultsList(
+                                    results = searchResults,
+                                    playerViewModel = playerViewModel,
+                                    onItemSelected = rememberedOnItemSelected // Close search bar on item selection
+                                )
+                            } else if (searchQuery.isBlank() && active && searchHistory.isEmpty()) {
+                                // Active, blank query, no history -> show a message like "No recent searches"
+                                 Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                    Text("No recent searches", style = MaterialTheme.typography.bodyLarge)
+                                }
                             }
                         }
                     }
-                }
-            )
+                )
+            }
 
             // Content to show when SearchBar is not active
             if (!active) {

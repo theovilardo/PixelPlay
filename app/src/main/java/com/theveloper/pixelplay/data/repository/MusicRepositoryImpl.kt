@@ -123,9 +123,10 @@ class MusicRepositoryImpl @Inject constructor(
                     val contentUri: Uri = ContentUris.withAppendedId(
                         MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id
                     )
-                    val albumArtUri: Uri? = ContentUris.withAppendedId(
-                        Uri.parse("content://media/external/audio/albumart"), albumId
+                    val albumArtUri: Uri = ContentUris.withAppendedId(
+                        "content://media/external/audio/albumart".toUri(), albumId
                     )
+                    val genreName = GenreDataSource.staticGenres.find { it.id == id.toString() }?.name ?: "Desconocido"
                     songs.add(
                         Song(
                             id = id.toString(),
@@ -135,7 +136,7 @@ class MusicRepositoryImpl @Inject constructor(
                             album = albumName,
                             albumId = albumId,
                             contentUriString = contentUri.toString(),
-                            albumArtUriString = albumArtUri?.toString(),
+                            albumArtUriString = albumArtUri.toString(),
                             duration = duration,
                             genre = genreName // Add genre here as well
                         )
