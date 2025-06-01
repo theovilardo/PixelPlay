@@ -208,7 +208,7 @@ fun UnifiedPlayerSheet(
     // NUEVO: Altura con espacio extra para la sombra
     val navBarElevation = if (!hideNavBar) 3.dp else 0.dp
     val shadowSpacePx = remember(density, navBarElevation) {
-        with(density) { (navBarElevation * 4).toPx() } // Espacio extra para la sombra
+        with(density) { (navBarElevation * 8).toPx() } // Espacio extra para la sombra
     }
 
     val animatedTotalSheetHeightWithShadowPx by remember(animatedTotalSheetHeightPx, hideNavBar, shadowSpacePx) {

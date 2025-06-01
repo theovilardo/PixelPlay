@@ -103,7 +103,16 @@ private fun GenreCard(
         modifier = Modifier
             .aspectRatio(1.2f) // Cambiado a 1.2f para más altura
             .clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.medium,
+        shape = AbsoluteSmoothCornerShape(
+            cornerRadiusTR = 26.dp,
+            smoothnessAsPercentTL = 60,
+            cornerRadiusTL = 26.dp,
+            smoothnessAsPercentTR = 60,
+            cornerRadiusBR = 26.dp,
+            smoothnessAsPercentBL = 60,
+            cornerRadiusBL = 26.dp,
+            smoothnessAsPercentBR = 60
+        ),
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
@@ -218,26 +227,27 @@ private fun getGenreBackgroundColor(genreName: String): Color {
 // Función para mapear géneros a recursos de imagen
 private fun getGenreImageResource(genreName: String): Any {
     return when (genreName.lowercase()) {
-        "rock" -> R.drawable.genre_default
-        "pop" -> R.drawable.genre_default
-        "jazz" -> R.drawable.genre_default
-        "classical" -> R.drawable.genre_default
-        "electronic" -> R.drawable.genre_default
-        "hip hop", "hip-hop", "rap" -> R.drawable.genre_default
-        "country" -> R.drawable.genre_default
-        "blues" -> R.drawable.genre_default
-        "reggae" -> R.drawable.genre_default
-        "metal" -> R.drawable.genre_default
-        "folk" -> R.drawable.genre_default
-        "r&b", "rnb" -> R.drawable.genre_default
-        "punk" -> R.drawable.genre_default
-        "indie" -> R.drawable.genre_default
-        "alternative" -> R.drawable.genre_default
-        "latino", "latin" -> R.drawable.genre_default
-        "reggaeton" -> R.drawable.genre_default
-        "salsa" -> R.drawable.genre_default
-        "bachata" -> R.drawable.genre_default
-        "merengue" -> R.drawable.genre_default
+        "rock" -> R.drawable.rock
+        "pop" -> R.drawable.pop_mic
+        "jazz" -> R.drawable.sax
+        "classical" -> R.drawable.clasic_piano
+        "electronic" -> R.drawable.electronic_sound
+        "hip hop", "hip-hop", "rap" -> R.drawable.rapper
+        "country" -> R.drawable.banjo
+        "blues" -> R.drawable.harmonica
+        "reggae" -> R.drawable.maracas
+        "metal" -> R.drawable.metal_guitar
+        "folk" -> R.drawable.accordion
+        "r&b / soul", "rnb" -> R.drawable.synth_piano
+        "punk" -> R.drawable.punk
+        "indie" -> R.drawable.idk_indie_ig
+        "folk & acoustic" -> R.drawable.acoustic_guitar
+        "alternative" -> R.drawable.alt_video
+        "latino", "latin" -> R.drawable.star_angle
+        "reggaeton" -> R.drawable.rapper
+        "salsa" -> R.drawable.conga
+        "bachata" -> R.drawable.bongos
+        "merengue" -> R.drawable.drum
         else -> R.drawable.genre_default
     }
 }
