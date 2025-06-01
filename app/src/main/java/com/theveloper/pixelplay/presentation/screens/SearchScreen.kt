@@ -133,11 +133,10 @@ fun SearchScreen(
     )
     
     val colorScheme = MaterialTheme.colorScheme
-
     val density = LocalDensity.current
-    val imeBottomPadding = remember { mutableStateOf(0.dp) }
-    val navBarBottomPadding = WindowInsets.navigationBars.getBottom(density).toDp()
 
+    // Directly use WindowInsets for padding in LazyColumn contentPadding
+    // This removes the need for imeBottomPadding mutableState.
 
     Box(
         modifier = Modifier
@@ -227,16 +226,10 @@ fun SearchScreen(
                 ),
                 content = {
                     // Resultados de búsqueda con animación
-                    val imeIsVisible = WindowInsets.ime.getBottom(density) > 0
-                    val currentImePadding = if (imeIsVisible) WindowInsets.ime.getBottom(density).toDp() else 0.dp
-                    imeBottomPadding.value = currentImePadding
-
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 8.dp)
-                            // Apply IME padding here if SearchBar content itself needs to be pushed up
-                            // For LazyColumns inside, it's better to apply as contentPadding
                     ) {
                         // Filter chips
                         FlowRow(
@@ -349,7 +342,7 @@ fun SearchHistoryList(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(
                 top = 8.dp,
-                bottom = 8.dp + imeBottomPadding.value // Add IME padding to history list
+                bottom = 8.dp + WindowInsets.ime.getBottom(density).toDp() // Direct IME padding
             )
         ) {
             items(historyItems, key = { "history_${it.id ?: it.query}" }) { item ->
@@ -447,7 +440,7 @@ fun SearchResultsList(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(
             top = 8.dp,
-            bottom = 8.dp + imeBottomPadding.value // Add IME padding to results list
+            bottom = 8.dp + WindowInsets.ime.getBottom(density).toDp() // Direct IME padding
         )
     ) {
         items(results, key = { item ->
@@ -601,7 +594,7 @@ fun ArtistListItem(artist: Artist, onClick: () -> Unit) {
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(artist.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${artist.trackCount} songs", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${artist.songCount} songs", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
              FilledIconButton(
                 onClick = onClick,
@@ -703,21 +696,16 @@ fun ExpressiveSongListItem(
         label = "elevation"
     )
 
-    val backgroundColor by animateColorAsState( // Ensure this label is unique if copied
-        targetValue = if (isPressed)
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) // Example color
-        else
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f), // Default color
-        label = "song_item_background_color" // Unique label
-    )
-
-    Card(
+    val backgroundColor by animateColorAsState(
         targetValue = if (isPressed)
             MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
         else
             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f),
-        label = "backgroundColor"
+        label = "song_item_background_color"
     )
+
+    // Removed the erroneous Card definition that was here.
+    // The correct Card is below, using the animated values.
 
     Card(
         modifier = Modifier
