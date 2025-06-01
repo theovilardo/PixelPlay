@@ -101,35 +101,35 @@ private fun GenreCard(
 
     Card(
         modifier = Modifier
-            .aspectRatio(1.2f) // Cambiado a 1.2f para más altura
+            .aspectRatio(1.2f)
+            .shadow(
+                elevation = 6.dp, // Expressive elevation
+                shape = RoundedCornerShape(24.dp),
+                spotColor = backgroundColor.copy(alpha = 0.5f) // Spot color based on genre bg
+            )
             .clickable(onClick = onClick),
-        shape = AbsoluteSmoothCornerShape(
-            cornerRadiusTR = 26.dp,
-            smoothnessAsPercentTL = 60,
-            cornerRadiusTL = 26.dp,
-            smoothnessAsPercentTR = 60,
-            cornerRadiusBR = 26.dp,
-            smoothnessAsPercentBL = 60,
-            cornerRadiusBL = 26.dp,
-            smoothnessAsPercentBR = 60
-        ),
-        colors = CardDefaults.cardColors(containerColor = backgroundColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        shape = RoundedCornerShape(24.dp), // Standard M3 rounded corners
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent), // Container made transparent, bg handled by Box
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp) // Elevation handled by shadow modifier
     ) {
         Box(
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(24.dp)) // Clip content to the card shape
+                .background(backgroundColor) // Set the base background color for the Box
         ) {
             // Gradiente de fondo sutil
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
-                        Brush.radialGradient(
+                        Brush.linearGradient(
                             colors = listOf(
+                                backgroundColor.copy(alpha = 0.6f), // Darker at the top
                                 backgroundColor.copy(alpha = 0.8f),
-                                backgroundColor
+                                backgroundColor // More opaque at the bottom
                             ),
-                            radius = 200f
+                            // startY = 0.0f, endY = Float.POSITIVE_INFINITY (default like)
                         )
                     )
             )
@@ -146,7 +146,7 @@ private fun GenreCard(
                     contentDescription = "Genre illustration",
                     modifier = Modifier
                         .fillMaxSize()
-                        .alpha(0.4f),
+                        .alpha(0.55f), // Increased alpha for better visibility
                     contentScale = ContentScale.Crop
                 )
             }

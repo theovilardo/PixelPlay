@@ -130,7 +130,14 @@ fun SearchScreen(
 
     val searchbarPadding by animateDpAsState(
         targetValue = if (!active) 24.dp else 0.dp,
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium), // Adjusted spring
         label = "searchbarPadding"
+    )
+
+    val searchbarCornerRadius by animateDpAsState(
+        targetValue = if (!active) 28.dp else 0.dp, // Animate to 0.dp when active
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium),
+        label = "searchbarCornerRadius"
     )
 
     // Colores con estilo "Expressive"
@@ -187,7 +194,7 @@ fun SearchScreen(
                     .padding(horizontal = searchbarPadding)
                     .padding(top = 8.dp, bottom = 0.dp)
                     .animateContentSize()
-                    .clip(RoundedCornerShape(28.dp)), // Más redondeado para estilo expresivo
+                    .clip(RoundedCornerShape(searchbarCornerRadius)), // Use animated corner radius
                 placeholder = {
                     Text(
                         "Search...",
@@ -222,13 +229,14 @@ fun SearchScreen(
                     }
                 },
                 colors = SearchBarDefaults.colors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-                    dividerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f), // Changed to primaryContainer with alpha
+                    dividerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), // Slightly increased alpha for divider
                     inputFieldColors = TextFieldDefaults.colors(
                         focusedTextColor = MaterialTheme.colorScheme.onSurface,
                         unfocusedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                         focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent
+                        unfocusedContainerColor = Color.Transparent,
+                        cursorColor = MaterialTheme.colorScheme.primary // Ensure cursor uses primary color
                     )
                 ),
                 content = {
@@ -254,18 +262,14 @@ fun SearchScreen(
                         }
 
                         if (searchQuery.isBlank() && active && searchHistory.isNotEmpty()) {
+                            val rememberedOnHistoryClick = remember { query: String -> searchQuery = query }
+                            val rememberedOnHistoryDelete = remember { query: String -> playerViewModel.deleteSearchHistoryItem(query) } // Simplified
+                            val rememberedOnClearAllHistory = remember { playerViewModel.clearSearchHistory() } // Simplified
                             SearchHistoryList(
                                 historyItems = searchHistory,
-                                onHistoryClick = { query ->
-                                    searchQuery = query
-                                    // active = false // Optionally close search bar to show results directly
-                                },
-                                onHistoryDelete = { query ->
-                                    playerViewModel.deleteSearchHistoryItem(query)
-                                },
-                                onClearAllHistory = {
-                                    playerViewModel.clearSearchHistory()
-                                }
+                                onHistoryClick = rememberedOnHistoryClick,
+                                onHistoryDelete = rememberedOnHistoryDelete,
+                                onClearAllHistory = rememberedOnClearAllHistory
                             )
                         } else if (searchQuery.isNotBlank() && searchResults.isEmpty()) {
                             EmptySearchResults(
@@ -273,10 +277,11 @@ fun SearchScreen(
                                 colorScheme = colorScheme
                             )
                         } else if (searchResults.isNotEmpty()) { // searchQuery is implied to be not blank here
+                            val rememberedOnItemSelected = remember { { active = false } } // Simplified remember
                             SearchResultsList(
                                 results = searchResults,
                                 playerViewModel = playerViewModel,
-                                onItemSelected = { active = false } // Close search bar on item selection
+                                onItemSelected = rememberedOnItemSelected // Close search bar on item selection
                             )
                         } else if (searchQuery.isBlank() && active && searchHistory.isEmpty()) {
                             // Active, blank query, no history -> show a message like "No recent searches"
@@ -536,36 +541,57 @@ fun SearchResultsList(
                     // Apply spacing for each item within the group
                     Box(modifier = Modifier.padding(bottom = 12.dp)) { // Add spacing here
                         when (item) {
-                            is SearchResultItem.SongItem -> ExpressiveSongListItem(
-                                song = item.song,
-                                onClick = {
-                                    playerViewModel.showAndPlaySong(item.song)
-                                    onItemSelected()
+                            is SearchResultItem.SongItem -> {
+                                val rememberedOnClick = remember(item.song, playerViewModel, onItemSelected) {
+                                    {
+                                        playerViewModel.showAndPlaySong(item.song)
+                                        onItemSelected()
+                                    }
                                 }
-                            )
-                            is SearchResultItem.AlbumItem -> AlbumListItem(
-                                album = item.album,
-                                onClick = {
-                                    Log.d("SearchScreen", "Album clicked: ${item.album.title}")
-                                    playerViewModel.playAlbum(item.album)
-                                    onItemSelected()
+                                ExpressiveSongListItem(
+                                    song = item.song,
+                                    onClick = rememberedOnClick
+                                )
+                            }
+                            is SearchResultItem.AlbumItem -> {
+                                val rememberedOnClick = remember(item.album, playerViewModel, onItemSelected) {
+                                    {
+                                        Log.d("SearchScreen", "Album clicked: ${item.album.title}")
+                                        playerViewModel.playAlbum(item.album)
+                                        onItemSelected()
+                                    }
                                 }
-                            )
-                            is SearchResultItem.ArtistItem -> ArtistSearchListItem(
-                                artist = item.artist,
-                                onClick = {
-                                    Log.d("SearchScreen", "Artist clicked: ${item.artist.name}")
-                                    playerViewModel.playArtist(item.artist)
-                                    onItemSelected()
+                                AlbumListItem(
+                                    album = item.album,
+                                    onClick = rememberedOnClick
+                                )
+                            }
+                            is SearchResultItem.ArtistItem -> {
+                                val rememberedOnClick = remember(item.artist, playerViewModel, onItemSelected) {
+                                    {
+                                        Log.d("SearchScreen", "Artist clicked: ${item.artist.name}")
+                                        playerViewModel.playArtist(item.artist)
+                                        onItemSelected()
+                                    }
                                 }
-                            )
-                            is SearchResultItem.PlaylistItem -> PlaylistListItem(
-                                playlist = item.playlist,
-                                onClick = {
-                                    Log.d("SearchScreen", "Playlist clicked: ${item.playlist.name}")
-                                    onItemSelected()
+                                ArtistSearchListItem(
+                                    artist = item.artist,
+                                    onClick = rememberedOnClick
+                                )
+                            }
+                            is SearchResultItem.PlaylistItem -> {
+                                val rememberedOnClick = remember(item.playlist, playerViewModel, onItemSelected) {
+                                    {
+                                        Log.d("SearchScreen", "Playlist clicked: ${item.playlist.name}")
+                                        // Assuming playerViewModel.playPlaylist(item.playlist) would be here too
+                                        onItemSelected()
+                                    }
                                 }
-                            )
+                                PlaylistListItem(
+                                    playlist = item.playlist,
+                                    onClick = rememberedOnClick
+                                )
+                            }
                         }
                     }
                 }
@@ -595,6 +621,11 @@ fun AlbumListItem(album: Album, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale)
+            .shadow(
+                elevation = 3.dp, // Slightly less elevation than song item
+                shape = RoundedCornerShape(20.dp),
+                spotColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.25f) // Using secondary color
+            )
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = { isPressed = true; tryAwaitRelease(); isPressed = false },
@@ -603,7 +634,7 @@ fun AlbumListItem(album: Album, onClick: () -> Unit) {
             },
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp) // Elevation handled by shadow modifier
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -653,6 +684,11 @@ fun ArtistSearchListItem(artist: Artist, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale)
+            .shadow(
+                elevation = 3.dp,
+                shape = RoundedCornerShape(20.dp),
+                spotColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.25f) // Using tertiary color
+            )
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = { isPressed = true; tryAwaitRelease(); isPressed = false },
@@ -661,7 +697,7 @@ fun ArtistSearchListItem(artist: Artist, onClick: () -> Unit) {
             },
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp) // Elevation handled by shadow modifier
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -712,6 +748,11 @@ fun PlaylistListItem(playlist: Playlist, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale)
+            .shadow(
+                elevation = 3.dp,
+                shape = RoundedCornerShape(20.dp),
+                spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) // Using primary color
+            )
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = { isPressed = true; tryAwaitRelease(); isPressed = false },
@@ -720,7 +761,7 @@ fun PlaylistListItem(playlist: Playlist, onClick: () -> Unit) {
             },
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp) // Elevation handled by shadow modifier
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -944,15 +985,15 @@ fun SearchFilterChip(
         onClick = { playerViewModel.updateSearchFilter(filterType) },
         label = { Text(filterType.name.lowercase().replaceFirstChar { it.titlecase() }) },
         modifier = modifier,
-        shape = RoundedCornerShape(16.dp), // Puedes mantener tu forma personalizada
+        shape = RoundedCornerShape(16.dp), // Expressive shape
         colors = FilterChipDefaults.filterChipColors(
-            // Colores para el estado no seleccionado
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            // Colores para el estado seleccionado
-            selectedContainerColor = MaterialTheme.colorScheme.primary,
-            selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-            // También puedes configurar iconColor, selectedLeadingIconColor, etc., si usas iconos
+            // Expressive colors for unselected state
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f),
+            labelColor = MaterialTheme.colorScheme.onTertiaryContainer,
+            // Expressive colors for selected state
+            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+            selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            selectedLeadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer // If using a leading icon
         ),
         // Opcional: puedes añadir un icono principal, por ejemplo, para indicar selección
         // leadingIcon = if (selected) {
