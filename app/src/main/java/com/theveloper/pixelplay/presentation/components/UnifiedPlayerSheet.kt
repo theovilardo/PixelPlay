@@ -16,6 +16,8 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -30,6 +32,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -63,6 +66,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -102,6 +106,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.theveloper.pixelplay.utils.formatDuration
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
@@ -148,6 +153,7 @@ fun UnifiedPlayerSheet(
     collapsedStateHorizontalPadding: Dp = 12.dp,
     collapsedStateBottomMargin: Dp = 0.dp,
     hideNavBar: Boolean = false
+    // isKeyboardVisible: Boolean // Removed
 ) {
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
     val playerUiState by playerViewModel.playerUiState.collectAsState()
@@ -459,6 +465,20 @@ fun UnifiedPlayerSheet(
         derivedStateOf { showPlayerContentArea || !hideNavBar }
     }
 
+    var internalIsKeyboardVisible by remember { mutableStateOf(false) }
+
+    // Observe IME visibility using snapshotFlow (recommended)
+    val imeInsets = WindowInsets.ime
+    LaunchedEffect(imeInsets, density) { // Relaunch if imeInsets object or density changes
+        snapshotFlow { imeInsets.getBottom(density) > 0 }
+            .collectLatest { isVisible ->
+                internalIsKeyboardVisible = isVisible
+                Log.d("UnifiedPlayerSheet", "Internal Keyboard Visible: $isVisible")
+            }
+    }
+
+    val actuallyShowSheetContent = shouldShowSheet && !internalIsKeyboardVisible
+
     val currentAlbumColorSchemePair by playerViewModel.currentAlbumArtColorSchemePair.collectAsState()
     val isDarkTheme = isSystemInDarkTheme()
     val albumColorScheme = remember(currentAlbumColorSchemePair, isDarkTheme) {
@@ -495,45 +515,46 @@ fun UnifiedPlayerSheet(
         )
     }
 
-    if (shouldShowSheet) {
-        // CORREGIDO: Dim Layer mejorado
-        AnimatedVisibility(
-            visible = showPlayerContentArea && playerContentExpansionFraction.value > 0f,
-            enter = fadeIn(animationSpec = tween(durationMillis = ANIMATION_DURATION_MS)),
-            exit = fadeOut(animationSpec = tween(durationMillis = ANIMATION_DURATION_MS))
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(color = if (isSystemInDarkTheme()) Color.Black.copy(alpha = currentDimLayerAlpha) else Color.White.copy(alpha = currentDimLayerAlpha))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        // Colapsar el player al hacer click en el dim layer
-                        if (currentSheetContentState == PlayerSheetState.EXPANDED) {
-                            playerViewModel.collapsePlayerSheet()
-                        }
+    AnimatedVisibility(
+        visible = showPlayerContentArea && playerContentExpansionFraction.value > 0f && !internalIsKeyboardVisible,
+        enter = fadeIn(animationSpec = tween(ANIMATION_DURATION_MS)),
+        exit = fadeOut(animationSpec = tween(ANIMATION_DURATION_MS))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(color = if (isSystemInDarkTheme()) Color.Black.copy(alpha = currentDimLayerAlpha) else Color.White.copy(alpha = currentDimLayerAlpha))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    if (currentSheetContentState == PlayerSheetState.EXPANDED) {
+                        playerViewModel.collapsePlayerSheet()
                     }
-            )
-        }
+                }
+        )
+    }
+
+    // Main sheet content logic:
+    // The AnimatedVisibility that was here (using slideInVertically/slideOutVertically) is REMOVED.
+    // It is REPLACED by this 'if' statement:
+    if (actuallyShowSheetContent) {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .graphicsLayer { translationY = visualSheetTranslationY }
                 .height(animatedTotalSheetHeightWithShadowDp),
             shadowElevation = 0.dp,
-            //shape = sheetShape,
             color = Color.Transparent
         ) {
+            // The original Column and its content (player area, spacer, PlayerInternalNavigationBar)
+            // remain structurally the same inside this Surface.
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    //.padding(bottom = if (hideNavBar) 0.dp else (navBarElevation * 2)) // Padding bottom solo cuando hay navbar
             ) {
-                // MEJORADO: Solo mostrar área del player si hay contenido
+                // Example of internal structure (should match existing content):
                 if (showPlayerContentArea) {
-                    // Crear un CompositionLocalProvider para aplicar el tema solo al área del player
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -828,7 +849,7 @@ fun UnifiedPlayerSheet(
     }
 
     // Queue bottom sheet
-    if (showQueueSheet) {
+    if (showQueueSheet && !internalIsKeyboardVisible) { // Use internalIsKeyboardVisible
         CompositionLocalProvider(
             LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
         ) {

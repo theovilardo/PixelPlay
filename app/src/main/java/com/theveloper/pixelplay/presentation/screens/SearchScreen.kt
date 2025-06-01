@@ -82,9 +82,9 @@ import com.theveloper.pixelplay.data.model.SearchResultItem
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
-import androidx.compose.material.icons.rounded.PlaylistPlay
 import android.util.Log
 import androidx.compose.material.icons.rounded.DeleteForever
+import androidx.compose.material.icons.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
@@ -96,12 +96,17 @@ import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.ui.platform.LocalDensity
+import androidx.navigation.NavHostController
+import com.theveloper.pixelplay.data.datasource.GenreDataSource
+import com.theveloper.pixelplay.presentation.navigation.Screen // Required for Screen.GenreDetail.createRoute
+import com.theveloper.pixelplay.presentation.screens.search.components.GenreCategoriesGrid
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SearchScreen(
     paddingValues: PaddingValues,
-    playerViewModel: PlayerViewModel = hiltViewModel()
+    playerViewModel: PlayerViewModel = hiltViewModel(), // playerViewModel is already here
+    navController: NavHostController // Add navController
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var active by remember { mutableStateOf(false) }
@@ -180,7 +185,7 @@ fun SearchScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = searchbarPadding)
-                    .padding(top = 8.dp, bottom = 16.dp)
+                    .padding(top = 8.dp, bottom = 0.dp)
                     .animateContentSize()
                     .clip(RoundedCornerShape(28.dp)), // Más redondeado para estilo expresivo
                 placeholder = {
@@ -286,19 +291,31 @@ fun SearchScreen(
             // Content to show when SearchBar is not active
             if (!active) {
                 if (searchQuery.isBlank()) { // And by implication, searchResults are empty or irrelevant
-                    InitialSearchState(colorScheme = colorScheme)
+                    // playerViewModel, currentFilter are available in this scope if needed by GenreCategoriesGrid later
+                    GenreCategoriesGrid(
+                        genres = GenreDataSource.staticGenres,
+                        onGenreClick = { genre ->
+                            Log.d("SearchScreen", "Genre clicked: ${genre.name} (ID: ${genre.id})")
+                            navController.navigate(Screen.GenreDetail.createRoute(genre.id)) // Actual navigation
+                        },
+                        modifier = Modifier
+                            .padding(top = 12.dp) // Pass appropriate padding if needed
+                                         // Consider if paddingValues from SearchScreen is the right one,
+                                         // or if GenreCategoriesGrid should handle its own internal padding.
+                                         // The grid itself has internal padding, so this might be for overall screen padding.
+                    )
                 } else { // Query is not blank, search bar not active, show results
                     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                     // Filter chips (placeholders) - A duplicar o gestionar estado para no tenerlos en dos sitios
-                     FlowRow(
-                         modifier = Modifier
-                             .fillMaxWidth()
-                             .padding(vertical = 8.dp),
-                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                         verticalArrangement = Arrangement.spacedBy(8.dp) // Added for vertical spacing
-                     ) {
-                         SearchFilterChip(SearchFilterType.ALL, currentFilter, playerViewModel)
-                         SearchFilterChip(SearchFilterType.SONGS, currentFilter, playerViewModel)
+                        // Filter chips
+                        FlowRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            SearchFilterChip(SearchFilterType.ALL, currentFilter, playerViewModel)
+                            SearchFilterChip(SearchFilterType.SONGS, currentFilter, playerViewModel)
                          SearchFilterChip(SearchFilterType.ALBUMS, currentFilter, playerViewModel)
                          SearchFilterChip(SearchFilterType.ARTISTS, currentFilter, playerViewModel)
                          SearchFilterChip(SearchFilterType.PLAYLISTS, currentFilter, playerViewModel)
@@ -313,6 +330,17 @@ fun SearchScreen(
             }
         }
     }
+}
+
+@Composable
+fun SearchResultSectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp, horizontal = 4.dp) // Adjust padding as needed
+    )
 }
 
 @Composable
@@ -345,7 +373,7 @@ fun SearchHistoryList(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(
                 top = 8.dp,
-                bottom = 8.dp + WindowInsets.ime.getBottom(localDensity).dp // Direct IME padding
+               // bottom = 8.dp + WindowInsets.ime.getBottom(localDensity).dp // Direct IME padding
             )
         ) {
             items(historyItems, key = { "history_${it.id ?: it.query}" }) { item ->
@@ -439,57 +467,108 @@ fun SearchResultsList(
     onItemSelected: () -> Unit
 ) {
     val localDensity = LocalDensity.current
+
+    if (results.isEmpty()) { // Should be handled by EmptySearchResults, but good to have a check
+        // EmptySearchResults is typically called before SearchResultsList if results are empty.
+        // However, if called directly with empty results, this provides a fallback.
+        Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+            Text("No results found.", style = MaterialTheme.typography.bodyLarge)
+        }
+        return
+    }
+
+    // Group results by type
+    val groupedResults = results.groupBy { item ->
+        when (item) {
+            is SearchResultItem.SongItem -> SearchFilterType.SONGS
+            is SearchResultItem.AlbumItem -> SearchFilterType.ALBUMS
+            is SearchResultItem.ArtistItem -> SearchFilterType.ARTISTS
+            is SearchResultItem.PlaylistItem -> SearchFilterType.PLAYLISTS
+        }
+    }
+
+    // Define the desired order of sections
+    val sectionOrder = listOf(
+        SearchFilterType.SONGS,
+        SearchFilterType.ALBUMS,
+        SearchFilterType.ARTISTS,
+        SearchFilterType.PLAYLISTS
+        // Add SearchFilterType.ALL here if you expect it in groupedResults and want a section for it.
+        // However, SearchResultItem itself does not have an 'ALL' type, so this might not be applicable
+        // unless your SearchResultItem has a more generic fallback type.
+    )
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        // Remove global verticalArrangement.spacedBy if headers manage their own spacing or if spacing between items of different types is not desired.
+        // verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(
             top = 8.dp,
             bottom = 8.dp + WindowInsets.ime.getBottom(localDensity).dp // Direct IME padding
         )
     ) {
-        items(results, key = { item ->
-            when (item) {
-                is SearchResultItem.SongItem -> "song_${item.song.id}"
-                is SearchResultItem.AlbumItem -> "album_${item.album.id}"
-                is SearchResultItem.ArtistItem -> "artist_${item.artist.id}"
-                is SearchResultItem.PlaylistItem -> "playlist_${item.playlist.id}"
-            }
-        }) { item ->
-            when (item) {
-                is SearchResultItem.SongItem -> ExpressiveSongListItem(
-                    song = item.song,
-                    onClick = {
-                        playerViewModel.showAndPlaySong(item.song)
-                        onItemSelected()
+        sectionOrder.forEach { filterType ->
+            val itemsForSection = groupedResults[filterType] ?: emptyList()
+
+            if (itemsForSection.isNotEmpty()) {
+                // Add header for the section
+                item {
+                    SearchResultSectionHeader(
+                        title = when (filterType) {
+                            SearchFilterType.SONGS -> "Songs"
+                            SearchFilterType.ALBUMS -> "Albums"
+                            SearchFilterType.ARTISTS -> "Artists"
+                            SearchFilterType.PLAYLISTS -> "Playlists"
+                            else -> "Results" // Fallback, should ideally not happen with explicit types
+                        }
+                    )
+                }
+
+                // Add items for this section
+                items(itemsForSection, key = { item ->
+                    when (item) {
+                        is SearchResultItem.SongItem -> "song_${item.song.id}"
+                        is SearchResultItem.AlbumItem -> "album_${item.album.id}"
+                        is SearchResultItem.ArtistItem -> "artist_${item.artist.id}"
+                        is SearchResultItem.PlaylistItem -> "playlist_${item.playlist.id}"
                     }
-                )
-                is SearchResultItem.AlbumItem -> AlbumListItem(
-                    album = item.album,
-                    onClick = {
-                        // TODO: Implement navigation or action for album
-                        Log.d("SearchScreen", "Album clicked: ${item.album.title}")
-                        playerViewModel.playAlbum(item.album)
-                        onItemSelected()
+                }) { item ->
+                    // Apply spacing for each item within the group
+                    Box(modifier = Modifier.padding(bottom = 12.dp)) { // Add spacing here
+                        when (item) {
+                            is SearchResultItem.SongItem -> ExpressiveSongListItem(
+                                song = item.song,
+                                onClick = {
+                                    playerViewModel.showAndPlaySong(item.song)
+                                    onItemSelected()
+                                }
+                            )
+                            is SearchResultItem.AlbumItem -> AlbumListItem(
+                                album = item.album,
+                                onClick = {
+                                    Log.d("SearchScreen", "Album clicked: ${item.album.title}")
+                                    playerViewModel.playAlbum(item.album)
+                                    onItemSelected()
+                                }
+                            )
+                            is SearchResultItem.ArtistItem -> ArtistSearchListItem(
+                                artist = item.artist,
+                                onClick = {
+                                    Log.d("SearchScreen", "Artist clicked: ${item.artist.name}")
+                                    playerViewModel.playArtist(item.artist)
+                                    onItemSelected()
+                                }
+                            )
+                            is SearchResultItem.PlaylistItem -> PlaylistListItem(
+                                playlist = item.playlist,
+                                onClick = {
+                                    Log.d("SearchScreen", "Playlist clicked: ${item.playlist.name}")
+                                    onItemSelected()
+                                }
+                            )
+                        }
                     }
-                )
-                is SearchResultItem.ArtistItem -> ArtistSearchListItem(
-                    artist = item.artist,
-                    onClick = {
-                        // TODO: Implement navigation or action for artist
-                        Log.d("SearchScreen", "Artist clicked: ${item.artist.name}")
-                        playerViewModel.playArtist(item.artist)
-                        onItemSelected()
-                    }
-                )
-                is SearchResultItem.PlaylistItem -> PlaylistListItem(
-                    playlist = item.playlist,
-                    onClick = {
-                        // TODO: Implement navigation or action for playlist
-                        Log.d("SearchScreen", "Playlist clicked: ${item.playlist.name}")
-                        // playerViewModel.playPlaylist(item.playlist) // Assuming such a method exists
-                        onItemSelected()
-                    }
-                )
+                }
             }
         }
     }
@@ -888,85 +967,4 @@ fun SearchFilterChip(
         //     null
         // }
     )
-}
-
-
-@Composable
-fun InitialSearchState(colorScheme: ColorScheme) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 24.dp, vertical = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Top
-    ) {
-        // Elemento decorativo expresivo
-        Box(
-            modifier = Modifier
-                .size(180.dp)
-                .padding(bottom = 24.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            // Círculos concéntricos con un efecto de ondas
-            for (i in 3 downTo 0) {
-                val alpha = 0.2f - (i * 0.05f)
-                Canvas(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding((i * 12).dp)
-                ) {
-                    // drawCircle( // Commented out for brevity, no functional change
-                    //     color = colorScheme.primary.copy(alpha = alpha),
-                    //     radius = size.minDimension / 2
-                    // )
-                }
-            }
-
-            // Icono central
-            Icon(
-                imageVector = Icons.Rounded.MusicNote,
-                contentDescription = null,
-                modifier = Modifier.size(72.dp),
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-            )
-        }
-
-        Text(
-            text = "Tu biblioteca musical",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = "Search to discover songs, artists or albums that inspire you",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 24.dp)
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        // Sugerencias rápidas de búsqueda (can be kept or removed based on final design with history)
-        // Text(
-        //     text = "Try searching:",
-        //     style = MaterialTheme.typography.titleMedium,
-        //     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
-        //     modifier = Modifier.align(Alignment.Start).padding(start = 8.dp, bottom = 12.dp)
-        // )
-
-        // FlowRow(
-        //     modifier = Modifier.fillMaxWidth(),
-        //     horizontalArrangement = Arrangement.spacedBy(8.dp),
-        //     verticalArrangement = Arrangement.spacedBy(8.dp)
-        // ) {
-        //     SuggestionChip(onClick = { }, label = { Text("Pop") })
-        //     SuggestionChip(onClick = { }, label = { Text("Classic Rock") })
-        //     SuggestionChip(onClick = { }, label = { Text("Latin Music") })
-        //     SuggestionChip(onClick = { }, label = { Text("Indie") })
-        // }
-    }
 }
