@@ -93,6 +93,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.ui.platform.LocalDensity
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -320,6 +322,7 @@ fun SearchHistoryList(
     onHistoryDelete: (String) -> Unit,
     onClearAllHistory: () -> Unit
 ) {
+    val localDensity = LocalDensity.current
     Column {
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 8.dp),
@@ -342,7 +345,7 @@ fun SearchHistoryList(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(
                 top = 8.dp,
-                bottom = 8.dp + WindowInsets.ime.getBottom(density).toDp() // Direct IME padding
+                bottom = 8.dp + WindowInsets.ime.getBottom(localDensity).dp // Direct IME padding
             )
         ) {
             items(historyItems, key = { "history_${it.id ?: it.query}" }) { item ->
@@ -435,12 +438,13 @@ fun SearchResultsList(
     playerViewModel: PlayerViewModel,
     onItemSelected: () -> Unit
 ) {
+    val localDensity = LocalDensity.current
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(
             top = 8.dp,
-            bottom = 8.dp + WindowInsets.ime.getBottom(density).toDp() // Direct IME padding
+            bottom = 8.dp + WindowInsets.ime.getBottom(localDensity).dp // Direct IME padding
         )
     ) {
         items(results, key = { item ->
@@ -468,7 +472,7 @@ fun SearchResultsList(
                         onItemSelected()
                     }
                 )
-                is SearchResultItem.ArtistItem -> ArtistListItem(
+                is SearchResultItem.ArtistItem -> ArtistSearchListItem(
                     artist = item.artist,
                     onClick = {
                         // TODO: Implement navigation or action for artist
@@ -530,7 +534,7 @@ fun AlbumListItem(album: Album, onClick: () -> Unit) {
                 model = album.albumArtUriString,
                 contentDescription = "Album Art: ${album.title}",
                 modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)),
-                defaultIcon = { Icon(Icons.Rounded.Album, null, modifier = Modifier.fillMaxSize())}
+                //defaultIcon = { Icon(Icons.Rounded.Album, null, modifier = Modifier.fillMaxSize())}
             )
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
@@ -553,7 +557,7 @@ fun AlbumListItem(album: Album, onClick: () -> Unit) {
 }
 
 @Composable
-fun ArtistListItem(artist: Artist, onClick: () -> Unit) {
+fun ArtistSearchListItem(artist: Artist, onClick: () -> Unit) {
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.97f else 1f,
@@ -846,30 +850,43 @@ fun ExpressiveSongListItem(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class) // FilterChip y sus defaults son experimentales
 @Composable
 fun SearchFilterChip(
     filterType: SearchFilterType,
-    currentFilter: SearchFilterType,
-    playerViewModel: PlayerViewModel
+    currentFilter: SearchFilterType, // Este valor debería provenir del estado de tu PlayerViewModel
+    playerViewModel: PlayerViewModel,
+    modifier: Modifier = Modifier
 ) {
     val selected = filterType == currentFilter
-    SuggestionChip(
+
+    FilterChip(
+        selected = selected, // FilterChip tiene un parámetro 'selected'
         onClick = { playerViewModel.updateSearchFilter(filterType) },
         label = { Text(filterType.name.lowercase().replaceFirstChar { it.titlecase() }) },
-        selected = selected,
-        shape = RoundedCornerShape(16.dp),
-        colors = SuggestionChipDefaults.suggestionChipColors(
-            selectedContainerColor = MaterialTheme.colorScheme.primary,
-            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp), // Puedes mantener tu forma personalizada
+        colors = FilterChipDefaults.filterChipColors(
+            // Colores para el estado no seleccionado
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            // Colores para el estado seleccionado
+            selectedContainerColor = MaterialTheme.colorScheme.primary,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+            // También puedes configurar iconColor, selectedLeadingIconColor, etc., si usas iconos
         ),
-        border = SuggestionChipDefaults.suggestionChipBorder(
-            borderColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-            selectedBorderColor = MaterialTheme.colorScheme.primary,
-            borderWidth = 1.dp,
-            selectedBorderWidth = 1.dp
-        )
+        // Opcional: puedes añadir un icono principal, por ejemplo, para indicar selección
+        // leadingIcon = if (selected) {
+        //     {
+        //         Icon(
+        //             imageVector = Icons.Filled.Done,
+        //             contentDescription = "Selected",
+        //             modifier = Modifier.size(FilterChipDefaults.IconSize)
+        //         )
+        //     }
+        // } else {
+        //     null
+        // }
     )
 }
 
