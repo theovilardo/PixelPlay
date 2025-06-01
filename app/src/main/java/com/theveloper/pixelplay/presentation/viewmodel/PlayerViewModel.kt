@@ -1168,4 +1168,17 @@ class PlayerViewModel @Inject constructor(
         preloadThemesAndInitialData()
         loadSearchHistory() // Load initial search history
     }
+
+    fun getSongUrisForGenre(genreName: String): List<String> {
+        val currentSongs = _playerUiState.value.allSongs
+
+        if (currentSongs.isEmpty()) {
+            return emptyList()
+        }
+
+        return currentSongs
+            .filter { song -> song.genre.equals(genreName, ignoreCase = true) }
+            .take(3)
+            .mapNotNull { song -> song.albumArtUriString?.ifEmpty { null } } // Ensure URI is not null and not empty
+    }
 }

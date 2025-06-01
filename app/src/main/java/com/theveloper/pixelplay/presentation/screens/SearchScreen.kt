@@ -128,12 +128,11 @@ fun SearchScreen(
 
     // Efectos de animación para el encabezado
 
-    // val searchbarPadding by animateDpAsState( // Temporarily commented out for testing
-    //     targetValue = if (!active) 24.dp else 0.dp,
-    //     animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium), // Adjusted spring
-    //     label = "searchbarPadding"
-    // )
-    val searchbarPadding = 0.dp // Test with static 0.dp padding
+    val searchbarPadding by animateDpAsState(
+        targetValue = if (!active) 24.dp else 0.dp,
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium), // Restored spring
+        label = "searchbarPadding"
+    )
 
     // val searchbarCornerRadius by animateDpAsState( // Reverted: Animated corner radius
     //     targetValue = if (!active) 28.dp else 0.dp,
@@ -178,28 +177,34 @@ fun SearchScreen(
             modifier = Modifier
                 .fillMaxSize()
         ) {
-            // SearchBar con estilo Material 3 Expressive
-            SearchBar(
-                query = searchQuery,
-                onQueryChange = { searchQuery = it },
-                onSearch = { active = false },
-                active = active,
-                onActiveChange = {
-                    active = it
-                    // If search bar is closed with a query, ensure search is performed
-                    if (!active && searchQuery.isNotBlank()) {
-                        playerViewModel.performSearch(searchQuery)
-                    }
-                },
+            // Wrapper Box for animated horizontal padding
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = searchbarPadding)
-                    .padding(top = 8.dp, bottom = 0.dp)
-                    .animateContentSize()
-                    .clip(RoundedCornerShape(searchbarCornerRadius)), // Use static corner radius
-                placeholder = {
-                    Text(
-                        "Search...",
+                    .padding(horizontal = searchbarPadding) // Animated padding applied here
+            ) {
+                // SearchBar con estilo Material 3 Expressive
+                SearchBar(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    onSearch = { active = false },
+                    active = active,
+                    onActiveChange = {
+                        active = it
+                        // If search bar is closed with a query, ensure search is performed
+                        if (!active && searchQuery.isNotBlank()) {
+                            playerViewModel.performSearch(searchQuery)
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth() // SearchBar fills the padded Box
+                        // Removed: .padding(horizontal = searchbarPadding)
+                        .padding(top = 8.dp, bottom = 0.dp) // Keep this
+                        .animateContentSize()
+                        .clip(RoundedCornerShape(searchbarCornerRadius)), // Use static corner radius
+                    placeholder = {
+                        Text(
+                            "Search...",
                         style = MaterialTheme.typography.bodyLarge
                     )
                 },
@@ -305,11 +310,9 @@ fun SearchScreen(
                             Log.d("SearchScreen", "Genre clicked: ${genre.name} (ID: ${genre.id})")
                             navController.navigate(Screen.GenreDetail.createRoute(genre.id)) // Actual navigation
                         },
+                        playerViewModel = playerViewModel, // Pass the PlayerViewModel
                         modifier = Modifier
-                            .padding(top = 12.dp) // Pass appropriate padding if needed
-                                         // Consider if paddingValues from SearchScreen is the right one,
-                                         // or if GenreCategoriesGrid should handle its own internal padding.
-                                         // The grid itself has internal padding, so this might be for overall screen padding.
+                            .padding(top = 12.dp)
                     )
                 } else { // Query is not blank, search bar not active, show results
                     Column(modifier = Modifier.padding(horizontal = 16.dp)) {

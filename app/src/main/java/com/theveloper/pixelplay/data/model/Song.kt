@@ -13,5 +13,6 @@ data class Song(
     val albumId: Long, // MediaStore.Audio.Media.ALBUM_ID para obtener carátula
     val contentUriString: String, // Uri para cargar la canción
     val albumArtUriString: String?, // Uri de la carátula del álbum
-    val duration: Long // en milisegundos
+    val duration: Long, // en milisegundos
+    val genre: String? = null // Added genre field
 )

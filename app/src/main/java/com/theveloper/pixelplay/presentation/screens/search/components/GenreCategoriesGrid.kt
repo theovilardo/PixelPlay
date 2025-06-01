@@ -46,6 +46,7 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 fun GenreCategoriesGrid(
     genres: List<Genre>,
     onGenreClick: (Genre) -> Unit,
+    playerViewModel: PlayerViewModel, // Added playerViewModel parameter
     modifier: Modifier = Modifier
 ) {
     if (genres.isEmpty()) {
@@ -65,18 +66,19 @@ fun GenreCategoriesGrid(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 12.dp)
-            .clip(
-                shape = AbsoluteSmoothCornerShape(
-                    cornerRadiusTR = 22.dp,
-                    smoothnessAsPercentTL = 60,
-                    cornerRadiusTL = 22.dp,
-                    smoothnessAsPercentTR = 60,
-                    cornerRadiusBR = 0.dp,
-                    smoothnessAsPercentBL = 60,
-                    cornerRadiusBL = 0.dp,
-                    smoothnessAsPercentBR = 60
-                )
-            ),
+            // .clip( // AbsoluteSmoothCornerShape removed for simplicity, standard M3 shapes preferred
+            //     shape = AbsoluteSmoothCornerShape(
+            //         cornerRadiusTR = 22.dp,
+            //         smoothnessAsPercentTL = 60,
+            //         cornerRadiusTL = 22.dp,
+            //         smoothnessAsPercentTR = 60,
+            //         cornerRadiusBR = 0.dp,
+            //         smoothnessAsPercentBL = 60,
+            //         cornerRadiusBL = 0.dp,
+            //         smoothnessAsPercentBR = 60
+            //     )
+            // )
+            .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)), // Standard clip for top corners
         contentPadding = PaddingValues(
             top = 8.dp,
             bottom = 28.dp + NavBarPersistentHeight + MiniPlayerHeight + systemNavBarHeight
@@ -85,7 +87,14 @@ fun GenreCategoriesGrid(
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         items(genres, key = { it.id }) { genre ->
-            GenreCard(genre = genre, onClick = { onGenreClick(genre) })
+            val songCoverUris = remember(genre.name, playerViewModel) { // Fetch real URIs
+                playerViewModel.getSongUrisForGenre(genre.name)
+            }
+            GenreCard(
+                genre = genre,
+                songCoverUris = songCoverUris, // Pass real URIs
+                onClick = { onGenreClick(genre) }
+            )
         }
     }
 }
@@ -93,11 +102,11 @@ fun GenreCategoriesGrid(
 @Composable
 private fun GenreCard(
     genre: Genre,
+    songCoverUris: List<String>, // Use real URIs
     onClick: () -> Unit
 ) {
     val backgroundColor = getGenreBackgroundColor(genre.name)
-    // Simulamos algunas canciones para mostrar los cover arts
-    val sampleSongCovers = getSampleSongCovers(genre.name)
+    // val sampleSongCovers = getSampleSongCovers(genre.name) // Removed sample covers
 
     Card(
         modifier = Modifier
@@ -172,7 +181,7 @@ private fun GenreCard(
                     .alpha(1f), // Explicitly set alpha to ensure visibility
                 horizontalArrangement = Arrangement.spacedBy((-8).dp) // Overlap negativo
             ) {
-                sampleSongCovers.take(3).forEachIndexed { index, coverUrl ->
+                songCoverUris.forEachIndexed { index, coverUrl -> // Iterate over real URIs
                     Box(
                         modifier = Modifier
                             .size(32.dp)
@@ -253,17 +262,15 @@ private fun getGenreImageResource(genreName: String): Any {
     }
 }
 
-// Función temporal para simular covers de canciones
-// En tu implementación real, esto vendría de tu base de datos
-private fun getSampleSongCovers(genreName: String): List<String> {
-    // Aquí deberías obtener los covers reales de las canciones de ese género
-    // Por ahora retorno una lista de ejemplo
-    return listOf(
-        "https://example.com/cover1.jpg",
-        "https://example.com/cover2.jpg",
-        "https://example.com/cover3.jpg"
-    )
-}
+// private fun getSampleSongCovers(genreName: String): List<String> { // This function is no longer needed
+//     // Aquí deberías obtener los covers reales de las canciones de ese género
+//     // Por ahora retorno una lista de ejemplo
+//     return listOf(
+//         "https://example.com/cover1.jpg",
+//         "https://example.com/cover2.jpg",
+//         "https://example.com/cover3.jpg"
+//     )
+// }
 
 //@Composable
 //fun GenreCategoriesGrid(

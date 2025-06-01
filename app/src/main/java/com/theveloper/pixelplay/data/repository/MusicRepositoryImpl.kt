@@ -136,7 +136,8 @@ class MusicRepositoryImpl @Inject constructor(
                             albumId = albumId,
                             contentUriString = contentUri.toString(),
                             albumArtUriString = albumArtUri?.toString(),
-                            duration = duration
+                            duration = duration,
+                            genre = genreName // Add genre here as well
                         )
                     )
                 }
@@ -222,6 +223,23 @@ class MusicRepositoryImpl @Inject constructor(
                     if (isAllowed) {
                         val id = c.getLong(idCol)
                         val title = c.getString(titleCol)
+                                val songId = id // Already have song ID as 'id'
+                                var genreName: String? = null
+
+                                // Query for genre
+                                val genreUri = MediaStore.Audio.Genres.getContentUriForAudioId("external", songId.toInt())
+                                val genreProjection = arrayOf(MediaStore.Audio.GenresColumns.NAME)
+                                try {
+                                    context.contentResolver.query(genreUri, genreProjection, null, null, null)?.use { genreCursor ->
+                                        if (genreCursor.moveToFirst()) {
+                                            val genreNameColumn = genreCursor.getColumnIndexOrThrow(MediaStore.Audio.GenresColumns.NAME)
+                                            genreName = genreCursor.getString(genreNameColumn)
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("MusicRepositoryImpl", "Error fetching genre for song ID: $songId", e)
+                                }
+
                         songsToReturn.add(
                             Song(
                                 id = id.toString(),
@@ -232,7 +250,8 @@ class MusicRepositoryImpl @Inject constructor(
                                 albumId = c.getLong(albumIdCol),
                                 contentUriString = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id).toString(),
                                 albumArtUriString = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), c.getLong(albumIdCol))?.toString(),
-                                duration = c.getLong(durationCol)
+                                        duration = c.getLong(durationCol),
+                                        genre = genreName // Populate the genre
                             )
                         )
                         permittedSongsAddedInThisAttempt++
@@ -255,6 +274,9 @@ class MusicRepositoryImpl @Inject constructor(
         if (page == 1) Log.i("MusicRepo/Songs", "getAudioFiles (page 1) took ${System.currentTimeMillis() - getAudioFilesStartTime} ms to return ${songsToReturn.size} songs.")
         return@withContext songsToReturn
     }
+
+    // IMPORTANT: Also update queryAndFilterSongs if it's used to populate song lists displayed in the UI
+    // where genre might be needed. For now, focusing on getAudioFiles as per subtask emphasis.
 
     override suspend fun getAlbums(page: Int, pageSize: Int): List<Album> = withContext(Dispatchers.IO) {
         val getAlbumsStartTime = System.currentTimeMillis()
