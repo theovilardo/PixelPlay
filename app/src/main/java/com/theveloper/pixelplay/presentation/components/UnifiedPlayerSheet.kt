@@ -501,9 +501,9 @@ fun UnifiedPlayerSheet(
     }
 
     AnimatedVisibility(
-        visible = showPlayerContentArea && playerContentExpansionFraction.value > 0f && !isKeyboardVisible, // Added !isKeyboardVisible
-        enter = fadeIn(animationSpec = tween(durationMillis = ANIMATION_DURATION_MS)),
-        exit = fadeOut(animationSpec = tween(durationMillis = ANIMATION_DURATION_MS))
+        visible = showPlayerContentArea && playerContentExpansionFraction.value > 0f && !isKeyboardVisible,
+        enter = fadeIn(animationSpec = tween(ANIMATION_DURATION_MS)),
+        exit = fadeOut(animationSpec = tween(ANIMATION_DURATION_MS))
     ) {
         Box(
             modifier = Modifier
@@ -513,7 +513,6 @@ fun UnifiedPlayerSheet(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
                 ) {
-                    // Colapsar el player al hacer click en el dim layer
                     if (currentSheetContentState == PlayerSheetState.EXPANDED) {
                         playerViewModel.collapsePlayerSheet()
                     }
@@ -521,31 +520,26 @@ fun UnifiedPlayerSheet(
         )
     }
 
-    AnimatedVisibility(
-        visible = actuallyShowSheetContent,
-        enter = slideInVertically { fullHeight -> fullHeight } + fadeIn(animationSpec = tween(ANIMATION_DURATION_MS)),
-        exit = slideOutVertically { fullHeight -> fullHeight } + fadeOut(animationSpec = tween(ANIMATION_DURATION_MS))
-    ) {
-        // The existing Surface and its content go here
+    // Main sheet content logic:
+    // The AnimatedVisibility that was here (using slideInVertically/slideOutVertically) is REMOVED.
+    // It is REPLACED by this 'if' statement:
+    if (actuallyShowSheetContent) {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .graphicsLayer { translationY = visualSheetTranslationY }
-                .height(animatedTotalSheetHeightWithShadowDp), // Ensure this height adapts correctly or is fixed when hidden
+                .height(animatedTotalSheetHeightWithShadowDp),
             shadowElevation = 0.dp,
             color = Color.Transparent
         ) {
-            // Column { ... content ... }
-            // This is the original content of the Surface
+            // The original Column and its content (player area, spacer, PlayerInternalNavigationBar)
+            // remain structurally the same inside this Surface.
             Column(
                 modifier = Modifier
                     .fillMaxSize()
             ) {
-                // ... all the original content like player area, spacer, navbar ...
-                // (The existing structure inside the Surface remains the same)
-                // MEJORADO: Solo mostrar área del player si hay contenido
+                // Example of internal structure (should match existing content):
                 if (showPlayerContentArea) {
-                    // Crear un CompositionLocalProvider para aplicar el tema solo al área del player
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -840,7 +834,7 @@ fun UnifiedPlayerSheet(
     }
 
     // Queue bottom sheet
-    if (showQueueSheet) {
+    if (showQueueSheet && !isKeyboardVisible) { // Condition !isKeyboardVisible added/verified
         CompositionLocalProvider(
             LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
         ) {

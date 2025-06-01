@@ -332,6 +332,17 @@ fun SearchScreen(
 }
 
 @Composable
+fun SearchResultSectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp, horizontal = 4.dp) // Adjust padding as needed
+    )
+}
+
+@Composable
 fun SearchHistoryList(
     historyItems: List<SearchHistoryItem>,
     onHistoryClick: (String) -> Unit,
@@ -455,57 +466,108 @@ fun SearchResultsList(
     onItemSelected: () -> Unit
 ) {
     val localDensity = LocalDensity.current
+
+    if (results.isEmpty()) { // Should be handled by EmptySearchResults, but good to have a check
+        // EmptySearchResults is typically called before SearchResultsList if results are empty.
+        // However, if called directly with empty results, this provides a fallback.
+        Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+            Text("No results found.", style = MaterialTheme.typography.bodyLarge)
+        }
+        return
+    }
+
+    // Group results by type
+    val groupedResults = results.groupBy { item ->
+        when (item) {
+            is SearchResultItem.SongItem -> SearchFilterType.SONGS
+            is SearchResultItem.AlbumItem -> SearchFilterType.ALBUMS
+            is SearchResultItem.ArtistItem -> SearchFilterType.ARTISTS
+            is SearchResultItem.PlaylistItem -> SearchFilterType.PLAYLISTS
+        }
+    }
+
+    // Define the desired order of sections
+    val sectionOrder = listOf(
+        SearchFilterType.SONGS,
+        SearchFilterType.ALBUMS,
+        SearchFilterType.ARTISTS,
+        SearchFilterType.PLAYLISTS
+        // Add SearchFilterType.ALL here if you expect it in groupedResults and want a section for it.
+        // However, SearchResultItem itself does not have an 'ALL' type, so this might not be applicable
+        // unless your SearchResultItem has a more generic fallback type.
+    )
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        // Remove global verticalArrangement.spacedBy if headers manage their own spacing or if spacing between items of different types is not desired.
+        // verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(
             top = 8.dp,
             bottom = 8.dp + WindowInsets.ime.getBottom(localDensity).dp // Direct IME padding
         )
     ) {
-        items(results, key = { item ->
-            when (item) {
-                is SearchResultItem.SongItem -> "song_${item.song.id}"
-                is SearchResultItem.AlbumItem -> "album_${item.album.id}"
-                is SearchResultItem.ArtistItem -> "artist_${item.artist.id}"
-                is SearchResultItem.PlaylistItem -> "playlist_${item.playlist.id}"
-            }
-        }) { item ->
-            when (item) {
-                is SearchResultItem.SongItem -> ExpressiveSongListItem(
-                    song = item.song,
-                    onClick = {
-                        playerViewModel.showAndPlaySong(item.song)
-                        onItemSelected()
+        sectionOrder.forEach { filterType ->
+            val itemsForSection = groupedResults[filterType] ?: emptyList()
+
+            if (itemsForSection.isNotEmpty()) {
+                // Add header for the section
+                item {
+                    SearchResultSectionHeader(
+                        title = when (filterType) {
+                            SearchFilterType.SONGS -> "Songs"
+                            SearchFilterType.ALBUMS -> "Albums"
+                            SearchFilterType.ARTISTS -> "Artists"
+                            SearchFilterType.PLAYLISTS -> "Playlists"
+                            else -> "Results" // Fallback, should ideally not happen with explicit types
+                        }
+                    )
+                }
+
+                // Add items for this section
+                items(itemsForSection, key = { item ->
+                    when (item) {
+                        is SearchResultItem.SongItem -> "song_${item.song.id}"
+                        is SearchResultItem.AlbumItem -> "album_${item.album.id}"
+                        is SearchResultItem.ArtistItem -> "artist_${item.artist.id}"
+                        is SearchResultItem.PlaylistItem -> "playlist_${item.playlist.id}"
                     }
-                )
-                is SearchResultItem.AlbumItem -> AlbumListItem(
-                    album = item.album,
-                    onClick = {
-                        // TODO: Implement navigation or action for album
-                        Log.d("SearchScreen", "Album clicked: ${item.album.title}")
-                        playerViewModel.playAlbum(item.album)
-                        onItemSelected()
+                }) { item ->
+                    // Apply spacing for each item within the group
+                    Box(modifier = Modifier.padding(bottom = 12.dp)) { // Add spacing here
+                        when (item) {
+                            is SearchResultItem.SongItem -> ExpressiveSongListItem(
+                                song = item.song,
+                                onClick = {
+                                    playerViewModel.showAndPlaySong(item.song)
+                                    onItemSelected()
+                                }
+                            )
+                            is SearchResultItem.AlbumItem -> AlbumListItem(
+                                album = item.album,
+                                onClick = {
+                                    Log.d("SearchScreen", "Album clicked: ${item.album.title}")
+                                    playerViewModel.playAlbum(item.album)
+                                    onItemSelected()
+                                }
+                            )
+                            is SearchResultItem.ArtistItem -> ArtistSearchListItem(
+                                artist = item.artist,
+                                onClick = {
+                                    Log.d("SearchScreen", "Artist clicked: ${item.artist.name}")
+                                    playerViewModel.playArtist(item.artist)
+                                    onItemSelected()
+                                }
+                            )
+                            is SearchResultItem.PlaylistItem -> PlaylistListItem(
+                                playlist = item.playlist,
+                                onClick = {
+                                    Log.d("SearchScreen", "Playlist clicked: ${item.playlist.name}")
+                                    onItemSelected()
+                                }
+                            )
+                        }
                     }
-                )
-                is SearchResultItem.ArtistItem -> ArtistSearchListItem(
-                    artist = item.artist,
-                    onClick = {
-                        // TODO: Implement navigation or action for artist
-                        Log.d("SearchScreen", "Artist clicked: ${item.artist.name}")
-                        playerViewModel.playArtist(item.artist)
-                        onItemSelected()
-                    }
-                )
-                is SearchResultItem.PlaylistItem -> PlaylistListItem(
-                    playlist = item.playlist,
-                    onClick = {
-                        // TODO: Implement navigation or action for playlist
-                        Log.d("SearchScreen", "Playlist clicked: ${item.playlist.name}")
-                        // playerViewModel.playPlaylist(item.playlist) // Assuming such a method exists
-                        onItemSelected()
-                    }
-                )
+                }
             }
         }
     }
