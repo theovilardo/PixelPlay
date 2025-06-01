@@ -128,17 +128,19 @@ fun SearchScreen(
 
     // Efectos de animación para el encabezado
 
-    val searchbarPadding by animateDpAsState(
-        targetValue = if (!active) 24.dp else 0.dp,
-        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium), // Adjusted spring
-        label = "searchbarPadding"
-    )
+    // val searchbarPadding by animateDpAsState( // Temporarily commented out for testing
+    //     targetValue = if (!active) 24.dp else 0.dp,
+    //     animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium), // Adjusted spring
+    //     label = "searchbarPadding"
+    // )
+    val searchbarPadding = 0.dp // Test with static 0.dp padding
 
-    val searchbarCornerRadius by animateDpAsState(
-        targetValue = if (!active) 28.dp else 0.dp, // Animate to 0.dp when active
-        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium),
-        label = "searchbarCornerRadius"
-    )
+    // val searchbarCornerRadius by animateDpAsState( // Reverted: Animated corner radius
+    //     targetValue = if (!active) 28.dp else 0.dp,
+    //     animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium),
+    //     label = "searchbarCornerRadius"
+    // )
+    val searchbarCornerRadius = 28.dp // Reverted: Static corner radius
 
     // Colores con estilo "Expressive"
     val gradientColors = listOf(
@@ -194,7 +196,7 @@ fun SearchScreen(
                     .padding(horizontal = searchbarPadding)
                     .padding(top = 8.dp, bottom = 0.dp)
                     .animateContentSize()
-                    .clip(RoundedCornerShape(searchbarCornerRadius)), // Use animated corner radius
+                    .clip(RoundedCornerShape(searchbarCornerRadius)), // Use static corner radius
                 placeholder = {
                     Text(
                         "Search...",

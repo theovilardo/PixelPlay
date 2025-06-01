@@ -168,7 +168,8 @@ private fun GenreCard(
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(16.dp),
+                    .padding(16.dp)
+                    .alpha(1f), // Explicitly set alpha to ensure visibility
                 horizontalArrangement = Arrangement.spacedBy((-8).dp) // Overlap negativo
             ) {
                 sampleSongCovers.take(3).forEachIndexed { index, coverUrl ->
@@ -176,19 +177,19 @@ private fun GenreCard(
                         modifier = Modifier
                             .size(32.dp)
                             .zIndex((3 - index).toFloat()) // Z-index para el orden de apilamiento
+                            .clip(CircleShape) // Clip the Box
+                            .border( // Apply border to the Box
+                                width = 2.dp,
+                                color = Color.White.copy(alpha = 0.8f),
+                                shape = CircleShape
+                            )
                     ) {
                         SmartImage(
                             model = coverUrl,
                             contentDescription = "Song cover",
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape)
-                                .border(
-                                    width = 2.dp,
-                                    color = Color.White.copy(alpha = 0.8f),
-                                    shape = CircleShape
-                                ),
+                            modifier = Modifier.fillMaxSize(), // SmartImage fills the Box
                             contentScale = ContentScale.Crop
+                            // Removed .clip and .border from SmartImage's own modifier
                         )
                     }
                 }
