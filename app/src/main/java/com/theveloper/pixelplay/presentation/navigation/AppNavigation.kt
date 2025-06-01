@@ -14,6 +14,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.theveloper.pixelplay.presentation.screens.DailyMixScreen
+import com.theveloper.pixelplay.presentation.screens.GenreDetailScreen
 import com.theveloper.pixelplay.presentation.screens.HomeScreen
 import com.theveloper.pixelplay.presentation.screens.LibraryScreen
 import com.theveloper.pixelplay.presentation.screens.PlaylistDetailScreen
@@ -34,7 +35,7 @@ fun AppNavigation(
                 HomeScreen(navController = navController, paddingValuesParent = paddingValues, playerViewModel = playerViewModel)
             }
             composable(Screen.Search.route) {
-                SearchScreen(paddingValues = paddingValues)
+                SearchScreen(paddingValues = paddingValues, playerViewModel = playerViewModel, navController = navController)
             }
             composable(Screen.Library.route) {
                 LibraryScreen(navController = navController, playerViewModel = playerViewModel)
@@ -70,6 +71,24 @@ fun AppNavigation(
                         onBackClick = { navController.popBackStack() },
                         onDeletePlayListClick = { navController.popBackStack() }
                     )
+                }
+            }
+
+            composable(
+                route = Screen.GenreDetail.route,
+                arguments = listOf(navArgument("genreId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val genreId = backStackEntry.arguments?.getString("genreId")
+                // val playerViewModel: PlayerViewModel = hiltViewModel() // playerViewModel is already in AppNavigation's scope
+
+                if (genreId != null) {
+                    GenreDetailScreen(
+                        navController = navController,
+                        genreId = genreId,
+                        playerViewModel = playerViewModel // Pass the existing playerViewModel
+                    )
+                } else {
+                    Text("Error: Genre ID missing", modifier = Modifier.padding(paddingValues))
                 }
             }
         }

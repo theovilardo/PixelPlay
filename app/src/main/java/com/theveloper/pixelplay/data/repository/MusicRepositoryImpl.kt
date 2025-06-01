@@ -26,6 +26,7 @@ import com.theveloper.pixelplay.data.model.SearchFilterType
 import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import com.theveloper.pixelplay.data.model.SearchResultItem
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
+import com.theveloper.pixelplay.data.datasource.GenreDataSource // To know the list of genres for placeholder logic
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -820,5 +821,45 @@ class MusicRepositoryImpl @Inject constructor(
 
     override suspend fun clearSearchHistory() = withContext(Dispatchers.IO) {
         searchHistoryDao.clearAll()
+    }
+
+    override suspend fun getMusicByGenre(genreId: String): List<Song> = withContext(Dispatchers.IO) {
+        Log.d("MusicRepositoryImpl", "getMusicByGenre called for genreId: $genreId (Placeholder)")
+
+        // Fetch a batch of all available (and permitted) songs to work with.
+        // Using queryAndFilterSongs to respect directory permissions.
+        // Fetching up to 100 songs as a base for our placeholder logic.
+        // Adjust sort order or selection as needed if you want more variety.
+        val allPermittedSongs = queryAndFilterSongs(
+            selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ?",
+            selectionArgs = arrayOf("30000"), // Songs longer than 30 seconds
+            sortOrder = "${MediaStore.Audio.Media.TITLE} ASC" // Consistent ordering
+        ).take(100) // Take up to 100 songs to form a base pool
+
+        if (allPermittedSongs.isEmpty()) {
+            return@withContext emptyList()
+        }
+
+        // Placeholder Logic: Distribute songs among known genres somewhat deterministically
+        // This is a very basic placeholder. A real implementation would filter on actual genre metadata.
+        val genreIndex = GenreDataSource.staticGenres.indexOfFirst { it.id == genreId }
+        if (genreIndex == -1) {
+            // Unknown genreId, return a small subset or empty list
+            return@withContext allPermittedSongs.take(5)
+        }
+
+        val songsPerGenreApproximation = (allPermittedSongs.size / GenreDataSource.staticGenres.size).coerceAtLeast(1)
+        val startIndex = (genreIndex * songsPerGenreApproximation) % allPermittedSongs.size
+        val endIndex = (startIndex + songsPerGenreApproximation).coerceAtMost(allPermittedSongs.size)
+
+        val genreSpecificSongs = if (startIndex < endIndex) {
+            allPermittedSongs.subList(startIndex, endIndex)
+        } else {
+            // Fallback if calculation is off (e.g. very few songs)
+            allPermittedSongs.shuffled().take( (5..10).random() ) // Random small subset
+        }
+
+        Log.d("MusicRepositoryImpl", "Placeholder: Returning ${genreSpecificSongs.size} songs for genre $genreId")
+        return@withContext genreSpecificSongs
     }
 }

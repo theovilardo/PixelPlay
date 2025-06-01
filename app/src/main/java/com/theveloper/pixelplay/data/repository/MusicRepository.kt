@@ -78,6 +78,13 @@ interface MusicRepository {
     suspend fun getRecentSearchHistory(limit: Int): List<SearchHistoryItem>
     suspend fun deleteSearchHistoryItemByQuery(query: String)
     suspend fun clearSearchHistory()
+
+    /**
+     * Obtiene la lista de canciones para un género específico (placeholder implementation).
+     * @param genreId El ID del género (e.g., "pop", "rock").
+     * @return Lista de objetos Song (simulada para este género).
+     */
+    suspend fun getMusicByGenre(genreId: String): List<Song> // Added this line
 }
 
 //interface MusicRepository {

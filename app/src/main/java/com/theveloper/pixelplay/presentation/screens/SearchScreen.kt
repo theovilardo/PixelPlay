@@ -82,9 +82,9 @@ import com.theveloper.pixelplay.data.model.SearchResultItem
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
-import androidx.compose.material.icons.rounded.PlaylistPlay
 import android.util.Log
 import androidx.compose.material.icons.rounded.DeleteForever
+import androidx.compose.material.icons.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
@@ -96,12 +96,17 @@ import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.ui.platform.LocalDensity
+import androidx.navigation.NavHostController
+import com.theveloper.pixelplay.data.datasource.GenreDataSource
+import com.theveloper.pixelplay.presentation.navigation.Screen // Required for Screen.GenreDetail.createRoute
+import com.theveloper.pixelplay.presentation.screens.search.components.GenreCategoriesGrid
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SearchScreen(
     paddingValues: PaddingValues,
-    playerViewModel: PlayerViewModel = hiltViewModel()
+    playerViewModel: PlayerViewModel = hiltViewModel(), // playerViewModel is already here
+    navController: NavHostController // Add navController
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var active by remember { mutableStateOf(false) }
@@ -286,19 +291,30 @@ fun SearchScreen(
             // Content to show when SearchBar is not active
             if (!active) {
                 if (searchQuery.isBlank()) { // And by implication, searchResults are empty or irrelevant
-                    InitialSearchState(colorScheme = colorScheme)
+                    // playerViewModel, currentFilter are available in this scope if needed by GenreCategoriesGrid later
+                    GenreCategoriesGrid(
+                        genres = GenreDataSource.staticGenres,
+                        onGenreClick = { genre ->
+                            Log.d("SearchScreen", "Genre clicked: ${genre.name} (ID: ${genre.id})")
+                            navController.navigate(Screen.GenreDetail.createRoute(genre.id)) // Actual navigation
+                        },
+                        modifier = Modifier.padding(paddingValues) // Pass appropriate padding if needed
+                                         // Consider if paddingValues from SearchScreen is the right one,
+                                         // or if GenreCategoriesGrid should handle its own internal padding.
+                                         // The grid itself has internal padding, so this might be for overall screen padding.
+                    )
                 } else { // Query is not blank, search bar not active, show results
                     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                     // Filter chips (placeholders) - A duplicar o gestionar estado para no tenerlos en dos sitios
-                     FlowRow(
-                         modifier = Modifier
-                             .fillMaxWidth()
-                             .padding(vertical = 8.dp),
-                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                         verticalArrangement = Arrangement.spacedBy(8.dp) // Added for vertical spacing
-                     ) {
-                         SearchFilterChip(SearchFilterType.ALL, currentFilter, playerViewModel)
-                         SearchFilterChip(SearchFilterType.SONGS, currentFilter, playerViewModel)
+                        // Filter chips
+                        FlowRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            SearchFilterChip(SearchFilterType.ALL, currentFilter, playerViewModel)
+                            SearchFilterChip(SearchFilterType.SONGS, currentFilter, playerViewModel)
                          SearchFilterChip(SearchFilterType.ALBUMS, currentFilter, playerViewModel)
                          SearchFilterChip(SearchFilterType.ARTISTS, currentFilter, playerViewModel)
                          SearchFilterChip(SearchFilterType.PLAYLISTS, currentFilter, playerViewModel)
@@ -908,47 +924,47 @@ fun InitialSearchState(colorScheme: ColorScheme) {
             contentAlignment = Alignment.Center
         ) {
             // Círculos concéntricos con un efecto de ondas
-            for (i in 3 downTo 0) {
-                val alpha = 0.2f - (i * 0.05f)
-                Canvas(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding((i * 12).dp)
-                ) {
-                    // drawCircle( // Commented out for brevity, no functional change
-                    //     color = colorScheme.primary.copy(alpha = alpha),
-                    //     radius = size.minDimension / 2
-                    // )
-                }
-            }
+    // for (i in 3 downTo 0) { // Commented out as InitialSearchState is being removed
+    //     val alpha = 0.2f - (i * 0.05f)
+    //     Canvas(
+    //         modifier = Modifier
+    //             .fillMaxSize()
+    //             .padding((i * 12).dp)
+    //     ) {
+    //         // drawCircle(
+    //         //     color = colorScheme.primary.copy(alpha = alpha),
+    //         //     radius = size.minDimension / 2
+    //         // )
+    //     }
+    // }
 
             // Icono central
-            Icon(
-                imageVector = Icons.Rounded.MusicNote,
-                contentDescription = null,
-                modifier = Modifier.size(72.dp),
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-            )
+    // Icon( // Commented out as InitialSearchState is being removed
+    //     imageVector = Icons.Rounded.MusicNote,
+    //     contentDescription = null,
+    //     modifier = Modifier.size(72.dp),
+    //     tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+    // )
         }
 
-        Text(
-            text = "Tu biblioteca musical",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
-        )
+// Text( // Commented out as InitialSearchState is being removed
+// text = "Tu biblioteca musical",
+// style = MaterialTheme.typography.headlineMedium,
+// fontWeight = FontWeight.Bold,
+// textAlign = TextAlign.Center
+// )
 
-        Spacer(modifier = Modifier.height(16.dp))
+// Spacer(modifier = Modifier.height(16.dp)) // Commented out
 
-        Text(
-            text = "Search to discover songs, artists or albums that inspire you",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 24.dp)
-        )
+// Text( // Commented out as InitialSearchState is being removed
+// text = "Search to discover songs, artists or albums that inspire you",
+// style = MaterialTheme.typography.bodyLarge,
+// color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+// textAlign = TextAlign.Center,
+// modifier = Modifier.padding(horizontal = 24.dp)
+// )
 
-        Spacer(modifier = Modifier.height(32.dp))
+// Spacer(modifier = Modifier.height(32.dp)) // Commented out
 
         // Sugerencias rápidas de búsqueda (can be kept or removed based on final design with history)
         // Text(
@@ -968,5 +984,11 @@ fun InitialSearchState(colorScheme: ColorScheme) {
         //     SuggestionChip(onClick = { }, label = { Text("Latin Music") })
         //     SuggestionChip(onClick = { }, label = { Text("Indie") })
         // }
-    }
+// } // This closing brace for InitialSearchState might be an error in the original transform,
+  // as it seems to be closing the Column from the original composable.
+  // However, since the entire InitialSearchState composable is being removed,
+  // this brace will also be removed as part of that.
+  // If it was intended to close a different scope, that needs to be manually reviewed
+  // in the context of the full file after this transformation.
+  // For now, assuming it's part of the InitialSearchState composable that's being deleted.
 }

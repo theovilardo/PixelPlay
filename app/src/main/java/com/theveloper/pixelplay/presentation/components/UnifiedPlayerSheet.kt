@@ -16,6 +16,8 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -147,7 +149,8 @@ fun UnifiedPlayerSheet(
     initialTargetTranslationY: Float,
     collapsedStateHorizontalPadding: Dp = 12.dp,
     collapsedStateBottomMargin: Dp = 0.dp,
-    hideNavBar: Boolean = false
+    hideNavBar: Boolean = false,
+    isKeyboardVisible: Boolean // Pass the new state
 ) {
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
     val playerUiState by playerViewModel.playerUiState.collectAsState()
@@ -459,6 +462,8 @@ fun UnifiedPlayerSheet(
         derivedStateOf { showPlayerContentArea || !hideNavBar }
     }
 
+    val actuallyShowSheetContent = shouldShowSheet && !isKeyboardVisible
+
     val currentAlbumColorSchemePair by playerViewModel.currentAlbumArtColorSchemePair.collectAsState()
     val isDarkTheme = isSystemInDarkTheme()
     val albumColorScheme = remember(currentAlbumColorSchemePair, isDarkTheme) {
@@ -495,42 +500,49 @@ fun UnifiedPlayerSheet(
         )
     }
 
-    if (shouldShowSheet) {
-        // CORREGIDO: Dim Layer mejorado
-        AnimatedVisibility(
-            visible = showPlayerContentArea && playerContentExpansionFraction.value > 0f,
-            enter = fadeIn(animationSpec = tween(durationMillis = ANIMATION_DURATION_MS)),
-            exit = fadeOut(animationSpec = tween(durationMillis = ANIMATION_DURATION_MS))
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(color = if (isSystemInDarkTheme()) Color.Black.copy(alpha = currentDimLayerAlpha) else Color.White.copy(alpha = currentDimLayerAlpha))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        // Colapsar el player al hacer click en el dim layer
-                        if (currentSheetContentState == PlayerSheetState.EXPANDED) {
-                            playerViewModel.collapsePlayerSheet()
-                        }
+    AnimatedVisibility(
+        visible = showPlayerContentArea && playerContentExpansionFraction.value > 0f && !isKeyboardVisible, // Added !isKeyboardVisible
+        enter = fadeIn(animationSpec = tween(durationMillis = ANIMATION_DURATION_MS)),
+        exit = fadeOut(animationSpec = tween(durationMillis = ANIMATION_DURATION_MS))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(color = if (isSystemInDarkTheme()) Color.Black.copy(alpha = currentDimLayerAlpha) else Color.White.copy(alpha = currentDimLayerAlpha))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    // Colapsar el player al hacer click en el dim layer
+                    if (currentSheetContentState == PlayerSheetState.EXPANDED) {
+                        playerViewModel.collapsePlayerSheet()
                     }
-            )
-        }
+                }
+        )
+    }
+
+    AnimatedVisibility(
+        visible = actuallyShowSheetContent,
+        enter = slideInVertically { fullHeight -> fullHeight } + fadeIn(animationSpec = tween(ANIMATION_DURATION_MS)),
+        exit = slideOutVertically { fullHeight -> fullHeight } + fadeOut(animationSpec = tween(ANIMATION_DURATION_MS))
+    ) {
+        // The existing Surface and its content go here
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .graphicsLayer { translationY = visualSheetTranslationY }
-                .height(animatedTotalSheetHeightWithShadowDp),
+                .height(animatedTotalSheetHeightWithShadowDp), // Ensure this height adapts correctly or is fixed when hidden
             shadowElevation = 0.dp,
-            //shape = sheetShape,
             color = Color.Transparent
         ) {
+            // Column { ... content ... }
+            // This is the original content of the Surface
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    //.padding(bottom = if (hideNavBar) 0.dp else (navBarElevation * 2)) // Padding bottom solo cuando hay navbar
             ) {
+                // ... all the original content like player area, spacer, navbar ...
+                // (The existing structure inside the Surface remains the same)
                 // MEJORADO: Solo mostrar área del player si hay contenido
                 if (showPlayerContentArea) {
                     // Crear un CompositionLocalProvider para aplicar el tema solo al área del player
