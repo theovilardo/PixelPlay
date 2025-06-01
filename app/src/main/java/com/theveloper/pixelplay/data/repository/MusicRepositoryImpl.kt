@@ -17,7 +17,14 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import androidx.core.net.toUri
 import com.theveloper.pixelplay.data.model.Album
+import com.theveloper.pixelplay.data.database.SearchHistoryDao
+import com.theveloper.pixelplay.data.database.SearchHistoryEntity
+import com.theveloper.pixelplay.data.database.toSearchHistoryItem
 import com.theveloper.pixelplay.data.model.Artist
+import com.theveloper.pixelplay.data.model.Playlist
+import com.theveloper.pixelplay.data.model.SearchFilterType
+import com.theveloper.pixelplay.data.model.SearchHistoryItem
+import com.theveloper.pixelplay.data.model.SearchResultItem
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
@@ -27,7 +34,8 @@ import java.io.File
 @Singleton
 class MusicRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val userPreferencesRepository: UserPreferencesRepository
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val searchHistoryDao: SearchHistoryDao
 ) : MusicRepository {
 
     // Proyección común para canciones, AHORA INCLUYE ARTIST_ID
@@ -595,5 +603,222 @@ class MusicRepositoryImpl @Inject constructor(
         }
         Log.d("MusicRepo", "getAllUniqueAlbumArtUris returning ${uris.size} URIs.")
         return@withContext uris.toList()
+    }
+
+    // Search Methods Implementation
+
+    override suspend fun searchSongs(query: String): List<Song> = withContext(Dispatchers.IO) {
+        if (query.isBlank()) {
+            return@withContext emptyList()
+        }
+        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.TITLE} LIKE ?"
+        val selectionArgs = arrayOf("%$query%")
+        // Using the existing queryAndFilterSongs which handles directory permissions
+        return@withContext queryAndFilterSongs(selection, selectionArgs, MediaStore.Audio.Media.TITLE + " ASC")
+    }
+
+    override suspend fun searchAlbums(query: String): List<Album> = withContext(Dispatchers.IO) {
+        if (query.isBlank()) {
+            return@withContext emptyList()
+        }
+        val albumsToReturn = mutableListOf<Album>()
+        val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
+        var permittedAlbumIds: Set<Long>? = null
+
+        if (initialSetupDone) {
+            val songRefs = getPermittedSongReferences()
+            if (songRefs.isEmpty() && userPreferencesRepository.allowedDirectoriesFlow.first().isNotEmpty()) {
+                return@withContext emptyList()
+            }
+            permittedAlbumIds = songRefs.map { it.albumId }.distinct().toSet()
+            if (permittedAlbumIds.isEmpty() && userPreferencesRepository.allowedDirectoriesFlow.first().isNotEmpty()) {
+                return@withContext emptyList()
+            }
+            if (userPreferencesRepository.allowedDirectoriesFlow.first().isEmpty()) {
+                return@withContext emptyList()
+            }
+        }
+
+        val projection = arrayOf(
+            MediaStore.Audio.Albums._ID,
+            MediaStore.Audio.Albums.ALBUM,
+            MediaStore.Audio.Albums.ARTIST,
+            MediaStore.Audio.Albums.NUMBER_OF_SONGS
+        )
+        val selection = "${MediaStore.Audio.Albums.ALBUM} LIKE ?"
+        val selectionArgs = arrayOf("%$query%")
+        val sortOrder = "${MediaStore.Audio.Albums.ALBUM} ASC"
+
+        context.contentResolver.query(
+            MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
+            projection,
+            selection,
+            selectionArgs,
+            sortOrder
+        )?.use { c ->
+            val idCol = c.getColumnIndexOrThrow(MediaStore.Audio.Albums._ID)
+            val titleCol = c.getColumnIndexOrThrow(MediaStore.Audio.Albums.ALBUM)
+            val artistCol = c.getColumnIndexOrThrow(MediaStore.Audio.Albums.ARTIST)
+            val songCountCol = c.getColumnIndexOrThrow(MediaStore.Audio.Albums.NUMBER_OF_SONGS)
+
+            while (c.moveToNext()) {
+                val id = c.getLong(idCol)
+                var actualSongCount = c.getInt(songCountCol)
+
+                if (initialSetupDone) {
+                    if (permittedAlbumIds?.contains(id) == true) {
+                        actualSongCount = cachedPermittedAlbumSongCounts?.get(id) ?: 0
+                    } else {
+                        actualSongCount = 0 // Not in permitted list or no songs in permitted directories
+                    }
+                }
+                 // If not initial setup, all albums are considered, use MediaStore song count.
+
+                if (actualSongCount > 0) {
+                    val title = c.getString(titleCol) ?: "Álbum Desconocido"
+                    val artist = c.getString(artistCol) ?: "Varios Artistas"
+                    val albumArtUriVal: Uri? = ContentUris.withAppendedId(
+                        Uri.parse("content://media/external/audio/albumart"), id
+                    )
+                    albumsToReturn.add(Album(id, title, artist, albumArtUriVal?.toString(), actualSongCount))
+                }
+            }
+        }
+        return@withContext albumsToReturn
+    }
+
+    override suspend fun searchArtists(query: String): List<Artist> = withContext(Dispatchers.IO) {
+        if (query.isBlank()) {
+            return@withContext emptyList()
+        }
+        val artistsToReturn = mutableListOf<Artist>()
+        val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
+        var permittedArtistIds: Set<Long>? = null
+
+        if (initialSetupDone) {
+            val songRefs = getPermittedSongReferences()
+            if (songRefs.isEmpty() && userPreferencesRepository.allowedDirectoriesFlow.first().isNotEmpty()) {
+                return@withContext emptyList()
+            }
+            permittedArtistIds = songRefs.map { it.artistId }.distinct().toSet()
+            if (permittedArtistIds.isEmpty() && userPreferencesRepository.allowedDirectoriesFlow.first().isNotEmpty()) {
+                return@withContext emptyList()
+            }
+            if (userPreferencesRepository.allowedDirectoriesFlow.first().isEmpty()) {
+                return@withContext emptyList()
+            }
+        }
+
+        val projection = arrayOf(
+            MediaStore.Audio.Artists._ID,
+            MediaStore.Audio.Artists.ARTIST,
+            MediaStore.Audio.Artists.NUMBER_OF_TRACKS // Corresponds to NUMBER_OF_SONGS for artists in MediaStore
+        )
+        val selection = "${MediaStore.Audio.Artists.ARTIST} LIKE ?"
+        val selectionArgs = arrayOf("%$query%")
+        val sortOrder = "${MediaStore.Audio.Artists.ARTIST} ASC"
+
+        context.contentResolver.query(
+            MediaStore.Audio.Artists.EXTERNAL_CONTENT_URI,
+            projection,
+            selection,
+            selectionArgs,
+            sortOrder
+        )?.use { c ->
+            val idCol = c.getColumnIndexOrThrow(MediaStore.Audio.Artists._ID)
+            val nameCol = c.getColumnIndexOrThrow(MediaStore.Audio.Artists.ARTIST)
+            val trackCountCol = c.getColumnIndexOrThrow(MediaStore.Audio.Artists.NUMBER_OF_TRACKS)
+
+            while (c.moveToNext()) {
+                val id = c.getLong(idCol)
+                var actualTrackCount = c.getInt(trackCountCol)
+
+                if (initialSetupDone) {
+                     if (permittedArtistIds?.contains(id) == true) {
+                        actualTrackCount = cachedPermittedArtistSongCounts?.get(id) ?: 0
+                    } else {
+                        actualTrackCount = 0 // Not in permitted list or no songs in permitted directories
+                    }
+                }
+                // If not initial setup, all artists are considered, use MediaStore track count.
+
+                if (actualTrackCount > 0) {
+                    val name = c.getString(nameCol) ?: "Artista Desconocido"
+                    artistsToReturn.add(Artist(id, name, actualTrackCount))
+                }
+            }
+        }
+        return@withContext artistsToReturn
+    }
+
+    override suspend fun searchPlaylists(query: String): List<Playlist> = withContext(Dispatchers.IO) {
+        if (query.isBlank()) {
+            return@withContext emptyList()
+        }
+        // Placeholder: Actual implementation depends on how playlists are stored.
+        // If using Room, inject PlaylistDao and query: e.g., playlistDao.searchByName("%$query%")
+        // For now, returning an empty list.
+        Log.d("MusicRepositoryImpl", "searchPlaylists called with query: $query. Returning empty list as not implemented.")
+        return@withContext emptyList<Playlist>()
+    }
+
+    override suspend fun searchAll(query: String, filterType: SearchFilterType): List<SearchResultItem> = withContext(Dispatchers.IO) {
+        if (query.isBlank()) {
+            return@withContext emptyList()
+        }
+        val results = mutableListOf<SearchResultItem>()
+
+        when (filterType) {
+            SearchFilterType.ALL -> {
+                val songs = searchSongs(query)
+                val albums = searchAlbums(query)
+                val artists = searchArtists(query)
+                val playlists = searchPlaylists(query) // Will be empty for now
+
+                songs.forEach { results.add(SearchResultItem.SongItem(it)) }
+                albums.forEach { results.add(SearchResultItem.AlbumItem(it)) }
+                artists.forEach { results.add(SearchResultItem.ArtistItem(it)) }
+                playlists.forEach { results.add(SearchResultItem.PlaylistItem(it)) }
+            }
+            SearchFilterType.SONGS -> {
+                val songs = searchSongs(query)
+                songs.forEach { results.add(SearchResultItem.SongItem(it)) }
+            }
+            SearchFilterType.ALBUMS -> {
+                val albums = searchAlbums(query)
+                albums.forEach { results.add(SearchResultItem.AlbumItem(it)) }
+            }
+            SearchFilterType.ARTISTS -> {
+                val artists = searchArtists(query)
+                artists.forEach { results.add(SearchResultItem.ArtistItem(it)) }
+            }
+            SearchFilterType.PLAYLISTS -> {
+                val playlists = searchPlaylists(query)
+                playlists.forEach { results.add(SearchResultItem.PlaylistItem(it)) }
+            }
+        }
+
+        // Consider limiting results per category or total results if needed in the future.
+        // For example, take top N from each category.
+        // results.sortBy { /* some criteria if needed, e.g. relevance score if calculated */ }
+        return@withContext results
+    }
+
+    // Search History Implementation
+    override suspend fun addSearchHistoryItem(query: String) = withContext(Dispatchers.IO) {
+        searchHistoryDao.deleteByQuery(query) // Remove old entry if exists
+        searchHistoryDao.insert(SearchHistoryEntity(query = query, timestamp = System.currentTimeMillis()))
+    }
+
+    override suspend fun getRecentSearchHistory(limit: Int): List<SearchHistoryItem> = withContext(Dispatchers.IO) {
+        return@withContext searchHistoryDao.getRecentSearches(limit).map { it.toSearchHistoryItem() }
+    }
+
+    override suspend fun deleteSearchHistoryItemByQuery(query: String) = withContext(Dispatchers.IO) {
+        searchHistoryDao.deleteByQuery(query)
+    }
+
+    override suspend fun clearSearchHistory() = withContext(Dispatchers.IO) {
+        searchHistoryDao.clearAll()
     }
 }

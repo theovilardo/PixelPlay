@@ -10,6 +10,7 @@ import androidx.room.Room
 import com.theveloper.pixelplay.PixelPlayApplication
 import com.theveloper.pixelplay.data.database.AlbumArtThemeDao
 import com.theveloper.pixelplay.data.database.PixelPlayDatabase
+import com.theveloper.pixelplay.data.database.SearchHistoryDao
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.preferences.dataStore
 import com.theveloper.pixelplay.data.repository.MusicRepository
@@ -65,15 +66,23 @@ object AppModule {
         return database.albumArtThemeDao()
     }
 
+    @Singleton
+    @Provides
+    fun provideSearchHistoryDao(database: PixelPlayDatabase): SearchHistoryDao { // NUEVO MÉTODO
+        return database.searchHistoryDao()
+    }
+
     @Provides
     @Singleton
     fun provideMusicRepository(
         @ApplicationContext context: Context,
-        userPreferencesRepository: UserPreferencesRepository
+        userPreferencesRepository: UserPreferencesRepository,
+        searchHistoryDao: SearchHistoryDao // NUEVA DEPENDENCIA INYECTADA
     ): MusicRepository {
         return MusicRepositoryImpl(
             context = context,
-            userPreferencesRepository = userPreferencesRepository
+            userPreferencesRepository = userPreferencesRepository,
+            searchHistoryDao = searchHistoryDao // PASANDO LA DEPENDENCIA
         )
     }
 

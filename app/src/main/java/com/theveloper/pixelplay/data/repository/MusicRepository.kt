@@ -3,6 +3,10 @@ package com.theveloper.pixelplay.data.repository
 import android.net.Uri
 import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Artist
+import com.theveloper.pixelplay.data.model.Playlist
+import com.theveloper.pixelplay.data.model.SearchFilterType
+import com.theveloper.pixelplay.data.model.SearchHistoryItem
+import com.theveloper.pixelplay.data.model.SearchResultItem
 import com.theveloper.pixelplay.data.model.Song
 
 interface MusicRepository {
@@ -62,6 +66,18 @@ interface MusicRepository {
     suspend fun getAllUniqueAlbumArtUris(): List<Uri> // Nuevo para precarga de temas
 
     suspend fun invalidateCachesDependentOnAllowedDirectories() // Nuevo para precarga de temas
+
+    suspend fun searchSongs(query: String): List<Song>
+    suspend fun searchAlbums(query: String): List<Album>
+    suspend fun searchArtists(query: String): List<Artist>
+    suspend fun searchPlaylists(query: String): List<Playlist>
+    suspend fun searchAll(query: String, filterType: SearchFilterType): List<SearchResultItem>
+
+    // Search History
+    suspend fun addSearchHistoryItem(query: String)
+    suspend fun getRecentSearchHistory(limit: Int): List<SearchHistoryItem>
+    suspend fun deleteSearchHistoryItemByQuery(query: String)
+    suspend fun clearSearchHistory()
 }
 
 //interface MusicRepository {

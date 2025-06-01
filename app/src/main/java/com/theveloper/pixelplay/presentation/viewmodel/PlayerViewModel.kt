@@ -62,6 +62,9 @@ import com.theveloper.pixelplay.data.model.SortOption
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import com.theveloper.pixelplay.data.model.SearchFilterType
+import com.theveloper.pixelplay.data.model.SearchHistoryItem
+import com.theveloper.pixelplay.data.model.SearchResultItem
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -107,7 +110,10 @@ data class PlayerUiState(
     val currentSongSortOption: SortOption = SortOption.SongTitleAZ,
     val currentAlbumSortOption: SortOption = SortOption.AlbumTitleAZ,
     val currentArtistSortOption: SortOption = SortOption.ArtistNameAZ,
-    val currentFavoriteSortOption: SortOption = SortOption.LikedSongTitleAZ
+    val currentFavoriteSortOption: SortOption = SortOption.LikedSongTitleAZ,
+    val searchResults: ImmutableList<SearchResultItem> = persistentListOf(),
+    val selectedSearchFilter: SearchFilterType = SearchFilterType.ALL,
+    val searchHistory: ImmutableList<SearchHistoryItem> = persistentListOf()
 )
 
 @HiltViewModel
@@ -966,15 +972,6 @@ class PlayerViewModel @Inject constructor(
         progressJob = null
     }
 
-    fun searchSongs(query: String): List<Song> {
-        if (query.isBlank()) return _playerUiState.value.allSongs
-        return _playerUiState.value.allSongs.filter {
-            it.title.contains(query, ignoreCase = true) ||
-                    it.artist.contains(query, ignoreCase = true) ||
-                    it.album.contains(query, ignoreCase = true)
-        }
-    }
-
     //Sorting
     fun sortSongs(sortOption: SortOption) {
         // It's important that currentSongSortOption in uiState is updated BEFORE this function
@@ -1038,11 +1035,137 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun updateSearchFilter(filterType: SearchFilterType) {
+        _playerUiState.update { it.copy(selectedSearchFilter = filterType) }
+        // Trigger a new search with the updated filter
+        // We get the current query from the state, assuming it's maintained elsewhere or not needed if query is also changing.
+        // For simplicity, let's assume the query is available and a search should be re-triggered.
+        // If performSearch is called from UI based on query text changes, this might be redundant
+        // unless the query is stable and only filter changes.
+        // Consider if the current query should be passed or fetched from a state field if it exists.
+        // For now, let's assume the UI will call performSearch again after updating the filter.
+    }
+
+    fun loadSearchHistory(limit: Int = 15) { // Default limit to 15 or configurable
+        viewModelScope.launch {
+            val history = musicRepository.getRecentSearchHistory(limit)
+            _playerUiState.update { it.copy(searchHistory = history.toImmutableList()) }
+        }
+    }
+
+    fun performSearch(query: String) {
+        viewModelScope.launch {
+            if (query.isNotBlank()) {
+                musicRepository.addSearchHistoryItem(query)
+                loadSearchHistory() // Refresh history after adding new item
+            }
+
+            if (query.isBlank()) {
+                _playerUiState.update { it.copy(searchResults = persistentListOf()) }
+                // Optionally, when query is blank, still show full search history or recent searches
+                // loadSearchHistory() // Or handle this based on UI requirements for blank query state
+                return@launch
+            }
+
+            // Use the selectedSearchFilter from the uiState
+            val currentFilter = _playerUiState.value.selectedSearchFilter
+            val results = musicRepository.searchAll(query, currentFilter)
+            _playerUiState.update { it.copy(searchResults = results.toImmutableList()) }
+        }
+    }
+
+    fun deleteSearchHistoryItem(query: String) {
+        viewModelScope.launch {
+            musicRepository.deleteSearchHistoryItemByQuery(query)
+            loadSearchHistory() // Refresh the list
+        }
+    }
+
+    fun clearSearchHistory() {
+        viewModelScope.launch {
+            musicRepository.clearSearchHistory()
+            _playerUiState.update { it.copy(searchHistory = persistentListOf()) }
+        }
+    }
 
     override fun onCleared() {
         super.onCleared()
         stopProgressUpdates()
         // No liberar mediaControllerFuture aquí si es compartido o gestionado por la Activity/Service
         // MediaController.releaseFuture(mediaControllerFuture) // Solo si este ViewModel es el único propietario
+    }
+
+    init {
+        // Observe theme preferences
+        viewModelScope.launch { userPreferencesRepository.globalThemePreferenceFlow.collect { _globalThemePreference.value = it } }
+        viewModelScope.launch { userPreferencesRepository.playerThemePreferenceFlow.collect { _playerThemePreference.value = it } }
+
+        // Observe favorite songs
+        viewModelScope.launch {
+            userPreferencesRepository.favoriteSongIdsFlow.collect { ids ->
+                _favoriteSongIds.value = ids
+            }
+        }
+
+        // Observe sort option preferences
+        viewModelScope.launch {
+            userPreferencesRepository.songsSortOptionFlow.collect { optionName ->
+                getSortOptionFromString(optionName)?.let { sortOption ->
+                    if (_playerUiState.value.currentSongSortOption != sortOption) { // Avoid re-sorting if option hasn't changed
+                        // Update state first, then call sort which uses the state
+                        _playerUiState.update { it.copy(currentSongSortOption = sortOption) }
+                        if (!_playerUiState.value.isLoadingInitialSongs && _playerUiState.value.allSongs.isNotEmpty()) {
+                             sortSongs(sortOption) // This will use the updated state
+                        }
+                    }
+                }
+            }
+        }
+        viewModelScope.launch {
+            userPreferencesRepository.albumsSortOptionFlow.collect { optionName ->
+                getSortOptionFromString(optionName)?.let { sortOption ->
+                    if (_playerUiState.value.currentAlbumSortOption != sortOption) {
+                        _playerUiState.update { it.copy(currentAlbumSortOption = sortOption) }
+                        if (!_playerUiState.value.isLoadingLibraryCategories && _playerUiState.value.albums.isNotEmpty()) {
+                            sortAlbums(sortOption)
+                        }
+                    }
+                }
+            }
+        }
+        viewModelScope.launch {
+            userPreferencesRepository.artistsSortOptionFlow.collect { optionName ->
+                getSortOptionFromString(optionName)?.let { sortOption ->
+                    if (_playerUiState.value.currentArtistSortOption != sortOption) {
+                        _playerUiState.update { it.copy(currentArtistSortOption = sortOption) }
+                        if (!_playerUiState.value.isLoadingLibraryCategories && _playerUiState.value.artists.isNotEmpty()) {
+                            sortArtists(sortOption)
+                        }
+                    }
+                }
+            }
+        }
+        viewModelScope.launch {
+            userPreferencesRepository.likedSongsSortOptionFlow.collect { optionName ->
+                getSortOptionFromString(optionName)?.let { sortOption ->
+                     // The favoriteSongs flow automatically uses currentFavoriteSortOption from playerUiState.
+                     // Just updating the state is enough to trigger re-composition and re-sorting.
+                    _playerUiState.update { it.copy(currentFavoriteSortOption = sortOption) }
+                }
+            }
+        }
+
+        mediaControllerFuture.addListener({
+            try {
+                mediaController = mediaControllerFuture.get()
+                setupMediaControllerListeners()
+            } catch (e: Exception) {
+                _playerUiState.update { it.copy(isLoadingInitialSongs = false, isLoadingLibraryCategories = false) }
+                Log.e("PlayerViewModel", "Error setting up MediaController", e)
+            }
+        }, MoreExecutors.directExecutor())
+
+        preloadThemesAndInitialData()
+        loadSearchHistory() // Load initial search history
     }
 }
