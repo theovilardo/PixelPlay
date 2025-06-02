@@ -83,6 +83,7 @@ import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import android.util.Log
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.History
@@ -93,13 +94,17 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.material.icons.rounded.Done
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.navigation.NavHostController
+import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.datasource.GenreDataSource
 import com.theveloper.pixelplay.presentation.navigation.Screen // Required for Screen.GenreDetail.createRoute
 import com.theveloper.pixelplay.presentation.screens.search.components.GenreCategoriesGrid
+import okhttp3.internal.toImmutableList
 
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -126,20 +131,36 @@ fun SearchScreen(
     }
     val searchResults = uiState.searchResults
 
-    // Animación para el padding - CORREGIDO: evitar valores negativos
-    val searchbarPadding by animateDpAsState(
-        targetValue = if (!active) 24.dp else 0.dp, // Cambiado de 0.dp a 8.dp para evitar problemas
-        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium),
-        label = "searchbarPadding"
+    val searchbarHorizontalPadding by animateDpAsState(
+        targetValue = if (!active) 24.dp else 0.dp,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium), // Ajusta la animación si es necesario
+        label = "searchbarHorizontalPadding"
     )
 
     val searchbarCornerRadius = 28.dp
 
+    val dm = isSystemInDarkTheme()
+
     // Colores con estilo "Expressive"
-    val gradientColors = listOf(
-        MaterialTheme.colorScheme.surfaceVariant,
-        MaterialTheme.colorScheme.background
-    )
+    val gradientColorsDark = listOf(
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+        Color.Transparent
+    ).toImmutableList()
+
+    val gradientColorsLight = listOf(
+        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f),
+        Color.Transparent
+    ).toImmutableList()
+
+    val gradientColors = if (dm) gradientColorsDark else gradientColorsLight
+
+    val gradientBrush = remember(gradientColors) {
+        Brush.verticalGradient(colors = gradientColors)
+    }
+//    val gradientColors = listOf(
+//        MaterialTheme.colorScheme.surfaceVariant,
+//        MaterialTheme.colorScheme.background
+//    )
 
     val colorScheme = MaterialTheme.colorScheme
 
@@ -154,11 +175,9 @@ fun SearchScreen(
                 .fillMaxWidth()
                 .height(280.dp)
                 .background(
-                    Brush.verticalGradient(
-                        colors = gradientColors
-                    )
+                    gradientBrush
                 )
-                .padding(top = paddingValues.calculateTopPadding())
+                //.padding(top = paddingValues.calculateTopPadding())
         )
 
         // Contenido principal
@@ -166,7 +185,7 @@ fun SearchScreen(
             modifier = Modifier.fillMaxSize()
         ) {
             // CORREGIDO: Agregamos un padding mínimo para evitar crashes
-            val safePadding = maxOf(8.dp, searchbarPadding)
+            val safePadding = maxOf(0.dp, searchbarHorizontalPadding)
 
             Box(
                 modifier = Modifier
@@ -186,13 +205,14 @@ fun SearchScreen(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp, bottom = 0.dp)
+                        //.padding(top = 8.dp, bottom = 0.dp)
                         .animateContentSize()
                         .clip(RoundedCornerShape(searchbarCornerRadius)),
                     placeholder = {
                         Text(
                             "Search...",
-                            style = MaterialTheme.typography.bodyLarge
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.primary
                         )
                     },
                     leadingIcon = {
@@ -985,27 +1005,32 @@ fun SearchFilterChip(
         onClick = { playerViewModel.updateSearchFilter(filterType) },
         label = { Text(filterType.name.lowercase().replaceFirstChar { it.titlecase() }) },
         modifier = modifier,
-        shape = RoundedCornerShape(16.dp), // Expressive shape
+        shape = CircleShape, // Expressive shape
+        border = BorderStroke(
+            width = 0.dp,
+            color = Color.Transparent
+        ),
         colors = FilterChipDefaults.filterChipColors(
             // Expressive colors for unselected state
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f),
-            labelColor = MaterialTheme.colorScheme.onTertiaryContainer,
+            containerColor = MaterialTheme.colorScheme.secondary,
+            labelColor = MaterialTheme.colorScheme.onSecondary,
             // Expressive colors for selected state
-            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-            selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            selectedContainerColor = MaterialTheme.colorScheme.primary,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
             selectedLeadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer // If using a leading icon
         ),
-        // Opcional: puedes añadir un icono principal, por ejemplo, para indicar selección
-        // leadingIcon = if (selected) {
-        //     {
-        //         Icon(
-        //             imageVector = Icons.Filled.Done,
-        //             contentDescription = "Selected",
-        //             modifier = Modifier.size(FilterChipDefaults.IconSize)
-        //         )
-        //     }
-        // } else {
-        //     null
-        // }
+//         Opcional: puedes añadir un icono principal, por ejemplo, para indicar selección
+         leadingIcon = if (selected) {
+             {
+                 Icon(
+                     painter = painterResource(R.drawable.rounded_check_circle_24),
+                     contentDescription = "Selected",
+                     tint = MaterialTheme.colorScheme.onPrimary,
+                     modifier = Modifier.size(FilterChipDefaults.IconSize)
+                 )
+             }
+         } else {
+             null
+         }
     )
 }
