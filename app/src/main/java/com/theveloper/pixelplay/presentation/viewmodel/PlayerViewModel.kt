@@ -193,10 +193,11 @@ class PlayerViewModel @Inject constructor(
         MediaController.Builder(context, sessionToken).buildAsync()
 
     private val _favoriteSongIds = MutableStateFlow<Set<String>>(emptySet())
+    val favoriteSongIds: StateFlow<Set<String>> = _favoriteSongIds.asStateFlow() // Exposed as StateFlow
 
     // Nuevo StateFlow para la lista de objetos Song favoritos
     val favoriteSongs: StateFlow<ImmutableList<Song>> = combine(
-        _favoriteSongIds,
+        _favoriteSongIds, // Now uses the public favoriteSongIds or private _favoriteSongIds
         _playerUiState // Depends on allSongs and currentFavoriteSortOption from uiState
     ) { ids, uiState ->
         val favoriteSongsList = uiState.allSongs.filter { song -> ids.contains(song.id) }
@@ -325,31 +326,35 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun preloadThemesAndInitialData() {
+        val functionStartTime = System.currentTimeMillis()
+        Log.d("PlayerViewModelPerformance", "preloadThemesAndInitialData START")
+
         viewModelScope.launch { // Main.immediate by default
             val overallInitStartTime = System.currentTimeMillis()
             _isInitialThemePreloadComplete.value = false // Mantener esto
+            Log.d("PlayerViewModelPerformance", "preloadThemesAndInitialData: _isInitialThemePreloadComplete set to false. Time from start: ${System.currentTimeMillis() - overallInitStartTime} ms")
 
             // Introduce a delay before starting the theme preloading job
             launch { // This launch uses viewModelScope's context, which is fine
                 delay(1500L) // Delay for 1.5 seconds (configurable)
-                Log.d("PlayerViewModel", "Delay complete, starting themePreloadingJob.")
+                Log.d("PlayerViewModelPerformance", "Delay complete, starting themePreloadingJob. Time from overallInitStart: ${System.currentTimeMillis() - overallInitStartTime} ms")
                 val themeJobStartTime = System.currentTimeMillis()
                 // Launch theme preloading in a separate, controlled background job
                 val themePreloadingJob: Job = launch(Dispatchers.IO) { // Explicitly Dispatchers.IO
                     val getAllUrisStartTime = System.currentTimeMillis()
                     val allAlbumArtUris = musicRepository.getAllUniqueAlbumArtUris()
-                    Log.d("PlayerViewModel", "getAllUniqueAlbumArtUris took ${System.currentTimeMillis() - getAllUrisStartTime} ms")
+                    Log.d("PlayerViewModelPerformance", "getAllUniqueAlbumArtUris took ${System.currentTimeMillis() - getAllUrisStartTime} ms")
                     allAlbumArtUris.forEach { uri ->
                         if (!isActive) return@forEach // Check if coroutine is still active
                         try {
                             extractAndGenerateColorScheme(uri, isPreload = true)
                         } catch (e: Exception) {
-                            Log.e("PlayerViewModel", "Error preloading theme for $uri", e)
+                            Log.e("PlayerViewModelPerformance", "Error preloading theme for $uri", e)
                             // Consider adding a check !isActive here too if extractAndGenerateColorScheme is very long
                         }
                     }
-                    Log.d("PlayerViewModel", "themePreloadingJob actual work took ${System.currentTimeMillis() - themeJobStartTime} ms before finishing log")
-                    Log.d("PlayerViewModel", "themePreloadingJob finished.")
+                    Log.d("PlayerViewModelPerformance", "themePreloadingJob actual work took ${System.currentTimeMillis() - themeJobStartTime} ms before finishing log")
+                    Log.d("PlayerViewModelPerformance", "themePreloadingJob finished.")
                 }
                 // Optional: you might want to handle cancellation of themePreloadingJob explicitly
                 // if the viewModel is cleared during the delay or during its execution.
@@ -359,7 +364,7 @@ class PlayerViewModel @Inject constructor(
             // Start loading initial UI data (concurrently with the delay timer)
             val resetLoadDataStartTime = System.currentTimeMillis()
             resetAndLoadInitialData() // Esto lanza sus propias corrutinas
-            Log.d("PlayerViewModel", "resetAndLoadInitialData() call took ${System.currentTimeMillis() - resetLoadDataStartTime} ms (Note: actual loading is async)")
+            Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData() call took ${System.currentTimeMillis() - resetLoadDataStartTime} ms (Note: actual loading is async). Time from overallInitStart: ${System.currentTimeMillis() - overallInitStartTime} ms")
 
             // Wait for the initial songs, albums, and artists to be loaded before marking initial theme/UI setup as complete.
             // This ensures that the primary content for all main library tabs is available when the loading screen disappears.
@@ -369,12 +374,16 @@ class PlayerViewModel @Inject constructor(
                 }
                 // At this point, the first page of songs, albums, and artists has been loaded.
                 _isInitialThemePreloadComplete.value = true
-                Log.d("PlayerViewModel", "Initial song, album, and artist load complete, _isInitialThemePreloadComplete set to true. Total time since init start: ${System.currentTimeMillis() - overallInitStartTime} ms")
+                val timeToComplete = System.currentTimeMillis() - overallInitStartTime
+                Log.d("PlayerViewModelPerformance", "Initial song, album, and artist load complete. _isInitialThemePreloadComplete set to true. Total time since overallInitStart: ${timeToComplete} ms")
             }
         }
+        Log.d("PlayerViewModelPerformance", "preloadThemesAndInitialData END. Total function time: ${System.currentTimeMillis() - functionStartTime} ms (dispatching async work)")
     }
 
     private fun resetAndLoadInitialData() {
+        val functionStartTime = System.currentTimeMillis()
+        Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData START")
         currentSongPage = 1
         currentAlbumPage = 1
         currentArtistPage = 1
@@ -390,6 +399,7 @@ class PlayerViewModel @Inject constructor(
         }
         loadSongsFromRepository(isInitialLoad = true)
         loadLibraryCategories(isInitialLoad = true)
+        Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData END. Total function time: ${System.currentTimeMillis() - functionStartTime} ms")
     }
 
     private fun loadSongsFromRepository(isInitialLoad: Boolean = false) {
@@ -397,10 +407,20 @@ class PlayerViewModel @Inject constructor(
         if (!_playerUiState.value.canLoadMoreSongs && !isInitialLoad) return
 
         viewModelScope.launch {
-            if (isInitialLoad) _playerUiState.update { it.copy(isLoadingInitialSongs = true) }
-            else _playerUiState.update { it.copy(isLoadingMoreSongs = true) }
+            val initialLoadStartTime = System.currentTimeMillis()
+            if (isInitialLoad) {
+                Log.d("PlayerViewModelPerformance", "loadSongsFromRepository (Initial) START")
+                _playerUiState.update { it.copy(isLoadingInitialSongs = true) }
+            } else {
+                _playerUiState.update { it.copy(isLoadingMoreSongs = true) }
+            }
 
+            val repoCallStartTime = System.currentTimeMillis()
             val newSongs = musicRepository.getAudioFiles(currentSongPage, PAGE_SIZE)
+            if (isInitialLoad) {
+                Log.d("PlayerViewModelPerformance", "musicRepository.getAudioFiles (Initial) took ${System.currentTimeMillis() - repoCallStartTime} ms for ${newSongs.size} songs.")
+            }
+
             _playerUiState.update {
                 it.copy(
                     allSongs = if (isInitialLoad) newSongs.toImmutableList() else (it.allSongs + newSongs).toImmutableList(),
@@ -410,6 +430,9 @@ class PlayerViewModel @Inject constructor(
                 )
             }
             if (newSongs.isNotEmpty()) currentSongPage++
+            if (isInitialLoad) {
+                Log.d("PlayerViewModelPerformance", "loadSongsFromRepository (Initial) END. Data update complete. Total time: ${System.currentTimeMillis() - initialLoadStartTime} ms")
+            }
         }
     }
 
@@ -421,10 +444,19 @@ class PlayerViewModel @Inject constructor(
         if (_playerUiState.value.isLoadingLibraryCategories && !isInitialLoad) return
 
         viewModelScope.launch {
+            val initialLoadStartTime = System.currentTimeMillis()
+            if (isInitialLoad) {
+                Log.d("PlayerViewModelPerformance", "loadLibraryCategories (Initial) START")
+            }
             _playerUiState.update { it.copy(isLoadingLibraryCategories = true) }
+
             // Cargar Álbumes
             if (_playerUiState.value.canLoadMoreAlbums || isInitialLoad) {
+                val repoCallAlbumsStartTime = System.currentTimeMillis()
                 val newAlbums = musicRepository.getAlbums(currentAlbumPage, PAGE_SIZE)
+                if (isInitialLoad) {
+                    Log.d("PlayerViewModelPerformance", "musicRepository.getAlbums (Initial) took ${System.currentTimeMillis() - repoCallAlbumsStartTime} ms for ${newAlbums.size} albums.")
+                }
                 _playerUiState.update {
                     it.copy(
                         albums = if (isInitialLoad) newAlbums.toImmutableList() else (it.albums + newAlbums).toImmutableList(),
@@ -432,10 +464,18 @@ class PlayerViewModel @Inject constructor(
                     )
                 }
                 if (newAlbums.isNotEmpty()) currentAlbumPage++
+                if (isInitialLoad) {
+                    Log.d("PlayerViewModelPerformance", "loadLibraryCategories (Initial) Album data update complete. Time from start: ${System.currentTimeMillis() - initialLoadStartTime} ms")
+                }
             }
+
             // Cargar Artistas
             if (_playerUiState.value.canLoadMoreArtists || isInitialLoad) {
+                val repoCallArtistsStartTime = System.currentTimeMillis()
                 val newArtists = musicRepository.getArtists(currentArtistPage, PAGE_SIZE)
+                if (isInitialLoad) {
+                    Log.d("PlayerViewModelPerformance", "musicRepository.getArtists (Initial) took ${System.currentTimeMillis() - repoCallArtistsStartTime} ms for ${newArtists.size} artists.")
+                }
                 _playerUiState.update {
                     it.copy(
                         artists = if (isInitialLoad) newArtists.toImmutableList() else (it.artists + newArtists).toImmutableList(),
@@ -443,8 +483,14 @@ class PlayerViewModel @Inject constructor(
                     )
                 }
                 if (newArtists.isNotEmpty()) currentArtistPage++
+                if (isInitialLoad) {
+                    Log.d("PlayerViewModelPerformance", "loadLibraryCategories (Initial) Artist data update complete. Time from start: ${System.currentTimeMillis() - initialLoadStartTime} ms")
+                }
             }
             _playerUiState.update { it.copy(isLoadingLibraryCategories = false) }
+            if (isInitialLoad) {
+                Log.d("PlayerViewModelPerformance", "loadLibraryCategories (Initial) END. All categories loaded. Total time: ${System.currentTimeMillis() - initialLoadStartTime} ms")
+            }
         }
     }
 
@@ -730,6 +776,34 @@ class PlayerViewModel @Inject constructor(
                 updateFavoriteStatusForCurrentSong()
                 // _favoriteSongIds y, por ende, isCurrentSongFavorite se actualizarán por el flujo
             }
+        }
+    }
+
+    fun toggleFavoriteSpecificSong(song: Song) {
+        viewModelScope.launch {
+            userPreferencesRepository.toggleFavoriteSong(song.id)
+            // _favoriteSongIds will update automatically via its flow from UserPreferencesRepository
+            // If current playing song is the one toggled, update its status too
+            if (_stablePlayerState.value.currentSong?.id == song.id) {
+                updateFavoriteStatusForCurrentSong()
+            }
+        }
+    }
+
+    fun addSongToQueue(song: Song) {
+        mediaController?.let { controller ->
+            val mediaItem = MediaItem.Builder()
+                .setMediaId(song.id)
+                .setUri(Uri.parse(song.contentUriString))
+                .setMediaMetadata(MediaMetadata.Builder()
+                    .setTitle(song.title)
+                    .setArtist(song.artist)
+                    .setArtworkUri(song.albumArtUriString?.let { Uri.parse(it) })
+                    .build())
+                .build()
+            controller.addMediaItem(mediaItem)
+            // Optionally update local queue state if not automatically handled by listeners
+            // updateCurrentPlaybackQueueFromPlayer() // Call if needed and if it's safe
         }
     }
 
