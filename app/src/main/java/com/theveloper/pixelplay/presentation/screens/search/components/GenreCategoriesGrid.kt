@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
@@ -91,6 +92,14 @@ fun GenreCategoriesGrid(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Text(
+                text = "Browse by genre",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier
+                    .padding(start = 6.dp, top = 6.dp, bottom = 6.dp)
+            )
+        }
         items(genres, key = { it.id }) { genre ->
             // CORREGIDO: Obtener las URIs de manera más robusta
             GenreCard(

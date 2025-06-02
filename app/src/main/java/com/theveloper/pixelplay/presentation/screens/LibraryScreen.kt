@@ -597,7 +597,7 @@ fun EnhancedSongListItem(
 
     val colors = MaterialTheme.colorScheme
 
-    val containerColor = if (isPlaying) colors.primaryContainer.copy(alpha = 0.46f) else colors.surfaceContainerLow
+    val containerColor = if (isPlaying) colors.primaryContainer.copy(alpha = 0.34f) else colors.surfaceContainerLow
     val contentColor = if (isPlaying) colors.primary else colors.onSurface
 
     val surfaceShape = AbsoluteSmoothCornerShape(
