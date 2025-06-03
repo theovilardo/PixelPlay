@@ -956,6 +956,7 @@ class PlayerViewModel @Inject constructor(
     private fun mapEntityToColorSchemePair(entity: AlbumArtThemeEntity): ColorSchemePair {
         fun mapStoredValuesToScheme(sv: StoredColorSchemeValues, isDark: Boolean): ColorScheme {
             val defaultForRole = if (isDark) DarkColorScheme else LightColorScheme
+            val placeholderColor = Color.Magenta
             return ColorScheme(
                 primary = sv.primary.toComposeColor(), onPrimary = sv.onPrimary.toComposeColor(), primaryContainer = sv.primaryContainer.toComposeColor(), onPrimaryContainer = sv.onPrimaryContainer.toComposeColor(),
                 secondary = sv.secondary.toComposeColor(), onSecondary = sv.onSecondary.toComposeColor(), secondaryContainer = sv.secondaryContainer.toComposeColor(), onSecondaryContainer = sv.onSecondaryContainer.toComposeColor(),
@@ -964,7 +965,27 @@ class PlayerViewModel @Inject constructor(
                 surfaceVariant = sv.surfaceVariant.toComposeColor(), onSurfaceVariant = sv.onSurfaceVariant.toComposeColor(), error = sv.error.toComposeColor(), onError = sv.onError.toComposeColor(),
                 outline = sv.outline.toComposeColor(), errorContainer = sv.errorContainer.toComposeColor(), onErrorContainer = sv.onErrorContainer.toComposeColor(),
                 inversePrimary = sv.inversePrimary.toComposeColor(), surfaceTint = sv.surfaceTint.toComposeColor(), outlineVariant = sv.outlineVariant.toComposeColor(), scrim = sv.scrim.toComposeColor(),
-                inverseSurface = sv.inverseSurface.toComposeColor(), inverseOnSurface = sv.inverseOnSurface.toComposeColor()
+                inverseSurface = sv.inverseSurface.toComposeColor(), inverseOnSurface = sv.inverseOnSurface.toComposeColor(),
+                // Fill missing parameters with the placeholderColor
+                surfaceBright = placeholderColor,
+                surfaceDim = placeholderColor,
+                surfaceContainer = placeholderColor,
+                surfaceContainerHigh = placeholderColor,
+                surfaceContainerHighest = placeholderColor,
+                surfaceContainerLow = placeholderColor,
+                surfaceContainerLowest = placeholderColor,
+                primaryFixed = placeholderColor,
+                primaryFixedDim = placeholderColor,
+                onPrimaryFixed = placeholderColor,
+                onPrimaryFixedVariant = placeholderColor,
+                secondaryFixed = placeholderColor,
+                secondaryFixedDim = placeholderColor,
+                onSecondaryFixed = placeholderColor,
+                onSecondaryFixedVariant = placeholderColor,
+                tertiaryFixed = placeholderColor,
+                tertiaryFixedDim = placeholderColor,
+                onTertiaryFixed = placeholderColor,
+                onTertiaryFixedVariant = placeholderColor
             )
         }
         return ColorSchemePair(mapStoredValuesToScheme(entity.lightThemeValues, false), mapStoredValuesToScheme(entity.darkThemeValues, true))
