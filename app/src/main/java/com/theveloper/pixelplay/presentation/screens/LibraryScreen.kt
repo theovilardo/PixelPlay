@@ -75,6 +75,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -103,6 +104,7 @@ import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.NavBarPersistentHeight
 import com.theveloper.pixelplay.presentation.components.PlayerSheetCollapsedCornerRadius
 import com.theveloper.pixelplay.presentation.components.SmartImage
+import com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet
 import com.theveloper.pixelplay.presentation.components.subcomps.LibraryActionRow
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.ColorSchemePair
@@ -127,8 +129,12 @@ fun LibraryScreen(
     // val stablePlayerState by playerViewModel.stablePlayerState.collectAsState() // Uncomment if used
     val playlistUiState by playlistViewModel.uiState.collectAsState()
     // val sheetVisibility by playerViewModel.isSheetVisible.collectAsState() // Uncomment if used
-    val favoriteSongs by playerViewModel.favoriteSongs.collectAsState()
+    val favoriteSongs by playerViewModel.favoriteSongs.collectAsState() // Keep if used elsewhere, or remove if only favoriteIds is needed for this screen
+    val favoriteIds by playerViewModel.favoriteSongIds.collectAsState()
     val scope = rememberCoroutineScope()
+
+    var showSongInfoBottomSheet by remember { mutableStateOf(false) }
+    var selectedSongForInfo by remember { mutableStateOf<Song?>(null) }
 
     val tabTitles = listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "LIKED")
     val pagerState = rememberPagerState { tabTitles.size }
@@ -361,11 +367,17 @@ fun LibraryScreen(
                             // .padding(top = 8.dp) // This padding is now on the HorizontalPager itself
                         ) {
                             when (page) {
-                                0 -> LibrarySongsTab(uiState, playerViewModel, bottomBarHeightDp)
+                            0 -> LibrarySongsTab(uiState, playerViewModel, bottomBarHeightDp) { songFromItem ->
+                                selectedSongForInfo = songFromItem
+                                showSongInfoBottomSheet = true
+                            }
                                 1 -> LibraryAlbumsTab(uiState, playerViewModel, bottomBarHeightDp)
                                 2 -> LibraryArtistsTab(uiState, playerViewModel, bottomBarHeightDp) // Assuming no bottom bar needed or handled internally
                                 3 -> LibraryPlaylistsTab(playlistUiState, navController, bottomBarHeightDp)
-                                4 -> LibraryFavoritesTab(favoriteSongs, playerViewModel, bottomBarHeightDp)
+                            4 -> LibraryFavoritesTab(favoriteSongs, playerViewModel, bottomBarHeightDp) { songFromItem ->
+                                selectedSongForInfo = songFromItem
+                                showSongInfoBottomSheet = true
+                            }
                             }
                         }
                     }
@@ -380,6 +392,46 @@ fun LibraryScreen(
             onCreate = { name ->
                 playlistViewModel.createPlaylist(name) // Pass the actual name
                 showCreatePlaylistDialog = false
+            }
+        )
+    }
+
+    if (showSongInfoBottomSheet && selectedSongForInfo != null) {
+        val currentSong = selectedSongForInfo!! // Safe due to the check
+        // val isFavorite by playerViewModel.favoriteSongs.collectAsState().value.any { it.id == currentSong.id } // This might be tricky for recomposition.
+        // A better way to get isFavorite and handle toggle:
+        // Collect favoriteSongIds directly from the viewModel or pass them down.
+        // For simplicity in this step, we can use favoriteSongs flow and derive the state.
+        // PlayerViewModel will need to expose favoriteSongIds or a way to check if a songId is a favorite.
+
+        val isFavorite = remember(currentSong.id, favoriteIds) { derivedStateOf { favoriteIds.contains(currentSong.id) } }.value
+
+        SongInfoBottomSheet(
+            song = currentSong,
+            isFavorite = isFavorite,
+            onToggleFavorite = {
+                // Directly use PlayerViewModel's method to toggle, which should handle UserPreferencesRepository
+                playerViewModel.toggleFavoriteSpecificSong(currentSong) // Assumes such a method exists or will be added to PlayerViewModel
+            },
+            onDismiss = { showSongInfoBottomSheet = false },
+            onPlaySong = {
+                playerViewModel.showAndPlaySong(currentSong)
+                showSongInfoBottomSheet = false
+            },
+            onAddToQueue = {
+                playerViewModel.addSongToQueue(currentSong) // Assumes such a method exists or will be added
+                showSongInfoBottomSheet = false
+                // Optionally, show a Snackbar/Toast message
+            },
+            onNavigateToAlbum = {
+                // navController.navigate(Screen.AlbumDetail.createRoute(currentSong.albumId)) // Example
+                showSongInfoBottomSheet = false
+                // Actual navigation logic to be implemented if routes exist
+            },
+            onNavigateToArtist = {
+                // navController.navigate(Screen.ArtistDetail.createRoute(currentSong.artistId)) // Example
+                showSongInfoBottomSheet = false
+                // Actual navigation logic to be implemented if routes exist
             }
         )
     }
@@ -462,12 +514,16 @@ fun CreatePlaylistDialogRedesigned(
 // NUEVA Pestaña para Favoritos
 @Composable
 fun LibraryFavoritesTab(
-    favoriteSongs: List<Song>,
+    favoriteSongs: List<Song>, // This is already StateFlow<ImmutableList<Song>> from ViewModel
     playerViewModel: PlayerViewModel,
-    bottomBarHeight: Dp
+    bottomBarHeight: Dp,
+    onMoreOptionsClick: (Song) -> Unit
 ) {
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
     val listState = rememberLazyListState()
+
+    // No need to collect favoriteSongs again if it's passed directly as a list
+    // However, if you need to react to its changes, ensure it's collected or passed as StateFlow's value
 
     if (favoriteSongs.isEmpty()) {
         Box(modifier = Modifier
@@ -498,12 +554,11 @@ fun LibraryFavoritesTab(
         ) {
             items(favoriteSongs, key = { "fav_${it.id}" }) { song ->
                 val isPlayingThisSong = song.id == stablePlayerState.currentSong?.id && stablePlayerState.isPlaying
-                SongListItemFavs(
-                    title = song.title,
-                    artist = song.artist,
-                    cardCorners = 20.dp,
-                    albumArtUrl = song.albumArtUriString,
+                // Using EnhancedSongListItem for consistency, though it has more details than SongListItemFavs
+                EnhancedSongListItem(
+                    song = song,
                     isPlaying = isPlayingThisSong,
+                    onMoreOptionsClick = { onMoreOptionsClick(song) },
                     onClick = { playerViewModel.showAndPlaySong(song) }
                 )
             }
@@ -512,7 +567,12 @@ fun LibraryFavoritesTab(
 }
 
 @Composable
-fun LibrarySongsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, bottomBarHeight: Dp) {
+fun LibrarySongsTab(
+    uiState: PlayerUiState,
+    playerViewModel: PlayerViewModel,
+    bottomBarHeight: Dp,
+    onMoreOptionsClick: (Song) -> Unit
+) {
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
     val listState = rememberLazyListState()
     if (uiState.isLoadingInitialSongs && uiState.allSongs.isEmpty()) { /* ... Loading ... */ }
@@ -541,7 +601,8 @@ fun LibrarySongsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, bo
                     val isPlayingThisSong = song.id == stablePlayerState.currentSong?.id
                     EnhancedSongListItem(
                         song = song,
-                        isPlaying = isPlayingThisSong
+                        isPlaying = isPlayingThisSong,
+                        onMoreOptionsClick = { onMoreOptionsClick(song) }
                     ) {
                         playerViewModel.showAndPlaySong(song)
                     }
@@ -590,6 +651,7 @@ fun LibrarySongsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, bo
 fun EnhancedSongListItem(
     song: Song,
     isPlaying: Boolean,
+    onMoreOptionsClick: (Song) -> Unit, // Added parameter
     onClick: () -> Unit
 ) {
     val itemCornerRadius = 60.dp
@@ -719,7 +781,7 @@ fun EnhancedSongListItem(
             Spacer(modifier = Modifier.width(12.dp))
 
             IconButton(
-                onClick = { /* Handle more options click */ },
+                onClick = { onMoreOptionsClick(song) }, // Modified onClick
                 modifier = Modifier
                     .size(26.dp)
                     .padding(end = 4.dp)
