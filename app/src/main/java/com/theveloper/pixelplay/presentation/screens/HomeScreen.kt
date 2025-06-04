@@ -474,7 +474,6 @@ fun SongCardCarouselItem(
 }
 
 // Wrapper Composable for SongListItemFavs to isolate state observation
-// Wrapper Composable for SongListItemFavs to isolate state observation
 @Composable
 fun SongListItemFavsWrapper(
     song: Song,
@@ -482,29 +481,22 @@ fun SongListItemFavsWrapper(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // 1) Observamos sólo el ID de la canción que está sonando globalmente:
-    val currentPlayingSongId by playerViewModel
-        .stablePlayerState           // StateFlow<PlayerUiState>
-        .map { it.currentSong?.id }  // Flow<String?>
-        .collectAsState(initial = null)
+    // Collect the stablePlayerState once
+    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
 
-    // 2) Observamos sólo si está sonando o no:
-    val isGlobalPlaying by playerViewModel
-        .stablePlayerState
-        .map { it.isPlaying }    // Flow<Boolean>
-        .collectAsState(initial = false)
+    // Derive isThisSongPlaying using remember
+    val isThisSongPlaying = remember(song.id, stablePlayerState.currentSong?.id, stablePlayerState.isPlaying) {
+        song.id == stablePlayerState.currentSong?.id && stablePlayerState.isPlaying
+    }
 
-    // 3) Derivamos si esta fila corresponde a la canción en reproducción:
-    val isThisSongPlaying = song.id == currentPlayingSongId && isGlobalPlaying
-
-    // 4) Llamamos al presentacional pasándole sólo lo que necesita:
+    // Call the presentational composable
     SongListItemFavs(
-        modifier      = modifier,
+        modifier = modifier,
         cardCorners = 0.dp,
-        title         = song.title,
-        artist        = song.artist,
-        albumArtUrl   = song.albumArtUriString,
-        isPlaying     = isThisSongPlaying,
-        onClick       = onClick
+        title = song.title,
+        artist = song.artist,
+        albumArtUrl = song.albumArtUriString,
+        isPlaying = isThisSongPlaying,
+        onClick = onClick
     )
 }

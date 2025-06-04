@@ -334,34 +334,7 @@ class PlayerViewModel @Inject constructor(
             _isInitialThemePreloadComplete.value = false // Mantener esto
             Log.d("PlayerViewModelPerformance", "preloadThemesAndInitialData: _isInitialThemePreloadComplete set to false. Time from start: ${System.currentTimeMillis() - overallInitStartTime} ms")
 
-            // Introduce a delay before starting the theme preloading job
-            launch { // This launch uses viewModelScope's context, which is fine
-                delay(1500L) // Delay for 1.5 seconds (configurable)
-                Log.d("PlayerViewModelPerformance", "Delay complete, starting themePreloadingJob. Time from overallInitStart: ${System.currentTimeMillis() - overallInitStartTime} ms")
-                val themeJobStartTime = System.currentTimeMillis()
-                // Launch theme preloading in a separate, controlled background job
-                val themePreloadingJob: Job = launch(Dispatchers.IO) { // Explicitly Dispatchers.IO
-                    val getAllUrisStartTime = System.currentTimeMillis()
-                    val allAlbumArtUris = musicRepository.getAllUniqueAlbumArtUris()
-                    Log.d("PlayerViewModelPerformance", "getAllUniqueAlbumArtUris took ${System.currentTimeMillis() - getAllUrisStartTime} ms")
-                    allAlbumArtUris.forEach { uri ->
-                        if (!isActive) return@forEach // Check if coroutine is still active
-                        try {
-                            extractAndGenerateColorScheme(uri, isPreload = true)
-                        } catch (e: Exception) {
-                            Log.e("PlayerViewModelPerformance", "Error preloading theme for $uri", e)
-                            // Consider adding a check !isActive here too if extractAndGenerateColorScheme is very long
-                        }
-                    }
-                    Log.d("PlayerViewModelPerformance", "themePreloadingJob actual work took ${System.currentTimeMillis() - themeJobStartTime} ms before finishing log")
-                    Log.d("PlayerViewModelPerformance", "themePreloadingJob finished.")
-                }
-                // Optional: you might want to handle cancellation of themePreloadingJob explicitly
-                // if the viewModel is cleared during the delay or during its execution.
-                // However, viewModelScope cancellation should propagate.
-            }
-
-            // Start loading initial UI data (concurrently with the delay timer)
+            // Start loading initial UI data
             val resetLoadDataStartTime = System.currentTimeMillis()
             resetAndLoadInitialData() // Esto lanza sus propias corrutinas
             Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData() call took ${System.currentTimeMillis() - resetLoadDataStartTime} ms (Note: actual loading is async). Time from overallInitStart: ${System.currentTimeMillis() - overallInitStartTime} ms")

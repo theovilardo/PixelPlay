@@ -28,8 +28,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.data.model.Song
@@ -83,9 +85,15 @@ fun SongInfoBottomSheet(
                 SmartImage(
                     model = song.albumArtUriString,
                     contentDescription = "Album Art",
-                    shape = RoundedStarShape(
-                        sides = 9,
-                        curve = 0.08
+                    shape = AbsoluteSmoothCornerShape(
+                        cornerRadiusTR = 18.dp,
+                        smoothnessAsPercentBR = 60,
+                        cornerRadiusBR = 18.dp,
+                        smoothnessAsPercentTL = 60,
+                        cornerRadiusTL = 18.dp,
+                        smoothnessAsPercentBL = 60,
+                        cornerRadiusBL = 18.dp,
+                        smoothnessAsPercentTR = 60
                     ),
                     modifier = Modifier
                         .align(Alignment.CenterVertically)
@@ -202,51 +210,54 @@ fun SongInfoBottomSheet(
             )
 
             // Details Section
-            // Duration
-            ListItem(
-                modifier = Modifier.clip(
-                    shape = listItemShape
-                ),
-                headlineContent = { Text("Duration") },
-                supportingContent = { Text(formatDuration(song.duration)) },
-                leadingContent = { Icon(Icons.Rounded.Schedule, contentDescription = "Duration") }
-            )
 
-            // Genre
-            if (!song.genre.isNullOrEmpty()) {
+            FlowRow {
+                // Duration
                 ListItem(
                     modifier = Modifier.clip(
                         shape = listItemShape
                     ),
-                    headlineContent = { Text("Genre") },
-                    supportingContent = { Text(song.genre) },
-                    leadingContent = { Icon(Icons.Rounded.MusicNote, contentDescription = "Genre") }
+                    headlineContent = { Text("Duration") },
+                    supportingContent = { Text(formatDuration(song.duration)) },
+                    leadingContent = { Icon(Icons.Rounded.Schedule, contentDescription = "Duration") }
+                )
+
+                // Genre
+                if (!song.genre.isNullOrEmpty()) {
+                    ListItem(
+                        modifier = Modifier.clip(
+                            shape = listItemShape
+                        ),
+                        headlineContent = { Text("Genre") },
+                        supportingContent = { Text(song.genre) },
+                        leadingContent = { Icon(Icons.Rounded.MusicNote, contentDescription = "Genre") }
+                    )
+                }
+
+                // Album
+                ListItem(
+                    modifier = Modifier
+                        .clip(
+                            shape = listItemShape
+                        )
+                        .clickable(onClick = onNavigateToAlbum),
+                    headlineContent = { Text("Album") },
+                    supportingContent = { Text(song.album) },
+                    leadingContent = { Icon(Icons.Rounded.Album, contentDescription = "Album") }
+                )
+
+                // Artist
+                ListItem(
+                    modifier = Modifier
+                        .clip(
+                            shape = listItemShape
+                        )
+                        .clickable(onClick = onNavigateToArtist),
+                    headlineContent = { Text("Artist") },
+                    supportingContent = { Text(song.artist) },
+                    leadingContent = { Icon(Icons.Rounded.Person, contentDescription = "Artist") },
                 )
             }
-
-            // Album
-            ListItem(
-                modifier = Modifier
-                    .clip(
-                        shape = listItemShape
-                    )
-                    .clickable(onClick = onNavigateToAlbum),
-                headlineContent = { Text("Album") },
-                supportingContent = { Text(song.album) },
-                leadingContent = { Icon(Icons.Rounded.Album, contentDescription = "Album") }
-            )
-
-            // Artist
-            ListItem(
-                modifier = Modifier
-                    .clip(
-                        shape = listItemShape
-                    )
-                    .clickable(onClick = onNavigateToArtist),
-                headlineContent = { Text("Artist") },
-                supportingContent = { Text(song.artist) },
-                leadingContent = { Icon(Icons.Rounded.Person, contentDescription = "Artist") },
-            )
         }
     }
 }

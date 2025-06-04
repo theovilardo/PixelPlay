@@ -511,6 +511,15 @@ class MusicRepositoryImpl @Inject constructor(
     // Función para obtener (y cachear) las referencias mínimas de canciones permitidas
     // Función para obtener (y cachear) las referencias mínimas de canciones permitidas
     private suspend fun getPermittedSongReferences(forceRefresh: Boolean = false): List<MinimalSongInfo> = withContext(Dispatchers.IO) {
+        val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
+        val allowedDirectories = userPreferencesRepository.allowedDirectoriesFlow.first()
+        if (initialSetupDone && allowedDirectories.isEmpty()) {
+            cachedPermittedSongReferences = emptyList()
+            cachedPermittedAlbumSongCounts = emptyMap()
+            cachedPermittedArtistSongCounts = emptyMap()
+            Log.i("MusicRepo/Refs", "Initial setup done and no allowed directories. Returning empty song references.")
+            return@withContext emptyList<MinimalSongInfo>()
+        }
         permittedSongReferencesMutex.withLock {
             if (cachedPermittedSongReferences == null || forceRefresh) {
                 val coldLoadStartTime = System.currentTimeMillis()
