@@ -1324,16 +1324,7 @@ fun AnimatedPlaybackControls(
 //                targetValue = if (!isPlaying) playPauseCornerPlaying else playPauseCornerPaused,
 //                animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
 //            )
-            val playShape = AbsoluteSmoothCornerShape(
-                cornerRadiusBL = playCorner,
-                smoothnessAsPercentTR = 60,
-                cornerRadiusBR = playCorner,
-                smoothnessAsPercentBL = 60,
-                cornerRadiusTL = playCorner,
-                smoothnessAsPercentBR = 60,
-                cornerRadiusTR = playCorner,
-                smoothnessAsPercentTL = 60
-            )
+            val playShape = RoundedCornerShape(playCorner)
             Box(
                 modifier = Modifier
                     .weight(playWeight)
