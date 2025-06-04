@@ -248,6 +248,7 @@ fun LibraryScreen(
             ) {
                 tabTitles.forEachIndexed { index, title ->
                     val isSelected = pagerState.currentPage == index
+                    val onClick = remember(index, pagerState, scope) { { scope.launch { pagerState.animateScrollToPage(index) } } }
                     Tab(
                         modifier = Modifier
                             .padding(horizontal = 8.dp, vertical = 12.dp) // Adjusted padding for better touch target
@@ -256,7 +257,7 @@ fun LibraryScreen(
                                 shape = RoundedCornerShape(50) // Simpler shape for tabs
                             ),
                         selected = isSelected,
-                        onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
+                        onClick = onClick,
                         text = {
                             Text(
                                 text = title,
@@ -1122,4 +1123,3 @@ fun PlaylistItem(playlist: Playlist, onClick: () -> Unit) {
         }
     }
 }
-

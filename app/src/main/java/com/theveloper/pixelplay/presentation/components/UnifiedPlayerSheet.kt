@@ -1141,11 +1141,10 @@ private fun FullPlayerContentInternal(
                     .heightIn(min = 70.dp) // Altura mínima fija para este componente
             ) {
                 // IMPLEMENTACIÓN DE WAVY SLIDER CON ESTADO DE REPRODUCCIÓN
+                val onSliderValueChange = remember(onSeek, totalDurationValue) { { frac: Float -> onSeek((frac * totalDurationValue).roundToLong()) } }
                 WavyMusicSlider(
                     value = progressFractionValue,
-                    onValueChange = { frac ->
-                        onSeek((frac * totalDurationValue).roundToLong()) // Lambda estable
-                    },
+                    onValueChange = onSliderValueChange,
                     onValueChangeFinished = {
                         // Opcional: acciones cuando el usuario termina de arrastrar
                     },
