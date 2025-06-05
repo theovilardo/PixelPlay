@@ -1012,12 +1012,13 @@ fun SearchFilterChip(
         ),
         colors = FilterChipDefaults.filterChipColors(
             // Expressive colors for unselected state
-            containerColor = MaterialTheme.colorScheme.secondary,
-            labelColor = MaterialTheme.colorScheme.onSecondary,
+            containerColor =  MaterialTheme.colorScheme.secondaryContainer,
+            labelColor = MaterialTheme.colorScheme.onSecondaryContainer,
             // Expressive colors for selected state
             selectedContainerColor = MaterialTheme.colorScheme.primary,
             selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-            selectedLeadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer // If using a leading icon
+            selectedLeadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer, // If using a leading icon
+            //disabledContainerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
         ),
 //         Opcional: puedes añadir un icono principal, por ejemplo, para indicar selección
          leadingIcon = if (selected) {

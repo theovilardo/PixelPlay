@@ -1141,11 +1141,10 @@ private fun FullPlayerContentInternal(
                     .heightIn(min = 70.dp) // Altura mínima fija para este componente
             ) {
                 // IMPLEMENTACIÓN DE WAVY SLIDER CON ESTADO DE REPRODUCCIÓN
+                val onSliderValueChange = remember(onSeek, totalDurationValue) { { frac: Float -> onSeek((frac * totalDurationValue).roundToLong()) } }
                 WavyMusicSlider(
                     value = progressFractionValue,
-                    onValueChange = { frac ->
-                        onSeek((frac * totalDurationValue).roundToLong()) // Lambda estable
-                    },
+                    onValueChange = onSliderValueChange,
                     onValueChangeFinished = {
                         // Opcional: acciones cuando el usuario termina de arrastrar
                     },
@@ -1325,16 +1324,7 @@ fun AnimatedPlaybackControls(
 //                targetValue = if (!isPlaying) playPauseCornerPlaying else playPauseCornerPaused,
 //                animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
 //            )
-            val playShape = AbsoluteSmoothCornerShape(
-                cornerRadiusBL = playCorner,
-                smoothnessAsPercentTR = 60,
-                cornerRadiusBR = playCorner,
-                smoothnessAsPercentBL = 60,
-                cornerRadiusTL = playCorner,
-                smoothnessAsPercentBR = 60,
-                cornerRadiusTR = playCorner,
-                smoothnessAsPercentTL = 60
-            )
+            val playShape = RoundedCornerShape(playCorner)
             Box(
                 modifier = Modifier
                     .weight(playWeight)

@@ -87,7 +87,7 @@ fun RowScope.CustomNavigationBarItem(
             .weight(1f)
             .fillMaxHeight()
             .clickable(
-                onClick = onClick,
+                onClick = { if (!selected) onClick() else null },
                 enabled = enabled,
                 role = Role.Tab,
                 interactionSource = interactionSource,

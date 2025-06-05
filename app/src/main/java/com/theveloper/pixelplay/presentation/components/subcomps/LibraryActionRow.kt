@@ -8,12 +8,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -23,11 +25,15 @@ import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuItemColors
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.data.model.SortOption
@@ -107,21 +113,31 @@ fun LibraryActionRow(
                     expanded = showSortMenu,
                     onDismissRequest = onDismissSortMenu,
                     shape = RoundedCornerShape(20.dp),
+                    containerColor = Color.Transparent,
+                    shadowElevation = 0.dp,
                     modifier = Modifier.background(
                         color = MaterialTheme.colorScheme.surfaceVariant
                     ) // Custom background for dropdown
                 ) {
-                    currentSortOptionsForTab.forEach { option ->
+                    currentSortOptionsForTab.forEach { option: SortOption ->
+                        val enabled = option::class == selectedSortOption::class
                         DropdownMenuItem(
+                            modifier = Modifier
+                                .padding(4.dp)
+                                .background(
+                                    color = MaterialTheme.colorScheme.surfaceContainerLow, //if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainer,
+                                    shape = if (enabled) CircleShape else RoundedCornerShape(12.dp)
+                                )
+                                .clip(if (enabled) CircleShape else RoundedCornerShape(12.dp)),
                             text = { Text(option.displayName, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                             onClick = {
                                 onSortOptionSelected(option)
                                 // onDismissSortMenu() // Already called in LibraryScreen's onSortOptionSelected lambda
                             },
-                            leadingIcon = if (option::class == selectedSortOption::class) { // Check if it's the selected one
+                            leadingIcon = if (enabled) { // Check if it's the selected one
                                 {
                                     Icon(
-                                        Icons.Filled.Check,
+                                        Icons.Rounded.CheckCircle,
                                         contentDescription = "Selected",
                                         tint = MaterialTheme.colorScheme.primary
                                     )

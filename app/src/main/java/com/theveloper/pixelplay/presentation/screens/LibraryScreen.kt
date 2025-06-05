@@ -2,6 +2,7 @@ package com.theveloper.pixelplay.presentation.screens
 
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
@@ -248,6 +249,7 @@ fun LibraryScreen(
             ) {
                 tabTitles.forEachIndexed { index, title ->
                     val isSelected = pagerState.currentPage == index
+                    val onClick = remember(index, pagerState, scope) { { scope.launch { pagerState.animateScrollToPage(index) } } }
                     Tab(
                         modifier = Modifier
                             .padding(horizontal = 8.dp, vertical = 12.dp) // Adjusted padding for better touch target
@@ -256,7 +258,7 @@ fun LibraryScreen(
                                 shape = RoundedCornerShape(50) // Simpler shape for tabs
                             ),
                         selected = isSelected,
-                        onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
+                        onClick = { onClick() },
                         text = {
                             Text(
                                 text = title,
@@ -654,8 +656,14 @@ fun EnhancedSongListItem(
     onMoreOptionsClick: (Song) -> Unit, // Added parameter
     onClick: () -> Unit
 ) {
-    val itemCornerRadius = 60.dp
+    //val itemCornerRadius = 60.dp
     val coverCornerRadius = 60.dp
+
+    // Animaciones para el botón de favorito
+    val itemCornerRadius by animateDpAsState(
+        targetValue = if (isPlaying) 26.dp else 60.dp, // 28.dp para hacerlo circular en un alto de 56.dp
+        animationSpec = tween(durationMillis = 300), label = "ItemCornerAnimation"
+    )
 
     val colors = MaterialTheme.colorScheme
 
@@ -783,7 +791,7 @@ fun EnhancedSongListItem(
             IconButton(
                 onClick = { onMoreOptionsClick(song) }, // Modified onClick
                 modifier = Modifier
-                    .size(26.dp)
+                    .size(36.dp)
                     .padding(end = 4.dp)
             ) {
                 Icon(
@@ -1122,4 +1130,3 @@ fun PlaylistItem(playlist: Playlist, onClick: () -> Unit) {
         }
     }
 }
-
