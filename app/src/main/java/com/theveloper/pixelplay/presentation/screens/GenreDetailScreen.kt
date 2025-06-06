@@ -28,25 +28,30 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material.icons.filled.Shuffle // Import Shuffle icon
+import androidx.compose.material3.FloatingActionButton // Import FAB
+// Removed TopAppBar and TopAppBarDefaults as GradientTopBar will be used
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color // Added for default color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.theveloper.pixelplay.data.model.Song // Import Song
 // Attempt to import ExpressiveSongListItem. If this fails, a local one will be used.
 // import com.theveloper.pixelplay.presentation.screens.ExpressiveSongListItem // Path might vary
+import com.theveloper.pixelplay.presentation.components.GradientTopBar // Import GradientTopBar
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight // For MiniPlayerHeight if needed for padding
 import com.theveloper.pixelplay.presentation.components.SmartImage // For a simple song item
 import com.theveloper.pixelplay.presentation.viewmodel.GenreDetailViewModel
+import com.theveloper.pixelplay.presentation.viewmodel.GroupedSongListItem // Import the new sealed interface
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel // Assuming PlayerViewModel might be needed
+import com.theveloper.pixelplay.utils.hexToColor // Import hexToColor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,17 +70,34 @@ fun GenreDetailScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(uiState.genre?.name ?: "Genre Details") },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+            val startColor = hexToColor(
+                hex = uiState.genre?.colorHex,
+                defaultColor = MaterialTheme.colorScheme.surfaceVariant // Fallback color
             )
+            val endColor = MaterialTheme.colorScheme.background // End color for the gradient
+
+            GradientTopBar(
+                title = uiState.genre?.name ?: "Genre Details",
+                startColor = startColor,
+                endColor = endColor,
+                onNavigationIconClick = { navController.popBackStack() }
+            )
+        },
+        floatingActionButton = {
+            if (uiState.songs.isNotEmpty()) {
+                FloatingActionButton(
+                    onClick = {
+                        if (uiState.songs.isNotEmpty()) { // Double check, though FAB is conditional
+                            val randomSong = uiState.songs.random()
+                            playerViewModel.showAndPlaySong(randomSong, uiState.songs, uiState.genre?.name ?: "Genre Shuffle")
+                        }
+                    },
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                ) {
+                    Icon(Icons.Filled.Shuffle, contentDescription = "Play Random")
+                }
+            }
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
@@ -115,16 +137,60 @@ fun GenreDetailScreen(
                     }
                 } else {
                     LazyColumn(
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        contentPadding = PaddingValues(vertical = 8.dp) // Horizontal padding handled by items
                     ) {
-                        items(uiState.songs, key = { song -> "genre_song_${song.id}" }) { song ->
-                            // Use ExpressiveSongListItem if available and works, otherwise SimpleGenreSongItem
-                            // For now, let's define SimpleGenreSongItem to avoid dependency issues with SearchScreen's item
-                            SimpleGenreSongItem(song = song, onClick = {
-                                playerViewModel.showAndPlaySong(song)
-                                // Optionally navigate or change UI state
-                            })
+                        items(uiState.groupedSongs, key = { item ->
+                            when (item) {
+                                is GroupedSongListItem.ArtistHeader -> "artist_${item.name}"
+                                is GroupedSongListItem.AlbumHeader -> "album_${item.artistName}_${item.name}"
+                                is GroupedSongListItem.SongItem -> "song_${item.song.id}"
+                            }
+                        }) { item ->
+                            when (item) {
+                                is GroupedSongListItem.ArtistHeader -> {
+                                    Text(
+                                        text = item.name,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                                    )
+                                }
+                                is GroupedSongListItem.AlbumHeader -> {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                                    ) {
+                                        SmartImage(
+                                            model = item.albumArtUri,
+                                            contentDescription = "Album art for ${item.name}",
+                                            modifier = Modifier
+                                                .size(40.dp) // Smaller for album header
+                                                .clip(CircleShape)
+                                        )
+                                        Spacer(Modifier.width(12.dp))
+                                        Text(
+                                            text = item.name,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                                is GroupedSongListItem.SongItem -> {
+                                    SimpleGenreSongItem(
+                                        song = item.song,
+                                        onClick = {
+                                            // Important: Pass the original flat list (uiState.songs) for playback context
+                                            playerViewModel.showAndPlaySong(item.song, uiState.songs, uiState.genre?.name ?: "Genre")
+                                        },
+                                        modifier = Modifier.padding(horizontal = 16.dp) // Add horizontal padding to song item
+                                    )
+                                }
+                            }
+                            // Add a small spacer after each item, except for the last one perhaps
+                            Spacer(modifier = Modifier.height(4.dp))
                         }
                         // Add spacer for the mini player if visible
                         item { Spacer(modifier = Modifier.height(MiniPlayerHeight + 16.dp)) }
@@ -137,12 +203,12 @@ fun GenreDetailScreen(
 
 // Simple Song Item for GenreDetailScreen - to avoid complex dependencies for now
 @Composable
-private fun SimpleGenreSongItem(song: Song, onClick: () -> Unit) {
+private fun SimpleGenreSongItem(song: Song, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Row(
-        modifier = Modifier
+        modifier = modifier // Apply the modifier passed from the LazyColumn item
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
+            .padding(vertical = 8.dp), // Keep vertical padding internal to the item
         verticalAlignment = Alignment.CenterVertically
     ) {
         SmartImage(

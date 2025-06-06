@@ -479,10 +479,10 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    // showAndPlaySong ahora usa playSongs con allSongs como la lista
-    fun showAndPlaySong(song: Song) {
-        // Usar la lista actual de allSongs (que es paginada) como la cola por defecto.
-        playSongs(_playerUiState.value.allSongs, song, "All Songs")
+    // showAndPlaySong ahora usa playSongs con la lista de contexto proporcionada.
+    fun showAndPlaySong(song: Song, contextSongs: List<Song>, queueName: String = "Current Context") {
+        // Utiliza la lista de canciones del contexto actual (ej: canciones de un género específico) como la cola.
+        playSongs(contextSongs, song, queueName)
         _isSheetVisible.value = true
         _predictiveBackCollapseFraction.value = 0f
     }
