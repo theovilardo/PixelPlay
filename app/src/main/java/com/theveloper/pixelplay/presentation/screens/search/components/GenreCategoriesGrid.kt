@@ -117,25 +117,20 @@ private fun GenreCard(
 ) {
     val backgroundColor = getGenreBackgroundColor(genre.name)
 
-    val cardShape = AbsoluteSmoothCornerShape(
-        cornerRadiusTR = 24.dp,
-        smoothnessAsPercentTL = 70,
-        cornerRadiusTL = 24.dp,
-        smoothnessAsPercentTR = 70,
-        cornerRadiusBR = 24.dp,
-        smoothnessAsPercentBL = 70,
-        cornerRadiusBL = 24.dp,
-        smoothnessAsPercentBR = 70
-    )
-
     Card(
         modifier = Modifier
             .aspectRatio(1.2f)
-            .clip(
-                cardShape
-            )
             .clickable(onClick = onClick),
-        shape = cardShape,
+        shape = AbsoluteSmoothCornerShape(
+            cornerRadiusTR = 24.dp,
+            smoothnessAsPercentTL = 70,
+            cornerRadiusTL = 24.dp,
+            smoothnessAsPercentTR = 70,
+            cornerRadiusBR = 24.dp,
+            smoothnessAsPercentBL = 70,
+            cornerRadiusBL = 24.dp,
+            smoothnessAsPercentBR = 70
+        ),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {

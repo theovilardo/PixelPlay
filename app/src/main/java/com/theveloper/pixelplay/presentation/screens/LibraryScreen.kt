@@ -417,11 +417,7 @@ fun LibraryScreen(
             },
             onDismiss = { showSongInfoBottomSheet = false },
             onPlaySong = {
-                playerViewModel.showAndPlaySong(
-                    song = currentSong,
-                    contextSongs = emptyList(),
-                    queueName = "Library"
-                )
+                playerViewModel.showAndPlaySong(currentSong)
                 showSongInfoBottomSheet = false
             },
             onAddToQueue = {
@@ -565,12 +561,7 @@ fun LibraryFavoritesTab(
                     song = song,
                     isPlaying = isPlayingThisSong,
                     onMoreOptionsClick = { onMoreOptionsClick(song) },
-                    onClick = {
-                        playerViewModel.showAndPlaySong(
-                            song = song,
-                            contextSongs = emptyList()
-                        )
-                    }
+                    onClick = { playerViewModel.showAndPlaySong(song) }
                 )
             }
         }
@@ -615,10 +606,7 @@ fun LibrarySongsTab(
                         isPlaying = isPlayingThisSong,
                         onMoreOptionsClick = { onMoreOptionsClick(song) }
                     ) {
-                        playerViewModel.showAndPlaySong(
-                            song = song,
-                            contextSongs = emptyList()
-                        )
+                        playerViewModel.showAndPlaySong(song)
                     }
                 }
                 if (uiState.isLoadingMoreSongs) {

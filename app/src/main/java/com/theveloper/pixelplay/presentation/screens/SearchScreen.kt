@@ -564,10 +564,7 @@ fun SearchResultsList(
                             is SearchResultItem.SongItem -> {
                                 val rememberedOnClick = remember(item.song, playerViewModel, onItemSelected) {
                                     {
-                                        playerViewModel.showAndPlaySong(
-                                            song = item.song,
-                                            contextSongs = emptyList()
-                                        )
+                                        playerViewModel.showAndPlaySong(item.song)
                                         onItemSelected()
                                     }
                                 }

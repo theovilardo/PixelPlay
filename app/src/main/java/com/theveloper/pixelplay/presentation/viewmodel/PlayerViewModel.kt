@@ -68,7 +68,6 @@ import com.theveloper.pixelplay.data.model.SearchResultItem
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
-import androidx.core.net.toUri
 
 // Nuevo enum para el estado del sheet
 enum class PlayerSheetState {
@@ -488,6 +487,17 @@ class PlayerViewModel @Inject constructor(
         _predictiveBackCollapseFraction.value = 0f
     }
 
+    // Overloaded method for playing a single song, assuming it's from the main "all songs" list.
+    fun showAndPlaySong(song: Song) {
+        // Uses the current 'allSongs' list from the UI state as the default playback context.
+        // This list is paginated, so the full queue might only contain currently loaded songs.
+        // For a true "play from library" feel where the queue is all songs,
+        // 'allSongs' should ideally represent the fully loaded library if performance allows,
+        // or this method might need to trigger loading all songs for the queue.
+        // For now, it uses the existing playerUiState.value.allSongs.
+        showAndPlaySong(song, playerUiState.value.allSongs.toList(), "Library")
+    }
+
     fun playAlbum(album: Album) {
         viewModelScope.launch {
             val songs = musicRepository.getSongsForAlbum(
@@ -678,7 +688,7 @@ class PlayerViewModel @Inject constructor(
                 _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
                 //_stablePlayerState.update { it.copy(currentSong = startSong, isPlaying = true) }
                 viewModelScope.launch {
-                    startSong.albumArtUriString?.toUri()?.let { uri ->
+                    startSong.albumArtUriString?.let { Uri.parse(it) }?.let { uri ->
                         extractAndGenerateColorScheme(uri)
                     }
                 }
