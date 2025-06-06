@@ -855,13 +855,25 @@ fun UnifiedPlayerSheet(
         ) {
             QueueBottomSheet(
                 queue = playerUiState.currentPlaybackQueue,
+                currentQueueSourceName = playerUiState.currentQueueSourceName,
                 currentSongId = stablePlayerState.currentSong?.id,
                 onDismiss = { showQueueSheet = false },
                 onPlaySong = { song ->
-                    playerViewModel.playSongs(playerUiState.currentPlaybackQueue, song, playerUiState.currentQueueSourceNname)
+                    playerViewModel.playSongs(
+                        playerUiState.currentPlaybackQueue,
+                        song,
+                        playerUiState.currentQueueSourceName
+                    )
                 },
                 onRemoveSong = { songId -> playerViewModel.removeSongFromQueue(songId) },
-                onReorder = { from, to -> playerViewModel.reorderQueueItem(from, to) }
+                onReorder = { from, to -> playerViewModel.reorderQueueItem(from, to) },
+                repeatMode = stablePlayerState.repeatMode,
+                isShuffleOn = stablePlayerState.isShuffleEnabled,
+                onToggleRepeat = { playerViewModel.cycleRepeatMode() },
+                onToggleShuffle = { playerViewModel.toggleShuffle() },
+                onTimerClick = {
+                    // TODO: Implement timer functionality
+                }
             )
         }
     }

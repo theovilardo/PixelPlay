@@ -36,7 +36,9 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.PopupProperties
 import com.theveloper.pixelplay.data.model.SortOption
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 val defaultShape = RoundedCornerShape(26.dp) // Fallback shape
 
@@ -112,7 +114,19 @@ fun LibraryActionRow(
                 DropdownMenu(
                     expanded = showSortMenu,
                     onDismissRequest = onDismissSortMenu,
-                    shape = RoundedCornerShape(20.dp),
+                    properties = PopupProperties(
+                        clippingEnabled = true
+                    ),
+                    shape = AbsoluteSmoothCornerShape(
+                        cornerRadiusTL = 22.dp,
+                        smoothnessAsPercentBR = 60,
+                        cornerRadiusTR = 22.dp,
+                        smoothnessAsPercentTL = 60,
+                        cornerRadiusBL = 22.dp,
+                        smoothnessAsPercentTR = 60,
+                        cornerRadiusBR = 22.dp,
+                        smoothnessAsPercentBL = 60
+                    ),
                     containerColor = Color.Transparent,
                     shadowElevation = 0.dp,
                     modifier = Modifier.background(
@@ -124,9 +138,19 @@ fun LibraryActionRow(
                         DropdownMenuItem(
                             modifier = Modifier
                                 .padding(4.dp)
+                                .padding(horizontal = 8.dp)
                                 .background(
                                     color = MaterialTheme.colorScheme.surfaceContainerLow, //if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainer,
-                                    shape = if (enabled) CircleShape else RoundedCornerShape(12.dp)
+                                    shape = if (enabled) CircleShape else AbsoluteSmoothCornerShape(
+                                        cornerRadiusTL = 12.dp,
+                                        smoothnessAsPercentBR = 60,
+                                        cornerRadiusTR = 12.dp,
+                                        smoothnessAsPercentTL = 60,
+                                        cornerRadiusBL = 12.dp,
+                                        smoothnessAsPercentTR = 60,
+                                        cornerRadiusBR = 12.dp,
+                                        smoothnessAsPercentBL = 60
+                                    )
                                 )
                                 .clip(if (enabled) CircleShape else RoundedCornerShape(12.dp)),
                             text = { Text(option.displayName, color = MaterialTheme.colorScheme.onSurfaceVariant) },

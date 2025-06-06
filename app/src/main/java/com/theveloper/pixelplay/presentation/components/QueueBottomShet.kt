@@ -20,17 +20,31 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Repeat
+import androidx.compose.material.icons.rounded.RepeatOne
+import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FloatingToolbarDefaults
+import androidx.compose.material3.FloatingToolbarExitDirection
+import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeExtendedFloatingActionButton
+import androidx.compose.material3.LargeFloatingActionButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MediumFloatingActionButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -41,6 +55,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,11 +63,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.text.trimmedLength
 import coil.compose.AsyncImage
 import com.mohamedrejeb.compose.dnd.reorder.ReorderContainer
 import com.mohamedrejeb.compose.dnd.reorder.ReorderableItem
@@ -61,6 +78,7 @@ import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.screens.PlaylistSongItem
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
+import androidx.media3.common.Player
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class,
     ExperimentalMaterial3ExpressiveApi::class
@@ -68,11 +86,17 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 @Composable
 fun QueueBottomSheet(
     queue: List<Song>,
+    currentQueueSourceName: String,
     currentSongId: String?,
+    repeatMode: Int, // Usar constantes de Player.REPEAT_MODE_*
+    isShuffleOn: Boolean,
     onDismiss: () -> Unit,
     onPlaySong: (Song) -> Unit,
     onRemoveSong: (String) -> Unit,
-    onReorder: (from: Int, to: Int) -> Unit
+    onReorder: (from: Int, to: Int) -> Unit,
+    onToggleRepeat: () -> Unit,
+    onToggleShuffle: () -> Unit,
+    onTimerClick: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val colors = MaterialTheme.colorScheme
@@ -81,6 +105,12 @@ fun QueueBottomSheet(
     LaunchedEffect(queue) { items = queue }
 
     val reorderState = rememberReorderState<Song>()
+
+    val listState = rememberLazyListState()
+
+    val scrollBehavior = FloatingToolbarDefaults.exitAlwaysScrollBehavior(
+        exitDirection = FloatingToolbarExitDirection.Bottom
+    )
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -99,26 +129,39 @@ fun QueueBottomSheet(
                 modifier = Modifier
                     .padding(bottom = 0.dp)
             ) {
-                Box(
+                Row(
                     modifier = Modifier
-                        .align(Alignment.Start)
-                        .padding(12.dp)
-//                        .background(
-//                            color = colors.primary.copy(alpha = 0.7f),
-//                            shape = RoundedCornerShape(40.dp)
-//                        )
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.Absolute.SpaceBetween
                 ) {
                     Text(
                         text     = "Next Up",
                         style    = MaterialTheme.typography.displayMedium,
-                        //color = colors.onPrimary,
                         modifier = Modifier
                             .padding(horizontal = 12.dp, vertical = 8.dp)
-                            .align(Alignment.CenterStart)
+                            .align(Alignment.CenterVertically)
                     )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterVertically)
+                            .padding(end = 16.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                shape = CircleShape
+                            )
+                    ) {
+                        Text(
+                            modifier = Modifier
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            text = currentQueueSourceName,
+                            overflow = TextOverflow.Ellipsis,
+                            maxLines = 1
+                        )
+                    }
                 }
-
-                //Divider()
 
                 if (items.isEmpty()) {
                     Box(
@@ -127,7 +170,7 @@ fun QueueBottomSheet(
                             .padding(32.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("La cola está vacía", color = colors.onSurface)
+                        Text("Queue is empty.", color = colors.onSurface)
                     }
                 } else {
                     ReorderContainer(
@@ -135,6 +178,7 @@ fun QueueBottomSheet(
                         modifier = Modifier.weight(1f)
                     ) {  // Habilita DnD :contentReference[oaicite:4]{index=4}
                         LazyColumn(
+                            state = listState,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(
@@ -155,7 +199,7 @@ fun QueueBottomSheet(
                                 ),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(
-                                bottom = 80.dp
+                                bottom = 110.dp
                             )
                         ) {
                             itemsIndexed(items, key = { _, s -> s.id }) { _, song ->
@@ -203,19 +247,58 @@ fun QueueBottomSheet(
                     }
                 }
             }
-            ExtendedFloatingActionButton(
+
+            HorizontalFloatingToolbar(
                 modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(bottom = 16.dp, end = 20.dp),
-                onClick = { onPlaySong(queue.first()) }
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.rounded_playlist_add_24),
-                    contentDescription = "add_songs"
-                )
-                Spacer(Modifier.width(8.dp))
-                Text("Add Songs")
-            }
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 24.dp),
+                expandedShadowElevation = 4.dp,
+                expanded = true, // Siempre expandida, el scrollBehavior maneja la visibilidad
+                scrollBehavior = scrollBehavior, // Conectar el comportamiento
+                floatingActionButton = {
+                    LargeFloatingActionButton(
+                        onDismiss
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = ""
+                        )
+                    }
+                },
+                content = {
+                    // Botón de Aleatorio (Shuffle)
+                    IconButton(onClick = onToggleShuffle) {
+                        Icon(
+                            imageVector = Icons.Rounded.Shuffle,
+                            contentDescription = "Toggle Shuffle",
+                            tint = if (isShuffleOn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // Botón de Repetir (Repeat)
+                    IconButton(onClick = onToggleRepeat) {
+                        val repeatActive = repeatMode != Player.REPEAT_MODE_OFF
+                        val repeatIcon = when (repeatMode) {
+                            Player.REPEAT_MODE_ONE -> Icons.Rounded.RepeatOne
+                            else -> Icons.Rounded.Repeat // El color diferencia entre OFF y ALL
+                        }
+                        Icon(
+                            imageVector = repeatIcon,
+                            contentDescription = "Toggle Repeat",
+                            tint = if (repeatActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // Botón de Temporizador (Timer)
+                    IconButton(onClick = onTimerClick) {
+                        Icon(
+                            imageVector = Icons.Rounded.Timer,
+                            contentDescription = "Sleep Timer",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            )
         }
     }
 }

@@ -134,7 +134,10 @@ fun SongInfoBottomSheet(
                         .fillMaxHeight(), // Ocupa toda la altura de la fila
                     contentAlignment = Alignment.CenterStart // Alinea el texto
                 ) {
-                    AutoSizingTextToFill(text = song.title)
+                    AutoSizingTextToFill(
+                        modifier = Modifier.padding(end = 4.dp),
+                        text = song.title
+                    )
                 }
             }
 
@@ -155,8 +158,15 @@ fun SongInfoBottomSheet(
                     onClick = onPlaySong,
                     elevation = FloatingActionButtonDefaults.elevation(0.dp),
                     shape = playButtonShape, // Usa tu forma personalizada
-                    icon = { Icon(Icons.Rounded.PlayArrow, contentDescription = "Play song") },
-                    text = { Text("Play") }
+                    icon = {
+                        Icon(Icons.Rounded.PlayArrow, contentDescription = "Play song")
+                    },
+                    text = {
+                        Text(
+                            modifier = Modifier.padding(end = 10.dp),
+                            text = "Play"
+                        )
+                    }
                 )
 
                 // Botón de Favorito Modificado con animación y altura
@@ -228,14 +238,6 @@ fun SongInfoBottomSheet(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-//            HorizontalDivider(
-//                thickness = 1.dp, // Más sutil
-//                modifier = Modifier
-//                    .padding(vertical = 12.dp, horizontal = 10.dp)
-//                    .clip(shape = CircleShape),
-//                color = MaterialTheme.colorScheme.outlineVariant // Color más apropiado
-//            )
-
             // Sección de Detalles
             Column(
                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -274,229 +276,6 @@ fun SongInfoBottomSheet(
                     leadingContent = { Icon(Icons.Rounded.Person, contentDescription = "Artist icon") }
                 )
             }
-            // Añade un espacio al final para que el último elemento no quede pegado al borde
-            // cuando el bottom sheet se scrollea.
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
-//@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
-//@Composable
-//fun SongInfoBottomSheet(
-//    song: Song,
-//    isFavorite: Boolean,
-//    onToggleFavorite: () -> Unit,
-//    onDismiss: () -> Unit,
-//    onPlaySong: () -> Unit,
-//    onAddToQueue: () -> Unit,
-//    onNavigateToAlbum: () -> Unit,
-//    onNavigateToArtist: () -> Unit
-//) {
-//    val context = LocalContext.current
-//    val listItemShape = AbsoluteSmoothCornerShape(
-//        cornerRadiusTR = 20.dp,
-//        smoothnessAsPercentBR = 60,
-//        cornerRadiusBR = 20.dp,
-//        smoothnessAsPercentTL = 60,
-//        cornerRadiusTL = 20.dp,
-//        smoothnessAsPercentBL = 60,
-//        cornerRadiusBL = 20.dp,
-//        smoothnessAsPercentTR = 60
-//    )
-//    ModalBottomSheet(onDismissRequest = onDismiss) {
-//        Column(
-//            modifier = Modifier
-//                .padding(16.dp)
-//                .verticalScroll(rememberScrollState()),
-//            horizontalAlignment = Alignment.CenterHorizontally,
-//            verticalArrangement = Arrangement.spacedBy(12.dp)
-//        ) {
-//            Row(
-//                modifier = Modifier
-//                    .fillMaxWidth()
-//                    .height(80.dp)
-//                    .align(Alignment.CenterHorizontally),
-//                horizontalArrangement = Arrangement.spacedBy(14.dp)
-//            ) {
-//                // Album Art
-//                SmartImage(
-//                    model = song.albumArtUriString,
-//                    contentDescription = "Album Art",
-//                    shape = AbsoluteSmoothCornerShape(
-//                        cornerRadiusTR = 18.dp,
-//                        smoothnessAsPercentBR = 60,
-//                        cornerRadiusBR = 18.dp,
-//                        smoothnessAsPercentTL = 60,
-//                        cornerRadiusTL = 18.dp,
-//                        smoothnessAsPercentBL = 60,
-//                        cornerRadiusBL = 18.dp,
-//                        smoothnessAsPercentTR = 60
-//                    ),
-//                    modifier = Modifier
-//                        .align(Alignment.CenterVertically)
-//                        .size(80.dp),
-//                        //.clip(RoundedCornerShape(20.dp)),
-//                    contentScale = ContentScale.Fit,
-//                    // Assuming SmartImage has a placeholder parameter or handles it internally
-//                    // placeholder = painterResource(id = R.drawable.ic_default_album_art) // Example placeholder
-//                )
-//                // Song Title
-//                Box(
-//                    modifier = Modifier
-//                        .fillMaxWidth()
-//                        .align(Alignment.CenterVertically)
-//                ) {
-//                    AutoSizingTextToFill(
-//                        modifier = Modifier
-//                            .align(Alignment.CenterStart)
-//                            .padding(end = 8.dp),
-//                        text = song.title
-//                    )
-//                }
-//            }
-//
-//            Spacer(modifier = Modifier.height(8.dp))
-//
-//            // Action Buttons Row
-//            Row(
-//                modifier = Modifier.fillMaxWidth(),
-//                verticalAlignment = Alignment.CenterVertically,
-//                horizontalArrangement = Arrangement.spacedBy(8.dp)
-//            ) {
-//                MediumExtendedFloatingActionButton(
-//                    modifier = Modifier.weight(0.5f),
-//                    onClick = onPlaySong,
-//                    shape = AbsoluteSmoothCornerShape(
-//                        cornerRadiusTR = 26.dp,
-//                        smoothnessAsPercentBR = 60,
-//                        cornerRadiusBR = 26.dp,
-//                        smoothnessAsPercentTL = 60,
-//                        cornerRadiusTL = 26.dp,
-//                        smoothnessAsPercentBL = 60,
-//                        cornerRadiusBL = 26.dp,
-//                        smoothnessAsPercentTR = 60
-//                    )
-//                ) {
-//                    Icon(Icons.Rounded.PlayArrow, contentDescription = "Play")
-//                    Spacer(Modifier.width(14.dp))
-//                    Text("Play")
-//                    Spacer(Modifier.width(8.dp))
-//                }
-//                FilledIconButton(
-//                    modifier = Modifier
-//                        .weight(0.25f)
-//                        //.aspectRatio(1f)
-//                        .size(80.dp),
-//                    onClick = onToggleFavorite,
-//                    shape = CircleShape
-//                ) {
-//                    Icon(
-//                        modifier = Modifier
-//                            .size(
-//                                FloatingActionButtonDefaults.LargeIconSize
-//                            ),
-//                        imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-//                        contentDescription = "Toggle Favorite",
-//                        //tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-//                    )
-//                }
-//                FilledTonalIconButton(
-//                    modifier = Modifier
-//                        .weight(0.25f)
-//                        //.aspectRatio(1f)
-//                        .size(80.dp),
-//                    onClick = {
-//                        Toast.makeText(context, "Share not implemented yet", Toast.LENGTH_SHORT).show()
-//                    },
-//                    shape = CircleShape
-//                ) {
-//                    Icon(
-//                        modifier = Modifier
-//                            .size(
-//                                FloatingActionButtonDefaults.LargeIconSize
-//                            ),
-//                        imageVector = Icons.Rounded.Share,
-//                        contentDescription = "Toggle Favorite",
-//                        //tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-//                    )
-//                }
-//            }
-//
-//            // Add to Queue Button
-//            FilledTonalButton(
-//                modifier = Modifier
-//                    .fillMaxWidth()
-//                    .size(68.dp),
-//                colors = ButtonDefaults.filledTonalButtonColors(
-//                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-//                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-//                ),
-//                shape = CircleShape,
-//                onClick = onAddToQueue
-//            ) {
-//                Icon(Icons.AutoMirrored.Rounded.QueueMusic, contentDescription = "Add to Queue")
-//                Spacer(Modifier.width(8.dp))
-//                Text("Add to Queue")
-//            }
-//
-//            HorizontalDivider(
-//                thickness = 3.dp,
-//                modifier = Modifier
-//                    .padding(vertical = 8.dp, horizontal = 10.dp)
-//                    .clip(shape = CircleShape)
-//            )
-//
-//            // Details Section
-//
-//            Column(
-//                verticalArrangement = Arrangement.spacedBy(6.dp)
-//            ) {
-//                // Duration
-//                ListItem(
-//                    modifier = Modifier.clip(
-//                        shape = listItemShape
-//                    ),
-//                    headlineContent = { Text("Duration") },
-//                    supportingContent = { Text(formatDuration(song.duration)) },
-//                    leadingContent = { Icon(Icons.Rounded.Schedule, contentDescription = "Duration") }
-//                )
-//
-//                // Genre
-//                if (!song.genre.isNullOrEmpty()) {
-//                    ListItem(
-//                        modifier = Modifier.clip(
-//                            shape = listItemShape
-//                        ),
-//                        headlineContent = { Text("Genre") },
-//                        supportingContent = { Text(song.genre) },
-//                        leadingContent = { Icon(Icons.Rounded.MusicNote, contentDescription = "Genre") }
-//                    )
-//                }
-//
-//                // Album
-//                ListItem(
-//                    modifier = Modifier
-//                        .clip(
-//                            shape = listItemShape
-//                        )
-//                        .clickable(onClick = onNavigateToAlbum),
-//                    headlineContent = { Text("Album") },
-//                    supportingContent = { Text(song.album) },
-//                    leadingContent = { Icon(Icons.Rounded.Album, contentDescription = "Album") }
-//                )
-//
-//                // Artist
-//                ListItem(
-//                    modifier = Modifier
-//                        .clip(
-//                            shape = listItemShape
-//                        )
-//                        .clickable(onClick = onNavigateToArtist),
-//                    headlineContent = { Text("Artist") },
-//                    supportingContent = { Text(song.artist) },
-//                    leadingContent = { Icon(Icons.Rounded.Person, contentDescription = "Artist") },
-//                )
-//            }
-//        }
-//    }
-//}

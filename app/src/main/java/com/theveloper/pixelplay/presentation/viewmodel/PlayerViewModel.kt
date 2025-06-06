@@ -100,7 +100,7 @@ data class PlayerUiState(
     val allSongs: ImmutableList<Song> = persistentListOf(),
     val canLoadMoreSongs: Boolean = true,
     val currentPlaybackQueue: ImmutableList<Song> = persistentListOf(),
-    val currentQueueSourceNname: String = "Todas las canciones",
+    val currentQueueSourceName: String = "All Songs",
     val lavaLampColors: ImmutableList<Color> = persistentListOf(),
     val albums: ImmutableList<Album> = persistentListOf(),
     val artists: ImmutableList<Artist> = persistentListOf(),
@@ -482,7 +482,7 @@ class PlayerViewModel @Inject constructor(
     // showAndPlaySong ahora usa playSongs con allSongs como la lista
     fun showAndPlaySong(song: Song) {
         // Usar la lista actual de allSongs (que es paginada) como la cola por defecto.
-        playSongs(_playerUiState.value.allSongs, song, "Todas las canciones")
+        playSongs(_playerUiState.value.allSongs, song, "All Songs")
         _isSheetVisible.value = true
         _predictiveBackCollapseFraction.value = 0f
     }
@@ -648,7 +648,7 @@ class PlayerViewModel @Inject constructor(
 
     // Modificado para establecer una lista de reproducción
     // Modificar playSongs para que la cola sea la lista completa de allSongs si se inicia desde ahí
-    fun playSongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "Lista de reproducción") {
+    fun playSongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None") {
         mediaController?.let { controller ->
             // Si la lista de canciones a reproducir es la lista 'allSongs' (paginada),
             // idealmente deberíamos cargar todas las canciones para la cola.
@@ -674,7 +674,7 @@ class PlayerViewModel @Inject constructor(
                 controller.setMediaItems(mediaItems, startIndex, 0L)
                 controller.prepare()
                 controller.play()
-                _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceNname = queueName) }
+                _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
                 //_stablePlayerState.update { it.copy(currentSong = startSong, isPlaying = true) }
                 viewModelScope.launch {
                     startSong.albumArtUriString?.let { Uri.parse(it) }?.let { uri ->
