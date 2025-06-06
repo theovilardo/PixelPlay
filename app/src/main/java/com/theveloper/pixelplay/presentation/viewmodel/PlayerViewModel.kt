@@ -68,6 +68,7 @@ import com.theveloper.pixelplay.data.model.SearchResultItem
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import androidx.core.net.toUri
 
 // Nuevo enum para el estado del sheet
 enum class PlayerSheetState {
@@ -677,7 +678,7 @@ class PlayerViewModel @Inject constructor(
                 _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
                 //_stablePlayerState.update { it.copy(currentSong = startSong, isPlaying = true) }
                 viewModelScope.launch {
-                    startSong.albumArtUriString?.let { Uri.parse(it) }?.let { uri ->
+                    startSong.albumArtUriString?.toUri()?.let { uri ->
                         extractAndGenerateColorScheme(uri)
                     }
                 }
