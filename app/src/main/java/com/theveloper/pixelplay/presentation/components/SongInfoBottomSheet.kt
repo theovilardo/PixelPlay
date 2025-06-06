@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.data.model.Song
@@ -63,6 +64,8 @@ fun SongInfoBottomSheet(
 ) {
     val context = LocalContext.current
 
+    val evenCornerRadiusElems = 26.dp
+
     // Formas personalizadas (asumiendo que AbsoluteSmoothCornerShape está definida en tu proyecto)
     // Si no lo está, reemplaza con RoundedCornerShape(valor)
     val listItemShape = AbsoluteSmoothCornerShape(
@@ -71,14 +74,14 @@ fun SongInfoBottomSheet(
         cornerRadiusBL = 20.dp, smoothnessAsPercentTR = 60
     )
     val albumArtShape = AbsoluteSmoothCornerShape(
-        cornerRadiusTR = 18.dp, smoothnessAsPercentBR = 60, cornerRadiusBR = 18.dp,
-        smoothnessAsPercentTL = 60, cornerRadiusTL = 18.dp, smoothnessAsPercentBL = 60,
-        cornerRadiusBL = 18.dp, smoothnessAsPercentTR = 60
+        cornerRadiusTR = evenCornerRadiusElems, smoothnessAsPercentBR = 60, cornerRadiusBR = evenCornerRadiusElems,
+        smoothnessAsPercentTL = 60, cornerRadiusTL = evenCornerRadiusElems, smoothnessAsPercentBL = 60,
+        cornerRadiusBL = evenCornerRadiusElems, smoothnessAsPercentTR = 60
     )
     val playButtonShape = AbsoluteSmoothCornerShape(
-        cornerRadiusTR = 18.dp, smoothnessAsPercentBR = 60, cornerRadiusBR = 18.dp,
-        smoothnessAsPercentTL = 60, cornerRadiusTL = 18.dp, smoothnessAsPercentBL = 60,
-        cornerRadiusBL = 18.dp, smoothnessAsPercentTR = 60
+        cornerRadiusTR = evenCornerRadiusElems, smoothnessAsPercentBR = 60, cornerRadiusBR = evenCornerRadiusElems,
+        smoothnessAsPercentTL = 60, cornerRadiusTL = evenCornerRadiusElems, smoothnessAsPercentBL = 60,
+        cornerRadiusBL = evenCornerRadiusElems, smoothnessAsPercentTR = 60
     )
 
     val sheetState = rememberModalBottomSheetState(
@@ -88,7 +91,7 @@ fun SongInfoBottomSheet(
 
     // Animaciones para el botón de favorito
     val favoriteButtonCornerRadius by animateDpAsState(
-        targetValue = if (isFavorite) 18.dp else 60.dp, // 28.dp para hacerlo circular en un alto de 56.dp
+        targetValue = if (isFavorite) evenCornerRadiusElems else 60.dp, // 28.dp para hacerlo circular en un alto de 56.dp
         animationSpec = tween(durationMillis = 300), label = "FavoriteCornerAnimation"
     )
     val favoriteButtonContainerColor by animateColorAsState(
@@ -98,6 +101,12 @@ fun SongInfoBottomSheet(
     val favoriteButtonContentColor by animateColorAsState(
         targetValue = if (isFavorite) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
         animationSpec = tween(durationMillis = 300), label = "FavoriteContentColorAnimation"
+    )
+
+    val favoriteButtonShape = AbsoluteSmoothCornerShape(
+        cornerRadiusTR = favoriteButtonCornerRadius, smoothnessAsPercentBR = 60, cornerRadiusBR = favoriteButtonCornerRadius,
+        smoothnessAsPercentTL = 60, cornerRadiusTL = favoriteButtonCornerRadius, smoothnessAsPercentBL = 60,
+        cornerRadiusBL = favoriteButtonCornerRadius, smoothnessAsPercentTR = 60
     )
 
 
@@ -136,6 +145,8 @@ fun SongInfoBottomSheet(
                 ) {
                     AutoSizingTextToFill(
                         modifier = Modifier.padding(end = 4.dp),
+                        fontFamily = FontFamily.Default,
+                        fontWeight = FontWeight.Light,
                         text = song.title
                     )
                 }
@@ -149,7 +160,7 @@ fun SongInfoBottomSheet(
                     .fillMaxWidth()
                     .height(IntrinsicSize.Min), // Asegura que todos los hijos puedan tener la misma altura
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 MediumExtendedFloatingActionButton(
                     modifier = Modifier
@@ -175,7 +186,7 @@ fun SongInfoBottomSheet(
                         .weight(0.25f)
                         .fillMaxHeight(), // Rellena a la altura de la Row
                     onClick = onToggleFavorite,
-                    shape = RoundedCornerShape(favoriteButtonCornerRadius), // Forma animada
+                    shape = favoriteButtonShape, // Forma animada
                     colors = IconButtonDefaults.filledIconButtonColors( // Colores animados
                         containerColor = favoriteButtonContainerColor,
                         contentColor = favoriteButtonContentColor
@@ -217,7 +228,7 @@ fun SongInfoBottomSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Botón de Añadir a la Cola
             FilledTonalButton(

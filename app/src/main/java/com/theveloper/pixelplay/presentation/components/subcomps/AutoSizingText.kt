@@ -16,6 +16,7 @@ import androidx.compose.ui.text.resolveDefaults
 import androidx.compose.ui.platform.LocalFontFamilyResolver
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
@@ -30,6 +31,8 @@ fun AutoSizingTextToFill(
     modifier: Modifier = Modifier,
     style: TextStyle = MaterialTheme.typography.bodyMedium,
     minFontSize: TextUnit = 8.sp,
+    fontFamily: FontFamily? = null,
+    fontWeight: FontWeight? = null,
     maxFontSizeLimit: TextUnit = 100.sp, // Límite superior práctico para la búsqueda
     lineHeightRatio: Float = 1.2f // Factor para el interlineado (e.g., 1.2f para un 20% más de espacio)
 ) {
@@ -158,6 +161,8 @@ fun AutoSizingTextToFill(
                     fontSize = currentFontSize,
                     lineHeight = finalEffectiveLineHeight
                 ),
+                fontFamily = fontFamily,
+                fontWeight = fontWeight,
                 overflow = TextOverflow.Ellipsis, // Trunca si, a pesar de todo, aún se desborda.
                 softWrap = true,
                 // El tamaño de fuente se eligió para que todas las líneas quepan en altura.
