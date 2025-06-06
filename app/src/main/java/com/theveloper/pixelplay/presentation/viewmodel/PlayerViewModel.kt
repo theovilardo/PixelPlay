@@ -479,12 +479,23 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    // showAndPlaySong ahora usa playSongs con allSongs como la lista
-    fun showAndPlaySong(song: Song) {
-        // Usar la lista actual de allSongs (que es paginada) como la cola por defecto.
-        playSongs(_playerUiState.value.allSongs, song, "All Songs")
+    // showAndPlaySong ahora usa playSongs con la lista de contexto proporcionada.
+    fun showAndPlaySong(song: Song, contextSongs: List<Song>, queueName: String = "Current Context") {
+        // Utiliza la lista de canciones del contexto actual (ej: canciones de un género específico) como la cola.
+        playSongs(contextSongs, song, queueName)
         _isSheetVisible.value = true
         _predictiveBackCollapseFraction.value = 0f
+    }
+
+    // Overloaded method for playing a single song, assuming it's from the main "all songs" list.
+    fun showAndPlaySong(song: Song) {
+        // Uses the current 'allSongs' list from the UI state as the default playback context.
+        // This list is paginated, so the full queue might only contain currently loaded songs.
+        // For a true "play from library" feel where the queue is all songs,
+        // 'allSongs' should ideally represent the fully loaded library if performance allows,
+        // or this method might need to trigger loading all songs for the queue.
+        // For now, it uses the existing playerUiState.value.allSongs.
+        showAndPlaySong(song, playerUiState.value.allSongs.toList(), "Library")
     }
 
     fun playAlbum(album: Album) {

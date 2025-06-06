@@ -177,7 +177,7 @@ fun SettingsScreen(
         ) {
             // Sección de gestión de música
             SettingsSection(
-                title = "Gestión de Música",
+                title = "Music Management",
                 icon = {
                     Icon(
                         imageVector = Icons.Rounded.MusicNote,
@@ -186,7 +186,7 @@ fun SettingsScreen(
                     )
                 }
             ) {
-                SettingsCard {
+                //SettingsCard {
                     SettingsItem(
                         title = "Allowed Directories",
                         subtitle = "Choose the directories you want to get the music files from.",
@@ -206,7 +206,7 @@ fun SettingsScreen(
                         },
                         onClick = { showDirectoryDialog = true }
                     )
-                }
+                //}
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -323,27 +323,6 @@ fun SettingsSection(
 }
 
 @Composable
-fun SettingsCard(
-    content: @Composable () -> Unit
-) {
-    Surface(
-        shape = RoundedCornerShape(24.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-        tonalElevation = 1.dp,
-        shadowElevation = 0.dp,
-        border = BorderStroke(
-            width = 1.dp,
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-        ),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(vertical = 8.dp)) {
-            content()
-        }
-    }
-}
-
-@Composable
 fun SettingsItem(
     title: String,
     subtitle: String,
@@ -352,10 +331,10 @@ fun SettingsItem(
     onClick: () -> Unit
 ) {
     Surface(
-        color = Color.Transparent,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(24.dp))
             .clickable(onClick = onClick)
     ) {
         Row(

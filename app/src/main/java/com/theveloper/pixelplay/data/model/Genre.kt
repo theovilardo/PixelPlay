@@ -6,5 +6,9 @@ import androidx.compose.runtime.Immutable
 data class Genre(
     val id: String,
     val name: String,
-    val imageUrl: String? = null // Optional image URL for the genre category
+    val iconResId: Int? = null, // Optional: For a Material symbol or drawable
+    val lightColorHex: String? = null,
+    val onLightColorHex: String? = null,
+    val darkColorHex: String? = null,
+    val onDarkColorHex: String? = null
 )

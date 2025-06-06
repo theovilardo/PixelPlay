@@ -126,7 +126,32 @@ class MusicRepositoryImpl @Inject constructor(
                     val albumArtUri: Uri = ContentUris.withAppendedId(
                         "content://media/external/audio/albumart".toUri(), albumId
                     )
-                    val genreName = GenreDataSource.staticGenres.find { it.id == id.toString() }?.name ?: "Desconocido"
+
+                    // Genre fetching logic similar to getAudioFiles
+                    var genreName: String? = null
+                    try {
+                        val genreUri = MediaStore.Audio.Genres.getContentUriForAudioId("external", id.toInt())
+                        val genreProjection = arrayOf(MediaStore.Audio.GenresColumns.NAME)
+                        context.contentResolver.query(genreUri, genreProjection, null, null, null)?.use { genreCursor ->
+                            if (genreCursor.moveToFirst()) {
+                                val genreNameColumn = genreCursor.getColumnIndexOrThrow(MediaStore.Audio.GenresColumns.NAME)
+                                genreName = genreCursor.getString(genreNameColumn)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e("MusicRepositoryImpl", "Error fetching genre for song ID: $id in queryAndFilterSongs", e)
+                    }
+
+                    if (genreName.isNullOrEmpty()) {
+                        val staticGenres = GenreDataSource.staticGenres
+                        if (staticGenres.isNotEmpty()) {
+                            val genreIndex = (id % staticGenres.size.toLong()).toInt()
+                            genreName = staticGenres[genreIndex].name
+                        } else {
+                            genreName = "Unknown" // Fallback if staticGenres is empty
+                        }
+                    }
+
                     songs.add(
                         Song(
                             id = id.toString(),
@@ -239,6 +264,16 @@ class MusicRepositoryImpl @Inject constructor(
                                     }
                                 } catch (e: Exception) {
                                     Log.e("MusicRepositoryImpl", "Error fetching genre for song ID: $songId", e)
+                                }
+
+                                if (genreName.isNullOrEmpty()) {
+                                    val staticGenres = GenreDataSource.staticGenres
+                                    if (staticGenres.isNotEmpty()) {
+                                        val genreIndex = (id % staticGenres.size.toLong()).toInt()
+                                        genreName = staticGenres[genreIndex].name
+                                    } else {
+                                        genreName = "Unknown" // Fallback if staticGenres is empty
+                                    }
                                 }
 
                         songsToReturn.add(
@@ -856,42 +891,34 @@ class MusicRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getMusicByGenre(genreId: String): List<Song> = withContext(Dispatchers.IO) {
-        Log.d("MusicRepositoryImpl", "getMusicByGenre called for genreId: $genreId (Placeholder)")
+        Log.d("MusicRepositoryImpl", "getMusicByGenre called for genreId: $genreId")
 
-        // Fetch a batch of all available (and permitted) songs to work with.
-        // Using queryAndFilterSongs to respect directory permissions.
-        // Fetching up to 100 songs as a base for our placeholder logic.
-        // Adjust sort order or selection as needed if you want more variety.
+        // 1. Fetch All Permitted Songs
+        // queryAndFilterSongs already populates the genre field correctly based on previous modifications.
         val allPermittedSongs = queryAndFilterSongs(
             selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ?",
             selectionArgs = arrayOf("30000"), // Songs longer than 30 seconds
             sortOrder = "${MediaStore.Audio.Media.TITLE} ASC" // Consistent ordering
-        ).take(100) // Take up to 100 songs to form a base pool
+        )
 
         if (allPermittedSongs.isEmpty()) {
+            Log.d("MusicRepositoryImpl", "No permitted songs found. Returning empty list for genreId: $genreId")
             return@withContext emptyList()
         }
 
-        // Placeholder Logic: Distribute songs among known genres somewhat deterministically
-        // This is a very basic placeholder. A real implementation would filter on actual genre metadata.
-        val genreIndex = GenreDataSource.staticGenres.indexOfFirst { it.id == genreId }
-        if (genreIndex == -1) {
-            // Unknown genreId, return a small subset or empty list
-            return@withContext allPermittedSongs.take(5)
+        // 2. Filter by Genre ID (by matching genre name)
+        val targetGenreName = GenreDataSource.staticGenres.find { it.id == genreId }?.name
+        if (targetGenreName == null) {
+            Log.w("MusicRepositoryImpl", "Invalid genreId: $genreId. No matching genre name found in GenreDataSource.staticGenres. Returning empty list.")
+            return@withContext emptyList()
         }
 
-        val songsPerGenreApproximation = (allPermittedSongs.size / GenreDataSource.staticGenres.size).coerceAtLeast(1)
-        val startIndex = (genreIndex * songsPerGenreApproximation) % allPermittedSongs.size
-        val endIndex = (startIndex + songsPerGenreApproximation).coerceAtMost(allPermittedSongs.size)
-
-        val genreSpecificSongs = if (startIndex < endIndex) {
-            allPermittedSongs.subList(startIndex, endIndex)
-        } else {
-            // Fallback if calculation is off (e.g. very few songs)
-            allPermittedSongs.shuffled().take( (5..10).random() ) // Random small subset
+        val genreSpecificSongs = allPermittedSongs.filter { song ->
+            song.genre == targetGenreName
         }
 
-        Log.d("MusicRepositoryImpl", "Placeholder: Returning ${genreSpecificSongs.size} songs for genre $genreId")
+        // 3. Return Filtered List and Log
+        Log.d("MusicRepositoryImpl", "Found ${genreSpecificSongs.size} songs for genre: $targetGenreName (genreId: $genreId)")
         return@withContext genreSpecificSongs
     }
 }
