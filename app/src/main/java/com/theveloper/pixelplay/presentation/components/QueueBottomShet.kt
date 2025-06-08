@@ -253,7 +253,7 @@ fun QueueBottomSheet(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 24.dp),
-                //expandedShadowElevation = 4.dp,
+                expandedShadowElevation = 0.dp,
                 colors = FloatingToolbarDefaults.standardFloatingToolbarColors(
                     toolbarContainerColor = MaterialTheme.colorScheme.surfaceVariant
                 ),

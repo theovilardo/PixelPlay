@@ -118,9 +118,21 @@ private fun GenreCard(
 ) {
     val backgroundColor = getGenreBackgroundColor(genre.name)
 
+    val shape = AbsoluteSmoothCornerShape(
+        cornerRadiusTR = 24.dp,
+        smoothnessAsPercentTL = 70,
+        cornerRadiusTL = 24.dp,
+        smoothnessAsPercentTR = 70,
+        cornerRadiusBR = 24.dp,
+        smoothnessAsPercentBL = 70,
+        cornerRadiusBL = 24.dp,
+        smoothnessAsPercentBR = 70
+    )
+
     Card(
         modifier = Modifier
             .aspectRatio(1.2f)
+            .clip(shape)
             .clickable(onClick = onClick),
         shape = AbsoluteSmoothCornerShape(
             cornerRadiusTR = 24.dp,

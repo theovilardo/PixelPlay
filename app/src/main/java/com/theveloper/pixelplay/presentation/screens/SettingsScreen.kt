@@ -213,7 +213,7 @@ fun SettingsScreen(
 
             // Sección de apariencia
             SettingsSection(
-                title = "Apariencia",
+                title = "Appearance",
                 icon = {
                     Icon(
                         imageVector = Icons.Rounded.Palette,
@@ -234,12 +234,12 @@ fun SettingsScreen(
                 ){
                     // Selector para Tema Global
                     ThemeSelectorItem(
-                        label = "Tema de la Aplicación",
-                        description = "Define la apariencia general de PixelPlay.",
+                        label = "App Theme (Beta)",
+                        description = "Choose the appearance for the app's UI.",
                         options = mapOf(
-                            ThemePreference.DEFAULT to "PixelPlay Predeterminado",
-                            ThemePreference.DYNAMIC to "Dinámico (Sistema)",
-                            ThemePreference.ALBUM_ART to "Basado en Carátula"
+                            ThemePreference.DEFAULT to "PixelPlay Default",
+                            ThemePreference.DYNAMIC to "Dynamic (System Theme)",
+                            ThemePreference.ALBUM_ART to "Album Art"
                         ),
                         selectedKey = uiState.globalThemePreference,
                         onSelectionChanged = { settingsViewModel.setGlobalThemePreference(it) },
@@ -254,19 +254,14 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-//                    HorizontalDivider(
-//                        modifier = Modifier.padding(horizontal = 16.dp),
-//                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
-//                    )
-
                     // Selector para Tema del Reproductor
                     ThemeSelectorItem(
-                        label = "Tema del Reproductor",
-                        description = "Personaliza cómo se ve el reproductor de música.",
+                        label = "Player Theme",
+                        description = "Choose the appearance for the floating player.",
                         options = mapOf(
-                            ThemePreference.GLOBAL to "Seguir Tema de Aplicación",
-                            ThemePreference.ALBUM_ART to "Basado en Carátula",
-                            ThemePreference.DEFAULT to "PixelPlay Predeterminado"
+                            ThemePreference.GLOBAL to "Follow app's theme",
+                            ThemePreference.ALBUM_ART to "Album Art",
+                            ThemePreference.DEFAULT to "PixelPlay Default"
                         ),
                         selectedKey = uiState.playerThemePreference,
                         onSelectionChanged = { settingsViewModel.setPlayerThemePreference(it) },

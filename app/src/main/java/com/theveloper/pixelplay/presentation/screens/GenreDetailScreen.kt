@@ -42,6 +42,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton // Import FAB
 import androidx.compose.material3.LargeFloatingActionButton
+import androidx.compose.material3.MediumFloatingActionButton
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberTopAppBarState
 // Removed TopAppBar and TopAppBarDefaults as GradientTopBar will be used
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -49,9 +52,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color // Added for default color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -59,6 +64,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.theveloper.pixelplay.data.model.Song // Import Song
+import com.theveloper.pixelplay.presentation.components.CollapsibleGenreTopBar
 import com.theveloper.pixelplay.presentation.components.GenreGradientTopBar
 // Attempt to import ExpressiveSongListItem. If this fails, a local one will be used.
 // import com.theveloper.pixelplay.presentation.screens.ExpressiveSongListItem // Path might vary
@@ -72,20 +78,23 @@ import com.theveloper.pixelplay.utils.formatDuration
 import com.theveloper.pixelplay.utils.hexToColor // Import hexToColor
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun GenreDetailScreen(
     navController: NavHostController,
-    genreId: String, // genreId is passed directly as per AppNavigation setup
-    playerViewModel: PlayerViewModel, // Keep if needed for playback controls from this screen
+    genreId: String,
+    playerViewModel: PlayerViewModel,
     viewModel: GenreDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val playerSheetState by playerViewModel.sheetState.collectAsState()
-    val playerUiState by playerViewModel.playerUiState.collectAsState()
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
 
     val darkMode = isSystemInDarkTheme()
+
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(
+        rememberTopAppBarState()
+    )
 
     BackHandler(enabled = playerSheetState == PlayerSheetState.EXPANDED) {
         playerViewModel.collapsePlayerSheet()
@@ -93,38 +102,38 @@ fun GenreDetailScreen(
 
     val isMiniPlayerVisible = stablePlayerState.isPlaying || stablePlayerState.currentSong != null
 
-    // Animate FAB bottom padding
     val fabBottomPadding = animateDpAsState(
         targetValue = if (isMiniPlayerVisible) {
-            MiniPlayerHeight + 8.dp // Height of mini player + some extra spacing
+            MiniPlayerHeight + 8.dp
         } else {
-            16.dp // Default bottom padding when mini player is not visible (or fully expanded)
+            16.dp
         },
         label = "fabBottomPaddingAnimation"
-    ).value // Don't forget .value to get the Dp
+    ).value
 
     val fabShape = AbsoluteSmoothCornerShape(
-        cornerRadiusBL = 28.dp,
-        smoothnessAsPercentBR = 60,
-        cornerRadiusBR = 28.dp,
-        smoothnessAsPercentBL = 60,
-        cornerRadiusTL = 28.dp,
-        smoothnessAsPercentTR = 60,
-        cornerRadiusTR = 28.dp,
-        smoothnessAsPercentTL = 60
+        cornerRadiusBL = 24.dp,
+        smoothnessAsPercentBR = 70,
+        cornerRadiusBR = 24.dp,
+        smoothnessAsPercentBL = 70,
+        cornerRadiusTL = 24.dp,
+        smoothnessAsPercentTR = 70,
+        cornerRadiusTR = 24.dp,
+        smoothnessAsPercentTL = 70
     )
 
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             val startColor = hexToColor(
                 hex = if (darkMode) uiState.genre?.darkColorHex else uiState.genre?.lightColorHex,
-                defaultColor = MaterialTheme.colorScheme.surfaceVariant // Fallback color
+                defaultColor = MaterialTheme.colorScheme.surfaceVariant
             )
-            val endColor = MaterialTheme.colorScheme.background // End color for the gradient
+            val endColor = MaterialTheme.colorScheme.background
 
             val onColor = hexToColor(
                 hex = if (darkMode) uiState.genre?.onDarkColorHex else uiState.genre?.onLightColorHex,
-                defaultColor = MaterialTheme.colorScheme.onSurfaceVariant // Fallback color
+                defaultColor = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             GenreGradientTopBar(
@@ -132,12 +141,13 @@ fun GenreDetailScreen(
                 startColor = startColor,
                 endColor = endColor,
                 contentColor = onColor,
+                scrollBehavior = scrollBehavior,
                 onNavigationIconClick = { navController.popBackStack() }
             )
         },
         floatingActionButton = {
             if (uiState.songs.isNotEmpty()) {
-                LargeFloatingActionButton(
+                MediumFloatingActionButton(
                     modifier = Modifier
                         .padding(
                             end = 10.dp,
@@ -145,7 +155,7 @@ fun GenreDetailScreen(
                         ),
                     shape = fabShape,
                     onClick = {
-                        if (uiState.songs.isNotEmpty()) { // Double check, though FAB is conditional
+                        if (uiState.songs.isNotEmpty()) {
                             val randomSong = uiState.songs.random()
                             playerViewModel.showAndPlaySong(randomSong, uiState.songs, uiState.genre?.name ?: "Genre Shuffle")
                         }
@@ -159,40 +169,52 @@ fun GenreDetailScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
-        Column(modifier = Modifier
-            .fillMaxSize()
-            .padding(paddingValues)) {
-
+        // **LA CORRECCIÓN CLAVE ESTÁ AQUÍ**
+        // Usamos un Box como contenedor principal en lugar de una Column.
+        // Esto simplifica la jerarquía y soluciona el problema del scroll.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = paddingValues.calculateTopPadding())
+        ) {
             if (uiState.isLoadingGenreName && uiState.genre == null) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center){
-                    CircularProgressIndicator()
-                }
-            } else if (uiState.error != null && uiState.genre == null) { // Show general error if genre name failed
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center){
-                    Text(
-                        text = "Error: ${uiState.error}",
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(16.dp)
-                    )
-                }
-            } else { // Genre name loaded or error is specific to songs
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            } else if (uiState.error != null && uiState.genre == null) {
+                Text(
+                    text = "Error: ${uiState.error}",
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.align(Alignment.Center).padding(16.dp)
+                )
+            } else {
                 if (uiState.isLoadingSongs) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center){
-                        CircularProgressIndicator()
-                    }
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 } else if (uiState.songs.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center){
-                        Text(
-                            if (uiState.error != null) "Error loading songs: ${uiState.error}" else "No songs found for this genre.",
-                            modifier = Modifier.padding(16.dp)
-                        )
-                    }
+                    Text(
+                        if (uiState.error != null) "Error loading songs: ${uiState.error}" else "No songs found for this genre.",
+                        modifier = Modifier.align(Alignment.Center).padding(16.dp)
+                    )
                 } else {
+                    // Ahora la LazyColumn llena el Box, lo que le permite ser scrollable.
                     LazyColumn(
-                        contentPadding = PaddingValues(vertical = 16.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = 8.dp)
+                            .padding(horizontal = 16.dp)
+                            .clip(
+                                shape = AbsoluteSmoothCornerShape(
+                                    cornerRadiusTR = 28.dp,
+                                    smoothnessAsPercentTL = 60,
+                                    cornerRadiusTL = 28.dp,
+                                    smoothnessAsPercentTR = 60,
+                                    cornerRadiusBL = 0.dp,
+                                    cornerRadiusBR = 0.dp
+                                )
+                            )
+                            //.background(Color.Red)
+                        ,
+                        contentPadding = PaddingValues(bottom = MiniPlayerHeight + 36.dp),
                         verticalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
-                        // Group songs by artist and album for better organization
                         val sections = buildSections(uiState.groupedSongs)
 
                         items(sections, key = { it.id }) { section ->
@@ -213,14 +235,177 @@ fun GenreDetailScreen(
                             }
                         }
 
-                        // Add spacer for the mini player if visible
-                        item { Spacer(modifier = Modifier.height(MiniPlayerHeight + 16.dp)) }
+                        item { Spacer(modifier = Modifier.height(MiniPlayerHeight + 36.dp)) }
                     }
                 }
             }
         }
     }
 }
+
+//@OptIn(ExperimentalMaterial3Api::class)
+//@Composable
+//fun GenreDetailScreen(
+//    navController: NavHostController,
+//    genreId: String, // genreId is passed directly as per AppNavigation setup
+//    playerViewModel: PlayerViewModel, // Keep if needed for playback controls from this screen
+//    viewModel: GenreDetailViewModel = hiltViewModel()
+//) {
+//    val uiState by viewModel.uiState.collectAsState()
+//    val playerSheetState by playerViewModel.sheetState.collectAsState()
+//    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
+//
+//    val darkMode = isSystemInDarkTheme()
+//
+//    // Create scroll behavior for collapsible top bar
+//    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(
+//        rememberTopAppBarState()
+//    )
+//
+//    BackHandler(enabled = playerSheetState == PlayerSheetState.EXPANDED) {
+//        playerViewModel.collapsePlayerSheet()
+//    }
+//
+//    val isMiniPlayerVisible = stablePlayerState.isPlaying || stablePlayerState.currentSong != null
+//
+//    // Animate FAB bottom padding
+//    val fabBottomPadding = animateDpAsState(
+//        targetValue = if (isMiniPlayerVisible) {
+//            MiniPlayerHeight + 8.dp // Height of mini player + some extra spacing
+//        } else {
+//            16.dp // Default bottom padding when mini player is not visible (or fully expanded)
+//        },
+//        label = "fabBottomPaddingAnimation"
+//    ).value // Don't forget .value to get the Dp
+//
+//    val fabShape = AbsoluteSmoothCornerShape(
+//        cornerRadiusBL = 28.dp,
+//        smoothnessAsPercentBR = 60,
+//        cornerRadiusBR = 28.dp,
+//        smoothnessAsPercentBL = 60,
+//        cornerRadiusTL = 28.dp,
+//        smoothnessAsPercentTR = 60,
+//        cornerRadiusTR = 28.dp,
+//        smoothnessAsPercentTL = 60
+//    )
+//
+//    Scaffold(
+//        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+//        topBar = {
+//            val startColor = hexToColor(
+//                hex = if (darkMode) uiState.genre?.darkColorHex else uiState.genre?.lightColorHex,
+//                defaultColor = MaterialTheme.colorScheme.surfaceVariant // Fallback color
+//            )
+//            val endColor = MaterialTheme.colorScheme.background // End color for the gradient
+//
+//            val onColor = hexToColor(
+//                hex = if (darkMode) uiState.genre?.onDarkColorHex else uiState.genre?.onLightColorHex,
+//                defaultColor = MaterialTheme.colorScheme.onSurfaceVariant // Fallback color
+//            )
+//
+//            // Usamos la nueva versión refactorizada de la TopBar
+//            CollapsibleGenreTopBar(
+//                title = uiState.genre?.name ?: "Genre Details",
+//                startColor = startColor,
+//                endColor = endColor,
+//                contentColor = onColor,
+//                scrollBehavior = scrollBehavior,
+//                onNavigationIconClick = { navController.popBackStack() }
+//            )
+////            GenreGradientTopBar(
+////                title = uiState.genre?.name ?: "Genre Details",
+////                startColor = startColor,
+////                endColor = endColor,
+////                contentColor = onColor,
+////                onNavigationIconClick = { navController.popBackStack() }
+////            )
+//        },
+//        floatingActionButton = {
+//            if (uiState.songs.isNotEmpty()) {
+//                LargeFloatingActionButton(
+//                    modifier = Modifier
+//                        .padding(
+//                            end = 10.dp,
+//                            bottom = fabBottomPadding
+//                        ),
+//                    shape = fabShape,
+//                    onClick = {
+//                        if (uiState.songs.isNotEmpty()) { // Double check, though FAB is conditional
+//                            val randomSong = uiState.songs.random()
+//                            playerViewModel.showAndPlaySong(randomSong, uiState.songs, uiState.genre?.name ?: "Genre Shuffle")
+//                        }
+//                    },
+//                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+//                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+//                ) {
+//                    Icon(Icons.Filled.Shuffle, contentDescription = "Play Random")
+//                }
+//            }
+//        },
+//        containerColor = MaterialTheme.colorScheme.background
+//    ) { paddingValues ->
+//        Column(modifier = Modifier
+//            .fillMaxSize()
+//            .padding(paddingValues)) {
+//
+//            if (uiState.isLoadingGenreName && uiState.genre == null) {
+//                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center){
+//                    CircularProgressIndicator()
+//                }
+//            } else if (uiState.error != null && uiState.genre == null) { // Show general error if genre name failed
+//                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center){
+//                    Text(
+//                        text = "Error: ${uiState.error}",
+//                        color = MaterialTheme.colorScheme.error,
+//                        modifier = Modifier.padding(16.dp)
+//                    )
+//                }
+//            } else { // Genre name loaded or error is specific to songs
+//                if (uiState.isLoadingSongs) {
+//                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center){
+//                        CircularProgressIndicator()
+//                    }
+//                } else if (uiState.songs.isEmpty()) {
+//                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center){
+//                        Text(
+//                            if (uiState.error != null) "Error loading songs: ${uiState.error}" else "No songs found for this genre.",
+//                            modifier = Modifier.padding(16.dp)
+//                        )
+//                    }
+//                } else {
+//                    LazyColumn(
+//                        contentPadding = PaddingValues(vertical = 16.dp),
+//                        verticalArrangement = Arrangement.spacedBy(24.dp)
+//                    ) {
+//                        // Group songs by artist and album for better organization
+//                        val sections = buildSections(uiState.groupedSongs)
+//
+//                        items(sections, key = { it.id }) { section ->
+//                            when (section) {
+//                                is SectionData.ArtistSection -> {
+//                                    ArtistSectionCard(
+//                                        artistName = section.artistName,
+//                                        albums = section.albums,
+//                                        onSongClick = { song ->
+//                                            playerViewModel.showAndPlaySong(
+//                                                song,
+//                                                uiState.songs,
+//                                                uiState.genre?.name ?: "Genre"
+//                                            )
+//                                        }
+//                                    )
+//                                }
+//                            }
+//                        }
+//
+//                        // Add spacer for the mini player if visible
+//                        item { Spacer(modifier = Modifier.height(MiniPlayerHeight + 16.dp)) }
+//                    }
+//                }
+//            }
+//        }
+//    }
+//}
 
 // Data classes for better organization
 private sealed class SectionData {
@@ -322,12 +507,28 @@ private fun ArtistSectionCard(
     albums: List<AlbumData>,
     onSongClick: (Song) -> Unit
 ) {
-    Column {
+    val shadowShaoe = AbsoluteSmoothCornerShape(
+        cornerRadiusTR = 28.dp,
+        smoothnessAsPercentTL = 60,
+        cornerRadiusTL = 28.dp,
+        smoothnessAsPercentTR = 60,
+        cornerRadiusBL = 28.dp,
+        smoothnessAsPercentBR = 60,
+        cornerRadiusBR = 28.dp,
+        smoothnessAsPercentBL = 60
+    )
+    Column(
+        modifier = Modifier
+//            .shadow(
+//                elevation = 4.dp,
+//                shape = shadowShaoe
+//            )
+    ) {
         // Artist Header with gradient background
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
+                //.padding(horizontal = 16.dp)
                 .background(
                     brush = Brush.linearGradient(
                         colors = listOf(
@@ -337,7 +538,12 @@ private fun ArtistSectionCard(
                         start = Offset(0f, 0f),
                         end = Offset.Infinite
                     ),
-                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 20.dp)
+                    shape = AbsoluteSmoothCornerShape(
+                        cornerRadiusTR = 28.dp,
+                        smoothnessAsPercentTL = 60,
+                        cornerRadiusTL = 28.dp,
+                        smoothnessAsPercentTR = 60
+                    )
                 )
         ) {
             Row(
@@ -366,12 +572,18 @@ private fun ArtistSectionCard(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
+                //.padding(horizontal = 16.dp)
+            ,
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
             ),
-            shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            shape = AbsoluteSmoothCornerShape(
+                cornerRadiusBR = 28.dp,
+                smoothnessAsPercentBL = 60,
+                cornerRadiusBL = 28.dp,
+                smoothnessAsPercentBR = 60
+            ),
+            elevation = CardDefaults.cardElevation(0.dp)
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -406,7 +618,7 @@ private fun AlbumSection(
                 contentDescription = "Album art for ${album.name}",
                 modifier = Modifier
                     .size(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(6.dp))
             )
             Spacer(Modifier.width(12.dp))
             Column {
@@ -428,10 +640,12 @@ private fun AlbumSection(
             }
         }
 
+        Spacer(modifier = Modifier.height(10.dp))
+
         // Horizontal scrolling songs
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(horizontal = 4.dp)
+            //contentPadding = PaddingValues(horizontal = 4.dp)
         ) {
             items(album.songs, key = { it.id }) { song ->
                 SquareSongCard(
@@ -455,7 +669,7 @@ private fun SquareSongCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(
             defaultElevation = 2.dp,
             pressedElevation = 6.dp
@@ -481,7 +695,7 @@ private fun SquareSongCard(
             ) {
                 // Album Art
                 Card(
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(6.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                 ) {
                     SmartImage(
