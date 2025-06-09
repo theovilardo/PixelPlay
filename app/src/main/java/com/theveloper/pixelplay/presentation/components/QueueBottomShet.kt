@@ -97,10 +97,17 @@ fun QueueBottomSheet(
     onReorder: (from: Int, to: Int) -> Unit,
     onToggleRepeat: () -> Unit,
     onToggleShuffle: () -> Unit,
-    onTimerClick: () -> Unit
+    // onTimerClick: () -> Unit, // Removed
+    activeTimerValueDisplay: String?,
+    isEndOfTrackTimerActive: Boolean,
+    onSetPredefinedTimer: (minutes: Int) -> Unit,
+    onSetEndOfTrackTimer: (enable: Boolean) -> Unit,
+    onOpenCustomTimePicker: () -> Unit,
+    onCancelTimer: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val colors = MaterialTheme.colorScheme
+    var showTimerOptions by rememberSaveable { mutableStateOf(false) }
 
     var items by remember { mutableStateOf(queue) }
     LaunchedEffect(queue) { items = queue }
@@ -295,13 +302,37 @@ fun QueueBottomSheet(
                     }
 
                     // Botón de Temporizador (Timer)
-                    IconButton(onClick = onTimerClick) {
+                    IconButton(onClick = { showTimerOptions = true }) {
                         Icon(
                             imageVector = Icons.Rounded.Timer,
                             contentDescription = "Sleep Timer",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = if (activeTimerValueDisplay != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                }
+            )
+        }
+
+        if (showTimerOptions) {
+            TimerOptionsBottomSheet(
+                activeTimerValueDisplay = activeTimerValueDisplay,
+                isEndOfTrackTimerActive = isEndOfTrackTimerActive,
+                onDismiss = { showTimerOptions = false },
+                onSetPredefinedTimer = { minutes ->
+                    onSetPredefinedTimer(minutes)
+                    // showTimerOptions = false // Optionally dismiss after setting
+                },
+                onSetEndOfTrackTimer = { enable ->
+                    onSetEndOfTrackTimer(enable)
+                    // showTimerOptions = false // Optionally dismiss after setting
+                },
+                onOpenCustomTimePicker = {
+                    onOpenCustomTimePicker()
+                    // showTimerOptions = false // Optionally dismiss after opening picker
+                },
+                onCancelTimer = {
+                    onCancelTimer()
+                    showTimerOptions = false // Dismiss after cancelling
                 }
             )
         }

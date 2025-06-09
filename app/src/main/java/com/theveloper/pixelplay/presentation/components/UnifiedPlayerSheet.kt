@@ -871,9 +871,16 @@ fun UnifiedPlayerSheet(
                 isShuffleOn = stablePlayerState.isShuffleEnabled,
                 onToggleRepeat = { playerViewModel.cycleRepeatMode() },
                 onToggleShuffle = { playerViewModel.toggleShuffle() },
-                onTimerClick = {
-                    // TODO: Implement timer functionality
-                }
+                // onTimerClick removed
+                activeTimerValueDisplay = playerViewModel.activeTimerValueDisplay.collectAsState().value,
+                isEndOfTrackTimerActive = playerViewModel.isEndOfTrackTimerActive.collectAsState().value,
+                onSetPredefinedTimer = { minutes -> playerViewModel.setSleepTimer(minutes) },
+                onSetEndOfTrackTimer = { enable -> playerViewModel.setEndOfTrackTimer(enable) },
+                onOpenCustomTimePicker = {
+                    // TODO: Implement custom time picker dialog / UI
+                    Log.d("TimerOptions", "OpenCustomTimePicker clicked")
+                },
+                onCancelTimer = { playerViewModel.cancelSleepTimer() }
             )
         }
     }

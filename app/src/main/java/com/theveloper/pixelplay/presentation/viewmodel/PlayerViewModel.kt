@@ -54,20 +54,20 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.isActive
-import android.util.Log
-import com.theveloper.pixelplay.data.model.SortOption
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
+import android.util.Log
 import com.theveloper.pixelplay.data.model.SearchFilterType
 import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import com.theveloper.pixelplay.data.model.SearchResultItem
+import com.theveloper.pixelplay.data.model.SortOption
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import java.util.concurrent.TimeUnit
 
 // Nuevo enum para el estado del sheet
 enum class PlayerSheetState {
@@ -149,6 +149,18 @@ class PlayerViewModel @Inject constructor(
 
     private val _isInitialThemePreloadComplete = MutableStateFlow(false)
     val isInitialThemePreloadComplete: StateFlow<Boolean> = _isInitialThemePreloadComplete.asStateFlow()
+
+    // Sleep Timer StateFlows
+    private val _sleepTimerEndTimeMillis = MutableStateFlow<Long?>(null)
+    val sleepTimerEndTimeMillis: StateFlow<Long?> = _sleepTimerEndTimeMillis.asStateFlow()
+
+    private val _isEndOfTrackTimerActive = MutableStateFlow<Boolean>(false)
+    val isEndOfTrackTimerActive: StateFlow<Boolean> = _isEndOfTrackTimerActive.asStateFlow()
+
+    private val _activeTimerValueDisplay = MutableStateFlow<String?>(null)
+    val activeTimerValueDisplay: StateFlow<String?> = _activeTimerValueDisplay.asStateFlow()
+
+    private var sleepTimerJob: Job? = null
 
     // Paginación
     private var currentSongPage = 1
@@ -639,6 +651,15 @@ class PlayerViewModel @Inject constructor(
                         updateFavoriteStatusForCurrentSong()
                     }
                 } ?: _stablePlayerState.update { it.copy(currentSong = null, isPlaying = false, isCurrentSongFavorite = false) }
+
+                // Handle End of Track timer if transitioning automatically
+                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && _isEndOfTrackTimerActive.value) {
+                    // This condition might be too broad if REPEAT_MODE_ONE or REPEAT_MODE_ALL is active.
+                    // The STATE_ENDED check is likely more robust for the "stop after this track" feature.
+                    // However, if a track truly ends and transitions to the next (e.g. repeat mode off),
+                    // this is where it would be caught.
+                    // For now, relying more on STATE_ENDED.
+                }
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_READY) {
@@ -647,6 +668,10 @@ class PlayerViewModel @Inject constructor(
                 if (playbackState == Player.STATE_IDLE && controller.mediaItemCount == 0) {
                     _stablePlayerState.update { it.copy(currentSong = null, isPlaying = false) }
                     _playerUiState.update { it.copy(currentPosition = 0L) }
+                }
+                if (playbackState == Player.STATE_ENDED && _isEndOfTrackTimerActive.value) {
+                    mediaController?.pause()
+                    cancelSleepTimer() // Reset "End of Track" state and display
                 }
             }
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) { _stablePlayerState.update { it.copy(isShuffleEnabled = shuffleModeEnabled) } }
@@ -1173,6 +1198,47 @@ class PlayerViewModel @Inject constructor(
         // No liberar mediaControllerFuture aquí si es compartido o gestionado por la Activity/Service
         // MediaController.releaseFuture(mediaControllerFuture) // Solo si este ViewModel es el único propietario
     }
+
+    // Sleep Timer Control Functions
+    fun setSleepTimer(durationMinutes: Int) {
+        sleepTimerJob?.cancel() // Cancel any existing timer job
+        val durationMillis = TimeUnit.MINUTES.toMillis(durationMinutes.toLong())
+        val endTime = System.currentTimeMillis() + durationMillis
+        _sleepTimerEndTimeMillis.value = endTime
+        _isEndOfTrackTimerActive.value = false
+        _activeTimerValueDisplay.value = "$durationMinutes minutes"
+
+        sleepTimerJob = viewModelScope.launch {
+            delay(durationMillis)
+            if (isActive && _sleepTimerEndTimeMillis.value == endTime) { // Check if timer wasn't cancelled or changed
+                mediaController?.pause()
+                cancelSleepTimer() // Clear state after pausing
+            }
+        }
+    }
+
+    fun setEndOfTrackTimer(enable: Boolean) {
+        _isEndOfTrackTimerActive.value = enable
+        if (enable) {
+            sleepTimerJob?.cancel() // Cancel duration-based timer
+            _sleepTimerEndTimeMillis.value = null
+            _activeTimerValueDisplay.value = "End of Track"
+        } else {
+            // If disabling "End of Track" and no duration timer is set, clear display
+            if (_sleepTimerEndTimeMillis.value == null) {
+                _activeTimerValueDisplay.value = null
+            }
+        }
+    }
+
+    fun cancelSleepTimer() {
+        sleepTimerJob?.cancel()
+        sleepTimerJob = null
+        _sleepTimerEndTimeMillis.value = null
+        _isEndOfTrackTimerActive.value = false
+        _activeTimerValueDisplay.value = null
+    }
+
 
     init {
         // Observe theme preferences
