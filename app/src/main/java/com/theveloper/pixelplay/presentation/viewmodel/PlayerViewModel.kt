@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -665,7 +666,7 @@ class PlayerViewModel @Inject constructor(
                 // EOT Completion Logic moved to onMediaItemTransition
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
                     val activeEotSongId = com.theveloper.pixelplay.data.EotStateHolder.eotTargetSongId.value
-                    val previousSongId = mediaController?.previousMediaItemId
+                    val previousSongId = mediaController?.run { if (previousMediaItemIndex != C.INDEX_UNSET) getMediaItemAt(previousMediaItemIndex)?.mediaId else null }
 
                     if (_isEndOfTrackTimerActive.value && activeEotSongId != null && previousSongId != null && previousSongId == activeEotSongId) {
                         // EOT Condition Met: The EOT target song (previousSongId) just finished naturally.
