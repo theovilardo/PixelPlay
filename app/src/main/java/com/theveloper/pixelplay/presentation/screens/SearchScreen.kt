@@ -52,6 +52,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -89,7 +91,7 @@ import androidx.compose.material.icons.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
+// import androidx.compose.runtime.derivedStateOf // Already imported
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
@@ -102,6 +104,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.navigation.NavHostController
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.datasource.GenreDataSource
+import com.theveloper.pixelplay.data.model.Genre // Added import for Genre
 import com.theveloper.pixelplay.presentation.navigation.Screen // Required for Screen.GenreDetail.createRoute
 import com.theveloper.pixelplay.presentation.screens.search.components.GenreCategoriesGrid
 import okhttp3.internal.toImmutableList
@@ -120,6 +123,40 @@ fun SearchScreen(
     val uiState by playerViewModel.playerUiState.collectAsState()
     val currentFilter by remember { derivedStateOf { uiState.selectedSearchFilter } }
     val searchHistory = uiState.searchHistory
+    val allSongs by playerViewModel.allSongsFlow.collectAsState() // Collect allSongs
+
+    val dynamicGenres by remember(allSongs) {
+        derivedStateOf {
+            val songGenres = allSongs
+                .mapNotNull { it.genre?.trim() }
+                .filter { it.isNotBlank() }
+                .distinctBy { it.lowercase() } // Unique by lowercase name
+
+            val staticGenresMap = GenreDataSource.staticGenres.associateBy { it.name.lowercase() }
+
+            songGenres.map { genreName ->
+                staticGenresMap[genreName.lowercase()] ?: Genre(
+                    id = genreName, // Using name as ID
+                    name = genreName
+                    // Color fields will be null by default (as per Genre.kt)
+                )
+            }
+        }
+    }
+
+    val finalGenres by remember(dynamicGenres, GenreDataSource.staticGenres) {
+        derivedStateOf {
+            val dynamicGenreNames = dynamicGenres.map { it.name.lowercase() }.toSet()
+            val combinedGenres = dynamicGenres.toMutableList()
+
+            GenreDataSource.staticGenres.forEach { staticGenre ->
+                if (staticGenre.name.lowercase() !in dynamicGenreNames) {
+                    combinedGenres.add(staticGenre)
+                }
+            }
+            combinedGenres.toImmutableList() // Make it immutable for compose
+        }
+    }
 
     // Perform search whenever searchQuery, active state, or filter changes
     LaunchedEffect(searchQuery, active, currentFilter) {
@@ -322,7 +359,7 @@ fun SearchScreen(
             if (!active) {
                 if (searchQuery.isBlank()) {
                     GenreCategoriesGrid(
-                        genres = GenreDataSource.staticGenres,
+                        genres = finalGenres, // Use the new combined list
                         onGenreClick = { genre ->
                             Log.d("SearchScreen", "Genre clicked: ${genre.name} (ID: ${genre.id})")
                             navController.navigate(Screen.GenreDetail.createRoute(genre.id))
