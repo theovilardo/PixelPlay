@@ -15,6 +15,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import java.util.Calendar
+import kotlin.math.roundToInt
+
+val predefinedTimes = listOf(0, 5, 10, 15, 20, 30, 45, 60) // 0 represents 'Off'
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,6 +32,21 @@ fun TimerOptionsBottomSheet(
 ) {
     var showCustomTimePicker by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
+    var sliderPosition by remember { mutableStateOf(0f) }
+
+    LaunchedEffect(activeTimerValueDisplay) {
+        sliderPosition = when {
+            activeTimerValueDisplay == null -> 0f // Off
+            activeTimerValueDisplay == "End of Track" -> 0f // Slider shows 'Off' as EOT is a separate control
+            activeTimerValueDisplay.startsWith("Custom:") -> 0f // Slider shows 'Off' if custom time is active via a different mechanism
+            else -> {
+                val minutesString = activeTimerValueDisplay.removeSuffix(" minutes")
+                val minutesInt = minutesString.toIntOrNull()
+                val index = minutesInt?.let { predefinedTimes.indexOf(it) } ?: -1
+                if (index != -1) index.toFloat() else 0f
+            }
+        }
+    }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -40,22 +58,38 @@ fun TimerOptionsBottomSheet(
             Text("Sleep Timer", style = MaterialTheme.typography.titleLarge)
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Predefined times
-            Text("Predefined Times", style = MaterialTheme.typography.titleMedium)
+            // Predefined times replaced by Slider
+            Text("Set Timer Duration", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                val predefinedTimes = listOf(5, 10, 15, 20, 30, 45, 60)
-                predefinedTimes.forEach { time ->
-                    Button(onClick = {
-                        onSetPredefinedTimer(time)
-                        onDismiss()
-                    }) {
-                        Text("$time min")
-                    }
-                }
+
+            Column(modifier = Modifier.fillMaxWidth()) {
+                val currentIndex = sliderPosition.roundToInt().coerceIn(0, predefinedTimes.size - 1)
+                val currentMinutes = predefinedTimes[currentIndex]
+                val displayText = if (currentMinutes == 0) "Off" else "$currentMinutes minutes"
+                Text(
+                    text = "Selected: $displayText",
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(bottom = 4.dp).align(Alignment.CenterHorizontally)
+                )
+                Slider(
+                    value = sliderPosition,
+                    onValueChange = { sliderPosition = it },
+                    valueRange = 0f..(predefinedTimes.size - 1).toFloat(),
+                    steps = predefinedTimes.size - 2, // Number of discrete intervals
+                    onValueChangeFinished = {
+                        val selectedIndexOnFinish = sliderPosition.roundToInt().coerceIn(0, predefinedTimes.size - 1)
+                        val selectedMinutesOnFinish = predefinedTimes[selectedIndexOnFinish]
+                        if (selectedMinutesOnFinish == 0) {
+                            if (activeTimerValueDisplay != null && activeTimerValueDisplay != "End of Track") { // Only cancel if a duration timer was set
+                                onCancelTimer()
+                            }
+                        } else {
+                            onSetPredefinedTimer(selectedMinutesOnFinish)
+                        }
+                        // Consider dismissing the sheet: onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
             Spacer(modifier = Modifier.height(16.dp))
 

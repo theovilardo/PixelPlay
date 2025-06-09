@@ -155,6 +155,13 @@ fun UnifiedPlayerSheet(
     hideNavBar: Boolean = false
     // isKeyboardVisible: Boolean // Removed
 ) {
+    val context = LocalContext.current
+    LaunchedEffect(key1 = Unit) { // Or key1 = playerViewModel if it can change
+        playerViewModel.toastEvents.collect { message ->
+            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
     val playerUiState by playerViewModel.playerUiState.collectAsState()
     val currentSheetContentState by playerViewModel.sheetState.collectAsState()
