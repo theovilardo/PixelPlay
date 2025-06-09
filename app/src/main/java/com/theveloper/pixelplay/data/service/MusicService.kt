@@ -20,7 +20,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.common.util.UnstableApi
+// import androidx.media3.common.util.UnstableApi // Potentially remove if not used elsewhere
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -31,7 +31,7 @@ import com.google.protobuf.ByteString
 import com.theveloper.pixelplay.MainActivity
 import com.theveloper.pixelplay.PlayerInfoProto
 import com.theveloper.pixelplay.R
-import com.theveloper.pixelplay.data.EotStateHolder
+// import com.theveloper.pixelplay.data.EotStateHolder // Removed
 import com.theveloper.pixelplay.ui.glancewidget.PixelPlayGlanceWidget
 import com.theveloper.pixelplay.ui.glancewidget.PlayerActions
 import com.theveloper.pixelplay.ui.glancewidget.PlayerInfoStateDefinition
@@ -112,24 +112,13 @@ class MusicService : MediaSessionService() {
         exoPlayer.setAudioAttributes(attrs, true)
         exoPlayer.setHandleAudioBecomingNoisy(true)
         exoPlayer.addListener(object : Player.Listener {
-            @OptIn(UnstableApi::class) // For exoPlayer.stop(false)
+            // Removed @OptIn(UnstableApi::class) if stop(false) was the only reason
             override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_ENDED) {
-                    val currentEotTargetSongId = EotStateHolder.eotTargetSongId.value
-                    val recentlyEndedSongId = exoPlayer.currentMediaItem?.mediaId
-
-                    if (currentEotTargetSongId != null && recentlyEndedSongId != null && recentlyEndedSongId == currentEotTargetSongId) {
-                        Log.d(TAG, "EOT: Target song $recentlyEndedSongId ended. Halting auto-advance via MusicService.")
-                        exoPlayer.playWhenReady = false
-                        exoPlayer.stop(false) // false to not clear the playlist, just stop playback and preparation of next.
-                        // PlayerViewModel will observe this state change and handle its EOT cleanup.
-                    }
-                }
+                // EOT specific logic removed from here
                 updateWidgetFullState()
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean)                = updateWidgetFullState()
-            // override fun onPlaybackStateChanged(state: Int)                   = updateWidgetFullState() // Handled above
             override fun onMediaItemTransition(item: MediaItem?, reason: Int) = updateWidgetFullState()
             override fun onPlayerError(error: PlaybackException) {
                 exoPlayer.stop()
