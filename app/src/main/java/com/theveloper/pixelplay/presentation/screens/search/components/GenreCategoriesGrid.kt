@@ -237,7 +237,7 @@ private fun getGenreBackgroundColor(genreName: String): Color {
         // Darks/Greys - Tonal
         "metal" -> Color(0xFF607D8B) // Blue Grey (was 0xFF2F4F4F - DarkSlateGray) - More distinctly blue/grey, less green
 
-        else -> MaterialTheme.colorScheme.surfaceVariant // A good Material You fallback
+        else -> Color(0xFF7D5260) // Custom fallback background color
     }
 }
 
@@ -289,8 +289,8 @@ fun getOnGenreBackgroundColor(genreName: String): Color {
         // Background: Color(0xFF607D8B) (Blue Grey) - Mid-dark
         "metal" -> Color(0xFFDCECF2)  // Very light blue-grey tone
 
-        // Fallback for background: MaterialTheme.colorScheme.surfaceVariant
-        else -> MaterialTheme.colorScheme.onSurfaceVariant // This already follows Material You principles
+        // Fallback for background: Custom fallback
+        else -> Color(0xFFFFFFFF) // Custom fallback on-color (white)
     }
 }
 
