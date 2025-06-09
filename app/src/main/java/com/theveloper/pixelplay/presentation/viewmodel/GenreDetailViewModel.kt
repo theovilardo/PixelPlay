@@ -52,12 +52,32 @@ class GenreDetailViewModel @Inject constructor(
 
     private fun loadGenreName(id: String) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoadingGenreName = true)
-            val genre = GenreDataSource.staticGenres.find { it.id == id }
-            if (genre != null) {
-                _uiState.value = _uiState.value.copy(genre = genre, isLoadingGenreName = false)
+            _uiState.value = _uiState.value.copy(isLoadingGenreName = true, error = null) // Clear previous error
+            if (id.isBlank()) {
+                _uiState.value = _uiState.value.copy(
+                    error = "Genre ID is blank.",
+                    isLoadingGenreName = false
+                )
+                return@launch
+            }
+
+            val staticGenre = GenreDataSource.staticGenres.find { it.id.equals(id, ignoreCase = true) } // Case-insensitive find
+
+            if (staticGenre != null) {
+                _uiState.value = _uiState.value.copy(genre = staticGenre, isLoadingGenreName = false)
             } else {
-                _uiState.value = _uiState.value.copy(error = (_uiState.value.error ?: "") + " Genre name not found.", isLoadingGenreName = false)
+                // If not found in static genres, create a dynamic one.
+                // The ID itself is treated as the name for dynamic genres.
+                val dynamicGenre = Genre(
+                    id = id,
+                    name = id, // Use id as name
+                    iconResId = null, // No icon for dynamic genres by default
+                    lightColorHex = null, // Colors will be handled by fallback in UI
+                    onLightColorHex = null,
+                    darkColorHex = null,
+                    onDarkColorHex = null
+                )
+                _uiState.value = _uiState.value.copy(genre = dynamicGenre, isLoadingGenreName = false)
             }
         }
     }

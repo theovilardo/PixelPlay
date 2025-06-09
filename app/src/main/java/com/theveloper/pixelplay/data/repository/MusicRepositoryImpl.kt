@@ -891,10 +891,25 @@ class MusicRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getMusicByGenre(genreId: String): List<Song> = withContext(Dispatchers.IO) {
-        Log.d("MusicRepositoryImpl", "getMusicByGenre called for genreId: $genreId")
+        Log.i("MusicRepositoryImpl", "getMusicByGenre called for genreId: \"$genreId\"")
 
-        // 1. Fetch All Permitted Songs
-        // queryAndFilterSongs already populates the genre field correctly based on previous modifications.
+        val targetGenreName: String?
+        val staticGenre = GenreDataSource.staticGenres.find { it.id.equals(genreId, ignoreCase = true) }
+
+        if (staticGenre != null) {
+            targetGenreName = staticGenre.name
+            Log.d("MusicRepositoryImpl", "Static genre found for ID \"$genreId\". Target name: \"$targetGenreName\"")
+        } else {
+            targetGenreName = genreId // Treat the ID as the name for dynamic genres
+            Log.d("MusicRepositoryImpl", "No static genre found for ID \"$genreId\". Treating ID as target name: \"$targetGenreName\"")
+        }
+
+        if (targetGenreName.isNullOrBlank()) {
+            Log.w("MusicRepositoryImpl", "Target genre name is null or blank for genreId: \"$genreId\". Returning empty list.")
+            return@withContext emptyList()
+        }
+
+        // Fetch All Permitted Songs. queryAndFilterSongs populates the 'genre' field on Song objects.
         val allPermittedSongs = queryAndFilterSongs(
             selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ?",
             selectionArgs = arrayOf("30000"), // Songs longer than 30 seconds
@@ -902,23 +917,16 @@ class MusicRepositoryImpl @Inject constructor(
         )
 
         if (allPermittedSongs.isEmpty()) {
-            Log.d("MusicRepositoryImpl", "No permitted songs found. Returning empty list for genreId: $genreId")
+            Log.d("MusicRepositoryImpl", "No permitted songs found in repository. Returning empty list for target genre: \"$targetGenreName\"")
             return@withContext emptyList()
         }
 
-        // 2. Filter by Genre ID (by matching genre name)
-        val targetGenreName = GenreDataSource.staticGenres.find { it.id == genreId }?.name
-        if (targetGenreName == null) {
-            Log.w("MusicRepositoryImpl", "Invalid genreId: $genreId. No matching genre name found in GenreDataSource.staticGenres. Returning empty list.")
-            return@withContext emptyList()
-        }
-
+        // Filter songs by the determined targetGenreName (case-insensitive)
         val genreSpecificSongs = allPermittedSongs.filter { song ->
-            song.genre == targetGenreName
+            song.genre.equals(targetGenreName, ignoreCase = true)
         }
 
-        // 3. Return Filtered List and Log
-        Log.d("MusicRepositoryImpl", "Found ${genreSpecificSongs.size} songs for genre: $targetGenreName (genreId: $genreId)")
+        Log.i("MusicRepositoryImpl", "Found ${genreSpecificSongs.size} songs for target genre: \"$targetGenreName\" (original genreId: \"$genreId\")")
         return@withContext genreSpecificSongs
     }
 }
