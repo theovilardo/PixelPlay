@@ -674,12 +674,15 @@ class PlayerViewModel @Inject constructor(
                     _playerUiState.update { it.copy(currentPosition = 0L) }
                 }
                 if (playbackState == Player.STATE_ENDED && _isEndOfTrackTimerActive.value) {
-                    val endedSongId = controller.currentMediaItem?.mediaId // Assuming this is the ID of the song that just ended
+                    val endedSongId = controller.currentMediaItem?.mediaId
                     if (endedSongId != null && endedSongId == _endOfTrackSongId.value) {
+                        mediaController?.setPlayWhenReady(false)
+                        mediaController?.stop() // Consider reset parameter if issues arise
                         val completedSongTitle = _playerUiState.value.allSongs.find { it.id == _endOfTrackSongId.value }?.title ?: "Track"
                         val eotCompletedMessage = "Playback stopped: $completedSongTitle finished (End of Track)."
-                        mediaController?.pause()
-                        cancelSleepTimer(overrideToastMessage = eotCompletedMessage)
+                        // Emit toast directly, then suppress in cancelSleepTimer
+                        viewModelScope.launch { _toastEvents.emit(eotCompletedMessage) }
+                        cancelSleepTimer(suppressDefaultToast = true)
                     }
                 }
             }
@@ -1215,12 +1218,12 @@ class PlayerViewModel @Inject constructor(
     fun setSleepTimer(durationMinutes: Int) {
         if (_isEndOfTrackTimerActive.value) {
             eotSongMonitorJob?.cancel()
-            _isEndOfTrackTimerActive.value = false
-            _endOfTrackSongId.value = null
-            // Optional: Toast "End of Track timer replaced by duration timer."
+            // Suppress default toast because we are setting a new timer, which will have its own toast.
+            cancelSleepTimer(suppressDefaultToast = true)
+            // _isEndOfTrackTimerActive and _endOfTrackSongId are cleared by cancelSleepTimer
         }
 
-        sleepTimerJob?.cancel() // Cancel any existing timer job
+        sleepTimerJob?.cancel() // Cancel any existing duration-based timer job
         val durationMillis = TimeUnit.MINUTES.toMillis(durationMinutes.toLong())
         val endTime = System.currentTimeMillis() + durationMillis
         _sleepTimerEndTimeMillis.value = endTime
@@ -1254,15 +1257,24 @@ class PlayerViewModel @Inject constructor(
             eotSongMonitorJob?.cancel()
             eotSongMonitorJob = viewModelScope.launch {
                 stablePlayerState.map { it.currentSong?.id }.distinctUntilChanged().collect { newSongId ->
-                    if (_isEndOfTrackTimerActive.value && newSongId != _endOfTrackSongId.value && _endOfTrackSongId.value != null) {
-                        val previousEndOfTrackSongId = _endOfTrackSongId.value // Capture for toast
-                        val previousSongTitle = _playerUiState.value.allSongs.find { it.id == previousEndOfTrackSongId }?.title ?: "previous track"
-                        val newSongTitle = _playerUiState.value.allSongs.find { it.id == newSongId }?.title ?: "new track"
+                    if (_isEndOfTrackTimerActive.value && _endOfTrackSongId.value != null && newSongId != _endOfTrackSongId.value) {
+                        // Check if the change is likely due to active playback continuing on a new track,
+                        // implying a manual skip rather than EOT completion (which should have paused).
+                        val isPlayingNewSong = mediaController?.isPlaying == true && mediaController?.currentMediaItem?.mediaId == newSongId
+                        val playWhenReadyForNewSong = mediaController?.playWhenReady == true && mediaController?.currentMediaItem?.mediaId == newSongId
 
-                        // Emit specific toast first
-                        viewModelScope.launch { _toastEvents.emit("End of Track timer deactivated: song changed from $previousSongTitle to $newSongTitle.") }
-                        cancelSleepTimer(suppressDefaultToast = true) // Suppress generic "Timer cancelled"
-                        eotSongMonitorJob?.cancel() // Cancel self after deactivation
+                        if (isPlayingNewSong || playWhenReadyForNewSong) {
+                            val oldSongTitle = _playerUiState.value.allSongs.find { it.id == _endOfTrackSongId.value }?.title ?: "Previous track"
+                            // For newSongTitle, try MediaMetadata first if available and reliable, else fallback to allSongs list.
+                            val newSongMediaMetadataTitle = mediaController?.currentMediaItem?.mediaMetadata?.title?.toString()
+                            val newSongTitle = newSongMediaMetadataTitle ?: _playerUiState.value.allSongs.find { it.id == newSongId }?.title ?: "current track"
+
+                            viewModelScope.launch {
+                                _toastEvents.emit("End of Track timer deactivated: song changed from $oldSongTitle to $newSongTitle.")
+                            }
+                            cancelSleepTimer(suppressDefaultToast = true)
+                            eotSongMonitorJob?.cancel() // Cancel self
+                        }
                     }
                 }
             }
