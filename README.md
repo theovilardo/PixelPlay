@@ -22,10 +22,10 @@ PixelPlay is a **Jetpack Compose**-based Android music app, architected with **H
 
 ## 🚀 Key Features
 
-- **🖼️ Dynamic Themes**: Auto-adapt colors from album art with Material 3 Expressive :contentReference[oaicite:0]{index=0}  
-- **⚙️ Hilt + KSP**: Seamless dependency injection for ViewModels, repositories & more :contentReference[oaicite:1]{index=1}  
-- **💾 Data Persistence**: User prefs and playback queue with Jetpack DataStore :contentReference[oaicite:2]{index=2}  
-- **🎨 Modern UI**: Fully built in Jetpack Compose for smooth, declarative layouts :contentReference[oaicite:3]{index=3}  
+- **🖼️ Dynamic Themes**: Auto-adapt colors from album art with Material 3 Expressive  
+- **⚙️ Hilt + KSP**: Seamless dependency injection for ViewModels, repositories & more
+- **💾 Data Persistence**: User prefs and playback queue with Jetpack DataStore
+- **🎨 Modern UI**: Fully built in Jetpack Compose for smooth, declarative layouts
 - **🎵 Expandable Player**: Drag, swipe & predictive-back gestures for immersive controls  
 - **🤖 AI-Ready**: Hooks in place for future AI-powered recommendations & lyrics  
 
@@ -35,13 +35,13 @@ PixelPlay is a **Jetpack Compose**-based Android music app, architected with **H
 
 | Layer               | Tech                       |
 |---------------------|----------------------------|
-| UI                  | Jetpack Compose 1.5.0-alpha :contentReference[oaicite:4]{index=4} |
-| Design System       | Material 3 Expressive :contentReference[oaicite:5]{index=5} |
-| DI                  | Hilt 2.44 + KSP :contentReference[oaicite:6]{index=6} |
-| Persistence         | DataStore 1.1.0 :contentReference[oaicite:7]{index=7} (Room soon) |
+| UI                  | Jetpack Compose 1.5.0-alpha|
+| Design System       | Material 3 Expressive      |
+| DI                  | Hilt 2.44 + KSP            |
+| Persistence         | DataStore 1.1.0 (Room now) |
 | Navigation          | Jetpack Navigation Compose |
-| Coroutines & Flow   | Kotlin Coroutines & Flow  |
-| Testing             | JUnit5, MockK, Compose UI tests  |
+| Coroutines & Flow   | Kotlin Coroutines & Flow   |
+| Testing             | JUnit5, MockK, UI tests    |
 
 ---
 
@@ -122,5 +122,4 @@ This project is **Apache 2.0** licensed. See [LICENSE](LICENSE) for details.
 ---
 
 Feel free to tweak badges, versions and screenshots paths. Rock on! \m/
-::contentReference[oaicite:8]{index=8}
 ```
