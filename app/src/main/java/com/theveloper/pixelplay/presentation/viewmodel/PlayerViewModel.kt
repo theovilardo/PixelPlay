@@ -643,36 +643,18 @@ class PlayerViewModel @Inject constructor(
                 if (isPlaying) startProgressUpdates() else stopProgressUpdates()
             }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                mediaItem?.mediaId?.let { songId ->
-                    val song = _playerUiState.value.currentPlaybackQueue.find { s -> s.id == songId }
-                        ?: _playerUiState.value.allSongs.find { s -> s.id == songId }
-                    _stablePlayerState.update {
-                        it.copy(
-                            currentSong = song,
-                            totalDuration = controller.duration.coerceAtLeast(0L)
-                        )
-                    }
-                    _playerUiState.update { it.copy(currentPosition = 0L) } // Reset position
-                    song?.let { currentSongValue ->
-                        viewModelScope.launch {
-                            currentSongValue.albumArtUriString?.let { Uri.parse(it) }?.let { uri ->
-                                extractAndGenerateColorScheme(uri)
-                            }
-                        }
-                        updateFavoriteStatusForCurrentSong()
-                    }
-                } ?: _stablePlayerState.update { it.copy(currentSong = null, isPlaying = false, isCurrentSongFavorite = false) }
+                val controller = mediaController ?: return
 
-                // EOT Completion Logic moved to onMediaItemTransition
+                // --- EOT Completion Logic ---
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
                     val activeEotSongId = com.theveloper.pixelplay.data.EotStateHolder.eotTargetSongId.value
-                    val previousSongId = mediaController?.run { if (previousMediaItemIndex != C.INDEX_UNSET) getMediaItemAt(previousMediaItemIndex)?.mediaId else null }
+                    // Correctly get previousMediaItem using the controller instance
+                    val previousSongId = controller.run { if (previousMediaItemIndex != C.INDEX_UNSET) getMediaItemAt(previousMediaItemIndex)?.mediaId else null }
 
                     if (_isEndOfTrackTimerActive.value && activeEotSongId != null && previousSongId != null && previousSongId == activeEotSongId) {
                         // EOT Condition Met: The EOT target song (previousSongId) just finished naturally.
-
-                        mediaController?.seekTo(0L) // Seek new current item (mediaItem) to its start
-                        mediaController?.pause()
+                        controller.seekTo(0L) // Seek new current item (mediaItem which is the next song) to its start
+                        controller.pause()
 
                         val finishedSongTitle = _playerUiState.value.allSongs.find { it.id == previousSongId }?.title
                             ?: "Track" // Fallback title
@@ -680,9 +662,45 @@ class PlayerViewModel @Inject constructor(
                         viewModelScope.launch {
                             _toastEvents.emit("Playback stopped: $finishedSongTitle finished (End of Track).")
                         }
+                        // This clears _isEndOfTrackTimerActive, EotStateHolder.eotTargetSongId, and other timer states.
                         cancelSleepTimer(suppressDefaultToast = true)
+                        // eotHandled = true // Conceptually, EOT was handled. Player is now paused.
+                                         // The onIsPlayingChanged listener will update isPlaying state.
                     }
                 }
+
+                // --- Update state for the new mediaItem ---
+                mediaItem?.mediaId?.let { songId ->
+                    val song = _playerUiState.value.currentPlaybackQueue.find { s -> s.id == songId }
+                        ?: _playerUiState.value.allSongs.find { s -> s.id == songId }
+
+                    _stablePlayerState.update {
+                        it.copy(
+                            currentSong = song,
+                            // Duration might be C.TIME_UNSET if not yet known, ensure it's non-negative
+                            totalDuration = controller.duration.coerceAtLeast(0L)
+                        )
+                    }
+                    // Reset position for the new song. If EOT handled, this is fine as player is paused.
+                    // If not EOT, this correctly sets starting position for the new track.
+                    _playerUiState.update { it.copy(currentPosition = 0L) }
+
+                    song?.let { currentSongValue ->
+                        viewModelScope.launch {
+                            currentSongValue.albumArtUriString?.let { Uri.parse(it) }?.let { uri ->
+                                extractAndGenerateColorScheme(uri)
+                            }
+                        }
+                        updateFavoriteStatusForCurrentSong() // Depends on currentSong being set in _stablePlayerState
+                    }
+                } ?: _stablePlayerState.update {
+                    // Handles case where mediaItem is null (e.g., end of playlist, queue cleared)
+                    it.copy(currentSong = null, isPlaying = false, isCurrentSongFavorite = false)
+                }
+                // Other non-EOT related onMediaItemTransition logic for the new song can continue here if any.
+                // The player's play/pause state (isPlaying) is managed by onIsPlayingChanged listener.
+                // If EOT was handled, player was paused, onIsPlayingChanged(false) would have been triggered.
+                // If EOT not handled and player was playing, it continues playing the new mediaItem.
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
