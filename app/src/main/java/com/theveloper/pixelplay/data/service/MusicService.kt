@@ -20,6 +20,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+// import androidx.media3.common.util.UnstableApi // Potentially remove if not used elsewhere
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -30,6 +31,7 @@ import com.google.protobuf.ByteString
 import com.theveloper.pixelplay.MainActivity
 import com.theveloper.pixelplay.PlayerInfoProto
 import com.theveloper.pixelplay.R
+// import com.theveloper.pixelplay.data.EotStateHolder // Removed
 import com.theveloper.pixelplay.ui.glancewidget.PixelPlayGlanceWidget
 import com.theveloper.pixelplay.ui.glancewidget.PlayerActions
 import com.theveloper.pixelplay.ui.glancewidget.PlayerInfoStateDefinition
@@ -110,8 +112,13 @@ class MusicService : MediaSessionService() {
         exoPlayer.setAudioAttributes(attrs, true)
         exoPlayer.setHandleAudioBecomingNoisy(true)
         exoPlayer.addListener(object : Player.Listener {
+            // Removed @OptIn(UnstableApi::class) if stop(false) was the only reason
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                // EOT specific logic removed from here
+                updateWidgetFullState()
+            }
+
             override fun onIsPlayingChanged(isPlaying: Boolean)                = updateWidgetFullState()
-            override fun onPlaybackStateChanged(state: Int)                   = updateWidgetFullState()
             override fun onMediaItemTransition(item: MediaItem?, reason: Int) = updateWidgetFullState()
             override fun onPlayerError(error: PlaybackException) {
                 exoPlayer.stop()

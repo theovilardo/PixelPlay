@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -24,6 +25,7 @@ import coil.request.ImageRequest
 import coil.size.Size
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
+import com.theveloper.pixelplay.data.EotStateHolder // Ensure this import is present
 import com.theveloper.pixelplay.data.database.AlbumArtThemeDao
 import com.theveloper.pixelplay.data.database.AlbumArtThemeEntity
 import com.theveloper.pixelplay.data.database.toComposeColor
@@ -54,20 +56,24 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.isActive
-import android.util.Log
-import com.theveloper.pixelplay.data.model.SortOption
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
+import android.util.Log
 import com.theveloper.pixelplay.data.model.SearchFilterType
 import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import com.theveloper.pixelplay.data.model.SearchResultItem
+import com.theveloper.pixelplay.data.model.SortOption
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.flow.stateIn
+import java.util.concurrent.TimeUnit
 
 // Nuevo enum para el estado del sheet
 enum class PlayerSheetState {
@@ -149,6 +155,24 @@ class PlayerViewModel @Inject constructor(
 
     private val _isInitialThemePreloadComplete = MutableStateFlow(false)
     val isInitialThemePreloadComplete: StateFlow<Boolean> = _isInitialThemePreloadComplete.asStateFlow()
+
+    // Sleep Timer StateFlows
+    private val _sleepTimerEndTimeMillis = MutableStateFlow<Long?>(null)
+    val sleepTimerEndTimeMillis: StateFlow<Long?> = _sleepTimerEndTimeMillis.asStateFlow()
+
+    private val _isEndOfTrackTimerActive = MutableStateFlow<Boolean>(false)
+    val isEndOfTrackTimerActive: StateFlow<Boolean> = _isEndOfTrackTimerActive.asStateFlow()
+
+    private val _activeTimerValueDisplay = MutableStateFlow<String?>(null)
+    val activeTimerValueDisplay: StateFlow<String?> = _activeTimerValueDisplay.asStateFlow()
+
+    private var sleepTimerJob: Job? = null
+    // private val _endOfTrackSongId = MutableStateFlow<String?>(null) // Removed, EotStateHolder is the source of truth
+    private var eotSongMonitorJob: Job? = null
+
+    // Toast Events
+    private val _toastEvents = MutableSharedFlow<String>()
+    val toastEvents = _toastEvents.asSharedFlow()
 
     // Paginación
     private var currentSongPage = 1
@@ -620,26 +644,66 @@ class PlayerViewModel @Inject constructor(
                 if (isPlaying) startProgressUpdates() else stopProgressUpdates()
             }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                val controller = mediaController ?: return
+
+                // --- EOT Completion Logic ---
+                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
+                    val activeEotSongId = com.theveloper.pixelplay.data.EotStateHolder.eotTargetSongId.value
+                    // Correctly get previousMediaItem using the controller instance
+                    val previousSongId = controller.run { if (previousMediaItemIndex != C.INDEX_UNSET) getMediaItemAt(previousMediaItemIndex)?.mediaId else null }
+
+                    if (_isEndOfTrackTimerActive.value && activeEotSongId != null && previousSongId != null && previousSongId == activeEotSongId) {
+                        // EOT Condition Met: The EOT target song (previousSongId) just finished naturally.
+                        controller.seekTo(0L) // Seek new current item (mediaItem which is the next song) to its start
+                        controller.pause()
+
+                        val finishedSongTitle = _playerUiState.value.allSongs.find { it.id == previousSongId }?.title
+                            ?: "Track" // Fallback title
+
+                        viewModelScope.launch {
+                            _toastEvents.emit("Playback stopped: $finishedSongTitle finished (End of Track).")
+                        }
+                        // This clears _isEndOfTrackTimerActive, EotStateHolder.eotTargetSongId, and other timer states.
+                        cancelSleepTimer(suppressDefaultToast = true)
+                        // eotHandled = true // Conceptually, EOT was handled. Player is now paused.
+                                         // The onIsPlayingChanged listener will update isPlaying state.
+                    }
+                }
+
+                // --- Update state for the new mediaItem ---
                 mediaItem?.mediaId?.let { songId ->
                     val song = _playerUiState.value.currentPlaybackQueue.find { s -> s.id == songId }
                         ?: _playerUiState.value.allSongs.find { s -> s.id == songId }
+
                     _stablePlayerState.update {
                         it.copy(
                             currentSong = song,
+                            // Duration might be C.TIME_UNSET if not yet known, ensure it's non-negative
                             totalDuration = controller.duration.coerceAtLeast(0L)
                         )
                     }
-                    _playerUiState.update { it.copy(currentPosition = 0L) } // Reset position
+                    // Reset position for the new song. If EOT handled, this is fine as player is paused.
+                    // If not EOT, this correctly sets starting position for the new track.
+                    _playerUiState.update { it.copy(currentPosition = 0L) }
+
                     song?.let { currentSongValue ->
                         viewModelScope.launch {
                             currentSongValue.albumArtUriString?.let { Uri.parse(it) }?.let { uri ->
                                 extractAndGenerateColorScheme(uri)
                             }
                         }
-                        updateFavoriteStatusForCurrentSong()
+                        updateFavoriteStatusForCurrentSong() // Depends on currentSong being set in _stablePlayerState
                     }
-                } ?: _stablePlayerState.update { it.copy(currentSong = null, isPlaying = false, isCurrentSongFavorite = false) }
+                } ?: _stablePlayerState.update {
+                    // Handles case where mediaItem is null (e.g., end of playlist, queue cleared)
+                    it.copy(currentSong = null, isPlaying = false, isCurrentSongFavorite = false)
+                }
+                // Other non-EOT related onMediaItemTransition logic for the new song can continue here if any.
+                // The player's play/pause state (isPlaying) is managed by onIsPlayingChanged listener.
+                // If EOT was handled, player was paused, onIsPlayingChanged(false) would have been triggered.
+                // If EOT not handled and player was playing, it continues playing the new mediaItem.
             }
+
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_READY) {
                     _stablePlayerState.update { it.copy(totalDuration = controller.duration.coerceAtLeast(0L)) }
@@ -648,6 +712,8 @@ class PlayerViewModel @Inject constructor(
                     _stablePlayerState.update { it.copy(currentSong = null, isPlaying = false) }
                     _playerUiState.update { it.copy(currentPosition = 0L) }
                 }
+                // Old EOT completion logic (based on _isEndOfTrackTimerActive and _endOfTrackSongId/EotStateHolder.eotTargetSongId) removed from here.
+                // Assertive EOT actions in MusicService and natural EOT completion in onMediaItemTransition cover this.
             }
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) { _stablePlayerState.update { it.copy(isShuffleEnabled = shuffleModeEnabled) } }
             override fun onRepeatModeChanged(repeatMode: Int) { _stablePlayerState.update { it.copy(repeatMode = repeatMode) } }
@@ -660,6 +726,7 @@ class PlayerViewModel @Inject constructor(
     // Modificado para establecer una lista de reproducción
     // Modificar playSongs para que la cola sea la lista completa de allSongs si se inicia desde ahí
     fun playSongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None") {
+        // Old EOT deactivation logic removed, handled by eotSongMonitorJob
         mediaController?.let { controller ->
             // Si la lista de canciones a reproducir es la lista 'allSongs' (paginada),
             // idealmente deberíamos cargar todas las canciones para la cola.
@@ -1015,6 +1082,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun nextSong() {
+        // Old EOT deactivation logic removed, handled by eotSongMonitorJob
         mediaController?.let {
             if (it.hasNextMediaItem()) {
                 it.seekToNextMediaItem()
@@ -1024,6 +1092,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun previousSong() {
+        // Old EOT deactivation logic removed, handled by eotSongMonitorJob
         mediaController?.let { controller ->
             if (controller.currentPosition > 10000 && controller.isCurrentMediaItemSeekable) { // 10 segundos
                 controller.seekTo(0)
@@ -1173,6 +1242,119 @@ class PlayerViewModel @Inject constructor(
         // No liberar mediaControllerFuture aquí si es compartido o gestionado por la Activity/Service
         // MediaController.releaseFuture(mediaControllerFuture) // Solo si este ViewModel es el único propietario
     }
+
+    // Sleep Timer Control Functions
+    fun setSleepTimer(durationMinutes: Int) {
+        if (_isEndOfTrackTimerActive.value) {
+            eotSongMonitorJob?.cancel()
+            // Suppress default toast because we are setting a new timer, which will have its own toast.
+            cancelSleepTimer(suppressDefaultToast = true)
+            // _isEndOfTrackTimerActive and _endOfTrackSongId are cleared by cancelSleepTimer
+        }
+
+        sleepTimerJob?.cancel() // Cancel any existing duration-based timer job
+        val durationMillis = TimeUnit.MINUTES.toMillis(durationMinutes.toLong())
+        val endTime = System.currentTimeMillis() + durationMillis
+        _sleepTimerEndTimeMillis.value = endTime
+        // _isEndOfTrackTimerActive is already false or set false above
+        _activeTimerValueDisplay.value = "$durationMinutes minutes"
+
+        sleepTimerJob = viewModelScope.launch {
+            delay(durationMillis)
+            if (isActive && _sleepTimerEndTimeMillis.value == endTime) { // Check if timer wasn't cancelled or changed
+                mediaController?.pause()
+                cancelSleepTimer() // Clear state after pausing
+            }
+        }
+        viewModelScope.launch { _toastEvents.emit("Timer set for $durationMinutes minutes.") }
+    }
+
+    fun setEndOfTrackTimer(enable: Boolean) {
+        if (enable) {
+            val currentSong = stablePlayerState.value.currentSong
+            if (currentSong == null) {
+                viewModelScope.launch { _toastEvents.emit("Cannot enable End of Track: No active song.") }
+                return
+            }
+            _activeTimerValueDisplay.value = "End of Track" // Set this first for cancelSleepTimer toast logic
+            _isEndOfTrackTimerActive.value = true
+            EotStateHolder.setEotTargetSong(currentSong.id) // Use EotStateHolder
+
+            sleepTimerJob?.cancel()
+            _sleepTimerEndTimeMillis.value = null
+
+            eotSongMonitorJob?.cancel()
+            eotSongMonitorJob = viewModelScope.launch {
+                stablePlayerState.map { it.currentSong?.id }.distinctUntilChanged().collect { newSongId ->
+                    // Primary condition: Is EOT *still supposed to be active* according to our state?
+                    // And was it set for a specific song? And has the song ID actually changed from that target?
+                    if (_isEndOfTrackTimerActive.value &&
+                        EotStateHolder.eotTargetSongId.value != null &&
+                        newSongId != EotStateHolder.eotTargetSongId.value) {
+
+                        // If all the above are true, it implies that:
+                        // 1. EOT was active for a specific song (EotStateHolder.eotTargetSongId.value).
+                        // 2. The current song (newSongId) is now different.
+                        // 3. The EOT did NOT complete naturally via onPlaybackStateChanged
+                        //    (because if it did, _isEndOfTrackTimerActive.value would be false now).
+                        // This strongly suggests a manual skip or programmatic song change.
+
+                        val oldSongIdForToast = EotStateHolder.eotTargetSongId.value // Capture before it's cleared by cancelSleepTimer
+                        val oldSongTitle = _playerUiState.value.allSongs.find { it.id == oldSongIdForToast }?.title
+                            ?: "Previous track" // Fallback
+                        val newSongTitleText = _playerUiState.value.allSongs.find { it.id == newSongId }?.title
+                            ?: "Current track" // Fallback
+
+                        viewModelScope.launch {
+                            _toastEvents.emit("End of Track timer deactivated: song changed from $oldSongTitle to $newSongTitleText.")
+                        }
+
+                        // Call cancelSleepTimer to perform the full cleanup.
+                        // Pass suppressDefaultToast = true because we've just emitted a more specific toast.
+                        cancelSleepTimer(suppressDefaultToast = true)
+
+                        // It's good practice to also cancel the job itself if its purpose is fulfilled,
+                        // though cancelSleepTimer should also be cancelling it. This is belt-and-suspenders.
+                        eotSongMonitorJob?.cancel()
+                        eotSongMonitorJob = null
+                    }
+                }
+            }
+            viewModelScope.launch { _toastEvents.emit("Playback will stop at end of track.") }
+        } else {
+            // This branch is for explicit disabling, e.g., via UI toggle if it doesn't call cancelSleepTimer directly.
+            eotSongMonitorJob?.cancel()
+            if (_isEndOfTrackTimerActive.value && EotStateHolder.eotTargetSongId.value != null) { // Check shared state
+                cancelSleepTimer() // Ensures full cleanup and default "Timer Cancelled" toast
+            }
+        }
+    }
+
+    fun cancelSleepTimer(overrideToastMessage: String? = null, suppressDefaultToast: Boolean = false) {
+        val wasAnythingActive = _activeTimerValueDisplay.value != null
+
+        // Cancel and Nullify Duration Timer Job & States
+        sleepTimerJob?.cancel()
+        sleepTimerJob = null
+        _sleepTimerEndTimeMillis.value = null
+
+        // Cancel and Nullify EOT Monitor Job & States
+        eotSongMonitorJob?.cancel()
+        eotSongMonitorJob = null
+        _isEndOfTrackTimerActive.value = false
+        EotStateHolder.setEotTargetSong(null) // Clear shared EOT state
+
+        // Clear Generic Timer Display State
+        _activeTimerValueDisplay.value = null
+
+        // Handle Toast Logic
+        if (overrideToastMessage != null) {
+            viewModelScope.launch { _toastEvents.emit(overrideToastMessage) }
+        } else if (!suppressDefaultToast && wasAnythingActive) {
+            viewModelScope.launch { _toastEvents.emit("Timer cancelled.") }
+        }
+    }
+
 
     init {
         // Observe theme preferences
