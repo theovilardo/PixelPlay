@@ -136,11 +136,14 @@ class MusicRepositoryImpl @Inject constructor(
                             if (genreCursor.moveToFirst()) {
                                 val genreNameColumn = genreCursor.getColumnIndexOrThrow(MediaStore.Audio.GenresColumns.NAME)
                                 genreName = genreCursor.getString(genreNameColumn)
+                                //Log.d("MusicRepo/QueryFilter", "Genre name: $genreName")
                             }
                         }
                     } catch (e: Exception) {
                         Log.e("MusicRepositoryImpl", "Error fetching genre for song ID: $id in queryAndFilterSongs", e)
                     }
+
+                    Log.d("MusicRepo/QueryFilter-After", "Genre name: $genreName")
 
                     if (genreName.isNullOrEmpty()) {
                         val staticGenres = GenreDataSource.staticGenres
