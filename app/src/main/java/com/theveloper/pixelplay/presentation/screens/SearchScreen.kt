@@ -194,10 +194,6 @@ fun SearchScreen(
     val gradientBrush = remember(gradientColors) {
         Brush.verticalGradient(colors = gradientColors)
     }
-//    val gradientColors = listOf(
-//        MaterialTheme.colorScheme.surfaceVariant,
-//        MaterialTheme.colorScheme.background
-//    )
 
     val colorScheme = MaterialTheme.colorScheme
 
@@ -214,7 +210,6 @@ fun SearchScreen(
                 .background(
                     gradientBrush
                 )
-                //.padding(top = paddingValues.calculateTopPadding())
         )
 
         // Contenido principal
@@ -358,15 +353,34 @@ fun SearchScreen(
             // Content to show when SearchBar is not active
             if (!active) {
                 if (searchQuery.isBlank()) {
-                    GenreCategoriesGrid(
-                        genres = finalGenres, // Use the new combined list
-                        onGenreClick = { genre ->
-                            Log.d("SearchScreen", "Genre clicked: ${genre.name} (ID: ${genre.id})")
-                            navController.navigate(Screen.GenreDetail.createRoute(genre.id))
-                        },
-                        playerViewModel = playerViewModel,
-                        modifier = Modifier.padding(top = 12.dp)
-                    )
+                    Box {
+                        GenreCategoriesGrid(
+                            genres = finalGenres, // Use the new combined list
+                            onGenreClick = { genre ->
+                                Log.d("SearchScreen", "Genre clicked: ${genre.name} (ID: ${genre.id})")
+                                navController.navigate(Screen.GenreDetail.createRoute(genre.id))
+                            },
+                            playerViewModel = playerViewModel,
+                            modifier = Modifier.padding(top = 12.dp)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .align(Alignment.BottomCenter)
+                                .height(80.dp)
+                                .background(
+                                    brush = Brush.verticalGradient(
+                                        colors = listOf(
+                                            Color.Transparent,
+                                            MaterialTheme.colorScheme.surfaceContainerLowest.copy(0.5f),
+                                            MaterialTheme.colorScheme.surfaceContainerLowest
+                                        )
+                                    )
+                                )
+                        ) {
+
+                        }
+                    }
                 } else {
                     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                         FlowRow(
@@ -391,6 +405,7 @@ fun SearchScreen(
                 }
             }
         }
+        //
     }
 }
 

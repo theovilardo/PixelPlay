@@ -39,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -102,60 +103,81 @@ fun HomeScreen(
     // Padding inferior si hay canción en reproducción
     val bottomPadding = if (currentSong != null) MiniPlayerHeight else 0.dp
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        topBar = {
-            HomeGradientTopBar(
-                onNavigationIconClick = {
-                    navController.navigate(Screen.Settings.route)
-                }
-            )
-        }
-    ) { innerPadding ->
-        LazyColumn(
-            state = rememberLazyListState(),
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
-            contentPadding = PaddingValues(
-                top = innerPadding.calculateTopPadding(),
-                bottom = paddingValuesParent.calculateBottomPadding()
-                        + 18.dp + NavBarPersistentHeight + bottomPadding
-            ),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
-            // Your Mix
-            item {
-                YourMixHeader(
-                    song = yourMixSong,
-                    onPlayRandomSong = { playerViewModel.playPause() }
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            topBar = {
+                HomeGradientTopBar(
+                    onNavigationIconClick = {
+                        navController.navigate(Screen.Settings.route)
+                    }
                 )
             }
-
-            // Collage
-            if (recentUrisForHeader.isNotEmpty()) {
+        ) { innerPadding ->
+            LazyColumn(
+                state = rememberLazyListState(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background),
+                contentPadding = PaddingValues(
+                    top = innerPadding.calculateTopPadding(),
+                    bottom = paddingValuesParent.calculateBottomPadding()
+                            + 18.dp + NavBarPersistentHeight + bottomPadding
+                ),
+                verticalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
+                // Your Mix
                 item {
-                    AlbumArtCollage(
-                        modifier = Modifier.fillMaxWidth(),
-                        albumArts = recentUrisForHeader,
-                        padding = 14.dp,
-                        height = 400.dp
+                    YourMixHeader(
+                        song = yourMixSong,
+                        onPlayRandomSong = { playerViewModel.playPause() }
                     )
                 }
-            }
 
-            // Daily Mix
-            if (allSongs.isNotEmpty()) {
-                item {
-                    DailyMixSection(
-                        songs = dailyMixSongs,
-                        onClickOpen = {
-                            navController.navigate(Screen.DailyMixScreen.route)
-                        },
-                        playerViewModel = playerViewModel
-                    )
+                // Collage
+                if (recentUrisForHeader.isNotEmpty()) {
+                    item {
+                        AlbumArtCollage(
+                            modifier = Modifier.fillMaxWidth(),
+                            albumArts = recentUrisForHeader,
+                            padding = 14.dp,
+                            height = 400.dp
+                        )
+                    }
+                }
+
+                // Daily Mix
+                if (allSongs.isNotEmpty()) {
+                    item {
+                        DailyMixSection(
+                            songs = dailyMixSongs,
+                            onClickOpen = {
+                                navController.navigate(Screen.DailyMixScreen.route)
+                            },
+                            playerViewModel = playerViewModel
+                        )
+                    }
                 }
             }
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .height(80.dp)
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            MaterialTheme.colorScheme.surfaceContainerLowest.copy(0.5f),
+                            MaterialTheme.colorScheme.surfaceContainerLowest
+                        )
+                    )
+                )
+        ) {
+
         }
     }
 }

@@ -55,11 +55,11 @@ fun DailyMixSection(
     Column(modifier = Modifier
         .fillMaxWidth()
         .padding(horizontal = 16.dp)) {
-        SectionHeader(
-            title = "Your Daily Mix",
-            showViewAll = true,
-            onViewAllClick = { /* navegar */ }
-        )
+//        SectionHeader(
+//            title = "Your Daily Mix",
+//            showViewAll = true,
+//            onViewAllClick = { /* navegar */ }
+//        )
         Spacer(Modifier.height(16.dp))
         DailyMixCard(songs = songs, playerViewModel = playerViewModel, onClickOpen =  onClickOpen)
     }
