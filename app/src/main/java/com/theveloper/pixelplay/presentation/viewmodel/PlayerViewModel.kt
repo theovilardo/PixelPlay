@@ -69,11 +69,14 @@ import com.theveloper.pixelplay.data.model.SearchFilterType
 import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import com.theveloper.pixelplay.data.model.SearchResultItem
 import com.theveloper.pixelplay.data.model.SortOption
+import com.theveloper.pixelplay.data.worker.SyncManager
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.stateIn
 import java.util.concurrent.TimeUnit
+import androidx.lifecycle.asFlow
+import androidx.work.WorkInfo
 
 // Nuevo enum para el estado del sheet
 enum class PlayerSheetState {
@@ -119,7 +122,8 @@ data class PlayerUiState(
     val currentFavoriteSortOption: SortOption = SortOption.LikedSongTitleAZ,
     val searchResults: ImmutableList<SearchResultItem> = persistentListOf(),
     val selectedSearchFilter: SearchFilterType = SearchFilterType.ALL,
-    val searchHistory: ImmutableList<SearchHistoryItem> = persistentListOf()
+    val searchHistory: ImmutableList<SearchHistoryItem> = persistentListOf(),
+    val isSyncingLibrary: Boolean = false // Nuevo estado para la sincronización
 )
 
 @HiltViewModel
@@ -127,7 +131,8 @@ class PlayerViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val musicRepository: MusicRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val albumArtThemeDao: AlbumArtThemeDao
+    private val albumArtThemeDao: AlbumArtThemeDao,
+    private val syncManager: SyncManager // Inyectar SyncManager
 ) : ViewModel() {
 
     private val _playerUiState = MutableStateFlow(PlayerUiState())
@@ -332,6 +337,20 @@ class PlayerViewModel @Inject constructor(
                      // The favoriteSongs flow automatically uses currentFavoriteSortOption from playerUiState.
                      // Just updating the state is enough to trigger re-composition and re-sorting.
                     _playerUiState.update { it.copy(currentFavoriteSortOption = sortOption) }
+                }
+            }
+        }
+
+        // Observar el estado de SyncWorker
+        viewModelScope.launch {
+            syncManager.syncWorkInfo.asFlow().collect { workInfos ->
+                val isSyncing = workInfos.any { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED }
+                _playerUiState.update { it.copy(isSyncingLibrary = isSyncing) }
+                if (!isSyncing && workInfos.any { it.state == WorkInfo.State.SUCCEEDED || it.state == WorkInfo.State.FAILED || it.state == WorkInfo.State.CANCELLED }) {
+                    // Si la sincronización terminó (éxito, fallo, cancelada), recargar datos
+                    // Esto es importante si la sincronización se hizo en segundo plano y la app ya estaba abierta
+                    Log.d("PlayerViewModel", "SyncWorker finished. Reloading initial data.")
+                    resetAndLoadInitialData()
                 }
             }
         }

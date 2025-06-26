@@ -1,0 +1,48 @@
+package com.theveloper.pixelplay.data.database
+
+import androidx.room.ColumnInfo
+import androidx.room.Entity
+import androidx.room.Index
+import androidx.room.PrimaryKey
+import com.theveloper.pixelplay.data.model.Album
+
+@Entity(
+    tableName = "albums",
+    indices = [
+        Index(value = ["title"], unique = false),
+        Index(value = ["artist_id"], unique = false) // Para buscar álbumes por artista
+    ]
+)
+data class AlbumEntity(
+    @PrimaryKey val id: Long,
+    @ColumnInfo(name = "title") val title: String,
+    @ColumnInfo(name = "artist_name") val artistName: String, // Nombre del artista del álbum
+    @ColumnInfo(name = "artist_id") val artistId: Long, // ID del artista principal del álbum (si aplica)
+    @ColumnInfo(name = "album_art_uri_string") val albumArtUriString: String?,
+    @ColumnInfo(name = "song_count") val songCount: Int
+)
+
+fun AlbumEntity.toAlbum(): Album {
+    return Album(
+        id = this.id,
+        name = this.title,
+        artist = this.artistName,
+        albumArtUrl = this.albumArtUriString, // El modelo Album usa albumArtUrl
+        songCount = this.songCount
+    )
+}
+
+fun List<AlbumEntity>.toAlbums(): List<Album> {
+    return this.map { it.toAlbum() }
+}
+
+fun Album.toEntity(artistIdForAlbum: Long): AlbumEntity { // Necesitamos pasar el artistId si el modelo Album no lo tiene directamente
+    return AlbumEntity(
+        id = this.id,
+        title = this.name,
+        artistName = this.artist,
+        artistId = artistIdForAlbum, // Asignar el ID del artista
+        albumArtUriString = this.albumArtUrl,
+        songCount = this.songCount
+    )
+}

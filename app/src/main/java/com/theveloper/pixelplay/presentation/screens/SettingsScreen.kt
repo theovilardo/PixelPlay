@@ -34,6 +34,7 @@ import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.FolderOff
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Style
+import androidx.compose.material.icons.outlined.Sync // Importar icono de Sync
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
@@ -207,6 +208,18 @@ fun SettingsScreen(
                         onClick = { showDirectoryDialog = true }
                     )
                 //}
+                SettingsItem(
+                    title = "Refresh Library",
+                    subtitle = "Rescan MediaStore and update the local database.",
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Outlined.Sync,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.secondary
+                        )
+                    },
+                    onClick = { settingsViewModel.refreshLibrary() }
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))

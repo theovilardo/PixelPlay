@@ -226,14 +226,19 @@ fun LibraryScreen(
             )
         }
     ) { innerScaffoldPadding ->
-        Column(
+        Box( // Box para permitir superposición del indicador de carga
             modifier = Modifier
                 .padding(innerScaffoldPadding)
-                .background(brush = Brush.verticalGradient(gradientColors))
                 .fillMaxSize()
         ) {
-            ScrollableTabRow(
-                selectedTabIndex = pagerState.currentPage,
+            Column(
+                modifier = Modifier
+                    // .padding(innerScaffoldPadding) // El padding ya está en el Box contenedor
+                    .background(brush = Brush.verticalGradient(gradientColors))
+                    .fillMaxSize()
+            ) {
+                ScrollableTabRow(
+                    selectedTabIndex = pagerState.currentPage,
                 containerColor = Color.Transparent,
                 edgePadding = 12.dp,
                 indicator = { tabPositions ->
@@ -381,6 +386,25 @@ fun LibraryScreen(
                                 showSongInfoBottomSheet = true
                             }
                             }
+                        }
+                    }
+                }
+            }
+
+            if (uiState.isSyncingLibrary) {
+                Surface( // Fondo semitransparente para el indicador
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(modifier = Modifier.size(64.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "Sincronizando biblioteca...",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                         }
                     }
                 }

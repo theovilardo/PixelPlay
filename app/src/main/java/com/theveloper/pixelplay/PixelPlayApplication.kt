@@ -4,13 +4,23 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
+import com.theveloper.pixelplay.data.worker.SyncManager
 import dagger.hilt.android.HiltAndroidApp
+import javax.inject.Inject
 import android.os.StrictMode // Importar StrictMode
 
 @HiltAndroidApp
 class PixelPlayApplication : Application() {
+
+    @Inject
+    lateinit var syncManager: SyncManager
+
     override fun onCreate() {
         super.onCreate()
+
+        // Iniciar sincronización inicial (si no está ya en curso o completada recientemente)
+        // Usar ExistingWorkPolicy.KEEP para no interferir si ya hay un worker activo.
+        syncManager.enqueueSyncWorker(replaceExisting = false)
 
         // Habilitar StrictMode solo en builds de depuración
         if (BuildConfig.DEBUG) {

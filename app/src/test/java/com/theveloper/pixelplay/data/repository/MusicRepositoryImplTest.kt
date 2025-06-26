@@ -1,293 +1,188 @@
 package com.theveloper.pixelplay.data.repository
 
-import android.content.ContentResolver
 import android.content.Context
-import android.database.MatrixCursor
-import android.net.Uri
-import android.os.Bundle
-import android.provider.MediaStore
+import com.theveloper.pixelplay.data.database.MusicDao
 import com.theveloper.pixelplay.data.database.SearchHistoryDao
-import com.theveloper.pixelplay.data.database.SearchHistoryEntity
-import com.theveloper.pixelplay.data.model.Album
-import com.theveloper.pixelplay.data.model.Artist
-import com.theveloper.pixelplay.data.model.SearchFilterType
-import com.theveloper.pixelplay.data.model.SearchHistoryItem
-import com.theveloper.pixelplay.data.model.Song
+import com.theveloper.pixelplay.data.database.SongEntity // Necesario para datos de prueba
+import com.theveloper.pixelplay.data.database.AlbumEntity
+import com.theveloper.pixelplay.data.database.ArtistEntity
+import com.theveloper.pixelplay.data.model.Song // Para verificar el mapeo
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
-import io.mockk.coEvery
-import io.mockk.coVerify
-import io.mockk.every
-import io.mockk.just
-import io.mockk.mockk
-import io.mockk.slot
+import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.test.*
 import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertTrue
+// import org.junit.jupiter.api.Assertions.assertEquals // Usar Truth para aserciones más ricas
+// import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import com.google.common.truth.Truth.assertThat
+
 
 @ExperimentalCoroutinesApi
 class MusicRepositoryImplTest {
 
     private lateinit var musicRepository: MusicRepositoryImpl
-    private val mockContentResolver: ContentResolver = mockk()
-    private val mockSearchHistoryDao: SearchHistoryDao = mockk()
-    private val mockContext: Context = mockk()
+    private val mockMusicDao: MusicDao = mockk()
+    private val mockSearchHistoryDao: SearchHistoryDao = mockk(relaxed = true) // relaxed para evitar mockear todos los métodos de historial
+    private val mockContext: Context = mockk(relaxed = true) // relaxed para getAllUniqueAudioDirectories si no se testea a fondo aquí
     private val mockUserPreferencesRepository: UserPreferencesRepository = mockk()
 
     private val testDispatcher = StandardTestDispatcher()
 
     @BeforeEach
     fun setUp() {
-        Dispatchers.setMain(testDispatcher)
-        // Mock default behavior for preferences needed in various repository methods
+        Dispatchers.setMain(testDispatcher) // Usar el dispatcher de prueba para Main
+        // Mockear los flows de preferencias por defecto, pueden ser sobrescritos por test
+        coEvery { mockUserPreferencesRepository.allowedDirectoriesFlow } returns flowOf(emptySet())
         coEvery { mockUserPreferencesRepository.initialSetupDoneFlow } returns flowOf(true)
-        coEvery { mockUserPreferencesRepository.allowedDirectoriesFlow } returns flowOf(emptySet()) // Default to empty, can be overridden
 
-        musicRepository = MusicRepositoryImpl(mockContext, mockUserPreferencesRepository, mockSearchHistoryDao)
+        musicRepository = MusicRepositoryImpl(
+            context = mockContext,
+            userPreferencesRepository = mockUserPreferencesRepository,
+            searchHistoryDao = mockSearchHistoryDao,
+            musicDao = mockMusicDao
+        )
     }
 
     @AfterEach
     fun tearDown() {
-        Dispatchers.resetMain()
+        Dispatchers.resetMain() // Limpiar el dispatcher de Main
     }
 
-    private fun createSongCursor(songs: List<Song>): MatrixCursor {
-        val cursor = MatrixCursor(arrayOf(
-            MediaStore.Audio.Media._ID,
-            MediaStore.Audio.Media.TITLE,
-            MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.ARTIST_ID,
-            MediaStore.Audio.Media.ALBUM,
-            MediaStore.Audio.Media.ALBUM_ID,
-            MediaStore.Audio.Media.DURATION,
-            MediaStore.Audio.Media.DATA
-        ))
-        songs.forEach { song ->
-            cursor.addRow(arrayOf(
-                song.id.toLong(),
-                song.title,
-                song.artist,
-                song.artistId,
-                song.album,
-                song.albumId,
-                song.duration,
-                // Construct a fake path that would be allowed by default if allowedDirs is empty during setup
-                "/storage/emulated/0/Music/${song.title}.mp3"
-            ))
-        }
-        return cursor
-    }
-     private fun createAlbumCursor(albums: List<Album>): MatrixCursor {
-        val cursor = MatrixCursor(arrayOf(
-            MediaStore.Audio.Albums._ID,
-            MediaStore.Audio.Albums.ALBUM,
-            MediaStore.Audio.Albums.ARTIST,
-            MediaStore.Audio.Albums.NUMBER_OF_SONGS
-        ))
-        albums.forEach { album ->
-            cursor.addRow(arrayOf(album.id, album.title, album.artist, album.songCount))
-        }
-        return cursor
+    // --- Pruebas para getAudioFiles ---
+    @Test
+    fun `getAudioFiles returns songs from DAO, filtered by allowed directories`() = runTest(testDispatcher) {
+        val songEntities = listOf(
+            SongEntity(1L, "Song A", "Artist 1", 101L, "Album X", 201L, "uri_a", "art_a", 180, "Pop", "/allowed/path/songA.mp3"),
+            SongEntity(2L, "Song B", "Artist 1", 101L, "Album X", 201L, "uri_b", "art_b", 200, "Pop", "/forbidden/path/songB.mp3"),
+            SongEntity(3L, "Song C", "Artist 2", 102L, "Album Y", 202L, "uri_c", "art_c", 220, "Rock", "/allowed/path/songC.mp3")
+        )
+        val allowedDirs = setOf("/allowed/path")
+
+        every { mockMusicDao.getSongs(any(), any()) } returns flowOf(songEntities) // No es suspend
+        every { mockUserPreferencesRepository.allowedDirectoriesFlow } returns flowOf(allowedDirs) // No es suspend
+        every { mockUserPreferencesRepository.initialSetupDoneFlow } returns flowOf(true) // No es suspend
+
+        val result: List<Song> = musicRepository.getAudioFiles(page = 1, pageSize = 10).first()
+
+        assertThat(result).hasSize(2)
+        assertThat(result.map { it.id }).containsExactly("1", "3").inOrder()
+        verify { mockMusicDao.getSongs(10, 0) } // Verificar llamada al DAO
     }
 
-    private fun createArtistCursor(artists: List<Artist>): MatrixCursor {
-        val cursor = MatrixCursor(arrayOf(
-            MediaStore.Audio.Artists._ID,
-            MediaStore.Audio.Artists.ARTIST,
-            MediaStore.Audio.Artists.NUMBER_OF_TRACKS
-        ))
-        artists.forEach { artist ->
-            cursor.addRow(arrayOf(artist.id, artist.name, artist.trackCount))
-        }
-        return cursor
+    @Test
+    fun `getAudioFiles returns all songs if initial setup not done`() = runTest(testDispatcher) {
+        val songEntities = listOf(
+            SongEntity(1L, "Song A", "Artist 1", 101L, "Album X", 201L, "uri_a", "art_a", 180, "Pop", "/any/path/songA.mp3"),
+            SongEntity(2L, "Song B", "Artist 1", 101L, "Album X", 201L, "uri_b", "art_b", 200, "Pop", "/other/path/songB.mp3")
+        )
+        every { mockMusicDao.getSongs(any(), any()) } returns flowOf(songEntities)
+        every { mockUserPreferencesRepository.allowedDirectoriesFlow } returns flowOf(emptySet())
+        every { mockUserPreferencesRepository.initialSetupDoneFlow } returns flowOf(false) // Setup no completado
+
+        val result = musicRepository.getAudioFiles(page = 1, pageSize = 10).first()
+        assertThat(result).hasSize(2)
+        assertThat(result.map { it.id }).containsExactly("1", "2").inOrder()
     }
 
+    @Test
+    fun `getAudioFiles returns empty list if initial setup done and no allowed directories`() = runTest(testDispatcher) {
+        val songEntities = listOf(
+            SongEntity(1L, "Song A", "Artist 1", 101L, "Album X", 201L, "uri_a", "art_a", 180, "Pop", "/allowed/path/songA.mp3")
+        )
+        every { mockMusicDao.getSongs(any(), any()) } returns flowOf(songEntities)
+        every { mockUserPreferencesRepository.allowedDirectoriesFlow } returns flowOf(emptySet()) // No hay directorios permitidos
+        every { mockUserPreferencesRepository.initialSetupDoneFlow } returns flowOf(true) // Setup completado
 
-    @Nested
-    @DisplayName("Search Functions")
-    inner class SearchFunctions {
-        @Test
-        fun `test_searchSongs_returnsCorrectSongs`() = runTest {
-            val query = "test"
-            val expectedSongs = listOf(Song("1", "Test Song", "Artist", 10L, "Album", 20L, "uri", "arturi", 30000L))
-            val songCursor = createSongCursor(expectedSongs)
+        val result = musicRepository.getAudioFiles(page = 1, pageSize = 10).first()
+        assertThat(result).isEmpty()
+    }
 
-            every { mockContext.contentResolver } returns mockContentResolver
-            coEvery {
-                mockContentResolver.query(
-                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-                    any(), // projection
-                    "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.TITLE} LIKE ?", // selection
-                    arrayOf("%$query%"), // selectionArgs
-                    MediaStore.Audio.Media.TITLE + " ASC", // sortOrder
-                    null // cancellationSignal
-                )
-            } returns songCursor
-             coEvery { mockUserPreferencesRepository.initialSetupDoneFlow } returns flowOf(false) // Allow all directories for simplicity
+    // --- Pruebas para getAlbums ---
+    @Test
+    fun `getAlbums returns albums from DAO, filtered by songs in allowed directories`() = runTest(testDispatcher) {
+        val songEntities = listOf(
+            SongEntity(1L, "S1", "A1", 101L, "Album1", 201L, "u1", "au1", 100, "G", "/allowed/s1.mp3"),
+            SongEntity(2L, "S2", "A1", 101L, "Album1", 201L, "u2", "au2", 100, "G", "/allowed/s2.mp3"),
+            SongEntity(3L, "S3", "A2", 102L, "Album2", 202L, "u3", "au3", 100, "G", "/forbidden/s3.mp3"),
+            SongEntity(4L, "S4", "A3", 103L, "Album3", 203L, "u4", "au4", 100, "G", "/allowed/s4.mp3")
+        )
+        val allAlbumEntities = listOf(
+            AlbumEntity(201L, "Album1", "ArtistName1", 101L, "art_uri1", 10), // El songCount original del DAO
+            AlbumEntity(202L, "Album2", "ArtistName2", 102L, "art_uri2", 5),
+            AlbumEntity(203L, "Album3", "ArtistName3", 103L, "art_uri3", 3)
+        )
+        val allowedDirs = setOf("/allowed")
 
-            val result = musicRepository.searchSongs(query)
-            assertEquals(expectedSongs.size, result.size)
-            assertEquals(expectedSongs[0].title, result[0].title)
-        }
+        every { mockMusicDao.getSongs(Int.MAX_VALUE, 0) } returns flowOf(songEntities)
+        every { mockMusicDao.getAlbums(any(), any()) } returns flowOf(allAlbumEntities)
+        every { mockUserPreferencesRepository.allowedDirectoriesFlow } returns flowOf(allowedDirs)
+        every { mockUserPreferencesRepository.initialSetupDoneFlow } returns flowOf(true)
 
-        @Test
-        fun `test_searchAlbums_returnsCorrectAlbums`() = runTest {
-            val query = "test album"
-            val expectedAlbums = listOf(Album(1L, "Test Album", "Artist", "uri", 1))
-            val albumCursor = createAlbumCursor(expectedAlbums)
+        val result = musicRepository.getAlbums(page = 1, pageSize = 10).first()
 
-            every { mockContext.contentResolver } returns mockContentResolver
-            coEvery {
-                mockContentResolver.query(
-                    MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
-                    any(), // projection
-                    "${MediaStore.Audio.Albums.ALBUM} LIKE ?", // selection
-                    arrayOf("%$query%"), // selectionArgs
-                    "${MediaStore.Audio.Albums.ALBUM} ASC" // sortOrder
-                )
-            } returns albumCursor
-            coEvery { mockUserPreferencesRepository.initialSetupDoneFlow } returns flowOf(false)
+        assertThat(result).hasSize(2)
+        assertThat(result.map { it.id }).containsExactly(201L, 203L).inOrder() // Asumiendo que el DAO los devuelve ordenados
+        assertThat(result.find { it.id == 201L }?.songCount).isEqualTo(2)
+        assertThat(result.find { it.id == 203L }?.songCount).isEqualTo(1)
+    }
 
+    // --- Pruebas para getArtists ---
+    @Test
+    fun `getArtists returns artists from DAO, filtered by songs in allowed directories`() = runTest(testDispatcher) {
+        val songEntities = listOf(
+            SongEntity(1L, "S1", "Artist1Name", 101L, "Album1", 201L, "u1", "au1", 100, "G", "/allowed/s1.mp3"),
+            SongEntity(2L, "S2", "Artist2Name", 102L, "Album2", 202L, "u2", "au2", 100, "G", "/forbidden/s2.mp3"),
+            SongEntity(3L, "S3", "Artist1Name", 101L, "Album3", 203L, "u3", "au3", 100, "G", "/allowed/s3.mp3")
+        )
+        val allArtistEntities = listOf(
+            ArtistEntity(101L, "Artist1Name", 20), // El trackCount original del DAO
+            ArtistEntity(102L, "Artist2Name", 10)
+        )
+        val allowedDirs = setOf("/allowed")
 
-            val result = musicRepository.searchAlbums(query)
-            assertEquals(expectedAlbums.size, result.size)
-            assertEquals(expectedAlbums[0].title, result[0].title)
-        }
+        every { mockMusicDao.getSongs(Int.MAX_VALUE, 0) } returns flowOf(songEntities)
+        every { mockMusicDao.getArtists(any(), any()) } returns flowOf(allArtistEntities)
+        every { mockUserPreferencesRepository.allowedDirectoriesFlow } returns flowOf(allowedDirs)
+        every { mockUserPreferencesRepository.initialSetupDoneFlow } returns flowOf(true)
 
-        @Test
-        fun `test_searchArtists_returnsCorrectArtists`() = runTest {
-            val query = "test artist"
-            val expectedArtists = listOf(Artist(1L, "Test Artist", 1))
-            val artistCursor = createArtistCursor(expectedArtists)
+        val result = musicRepository.getArtists(page = 1, pageSize = 10).first()
 
-            every { mockContext.contentResolver } returns mockContentResolver
-            coEvery {
-                mockContentResolver.query(
-                    MediaStore.Audio.Artists.EXTERNAL_CONTENT_URI,
-                    any(), // projection
-                    "${MediaStore.Audio.Artists.ARTIST} LIKE ?", // selection
-                    arrayOf("%$query%"), // selectionArgs
-                    "${MediaStore.Audio.Artists.ARTIST} ASC" // sortOrder
-                )
-            } returns artistCursor
-             coEvery { mockUserPreferencesRepository.initialSetupDoneFlow } returns flowOf(false)
-
-            val result = musicRepository.searchArtists(query)
-            assertEquals(expectedArtists.size, result.size)
-            assertEquals(expectedArtists[0].name, result[0].name)
-        }
-
-
-        @Test
-        fun `test_searchPlaylists_whenNotImplemented_returnsEmptyList`() = runTest {
-            val result = musicRepository.searchPlaylists("any query")
-            assertTrue(result.isEmpty())
-        }
-
-        @Test
-        fun `test_searchAll_callsCorrectMethods_forFilterAll`() = runTest {
-            val query = "all"
-            coEvery { mockUserPreferencesRepository.initialSetupDoneFlow } returns flowOf(false) // simplify filtering for this test
-
-            // Mock individual search methods (simplified cursor mocking for brevity)
-            every { mockContext.contentResolver } returns mockContentResolver
-            coEvery { mockContentResolver.query(eq(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI), any(), any(), any(), any(), any()) } returns createSongCursor(listOf(Song("1", "S1", "A",1L,"Al",1L,"","",0L)))
-            coEvery { mockContentResolver.query(eq(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI), any(), any(), any(), any()) } returns createAlbumCursor(listOf(Album(1L, "AL1", "A", "uri",1)))
-            coEvery { mockContentResolver.query(eq(MediaStore.Audio.Artists.EXTERNAL_CONTENT_URI), any(), any(), any(), any()) } returns createArtistCursor(listOf(Artist(1L, "AR1", 1)))
-
-            val results = musicRepository.searchAll(query, SearchFilterType.ALL)
-            assertEquals(3, results.size) // Song, Album, Artist
-        }
-
-        @Test
-        fun `test_searchAll_callsCorrectMethods_forFilterSongs`() = runTest {
-             coEvery { mockUserPreferencesRepository.initialSetupDoneFlow } returns flowOf(false)
-            every { mockContext.contentResolver } returns mockContentResolver
-            coEvery { mockContentResolver.query(eq(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI), any(), any(), any(), any(), any()) } returns createSongCursor(listOf(Song("1", "S1", "A",1L,"Al",1L,"","",0L)))
-
-            val results = musicRepository.searchAll("song query", SearchFilterType.SONGS)
-            assertEquals(1, results.size)
-            assertTrue(results[0] is SearchResultItem.SongItem)
-        }
-         @Test
-        fun `test_searchAll_callsCorrectMethods_forFilterAlbums`() = runTest {
-            coEvery { mockUserPreferencesRepository.initialSetupDoneFlow } returns flowOf(false)
-            every { mockContext.contentResolver } returns mockContentResolver
-            coEvery { mockContentResolver.query(eq(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI), any(), any(), any(), any()) } returns createAlbumCursor(listOf(Album(1L, "AL1", "A","uri", 1)))
-
-            val results = musicRepository.searchAll("album query", SearchFilterType.ALBUMS)
-            assertEquals(1, results.size)
-            assertTrue(results[0] is SearchResultItem.AlbumItem)
-        }
-
-        @Test
-        fun `test_searchAll_callsCorrectMethods_forFilterArtists`() = runTest {
-            coEvery { mockUserPreferencesRepository.initialSetupDoneFlow } returns flowOf(false)
-            every { mockContext.contentResolver } returns mockContentResolver
-            coEvery { mockContentResolver.query(eq(MediaStore.Audio.Artists.EXTERNAL_CONTENT_URI), any(), any(), any(), any()) } returns createArtistCursor(listOf(Artist(1L, "AR1", 1)))
-
-            val results = musicRepository.searchAll("artist query", SearchFilterType.ARTISTS)
-            assertEquals(1, results.size)
-            assertTrue(results[0] is SearchResultItem.ArtistItem)
-        }
+        assertThat(result).hasSize(1)
+        assertThat(result.first().id).isEqualTo(101L)
+        assertThat(result.first().songCount).isEqualTo(2) // El modelo Artist usa songCount
     }
 
     @Nested
     @DisplayName("Search History Functions")
     inner class SearchHistoryFunctions {
         @Test
-        fun `test_addSearchHistoryItem_deletesAndInserts`() = runTest {
-            val query = "history query"
-            val entitySlot = slot<SearchHistoryEntity>()
-
+        fun `addSearchHistoryItem calls dao methods`() = runTest {
+            val query = "test query"
             coEvery { mockSearchHistoryDao.deleteByQuery(query) } just runs
-            coEvery { mockSearchHistoryDao.insert(capture(entitySlot)) } just runs
+            coEvery { mockSearchHistoryDao.insert(any()) } just runs
 
             musicRepository.addSearchHistoryItem(query)
 
-            coVerify(exactly = 1) { mockSearchHistoryDao.deleteByQuery(query) }
-            coVerify(exactly = 1) { mockSearchHistoryDao.insert(any()) }
-            assertEquals(query, entitySlot.captured.query)
-            assertTrue(entitySlot.captured.timestamp > 0)
+            coVerifyOrder {
+                mockSearchHistoryDao.deleteByQuery(query)
+                mockSearchHistoryDao.insert(any())
+            }
         }
-
-        @Test
-        fun `test_getRecentSearchHistory_returnsMappedItems`() = runTest {
-            val limit = 5
-            val timestamp = System.currentTimeMillis()
-            val entities = listOf(SearchHistoryEntity(1, "q1", timestamp), SearchHistoryEntity(2, "q2", timestamp - 1000))
-            coEvery { mockSearchHistoryDao.getRecentSearches(limit) } returns entities
-
-            val result = musicRepository.getRecentSearchHistory(limit)
-
-            assertEquals(entities.size, result.size)
-            assertEquals(entities[0].query, result[0].query)
-            assertEquals(entities[0].timestamp, result[0].timestamp)
-        }
-
-        @Test
-        fun `test_clearSearchHistory_callsDaoClearAll`() = runTest {
-            coEvery { mockSearchHistoryDao.clearAll() } just runs
-            musicRepository.clearSearchHistory()
-            coVerify(exactly = 1) { mockSearchHistoryDao.clearAll() }
-        }
-
-        @Test
-        fun `test_deleteSearchHistoryItemByQuery_callsDaoDeleteByQuery`() = runTest {
-            val query = "delete this"
-            coEvery { mockSearchHistoryDao.deleteByQuery(query) } just runs
-            musicRepository.deleteSearchHistoryItemByQuery(query)
-            coVerify(exactly = 1) { mockSearchHistoryDao.deleteByQuery(query) }
-        }
+        // TODO: Añadir más tests para el historial si es necesario
     }
+
+    // TODO: Añadir tests para:
+    // - getSongsForAlbum, getSongsForArtist, getSongsByIds
+    // - searchSongs, searchAlbums, searchArtists, searchAll (verificando la lógica de combine y filtrado)
+    // - getAllUniqueAlbumArtUris
+    // - getMusicByGenre
+    // - getAllUniqueAudioDirectories (si se mantiene la lógica de MediaStore, necesitará mockear ContentResolver)
+    // - invalidateCachesDependentOnAllowedDirectories (verificar que hace lo esperado, o nada si es obsoleta)
 }

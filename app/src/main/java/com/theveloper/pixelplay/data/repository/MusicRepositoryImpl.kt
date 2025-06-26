@@ -10,9 +10,13 @@ import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Log
 import com.theveloper.pixelplay.data.model.Song
+import com.theveloper.pixelplay.data.database.MusicDao
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+// import kotlinx.coroutines.withContext // May not be needed for Flow transformations
 import javax.inject.Inject
 import javax.inject.Singleton
 import androidx.core.net.toUri
@@ -27,19 +31,24 @@ import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import com.theveloper.pixelplay.data.model.SearchResultItem
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.datasource.GenreDataSource // To know the list of genres for placeholder logic
-import kotlinx.coroutines.flow.first
+import com.theveloper.pixelplay.data.database.SongEntity
+import com.theveloper.pixelplay.data.database.toAlbum
+import com.theveloper.pixelplay.data.database.toArtist
+import com.theveloper.pixelplay.data.database.toSong
+import kotlinx.coroutines.flow.first // Still needed for initialSetupDoneFlow.first() if used that way
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+// import kotlinx.coroutines.sync.withLock // May not be needed if directoryScanMutex logic changes
 import java.io.File
 
 @Singleton
 class MusicRepositoryImpl @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @ApplicationContext private val context: Context, // Keep for getAllUniqueAudioDirectories (initial scan)
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val searchHistoryDao: SearchHistoryDao
+    private val searchHistoryDao: SearchHistoryDao, // Stays for search history
+    private val musicDao: MusicDao // Injected MusicDao
 ) : MusicRepository {
 
-    // Proyección común para canciones, AHORA INCLUYE ARTIST_ID
+    // Proyección común para canciones, AHORA INCLUYE ARTIST_ID - This is for MediaStore, less relevant here.
     private val songProjection = arrayOf(
         MediaStore.Audio.Media._ID,
         MediaStore.Audio.Media.TITLE,
@@ -52,554 +61,83 @@ class MusicRepositoryImpl @Inject constructor(
     )
 
     // Mutex para el escaneo inicial de directorios (getAllUniqueAudioDirectories)
+    // TODO: Re-evaluar la necesidad de esto con Room como SSoT.
     private val directoryScanMutex = Mutex()
     private var cachedAudioDirectories: Set<String>? = null
 
-    // --- Para getPermittedSongReferences ---
-    data class MinimalSongInfo(val songId: String, val albumId: Long, val artistId: Long)
-    private var cachedPermittedSongReferences: List<MinimalSongInfo>? = null
-    // ¡¡¡CAMBIO AQUÍ!!! Declara estas propiedades como miembros de la clase
-    private var cachedPermittedAlbumSongCounts: Map<Long, Int>? = null
-    private var cachedPermittedArtistSongCounts: Map<Long, Int>? = null
-    private val permittedSongReferencesMutex = Mutex() // Mutex dedicado
+    // Las funciones queryAndFilterSongs y getPermittedSongReferences han sido eliminadas
+    // ya que su lógica ha sido reemplazada por SyncWorker y consultas directas a Room con Flows.
 
-    /**
-     * Consulta MediaStore para obtener canciones y aplica el filtrado por directorio.
-     * **Esta función NO usa paginación en la consulta de MediaStore.**
-     * @param selection La cláusula WHERE.
-     * @param selectionArgs Los argumentos para la cláusula WHERE.
-     * @param sortOrder La cláusula ORDER BY (sin LIMIT/OFFSET).
-     * @return Lista de objetos Song, filtrada por directorios permitidos.
-     */
-    // Debes actualizar esta función para usar la 'songProjection' (que ahora tiene ARTIST_ID)
-    // y para poblar el nuevo campo 'artistId' en tu objeto 'Song'.
-    private suspend fun queryAndFilterSongs(
-        selection: String?,
-        selectionArgs: Array<String>?,
-        sortOrder: String?
-    ): List<Song> = withContext(Dispatchers.IO) {
-        val songs = mutableListOf<Song>()
-        val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
-        val allowedDirectories = userPreferencesRepository.allowedDirectoriesFlow.first()
+    // Refactorizada para usar Room y Flow
+    override fun getAudioFiles(page: Int, pageSize: Int): kotlinx.coroutines.flow.Flow<List<Song>> {
+        Log.d("MusicRepo/Songs", "getAudioFiles (Room) - Page: $page, PageSize: $pageSize")
+        val offset = (page - 1).coerceAtLeast(0) * pageSize
 
-        Log.d("MusicRepo/QueryFilter", "Querying with selection: $selection, initialSetupDone: $initialSetupDone, allowedDirs: ${allowedDirectories.size}")
-
-        val cursor: Cursor? = context.contentResolver.query(
-            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-            songProjection, // Esta proyección ahora DEBE incluir ARTIST_ID
-            selection,
-            selectionArgs,
-            sortOrder
-        )
-
-        cursor?.use { c ->
-            val idColumn = c.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-            val titleColumn = c.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-            val artistColumn = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-            val artistIdColumn = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST_ID) // Leer el índice
-            val albumColumn = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
-            val albumIdColumn = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
-            val durationColumn = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
-            val dataColumn = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
-
-            while (c.moveToNext()) {
-                val filePath = c.getString(dataColumn)
-                val directoryPath = File(filePath).parent ?: ""
-
-                val isAllowed = if (!initialSetupDone) {
-                    true
-                } else {
-                    if (allowedDirectories.isEmpty()) false else allowedDirectories.contains(directoryPath)
-                }
-
-                if (isAllowed) {
-                    val id = c.getLong(idColumn)
-                    val title = c.getString(titleColumn)
-                    val artistName = c.getString(artistColumn) ?: "Artista Desconocido"
-                    val songArtistId = c.getLong(artistIdColumn) // Obtener el ID del artista
-                    val albumName = c.getString(albumColumn) ?: "Álbum Desconocido"
-                    val albumId = c.getLong(albumIdColumn)
-                    val duration = c.getLong(durationColumn)
-                    val contentUri: Uri = ContentUris.withAppendedId(
-                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id
-                    )
-                    val albumArtUri: Uri = ContentUris.withAppendedId(
-                        "content://media/external/audio/albumart".toUri(), albumId
-                    )
-
-                    // Genre fetching logic similar to getAudioFiles
-                    var genreName: String? = null
-                    try {
-                        val genreUri = MediaStore.Audio.Genres.getContentUriForAudioId("external", id.toInt())
-                        val genreProjection = arrayOf(MediaStore.Audio.GenresColumns.NAME)
-                        context.contentResolver.query(genreUri, genreProjection, null, null, null)?.use { genreCursor ->
-                            if (genreCursor.moveToFirst()) {
-                                val genreNameColumn = genreCursor.getColumnIndexOrThrow(MediaStore.Audio.GenresColumns.NAME)
-                                genreName = genreCursor.getString(genreNameColumn)
-                                //Log.d("MusicRepo/QueryFilter", "Genre name: $genreName")
-                            }
-                        }
-                    } catch (e: Exception) {
-                        Log.e("MusicRepositoryImpl", "Error fetching genre for song ID: $id in queryAndFilterSongs", e)
-                    }
-
-                    Log.d("MusicRepo/QueryFilter-After", "Genre name: $genreName")
-
-                    if (genreName.isNullOrEmpty()) {
-                        val staticGenres = GenreDataSource.staticGenres
-                        if (staticGenres.isNotEmpty()) {
-                            val genreIndex = (id % staticGenres.size.toLong()).toInt()
-                            genreName = staticGenres[genreIndex].name
-                        } else {
-                            genreName = "Unknown" // Fallback if staticGenres is empty
-                        }
-                    }
-
-                    songs.add(
-                        Song(
-                            id = id.toString(),
-                            title = title,
-                            artist = artistName,
-                            artistId = songArtistId, // Pasar el artistId al constructor de Song
-                            album = albumName,
-                            albumId = albumId,
-                            contentUriString = contentUri.toString(),
-                            albumArtUriString = albumArtUri.toString(),
-                            duration = duration,
-                            genre = genreName // Add genre here as well
-                        )
-                    )
-                }
-            }
-        }
-        Log.d("MusicRepo/QueryFilter", "Query '$selection' returned ${songs.size} songs after directory filter.")
-        return@withContext songs
-    }
-
-    // Implementación de getAudioFiles con lógica de "Llenado de Página"
-    override suspend fun getAudioFiles(page: Int, pageSize: Int): List<Song> = withContext(Dispatchers.IO) {
-        val getAudioFilesStartTime = System.currentTimeMillis()
-        Log.d("MusicRepo/Songs", "getAudioFiles (filling_page_logic) - ViewModel Page: $page, PageSize: $pageSize")
-
-        val songsToReturn = mutableListOf<Song>()
-        val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
-        val allowedDirectories = userPreferencesRepository.allowedDirectoriesFlow.first()
-
-        Log.d("MusicRepo/Songs", "InitialSetupDone: $initialSetupDone, AllowedDirs Count: ${allowedDirectories.size}")
-        if (allowedDirectories.size < 10 && initialSetupDone) { // Loguear directorios si son pocos y el setup está hecho
-            Log.d("MusicRepo/Songs", "AllowedDirs List: $allowedDirectories")
-        }
-
-        // Si el setup está hecho y no hay directorios permitidos, no tiene sentido buscar.
-        if (initialSetupDone && allowedDirectories.isEmpty()) {
-            Log.w("MusicRepo/Songs", "Setup is done but no directories are allowed. Returning empty list.")
-            return@withContext emptyList()
-        }
-
-        var currentMediaStoreOffset = (page - 1) * pageSize
-        // Pedir un poco más a MediaStore para tener margen, especialmente si muchos se filtran.
-        // Si pageSize es 30, pedir 60 o 90 a MediaStore puede ser un buen comienzo.
-        val internalMediaStorePageSize = pageSize * 3
-        val maxMediaStoreQueries = 10 // Límite de seguridad para evitar bucles muy largos.
-
-        for (queryAttempt in 0 until maxMediaStoreQueries) {
-            Log.d("MusicRepo/Songs", "Fill Attempt #${queryAttempt + 1}. Songs collected so far: ${songsToReturn.size}. Querying MediaStore with offset: $currentMediaStoreOffset, limit: $internalMediaStorePageSize")
-
-            val selectionClause = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ?"
-            val selectionArgsArray = arrayOf("30000")
-            val baseSortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
-            val cursor: Cursor?
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                val queryArgs = Bundle().apply {
-                    putString(ContentResolver.QUERY_ARG_SQL_SELECTION, selectionClause)
-                    putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgsArray)
-                    putString(ContentResolver.QUERY_ARG_SORT_COLUMNS, MediaStore.Audio.Media.TITLE)
-                    putInt(ContentResolver.QUERY_ARG_SORT_DIRECTION, ContentResolver.QUERY_SORT_DIRECTION_ASCENDING)
-                    putInt(ContentResolver.QUERY_ARG_LIMIT, internalMediaStorePageSize)
-                    putInt(ContentResolver.QUERY_ARG_OFFSET, currentMediaStoreOffset)
-                }
-                cursor = context.contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, songProjection, queryArgs, null)
+        return kotlinx.coroutines.flow.combine(
+            musicDao.getSongs(pageSize, offset), // Flow<List<SongEntity>>
+            userPreferencesRepository.allowedDirectoriesFlow, // Flow<Set<String>>
+            userPreferencesRepository.initialSetupDoneFlow // Flow<Boolean>
+        ) { songsFromDb, allowedDirs, initialSetupDone ->
+            if (initialSetupDone && allowedDirs.isEmpty()) {
+                emptyList<SongEntity>()
+            } else if (!initialSetupDone) {
+                // Si el setup inicial no está hecho, mostrar todas las canciones (como antes)
+                songsFromDb
             } else {
-                val sortOrderWithPaging = "$baseSortOrder LIMIT $internalMediaStorePageSize OFFSET $currentMediaStoreOffset"
-                cursor = context.contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, songProjection, selectionClause, selectionArgsArray, sortOrderWithPaging)
-            }
-
-            Log.d("MusicRepo/Songs", "Attempt #${queryAttempt + 1}: MediaStore cursor count (raw for this internal query): ${cursor?.count}")
-
-            var newSongsFoundInThisMediaStoreQuery = 0
-            var permittedSongsAddedInThisAttempt = 0
-
-            cursor?.use { c ->
-                val idCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-                val titleCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-                val artistCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-                val artistIdCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST_ID)
-                val albumCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
-                val albumIdCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
-                val durationCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
-                val dataCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
-
-                while (c.moveToNext()) {
-                    newSongsFoundInThisMediaStoreQuery++
-                    if (songsToReturn.size >= pageSize) break // Ya hemos llenado la página deseada
-
-                    val filePath = c.getString(dataCol)
-                    val directoryPath = File(filePath).parent ?: ""
-
-                    val isAllowed = if (!initialSetupDone) true else allowedDirectories.contains(directoryPath)
-
-                    if (isAllowed) {
-                        val id = c.getLong(idCol)
-                        val title = c.getString(titleCol)
-                                val songId = id // Already have song ID as 'id'
-                                var genreName: String? = null
-
-                                // Query for genre
-                                val genreUri = MediaStore.Audio.Genres.getContentUriForAudioId("external", songId.toInt())
-                                val genreProjection = arrayOf(MediaStore.Audio.GenresColumns.NAME)
-                                try {
-                                    context.contentResolver.query(genreUri, genreProjection, null, null, null)?.use { genreCursor ->
-                                        if (genreCursor.moveToFirst()) {
-                                            val genreNameColumn = genreCursor.getColumnIndexOrThrow(MediaStore.Audio.GenresColumns.NAME)
-                                            genreName = genreCursor.getString(genreNameColumn)
-                                        }
-                                    }
-                                } catch (e: Exception) {
-                                    Log.e("MusicRepositoryImpl", "Error fetching genre for song ID: $songId", e)
-                                }
-
-                                if (genreName.isNullOrEmpty()) {
-                                    val staticGenres = GenreDataSource.staticGenres
-                                    if (staticGenres.isNotEmpty()) {
-                                        val genreIndex = (id % staticGenres.size.toLong()).toInt()
-                                        genreName = staticGenres[genreIndex].name
-                                    } else {
-                                        genreName = "Unknown" // Fallback if staticGenres is empty
-                                    }
-                                }
-
-                        songsToReturn.add(
-                            Song(
-                                id = id.toString(),
-                                title = title,
-                                artist = c.getString(artistCol) ?: "Artista Desconocido",
-                                artistId = c.getLong(artistIdCol),
-                                album = c.getString(albumCol) ?: "Álbum Desconocido",
-                                albumId = c.getLong(albumIdCol),
-                                contentUriString = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id).toString(),
-                                albumArtUriString = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), c.getLong(albumIdCol))?.toString(),
-                                        duration = c.getLong(durationCol),
-                                        genre = genreName // Populate the genre
-                            )
-                        )
-                        permittedSongsAddedInThisAttempt++
-                    }
+                songsFromDb.filter { songEntity ->
+                    val directoryPath = File(songEntity.filePath).parent
+                    directoryPath != null && allowedDirs.contains(directoryPath)
                 }
             }
-            Log.d("MusicRepo/Songs", "Attempt #${queryAttempt + 1}: MediaStore items processed: $newSongsFoundInThisMediaStoreQuery. Permitted songs added in this attempt: $permittedSongsAddedInThisAttempt.")
-
-            if (songsToReturn.size >= pageSize || cursor == null || newSongsFoundInThisMediaStoreQuery < internalMediaStorePageSize) {
-                // Salir si:
-                // 1. Hemos llenado la página para el ViewModel.
-                // 2. El cursor es null (error).
-                // 3. MediaStore devolvió menos items de los que pedimos en esta consulta interna (indica que MediaStore se está quedando sin items que coincidan con la selección base).
-                Log.d("MusicRepo/Songs", "Exiting fill loop. Songs to return: ${songsToReturn.size}. Reason: pageFilled=${songsToReturn.size >= pageSize}, cursorNull=${cursor == null}, mediaStoreExhausted=${newSongsFoundInThisMediaStoreQuery < internalMediaStorePageSize}")
-                break
-            }
-            currentMediaStoreOffset += internalMediaStorePageSize
+        }.map { songEntities ->
+            songEntities.map { it.toSong() }
         }
-        Log.i("MusicRepo/Songs", "getAudioFiles (filling_page_logic) - FINAL Returning ${songsToReturn.size} songs for ViewModel Page: $page.")
-        if (page == 1) Log.i("MusicRepo/Songs", "getAudioFiles (page 1) took ${System.currentTimeMillis() - getAudioFilesStartTime} ms to return ${songsToReturn.size} songs.")
-        return@withContext songsToReturn
     }
+
 
     // IMPORTANT: Also update queryAndFilterSongs if it's used to populate song lists displayed in the UI
     // where genre might be needed. For now, focusing on getAudioFiles as per subtask emphasis.
 
-    override suspend fun getAlbums(page: Int, pageSize: Int): List<Album> = withContext(Dispatchers.IO) {
-        val getAlbumsStartTime = System.currentTimeMillis()
-        Log.d("MusicRepo/Albums", "getAlbums - Page: $page, PageSize: $pageSize")
-        val offset = (page - 1) * pageSize
-        if (offset < 0) throw IllegalArgumentException("Page number must be 1 or greater")
-
-        val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
-        val albumsToReturn = mutableListOf<Album>()
-
-        val projection = arrayOf(
-            MediaStore.Audio.Albums._ID, MediaStore.Audio.Albums.ALBUM,
-            MediaStore.Audio.Albums.ARTIST, MediaStore.Audio.Albums.NUMBER_OF_SONGS
-        )
-        val baseSortOrder = "${MediaStore.Audio.Albums.ALBUM} ASC"
-
-        var selectionClause: String? = null
-        var selectionArgsArray: Array<String>? = null
-        var permittedAlbumIds: Set<Long>? = null
-
-        if (initialSetupDone) {
-            val songRefs = getPermittedSongReferences() // Obtiene referencias cacheadas/nuevas
-            if (songRefs.isEmpty() && userPreferencesRepository.allowedDirectoriesFlow.first().isNotEmpty()) {
-                Log.w("MusicRepo/Albums", "Initial setup done, allowed directories exist, but no permitted song references found. No albums will be loaded based on song refs.")
-                return@withContext emptyList() // No hay canciones permitidas, por lo tanto no hay álbumes que mostrar basados en ellas
-            }
-            permittedAlbumIds = songRefs.map { it.albumId }.distinct().toSet()
-            Log.d("MusicRepo/Albums", "Permitted Album IDs count: ${permittedAlbumIds.size}")
-
-            if (permittedAlbumIds.isEmpty() && userPreferencesRepository.allowedDirectoriesFlow.first().isNotEmpty()) {
-                // Si hay directorios permitidos pero ningún álbum coincide con canciones en ellos.
-                return@withContext emptyList()
-            }
-            // Solo aplicar el filtro IN si hay IDs permitidos, de lo contrario, la cláusula IN vacía podría dar error.
-            if (permittedAlbumIds.isNotEmpty()) {
-                selectionClause = "${MediaStore.Audio.Albums._ID} IN (${Array(permittedAlbumIds.size) { "?" }.joinToString(",")})"
-                selectionArgsArray = permittedAlbumIds.map { it.toString() }.toTypedArray()
-            } else if (userPreferencesRepository.allowedDirectoriesFlow.first().isNotEmpty()) {
-                // Hay directorios permitidos, pero ningún albumId de canciones permitidas. Devolver vacío.
-                return@withContext emptyList()
-            }
-            // Si initialSetupDone es true Y allowedDirectories está vacío, permittedAlbumIds también estará vacío.
-            // En este caso, no se aplica selectionClause y MediaStore devolverá todos los álbumes,
-            // lo cual es incorrecto si queremos filtrar estrictamente.
-            // Necesitamos asegurar que si allowedDirectories está vacío (y setup hecho), no se devuelvan álbumes.
-            if (userPreferencesRepository.allowedDirectoriesFlow.first().isEmpty()) {
-                Log.w("MusicRepo/Albums", "Initial setup done, but no allowed directories. Returning empty list of albums.")
-                return@withContext emptyList()
-            }
-        }
-        // Si initialSetupDone es false, selectionClause y selectionArgsArray permanecen null (se muestran todos los álbumes para el setup).
-
-        Log.d("MusicRepo/Albums", "Querying MediaStore Albums with selection: '$selectionClause', args: '${selectionArgsArray?.joinToString()}', offset: $offset, limit: $pageSize")
-
-        val cursor: Cursor?
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val queryArgs = Bundle().apply {
-                if (selectionClause != null) {
-                    putString(ContentResolver.QUERY_ARG_SQL_SELECTION, selectionClause)
-                    putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgsArray)
-                }
-                putString(ContentResolver.QUERY_ARG_SORT_COLUMNS, MediaStore.Audio.Albums.ALBUM)
-                putInt(ContentResolver.QUERY_ARG_SORT_DIRECTION, ContentResolver.QUERY_SORT_DIRECTION_ASCENDING)
-                putInt(ContentResolver.QUERY_ARG_LIMIT, pageSize)
-                putInt(ContentResolver.QUERY_ARG_OFFSET, offset)
-            }
-            cursor = context.contentResolver.query(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, projection, queryArgs, null)
-        } else {
-            val sortOrderWithPaging = "$baseSortOrder LIMIT $pageSize OFFSET $offset"
-            cursor = context.contentResolver.query(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, projection, selectionClause, selectionArgsArray, sortOrderWithPaging)
-        }
-
-        Log.d("MusicRepo/Albums", "MediaStore cursor count for albums: ${cursor?.count}")
-
-        cursor?.use { c ->
-            val idCol = c.getColumnIndexOrThrow(MediaStore.Audio.Albums._ID)
-            val titleCol = c.getColumnIndexOrThrow(MediaStore.Audio.Albums.ALBUM)
-            val artistCol = c.getColumnIndexOrThrow(MediaStore.Audio.Albums.ARTIST)
-            val songCountCol = c.getColumnIndexOrThrow(MediaStore.Audio.Albums.NUMBER_OF_SONGS)
-
-            while (c.moveToNext()) {
-                val id = c.getLong(idCol)
-                val title = c.getString(titleCol) ?: "Álbum Desconocido"
-                val artist = c.getString(artistCol) ?: "Varios Artistas"
-                var actualSongCount = c.getInt(songCountCol) // songCount from MediaStore
-
-                if (initialSetupDone) {
-                    // If setup is done, the album MUST be in permittedAlbumIds to be considered.
-                    // And its count is from our cache.
-                    if (permittedAlbumIds?.contains(id) == true) {
-                        actualSongCount = cachedPermittedAlbumSongCounts?.get(id) ?: 0
-                    } else {
-                        // This case should ideally not be hit if permittedAlbumIds filter is applied correctly at query time.
-                        // If it is hit, it means an album was returned that isn't in the permitted set.
-                        actualSongCount = 0
+    // Helper function
+    private fun getPermittedSongsFlow(): Flow<List<SongEntity>> {
+        return musicDao.getSongs(pageSize = Int.MAX_VALUE, offset = 0) // Effectively all songs
+            .combine(
+                userPreferencesRepository.allowedDirectoriesFlow,
+                userPreferencesRepository.initialSetupDoneFlow
+            ) { songsFromDb, allowedDirs, initialSetupDone ->
+                if (initialSetupDone && allowedDirs.isEmpty()) {
+                    emptyList<SongEntity>()
+                } else if (!initialSetupDone) {
+                    songsFromDb
+                } else {
+                    songsFromDb.filter { songEntity ->
+                        val directoryPath = File(songEntity.filePath).parent
+                        directoryPath != null && allowedDirs.contains(directoryPath)
                     }
                 }
-
-                if (actualSongCount > 0) {
-                    val albumArtUriVal: Uri? = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), id)
-                    albumsToReturn.add(Album(id, title, artist, albumArtUriVal?.toString(), actualSongCount))
-                }
             }
-        }
-        Log.i("MusicRepo/Albums", "Returning ${albumsToReturn.size} albums for Page: $page.")
-        if (page == 1) Log.i("MusicRepo/Albums", "getAlbums (page 1) took ${System.currentTimeMillis() - getAlbumsStartTime} ms to return ${albumsToReturn.size} albums.")
-        return@withContext albumsToReturn
-    }
-
-    override suspend fun getArtists(page: Int, pageSize: Int): List<Artist> = withContext(Dispatchers.IO) {
-        val getArtistsStartTime = System.currentTimeMillis()
-        Log.d("MusicRepo/Artists", "getArtists - Page: $page, PageSize: $pageSize")
-        val offset = (page - 1) * pageSize
-        if (offset < 0) throw IllegalArgumentException("Page number must be 1 or greater")
-
-        val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
-        val artistsToReturn = mutableListOf<Artist>()
-
-        val projection = arrayOf(
-            MediaStore.Audio.Artists._ID, MediaStore.Audio.Artists.ARTIST,
-            MediaStore.Audio.Artists.NUMBER_OF_TRACKS
-        )
-        val baseSortOrder = "${MediaStore.Audio.Artists.ARTIST} ASC"
-
-        var selectionClause: String? = null
-        var selectionArgsArray: Array<String>? = null
-        var permittedArtistIds: Set<Long>? = null
-
-
-        if (initialSetupDone) {
-            val songRefs = getPermittedSongReferences() // Usa la caché
-            if (songRefs.isEmpty() && userPreferencesRepository.allowedDirectoriesFlow.first().isNotEmpty()) {
-                Log.w("MusicRepo/Artists", "Initial setup done, allowed directories exist, but no permitted song references found. No artists will be loaded based on song refs.")
-                return@withContext emptyList()
-            }
-            permittedArtistIds = songRefs.map { it.artistId }.distinct().toSet()
-            Log.d("MusicRepo/Artists", "Permitted Artist IDs count: ${permittedArtistIds.size}")
-
-            if (permittedArtistIds.isEmpty() && userPreferencesRepository.allowedDirectoriesFlow.first().isNotEmpty()) {
-                return@withContext emptyList()
-            }
-            if (permittedArtistIds.isNotEmpty()) {
-                selectionClause = "${MediaStore.Audio.Artists._ID} IN (${Array(permittedArtistIds.size) { "?" }.joinToString(",")})"
-                selectionArgsArray = permittedArtistIds.map { it.toString() }.toTypedArray()
-            } else if (userPreferencesRepository.allowedDirectoriesFlow.first().isNotEmpty()){
-                return@withContext emptyList()
-            }
-            if (userPreferencesRepository.allowedDirectoriesFlow.first().isEmpty()) {
-                Log.w("MusicRepo/Artists", "Initial setup done, but no allowed directories. Returning empty list of artists.")
-                return@withContext emptyList()
-            }
-        }
-        Log.d("MusicRepo/Artists", "Querying MediaStore Artists with selection: '$selectionClause', args: '${selectionArgsArray?.joinToString()}', offset: $offset, limit: $pageSize")
-
-
-        val cursor: Cursor?
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val queryArgs = Bundle().apply {
-                if (selectionClause != null) {
-                    putString(ContentResolver.QUERY_ARG_SQL_SELECTION, selectionClause)
-                    putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgsArray)
-                }
-                putString(ContentResolver.QUERY_ARG_SORT_COLUMNS, MediaStore.Audio.Artists.ARTIST)
-                putInt(ContentResolver.QUERY_ARG_SORT_DIRECTION, ContentResolver.QUERY_SORT_DIRECTION_ASCENDING)
-                putInt(ContentResolver.QUERY_ARG_LIMIT, pageSize)
-                putInt(ContentResolver.QUERY_ARG_OFFSET, offset)
-            }
-            cursor = context.contentResolver.query(MediaStore.Audio.Artists.EXTERNAL_CONTENT_URI, projection, queryArgs, null)
-        } else {
-            val sortOrderWithPaging = "$baseSortOrder LIMIT $pageSize OFFSET $offset"
-            cursor = context.contentResolver.query(MediaStore.Audio.Artists.EXTERNAL_CONTENT_URI, projection, selectionClause, selectionArgsArray, sortOrderWithPaging)
-        }
-        Log.d("MusicRepo/Artists", "MediaStore cursor count for artists: ${cursor?.count}")
-
-
-        cursor?.use { c ->
-            val idCol = c.getColumnIndexOrThrow(MediaStore.Audio.Artists._ID)
-            val nameCol = c.getColumnIndexOrThrow(MediaStore.Audio.Artists.ARTIST)
-            val trackCountCol = c.getColumnIndexOrThrow(MediaStore.Audio.Artists.NUMBER_OF_TRACKS)
-
-            while (c.moveToNext()) {
-                val id = c.getLong(idCol)
-                val name = c.getString(nameCol) ?: "Artista Desconocido"
-                var actualTrackCount = c.getInt(trackCountCol) // trackCount from MediaStore
-
-                if (initialSetupDone) {
-                    if (permittedArtistIds?.contains(id) == true) {
-                        actualTrackCount = cachedPermittedArtistSongCounts?.get(id) ?: 0
-                    } else {
-                        actualTrackCount = 0
-                    }
-                }
-
-                if (actualTrackCount > 0) {
-                    artistsToReturn.add(Artist(id, name, actualTrackCount))
-                }
-            }
-        }
-        Log.i("MusicRepo/Artists", "Returning ${artistsToReturn.size} artists for Page: $page.")
-        if (page == 1) Log.i("MusicRepo/Artists", "getArtists (page 1) took ${System.currentTimeMillis() - getArtistsStartTime} ms to return ${artistsToReturn.size} artists.")
-        return@withContext artistsToReturn
-    }
-
-    // --- Funciones que usan queryAndFilterSongs (sin paginación propia, filtran por directorio) ---
-    override suspend fun getSongsForAlbum(albumId: Long): List<Song> = withContext(Dispatchers.IO) {
-        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.ALBUM_ID} = ?"
-        val selectionArgs = arrayOf(albumId.toString())
-        val sortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
-        return@withContext queryAndFilterSongs(selection, selectionArgs, sortOrder)
-    }
-
-    override suspend fun getSongsForArtist(artistId: Long): List<Song> = withContext(Dispatchers.IO) {
-        // Necesitas ARTIST_ID para esta consulta
-        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.ARTIST_ID} = ?"
-        val selectionArgs = arrayOf(artistId.toString())
-        val sortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
-        return@withContext queryAndFilterSongs(selection, selectionArgs, sortOrder)
-    }
-
-    override suspend fun getSongsByIds(songIds: List<String>): List<Song> = withContext(Dispatchers.IO) {
-        if (songIds.isEmpty()) return@withContext emptyList()
-        val selection = "${MediaStore.Audio.Media._ID} IN (${Array(songIds.size) { "?" }.joinToString(",")})"
-        val selectionArgs = songIds.toTypedArray()
-        val filteredSongs = queryAndFilterSongs(selection, selectionArgs, null) // Sin orden específico en MediaStore
-
-        // Reordenar según la lista original de IDs
-        val filteredSongsMap = filteredSongs.associateBy { it.id }
-        return@withContext songIds.mapNotNull { filteredSongsMap[it] }
-    }
-
-    // Función para obtener (y cachear) las referencias mínimas de canciones permitidas
-    // Función para obtener (y cachear) las referencias mínimas de canciones permitidas
-    private suspend fun getPermittedSongReferences(forceRefresh: Boolean = false): List<MinimalSongInfo> = withContext(Dispatchers.IO) {
-        val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
-        val allowedDirectories = userPreferencesRepository.allowedDirectoriesFlow.first()
-        if (initialSetupDone && allowedDirectories.isEmpty()) {
-            cachedPermittedSongReferences = emptyList()
-            cachedPermittedAlbumSongCounts = emptyMap()
-            cachedPermittedArtistSongCounts = emptyMap()
-            Log.i("MusicRepo/Refs", "Initial setup done and no allowed directories. Returning empty song references.")
-            return@withContext emptyList<MinimalSongInfo>()
-        }
-        permittedSongReferencesMutex.withLock {
-            if (cachedPermittedSongReferences == null || forceRefresh) {
-                val coldLoadStartTime = System.currentTimeMillis()
-                Log.i("MusicRepo/Refs", "Populating cachedPermittedSongReferences. Force refresh: $forceRefresh")
-                val allPermittedSongs = queryAndFilterSongs(
-                    selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ?",
-                    selectionArgs = arrayOf("30000"),
-                    sortOrder = null
-                )
-                cachedPermittedSongReferences = allPermittedSongs.map { song ->
-                    MinimalSongInfo(song.id, song.albumId, song.artistId)
-                }
-                // Populate new caches
-                val refs = cachedPermittedSongReferences ?: emptyList()
-                cachedPermittedAlbumSongCounts = refs.groupBy { it.albumId }.mapValues { entry -> entry.value.size }
-                cachedPermittedArtistSongCounts = refs.groupBy { it.artistId }.mapValues { entry -> entry.value.size }
-                Log.i("MusicRepo/Refs", "Populated cachedPermittedSongReferences with ${cachedPermittedSongReferences?.size} items. Album counts: ${cachedPermittedAlbumSongCounts?.size}, Artist counts: ${cachedPermittedArtistSongCounts?.size}. Cold load took ${System.currentTimeMillis() - coldLoadStartTime} ms")
-            }
-        }
-        return@withContext cachedPermittedSongReferences ?: emptyList()
     }
 
     // Necesitarás una forma de invalidar esta caché si allowedDirectories cambia.
 // Podrías llamarla desde UserPreferencesRepository o desde un ViewModel que observe los cambios de directorio.
-    fun invalidatePermittedSongReferencesCache() {
-        Log.d("MusicRepositoryImpl", "Invalidating cachedPermittedSongReferences.")
-        this.cachedPermittedSongReferences = null
+    // Esta caché ya no existe, Room es la SSoT.
+    private fun invalidatePermittedSongReferencesCache() { // TODO: Eliminar esta función
+        Log.d("MusicRepo", "invalidatePermittedSongReferencesCache called, but cache no longer exists.")
     }
 
     // Méthod para invalidar la caché cuando cambian los directorios permitidos.
-    override suspend fun invalidateCachesDependentOnAllowedDirectories() {
-        Log.i("MusicRepo", "Invalidating caches dependent on allowed directories (cachedPermittedSongReferences).")
-        this.cachedPermittedSongReferences = null
-        this.cachedPermittedAlbumSongCounts = null
-        this.cachedPermittedArtistSongCounts = null
+    // Con Flows reactivos, esto podría no ser necesario, o su lógica cambiaría drásticamente (ej. forzar un refresh de un Flow).
+    override suspend fun invalidateCachesDependentOnAllowedDirectories() { // TODO: Re-evaluar o eliminar.
+        Log.i("MusicRepo", "invalidateCachesDependentOnAllowedDirectories called. Flows should update reactively.")
+        // Si se usara alguna caché manual que dependa de esto, se limpiaría aquí.
+        // Por ahora, las principales fuentes de datos (canciones, álbumes, artistas) son Flows de Room.
     }
 
 
     // --- Funciones de Directorio y URIs de Carátulas (sin cambios mayores) ---
-    override suspend fun getAllUniqueAudioDirectories(): Set<String> = withContext(Dispatchers.IO) {
-        directoryScanMutex.withLock {
-            cachedAudioDirectories?.let { return@withContext it }
+    override suspend fun getAllUniqueAudioDirectories(): Set<String> = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        kotlinx.coroutines.sync.withLock(directoryScanMutex) {
+            // cachedAudioDirectories?.let { return@withContext it } // TODO: Considerar si esta caché de directorios aún es útil o si debe leerse siempre.
             val directories = mutableSetOf<String>()
             val projection = arrayOf(MediaStore.Audio.Media.DATA) // Solo necesitamos DATA
             val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
@@ -615,83 +153,58 @@ class MusicRepositoryImpl @Inject constructor(
             val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
             if (!initialSetupDone && directories.isNotEmpty()) {
                 Log.i("MusicRepo", "Initial setup: saving all found audio directories (${directories.size}) as allowed.")
-                userPreferencesRepository.updateAllowedDirectories(directories) // Esto debería marcar initialSetupDone internamente
-                invalidateCachesDependentOnAllowedDirectories() // Invalidar cachés porque los directorios permitidos han cambiado
+                kotlinx.coroutines.runBlocking { userPreferencesRepository.updateAllowedDirectories(directories) } // Esto debería marcar initialSetupDone internamente
+                // invalidateCachesDependentOnAllowedDirectories() // Ya no es relevante de la misma manera. Los flows reaccionarán.
             }
-            cachedAudioDirectories = directories
-            return@withContext directories
+            cachedAudioDirectories = directories // Se sigue cacheando para evitar re-escaneos frecuentes de MediaStore para esta función específica.
+            return@withLock directories
         }
     }
 
-    override suspend fun getAllUniqueAlbumArtUris(): List<Uri> = withContext(Dispatchers.IO) {
-        val uris = mutableSetOf<Uri>()
-        val projection = arrayOf(MediaStore.Audio.Media.ALBUM_ID)
-        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0" // Solo de archivos de música
-        // Podríamos añadir aquí un filtro para que solo obtenga URIs de álbumes que realmente tienen canciones permitidas,
-        // usando los permittedAlbumIds de getPermittedSongReferences().
-        // Pero para la precarga de temas, obtener todas las URIs y dejar que Coil maneje errores puede ser aceptable.
-        // Si se vuelve un problema de rendimiento, se puede optimizar más.
-        val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
-        var albumIdSelection: String? = null
-        var albumIdSelectionArgs: Array<String>? = null
-
-        if(initialSetupDone){
-            val permittedAlbumIds = getPermittedSongReferences(false).map { it.albumId }.distinct().toSet()
-            if(permittedAlbumIds.isNotEmpty()){
-                albumIdSelection = "${MediaStore.Audio.Media.ALBUM_ID} IN (${Array(permittedAlbumIds.size){"?"}.joinToString(",")})"
-                albumIdSelectionArgs = permittedAlbumIds.map { it.toString() }.toTypedArray()
-            } else if (userPreferencesRepository.allowedDirectoriesFlow.first().isNotEmpty()){
-                // Hay directorios permitidos pero no hay albumIDs, entonces no hay URIs que devolver
-                return@withContext emptyList()
-            }
-            // Si initialSetupDone es true y allowedDirectories está vacío, albumIdSelection será null,
-            // y se obtendrán todas las URIs. Esto está bien, ya que no hay canciones que mostrar de todos modos.
+    override fun getAllUniqueAlbumArtUris(): Flow<List<Uri>> {
+        return getPermittedSongsFlow().map { permittedSongs ->
+            permittedSongs
+                .mapNotNull { it.albumArtUriString?.toUri() }
+                .distinct()
         }
-
-        val finalSelection = if (albumIdSelection != null) {
-            "$selection AND $albumIdSelection"
-        } else {
-            selection
-        }
-
-        context.contentResolver.query(
-            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-            projection, // Solo necesitamos ALBUM_ID
-            finalSelection, // Aplicar el filtro de albumId si está disponible
-            albumIdSelectionArgs, // Argumentos para el filtro de albumId
-            null // El orden no importa
-        )?.use { c ->
-            val albumIdColumn = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
-            while (c.moveToNext()) {
-                val albumId = c.getLong(albumIdColumn)
-                uris.add(
-                    ContentUris.withAppendedId(
-                        Uri.parse("content://media/external/audio/albumart"),
-                        albumId
-                    )
-                )
-            }
-        }
-        Log.d("MusicRepo", "getAllUniqueAlbumArtUris returning ${uris.size} URIs.")
-        return@withContext uris.toList()
     }
 
     // Search Methods Implementation
 
-    override suspend fun searchSongs(query: String): List<Song> = withContext(Dispatchers.IO) {
+    override fun searchSongs(query: String): Flow<List<Song>> {
         if (query.isBlank()) {
-            return@withContext emptyList()
+            return kotlinx.coroutines.flow.flowOf(emptyList())
         }
-        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.TITLE} LIKE ?"
-        val selectionArgs = arrayOf("%$query%")
-        // Using the existing queryAndFilterSongs which handles directory permissions
-        return@withContext queryAndFilterSongs(selection, selectionArgs, MediaStore.Audio.Media.TITLE + " ASC")
+        return musicDao.searchSongs(query) // Returns Flow<List<SongEntity>>
+            .combine(
+                userPreferencesRepository.allowedDirectoriesFlow,
+                userPreferencesRepository.initialSetupDoneFlow
+            ) { songsFromDb, allowedDirs, initialSetupDone ->
+                if (initialSetupDone && allowedDirs.isEmpty()) emptyList()
+                else if (!initialSetupDone) songsFromDb
+                else songsFromDb.filter { songEntity ->
+                    File(songEntity.filePath).parent?.let { allowedDirs.contains(it) } ?: false
+                }
+            }.map { entities -> entities.map { it.toSong() } }
     }
 
-    override suspend fun searchAlbums(query: String): List<Album> = withContext(Dispatchers.IO) {
+    override fun searchAlbums(query: String): Flow<List<Album>> {
         if (query.isBlank()) {
-            return@withContext emptyList()
+            return kotlinx.coroutines.flow.flowOf(emptyList())
         }
+        // Combina el resultado de la búsqueda de DAO con las canciones permitidas para filtrar álbumes.
+        return getPermittedSongsFlow().combine(musicDao.searchAlbums(query)) { permittedSongs, searchedAlbumsFromDb ->
+            val permittedAlbumIds = permittedSongs.map { it.albumId }.toSet()
+            val songCountByAlbumId = permittedSongs.groupBy { it.albumId }.mapValues { it.value.size }
+
+            searchedAlbumsFromDb.filter { albumEntity ->
+                albumEntity.id in permittedAlbumIds
+            }.mapNotNull { albumEntity ->
+                val currentSongCount = songCountByAlbumId[albumEntity.id] ?: 0
+                if (currentSongCount > 0) albumEntity.toAlbum().copy(songCount = currentSongCount) else null
+            }
+        }
+        /* // Old MediaStore Logic
         val albumsToReturn = mutableListOf<Album>()
         val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
         var permittedAlbumIds: Set<Long>? = null
@@ -756,11 +269,408 @@ class MusicRepositoryImpl @Inject constructor(
             }
         }
         return@withContext albumsToReturn
+        */
     }
 
-    override suspend fun searchArtists(query: String): List<Artist> = withContext(Dispatchers.IO) {
+    override fun searchArtists(query: String): Flow<List<Artist>> {
+        if (query.isBlank()) {
+            return kotlinx.coroutines.flow.flowOf(emptyList())
+        }
+        val artistsToReturn = mutableListOf<Artist>()
+        val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
+        var permittedArtistIds: Set<Long>? = null
+
+        // if (initialSetupDone) { // TODO: This old logic relying on getPermittedSongReferences needs to be removed/re-evaluated with Flows
+            // val songRefs = getPermittedSongReferences() // Usa la caché
+            // if (songRefs.isEmpty() && userPreferencesRepository.allowedDirectoriesFlow.first().isNotEmpty()) {
+            //     Log.w("MusicRepo/Artists", "Initial setup done, allowed directories exist, but no permitted song references found. No artists will be loaded based on song refs.")
+            //     return@withContext emptyList()
+            // }
+            // permittedArtistIds = songRefs.map { it.artistId }.distinct().toSet()
+            // if (permittedArtistIds.isEmpty() && userPreferencesRepository.allowedDirectoriesFlow.first().isNotEmpty()) {
+            //     return@withContext emptyList()
+            // }
+            // if (userPreferencesRepository.allowedDirectoriesFlow.first().isEmpty()) {
+            //     return@withContext emptyList()
+            // }
+        // }
+
+        val projection = arrayOf(
+            MediaStore.Audio.Artists._ID,
+            MediaStore.Audio.Artists.ARTIST,
+            MediaStore.Audio.Artists.NUMBER_OF_TRACKS // Corresponds to NUMBER_OF_SONGS for artists in MediaStore
+        )
+        val selection = "${MediaStore.Audio.Artists.ARTIST} LIKE ?"
+        val selectionArgs = arrayOf("%$query%")
+        val sortOrder = "${MediaStore.Audio.Artists.ARTIST} ASC"
+
+        context.contentResolver.query(
+            MediaStore.Audio.Artists.EXTERNAL_CONTENT_URI,
+            projection,
+            selection,
+            selectionArgs,
+            sortOrder
+        )?.use { c ->
+            val idCol = c.getColumnIndexOrThrow(MediaStore.Audio.Artists._ID)
+            val nameCol = c.getColumnIndexOrThrow(MediaStore.Audio.Artists.ARTIST)
+            val trackCountCol = c.getColumnIndexOrThrow(MediaStore.Audio.Artists.NUMBER_OF_TRACKS)
+
+            while (c.moveToNext()) {
+                val id = c.getLong(idCol)
+                var actualTrackCount = c.getInt(trackCountCol)
+
+                // if (initialSetupDone) { // TODO: This old logic relying on cachedPermittedArtistSongCounts needs to be removed
+                //      if (permittedArtistIds?.contains(id) == true) {
+                //         actualTrackCount = cachedPermittedArtistSongCounts?.get(id) ?: 0
+                //     } else {
+                //         actualTrackCount = 0 // Not in permitted list or no songs in permitted directories
+                //     }
+                // }
+                // If not initial setup, all artists are considered, use MediaStore track count.
+
+                if (actualTrackCount > 0) {
+                    val name = c.getString(nameCol) ?: "Artista Desconocido"
+                    artistsToReturn.add(Artist(id, name, actualTrackCount))
+                }
+            }
+        }
+        // return@withContext artistsToReturn // Old MediaStore Logic
+
+        // New Room based logic for searchArtists
+        return getPermittedSongsFlow().combine(musicDao.searchArtists(query)) { permittedSongs, searchedArtistsFromDb ->
+            val permittedArtistIds = permittedSongs.map { it.artistId }.toSet()
+            val trackCountByArtistId = permittedSongs.groupBy { it.artistId }.mapValues { it.value.size }
+
+            searchedArtistsFromDb.filter { artistEntity ->
+                artistEntity.id in permittedArtistIds
+            }.mapNotNull { artistEntity ->
+                val currentTrackCount = trackCountByArtistId[artistEntity.id] ?: 0
+                if (currentTrackCount > 0) artistEntity.toArtist().copy(songCount = currentTrackCount) else null
+            }
+        }
+    }
+
+    override suspend fun searchPlaylists(query: String): List<Playlist> = kotlinx.coroutines.withContext(Dispatchers.IO) {
         if (query.isBlank()) {
             return@withContext emptyList()
+        }
+        // Placeholder: Actual implementation depends on how playlists are stored.
+        // If using Room, inject PlaylistDao and query: e.g., playlistDao.searchByName("%$query%")
+        // For now, returning an empty list.
+        Log.d("MusicRepositoryImpl", "searchPlaylists called with query: $query. Returning empty list as not implemented.")
+        return@withContext emptyList<Playlist>()
+    }
+
+    override fun searchAll(query: String, filterType: SearchFilterType): Flow<List<SearchResultItem>> {
+        if (query.isBlank()) {
+            return kotlinx.coroutines.flow.flowOf(emptyList())
+        }
+
+        // searchPlaylists is still suspend, wrap its call for flow combination
+        val playlistsFlow = kotlinx.coroutines.flow.flow { emit(searchPlaylists(query)) }
+
+        return when (filterType) {
+            SearchFilterType.ALL -> {
+                combine(
+                    searchSongs(query),
+                    searchAlbums(query),
+                    searchArtists(query),
+                    playlistsFlow
+                ) { songs, albums, artists, playlists ->
+                    val results = mutableListOf<SearchResultItem>()
+                    songs.forEach { results.add(SearchResultItem.SongItem(it)) }
+                    albums.forEach { results.add(SearchResultItem.AlbumItem(it)) }
+                    artists.forEach { results.add(SearchResultItem.ArtistItem(it)) }
+                    playlists.forEach { results.add(SearchResultItem.PlaylistItem(it)) }
+                    results
+                }
+            }
+            SearchFilterType.SONGS -> searchSongs(query).map { songs -> songs.map { SearchResultItem.SongItem(it) } }
+            SearchFilterType.ALBUMS -> searchAlbums(query).map { albums -> albums.map { SearchResultItem.AlbumItem(it) } }
+            SearchFilterType.ARTISTS -> searchArtists(query).map { artists -> artists.map { SearchResultItem.ArtistItem(it) } }
+            SearchFilterType.PLAYLISTS -> playlistsFlow.map { playlists -> playlists.map { SearchResultItem.PlaylistItem(it) } }
+        }
+    }
+
+    // Search History Implementation
+    override suspend fun addSearchHistoryItem(query: String) = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        searchHistoryDao.deleteByQuery(query) // Remove old entry if exists
+        searchHistoryDao.insert(SearchHistoryEntity(query = query, timestamp = System.currentTimeMillis()))
+    }
+
+    override suspend fun getRecentSearchHistory(limit: Int): List<SearchHistoryItem> = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        return@withContext searchHistoryDao.getRecentSearches(limit).map { it.toSearchHistoryItem() }
+    }
+
+    override suspend fun deleteSearchHistoryItemByQuery(query: String) = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        searchHistoryDao.deleteByQuery(query)
+    }
+
+    override suspend fun clearSearchHistory() = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        searchHistoryDao.clearAll()
+    }
+
+    override fun getMusicByGenre(genreId: String): Flow<List<Song>> {
+        Log.i("MusicRepositoryImpl", "getMusicByGenre called for genreId: \"$genreId\"")
+
+        val targetGenreName: String?
+        val staticGenre = GenreDataSource.staticGenres.find { it.id.equals(genreId, ignoreCase = true) }
+
+        targetGenreName = if (staticGenre != null) {
+            Log.d("MusicRepositoryImpl", "Static genre found for ID \"$genreId\". Target name: \"${staticGenre.name}\"")
+            staticGenre.name
+        } else {
+            Log.d("MusicRepositoryImpl", "No static genre found for ID \"$genreId\". Treating ID as target name: \"$genreId\"")
+            genreId // Treat the ID as the name for dynamic genres
+        }
+
+        if (targetGenreName.isNullOrBlank()) {
+            Log.w("MusicRepositoryImpl", "Target genre name is null or blank for genreId: \"$genreId\". Returning empty list.")
+            return kotlinx.coroutines.flow.flowOf(emptyList())
+        }
+
+        return musicDao.getSongsByGenre(targetGenreName)
+            .combine(userPreferencesRepository.allowedDirectoriesFlow, userPreferencesRepository.initialSetupDoneFlow) { songsFromDb, allowedDirs, initialSetupDone ->
+                if (initialSetupDone && allowedDirs.isEmpty()) emptyList()
+                else if (!initialSetupDone) songsFromDb
+                else songsFromDb.filter { songEntity -> File(songEntity.filePath).parent?.let { allowedDirs.contains(it) } ?: false }
+            }.map { entities -> entities.map { it.toSong() } }
+        }
+}
+                userPreferencesRepository.allowedDirectoriesFlow,
+                userPreferencesRepository.initialSetupDoneFlow
+            ) { songsFromDb, allowedDirs, initialSetupDone ->
+                if (initialSetupDone && allowedDirs.isEmpty()) emptyList()
+                else if (!initialSetupDone) songsFromDb
+                else songsFromDb.filter { songEntity ->
+                    File(songEntity.filePath).parent?.let { allowedDirs.contains(it) } ?: false
+                }
+            }.map { entities -> entities.map { it.toSong() } }
+    }
+
+    override fun getSongsForArtist(artistId: Long): Flow<List<Song>> {
+        return musicDao.getSongsByArtistId(artistId)
+            .combine(
+                userPreferencesRepository.allowedDirectoriesFlow,
+                userPreferencesRepository.initialSetupDoneFlow
+            ) { songsFromDb, allowedDirs, initialSetupDone ->
+                if (initialSetupDone && allowedDirs.isEmpty()) emptyList()
+                else if (!initialSetupDone) songsFromDb
+                else songsFromDb.filter { songEntity ->
+                    File(songEntity.filePath).parent?.let { allowedDirs.contains(it) } ?: false
+                }
+            }.map { entities -> entities.map { it.toSong() } }
+    }
+
+    override fun getSongsByIds(songIds: List<String>): Flow<List<Song>> {
+        if (songIds.isEmpty()) return kotlinx.coroutines.flow.flowOf(emptyList())
+        val longIds = songIds.mapNotNull { it.toLongOrNull() }
+        if (longIds.isEmpty()) return kotlinx.coroutines.flow.flowOf(emptyList())
+
+        // Nota: El filtrado por directorio para getSongsByIds es un poco diferente.
+        // Normalmente, si tienes IDs, esperas obtener esas canciones específicas.
+        // Si estas canciones pudieran estar fuera de los directorios permitidos, necesitarías
+        // el mismo .combine de filtrado que en getSongsForAlbum/Artist.
+        // Por ahora, se asume que los IDs provienen de una fuente ya filtrada o no requieren este filtro aquí.
+        // Si se requiere, se debe añadir el combine similar a los otros métodos.
+        return musicDao.getSongsByIds(longIds)
+            .map { entities ->
+                val songsMap = entities.associateBy { it.id.toString() }
+                songIds.mapNotNull { songsMap[it]?.toSong() } // Preserva el orden original y maneja IDs no encontrados
+            }
+    }
+
+    // Función para obtener (y cachear) las referencias mínimas de canciones permitidas
+    // Función para obtener (y cachear) las referencias mínimas de canciones permitidas
+    private suspend fun getPermittedSongReferences(forceRefresh: Boolean = false): List<MinimalSongInfo> = withContext(Dispatchers.IO) {
+        val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
+        val allowedDirectories = userPreferencesRepository.allowedDirectoriesFlow.first()
+        if (initialSetupDone && allowedDirectories.isEmpty()) {
+            cachedPermittedSongReferences = emptyList()
+            cachedPermittedAlbumSongCounts = emptyMap()
+            cachedPermittedArtistSongCounts = emptyMap()
+            Log.i("MusicRepo/Refs", "Initial setup done and no allowed directories. Returning empty song references.")
+            return@withContext emptyList<MinimalSongInfo>()
+        }
+        permittedSongReferencesMutex.withLock {
+            if (cachedPermittedSongReferences == null || forceRefresh) {
+                val coldLoadStartTime = System.currentTimeMillis()
+                Log.i("MusicRepo/Refs", "Populating cachedPermittedSongReferences. Force refresh: $forceRefresh")
+                val allPermittedSongs = queryAndFilterSongs(
+                    selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ?",
+                    selectionArgs = arrayOf("30000"),
+                    sortOrder = null
+                )
+                cachedPermittedSongReferences = allPermittedSongs.map { song ->
+                    MinimalSongInfo(song.id, song.albumId, song.artistId)
+                }
+                // Populate new caches
+                val refs = cachedPermittedSongReferences ?: emptyList()
+                cachedPermittedAlbumSongCounts = refs.groupBy { it.albumId }.mapValues { entry -> entry.value.size }
+                cachedPermittedArtistSongCounts = refs.groupBy { it.artistId }.mapValues { entry -> entry.value.size }
+                Log.i("MusicRepo/Refs", "Populated cachedPermittedSongReferences with ${cachedPermittedSongReferences?.size} items. Album counts: ${cachedPermittedAlbumSongCounts?.size}, Artist counts: ${cachedPermittedArtistSongCounts?.size}. Cold load took ${System.currentTimeMillis() - coldLoadStartTime} ms")
+            }
+        }
+        return@withContext cachedPermittedSongReferences ?: emptyList()
+    }
+
+    // Necesitarás una forma de invalidar esta caché si allowedDirectories cambia.
+// Podrías llamarla desde UserPreferencesRepository o desde un ViewModel que observe los cambios de directorio.
+    // Esta caché ya no existe, Room es la SSoT.
+    fun invalidatePermittedSongReferencesCache() { // TODO: Eliminar esta función
+        Log.d("MusicRepo", "invalidatePermittedSongReferencesCache called, but cache no longer exists.")
+    }
+
+    // Méthod para invalidar la caché cuando cambian los directorios permitidos.
+    // Con Flows reactivos, esto podría no ser necesario, o su lógica cambiaría drásticamente (ej. forzar un refresh de un Flow).
+    override suspend fun invalidateCachesDependentOnAllowedDirectories() { // TODO: Re-evaluar o eliminar.
+        Log.i("MusicRepo", "invalidateCachesDependentOnAllowedDirectories called. Flows should update reactively.")
+        // Si se usara alguna caché manual que dependa de esto, se limpiaría aquí.
+        // Por ahora, las principales fuentes de datos (canciones, álbumes, artistas) son Flows de Room.
+    }
+
+
+    // --- Funciones de Directorio y URIs de Carátulas (sin cambios mayores) ---
+    override suspend fun getAllUniqueAudioDirectories(): Set<String> = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        kotlinx.coroutines.sync.withLock(directoryScanMutex) {
+            // cachedAudioDirectories?.let { return@withContext it } // TODO: Considerar si esta caché de directorios aún es útil o si debe leerse siempre.
+            val directories = mutableSetOf<String>()
+            val projection = arrayOf(MediaStore.Audio.Media.DATA) // Solo necesitamos DATA
+            val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
+            context.contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                projection, selection, null, null
+            )?.use { c ->
+                val dataColumn = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+                while (c.moveToNext()) {
+                    File(c.getString(dataColumn)).parent?.let { directories.add(it) }
+                }
+            }
+            val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
+            if (!initialSetupDone && directories.isNotEmpty()) {
+                Log.i("MusicRepo", "Initial setup: saving all found audio directories (${directories.size}) as allowed.")
+                userPreferencesRepository.updateAllowedDirectories(directories) // Esto debería marcar initialSetupDone internamente
+                // invalidateCachesDependentOnAllowedDirectories() // Ya no es relevante de la misma manera. Los flows reaccionarán.
+            }
+            cachedAudioDirectories = directories // Se sigue cacheando para evitar re-escaneos frecuentes de MediaStore para esta función específica.
+            return@withLock directories
+        }
+    }
+
+    override fun getAllUniqueAlbumArtUris(): Flow<List<Uri>> {
+        return getPermittedSongsFlow().map { permittedSongs ->
+            permittedSongs
+                .mapNotNull { it.albumArtUriString?.toUri() }
+                .distinct()
+        }
+    }
+
+    // Search Methods Implementation
+
+    override fun searchSongs(query: String): Flow<List<Song>> {
+        if (query.isBlank()) {
+            return kotlinx.coroutines.flow.flowOf(emptyList())
+        }
+        return musicDao.searchSongs(query) // Returns Flow<List<SongEntity>>
+            .combine(
+                userPreferencesRepository.allowedDirectoriesFlow,
+                userPreferencesRepository.initialSetupDoneFlow
+            ) { songsFromDb, allowedDirs, initialSetupDone ->
+                if (initialSetupDone && allowedDirs.isEmpty()) emptyList()
+                else if (!initialSetupDone) songsFromDb
+                else songsFromDb.filter { songEntity ->
+                    File(songEntity.filePath).parent?.let { allowedDirs.contains(it) } ?: false
+                }
+            }.map { entities -> entities.map { it.toSong() } }
+    }
+
+    override fun searchAlbums(query: String): Flow<List<Album>> {
+        if (query.isBlank()) {
+            return kotlinx.coroutines.flow.flowOf(emptyList())
+        }
+        // Combina el resultado de la búsqueda de DAO con las canciones permitidas para filtrar álbumes.
+        return getPermittedSongsFlow().combine(musicDao.searchAlbums(query)) { permittedSongs, searchedAlbumsFromDb ->
+            val permittedAlbumIds = permittedSongs.map { it.albumId }.toSet()
+            val songCountByAlbumId = permittedSongs.groupBy { it.albumId }.mapValues { it.value.size }
+
+            searchedAlbumsFromDb.filter { albumEntity ->
+                albumEntity.id in permittedAlbumIds
+            }.mapNotNull { albumEntity ->
+                val currentSongCount = songCountByAlbumId[albumEntity.id] ?: 0
+                if (currentSongCount > 0) albumEntity.toAlbum().copy(songCount = currentSongCount) else null
+            }
+        }
+        /* // Old MediaStore Logic
+        val albumsToReturn = mutableListOf<Album>()
+        val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
+        var permittedAlbumIds: Set<Long>? = null
+
+        if (initialSetupDone) {
+            val songRefs = getPermittedSongReferences()
+            if (songRefs.isEmpty() && userPreferencesRepository.allowedDirectoriesFlow.first().isNotEmpty()) {
+                return@withContext emptyList()
+            }
+            permittedAlbumIds = songRefs.map { it.albumId }.distinct().toSet()
+            if (permittedAlbumIds.isEmpty() && userPreferencesRepository.allowedDirectoriesFlow.first().isNotEmpty()) {
+                return@withContext emptyList()
+            }
+            if (userPreferencesRepository.allowedDirectoriesFlow.first().isEmpty()) {
+                return@withContext emptyList()
+            }
+        }
+
+        val projection = arrayOf(
+            MediaStore.Audio.Albums._ID,
+            MediaStore.Audio.Albums.ALBUM,
+            MediaStore.Audio.Albums.ARTIST,
+            MediaStore.Audio.Albums.NUMBER_OF_SONGS
+        )
+        val selection = "${MediaStore.Audio.Albums.ALBUM} LIKE ?"
+        val selectionArgs = arrayOf("%$query%")
+        val sortOrder = "${MediaStore.Audio.Albums.ALBUM} ASC"
+
+        context.contentResolver.query(
+            MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
+            projection,
+            selection,
+            selectionArgs,
+            sortOrder
+        )?.use { c ->
+            val idCol = c.getColumnIndexOrThrow(MediaStore.Audio.Albums._ID)
+            val titleCol = c.getColumnIndexOrThrow(MediaStore.Audio.Albums.ALBUM)
+            val artistCol = c.getColumnIndexOrThrow(MediaStore.Audio.Albums.ARTIST)
+            val songCountCol = c.getColumnIndexOrThrow(MediaStore.Audio.Albums.NUMBER_OF_SONGS)
+
+            while (c.moveToNext()) {
+                val id = c.getLong(idCol)
+                var actualSongCount = c.getInt(songCountCol)
+
+                if (initialSetupDone) {
+                    if (permittedAlbumIds?.contains(id) == true) {
+                        actualSongCount = cachedPermittedAlbumSongCounts?.get(id) ?: 0
+                    } else {
+                        actualSongCount = 0 // Not in permitted list or no songs in permitted directories
+                    }
+                }
+                 // If not initial setup, all albums are considered, use MediaStore song count.
+
+                if (actualSongCount > 0) {
+                    val title = c.getString(titleCol) ?: "Álbum Desconocido"
+                    val artist = c.getString(artistCol) ?: "Varios Artistas"
+                    val albumArtUriVal: Uri? = ContentUris.withAppendedId(
+                        Uri.parse("content://media/external/audio/albumart"), id
+                    )
+                    albumsToReturn.add(Album(id, title, artist, albumArtUriVal?.toString(), actualSongCount))
+                }
+            }
+        }
+        return@withContext albumsToReturn
+        */
+    }
+
+    override fun searchArtists(query: String): Flow<List<Artist>> {
+        if (query.isBlank()) {
+            return kotlinx.coroutines.flow.flowOf(emptyList())
         }
         val artistsToReturn = mutableListOf<Artist>()
         val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
@@ -819,10 +729,23 @@ class MusicRepositoryImpl @Inject constructor(
                 }
             }
         }
-        return@withContext artistsToReturn
+        // return@withContext artistsToReturn // Old MediaStore Logic
+
+        // New Room based logic for searchArtists
+        return getPermittedSongsFlow().combine(musicDao.searchArtists(query)) { permittedSongs, searchedArtistsFromDb ->
+            val permittedArtistIds = permittedSongs.map { it.artistId }.toSet()
+            val trackCountByArtistId = permittedSongs.groupBy { it.artistId }.mapValues { it.value.size }
+
+            searchedArtistsFromDb.filter { artistEntity ->
+                artistEntity.id in permittedArtistIds
+            }.mapNotNull { artistEntity ->
+                val currentTrackCount = trackCountByArtistId[artistEntity.id] ?: 0
+                if (currentTrackCount > 0) artistEntity.toArtist().copy(songCount = currentTrackCount) else null
+            }
+        }
     }
 
-    override suspend fun searchPlaylists(query: String): List<Playlist> = withContext(Dispatchers.IO) {
+    override suspend fun searchPlaylists(query: String): List<Playlist> = kotlinx.coroutines.withContext(Dispatchers.IO) {
         if (query.isBlank()) {
             return@withContext emptyList()
         }
@@ -833,46 +756,35 @@ class MusicRepositoryImpl @Inject constructor(
         return@withContext emptyList<Playlist>()
     }
 
-    override suspend fun searchAll(query: String, filterType: SearchFilterType): List<SearchResultItem> = withContext(Dispatchers.IO) {
+    override fun searchAll(query: String, filterType: SearchFilterType): Flow<List<SearchResultItem>> {
         if (query.isBlank()) {
-            return@withContext emptyList()
+            return kotlinx.coroutines.flow.flowOf(emptyList())
         }
-        val results = mutableListOf<SearchResultItem>()
 
-        when (filterType) {
+        // searchPlaylists is still suspend, wrap its call for flow combination
+        val playlistsFlow = kotlinx.coroutines.flow.flow { emit(searchPlaylists(query)) }
+
+        return when (filterType) {
             SearchFilterType.ALL -> {
-                val songs = searchSongs(query)
-                val albums = searchAlbums(query)
-                val artists = searchArtists(query)
-                val playlists = searchPlaylists(query) // Will be empty for now
-
-                songs.forEach { results.add(SearchResultItem.SongItem(it)) }
-                albums.forEach { results.add(SearchResultItem.AlbumItem(it)) }
-                artists.forEach { results.add(SearchResultItem.ArtistItem(it)) }
-                playlists.forEach { results.add(SearchResultItem.PlaylistItem(it)) }
+                combine(
+                    searchSongs(query),
+                    searchAlbums(query),
+                    searchArtists(query),
+                    playlistsFlow
+                ) { songs, albums, artists, playlists ->
+                    val results = mutableListOf<SearchResultItem>()
+                    songs.forEach { results.add(SearchResultItem.SongItem(it)) }
+                    albums.forEach { results.add(SearchResultItem.AlbumItem(it)) }
+                    artists.forEach { results.add(SearchResultItem.ArtistItem(it)) }
+                    playlists.forEach { results.add(SearchResultItem.PlaylistItem(it)) }
+                    results
+                }
             }
-            SearchFilterType.SONGS -> {
-                val songs = searchSongs(query)
-                songs.forEach { results.add(SearchResultItem.SongItem(it)) }
-            }
-            SearchFilterType.ALBUMS -> {
-                val albums = searchAlbums(query)
-                albums.forEach { results.add(SearchResultItem.AlbumItem(it)) }
-            }
-            SearchFilterType.ARTISTS -> {
-                val artists = searchArtists(query)
-                artists.forEach { results.add(SearchResultItem.ArtistItem(it)) }
-            }
-            SearchFilterType.PLAYLISTS -> {
-                val playlists = searchPlaylists(query)
-                playlists.forEach { results.add(SearchResultItem.PlaylistItem(it)) }
-            }
+            SearchFilterType.SONGS -> searchSongs(query).map { songs -> songs.map { SearchResultItem.SongItem(it) } }
+            SearchFilterType.ALBUMS -> searchAlbums(query).map { albums -> albums.map { SearchResultItem.AlbumItem(it) } }
+            SearchFilterType.ARTISTS -> searchArtists(query).map { artists -> artists.map { SearchResultItem.ArtistItem(it) } }
+            SearchFilterType.PLAYLISTS -> playlistsFlow.map { playlists -> playlists.map { SearchResultItem.PlaylistItem(it) } }
         }
-
-        // Consider limiting results per category or total results if needed in the future.
-        // For example, take top N from each category.
-        // results.sortBy { /* some criteria if needed, e.g. relevance score if calculated */ }
-        return@withContext results
     }
 
     // Search History Implementation
@@ -893,43 +805,30 @@ class MusicRepositoryImpl @Inject constructor(
         searchHistoryDao.clearAll()
     }
 
-    override suspend fun getMusicByGenre(genreId: String): List<Song> = withContext(Dispatchers.IO) {
+    override fun getMusicByGenre(genreId: String): Flow<List<Song>> {
         Log.i("MusicRepositoryImpl", "getMusicByGenre called for genreId: \"$genreId\"")
 
         val targetGenreName: String?
         val staticGenre = GenreDataSource.staticGenres.find { it.id.equals(genreId, ignoreCase = true) }
 
-        if (staticGenre != null) {
-            targetGenreName = staticGenre.name
-            Log.d("MusicRepositoryImpl", "Static genre found for ID \"$genreId\". Target name: \"$targetGenreName\"")
+        targetGenreName = if (staticGenre != null) {
+            Log.d("MusicRepositoryImpl", "Static genre found for ID \"$genreId\". Target name: \"${staticGenre.name}\"")
+            staticGenre.name
         } else {
-            targetGenreName = genreId // Treat the ID as the name for dynamic genres
-            Log.d("MusicRepositoryImpl", "No static genre found for ID \"$genreId\". Treating ID as target name: \"$targetGenreName\"")
+            Log.d("MusicRepositoryImpl", "No static genre found for ID \"$genreId\". Treating ID as target name: \"$genreId\"")
+            genreId // Treat the ID as the name for dynamic genres
         }
 
         if (targetGenreName.isNullOrBlank()) {
             Log.w("MusicRepositoryImpl", "Target genre name is null or blank for genreId: \"$genreId\". Returning empty list.")
-            return@withContext emptyList()
+            return kotlinx.coroutines.flow.flowOf(emptyList())
         }
 
-        // Fetch All Permitted Songs. queryAndFilterSongs populates the 'genre' field on Song objects.
-        val allPermittedSongs = queryAndFilterSongs(
-            selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ?",
-            selectionArgs = arrayOf("30000"), // Songs longer than 30 seconds
-            sortOrder = "${MediaStore.Audio.Media.TITLE} ASC" // Consistent ordering
-        )
-
-        if (allPermittedSongs.isEmpty()) {
-            Log.d("MusicRepositoryImpl", "No permitted songs found in repository. Returning empty list for target genre: \"$targetGenreName\"")
-            return@withContext emptyList()
+        return musicDao.getSongsByGenre(targetGenreName)
+            .combine(userPreferencesRepository.allowedDirectoriesFlow, userPreferencesRepository.initialSetupDoneFlow) { songsFromDb, allowedDirs, initialSetupDone ->
+                if (initialSetupDone && allowedDirs.isEmpty()) emptyList()
+                else if (!initialSetupDone) songsFromDb
+                else songsFromDb.filter { songEntity -> File(songEntity.filePath).parent?.let { allowedDirs.contains(it) } ?: false }
+            }.map { entities -> entities.map { it.toSong() } }
         }
-
-        // Filter songs by the determined targetGenreName (case-insensitive)
-        val genreSpecificSongs = allPermittedSongs.filter { song ->
-            song.genre.equals(targetGenreName, ignoreCase = true)
-        }
-
-        Log.i("MusicRepositoryImpl", "Found ${genreSpecificSongs.size} songs for target genre: \"$targetGenreName\" (original genreId: \"$genreId\")")
-        return@withContext genreSpecificSongs
-    }
 }
