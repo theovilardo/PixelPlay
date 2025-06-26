@@ -30,31 +30,50 @@ import java.io.File
 //   int64 total_duration_ms = 7;
 // }
 
-object PlayerInfoStateDefinition : GlanceStateDefinition<PlayerInfoProto> {
-    private const val DATASTORE_FILE_NAME = "pixelPlayPlayerInfo_v1" // Nombre de archivo único
-    private val Context.playerInfoDataStore: DataStore<PlayerInfoProto> by dataStore(
+object PlayerInfoStateDefinition : GlanceStateDefinition<PlayerInfo> { // Changed to PlayerInfo
+    private const val DATASTORE_FILE_NAME = "pixelPlayPlayerInfo_v1_json" // Changed filename suffix
+
+    // Json instance for serialization. Could be injected if this object were a class.
+    // For simplicity here, using a default configured instance.
+    // Ideally, use the one provided by AppModule.
+    private val json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+        coerceInputValues = true // Important if some default values in PlayerInfo might be null initially
+    }
+
+    private val Context.playerInfoDataStore: DataStore<PlayerInfo> by dataStore(
         fileName = DATASTORE_FILE_NAME,
-        serializer = PlayerInfoSerializer
+        serializer = PlayerInfoJsonSerializer(json) // Use new JSON serializer
     )
 
-    override suspend fun getDataStore(context: Context, fileKey: String): DataStore<PlayerInfoProto> {
+    override suspend fun getDataStore(context: Context, fileKey: String): DataStore<PlayerInfo> {
         return context.playerInfoDataStore
     }
 
     override fun getLocation(context: Context, fileKey: String): File {
-        // Devuelve la ruta al archivo DataStore dentro del directorio de archivos de la app.
         return File(context.filesDir, "datastore/$DATASTORE_FILE_NAME")
     }
 }
 
-object PlayerInfoSerializer : Serializer<PlayerInfoProto> {
-    override val defaultValue: PlayerInfoProto = PlayerInfoProto.getDefaultInstance()
-    override suspend fun readFrom(input: InputStream): PlayerInfoProto {
+class PlayerInfoJsonSerializer(private val json: Json) : Serializer<PlayerInfo> {
+    override val defaultValue: PlayerInfo = PlayerInfo() // Default instance of the data class
+
+    override suspend fun readFrom(input: InputStream): PlayerInfo {
         try {
-            return PlayerInfoProto.parseFrom(input)
-        } catch (exception: InvalidProtocolBufferException) {
-            throw CorruptionException("Cannot read proto.", exception)
+            val string = input.bufferedReader().use { it.readText() }
+            if (string.isBlank()) return defaultValue // Handle empty file case
+            return json.decodeFromString<PlayerInfo>(string)
+        } catch (exception: SerializationException) {
+            throw CorruptionException("Cannot read json.", exception)
+        } catch (e: IOException) {
+            throw CorruptionException("Cannot read json due to IO issue.", e)
         }
     }
-    override suspend fun writeTo(t: PlayerInfoProto, output: OutputStream) = t.writeTo(output)
+
+    override suspend fun writeTo(t: PlayerInfo, output: OutputStream) {
+        output.bufferedWriter().use {
+            it.write(json.encodeToString(t))
+        }
+    }
 }

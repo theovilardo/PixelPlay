@@ -7,7 +7,7 @@ plugins {
     alias(libs.plugins.dagger.hilt.android)
     kotlin("plugin.serialization") version "2.1.0"
     alias(libs.plugins.jetbrains.kotlin.android)
-    id("com.google.protobuf") version "0.9.5" // O la versión más reciente del plugin de Protobuf. Ej: 0.9.1 o superior.
+    // id("com.google.protobuf") version "0.9.5" // Eliminado plugin de Protobuf
 }
 
 android {
@@ -171,7 +171,7 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
 
     // Protobuf (JavaLite es suficiente para Android y más pequeño)
-    implementation(libs.protobuf.javalite) // O la versión más reciente
+    // implementation(libs.protobuf.javalite) // Eliminada dependencia de Protobuf
 
     //Material library
     implementation(libs.material)
@@ -180,18 +180,18 @@ dependencies {
     implementation(libs.kotlinx.collections.immutable) // Verifica la última versión
 }
 
-protobuf {
-    protoc {
-        // Descarga el compilador de Protocol Buffers desde Maven Central.
-        artifact = "com.google.protobuf:protoc:3.25.1" // Usa la misma versión que la dependencia protobuf-javalite
-    }
-    generateProtoTasks {
-        all().configureEach {
-            builtins {
-                maybeCreate("java").apply {
-                    option("lite") // Use lite runtime for Android
-                }
-            }
-        }
-    }
-}
+// protobuf { // Eliminado bloque de configuración de Protobuf
+//    protoc {
+//        // Descarga el compilador de Protocol Buffers desde Maven Central.
+//        artifact = "com.google.protobuf:protoc:3.25.1" // Usa la misma versión que la dependencia protobuf-javalite
+//    }
+//    generateProtoTasks {
+//        all().configureEach {
+//            builtins {
+//                maybeCreate("java").apply {
+//                    option("lite") // Use lite runtime for Android
+//                }
+//            }
+//        }
+//    }
+// }
