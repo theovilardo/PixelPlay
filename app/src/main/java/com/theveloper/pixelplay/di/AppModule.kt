@@ -72,17 +72,25 @@ object AppModule {
         return database.searchHistoryDao()
     }
 
+    @Singleton
+    @Provides
+    fun provideMusicDao(database: PixelPlayDatabase): MusicDao { // Proveer MusicDao
+        return database.musicDao()
+    }
+
     @Provides
     @Singleton
     fun provideMusicRepository(
         @ApplicationContext context: Context,
         userPreferencesRepository: UserPreferencesRepository,
-        searchHistoryDao: SearchHistoryDao // NUEVA DEPENDENCIA INYECTADA
+        searchHistoryDao: SearchHistoryDao,
+        musicDao: MusicDao // Añadir MusicDao como parámetro
     ): MusicRepository {
         return MusicRepositoryImpl(
             context = context,
             userPreferencesRepository = userPreferencesRepository,
-            searchHistoryDao = searchHistoryDao // PASANDO LA DEPENDENCIA
+            searchHistoryDao = searchHistoryDao,
+            musicDao = musicDao // Pasar MusicDao
         )
     }
 

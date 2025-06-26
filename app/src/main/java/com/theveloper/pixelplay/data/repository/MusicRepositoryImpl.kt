@@ -135,7 +135,7 @@ class MusicRepositoryImpl @Inject constructor(
 
 
     // --- Funciones de Directorio y URIs de Carátulas (sin cambios mayores) ---
-    override suspend fun getAllUniqueAudioDirectories(): Set<String> = kotlinx.coroutines.withContext(Dispatchers.IO) {
+    override suspend fun getAllUniqueAudioDirectories(): Set<String> = kotlinx.coroutines.withContext(Dispatchers.IO) { // IO-bound, keep withContext
         kotlinx.coroutines.sync.withLock(directoryScanMutex) {
             // cachedAudioDirectories?.let { return@withContext it } // TODO: Considerar si esta caché de directorios aún es útil o si debe leerse siempre.
             val directories = mutableSetOf<String>()
@@ -350,15 +350,17 @@ class MusicRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun searchPlaylists(query: String): List<Playlist> = kotlinx.coroutines.withContext(Dispatchers.IO) {
+    // searchPlaylists es suspend en la interfaz, pero actualmente no hace IO.
+    // Si se implementara con Room, el DAO sería suspend.
+    override suspend fun searchPlaylists(query: String): List<Playlist> {
         if (query.isBlank()) {
-            return@withContext emptyList()
+            return emptyList()
         }
         // Placeholder: Actual implementation depends on how playlists are stored.
         // If using Room, inject PlaylistDao and query: e.g., playlistDao.searchByName("%$query%")
         // For now, returning an empty list.
         Log.d("MusicRepositoryImpl", "searchPlaylists called with query: $query. Returning empty list as not implemented.")
-        return@withContext emptyList<Playlist>()
+        return emptyList<Playlist>()
     }
 
     override fun searchAll(query: String, filterType: SearchFilterType): Flow<List<SearchResultItem>> {
@@ -393,20 +395,20 @@ class MusicRepositoryImpl @Inject constructor(
     }
 
     // Search History Implementation
-    override suspend fun addSearchHistoryItem(query: String) = kotlinx.coroutines.withContext(Dispatchers.IO) {
+    override suspend fun addSearchHistoryItem(query: String) {
         searchHistoryDao.deleteByQuery(query) // Remove old entry if exists
         searchHistoryDao.insert(SearchHistoryEntity(query = query, timestamp = System.currentTimeMillis()))
     }
 
-    override suspend fun getRecentSearchHistory(limit: Int): List<SearchHistoryItem> = kotlinx.coroutines.withContext(Dispatchers.IO) {
-        return@withContext searchHistoryDao.getRecentSearches(limit).map { it.toSearchHistoryItem() }
+    override suspend fun getRecentSearchHistory(limit: Int): List<SearchHistoryItem> {
+        return searchHistoryDao.getRecentSearches(limit).map { it.toSearchHistoryItem() }
     }
 
-    override suspend fun deleteSearchHistoryItemByQuery(query: String) = kotlinx.coroutines.withContext(Dispatchers.IO) {
+    override suspend fun deleteSearchHistoryItemByQuery(query: String) {
         searchHistoryDao.deleteByQuery(query)
     }
 
-    override suspend fun clearSearchHistory() = kotlinx.coroutines.withContext(Dispatchers.IO) {
+    override suspend fun clearSearchHistory() {
         searchHistoryDao.clearAll()
     }
 
