@@ -8,6 +8,7 @@ import com.theveloper.pixelplay.data.model.SearchFilterType
 import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import com.theveloper.pixelplay.data.model.SearchResultItem
 import com.theveloper.pixelplay.data.model.Song
+import kotlinx.coroutines.flow.Flow
 
 interface MusicRepository {
     /**

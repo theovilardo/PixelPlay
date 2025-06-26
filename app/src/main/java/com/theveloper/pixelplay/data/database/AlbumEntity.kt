@@ -25,9 +25,9 @@ data class AlbumEntity(
 fun AlbumEntity.toAlbum(): Album {
     return Album(
         id = this.id,
-        name = this.title,
+        title = this.title,
         artist = this.artistName,
-        albumArtUrl = this.albumArtUriString, // El modelo Album usa albumArtUrl
+        albumArtUriString = this.albumArtUriString, // El modelo Album usa albumArtUrl
         songCount = this.songCount
     )
 }
@@ -39,10 +39,10 @@ fun List<AlbumEntity>.toAlbums(): List<Album> {
 fun Album.toEntity(artistIdForAlbum: Long): AlbumEntity { // Necesitamos pasar el artistId si el modelo Album no lo tiene directamente
     return AlbumEntity(
         id = this.id,
-        title = this.name,
+        title = this.title,
         artistName = this.artist,
         artistId = artistIdForAlbum, // Asignar el ID del artista
-        albumArtUriString = this.albumArtUrl,
+        albumArtUriString = this.albumArtUriString,
         songCount = this.songCount
     )
 }

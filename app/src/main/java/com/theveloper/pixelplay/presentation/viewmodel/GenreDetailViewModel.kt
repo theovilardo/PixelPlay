@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.presentation.viewmodel
 
+import androidx.compose.foundation.gestures.forEach
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -11,6 +12,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -85,29 +87,40 @@ class GenreDetailViewModel @Inject constructor(
     // Updated function
     private fun fetchSongsForGenre(id: String) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoadingSongs = true, error = null) // Reset error specific to song fetching
+            _uiState.value = _uiState.value.copy(isLoadingSongs = true, error = null)
             try {
-                val songs = musicRepository.getMusicByGenre(id) // Flat list
+                // Colecta la lista del Flow.
+                // Si getMusicByGenre siempre emite una sola lista actualizada, 'first()' es apropiado.
+                // Si pudiera emitir múltiples listas a lo largo del tiempo y quieres reaccionar a cada una,
+                // necesitarías una estructura diferente o usar .collect { listOfSongs -> ... }
+                val listOfSongs = musicRepository.getMusicByGenre(id).first() // Obtiene la List<Song>
+
                 val newGroupedList = mutableListOf<GroupedSongListItem>()
-                songs.groupBy { it.artist }
+
+                // Ahora 'listOfSongs' es una List<Song>, y groupBy funcionará.
+                listOfSongs.groupBy { it.artist }
                     .forEach { (artistName, artistSongs) ->
                         newGroupedList.add(GroupedSongListItem.ArtistHeader(artistName))
-                        artistSongs.groupBy { it.album }
+                        artistSongs.groupBy { it.album } // Esto también opera sobre una List<Song> (artistSongs)
                             .forEach { (albumName, albumSongs) ->
-                                val albumArtUri = albumSongs.firstOrNull()?.albumArtUriString
+                                val albumArtUri = albumSongs.firstOrNull()?.albumArtUriString // albumArtUriString es String?
                                 newGroupedList.add(GroupedSongListItem.AlbumHeader(albumName, artistName, albumArtUri))
                                 albumSongs.forEach { song ->
                                     newGroupedList.add(GroupedSongListItem.SongItem(song))
                                 }
                             }
                     }
+
                 _uiState.value = _uiState.value.copy(
-                    songs = songs, // Keep original flat list for playback
+                    songs = listOfSongs, // Ahora 'listOfSongs' es la lista real, no el Flow
                     groupedSongs = newGroupedList,
                     isLoadingSongs = false
                 )
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(error = (_uiState.value.error ?: "") + " Failed to load songs: ${e.message}", isLoadingSongs = false)
+                _uiState.value = _uiState.value.copy(
+                    error = (_uiState.value.error ?: "") + " Failed to load songs: ${e.message}",
+                    isLoadingSongs = false
+                )
             }
         }
     }

@@ -9,7 +9,10 @@ import androidx.datastore.preferences.protobuf.InvalidProtocolBufferException
 import androidx.glance.state.GlanceStateDefinition
 import java.io.InputStream
 import java.io.OutputStream
-import com.theveloper.pixelplay.PlayerInfoProto
+import com.theveloper.pixelplay.data.model.PlayerInfo
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.Json
+import okio.IOException
 import java.io.File
 
 // La definición del mensaje PlayerInfoProto se encuentra en:

@@ -239,172 +239,234 @@ fun LibraryScreen(
             ) {
                 ScrollableTabRow(
                     selectedTabIndex = pagerState.currentPage,
-                containerColor = Color.Transparent,
-                edgePadding = 12.dp,
-                indicator = { tabPositions ->
-                    if (pagerState.currentPage < tabPositions.size) {
-                        TabRowDefaults.PrimaryIndicator(
-                            modifier = Modifier.tabIndicatorOffset(tabPositions[pagerState.currentPage]),
-                            height = 3.dp,
-                            color = MaterialTheme.colorScheme.primary
+                    containerColor = Color.Transparent,
+                    edgePadding = 12.dp,
+                    indicator = { tabPositions ->
+                        if (pagerState.currentPage < tabPositions.size) {
+                            TabRowDefaults.PrimaryIndicator(
+                                modifier = Modifier.tabIndicatorOffset(tabPositions[pagerState.currentPage]),
+                                height = 3.dp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    },
+                    divider = {}
+                ) {
+                    tabTitles.forEachIndexed { index, title ->
+                        val isSelected = pagerState.currentPage == index
+                        val onClick = remember(
+                            index,
+                            pagerState,
+                            scope
+                        ) { { scope.launch { pagerState.animateScrollToPage(index) } } }
+                        Tab(
+                            modifier = Modifier
+                                .padding(
+                                    horizontal = 8.dp,
+                                    vertical = 12.dp
+                                ) // Adjusted padding for better touch target
+                                .background(
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+                                    shape = RoundedCornerShape(50) // Simpler shape for tabs
+                                ),
+                            selected = isSelected,
+                            onClick = { onClick() },
+                            text = {
+                                Text(
+                                    text = title,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                )
+                            },
+                            selectedContentColor = MaterialTheme.colorScheme.onPrimary,
+                            unselectedContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
                         )
                     }
-                },
-                divider = {}
-            ) {
-                tabTitles.forEachIndexed { index, title ->
-                    val isSelected = pagerState.currentPage == index
-                    val onClick = remember(index, pagerState, scope) { { scope.launch { pagerState.animateScrollToPage(index) } } }
-                    Tab(
-                        modifier = Modifier
-                            .padding(horizontal = 8.dp, vertical = 12.dp) // Adjusted padding for better touch target
-                            .background(
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-                                shape = RoundedCornerShape(50) // Simpler shape for tabs
-                            ),
-                        selected = isSelected,
-                        onClick = { onClick() },
-                        text = {
-                            Text(
-                                text = title,
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                            )
-                        },
-                        selectedContentColor = MaterialTheme.colorScheme.onPrimary,
-                        unselectedContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
-                    )
                 }
-            }
 
-            Surface(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 14.dp, vertical = 8.dp), // Added vertical padding
-                color = MaterialTheme.colorScheme.surface,
-                // Using RoundedCornerShape as AbsoluteSmoothCornerShape is custom
-                shape = AbsoluteSmoothCornerShape(
-                    cornerRadiusTL = 34.dp,
-                    smoothnessAsPercentTL = 60,
-                    cornerRadiusTR = 34.dp,
-                    smoothnessAsPercentTR = 60,
-                    cornerRadiusBL = 0.dp,
-                    smoothnessAsPercentBL = 60,
-                    cornerRadiusBR = 0.dp,
-                    smoothnessAsPercentBR = 60
-                )
-                // shape = AbsoluteSmoothCornerShape(cornerRadiusTL = 24.dp, smoothnessAsPercentTR = 60, /*...*/) // Your custom shape
-            ) {
-                Column(Modifier.fillMaxSize()) {
-                    // Determine current sort option and handler based on selected page
-                    val (currentSelectedSortOption, onSortOptionChanged) = when (pagerState.currentPage) {
-                        0 -> selectedSortOptionForSongs to { option: SortOption ->
-                            selectedSortOptionForSongs = option
-                            playerViewModel.sortSongs(option)
-                        }
-                        1 -> selectedSortOptionForAlbums to { option: SortOption ->
-                            selectedSortOptionForAlbums = option
-                            playerViewModel.sortAlbums(option)
-                        }
-                        2 -> selectedSortOptionForArtists to { option: SortOption ->
-                            selectedSortOptionForArtists = option
-                            playerViewModel.sortArtists(option)
-                        }
-                        3 -> selectedSortOptionForPlaylists to { option: SortOption ->
-                            selectedSortOptionForPlaylists = option
-                            playlistViewModel.sortPlaylists(option)
-                        }
-                        4 -> selectedSortOptionForLiked to { option: SortOption ->
-                            selectedSortOptionForLiked = option
-                            playerViewModel.sortFavoriteSongs(option)
-                        }
-                        else -> selectedSortOptionForSongs to { _: SortOption -> } // Fallback
-                    }
-
-                    val availableSortOptions = remember(pagerState.currentPage) {
-                        when (pagerState.currentPage) {
-                            0 -> listOf(SortOption.SongTitleAZ, SortOption.SongTitleZA, SortOption.SongArtist, SortOption.SongAlbum, SortOption.SongDateAdded, SortOption.SongDuration)
-                            1 -> listOf(SortOption.AlbumTitleAZ, SortOption.AlbumTitleZA, SortOption.AlbumArtist, SortOption.AlbumReleaseYear)
-                            2 -> listOf(SortOption.ArtistNameAZ, SortOption.ArtistNameZA)
-                            3 -> listOf(SortOption.PlaylistNameAZ, SortOption.PlaylistNameZA, SortOption.PlaylistDateCreated)
-                            4 -> listOf(SortOption.LikedSongTitleAZ, SortOption.LikedSongTitleZA, SortOption.LikedSongArtist, SortOption.LikedSongAlbum, SortOption.LikedSongDateLiked)
-                            else -> emptyList()
-                        }
-                    }
-
-                    LibraryActionRow(
-                        modifier = Modifier.padding(
-                            top = 10.dp,
-                            start = 10.dp,
-                            end = 10.dp
-                        ),
-                        currentPage = pagerState.currentPage,
-                        onMainActionClick = {
-                            when (pagerState.currentPage) {
-                                3 -> showCreatePlaylistDialog = true
-                                else -> {
-                                    playerViewModel.toggleShuffle()
-                                    playerViewModel.playPause()
-                                }
-                            }
-                        },
-                        iconRotation = iconRotation,
-                        showSortButton = availableSortOptions.isNotEmpty(),
-                        onSortIconClick = { showSortMenu = !showSortMenu },
-                        showSortMenu = showSortMenu,
-                        onDismissSortMenu = { showSortMenu = false },
-                        currentSortOptionsForTab = availableSortOptions,
-                        selectedSortOption = currentSelectedSortOption,
-                        onSortOptionSelected = { option ->
-                            onSortOptionChanged(option)
-                            showSortMenu = false // Dismiss menu on selection
-                        }
+                Surface(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 14.dp, vertical = 8.dp), // Added vertical padding
+                    color = MaterialTheme.colorScheme.surface,
+                    // Using RoundedCornerShape as AbsoluteSmoothCornerShape is custom
+                    shape = AbsoluteSmoothCornerShape(
+                        cornerRadiusTL = 34.dp,
+                        smoothnessAsPercentTL = 60,
+                        cornerRadiusTR = 34.dp,
+                        smoothnessAsPercentTR = 60,
+                        cornerRadiusBL = 0.dp,
+                        smoothnessAsPercentBL = 60,
+                        cornerRadiusBR = 0.dp,
+                        smoothnessAsPercentBR = 60
                     )
+                    // shape = AbsoluteSmoothCornerShape(cornerRadiusTL = 24.dp, smoothnessAsPercentTR = 60, /*...*/) // Your custom shape
+                ) {
+                    Column(Modifier.fillMaxSize()) {
+                        // Determine current sort option and handler based on selected page
+                        val (currentSelectedSortOption, onSortOptionChanged) = when (pagerState.currentPage) {
+                            0 -> selectedSortOptionForSongs to { option: SortOption ->
+                                selectedSortOptionForSongs = option
+                                playerViewModel.sortSongs(option)
+                            }
 
-                    HorizontalPager(
-                        state = pagerState,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = 8.dp), // Ensure content is below ActionRow
-                        pageSpacing = 0.dp,
-                    ) { page ->
-                        Box(
+                            1 -> selectedSortOptionForAlbums to { option: SortOption ->
+                                selectedSortOptionForAlbums = option
+                                playerViewModel.sortAlbums(option)
+                            }
+
+                            2 -> selectedSortOptionForArtists to { option: SortOption ->
+                                selectedSortOptionForArtists = option
+                                playerViewModel.sortArtists(option)
+                            }
+
+                            3 -> selectedSortOptionForPlaylists to { option: SortOption ->
+                                selectedSortOptionForPlaylists = option
+                                playlistViewModel.sortPlaylists(option)
+                            }
+
+                            4 -> selectedSortOptionForLiked to { option: SortOption ->
+                                selectedSortOptionForLiked = option
+                                playerViewModel.sortFavoriteSongs(option)
+                            }
+
+                            else -> selectedSortOptionForSongs to { _: SortOption -> } // Fallback
+                        }
+
+                        val availableSortOptions = remember(pagerState.currentPage) {
+                            when (pagerState.currentPage) {
+                                0 -> listOf(
+                                    SortOption.SongTitleAZ,
+                                    SortOption.SongTitleZA,
+                                    SortOption.SongArtist,
+                                    SortOption.SongAlbum,
+                                    SortOption.SongDateAdded,
+                                    SortOption.SongDuration
+                                )
+
+                                1 -> listOf(
+                                    SortOption.AlbumTitleAZ,
+                                    SortOption.AlbumTitleZA,
+                                    SortOption.AlbumArtist,
+                                    SortOption.AlbumReleaseYear
+                                )
+
+                                2 -> listOf(SortOption.ArtistNameAZ, SortOption.ArtistNameZA)
+                                3 -> listOf(
+                                    SortOption.PlaylistNameAZ,
+                                    SortOption.PlaylistNameZA,
+                                    SortOption.PlaylistDateCreated
+                                )
+
+                                4 -> listOf(
+                                    SortOption.LikedSongTitleAZ,
+                                    SortOption.LikedSongTitleZA,
+                                    SortOption.LikedSongArtist,
+                                    SortOption.LikedSongAlbum,
+                                    SortOption.LikedSongDateLiked
+                                )
+
+                                else -> emptyList()
+                            }
+                        }
+
+                        LibraryActionRow(
+                            modifier = Modifier.padding(
+                                top = 10.dp,
+                                start = 10.dp,
+                                end = 10.dp
+                            ),
+                            currentPage = pagerState.currentPage,
+                            onMainActionClick = {
+                                when (pagerState.currentPage) {
+                                    3 -> showCreatePlaylistDialog = true
+                                    else -> {
+                                        playerViewModel.toggleShuffle()
+                                        playerViewModel.playPause()
+                                    }
+                                }
+                            },
+                            iconRotation = iconRotation,
+                            showSortButton = availableSortOptions.isNotEmpty(),
+                            onSortIconClick = { showSortMenu = !showSortMenu },
+                            showSortMenu = showSortMenu,
+                            onDismissSortMenu = { showSortMenu = false },
+                            currentSortOptionsForTab = availableSortOptions,
+                            selectedSortOption = currentSelectedSortOption,
+                            onSortOptionSelected = { option ->
+                                onSortOptionChanged(option)
+                                showSortMenu = false // Dismiss menu on selection
+                            }
+                        )
+
+                        HorizontalPager(
+                            state = pagerState,
                             modifier = Modifier
                                 .fillMaxSize()
-                            // .padding(top = 8.dp) // This padding is now on the HorizontalPager itself
-                        ) {
-                            when (page) {
-                            0 -> LibrarySongsTab(uiState, playerViewModel, bottomBarHeightDp) { songFromItem ->
-                                selectedSongForInfo = songFromItem
-                                showSongInfoBottomSheet = true
-                            }
-                                1 -> LibraryAlbumsTab(uiState, playerViewModel, bottomBarHeightDp)
-                                2 -> LibraryArtistsTab(uiState, playerViewModel, bottomBarHeightDp) // Assuming no bottom bar needed or handled internally
-                                3 -> LibraryPlaylistsTab(playlistUiState, navController, bottomBarHeightDp)
-                            4 -> LibraryFavoritesTab(favoriteSongs, playerViewModel, bottomBarHeightDp) { songFromItem ->
-                                selectedSongForInfo = songFromItem
-                                showSongInfoBottomSheet = true
-                            }
+                                .padding(top = 8.dp), // Ensure content is below ActionRow
+                            pageSpacing = 0.dp,
+                        ) { page ->
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                // .padding(top = 8.dp) // This padding is now on the HorizontalPager itself
+                            ) {
+                                when (page) {
+                                    0 -> LibrarySongsTab(
+                                        uiState,
+                                        playerViewModel,
+                                        bottomBarHeightDp
+                                    ) { songFromItem ->
+                                        selectedSongForInfo = songFromItem
+                                        showSongInfoBottomSheet = true
+                                    }
+
+                                    1 -> LibraryAlbumsTab(
+                                        uiState,
+                                        playerViewModel,
+                                        bottomBarHeightDp
+                                    )
+
+                                    2 -> LibraryArtistsTab(
+                                        uiState,
+                                        playerViewModel,
+                                        bottomBarHeightDp
+                                    ) // Assuming no bottom bar needed or handled internally
+                                    3 -> LibraryPlaylistsTab(
+                                        playlistUiState,
+                                        navController,
+                                        bottomBarHeightDp
+                                    )
+
+                                    4 -> LibraryFavoritesTab(
+                                        favoriteSongs,
+                                        playerViewModel,
+                                        bottomBarHeightDp
+                                    ) { songFromItem ->
+                                        selectedSongForInfo = songFromItem
+                                        showSongInfoBottomSheet = true
+                                    }
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            if (uiState.isSyncingLibrary) {
-                Surface( // Fondo semitransparente para el indicador
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator(modifier = Modifier.size(64.dp))
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = "Sincronizando biblioteca...",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                if (uiState.isSyncingLibrary) {
+                    Surface( // Fondo semitransparente para el indicador
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator(modifier = Modifier.size(64.dp))
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "Sincronizando biblioteca...",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                         }
                     }
                 }
