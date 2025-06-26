@@ -82,7 +82,7 @@ interface MusicRepository {
     /**
      * Obtiene la lista de canciones para un género específico (placeholder implementation).
      * @param genreId El ID del género (e.g., "pop", "rock").
-     * @return Lista de objetos Song (simulada para este género).
+     * @return Flow que emite una lista de objetos Song (simulada para este género).
      */
-    suspend fun getMusicByGenre(genreId: String): List<Song> // Added this line
+    fun getMusicByGenre(genreId: String): Flow<List<Song>> // Changed to Flow
 }
