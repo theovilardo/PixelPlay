@@ -11,8 +11,8 @@ import com.theveloper.pixelplay.data.model.Song
     tableName = "songs",
     indices = [
         Index(value = ["title"], unique = false),
-        Index(value = ["album_id"], unique = false),
-        Index(value = ["artist_id"], unique = false),
+        // Index(value = ["album_id"], unique = false), // ForeignKey crea este índice
+        // Index(value = ["artist_id"], unique = false), // ForeignKey crea este índice
         Index(value = ["genre"], unique = false)
     ],
     foreignKeys = [
@@ -35,10 +35,10 @@ import com.theveloper.pixelplay.data.model.Song
 data class SongEntity(
     @PrimaryKey val id: Long,
     @ColumnInfo(name = "title") val title: String,
-    @ColumnInfo(name = "artist_name") val artistName: String, // Nombre del artista de la canción
-    @ColumnInfo(name = "artist_id", index = true) val artistId: Long,
-    @ColumnInfo(name = "album_name") val albumName: String, // Nombre del álbum de la canción
-    @ColumnInfo(name = "album_id", index = true) val albumId: Long,
+    @ColumnInfo(name = "artist_name") val artistName: String,
+    @ColumnInfo(name = "artist_id") val artistId: Long, // index = true eliminado
+    @ColumnInfo(name = "album_name") val albumName: String,
+    @ColumnInfo(name = "album_id") val albumId: Long, // index = true eliminado
     @ColumnInfo(name = "content_uri_string") val contentUriString: String,
     @ColumnInfo(name = "album_art_uri_string") val albumArtUriString: String?,
     @ColumnInfo(name = "duration") val duration: Long,
