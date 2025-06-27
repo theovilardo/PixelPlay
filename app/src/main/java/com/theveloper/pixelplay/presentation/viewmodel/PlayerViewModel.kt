@@ -179,6 +179,15 @@ class PlayerViewModel @Inject constructor(
     private val _toastEvents = MutableSharedFlow<String>()
     val toastEvents = _toastEvents.asSharedFlow()
 
+    // StateFlow to hold the sync status, converted from syncManager.isSyncing (Flow)
+    // Initial value true, as we might assume sync is active on app start until proven otherwise.
+    val isSyncingStateFlow: StateFlow<Boolean> = syncManager.isSyncing
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = true // Assuming sync might be initially active
+        )
+
     // Paginación
     private var currentSongPage = 1
     private var currentAlbumPage = 1
@@ -361,24 +370,25 @@ class PlayerViewModel @Inject constructor(
         }
 
         // *** BLOQUE CORREGIDO ***
-        // Observar el estado de SyncWorker
+        // Observar el estado de SyncWorker (now using isSyncingStateFlow)
         viewModelScope.launch {
-            var wasSyncingBefore = _playerUiState.value.isSyncingLibrary
-            Log.d("PlayerViewModel", "Setting up isSyncing observer. Initial isSyncingLibrary: ${wasSyncingBefore}, syncManager.isSyncing.value: ${syncManager.isSyncing.value}")
+            var wasSyncingBefore = _playerUiState.value.isSyncingLibrary // This UI state field will be updated by the flow
+            Log.d("PlayerViewModel", "Setting up isSyncingStateFlow observer. Initial isSyncingLibrary from UIState: ${wasSyncingBefore}, isSyncingStateFlow.value: ${isSyncingStateFlow.value}")
 
-            syncManager.isSyncing
+            isSyncingStateFlow // Observe the new StateFlow
                 .distinctUntilChanged()
                 .collect { isSyncing ->
-                    Log.d("PlayerViewModel", "isSyncing changed. Old value: $wasSyncingBefore, New value: $isSyncing")
+                    Log.d("PlayerViewModel", "isSyncingStateFlow changed. Old UI state for isSyncingLibrary: ${_playerUiState.value.isSyncingLibrary}, New emitted value: $isSyncing")
                     val oldSyncingLibraryState = _playerUiState.value.isSyncingLibrary
                     _playerUiState.update { it.copy(isSyncingLibrary = isSyncing) }
 
                     // Si el estado cambió de "sincronizando" a "no sincronizando", el worker ha terminado.
                     if (oldSyncingLibraryState && !isSyncing) {
-                        Log.i("PlayerViewModel", "SyncWorker finished (observed via flow). Reloading initial data from isSyncing observer.")
-                        resetAndLoadInitialData("isSyncing observer")
+                        Log.i("PlayerViewModel", "SyncWorker finished (observed via isSyncingStateFlow). Reloading initial data from observer.")
+                        resetAndLoadInitialData("isSyncingStateFlow observer")
                     }
-                    wasSyncingBefore = isSyncing // Actualizar para la próxima colección
+                    // wasSyncingBefore is not strictly needed here anymore as distinctUntilChanged handles it for the flow,
+                    // and oldSyncingLibraryState captures the UI state before update.
                 }
         }
 
@@ -388,9 +398,8 @@ class PlayerViewModel @Inject constructor(
             // Adding a small delay to ensure the flow collection might have had a chance to emit once
             // though ideally, the check against .value should be sufficient.
             // delay(50) // Optional: small delay, might not be strictly necessary.
-            // Directly use .value in the if condition as requested
-            Log.d("PlayerViewModel", "Initial check: syncManager.isSyncing.value = ${syncManager.isSyncing.value}. PlayerUIState: isLoadingInitial = ${_playerUiState.value.isLoadingInitialSongs}, allSongs empty = ${_playerUiState.value.allSongs.isEmpty()}")
-            if (!syncManager.isSyncing.value && // Sync is NOT currently running
+            Log.d("PlayerViewModel", "Initial check: isSyncingStateFlow.value = ${isSyncingStateFlow.value}. PlayerUIState: isLoadingInitial = ${_playerUiState.value.isLoadingInitialSongs}, allSongs empty = ${_playerUiState.value.allSongs.isEmpty()}")
+            if (!isSyncingStateFlow.value && // Sync is NOT currently running (use the new StateFlow's value)
                 _playerUiState.value.isLoadingInitialSongs && // We are still in the initial loading phase
                 _playerUiState.value.allSongs.isEmpty() // And no songs have been loaded yet
             ) {
@@ -427,7 +436,7 @@ class PlayerViewModel @Inject constructor(
             // However, if sync is not involved (e.g. app already synced), this ensures data is loaded.
             // The conditional calls in init block aim to prevent redundant loads if sync just finished.
             // For safety, ensuring it's called if still in initial loading phase and no songs.
-            if (_playerUiState.value.isLoadingInitialSongs && _playerUiState.value.allSongs.isEmpty() && syncManager.isSyncing.value) {
+            if (_playerUiState.value.isLoadingInitialSongs && _playerUiState.value.allSongs.isEmpty() && isSyncingStateFlow.value) { // Use new StateFlow
                  Log.i("PlayerViewModel", "preloadThemesAndInitialData: Sync is active, deferring initial load to sync completion handler.")
             } else if (_playerUiState.value.isLoadingInitialSongs && _playerUiState.value.allSongs.isEmpty()) {
                 Log.i("PlayerViewModel", "preloadThemesAndInitialData: No sync active or already finished, and no songs loaded. Calling resetAndLoadInitialData from preload.")
