@@ -22,8 +22,8 @@ class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Pr
     @Inject
     lateinit var imageLoader: dagger.Lazy<ImageLoader>
 
-    override fun getWorkManagerConfiguration(): Configuration =
-        Configuration.Builder()
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)
             .build()
 
