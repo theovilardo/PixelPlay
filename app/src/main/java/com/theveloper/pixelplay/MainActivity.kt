@@ -131,6 +131,7 @@ class MainActivity : ComponentActivity() {
         if (permissionState.allPermissionsGranted) {
             LaunchedEffect(Unit) {
                 startMusicServiceIfNeeded()
+                Log.i("MainActivity", "Permissions granted. Calling mainViewModel.startSync()")
                 mainViewModel.startSync()
             }
             MainAppContent(playerViewModel, mainViewModel)

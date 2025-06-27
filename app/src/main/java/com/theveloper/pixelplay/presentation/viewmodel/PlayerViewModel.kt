@@ -300,6 +300,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     init {
+        Log.i("PlayerViewModel", "init started.")
         // Observe theme preferences
         viewModelScope.launch { userPreferencesRepository.globalThemePreferenceFlow.collect { _globalThemePreference.value = it } }
         viewModelScope.launch { userPreferencesRepository.playerThemePreferenceFlow.collect { _playerThemePreference.value = it } }
@@ -363,18 +364,39 @@ class PlayerViewModel @Inject constructor(
         // Observar el estado de SyncWorker
         viewModelScope.launch {
             var wasSyncingBefore = _playerUiState.value.isSyncingLibrary
+            Log.d("PlayerViewModel", "Setting up isSyncing observer. Initial isSyncingLibrary: ${wasSyncingBefore}, syncManager.isSyncing.value: ${syncManager.isSyncing.value}")
+
             syncManager.isSyncing
                 .distinctUntilChanged()
                 .collect { isSyncing ->
-                    wasSyncingBefore = _playerUiState.value.isSyncingLibrary
+                    Log.d("PlayerViewModel", "isSyncing changed. Old value: $wasSyncingBefore, New value: $isSyncing")
+                    val oldSyncingLibraryState = _playerUiState.value.isSyncingLibrary
                     _playerUiState.update { it.copy(isSyncingLibrary = isSyncing) }
 
                     // Si el estado cambió de "sincronizando" a "no sincronizando", el worker ha terminado.
-                    if (wasSyncingBefore && !isSyncing) {
-                        Log.d("PlayerViewModel", "SyncWorker finished. Reloading initial data.")
-                        resetAndLoadInitialData()
+                    if (oldSyncingLibraryState && !isSyncing) {
+                        Log.i("PlayerViewModel", "SyncWorker finished (observed via flow). Reloading initial data from isSyncing observer.")
+                        resetAndLoadInitialData("isSyncing observer")
                     }
+                    wasSyncingBefore = isSyncing // Actualizar para la próxima colección
                 }
+        }
+
+        // Check current sync state immediately after setting up the observer
+        // This handles cases where sync finishes before the observer is fully active or if sync was very fast.
+        viewModelScope.launch {
+            // Adding a small delay to ensure the flow collection might have had a chance to emit once
+            // though ideally, the check against .value should be sufficient.
+            // delay(50) // Optional: small delay, might not be strictly necessary.
+            val currentSyncState = syncManager.isSyncing.value
+            Log.d("PlayerViewModel", "Initial check: syncManager.isSyncing.value = $currentSyncState. PlayerUIState: isLoadingInitial = ${_playerUiState.value.isLoadingInitialSongs}, allSongs empty = ${_playerUiState.value.allSongs.isEmpty()}")
+            if (!currentSyncState && // Sync is NOT currently running
+                _playerUiState.value.isLoadingInitialSongs && // We are still in the initial loading phase
+                _playerUiState.value.allSongs.isEmpty() // And no songs have been loaded yet
+            ) {
+                Log.i("PlayerViewModel", "SyncWorker likely finished before observer was fully active or was very fast. Triggering data load from initial check.")
+                resetAndLoadInitialData("Initial Check")
+            }
         }
 
         mediaControllerFuture.addListener({
@@ -400,9 +422,20 @@ class PlayerViewModel @Inject constructor(
             Log.d("PlayerViewModelPerformance", "preloadThemesAndInitialData: _isInitialThemePreloadComplete set to false. Time from start: ${System.currentTimeMillis() - overallInitStartTime} ms")
 
             // Start loading initial UI data
-            val resetLoadDataStartTime = System.currentTimeMillis()
-            resetAndLoadInitialData() // Esto lanza sus propias corrutinas
-            Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData() call took ${System.currentTimeMillis() - resetLoadDataStartTime} ms (Note: actual loading is async). Time from overallInitStart: ${System.currentTimeMillis() - overallInitStartTime} ms")
+            // Note: resetAndLoadInitialData is now called conditionally based on sync state in the init block.
+            // We might not need to call it unconditionally here anymore if the init block's logic is robust.
+            // However, if sync is not involved (e.g. app already synced), this ensures data is loaded.
+            // The conditional calls in init block aim to prevent redundant loads if sync just finished.
+            // For safety, ensuring it's called if still in initial loading phase and no songs.
+            if (_playerUiState.value.isLoadingInitialSongs && _playerUiState.value.allSongs.isEmpty() && syncManager.isSyncing.value) {
+                 Log.i("PlayerViewModel", "preloadThemesAndInitialData: Sync is active, deferring initial load to sync completion handler.")
+            } else if (_playerUiState.value.isLoadingInitialSongs && _playerUiState.value.allSongs.isEmpty()) {
+                Log.i("PlayerViewModel", "preloadThemesAndInitialData: No sync active or already finished, and no songs loaded. Calling resetAndLoadInitialData from preload.")
+                resetAndLoadInitialData("preloadThemesAndInitialData")
+            } else {
+                Log.i("PlayerViewModel", "preloadThemesAndInitialData: Initial songs already loading or loaded. Skipping direct call to resetAndLoadInitialData.")
+            }
+            //Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData() call took ${System.currentTimeMillis() - resetLoadDataStartTime} ms (Note: actual loading is async). Time from overallInitStart: ${System.currentTimeMillis() - overallInitStartTime} ms")
 
             // Wait for the initial songs, albums, and artists to be loaded before marking initial theme/UI setup as complete.
             // This ensures that the primary content for all main library tabs is available when the loading screen disappears.
@@ -419,9 +452,10 @@ class PlayerViewModel @Inject constructor(
         Log.d("PlayerViewModelPerformance", "preloadThemesAndInitialData END. Total function time: ${System.currentTimeMillis() - functionStartTime} ms (dispatching async work)")
     }
 
-    private fun resetAndLoadInitialData() {
+    private fun resetAndLoadInitialData(caller: String = "Unknown") {
         val functionStartTime = System.currentTimeMillis()
-        Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData START")
+    Log.i("PlayerViewModel", "resetAndLoadInitialData called from: $caller")
+    Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData START - Called by: $caller")
         currentSongPage = 1
         currentAlbumPage = 1
         currentArtistPage = 1
