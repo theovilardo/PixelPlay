@@ -23,7 +23,7 @@ class SyncManager @Inject constructor(
 
     // EXPONE UN FLOW<BOOLEAN> SIMPLE
     val isSyncing: Flow<Boolean> =
-        workManager.getWorkInfosForUniqueWorkFlow(SYNC_WORK_NAME)
+        workManager.getWorkInfosForUniqueWorkFlow(SyncWorker.WORK_NAME) // Use SyncWorker.WORK_NAME
             .map { workInfos ->
                 val isRunning = workInfos.any { it.state == WorkInfo.State.RUNNING }
                 val isEnqueued = workInfos.any { it.state == WorkInfo.State.ENQUEUED }
@@ -34,8 +34,8 @@ class SyncManager @Inject constructor(
     fun sync() {
         val syncRequest = SyncWorker.startUpSyncWork()
         workManager.enqueueUniqueWork(
-            SYNC_WORK_NAME,
-            ExistingWorkPolicy.KEEP,
+            SyncWorker.WORK_NAME, // Use SyncWorker.WORK_NAME
+            ExistingWorkPolicy.REPLACE, // Changed to REPLACE for initial sync
             syncRequest
         )
     }
@@ -53,7 +53,5 @@ class SyncManager @Inject constructor(
         )
     }
 
-    companion object {
-        const val SYNC_WORK_NAME = "com.theveloper.pixelplay.SYNC_WORK"
-    }
+    // Removed companion object with SYNC_WORK_NAME as SyncWorker.WORK_NAME is now used universally
 }

@@ -42,7 +42,13 @@ class SyncWorker @AssistedInject constructor(
 
             Log.i(TAG, "Fetched ${songs.size} songs, ${albums.size} albums, ${artists.size} artists from MediaStore.")
 
-            musicDao.insertMusicData(songs, albums, artists)
+            if (songs.isEmpty() && albums.isEmpty() && artists.isEmpty()) {
+                Log.w(TAG, "MediaStore fetch resulted in empty lists for songs, albums, and artists. No data will be inserted.")
+            } else {
+                Log.i(TAG, "Attempting to insert music data into DAO. Songs: ${songs.size}, Albums: ${albums.size}, Artists: ${artists.size}")
+                musicDao.insertMusicData(songs, albums, artists)
+                Log.i(TAG, "Music data insertion call completed.")
+            }
 
             val endTime = System.currentTimeMillis()
             Log.i(TAG, "MediaStore synchronization completed successfully in ${endTime - startTime}ms.")

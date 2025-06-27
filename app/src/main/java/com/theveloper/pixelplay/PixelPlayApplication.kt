@@ -10,12 +10,22 @@ import javax.inject.Inject
 import android.os.StrictMode // Importar StrictMode
 import coil.ImageLoader
 import coil.ImageLoaderFactory
+import androidx.hilt.work.HiltWorkerFactory
+import androidx.work.Configuration
 
 @HiltAndroidApp
-class PixelPlayApplication : Application(), ImageLoaderFactory {
+class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Provider {
+
+    @Inject
+    lateinit var workerFactory: HiltWorkerFactory
 
     @Inject
     lateinit var imageLoader: dagger.Lazy<ImageLoader>
+
+    override fun getWorkManagerConfiguration(): Configuration =
+        Configuration.Builder()
+            .setWorkerFactory(workerFactory)
+            .build()
 
     override fun onCreate() {
         super.onCreate()

@@ -86,9 +86,10 @@ dependencies {
 
     // Hilt
     implementation(libs.hilt.android)
-    ksp(libs.hilt.android.compiler)
+    ksp(libs.hilt.android.compiler) // For Dagger Hilt
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.androidx.hilt.work)
+    ksp(libs.androidx.hilt.compiler) // For @HiltWorker - assuming libs.androidx.hilt.compiler is defined
 
     // Room
     implementation(libs.androidx.room.runtime)
