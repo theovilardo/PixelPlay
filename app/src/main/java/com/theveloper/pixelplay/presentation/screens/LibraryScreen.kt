@@ -932,7 +932,7 @@ fun LibraryAlbumsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, b
                     AlbumGridItemRedesigned( // Usar el nuevo Composable
                         album = album,
                         albumColorSchemePairFlow = albumSpecificColorSchemeFlow,
-                        onClick = { playerViewModel.playAlbum(album) }
+                        onClick = { navController.navigate(Screen.AlbumDetail.createRoute(album.id)) }
                     )
                 }
                 if (uiState.isLoadingLibraryCategories && uiState.albums.isNotEmpty()) {

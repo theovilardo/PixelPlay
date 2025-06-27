@@ -92,6 +92,26 @@ fun AppNavigation(
                     Text("Error: Genre ID missing", modifier = Modifier.padding(paddingValues))
                 }
             }
+
+            composable(
+                route = Screen.AlbumDetail.route,
+                arguments = listOf(navArgument("albumId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val albumId = backStackEntry.arguments?.getString("albumId")
+                // PlayerViewModel ya está disponible en el scope de AppNavigation
+                val albumDetailViewModel: com.theveloper.pixelplay.presentation.viewmodel.AlbumDetailViewModel = hiltViewModel()
+
+                if (albumId != null) {
+                    com.theveloper.pixelplay.presentation.screens.AlbumDetailScreen(
+                        albumId = albumId,
+                        navController = navController,
+                        playerViewModel = playerViewModel, // Pasando la instancia existente
+                        viewModel = albumDetailViewModel
+                    )
+                } else {
+                    Text("Error: Album ID missing", modifier = Modifier.padding(paddingValues))
+                }
+            }
         }
     }
 }
