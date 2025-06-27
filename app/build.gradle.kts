@@ -176,6 +176,9 @@ dependencies {
 
     // Kotlin Collections
     implementation(libs.kotlinx.collections.immutable) // Verifica la última versión
+
+    //permisisons
+    implementation(libs.accompanist.permissions)
 }
 
 // protobuf { // Eliminado bloque de configuración de Protobuf

@@ -115,11 +115,10 @@ class SettingsViewModel @Inject constructor(
 
     fun refreshLibrary() {
         viewModelScope.launch {
-            // Usar ExistingWorkPolicy.REPLACE para que una nueva solicitud de refresco
-            // cancele y reemplace cualquier sincronización en curso.
-            syncManager.enqueueSyncWorker(replaceExisting = true)
+            // *** CORRECCIÓN AQUÍ ***
+            // Llamamos al nuevo método específico para forzar el refresco.
+            syncManager.forceRefresh()
             // Opcional: Podrías emitir un evento a la UI para mostrar un Toast "Refresco iniciado"
-            // _toastEvents.emit("Library refresh started...")
         }
     }
 }

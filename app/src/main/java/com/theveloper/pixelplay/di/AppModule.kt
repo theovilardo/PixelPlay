@@ -7,6 +7,7 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.room.Room
+import coil.ImageLoader
 import com.theveloper.pixelplay.PixelPlayApplication
 import com.theveloper.pixelplay.data.database.AlbumArtThemeDao
 import com.theveloper.pixelplay.data.database.MusicDao
@@ -77,6 +78,18 @@ object AppModule {
     @Provides
     fun provideMusicDao(database: PixelPlayDatabase): MusicDao { // Proveer MusicDao
         return database.musicDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideImageLoader(
+        @ApplicationContext context: Context
+    ): ImageLoader {
+        return ImageLoader.Builder(context)
+            // Add any custom configurations here if needed
+            // .crossfade(true)
+            // .okHttpClient { ... }
+            .build()
     }
 
     @Provides

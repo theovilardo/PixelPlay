@@ -242,6 +242,24 @@ class PlayerViewModel @Inject constructor(
 
     private var progressJob: Job? = null
 
+    // *** NUEVA FUNCIÓN AÑADIDA PARA SOLUCIONAR EL ERROR ***
+    /**
+     * Ensures the connection to the MusicService is being established.
+     * This function is called from MainActivity's onStart to ensure listeners are set up
+     * if the ViewModel is created late or the connection needs to be re-established.
+     * The actual connection logic is handled by `mediaControllerFuture` and its listener
+     * in the `init` block.
+     */
+    fun connectToService() {
+        if (mediaController == null && !mediaControllerFuture.isDone) {
+            Log.d("PlayerViewModel", "connectToService() called. Connection already in progress via mediaControllerFuture.")
+        } else if (mediaController == null && mediaControllerFuture.isDone) {
+            Log.w("PlayerViewModel", "connectToService() called, but future is done and controller is still null. There might have been a connection error.")
+        } else {
+            Log.d("PlayerViewModel", "connectToService() called. MediaController already available.")
+        }
+    }
+
     fun updateBottomBarHeight(heightPx: Int) {
         if (_bottomBarHeight.value != heightPx) {
             _bottomBarHeight.value = heightPx
@@ -341,18 +359,22 @@ class PlayerViewModel @Inject constructor(
             }
         }
 
+        // *** BLOQUE CORREGIDO ***
         // Observar el estado de SyncWorker
         viewModelScope.launch {
-            syncManager.syncWorkInfo.asFlow().collect { workInfos ->
-                val isSyncing = workInfos.any { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED }
-                _playerUiState.update { it.copy(isSyncingLibrary = isSyncing) }
-                if (!isSyncing && workInfos.any { it.state == WorkInfo.State.SUCCEEDED || it.state == WorkInfo.State.FAILED || it.state == WorkInfo.State.CANCELLED }) {
-                    // Si la sincronización terminó (éxito, fallo, cancelada), recargar datos
-                    // Esto es importante si la sincronización se hizo en segundo plano y la app ya estaba abierta
-                    Log.d("PlayerViewModel", "SyncWorker finished. Reloading initial data.")
-                    resetAndLoadInitialData()
+            var wasSyncingBefore = _playerUiState.value.isSyncingLibrary
+            syncManager.isSyncing
+                .distinctUntilChanged()
+                .collect { isSyncing ->
+                    wasSyncingBefore = _playerUiState.value.isSyncingLibrary
+                    _playerUiState.update { it.copy(isSyncingLibrary = isSyncing) }
+
+                    // Si el estado cambió de "sincronizando" a "no sincronizando", el worker ha terminado.
+                    if (wasSyncingBefore && !isSyncing) {
+                        Log.d("PlayerViewModel", "SyncWorker finished. Reloading initial data.")
+                        resetAndLoadInitialData()
+                    }
                 }
-            }
         }
 
         mediaControllerFuture.addListener({
@@ -1497,81 +1519,6 @@ class PlayerViewModel @Inject constructor(
         } else if (!suppressDefaultToast && wasAnythingActive) {
             viewModelScope.launch { _toastEvents.emit("Timer cancelled.") }
         }
-    }
-
-
-    init {
-        // Observe theme preferences
-        viewModelScope.launch { userPreferencesRepository.globalThemePreferenceFlow.collect { _globalThemePreference.value = it } }
-        viewModelScope.launch { userPreferencesRepository.playerThemePreferenceFlow.collect { _playerThemePreference.value = it } }
-
-        // Observe favorite songs
-        viewModelScope.launch {
-            userPreferencesRepository.favoriteSongIdsFlow.collect { ids ->
-                _favoriteSongIds.value = ids
-            }
-        }
-
-        // Observe sort option preferences
-        viewModelScope.launch {
-            userPreferencesRepository.songsSortOptionFlow.collect { optionName ->
-                getSortOptionFromString(optionName)?.let { sortOption ->
-                    if (_playerUiState.value.currentSongSortOption != sortOption) { // Avoid re-sorting if option hasn't changed
-                        // Update state first, then call sort which uses the state
-                        _playerUiState.update { it.copy(currentSongSortOption = sortOption) }
-                        if (!_playerUiState.value.isLoadingInitialSongs && _playerUiState.value.allSongs.isNotEmpty()) {
-                             sortSongs(sortOption) // This will use the updated state
-                        }
-                    }
-                }
-            }
-        }
-        viewModelScope.launch {
-            userPreferencesRepository.albumsSortOptionFlow.collect { optionName ->
-                getSortOptionFromString(optionName)?.let { sortOption ->
-                    if (_playerUiState.value.currentAlbumSortOption != sortOption) {
-                        _playerUiState.update { it.copy(currentAlbumSortOption = sortOption) }
-                        if (!_playerUiState.value.isLoadingLibraryCategories && _playerUiState.value.albums.isNotEmpty()) {
-                            sortAlbums(sortOption)
-                        }
-                    }
-                }
-            }
-        }
-        viewModelScope.launch {
-            userPreferencesRepository.artistsSortOptionFlow.collect { optionName ->
-                getSortOptionFromString(optionName)?.let { sortOption ->
-                    if (_playerUiState.value.currentArtistSortOption != sortOption) {
-                        _playerUiState.update { it.copy(currentArtistSortOption = sortOption) }
-                        if (!_playerUiState.value.isLoadingLibraryCategories && _playerUiState.value.artists.isNotEmpty()) {
-                            sortArtists(sortOption)
-                        }
-                    }
-                }
-            }
-        }
-        viewModelScope.launch {
-            userPreferencesRepository.likedSongsSortOptionFlow.collect { optionName ->
-                getSortOptionFromString(optionName)?.let { sortOption ->
-                     // The favoriteSongs flow automatically uses currentFavoriteSortOption from playerUiState.
-                     // Just updating the state is enough to trigger re-composition and re-sorting.
-                    _playerUiState.update { it.copy(currentFavoriteSortOption = sortOption) }
-                }
-            }
-        }
-
-        mediaControllerFuture.addListener({
-            try {
-                mediaController = mediaControllerFuture.get()
-                setupMediaControllerListeners()
-            } catch (e: Exception) {
-                _playerUiState.update { it.copy(isLoadingInitialSongs = false, isLoadingLibraryCategories = false) }
-                Log.e("PlayerViewModel", "Error setting up MediaController", e)
-            }
-        }, MoreExecutors.directExecutor())
-
-        preloadThemesAndInitialData()
-        loadSearchHistory() // Load initial search history
     }
 
     fun getSongUrisForGenre(genreName: String): List<String> {
