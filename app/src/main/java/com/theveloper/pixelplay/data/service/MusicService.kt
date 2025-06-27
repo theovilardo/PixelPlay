@@ -27,9 +27,10 @@ import androidx.media3.session.MediaSessionService
 import coil.imageLoader
 import coil.request.ImageRequest
 import coil.size.Size
-import com.google.protobuf.ByteString
+// import com.google.protobuf.ByteString // No longer needed
 import com.theveloper.pixelplay.MainActivity
-import com.theveloper.pixelplay.PlayerInfoProto
+// import com.theveloper.pixelplay.PlayerInfoProto // Replaced
+import com.theveloper.pixelplay.data.model.PlayerInfo // Import new data class
 import com.theveloper.pixelplay.R
 // import com.theveloper.pixelplay.data.EotStateHolder // Removed
 import com.theveloper.pixelplay.ui.glancewidget.PixelPlayGlanceWidget
@@ -243,23 +244,15 @@ class MusicService : MediaSessionService() {
             } else null
 
             // --- 3) Construcción del proto en Main ---
-            val proto = PlayerInfoProto.newBuilder()
-                .setSongTitle(title)
-                .setArtistName(artist)
-                .setIsPlaying(isPlaying)
-                .setAlbumArtUri(uriString)
-                .setCurrentPositionMs(currentPositionMs)
-                .setTotalDurationMs(totalDurationMs)
-                .apply { 
-                    // Only update bitmap data if it changed
-                    if (artBytes != null) {
-                        albumArtBitmapData = ByteString.copyFrom(artBytes)
-                    } else if (uriString != lastWidgetArtUri) {
-                        // Clear bitmap data if URI changed but we couldn't load new bitmap
-                        albumArtBitmapData = ByteString.EMPTY
-                    }
-                }
-                .build()
+            val playerInfoData = PlayerInfo(
+                songTitle = title,
+                artistName = artist,
+                isPlaying = isPlaying,
+                albumArtUri = uriString.ifEmpty { null }, // Store null if empty string
+                albumArtBitmapData = artBytes, // Pass the loaded ByteArray? directly
+                currentPositionMs = currentPositionMs,
+                totalDurationMs = totalDurationMs
+            )
 
             // --- 4) Guardar en DataStore en I/O ---
             val glanceManager = GlanceAppWidgetManager(applicationContext)
@@ -268,9 +261,9 @@ class MusicService : MediaSessionService() {
                 glanceIds.forEach { id ->
                     updateAppWidgetState(
                         applicationContext,
-                        PlayerInfoStateDefinition,
+                        PlayerInfoStateDefinition, // This now uses PlayerInfo and JSON serializer
                         id
-                    ) { proto }
+                    ) { playerInfoData }
                 }
             }
 

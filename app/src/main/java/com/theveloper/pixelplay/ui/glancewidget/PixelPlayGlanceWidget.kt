@@ -11,7 +11,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.datastore.preferences.protobuf.ByteString
+// import androidx.datastore.preferences.protobuf.ByteString // No longer needed
 import androidx.glance.ColorFilter
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
@@ -48,7 +48,7 @@ import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.theveloper.pixelplay.MainActivity
-import com.theveloper.pixelplay.PlayerInfoProto
+import com.theveloper.pixelplay.data.model.PlayerInfo // Changed import
 import com.theveloper.pixelplay.R
 
 class PixelPlayGlanceWidget : GlanceAppWidget() {
@@ -94,10 +94,10 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
-            val playerInfo = currentState<PlayerInfoProto>() ?: PlayerInfoProto.getDefaultInstance()
+            val playerInfo = currentState<PlayerInfo>() ?: PlayerInfo() // Changed to PlayerInfo
             val currentSize = LocalSize.current
 
-            Log.d("PixelPlayGlanceWidget", "Providing Glance. PlayerInfo: title='${playerInfo.songTitle}', artist='${playerInfo.artistName}', isPlaying=${playerInfo.isPlaying}, hasBitmap=${playerInfo.albumArtBitmapData != ByteString.EMPTY}, progress=${playerInfo.currentPositionMs}/${playerInfo.totalDurationMs}")
+            Log.d("PixelPlayGlanceWidget", "Providing Glance. PlayerInfo: title='${playerInfo.songTitle}', artist='${playerInfo.artistName}', isPlaying=${playerInfo.isPlaying}, hasBitmap=${playerInfo.albumArtBitmapData != null}, progress=${playerInfo.currentPositionMs}/${playerInfo.totalDurationMs}")
 
             GlanceTheme {
                 WidgetUi(playerInfo = playerInfo, size = currentSize)
@@ -106,13 +106,12 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
     }
 
     @Composable
-    private fun WidgetUi(playerInfo: PlayerInfoProto, size: DpSize) {
+    private fun WidgetUi(playerInfo: PlayerInfo, size: DpSize) { // Changed to PlayerInfo
         val title = playerInfo.songTitle.ifEmpty { "PixelPlay" }
         val artist = playerInfo.artistName.ifEmpty { "Toca para abrir" }
         val isPlaying = playerInfo.isPlaying
-        val albumArtBitmapData = if (playerInfo.albumArtBitmapData != ByteString.EMPTY) {
-            playerInfo.albumArtBitmapData.toByteArray()
-        } else { null }
+        // playerInfo.albumArtBitmapData is already ByteArray?
+        val albumArtBitmapData = playerInfo.albumArtBitmapData
         val currentProgress = playerInfo.currentPositionMs
         val totalDuration = playerInfo.totalDurationMs
 

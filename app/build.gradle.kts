@@ -1,5 +1,3 @@
-import com.google.protobuf.gradle.proto
-
 plugins {
     alias(libs.plugins.android.application)
     id("com.google.devtools.ksp") version "2.1.0-1.0.29"
@@ -7,7 +5,7 @@ plugins {
     alias(libs.plugins.dagger.hilt.android)
     kotlin("plugin.serialization") version "2.1.0"
     alias(libs.plugins.jetbrains.kotlin.android)
-    id("com.google.protobuf") version "0.9.5" // O la versión más reciente del plugin de Protobuf. Ej: 0.9.1 o superior.
+    // id("com.google.protobuf") version "0.9.5" // Eliminado plugin de Protobuf
 }
 
 android {
@@ -78,11 +76,20 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
+    // Baseline Profiles (Macrobenchmark)
+    // Asegúrate de que libs.versions.toml tiene androidxBenchmarkMacroJunit4 y androidxUiautomator
+    // Ejemplo: androidx-benchmark-macro-junit4 = { group = "androidx.benchmark", name = "benchmark-macro-junit4", version.ref = "benchmarkMacro" }
+    // benchmarkMacro = "1.2.4"
+    //androidTestImplementation(libs.androidx.benchmark.macro.junit4)
+    //androidTestImplementation(libs.androidx.uiautomator)
+
+
     // Hilt
     implementation(libs.hilt.android)
-    ksp(libs.hilt.android.compiler)
+    ksp(libs.hilt.android.compiler) // For Dagger Hilt
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.androidx.hilt.work)
+    ksp(libs.androidx.hilt.compiler) // Esta línea es crucial y ahora funcionará
 
     // Room
     implementation(libs.androidx.room.runtime)
@@ -163,27 +170,30 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
 
     // Protobuf (JavaLite es suficiente para Android y más pequeño)
-    implementation(libs.protobuf.javalite) // O la versión más reciente
+    // implementation(libs.protobuf.javalite) // Eliminada dependencia de Protobuf
 
     //Material library
     implementation(libs.material)
 
     // Kotlin Collections
     implementation(libs.kotlinx.collections.immutable) // Verifica la última versión
+
+    //permisisons
+    implementation(libs.accompanist.permissions)
 }
 
-protobuf {
-    protoc {
-        // Descarga el compilador de Protocol Buffers desde Maven Central.
-        artifact = "com.google.protobuf:protoc:3.25.1" // Usa la misma versión que la dependencia protobuf-javalite
-    }
-    generateProtoTasks {
-        all().configureEach {
-            builtins {
-                maybeCreate("java").apply {
-                    option("lite") // Use lite runtime for Android
-                }
-            }
-        }
-    }
-}
+// protobuf { // Eliminado bloque de configuración de Protobuf
+//    protoc {
+//        // Descarga el compilador de Protocol Buffers desde Maven Central.
+//        artifact = "com.google.protobuf:protoc:3.25.1" // Usa la misma versión que la dependencia protobuf-javalite
+//    }
+//    generateProtoTasks {
+//        all().configureEach {
+//            builtins {
+//                maybeCreate("java").apply {
+//                    option("lite") // Use lite runtime for Android
+//                }
+//            }
+//        }
+//    }
+// }

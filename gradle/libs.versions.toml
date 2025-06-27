@@ -35,6 +35,7 @@ reorderable = "0.9.6"
 roomCompiler = "2.7.1"
 roomKtx = "2.7.1"
 roomRuntime = "2.7.1"
+accompanist = "0.37.3"
 
 # DI
 dagger = "2.53.1"
@@ -79,6 +80,7 @@ duktape-android = { module = "com.squareup.duktape:duktape-android", version.ref
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hiltAndroid" }
 hilt-android-compiler = { module = "com.google.dagger:hilt-android-compiler", version.ref = "hiltAndroid" }
+androidx-hilt-compiler = { module = "androidx.hilt:hilt-compiler", version.ref = "hiltNavigationCompose" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
@@ -98,6 +100,7 @@ material = { module = "com.google.android.material:material", version.ref = "mat
 material3 = { module = "androidx.compose.material3:material3", version.ref = "material3" }
 protobuf-javalite = { module = "com.google.protobuf:protobuf-javalite", version.ref = "protobufJavalite" }
 reorderable = { module = "org.burnoutcrew.composereorderable:reorderable", version.ref = "reorderable" }
+accompanist-permissions = { module = "com.google.accompanist:accompanist-permissions", version.ref = "accompanist" }
 smooth-corner-rect-android-compose = { module = "com.github.racra:smooth-corner-rect-android-compose", version.ref = "smoothCornerRectAndroidCompose" }
 wavy-slider = { module = "ir.mahozad.multiplatform:wavy-slider", version.ref = "wavySlider" }
 

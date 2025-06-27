@@ -7,8 +7,10 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.room.Room
+import coil.ImageLoader
 import com.theveloper.pixelplay.PixelPlayApplication
 import com.theveloper.pixelplay.data.database.AlbumArtThemeDao
+import com.theveloper.pixelplay.data.database.MusicDao
 import com.theveloper.pixelplay.data.database.PixelPlayDatabase
 import com.theveloper.pixelplay.data.database.SearchHistoryDao
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
@@ -72,17 +74,37 @@ object AppModule {
         return database.searchHistoryDao()
     }
 
+    @Singleton
+    @Provides
+    fun provideMusicDao(database: PixelPlayDatabase): MusicDao { // Proveer MusicDao
+        return database.musicDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideImageLoader(
+        @ApplicationContext context: Context
+    ): ImageLoader {
+        return ImageLoader.Builder(context)
+            // Add any custom configurations here if needed
+            // .crossfade(true)
+            // .okHttpClient { ... }
+            .build()
+    }
+
     @Provides
     @Singleton
     fun provideMusicRepository(
         @ApplicationContext context: Context,
         userPreferencesRepository: UserPreferencesRepository,
-        searchHistoryDao: SearchHistoryDao // NUEVA DEPENDENCIA INYECTADA
+        searchHistoryDao: SearchHistoryDao,
+        musicDao: MusicDao // Añadir MusicDao como parámetro
     ): MusicRepository {
         return MusicRepositoryImpl(
             context = context,
             userPreferencesRepository = userPreferencesRepository,
-            searchHistoryDao = searchHistoryDao // PASANDO LA DEPENDENCIA
+            searchHistoryDao = searchHistoryDao,
+            musicDao = musicDao // Pasar MusicDao
         )
     }
 

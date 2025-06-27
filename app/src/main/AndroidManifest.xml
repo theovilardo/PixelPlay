@@ -52,6 +52,19 @@
                 android:resource="@xml/pixelplay_glance_widget_info" />
         </receiver>
 
+        <!-- *** AÑADE ESTE BLOQUE PARA DESHABILITAR EL INICIALIZADOR POR DEFECTO *** -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <!-- Esto evita que el inicializador de WorkManager se ejecute automáticamente -->
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
+
         <receiver android:name=".ui.glancewidget.WidgetUpdateReceiver" android:exported="true"> <intent-filter>
             <action android:name="com.example.pixelplay.ACTION_WIDGET_UPDATE_PLAYBACK_STATE" />
         </intent-filter>

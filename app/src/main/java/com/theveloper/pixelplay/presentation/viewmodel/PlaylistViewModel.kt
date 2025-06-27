@@ -95,32 +95,66 @@ class PlaylistViewModel @Inject constructor(
     // Nueva función para cargar canciones para el selector de forma paginada
     fun loadMoreSongsForSelection(isInitialLoad: Boolean = false) {
         val currentState = _uiState.value
-        if (currentState.isLoadingSongSelection && !isInitialLoad) return
-        if (!currentState.canLoadMoreSongsForSelection && !isInitialLoad) return
+        if (currentState.isLoadingSongSelection && !isInitialLoad) {
+            Log.d("PlaylistVM", "loadMoreSongsForSelection: Already loading. Skipping.")
+            return
+        }
+        if (!currentState.canLoadMoreSongsForSelection && !isInitialLoad) {
+            Log.d("PlaylistVM", "loadMoreSongsForSelection: Cannot load more. Skipping.")
+            return
+        }
 
         viewModelScope.launch {
+            val initialPageForLoad = if (isInitialLoad) 1 else _uiState.value.songSelectionPage
+
             _uiState.update {
                 it.copy(
                     isLoadingSongSelection = true,
-                    // Resetear la página a 1 si es carga inicial
-                    songSelectionPage = if (isInitialLoad) 1 else it.songSelectionPage
+                    songSelectionPage = initialPageForLoad // Establecer la página correcta antes de la llamada
                 )
             }
 
-            // Usar el songSelectionPage del estado actualizado
-            val pageToLoad = _uiState.value.songSelectionPage
+            // Usar el songSelectionPage del estado que acabamos de actualizar para la llamada al repo
+            val pageToLoad = _uiState.value.songSelectionPage // Esta ahora es la página correcta
 
             Log.d("PlaylistVM", "Loading songs for selection. Page: $pageToLoad, PageSize: $SONG_SELECTION_PAGE_SIZE")
-            val newSongs = musicRepository.getAudioFiles(pageToLoad, SONG_SELECTION_PAGE_SIZE)
-            Log.d("PlaylistVM", "Loaded ${newSongs.size} songs for selection.")
 
-            _uiState.update {
-                it.copy(
-                    songSelectionForPlaylist = if (isInitialLoad) newSongs else it.songSelectionForPlaylist + newSongs,
-                    isLoadingSongSelection = false,
-                    canLoadMoreSongsForSelection = newSongs.size == SONG_SELECTION_PAGE_SIZE,
-                    songSelectionPage = if (newSongs.isNotEmpty()) it.songSelectionPage + 1 else it.songSelectionPage
-                )
+            try {
+                // Colectar la lista de canciones del Flow
+                val actualNewSongsList: List<Song> = musicRepository.getAudioFiles(pageToLoad, SONG_SELECTION_PAGE_SIZE).first()
+                Log.d("PlaylistVM", "Loaded ${actualNewSongsList.size} songs for selection.")
+
+                _uiState.update { currentStateAfterLoad ->
+                    val updatedSongSelectionList = if (isInitialLoad) {
+                        actualNewSongsList
+                    } else {
+                        // Evitar duplicados si por alguna razón se recarga la misma página
+                        val currentSongIds = currentStateAfterLoad.songSelectionForPlaylist.map { it.id }.toSet()
+                        val uniqueNewSongs = actualNewSongsList.filterNot { currentSongIds.contains(it.id) }
+                        currentStateAfterLoad.songSelectionForPlaylist + uniqueNewSongs
+                    }
+
+                    currentStateAfterLoad.copy(
+                        songSelectionForPlaylist = updatedSongSelectionList,
+                        isLoadingSongSelection = false,
+                        canLoadMoreSongsForSelection = actualNewSongsList.size == SONG_SELECTION_PAGE_SIZE,
+                        // Incrementar la página solo si se cargaron canciones y se espera que haya más
+                        songSelectionPage = if (actualNewSongsList.isNotEmpty() && actualNewSongsList.size == SONG_SELECTION_PAGE_SIZE) {
+                            currentStateAfterLoad.songSelectionPage + 1
+                        } else {
+                            currentStateAfterLoad.songSelectionPage // No incrementar si no hay más o si la carga fue parcial
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("PlaylistVM", "Error loading songs for selection. Page: $pageToLoad", e)
+                _uiState.update {
+                    it.copy(
+                        isLoadingSongSelection = false
+                        // Opcional: añadir un campo de error al PlaylistUiState
+                        // errorLoadingSongSelection = "Failed to load songs: ${e.message}"
+                    )
+                }
             }
         }
     }
@@ -140,19 +174,37 @@ class PlaylistViewModel @Inject constructor(
 
     fun loadPlaylistDetails(playlistId: String) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
-            val playlist = userPreferencesRepository.userPlaylistsFlow.first().find { it.id == playlistId }
-            if (playlist != null) {
-                val songs = musicRepository.getSongsByIds(playlist.songIds)
+            _uiState.update { it.copy(isLoading = true, currentPlaylistDetails = null, currentPlaylistSongs = emptyList()) } // Resetear detalles y canciones
+            try {
+                // Obtener la playlist de las preferencias del usuario
+                val playlist = userPreferencesRepository.userPlaylistsFlow.first()
+                    .find { it.id == playlistId }
+
+                if (playlist != null) {
+                    // Colectar la lista de canciones del Flow devuelto por el repositorio
+                    val songsList: List<Song> = musicRepository.getSongsByIds(playlist.songIds).first()
+
+                    _uiState.update {
+                        it.copy(
+                            currentPlaylistDetails = playlist,
+                            currentPlaylistSongs = songsList, // Asignar la List<Song>
+                            isLoading = false
+                        )
+                    }
+                } else {
+                    Log.w("PlaylistVM", "Playlist with id $playlistId not found.")
+                    _uiState.update { it.copy(isLoading = false) } // Mantener isLoading en false
+                    // Opcional: podrías establecer un error o un estado específico de "no encontrado"
+                }
+            } catch (e: Exception) {
+                Log.e("PlaylistVM", "Error loading playlist details for id $playlistId", e)
                 _uiState.update {
                     it.copy(
-                        currentPlaylistDetails = playlist,
-                        currentPlaylistSongs = songs,
                         isLoading = false
+                        // Opcional: añadir un campo de error al PlaylistUiState
+                        // errorLoadingPlaylistDetails = "Failed to load playlist details: ${e.message}"
                     )
                 }
-            } else {
-                _uiState.update { it.copy(isLoading = false) }
             }
         }
     }

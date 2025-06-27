@@ -6,8 +6,8 @@ import com.theveloper.pixelplay.data.model.DirectoryItem
 import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.MusicRepository
-import com.theveloper.pixelplay.data.repository.MusicRepositoryImpl
-// Usar la implementación para acceder a getAllUniqueAudioDirectories
+// Ya no es necesario MusicRepositoryImpl aquí directamente si SyncManager lo maneja
+import com.theveloper.pixelplay.data.worker.SyncManager // Importar SyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -23,7 +23,8 @@ data class SettingsUiState(
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val musicRepository: MusicRepository, // Inyectar la interfaz, no la implementación concreta
+    private val musicRepository: MusicRepository,
+    private val syncManager: SyncManager // Inyectar SyncManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -109,6 +110,15 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferencesRepository.setPlayerThemePreference(preference)
             // El flujo playerThemePreferenceFlow en init{} detectará el cambio y actualizará _uiState
+        }
+    }
+
+    fun refreshLibrary() {
+        viewModelScope.launch {
+            // *** CORRECCIÓN AQUÍ ***
+            // Llamamos al nuevo método específico para forzar el refresco.
+            syncManager.forceRefresh()
+            // Opcional: Podrías emitir un evento a la UI para mostrar un Toast "Refresco iniciado"
         }
     }
 }
