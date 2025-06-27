@@ -134,6 +134,24 @@ class MusicRepositoryImpl @Inject constructor(
         }.flowOn(Dispatchers.Default)
     }
 
+    override fun getAlbumById(id: Long): Flow<Album?> {
+        return getPermittedSongsFlow().map { permittedSongs ->
+            val songsForAlbum = permittedSongs.filter { it.albumId == id }
+            if (songsForAlbum.isNotEmpty()) {
+                val firstSong = songsForAlbum.first()
+                Album(
+                    id = id,
+                    title = firstSong.albumName,
+                    artist = firstSong.artistName,
+                    albumArtUriString = firstSong.albumArtUriString,
+                    songCount = songsForAlbum.size
+                )
+            } else {
+                null
+            }
+        }.flowOn(Dispatchers.Default)
+    }
+
     /**
      * Obtiene una lista paginada de artistas, derivada de las canciones permitidas.
      */

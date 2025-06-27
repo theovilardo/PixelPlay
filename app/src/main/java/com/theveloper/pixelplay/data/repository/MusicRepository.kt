@@ -28,6 +28,13 @@ interface MusicRepository {
     fun getAlbums(page: Int, pageSize: Int): Flow<List<Album>>
 
     /**
+     * Obtiene un álbum específico por su ID.
+     * @param id El ID del álbum.
+     * @return Flow que emite el objeto Album o null si no se encuentra.
+     */
+    fun getAlbumById(id: Long): Flow<Album?>
+
+    /**
      * Obtiene la lista de artistas paginada y filtrada.
      * @param page El número de página (empezando en 1).
      * @param pageSize El número de elementos por página.

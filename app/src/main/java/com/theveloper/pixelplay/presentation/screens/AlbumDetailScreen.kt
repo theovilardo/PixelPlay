@@ -197,8 +197,7 @@ fun AlbumDetailScreen(
                                 song = song,
                                 isPlaying = false, // TODO: playerViewModel.stablePlayerState.currentSong?.id == song.id,
                                 onMoreOptionsClick = { /* TODO: Mostrar menú de opciones */ },
-                                //modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                                onClick = { /* TODO: playerViewModel.showAndPlaySong(song, songs) */ }
+                                onClick = {playerViewModel.showAndPlaySong(song, songs)  }
                             )
                         }
                     }
