@@ -376,7 +376,6 @@ class PlayerViewModel @Inject constructor(
             Log.d("PlayerViewModel", "Setting up isSyncingStateFlow observer. Initial isSyncingLibrary from UIState: ${wasSyncingBefore}, isSyncingStateFlow.value: ${isSyncingStateFlow.value}")
 
             isSyncingStateFlow // Observe the new StateFlow
-                .distinctUntilChanged()
                 .collect { isSyncing ->
                     Log.d("PlayerViewModel", "isSyncingStateFlow changed. Old UI state for isSyncingLibrary: ${_playerUiState.value.isSyncingLibrary}, New emitted value: $isSyncing")
                     val oldSyncingLibraryState = _playerUiState.value.isSyncingLibrary

@@ -22,11 +22,6 @@ class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Pr
     @Inject
     lateinit var imageLoader: dagger.Lazy<ImageLoader>
 
-    override val workManagerConfiguration: Configuration
-        get() = Configuration.Builder()
-            .setWorkerFactory(workerFactory)
-            .build()
-
     override fun onCreate() {
         super.onCreate()
 
@@ -65,58 +60,11 @@ class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Pr
     override fun newImageLoader(): ImageLoader {
         return imageLoader.get()
     }
-}
 
-//@HiltAndroidApp
-//class PixelPlayApplication : Application(), ImageLoaderFactory {
-//
-//    @Inject
-//    lateinit var syncManager: SyncManager
-//
-//    @Inject
-//    lateinit var imageLoader: dagger.Lazy<ImageLoader>
-//
-//    override fun onCreate() {
-//        super.onCreate()
-//
-//        // Iniciar sincronización inicial (si no está ya en curso o completada recientemente)
-//        // Usar ExistingWorkPolicy.KEEP para no interferir si ya hay un worker activo.
-//        //syncManager.enqueueSyncWorker(replaceExisting = false)
-//
-//        // Habilitar StrictMode solo en builds de depuración
-//        if (BuildConfig.DEBUG) {
-//            StrictMode.setThreadPolicy(
-//                StrictMode.ThreadPolicy.Builder()
-//                    .detectDiskReads()
-//                    .detectDiskWrites()
-//                    .detectNetwork() // O detectAll() para todo
-//                    .penaltyLog()    // Registrar violaciones en Logcat
-//                    // .penaltyDeath() // Descomentar para crashear en violaciones (más estricto)
-//                    .build()
-//            )
-//            StrictMode.setVmPolicy(
-//                StrictMode.VmPolicy.Builder()
-//                    .detectLeakedSqlLiteObjects()
-//                    .detectLeakedClosableObjects()
-//                    .penaltyLog()
-//                    // .penaltyDeath()
-//                    .build()
-//            )
-//        }
-//
-//        // Crear canal de notificación
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-//            val channel = NotificationChannel(
-//                "pixelplay_music_channel",
-//                "PixelPlay Music Playback",
-//                NotificationManager.IMPORTANCE_LOW
-//            )
-//            val notificationManager = getSystemService(NotificationManager::class.java)
-//            notificationManager.createNotificationChannel(channel)
-//        }
-//    }
-//
-//    override fun newImageLoader(): ImageLoader {
-//        return imageLoader.get()
-//    }
-//}
+    // 3. Sobrescribe el método para proveer la configuración de WorkManager
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder()
+            .setWorkerFactory(workerFactory)
+            .build()
+
+}
