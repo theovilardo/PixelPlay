@@ -388,9 +388,9 @@ class PlayerViewModel @Inject constructor(
             // Adding a small delay to ensure the flow collection might have had a chance to emit once
             // though ideally, the check against .value should be sufficient.
             // delay(50) // Optional: small delay, might not be strictly necessary.
-            val currentSyncState = syncManager.isSyncing.value
-            Log.d("PlayerViewModel", "Initial check: syncManager.isSyncing.value = $currentSyncState. PlayerUIState: isLoadingInitial = ${_playerUiState.value.isLoadingInitialSongs}, allSongs empty = ${_playerUiState.value.allSongs.isEmpty()}")
-            if (!currentSyncState && // Sync is NOT currently running
+            // Directly use .value in the if condition as requested
+            Log.d("PlayerViewModel", "Initial check: syncManager.isSyncing.value = ${syncManager.isSyncing.value}. PlayerUIState: isLoadingInitial = ${_playerUiState.value.isLoadingInitialSongs}, allSongs empty = ${_playerUiState.value.allSongs.isEmpty()}")
+            if (!syncManager.isSyncing.value && // Sync is NOT currently running
                 _playerUiState.value.isLoadingInitialSongs && // We are still in the initial loading phase
                 _playerUiState.value.allSongs.isEmpty() // And no songs have been loaded yet
             ) {
@@ -772,30 +772,30 @@ class PlayerViewModel @Inject constructor(
         _predictiveBackCollapseFraction.value = 0f
     }
 
-    private fun updateCurrentPlaybackQueueFromPlayer() {
-        val controller = mediaController ?: return
-        val count = controller.mediaItemCount
+    private fun updateCurrentPlaybackQueueFromPlayer(playerCtrl: MediaController?) { // Accept playerCtrl as parameter
+        val currentMediaController = playerCtrl ?: mediaController ?: return // Use passed controller or fallback to class property
+        val count = currentMediaController.mediaItemCount
         val queue = mutableListOf<Song>()
         val allSongsMasterList = _playerUiState.value.allSongs
         for (i in 0 until count) {
-            val mediaItem = controller.getMediaItemAt(i)
+            val mediaItem = currentMediaController.getMediaItemAt(i)
             allSongsMasterList.find { it.id == mediaItem.mediaId }?.let { song -> queue.add(song) }
         }
         _playerUiState.update { it.copy(currentPlaybackQueue = queue.toImmutableList()) }
     }
 
     private fun setupMediaControllerListeners() {
-        val controller = mediaController ?: return
+        val playerCtrl = mediaController ?: return // Renamed to avoid shadowing
         _stablePlayerState.update {
             it.copy(
-                isShuffleEnabled = controller.shuffleModeEnabled,
-                repeatMode = controller.repeatMode,
-                isPlaying = controller.isPlaying
+                isShuffleEnabled = playerCtrl.shuffleModeEnabled, // Use playerCtrl
+                repeatMode = playerCtrl.repeatMode, // Use playerCtrl
+                isPlaying = playerCtrl.isPlaying // Use playerCtrl
             )
         }
-        updateCurrentPlaybackQueueFromPlayer()
+        updateCurrentPlaybackQueueFromPlayer(playerCtrl) // Pass playerCtrl
 
-        controller.currentMediaItem?.mediaId?.let { songId ->
+        playerCtrl.currentMediaItem?.mediaId?.let { songId -> // Use playerCtrl
             val song = _playerUiState.value.currentPlaybackQueue.find { s -> s.id == songId }
                 ?: _playerUiState.value.allSongs.find { s -> s.id == songId }
 
@@ -803,17 +803,17 @@ class PlayerViewModel @Inject constructor(
                 _stablePlayerState.update {
                     it.copy(
                         currentSong = song,
-                        totalDuration = controller.duration.coerceAtLeast(0L)
+                        totalDuration = playerCtrl.duration.coerceAtLeast(0L) // Use playerCtrl
                     )
                 }
-                _playerUiState.update { it.copy(currentPosition = controller.currentPosition.coerceAtLeast(0L)) }
+                _playerUiState.update { it.copy(currentPosition = playerCtrl.currentPosition.coerceAtLeast(0L)) } // Use playerCtrl
                 viewModelScope.launch { // ver si causa problemas, extractAndGenerateColorScheme ahora es suspend
                     song.albumArtUriString?.let { Uri.parse(it) }?.let { uri ->
                         extractAndGenerateColorScheme(uri)
                     }
                 }
                 updateFavoriteStatusForCurrentSong()
-                if (controller.isPlaying) startProgressUpdates()
+                if (playerCtrl.isPlaying) startProgressUpdates() // Use playerCtrl
                 if (_stablePlayerState.value.currentSong != null && !_isSheetVisible.value) _isSheetVisible.value = true
             } else {
                 _stablePlayerState.update { it.copy(currentSong = null, isPlaying = false) }
@@ -822,24 +822,24 @@ class PlayerViewModel @Inject constructor(
             }
         }
 
-        controller.addListener(object : Player.Listener {
+        playerCtrl.addListener(object : Player.Listener { // Use playerCtrl to add listener
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _stablePlayerState.update { it.copy(isPlaying = isPlaying) }
                 if (isPlaying) startProgressUpdates() else stopProgressUpdates()
             }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                val controller = mediaController ?: return
+                // val controller = mediaController ?: return // No longer needed, use playerCtrl from outer scope
 
                 // --- EOT Completion Logic ---
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
                     val activeEotSongId = com.theveloper.pixelplay.data.EotStateHolder.eotTargetSongId.value
-                    // Correctly get previousMediaItem using the controller instance
-                    val previousSongId = controller.run { if (previousMediaItemIndex != C.INDEX_UNSET) getMediaItemAt(previousMediaItemIndex)?.mediaId else null }
+                    // Correctly get previousMediaItem using the playerCtrl instance
+                    val previousSongId = playerCtrl.run { if (previousMediaItemIndex != C.INDEX_UNSET) getMediaItemAt(previousMediaItemIndex)?.mediaId else null }
 
                     if (_isEndOfTrackTimerActive.value && activeEotSongId != null && previousSongId != null && previousSongId == activeEotSongId) {
                         // EOT Condition Met: The EOT target song (previousSongId) just finished naturally.
-                        controller.seekTo(0L) // Seek new current item (mediaItem which is the next song) to its start
-                        controller.pause()
+                        playerCtrl.seekTo(0L) // Seek new current item (mediaItem which is the next song) to its start
+                        playerCtrl.pause()
 
                         val finishedSongTitle = _playerUiState.value.allSongs.find { it.id == previousSongId }?.title
                             ?: "Track" // Fallback title
@@ -863,7 +863,7 @@ class PlayerViewModel @Inject constructor(
                         it.copy(
                             currentSong = song,
                             // Duration might be C.TIME_UNSET if not yet known, ensure it's non-negative
-                            totalDuration = controller.duration.coerceAtLeast(0L)
+                            totalDuration = playerCtrl.duration.coerceAtLeast(0L) // Use playerCtrl
                         )
                     }
                     // Reset position for the new song. If EOT handled, this is fine as player is paused.
@@ -890,9 +890,9 @@ class PlayerViewModel @Inject constructor(
 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_READY) {
-                    _stablePlayerState.update { it.copy(totalDuration = controller.duration.coerceAtLeast(0L)) }
+                    _stablePlayerState.update { it.copy(totalDuration = playerCtrl.duration.coerceAtLeast(0L)) } // Use playerCtrl
                 }
-                if (playbackState == Player.STATE_IDLE && controller.mediaItemCount == 0) {
+                if (playbackState == Player.STATE_IDLE && playerCtrl.mediaItemCount == 0) { // Use playerCtrl
                     _stablePlayerState.update { it.copy(currentSong = null, isPlaying = false) }
                     _playerUiState.update { it.copy(currentPosition = 0L) }
                 }
@@ -902,7 +902,7 @@ class PlayerViewModel @Inject constructor(
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) { _stablePlayerState.update { it.copy(isShuffleEnabled = shuffleModeEnabled) } }
             override fun onRepeatModeChanged(repeatMode: Int) { _stablePlayerState.update { it.copy(repeatMode = repeatMode) } }
             override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
-                if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) updateCurrentPlaybackQueueFromPlayer()
+                if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) updateCurrentPlaybackQueueFromPlayer(playerCtrl) // Pass playerCtrl
             }
         })
     }
