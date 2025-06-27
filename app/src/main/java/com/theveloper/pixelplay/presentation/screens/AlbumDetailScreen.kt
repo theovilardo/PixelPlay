@@ -46,6 +46,7 @@ import androidx.navigation.NavController
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Song
+import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
 // Importando EnhancedSongListItem de LibraryScreen
 import com.theveloper.pixelplay.presentation.screens.EnhancedSongListItem
@@ -100,7 +101,7 @@ fun AlbumDetailScreen(
         floatingActionButton = {
             if (songs.isNotEmpty() && album != null) {
                 LargeFloatingActionButton(
-                    onClick = { playerViewModel.playAlbum(album, songs) }, // Acción conectada
+                    onClick = { playerViewModel.playAlbum(album) }, // Acción conectada
                     modifier = Modifier.padding(bottom = MiniPlayerHeight + 16.dp)
                 ) {
                     Icon(Icons.Filled.PlayArrow, "Reproducir álbum")
@@ -196,7 +197,7 @@ fun AlbumDetailScreen(
                                 song = song,
                                 isPlaying = false, // TODO: playerViewModel.stablePlayerState.currentSong?.id == song.id,
                                 onMoreOptionsClick = { /* TODO: Mostrar menú de opciones */ },
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                                //modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                                 onClick = { /* TODO: playerViewModel.showAndPlaySong(song, songs) */ }
                             )
                         }
