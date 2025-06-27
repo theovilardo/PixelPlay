@@ -5,8 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Song
-import com.theveloper.pixelplay.domain.usecase.GetAlbumDetailsUseCase
-import com.theveloper.pixelplay.domain.usecase.GetSongsForAlbumUseCase
+import com.theveloper.pixelplay.data.repository.MusicRepository // Importar MusicRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,53 +23,93 @@ data class AlbumDetailUiState(
 
 @HiltViewModel
 class AlbumDetailViewModel @Inject constructor(
-    private val getAlbumDetailsUseCase: GetAlbumDetailsUseCase, // Se creará/inyectará después
-    private val getSongsForAlbumUseCase: GetSongsForAlbumUseCase, // Se creará/inyectará después
+    private val musicRepository: MusicRepository, // Inyectar MusicRepository
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AlbumDetailUiState())
     val uiState: StateFlow<AlbumDetailUiState> = _uiState.asStateFlow()
 
-    private val albumId: String? = savedStateHandle.get<String>("albumId")
+    private val albumIdString: String? = savedStateHandle.get<String>("albumId")
 
     init {
-        albumId?.let {
-            loadAlbumData(it)
+        albumIdString?.let { idStr ->
+            val idLong = idStr.toLongOrNull()
+            if (idLong != null) {
+                loadAlbumData(idLong)
+            } else {
+                _uiState.update { it.copy(error = "Album ID inválido: $idStr", isLoading = false) }
+            }
         } ?: run {
-            _uiState.update { it.copy(error = "Album ID no encontrado", isLoading = false) }
+            _uiState.update { it.copy(error = "Album ID no encontrado en SavedStateHandle", isLoading = false) }
         }
     }
 
-    private fun loadAlbumData(id: String) {
+    private fun loadAlbumData(id: Long) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             try {
-                // Simulación de carga - Reemplazar con llamadas a casos de uso reales
-                // val albumDetails = getAlbumDetailsUseCase(id)
-                // val albumSongs = getSongsForAlbumUseCase(id)
+                // Simulación de llamadas al MusicRepository
+                // En un caso real:
+                // val albumDetails = musicRepository.getAlbumDetails(id).first()
+                // val albumSongs = musicRepository.getSongsForAlbum(id).first()
 
-                // Datos de placeholder mientras no tengamos los casos de uso
+                // --- Inicio de Datos de Placeholder Corregidos ---
                 val placeholderAlbum = Album(
-                    id = id,
+                    id = id, // Usa el Long ID
                     title = "Nombre del Álbum Cargado",
-                    artist = "Artista Cargado",
-                    albumArtUriString = "https.via.placeholder.com/600/771796", // Otra imagen
-                    songCount = 2
+                    artist = "Artista del Álbum Cargado",
+                    albumArtUriString = "content://media/external/audio/albumart/$id", // URI de ejemplo
+                    songCount = 2 // Actualizar si la lista de canciones cambia
                 )
+
                 val placeholderSongs = listOf(
-                    Song(id = "s1", title = "Canción Cargada 1", artist = "Artista Cargado", album = placeholderAlbum.title, duration = 190000, path = "", albumId = id, albumArtUriString = placeholderAlbum.albumArtUriString),
-                    Song(id = "s2", title = "Canción Cargada 2", artist = "Artista Cargado", album = placeholderAlbum.title, duration = 210000, path = "", albumId = id, albumArtUriString = placeholderAlbum.albumArtUriString)
+                    Song(
+                        id = "song_1_${id}", // ID único de canción
+                        title = "Canción Cargada 1",
+                        artist = placeholderAlbum.artist,
+                        artistId = 101L, // Placeholder artistId
+                        album = placeholderAlbum.title,
+                        albumId = id, // ID del álbum actual
+                        contentUriString = "content://media/external/audio/media/song_1_${id}", // URI de ejemplo
+                        albumArtUriString = placeholderAlbum.albumArtUriString,
+                        duration = 190000L, // Long
+                        genre = "Pop"
+                    ),
+                    Song(
+                        id = "song_2_${id}",
+                        title = "Canción Cargada 2",
+                        artist = placeholderAlbum.artist,
+                        artistId = 101L, // Placeholder artistId
+                        album = placeholderAlbum.title,
+                        albumId = id,
+                        contentUriString = "content://media/external/audio/media/song_2_${id}",
+                        albumArtUriString = placeholderAlbum.albumArtUriString,
+                        duration = 210000L, // Long
+                        genre = "Rock"
+                    )
                 )
+                // --- Fin de Datos de Placeholder Corregidos ---
+
+                // Simular una pequeña demora como si fuera una llamada de red/DB
+                kotlinx.coroutines.delay(500)
 
                 _uiState.update {
                     it.copy(
-                        album = placeholderAlbum, // albumDetails
-                        songs = placeholderSongs, // albumSongs
+                        album = placeholderAlbum,
+                        songs = placeholderSongs,
                         isLoading = false
                     )
                 }
-            } catch (e: Exception) {
+
+            } catch (e: NumberFormatException) {
+                 _uiState.update {
+                    it.copy(
+                        error = "Error de formato en Album ID: ${e.localizedMessage}",
+                        isLoading = false
+                    )
+                }
+            }catch (e: Exception) {
                 _uiState.update {
                     it.copy(
                         error = "Error al cargar datos del álbum: ${e.localizedMessage}",

@@ -50,6 +50,8 @@ import com.theveloper.pixelplay.presentation.components.SmartImage
 // Importando EnhancedSongListItem de LibraryScreen
 import com.theveloper.pixelplay.presentation.screens.EnhancedSongListItem
 // import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel // Se añadirá
+import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import com.theveloper.pixelplay.presentation.viewmodel.AlbumDetailViewModel
 // import com.theveloper.pixelplay.presentation.viewmodel.AlbumDetailViewModel // Se creará después
 
 
@@ -61,8 +63,8 @@ import com.theveloper.pixelplay.presentation.screens.EnhancedSongListItem
 fun AlbumDetailScreen(
     albumId: String, // albumId se sigue pasando para posible uso directo si es necesario, o para el ViewModel
     navController: NavController,
-    playerViewModel: com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel, // Especificar el paquete completo
-    viewModel: com.theveloper.pixelplay.presentation.viewmodel.AlbumDetailViewModel = hiltViewModel()
+    playerViewModel: PlayerViewModel,
+    viewModel: AlbumDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val album = uiState.album
