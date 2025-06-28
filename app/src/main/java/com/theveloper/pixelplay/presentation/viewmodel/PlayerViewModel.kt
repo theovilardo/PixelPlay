@@ -1569,6 +1569,7 @@ class PlayerViewModel @Inject constructor(
         } else if (!suppressDefaultToast && wasAnythingActive) {
             viewModelScope.launch { _toastEvents.emit("Timer cancelled.") }
         }
+    }
 
     fun dismissPlaylistAndShowUndo() {
         viewModelScope.launch {
@@ -1664,7 +1665,6 @@ class PlayerViewModel @Inject constructor(
                 _playerUiState.update { it.copy(showDismissUndoBar = false) }
             }
         }
-    }
     }
 
     fun getSongUrisForGenre(genreName: String): List<String> {

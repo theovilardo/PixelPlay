@@ -55,6 +55,7 @@ import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
@@ -95,13 +96,13 @@ import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.navigation.BottomNavItem
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
-import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 
 // Definir un CompositionLocal para el tema del álbum
 import com.theveloper.pixelplay.utils.formatDuration
@@ -882,7 +883,7 @@ fun UnifiedPlayerSheet(
         exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut(),
         modifier = Modifier
             .fillMaxWidth() // Ensure it takes full width
-            .align(Alignment.BottomCenter) // This alignment works if parent is a Box filling max size.
+            //.align(Alignment.BottomCenter) // This alignment works if parent is a Box filling max size.
                                            // If UnifiedPlayerSheet is not in such a box at call site, this might need adjustment.
                                            // For now, assuming it's placed in a structure that allows bottom alignment.
     ) {
