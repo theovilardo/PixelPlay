@@ -20,6 +20,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -588,6 +589,25 @@ fun UnifiedPlayerSheet(
                                 )
                             )
                             .clipToBounds()
+                            // Horizontal Drag gesture for dismissal
+                            .pointerInput(playerViewModel, showPlayerContentArea, configuration, density) { // Add keys
+                                if (!showPlayerContentArea) return@pointerInput
+                                var accumulatedDragX = 0f
+                                detectHorizontalDragGestures(
+                                    onDragStart = { accumulatedDragX = 0f },
+                                    onHorizontalDrag = { change, dragAmount ->
+                                        change.consume()
+                                        accumulatedDragX += dragAmount
+                                    },
+                                    onDragEnd = {
+                                        val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
+                                        // Dismiss if swiped left by more than 40% of screen width
+                                        if (accumulatedDragX < - (screenWidthPx * 0.4f)) {
+                                            playerViewModel.dismissPlaylistAndShowUndo() // Updated function name
+                                        }
+                                    }
+                                )
+                            }
                             // NUEVO: Gestos aplicados solo al área del player
                             .pointerInput(
                                 showPlayerContentArea,
@@ -853,6 +873,24 @@ fun UnifiedPlayerSheet(
                 }
             }
         }
+    }
+
+    // Dismiss Undo Bar - Placed to appear at the bottom, potentially overlapping or replacing mini-player space
+    AnimatedVisibility(
+        visible = playerUiState.showDismissUndoBar,
+        enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
+        exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut(),
+        modifier = Modifier
+            .fillMaxWidth() // Ensure it takes full width
+            .align(Alignment.BottomCenter) // This alignment works if parent is a Box filling max size.
+                                           // If UnifiedPlayerSheet is not in such a box at call site, this might need adjustment.
+                                           // For now, assuming it's placed in a structure that allows bottom alignment.
+    ) {
+        DismissUndoBar(
+            onUndo = { playerViewModel.undoDismissPlaylist() },
+            durationMillis = playerUiState.undoBarVisibleDuration,
+            modifier = Modifier.padding(bottom = collapsedStateBottomMargin) // Adjust padding as needed
+        )
     }
 
     // Queue bottom sheet
@@ -1540,5 +1578,58 @@ fun ToggleSegmentButton(
             tint = if (active) activeContentColor else LocalMaterialTheme.current.primary,
             modifier = Modifier.size(24.dp)
         )
+    }
+}
+
+@Composable
+fun DismissUndoBar(
+    modifier: Modifier = Modifier,
+    onUndo: () -> Unit,
+    durationMillis: Long
+) {
+    var progress by remember { mutableFloatStateOf(1f) }
+
+    LaunchedEffect(Unit) {
+        val startTime = System.currentTimeMillis()
+        while (System.currentTimeMillis() < startTime + durationMillis && progress > 0f) {
+            progress = 1f - (System.currentTimeMillis() - startTime).toFloat() / durationMillis
+            delay(16) // ~60 fps
+        }
+        progress = 0f
+    }
+
+    Surface( // Use Surface for background color and elevation if needed
+        modifier = modifier
+            .fillMaxWidth()
+            .height(MiniPlayerHeight), // Same height as mini player
+        color = MaterialTheme.colorScheme.surfaceVariant, // Or a custom color
+        tonalElevation = 4.dp // Optional elevation
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "Playlist Dismissed",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                TextButton(onClick = onUndo) {
+                    Text("Undo", color = MaterialTheme.colorScheme.primary)
+                }
+            }
+            // Progress Line
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth(fraction = progress.coerceIn(0f,1f))
+                    .height(2.dp)
+                    .background(MaterialTheme.colorScheme.primary)
+            )
+        }
     }
 }

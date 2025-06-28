@@ -123,7 +123,15 @@ data class PlayerUiState(
     val searchResults: ImmutableList<SearchResultItem> = persistentListOf(),
     val selectedSearchFilter: SearchFilterType = SearchFilterType.ALL,
     val searchHistory: ImmutableList<SearchHistoryItem> = persistentListOf(),
-    val isSyncingLibrary: Boolean = false // Nuevo estado para la sincronización
+    val isSyncingLibrary: Boolean = false, // Nuevo estado para la sincronización
+
+    // State for dismiss/undo functionality
+    val showDismissUndoBar: Boolean = false,
+    val dismissedSong: Song? = null,
+    val dismissedQueue: ImmutableList<Song> = persistentListOf(),
+    val dismissedQueueName: String = "",
+    val dismissedPosition: Long = 0L,
+    val undoBarVisibleDuration: Long = 4000L // 4 seconds
 )
 
 @HiltViewModel
@@ -1561,6 +1569,102 @@ class PlayerViewModel @Inject constructor(
         } else if (!suppressDefaultToast && wasAnythingActive) {
             viewModelScope.launch { _toastEvents.emit("Timer cancelled.") }
         }
+
+    fun dismissPlaylistAndShowUndo() {
+        viewModelScope.launch {
+            val songToDismiss = _stablePlayerState.value.currentSong
+            val queueToDismiss = _playerUiState.value.currentPlaybackQueue
+            val queueNameToDismiss = _playerUiState.value.currentQueueSourceName
+            val positionToDismiss = _playerUiState.value.currentPosition
+
+            if (songToDismiss == null && queueToDismiss.isEmpty()) {
+                // Nothing to dismiss
+                return@launch
+            }
+
+            Log.d("PlayerViewModel", "Dismissing playlist. Song: ${songToDismiss?.title}, Queue size: ${queueToDismiss.size}")
+
+            // Store state for potential undo
+            _playerUiState.update {
+                it.copy(
+                    dismissedSong = songToDismiss,
+                    dismissedQueue = queueToDismiss,
+                    dismissedQueueName = queueNameToDismiss,
+                    dismissedPosition = positionToDismiss,
+                    showDismissUndoBar = true
+                )
+            }
+
+            // Stop playback and clear current player state
+            mediaController?.stop() // This should also clear Media3's playlist
+            mediaController?.clearMediaItems() // Ensure items are cleared
+
+            _stablePlayerState.update {
+                it.copy(
+                    currentSong = null,
+                    isPlaying = false,
+                    totalDuration = 0L,
+                    isCurrentSongFavorite = false
+                )
+            }
+            _playerUiState.update {
+                it.copy(
+                    currentPosition = 0L,
+                    currentPlaybackQueue = persistentListOf(),
+                    currentQueueSourceName = ""
+                )
+            }
+            _isSheetVisible.value = false // Hide the player sheet
+
+            // Launch timer to hide the undo bar
+            launch {
+                delay(_playerUiState.value.undoBarVisibleDuration)
+                // Only hide if it's still showing (i.e., undo wasn't pressed)
+                if (_playerUiState.value.showDismissUndoBar) {
+                    _playerUiState.update { it.copy(showDismissUndoBar = false, dismissedSong = null, dismissedQueue = persistentListOf()) }
+                }
+            }
+        }
+    }
+
+    fun undoDismissPlaylist() {
+        viewModelScope.launch {
+            val songToRestore = _playerUiState.value.dismissedSong
+            val queueToRestore = _playerUiState.value.dismissedQueue
+            val queueNameToRestore = _playerUiState.value.dismissedQueueName
+            val positionToRestore = _playerUiState.value.dismissedPosition
+
+            if (songToRestore != null && queueToRestore.isNotEmpty()) {
+                // Restore the playlist and song
+                playSongs(queueToRestore.toList(), songToRestore, queueNameToRestore) // playSongs handles setting media items and playing
+
+                // Seek to the original position after media is prepared
+                // Need to observe player state or add a callback to know when it's safe to seek.
+                // For simplicity, adding a small delay, but a more robust solution would be better.
+                delay(500) // Small delay to allow player to prepare
+                mediaController?.seekTo(positionToRestore)
+
+
+                _playerUiState.update {
+                    it.copy(
+                        showDismissUndoBar = false, // Hide undo bar
+                        dismissedSong = null,
+                        dismissedQueue = persistentListOf(),
+                        dismissedQueueName = "",
+                        dismissedPosition = 0L
+                    )
+                }
+                _isSheetVisible.value = true // Ensure player sheet is visible again
+                _sheetState.value = PlayerSheetState.COLLAPSED // Start collapsed
+
+                Log.d("PlayerViewModel", "Playlist restored. Song: ${songToRestore.title}")
+                _toastEvents.emit("Playlist restored")
+            } else {
+                // Nothing to restore, hide bar anyway
+                _playerUiState.update { it.copy(showDismissUndoBar = false) }
+            }
+        }
+    }
     }
 
     fun getSongUrisForGenre(genreName: String): List<String> {
