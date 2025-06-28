@@ -18,7 +18,7 @@ sealed class Screen(val route: String) {
     }
 
     // La ruta base es "album_detail". La ruta completa con el argumento se define en AppNavigation.
-    object AlbumDetail : Screen("album_detail") {
+    object AlbumDetail : Screen("album_detail/{albumId}") {
         // Función de ayuda para construir la ruta de navegación con el ID del álbum.
         fun createRoute(albumId: Long) = "$route/$albumId"
     }
