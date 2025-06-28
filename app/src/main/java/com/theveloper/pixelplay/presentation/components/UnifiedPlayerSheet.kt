@@ -20,6 +20,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -54,6 +55,7 @@ import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
@@ -61,6 +63,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -94,13 +97,13 @@ import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.navigation.BottomNavItem
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
-import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 
 // Definir un CompositionLocal para el tema del álbum
 import com.theveloper.pixelplay.utils.formatDuration
@@ -171,6 +174,19 @@ fun UnifiedPlayerSheet(
     val configuration = LocalConfiguration.current
     val scope = rememberCoroutineScope()
 
+    // State for horizontal drag offset of the miniplayer
+    var horizontalDragOffset by remember { mutableFloatStateOf(0f) }
+
+    val screenWidthPx = remember(configuration, density) { with(density) { configuration.screenWidthDp.dp.toPx() } }
+    val dismissThresholdPx = remember(screenWidthPx) { screenWidthPx * 0.4f }
+
+    val swipeDismissProgress = remember(horizontalDragOffset, dismissThresholdPx) {
+        derivedStateOf {
+            if (dismissThresholdPx == 0f) 0f
+            else (abs(horizontalDragOffset) / dismissThresholdPx).coerceIn(0f, 1f)
+        }
+    }
+
     val screenHeightPx = remember(configuration) { with(density) { configuration.screenHeightDp.dp.toPx() } }
     val miniPlayerContentHeightPx = remember { with(density) { MiniPlayerHeight.toPx() } }
     val navBarHeightPx = remember(density, NavBarPersistentHeight) { with(density) { NavBarPersistentHeight.toPx() } }
@@ -178,6 +194,12 @@ fun UnifiedPlayerSheet(
     remember { with(density) { CollapsedPlayerContentSpacerHeight.toPx() } }
 
     val showPlayerContentArea by remember { derivedStateOf { stablePlayerState.currentSong != null } }
+
+    val isPlayerSlotOccupied by remember(showPlayerContentArea, playerUiState.showDismissUndoBar) {
+        derivedStateOf {
+            showPlayerContentArea || playerUiState.showDismissUndoBar
+        }
+    }
 
     val playerContentExpansionFraction = remember { Animatable(0f) }
     LaunchedEffect(showPlayerContentArea, currentSheetContentState) {
@@ -198,17 +220,31 @@ fun UnifiedPlayerSheet(
     val playerContentAreaActualHeightDp = with(density) { playerContentAreaActualHeightPx.toDp() }
 
     // MEJORADO: Cálculo de altura total considerando navbar oculta
-    val totalSheetHeightWhenContentCollapsedPx = remember(showPlayerContentArea, hideNavBar, miniPlayerAndSpacerHeightPx, navBarHeightPx) {
-        val playerHeight = if (showPlayerContentArea) miniPlayerAndSpacerHeightPx else 0f
+    val totalSheetHeightWhenContentCollapsedPx = remember(
+        isPlayerSlotOccupied, // MODIFIED: Use combined state
+        hideNavBar,
+        miniPlayerAndSpacerHeightPx,
+        navBarHeightPx
+    ) {
+        val playerSlotHeightContribution = if (isPlayerSlotOccupied) miniPlayerAndSpacerHeightPx else 0f
         val navHeight = if (hideNavBar) 0f else navBarHeightPx
-        playerHeight + navHeight
+        playerSlotHeightContribution + navHeight
     }
 
-    val animatedTotalSheetHeightPx by remember(showPlayerContentArea, playerContentExpansionFraction, screenHeightPx, totalSheetHeightWhenContentCollapsedPx) {
+    val animatedTotalSheetHeightPx by remember(
+        isPlayerSlotOccupied, // MODIFIED
+        playerContentExpansionFraction,
+        screenHeightPx,
+        totalSheetHeightWhenContentCollapsedPx
+    ) {
         derivedStateOf {
-            if (showPlayerContentArea) {
+            if (isPlayerSlotOccupied) { // If player slot is occupied (by player OR undo bar)
+                // When undo bar is shown, playerContentExpansionFraction should be 0.
+                // The lerp should effectively be totalSheetHeightWhenContentCollapsedPx.
                 lerp(totalSheetHeightWhenContentCollapsedPx, screenHeightPx, playerContentExpansionFraction.value)
-            } else { navBarHeightPx }
+            } else { // Neither player nor undo bar is shown
+                navBarHeightPx
+            }
         }
     }
 
@@ -302,37 +338,50 @@ fun UnifiedPlayerSheet(
     // CORREGIDO: Animación de esquinas redondeadas basada en la fracción de expansión
     val playerContentActualBottomRadiusTargetValue by remember(
         hideNavBar,
+        hideNavBar,
         showPlayerContentArea,
         playerContentExpansionFraction,
         stablePlayerState.isPlaying,
         stablePlayerState.currentSong,
         predictiveBackCollapseProgress,
-        currentSheetContentState
+        currentSheetContentState,
+        swipeDismissProgress.value // ADDED DEPENDENCY
     ) {
         derivedStateOf {
-            // Check if a predictive back gesture is in progress on an expanded sheet
-            if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                val expandedRadius = if (hideNavBar) 32.dp else 26.dp // Value when playerContentExpansionFraction is 1f (fully expanded)
-                val collapsedRadiusTarget = if (hideNavBar) 32.dp else 12.dp // Value when playerContentExpansionFraction is 0f (collapsed)
+            val calculatedNormally = if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
+                val expandedRadius = if (hideNavBar) 32.dp else 26.dp
+                val collapsedRadiusTarget = if (hideNavBar) 32.dp else 12.dp
                 lerp(expandedRadius, collapsedRadiusTarget, predictiveBackCollapseProgress)
             } else {
-                // Original logic when not in predictive back or sheet not expanded
                 if (hideNavBar) {
                     32.dp
                 } else if (showPlayerContentArea) {
                     val fraction = playerContentExpansionFraction.value
                     if (fraction < 0.2f) {
                         lerp(12.dp, 26.dp, (fraction / 0.2f).coerceIn(0f, 1f))
-                    } else { // After 20% expansion or fully expanded
+                    } else {
                         26.dp
                     }
-                } else { // Player area not shown (mini-player state or no song)
+                } else {
                     if (!stablePlayerState.isPlaying || stablePlayerState.currentSong == null) {
-                        PlayerSheetCollapsedCornerRadius // Or a specific value like 32.dp or 12.dp if that's the design
+                        PlayerSheetCollapsedCornerRadius
                     } else {
-                        12.dp // Default collapsed mini-player bottom radius
+                        12.dp
                     }
                 }
+            }
+
+            // Apply swipe modification if collapsed and swiping
+            if (currentSheetContentState == PlayerSheetState.COLLAPSED &&
+                swipeDismissProgress.value > 0f &&
+                !hideNavBar &&
+                showPlayerContentArea &&
+                playerContentExpansionFraction.value < 0.01f // Ensure it's truly collapsed (allow small tolerance for float comparison)
+            ) {
+                val baseCollapsedRadius = 12.dp // This is the normal radius for a collapsed miniplayer bottom (!hideNavBar)
+                lerp(baseCollapsedRadius, PlayerSheetCollapsedCornerRadius, swipeDismissProgress.value)
+            } else {
+                calculatedNormally
             }
         }
     }
@@ -346,15 +395,39 @@ fun UnifiedPlayerSheet(
         label = "PlayerContentBottomRadius"
     )
 
+    val navBarActualTopRadiusTarget by remember(
+        showPlayerContentArea, playerContentExpansionFraction,
+        currentSheetContentState, swipeDismissProgress.value,
+        hideNavBar // Added for consistency with playerContentActualBottomRadiusTargetValue conditions
+    ) {
+        derivedStateOf {
+            val calculatedNormally = if (showPlayerContentArea) {
+                val fraction = playerContentExpansionFraction.value
+                if (fraction < 0.2f) {
+                    lerp(12.dp, 18.dp, (fraction / 0.2f).coerceIn(0f, 1f))
+                } else {
+                    18.dp
+                }
+            } else {
+                12.dp
+            }
+
+            if (currentSheetContentState == PlayerSheetState.COLLAPSED &&
+                swipeDismissProgress.value > 0f &&
+                !hideNavBar &&
+                showPlayerContentArea &&
+                playerContentExpansionFraction.value < 0.01f // Ensure it's truly collapsed
+            ) {
+                val baseCollapsedRadius = 12.dp // Normal radius for navbar top when miniplayer is collapsed
+                lerp(baseCollapsedRadius, PlayerSheetCollapsedCornerRadius, swipeDismissProgress.value)
+            } else {
+                calculatedNormally
+            }
+        }
+    }
+
     val navBarActualTopRadius by animateDpAsState(
-        targetValue = if (showPlayerContentArea) {
-            // Usar interpolación suave basada en la fracción de expansión
-            val fraction = playerContentExpansionFraction.value
-            if (fraction < 0.2f) {
-                // Interpolar de 12dp a 0dp en los primeros 20% de la expansión
-                lerp(12.dp, 18.dp, (fraction / 0.2f).coerceIn(0f, 1f))
-            } else { 18.dp }
-        } else { 12.dp },
+        targetValue = navBarActualTopRadiusTarget.value.dp, // Use .value from derivedStateOf
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMedium
@@ -560,13 +633,91 @@ fun UnifiedPlayerSheet(
                 modifier = Modifier
                     .fillMaxSize()
             ) {
-                // Example of internal structure (should match existing content):
-                if (showPlayerContentArea) {
+                // Player Content Area OR Dismiss Undo Bar
+                if (playerUiState.showDismissUndoBar) {
+                    AnimatedVisibility(
+                        visible = true, // Controlled by the outer if-condition now
+                        enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
+                        exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut(),
+                        modifier = Modifier
+                            .padding(horizontal = currentHorizontalPadding) // Match miniplayer padding
+                            .height(MiniPlayerHeight) // Ensure this space is reserved in the Column
+                    ) {
+                        DismissUndoBar(
+                            onUndo = {
+                                playerViewModel.undoDismissPlaylist()
+                                // Potentially manually hide here if state doesn't auto-clear fast enough,
+                                // though ViewModel should handle showDismissUndoBar state.
+                            },
+                            durationMillis = playerUiState.undoBarVisibleDuration,
+                            modifier = Modifier.height(MiniPlayerHeight) // Ensure it takes up miniplayer height
+                                             // Removed .padding(bottom = collapsedStateBottomMargin) as position is now in Column
+                        )
+                    }
+                } else if (showPlayerContentArea) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
+                            // Horizontal Drag gesture for dismissal - MOVED BEFORE PADDING
+                            .pointerInput(playerViewModel, showPlayerContentArea, currentSheetContentState, configuration, density, scope) {
+                                // Only allow swipe to dismiss when content is shown and sheet is collapsed
+                                if (!showPlayerContentArea || currentSheetContentState != PlayerSheetState.COLLAPSED) {
+                                    // Ensure offset is reset if state is not allowing dismissal
+                                    if (horizontalDragOffset != 0f) horizontalDragOffset = 0f
+                                    return@pointerInput
+                                }
+
+                                var accumulatedDragX = 0f // Local to this gesture cycle
+
+                                detectHorizontalDragGestures(
+                                    onDragStart = {
+                                        accumulatedDragX = 0f
+                                        // horizontalDragOffset is already managed, no need to reset here unless specific logic dictates
+                                    },
+                                    onHorizontalDrag = { change, dragAmount ->
+                                        change.consume()
+                                        accumulatedDragX += dragAmount
+                                        // Update visual offset, allow dragging left and right
+                                        horizontalDragOffset += dragAmount
+                                    },
+                                    onDragEnd = {
+                                        val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
+                                        val dismissThreshold = screenWidthPx * 0.4f // Same threshold for both directions
+                                        val currentVisualOffset = horizontalDragOffset
+
+                                        // Check for dismissal based on absolute accumulated drag
+                                        if (abs(accumulatedDragX) > dismissThreshold) {
+                                            val targetDismissOffset = if (accumulatedDragX < 0) -screenWidthPx else screenWidthPx // Target left or right
+                                            scope.launch {
+                                                Animatable(currentVisualOffset).animateTo(
+                                                    targetValue = targetDismissOffset,
+                                                    animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                                                ) { horizontalDragOffset = value }
+                                                playerViewModel.dismissPlaylistAndShowUndo()
+                                                horizontalDragOffset = 0f // Reset after dismissal
+                                                accumulatedDragX = 0f
+                                            }
+                                        } else { // Snap back
+                                            scope.launch {
+                                                Animatable(currentVisualOffset).animateTo(
+                                                    targetValue = 0f,
+                                                    animationSpec = spring(
+                                                        dampingRatio = Spring.DampingRatioNoBouncy,
+                                                        stiffness = Spring.StiffnessMedium
+                                                    )
+                                                ) { horizontalDragOffset = value }
+                                                // horizontalDragOffset will be 0f due to animation
+                                                accumulatedDragX = 0f // Reset accumulated drag
+                                            }
+                                        }
+                                    }
+                                )
+                            }
                             .padding(horizontal = currentHorizontalPadding)
                             .height(playerContentAreaActualHeightDp)
+                            .graphicsLayer { // Apply translation for swipe animation
+                                translationX = horizontalDragOffset
+                            }
                             // NUEVO: Aplicar shadow antes del background
                             .shadow(
                                 elevation = playerAreaElevation,
@@ -775,9 +926,10 @@ fun UnifiedPlayerSheet(
                     }
                 }
 
-                // Spacer entre player y navigation bar (solo visible cuando colapsado y hay contenido de player)
-                // This Spacer is relevant only when the NavBar is potentially visible and there's content.
-                if (showPlayerContentArea && !hideNavBar) {
+                // Spacer entre player/undobar y navigation bar
+                // Visible if the slot above navbar is occupied AND navbar is not hidden
+                val isPlayerOrUndoBarVisible = showPlayerContentArea || playerUiState.showDismissUndoBar
+                if (isPlayerOrUndoBarVisible && !hideNavBar) {
                     val spacerTargetHeight = lerp(
                         start = CollapsedPlayerContentSpacerHeight,
                         stop = 0.dp,
@@ -854,6 +1006,8 @@ fun UnifiedPlayerSheet(
             }
         }
     }
+
+    // Dismiss Undo Bar - MOVED into the main Column structure above
 
     // Queue bottom sheet
     if (showQueueSheet && !internalIsKeyboardVisible) { // Use internalIsKeyboardVisible
@@ -1540,5 +1694,59 @@ fun ToggleSegmentButton(
             tint = if (active) activeContentColor else LocalMaterialTheme.current.primary,
             modifier = Modifier.size(24.dp)
         )
+    }
+}
+
+@Composable
+fun DismissUndoBar(
+    modifier: Modifier = Modifier,
+    onUndo: () -> Unit,
+    durationMillis: Long
+) {
+    var progress by remember { mutableFloatStateOf(1f) }
+
+    LaunchedEffect(Unit) {
+        val startTime = System.currentTimeMillis()
+        while (System.currentTimeMillis() < startTime + durationMillis && progress > 0f) {
+            progress = 1f - (System.currentTimeMillis() - startTime).toFloat() / durationMillis
+            delay(16) // ~60 fps
+        }
+        progress = 0f
+    }
+
+    Surface( // Use Surface for background color and elevation if needed
+        modifier = modifier
+            .fillMaxWidth()
+            .height(MiniPlayerHeight), // Same height as mini player
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceVariant, // Or a custom color
+        tonalElevation = 4.dp // Optional elevation
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "Playlist Dismissed",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                TextButton(onClick = onUndo) {
+                    Text("Undo", color = MaterialTheme.colorScheme.primary)
+                }
+            }
+            // Progress Line
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth(fraction = progress.coerceIn(0f,1f))
+                    .height(2.dp)
+                    .background(MaterialTheme.colorScheme.primary)
+            )
+        }
     }
 }
