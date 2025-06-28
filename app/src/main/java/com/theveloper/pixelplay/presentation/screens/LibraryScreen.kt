@@ -740,6 +740,7 @@ fun LibrarySongsTab(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun EnhancedSongListItem(
+    modifier: Modifier = Modifier,
     song: Song,
     isPlaying: Boolean,
     onMoreOptionsClick: (Song) -> Unit, // Added parameter
@@ -771,7 +772,7 @@ fun EnhancedSongListItem(
     )
 
     Surface(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(
                 surfaceShape

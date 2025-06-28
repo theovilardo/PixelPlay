@@ -2,21 +2,49 @@ package com.theveloper.pixelplay.presentation.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LargeFloatingActionButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MediumFloatingActionButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
@@ -24,113 +52,382 @@ import androidx.compose.material3.TopAppBarDefaults.topAppBarColors
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
+import com.theveloper.pixelplay.presentation.components.AlbumArtCollage
 import com.theveloper.pixelplay.presentation.components.DailyMixHeader
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
+import com.theveloper.pixelplay.presentation.components.SmartImage
+import com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet
+import com.theveloper.pixelplay.presentation.components.ThreeShapeSwitch
+import com.theveloper.pixelplay.presentation.navigation.Screen
+import com.theveloper.pixelplay.presentation.viewmodel.MainViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import com.theveloper.pixelplay.utils.formatDuration
+import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.map
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DailyMixScreen(
-    onBackClick: () -> Unit,
+    mainViewModel: MainViewModel = hiltViewModel(),
     playerViewModel: PlayerViewModel,
-    paddingValuesParent: PaddingValues // Padding from MainLayout (for bottom nav bar)
+    navController: NavController
 ) {
-    val songs = playerViewModel.allSongsFlow.collectAsState() // uso todas pero deberia tener su propio mix
+    val dailyMixSongs: ImmutableList<Song> by playerViewModel.favoriteSongs.collectAsState()
+    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
     val playerSheetState by playerViewModel.sheetState.collectAsState()
-    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(rememberTopAppBarState())
+    val favoriteSongIds by playerViewModel.favoriteSongIds.collectAsState() // Collect favorite IDs
+    val lazyListState = rememberLazyListState()
 
-    // Observe current song to adjust bottom padding for mini player
-    val currentSong by playerViewModel.stablePlayerState
-        .map { it.currentSong }
-        .collectAsState(initial = null)
+    var showSongInfoSheet by remember { mutableStateOf(false) }
+    var selectedSongForInfo by remember { mutableStateOf<Song?>(null) }
+
+
+    val surfaceContainer = MaterialTheme.colorScheme.surface
+    val headerColor = MaterialTheme.colorScheme.primary
+    val backgroundBrush = remember(surfaceContainer, headerColor) {
+        Brush.verticalGradient(
+            colors = listOf(
+                headerColor.copy(alpha = 0.25f),
+                surfaceContainer.copy(alpha = 0.5f),
+                surfaceContainer
+            ),
+            endY = 1200f
+        )
+    }
 
     BackHandler(enabled = playerSheetState == PlayerSheetState.EXPANDED) {
         playerViewModel.collapsePlayerSheet()
     }
 
-    val bottomPaddingForMiniPlayer = if (currentSong != null) MiniPlayerHeight else 0.dp
+    // CORRECTION: Correctly implemented BottomSheet call with all parameters
+    if (showSongInfoSheet && selectedSongForInfo != null) {
+        val song = selectedSongForInfo!!
+        SongInfoBottomSheet(
+            song = song,
+            isFavorite = favoriteSongIds.contains(song.id),
+            onToggleFavorite = { playerViewModel.toggleFavoriteSpecificSong(song) },
+            onDismiss = { showSongInfoSheet = false },
+            onPlaySong = {
+                playerViewModel.showAndPlaySong(song, dailyMixSongs, "Daily Mix")
+                showSongInfoSheet = false
+            },
+            onAddToQueue = {
+                playerViewModel.addSongToQueue(song)
+                showSongInfoSheet = false
+            },
+            onNavigateToAlbum = {
+                // Assuming Screen object has a method to create a route
+                navController.navigate(Screen.AlbumDetail.createRoute(song.albumId))
+                showSongInfoSheet = false
+            },
+            onNavigateToArtist = {
+                // TODO: Implement navigation to artist screen. Might require finding artist by name.
+                showSongInfoSheet = false
+            }
+        )
+    }
 
-    Scaffold(
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .nestedScroll(scrollBehavior.nestedScrollConnection),
-        topBar = {
-            LargeTopAppBar(
-                title = {
-                    Text(
-                        "Daily Mix",
-                        // Material 3 LargeTopAppBar handles animating the text style (size, position)
-                        // as it collapses/expands. This should provide the smooth transition.
-                    )
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = {
-                            onBackClick()
-                        }
+            .background(backgroundBrush)
+    ) {
+        if (dailyMixSongs.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else {
+            LazyColumn(
+                state = lazyListState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = MiniPlayerHeight + 38.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                item {
+                    ExpressiveDailyMixHeader(songs = dailyMixSongs, scrollState = lazyListState)
+                }
+
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(76.dp)
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Back"
-                        )
+                        Button(
+                            onClick = {
+                                if (dailyMixSongs.isNotEmpty()) {
+                                    playerViewModel.playSongs(dailyMixSongs, dailyMixSongs.first(), "Daily Mix")
+                                    stablePlayerState.isShuffleEnabled.let { if(it) playerViewModel.toggleShuffle() } // Desactivar shuffle si estaba activo
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(76.dp),
+                            enabled = dailyMixSongs.isNotEmpty(),
+                            shape = AbsoluteSmoothCornerShape(
+                                cornerRadiusTL = 60.dp,
+                                smoothnessAsPercentTR = 60,
+                                cornerRadiusTR = 14.dp,
+                                smoothnessAsPercentTL = 60,
+                                cornerRadiusBL = 60.dp,
+                                smoothnessAsPercentBR = 60,
+                                cornerRadiusBR = 14.dp,
+                                smoothnessAsPercentBL = 60
+                            )
+                        ) {
+                            Icon(Icons.Filled.PlayArrow, contentDescription = "Play", modifier = Modifier.size(
+                                ButtonDefaults.IconSize))
+                            Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                            Text("Play it")
+                        }
+                        FilledTonalButton(
+                            onClick = {
+                                if (dailyMixSongs.isNotEmpty()) {
+                                    stablePlayerState.isShuffleEnabled.let { if(!it) playerViewModel.toggleShuffle() } // Activar shuffle si no estaba activo
+                                    playerViewModel.playSongs(dailyMixSongs, dailyMixSongs.random(), "Daily Mix")
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(76.dp),
+                            enabled = dailyMixSongs.isNotEmpty(),
+                            shape = AbsoluteSmoothCornerShape(
+                                cornerRadiusTL = 14.dp,
+                                smoothnessAsPercentTR = 60,
+                                cornerRadiusTR = 60.dp,
+                                smoothnessAsPercentTL = 60,
+                                cornerRadiusBL = 14.dp,
+                                smoothnessAsPercentBR = 60,
+                                cornerRadiusBR = 60.dp,
+                                smoothnessAsPercentBL = 60
+                            )
+                        ) {
+                            Icon(Icons.Filled.Shuffle, contentDescription = "Shuffle", modifier = Modifier.size(
+                                ButtonDefaults.IconSize))
+                            Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                            Text("Shuffle")
+                        }
                     }
-                },
-                scrollBehavior = scrollBehavior,
-                colors = topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface, // Or your desired color
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceVariant, // Color when collapsed
-                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                    actionIconContentColor = MaterialTheme.colorScheme.onSurface
-                )
+                }
+
+                items(dailyMixSongs, key = { it.id }) { song ->
+                    EnhancedSongListItem(
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp),
+                        song = song,
+                        isPlaying = stablePlayerState.currentSong?.id == song.id && stablePlayerState.isPlaying,
+                        onClick = { playerViewModel.showAndPlaySong(song, dailyMixSongs, "Daily Mix") },
+                        onMoreOptionsClick = {
+                            selectedSongForInfo = it
+                            showSongInfoSheet = true
+                        }
+                    )
+                }
+            }
+        }
+
+        FilledIconButton(
+            onClick = { navController.popBackStack() },
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface
+            ),
+            modifier = Modifier
+                .statusBarsPadding()
+                .padding(start = 10.dp, top = 8.dp)
+                .clip(CircleShape)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.ArrowBack,
+                contentDescription = "Volver"
             )
         }
-    ) { innerPaddingScaffold -> // Padding provided by Scaffold (for TopAppBar)
-        LazyColumn(
-            state = rememberLazyListState(),
+
+        // Bottom Gradient
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .height(80.dp)
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            MaterialTheme.colorScheme.surfaceContainerLowest.copy(0.5f),
+                            MaterialTheme.colorScheme.surfaceContainerLowest
+                        )
+                    )
+                )
+        ) {
+
+        }
+
+        //Top Gradient
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter)
+                .height(50.dp)
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.surfaceContainerLowest.copy(0.5f),
+                            Color.Transparent,
+                        )
+                    )
+                )
+        ) {
+
+        }
+    }
+}
+
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ExpressiveDailyMixHeader(
+    songs: List<Song>,
+    scrollState: LazyListState
+) {
+    val albumArts = remember(songs) { songs.map { it.albumArtUriString }.distinct().take(3) }
+    val totalDuration = remember(songs) { songs.sumOf { it.duration } }
+
+    val parallaxOffset by remember { derivedStateOf { if (scrollState.firstVisibleItemIndex == 0) scrollState.firstVisibleItemScrollOffset * 0.5f else 0f } }
+
+    // Animación de Alpha para el fade-out
+    val headerAlpha by remember {
+        derivedStateOf {
+            (1f - (scrollState.firstVisibleItemScrollOffset / 600f)).coerceIn(0f, 1f)
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(340.dp)
+            .graphicsLayer {
+                translationY = parallaxOffset
+                alpha = headerAlpha // Aplicar fade-out
+            }
+    ) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy((-80).dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                albumArts.forEachIndexed { index, artUrl ->
+                    val size = when (index) {
+                        0 -> 180.dp
+                        1 -> 220.dp
+                        2 -> 180.dp
+                        else -> 150.dp
+                    }
+                    val rotation = when (index) {
+                        0 -> -15f
+                        1 -> 0f
+                        2 -> 15f
+                        else -> 0f
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(size)
+                            .graphicsLayer { rotationZ = rotation }
+                            .clip(ThreeShapeSwitch(index))
+                            .border(3.dp, MaterialTheme.colorScheme.surface.copy(alpha = 0.5f), ThreeShapeSwitch(index))
+                    ) {
+                        SmartImage(
+                            model = artUrl ?: R.drawable.rounded_album_24,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
+            }
+        }
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .padding(top = innerPaddingScaffold.calculateTopPadding()), // Apply Scaffold's top padding
-            contentPadding = PaddingValues(
-                // Horizontal padding can be applied per item or globally here
-                start = 16.dp,
-                end = 16.dp,
-                // Bottom padding considers MainLayout's bottom bar AND the mini player
-                bottom = paddingValuesParent.calculateBottomPadding() + bottomPaddingForMiniPlayer + 16.dp // Extra space at the end
-            ),
-            verticalArrangement = Arrangement.spacedBy(8.dp) // Space between items
-        ) {
-            item {
-                // The DailyMixHeader as defined in your DailyMixCard, showing a few thumbnails
-                DailyMixHeader(
-                    thumbnails = songs.value.take(3).toImmutableList()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.1f),
+                            Color.Transparent,
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                            MaterialTheme.colorScheme.surface
+                        ),
+                        startY = 0f,
+                        endY = 900f
+                    )
                 )
-                // Spacer(Modifier.height(16.dp)) // Add space if DailyMixHeader doesn't have bottom margin
+        )
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 22.dp),
+            horizontalArrangement = Arrangement.Absolute.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(start = 6.dp),
+                verticalArrangement = Arrangement.Bottom,
+                horizontalAlignment = Alignment.Start
+            ) {
+                Text(
+                    text = "Daily Mix", style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "${songs.size} Songs • ${formatDuration(totalDuration)}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                )
             }
-
-            items(songs.value, key = { song -> song.id }) { song ->
-                SongListItemFavsWrapper(
-                    song = song,
-                    playerViewModel = playerViewModel,
-                    onClick = {
-                        playerViewModel.playSongs(
-                            songsToPlay = songs.value,
-                            startSong = song,
-                            queueName = "DailyMixScreenQueue" // Or a more descriptive queue name
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth() // SongListItemFavsWrapper might have its own padding
+            LargeFloatingActionButton(
+                modifier = Modifier,
+                onClick = {},
+                shape = RoundedStarShape(
+                    sides = 8,
+                    curve = 0.05,
+                    rotation = 0f
+                )
+            ) {
+                Icon(
+                    modifier = Modifier.size(20.dp),
+                    painter = painterResource(R.drawable.gemini_ai),
+                    contentDescription = "Play"
                 )
             }
         }

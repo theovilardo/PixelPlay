@@ -208,7 +208,7 @@ fun SongInfoBottomSheet(
                         try {
                             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                 type = "audio/*" // Tipo MIME para archivos de audio
-                                putExtra(Intent.EXTRA_STREAM, Uri.parse(song.contentUriString))
+                                putExtra(Intent.EXTRA_STREAM, song.contentUriString.toUri())
                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) // Necesario para URIs de contenido
                             }
                             // Inicia el chooser para que el usuario elija la app para compartir
@@ -264,7 +264,7 @@ fun SongInfoBottomSheet(
                     ListItem(
                         modifier = Modifier.clip(shape = listItemShape),
                         headlineContent = { Text("Genre") },
-                        supportingContent = { Text(song.genre!!) }, // Safe call si es nullOrEmpty
+                        supportingContent = { Text(song.genre) }, // Safe call si es nullOrEmpty
                         leadingContent = { Icon(Icons.Rounded.MusicNote, contentDescription = "Genre icon") }
                     )
                 }
