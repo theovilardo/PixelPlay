@@ -202,8 +202,7 @@ fun UnifiedPlayerSheet(
     }
 
     val playerContentExpansionFraction = remember { Animatable(0f) }
-    val visualOvershootScaleY = remember { Animatable(1f) } // For Y-axis scale overshoot
-    val currentTransformOrigin = remember { mutableStateOf(TransformOrigin.Center) }
+    val visualOvershootScaleY = remember { Animatable(1f) } // For Y-axis scale overshoot/undershoot
     val scope = rememberCoroutineScope() // Needed for launching the secondary animation
 
     LaunchedEffect(showPlayerContentArea, currentSheetContentState) {
@@ -217,9 +216,8 @@ fun UnifiedPlayerSheet(
         // After primary animation completes, trigger overshoot/undershoot effect
         if (showPlayerContentArea) { // Only if player is meant to be visible
             scope.launch {
-                if (targetFraction == 1f) { // Expanded
-                    currentTransformOrigin.value = TransformOrigin(0.5f, 1f) // Scale from bottom
-                    visualOvershootScaleY.snapTo(1f) // Reset before animation
+                visualOvershootScaleY.snapTo(1f) // Reset before animation
+                if (targetFraction == 1f) { // Expanded: Overshoot (stretch upwards)
                     visualOvershootScaleY.animateTo(
                         targetValue = 1f,
                         animationSpec = keyframes {
@@ -229,32 +227,28 @@ fun UnifiedPlayerSheet(
                             1.0f at 250 // Settle back to normal scale
                         }
                     )
-                } else { // Collapsed (targetFraction == 0f)
-                    currentTransformOrigin.value = TransformOrigin(0.5f, 0f) // Scale from top
-                    visualOvershootScaleY.snapTo(1f) // Reset before animation
+                } else { // Collapsed (targetFraction == 0f): Undershoot (squash downwards from top)
                     visualOvershootScaleY.animateTo(
                         targetValue = 1f,
                         animationSpec = keyframes {
                             durationMillis = 250
                             1.0f at 0
-                            1.05f at 125 // Adjusted: Overshoot downwards (stretch)
+                            0.95f at 125 // Undershoot target (makes top edge come down)
                             1.0f at 250
                         }
                     )
                 }
             }
         } else {
-            // If player content area is not shown, ensure scale is reset and origin is centered
+            // If player content area is not shown, ensure scale is reset
             scope.launch {
                 visualOvershootScaleY.snapTo(1f)
-                currentTransformOrigin.value = TransformOrigin.Center
             }
         }
     }
 
     val currentBottomPadding by remember(
         showPlayerContentArea,
-        // playerContentExpansionFraction, // Not strictly needed if bottom padding only driven by predictive back
         collapsedStateHorizontalPadding, // Target padding, same as horizontal for symmetry
         predictiveBackCollapseProgress,
         currentSheetContentState
@@ -779,7 +773,7 @@ fun UnifiedPlayerSheet(
                             .graphicsLayer { // Apply translation for swipe animation
                                 translationX = horizontalDragOffset
                                 scaleY = visualOvershootScaleY.value
-                                transformOrigin = currentTransformOrigin.value
+                                transformOrigin = TransformOrigin(0.5f, 1f) // Fixed origin at bottom center
                             }
                             // NUEVO: Aplicar shadow antes del background
                             .shadow(
