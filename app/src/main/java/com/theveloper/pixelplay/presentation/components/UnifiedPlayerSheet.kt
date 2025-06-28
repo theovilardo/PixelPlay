@@ -195,6 +195,12 @@ fun UnifiedPlayerSheet(
 
     val showPlayerContentArea by remember { derivedStateOf { stablePlayerState.currentSong != null } }
 
+    val isPlayerSlotOccupied by remember(showPlayerContentArea, playerUiState.showDismissUndoBar) {
+        derivedStateOf {
+            showPlayerContentArea || playerUiState.showDismissUndoBar
+        }
+    }
+
     val playerContentExpansionFraction = remember { Animatable(0f) }
     LaunchedEffect(showPlayerContentArea, currentSheetContentState) {
         val targetFraction = if (showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) 1f else 0f
@@ -214,17 +220,31 @@ fun UnifiedPlayerSheet(
     val playerContentAreaActualHeightDp = with(density) { playerContentAreaActualHeightPx.toDp() }
 
     // MEJORADO: Cálculo de altura total considerando navbar oculta
-    val totalSheetHeightWhenContentCollapsedPx = remember(showPlayerContentArea, hideNavBar, miniPlayerAndSpacerHeightPx, navBarHeightPx) {
-        val playerHeight = if (showPlayerContentArea) miniPlayerAndSpacerHeightPx else 0f
+    val totalSheetHeightWhenContentCollapsedPx = remember(
+        isPlayerSlotOccupied, // MODIFIED: Use combined state
+        hideNavBar,
+        miniPlayerAndSpacerHeightPx,
+        navBarHeightPx
+    ) {
+        val playerSlotHeightContribution = if (isPlayerSlotOccupied) miniPlayerAndSpacerHeightPx else 0f
         val navHeight = if (hideNavBar) 0f else navBarHeightPx
-        playerHeight + navHeight
+        playerSlotHeightContribution + navHeight
     }
 
-    val animatedTotalSheetHeightPx by remember(showPlayerContentArea, playerContentExpansionFraction, screenHeightPx, totalSheetHeightWhenContentCollapsedPx) {
+    val animatedTotalSheetHeightPx by remember(
+        isPlayerSlotOccupied, // MODIFIED
+        playerContentExpansionFraction,
+        screenHeightPx,
+        totalSheetHeightWhenContentCollapsedPx
+    ) {
         derivedStateOf {
-            if (showPlayerContentArea) {
+            if (isPlayerSlotOccupied) { // If player slot is occupied (by player OR undo bar)
+                // When undo bar is shown, playerContentExpansionFraction should be 0.
+                // The lerp should effectively be totalSheetHeightWhenContentCollapsedPx.
                 lerp(totalSheetHeightWhenContentCollapsedPx, screenHeightPx, playerContentExpansionFraction.value)
-            } else { navBarHeightPx }
+            } else { // Neither player nor undo bar is shown
+                navBarHeightPx
+            }
         }
     }
 
