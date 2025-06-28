@@ -206,7 +206,10 @@ fun UnifiedPlayerSheet(
         val targetFraction = if (showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) 1f else 0f
         playerContentExpansionFraction.animateTo(
             targetFraction,
-            animationSpec = tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioLowBouncy, // For a slight overshoot
+                stiffness = Spring.StiffnessMedium // Adjust as needed
+            )
         )
     }
 
@@ -244,6 +247,26 @@ fun UnifiedPlayerSheet(
                 lerp(totalSheetHeightWhenContentCollapsedPx, screenHeightPx, playerContentExpansionFraction.value)
             } else { // Neither player nor undo bar is shown
                 navBarHeightPx
+            }
+        }
+    }
+
+    val currentBottomPadding by remember(
+        showPlayerContentArea,
+        playerContentExpansionFraction, // Keep dependency if normal state should affect it
+        collapsedStateHorizontalPadding, // Target padding, same as horizontal for symmetry
+        predictiveBackCollapseProgress,
+        currentSheetContentState
+    ) {
+        derivedStateOf {
+            if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
+                // During predictive back (from expanded state), padding goes from 0.dp to collapsedStateHorizontalPadding
+                lerp(0.dp, collapsedStateHorizontalPadding, predictiveBackCollapseProgress)
+            } else {
+                // Default to 0.dp when not in predictive back collapse or sheet is not expanded.
+                // Or, if there's a normal bottom padding based on playerContentExpansionFraction, calculate it here.
+                // For now, assuming 0.dp for non-predictive-back scenarios unless specified otherwise.
+                0.dp
             }
         }
     }
@@ -442,12 +465,13 @@ fun UnifiedPlayerSheet(
         predictiveBackCollapseProgress // Add this dependency
     ) {
         derivedStateOf {
+            val expansionValue = playerContentExpansionFraction.value // Use the raw value for most calcs
             if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
                 // During predictive back (from expanded state), padding goes from 0.dp to collapsedStateHorizontalPadding
                 lerp(0.dp, collapsedStateHorizontalPadding, predictiveBackCollapseProgress)
             } else if (showPlayerContentArea) {
-                // Normal calculation based on expansion fraction
-                lerp(collapsedStateHorizontalPadding, 0.dp, playerContentExpansionFraction.value)
+                // Normal calculation based on expansion fraction, coerce to prevent negative padding due to overshoot
+                lerp(collapsedStateHorizontalPadding, 0.dp, expansionValue.coerceIn(0f, 1f))
             } else {
                 // Default when no content or not in predictive back
                 collapsedStateHorizontalPadding
@@ -632,6 +656,7 @@ fun UnifiedPlayerSheet(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .padding(bottom = currentBottomPadding.value) // Apply bottom padding here
             ) {
                 // Player Content Area OR Dismiss Undo Bar
                 if (playerUiState.showDismissUndoBar) {
