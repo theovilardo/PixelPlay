@@ -64,6 +64,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -172,6 +173,9 @@ fun UnifiedPlayerSheet(
     val density = LocalDensity.current
     val configuration = LocalConfiguration.current
     val scope = rememberCoroutineScope()
+
+    // State for horizontal drag offset of the miniplayer
+    var horizontalDragOffset by remember { mutableFloatStateOf(0f) }
 
     val screenHeightPx = remember(configuration) { with(density) { configuration.screenHeightDp.dp.toPx() } }
     val miniPlayerContentHeightPx = remember { with(density) { MiniPlayerHeight.toPx() } }
@@ -567,8 +571,64 @@ fun UnifiedPlayerSheet(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
+                            // Horizontal Drag gesture for dismissal - MOVED BEFORE PADDING
+                            .pointerInput(playerViewModel, showPlayerContentArea, currentSheetContentState, configuration, density, scope) {
+                                // Only allow swipe to dismiss when content is shown and sheet is collapsed
+                                if (!showPlayerContentArea || currentSheetContentState != PlayerSheetState.COLLAPSED) {
+                                    // Ensure offset is reset if state is not allowing dismissal
+                                    if (horizontalDragOffset != 0f) horizontalDragOffset = 0f
+                                    return@pointerInput
+                                }
+
+                                var accumulatedDragX = 0f // Local to this gesture cycle
+
+                                detectHorizontalDragGestures(
+                                    onDragStart = {
+                                        accumulatedDragX = 0f
+                                        // horizontalDragOffset is already managed, no need to reset here unless specific logic dictates
+                                    },
+                                    onHorizontalDrag = { change, dragAmount ->
+                                        change.consume()
+                                        accumulatedDragX += dragAmount
+                                        // Update visual offset, allow dragging left, minimal resistance to right (or none)
+                                        horizontalDragOffset = (horizontalDragOffset + dragAmount).coerceAtMost(0f)
+                                    },
+                                    onDragEnd = {
+                                        val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
+                                        val dismissThreshold = screenWidthPx * 0.4f // Swipe left by 40%
+                                        val currentVisualOffset = horizontalDragOffset // Use the actual current offset for animation start
+
+                                        if (accumulatedDragX < -dismissThreshold) { // Swiped far enough left
+                                            scope.launch {
+                                                Animatable(currentVisualOffset).animateTo(
+                                                    targetValue = -screenWidthPx, // Animate off-screen to the left
+                                                    animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                                                ) { horizontalDragOffset = value }
+                                                playerViewModel.dismissPlaylistAndShowUndo()
+                                                horizontalDragOffset = 0f // Reset after dismissal action
+                                                accumulatedDragX = 0f
+                                            }
+                                        } else { // Snap back to original position
+                                            scope.launch {
+                                                Animatable(currentVisualOffset).animateTo(
+                                                    targetValue = 0f,
+                                                    animationSpec = spring(
+                                                        dampingRatio = Spring.DampingRatioNoBouncy,
+                                                        stiffness = Spring.StiffnessMedium
+                                                    )
+                                                ) { horizontalDragOffset = value }
+                                                // horizontalDragOffset will be 0f due to animation
+                                                accumulatedDragX = 0f // Reset accumulated drag
+                                            }
+                                        }
+                                    }
+                                )
+                            }
                             .padding(horizontal = currentHorizontalPadding)
                             .height(playerContentAreaActualHeightDp)
+                            .graphicsLayer { // Apply translation for swipe animation
+                                translationX = horizontalDragOffset
+                            }
                             // NUEVO: Aplicar shadow antes del background
                             .shadow(
                                 elevation = playerAreaElevation,
@@ -590,25 +650,6 @@ fun UnifiedPlayerSheet(
                                 )
                             )
                             .clipToBounds()
-                            // Horizontal Drag gesture for dismissal
-                            .pointerInput(playerViewModel, showPlayerContentArea, configuration, density) { // Add keys
-                                if (!showPlayerContentArea) return@pointerInput
-                                var accumulatedDragX = 0f
-                                detectHorizontalDragGestures(
-                                    onDragStart = { accumulatedDragX = 0f },
-                                    onHorizontalDrag = { change, dragAmount ->
-                                        change.consume()
-                                        accumulatedDragX += dragAmount
-                                    },
-                                    onDragEnd = {
-                                        val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
-                                        // Dismiss if swiped left by more than 40% of screen width
-                                        if (accumulatedDragX < - (screenWidthPx * 0.4f)) {
-                                            playerViewModel.dismissPlaylistAndShowUndo() // Updated function name
-                                        }
-                                    }
-                                )
-                            }
                             // NUEVO: Gestos aplicados solo al área del player
                             .pointerInput(
                                 showPlayerContentArea,
