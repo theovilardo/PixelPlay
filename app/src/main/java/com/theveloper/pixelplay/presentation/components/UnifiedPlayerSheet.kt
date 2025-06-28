@@ -427,7 +427,7 @@ fun UnifiedPlayerSheet(
     }
 
     val navBarActualTopRadius by animateDpAsState(
-        targetValue = navBarActualTopRadiusTarget.value, // Use .value from derivedStateOf
+        targetValue = navBarActualTopRadiusTarget.value.dp, // Use .value from derivedStateOf
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMedium
@@ -1718,6 +1718,7 @@ fun DismissUndoBar(
         modifier = modifier
             .fillMaxWidth()
             .height(MiniPlayerHeight), // Same height as mini player
+        shape = CircleShape,
         color = MaterialTheme.colorScheme.surfaceVariant, // Or a custom color
         tonalElevation = 4.dp // Optional elevation
     ) {
