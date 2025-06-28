@@ -613,8 +613,27 @@ fun UnifiedPlayerSheet(
                 modifier = Modifier
                     .fillMaxSize()
             ) {
-                // Example of internal structure (should match existing content):
-                if (showPlayerContentArea) {
+                // Player Content Area OR Dismiss Undo Bar
+                if (playerUiState.showDismissUndoBar) {
+                    AnimatedVisibility(
+                        visible = true, // Controlled by the outer if-condition now
+                        enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(), // Or adjust animation
+                        exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut(),  // Or adjust animation
+                        // Apply similar padding and height as the miniplayer for consistent placement
+                        modifier = Modifier.padding(horizontal = currentHorizontalPadding) // Match miniplayer padding
+                    ) {
+                        DismissUndoBar(
+                            onUndo = {
+                                playerViewModel.undoDismissPlaylist()
+                                // Potentially manually hide here if state doesn't auto-clear fast enough,
+                                // though ViewModel should handle showDismissUndoBar state.
+                            },
+                            durationMillis = playerUiState.undoBarVisibleDuration,
+                            modifier = Modifier.height(MiniPlayerHeight) // Ensure it takes up miniplayer height
+                                             // Removed .padding(bottom = collapsedStateBottomMargin) as position is now in Column
+                        )
+                    }
+                } else if (showPlayerContentArea) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -886,9 +905,10 @@ fun UnifiedPlayerSheet(
                     }
                 }
 
-                // Spacer entre player y navigation bar (solo visible cuando colapsado y hay contenido de player)
-                // This Spacer is relevant only when the NavBar is potentially visible and there's content.
-                if (showPlayerContentArea && !hideNavBar) {
+                // Spacer entre player/undobar y navigation bar
+                // Visible if the slot above navbar is occupied AND navbar is not hidden
+                val isPlayerOrUndoBarVisible = showPlayerContentArea || playerUiState.showDismissUndoBar
+                if (isPlayerOrUndoBarVisible && !hideNavBar) {
                     val spacerTargetHeight = lerp(
                         start = CollapsedPlayerContentSpacerHeight,
                         stop = 0.dp,
@@ -966,23 +986,7 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    // Dismiss Undo Bar - Placed to appear at the bottom, potentially overlapping or replacing mini-player space
-    AnimatedVisibility(
-        visible = playerUiState.showDismissUndoBar,
-        enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
-        exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut(),
-        modifier = Modifier
-            .fillMaxWidth() // Ensure it takes full width
-            //.align(Alignment.BottomCenter) // This alignment works if parent is a Box filling max size.
-                                           // If UnifiedPlayerSheet is not in such a box at call site, this might need adjustment.
-                                           // For now, assuming it's placed in a structure that allows bottom alignment.
-    ) {
-        DismissUndoBar(
-            onUndo = { playerViewModel.undoDismissPlaylist() },
-            durationMillis = playerUiState.undoBarVisibleDuration,
-            modifier = Modifier.padding(bottom = collapsedStateBottomMargin) // Adjust padding as needed
-        )
-    }
+    // Dismiss Undo Bar - MOVED into the main Column structure above
 
     // Queue bottom sheet
     if (showQueueSheet && !internalIsKeyboardVisible) { // Use internalIsKeyboardVisible
