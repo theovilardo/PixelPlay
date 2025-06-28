@@ -177,6 +177,16 @@ fun UnifiedPlayerSheet(
     // State for horizontal drag offset of the miniplayer
     var horizontalDragOffset by remember { mutableFloatStateOf(0f) }
 
+    val screenWidthPx = remember(configuration, density) { with(density) { configuration.screenWidthDp.dp.toPx() } }
+    val dismissThresholdPx = remember(screenWidthPx) { screenWidthPx * 0.4f }
+
+    val swipeDismissProgress = remember(horizontalDragOffset, dismissThresholdPx) {
+        derivedStateOf {
+            if (dismissThresholdPx == 0f) 0f
+            else (abs(horizontalDragOffset) / dismissThresholdPx).coerceIn(0f, 1f)
+        }
+    }
+
     val screenHeightPx = remember(configuration) { with(density) { configuration.screenHeightDp.dp.toPx() } }
     val miniPlayerContentHeightPx = remember { with(density) { MiniPlayerHeight.toPx() } }
     val navBarHeightPx = remember(density, NavBarPersistentHeight) { with(density) { NavBarPersistentHeight.toPx() } }
@@ -308,37 +318,50 @@ fun UnifiedPlayerSheet(
     // CORREGIDO: Animación de esquinas redondeadas basada en la fracción de expansión
     val playerContentActualBottomRadiusTargetValue by remember(
         hideNavBar,
+        hideNavBar,
         showPlayerContentArea,
         playerContentExpansionFraction,
         stablePlayerState.isPlaying,
         stablePlayerState.currentSong,
         predictiveBackCollapseProgress,
-        currentSheetContentState
+        currentSheetContentState,
+        swipeDismissProgress.value // ADDED DEPENDENCY
     ) {
         derivedStateOf {
-            // Check if a predictive back gesture is in progress on an expanded sheet
-            if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                val expandedRadius = if (hideNavBar) 32.dp else 26.dp // Value when playerContentExpansionFraction is 1f (fully expanded)
-                val collapsedRadiusTarget = if (hideNavBar) 32.dp else 12.dp // Value when playerContentExpansionFraction is 0f (collapsed)
+            val calculatedNormally = if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
+                val expandedRadius = if (hideNavBar) 32.dp else 26.dp
+                val collapsedRadiusTarget = if (hideNavBar) 32.dp else 12.dp
                 lerp(expandedRadius, collapsedRadiusTarget, predictiveBackCollapseProgress)
             } else {
-                // Original logic when not in predictive back or sheet not expanded
                 if (hideNavBar) {
                     32.dp
                 } else if (showPlayerContentArea) {
                     val fraction = playerContentExpansionFraction.value
                     if (fraction < 0.2f) {
                         lerp(12.dp, 26.dp, (fraction / 0.2f).coerceIn(0f, 1f))
-                    } else { // After 20% expansion or fully expanded
+                    } else {
                         26.dp
                     }
-                } else { // Player area not shown (mini-player state or no song)
+                } else {
                     if (!stablePlayerState.isPlaying || stablePlayerState.currentSong == null) {
-                        PlayerSheetCollapsedCornerRadius // Or a specific value like 32.dp or 12.dp if that's the design
+                        PlayerSheetCollapsedCornerRadius
                     } else {
-                        12.dp // Default collapsed mini-player bottom radius
+                        12.dp
                     }
                 }
+            }
+
+            // Apply swipe modification if collapsed and swiping
+            if (currentSheetContentState == PlayerSheetState.COLLAPSED &&
+                swipeDismissProgress.value > 0f &&
+                !hideNavBar &&
+                showPlayerContentArea &&
+                playerContentExpansionFraction.value < 0.01f // Ensure it's truly collapsed (allow small tolerance for float comparison)
+            ) {
+                val baseCollapsedRadius = 12.dp // This is the normal radius for a collapsed miniplayer bottom (!hideNavBar)
+                lerp(baseCollapsedRadius, PlayerSheetCollapsedCornerRadius, swipeDismissProgress.value)
+            } else {
+                calculatedNormally
             }
         }
     }
@@ -352,15 +375,39 @@ fun UnifiedPlayerSheet(
         label = "PlayerContentBottomRadius"
     )
 
+    val navBarActualTopRadiusTarget by remember(
+        showPlayerContentArea, playerContentExpansionFraction,
+        currentSheetContentState, swipeDismissProgress.value,
+        hideNavBar // Added for consistency with playerContentActualBottomRadiusTargetValue conditions
+    ) {
+        derivedStateOf {
+            val calculatedNormally = if (showPlayerContentArea) {
+                val fraction = playerContentExpansionFraction.value
+                if (fraction < 0.2f) {
+                    lerp(12.dp, 18.dp, (fraction / 0.2f).coerceIn(0f, 1f))
+                } else {
+                    18.dp
+                }
+            } else {
+                12.dp
+            }
+
+            if (currentSheetContentState == PlayerSheetState.COLLAPSED &&
+                swipeDismissProgress.value > 0f &&
+                !hideNavBar &&
+                showPlayerContentArea &&
+                playerContentExpansionFraction.value < 0.01f // Ensure it's truly collapsed
+            ) {
+                val baseCollapsedRadius = 12.dp // Normal radius for navbar top when miniplayer is collapsed
+                lerp(baseCollapsedRadius, PlayerSheetCollapsedCornerRadius, swipeDismissProgress.value)
+            } else {
+                calculatedNormally
+            }
+        }
+    }
+
     val navBarActualTopRadius by animateDpAsState(
-        targetValue = if (showPlayerContentArea) {
-            // Usar interpolación suave basada en la fracción de expansión
-            val fraction = playerContentExpansionFraction.value
-            if (fraction < 0.2f) {
-                // Interpolar de 12dp a 0dp en los primeros 20% de la expansión
-                lerp(12.dp, 18.dp, (fraction / 0.2f).coerceIn(0f, 1f))
-            } else { 18.dp }
-        } else { 12.dp },
+        targetValue = navBarActualTopRadiusTarget.value, // Use .value from derivedStateOf
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMedium
@@ -590,25 +637,27 @@ fun UnifiedPlayerSheet(
                                     onHorizontalDrag = { change, dragAmount ->
                                         change.consume()
                                         accumulatedDragX += dragAmount
-                                        // Update visual offset, allow dragging left, minimal resistance to right (or none)
-                                        horizontalDragOffset = (horizontalDragOffset + dragAmount).coerceAtMost(0f)
+                                        // Update visual offset, allow dragging left and right
+                                        horizontalDragOffset += dragAmount
                                     },
                                     onDragEnd = {
                                         val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
-                                        val dismissThreshold = screenWidthPx * 0.4f // Swipe left by 40%
-                                        val currentVisualOffset = horizontalDragOffset // Use the actual current offset for animation start
+                                        val dismissThreshold = screenWidthPx * 0.4f // Same threshold for both directions
+                                        val currentVisualOffset = horizontalDragOffset
 
-                                        if (accumulatedDragX < -dismissThreshold) { // Swiped far enough left
+                                        // Check for dismissal based on absolute accumulated drag
+                                        if (abs(accumulatedDragX) > dismissThreshold) {
+                                            val targetDismissOffset = if (accumulatedDragX < 0) -screenWidthPx else screenWidthPx // Target left or right
                                             scope.launch {
                                                 Animatable(currentVisualOffset).animateTo(
-                                                    targetValue = -screenWidthPx, // Animate off-screen to the left
+                                                    targetValue = targetDismissOffset,
                                                     animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
                                                 ) { horizontalDragOffset = value }
                                                 playerViewModel.dismissPlaylistAndShowUndo()
-                                                horizontalDragOffset = 0f // Reset after dismissal action
+                                                horizontalDragOffset = 0f // Reset after dismissal
                                                 accumulatedDragX = 0f
                                             }
-                                        } else { // Snap back to original position
+                                        } else { // Snap back
                                             scope.launch {
                                                 Animatable(currentVisualOffset).animateTo(
                                                     targetValue = 0f,
