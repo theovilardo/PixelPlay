@@ -237,7 +237,7 @@ fun UnifiedPlayerSheet(
                         animationSpec = keyframes {
                             durationMillis = 250
                             1.0f at 0
-                            0.95f at 125 // Undershoot target
+                            1.05f at 125 // Adjusted: Overshoot downwards (stretch)
                             1.0f at 250
                         }
                     )
