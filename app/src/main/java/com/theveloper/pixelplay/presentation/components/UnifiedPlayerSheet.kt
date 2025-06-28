@@ -203,6 +203,7 @@ fun UnifiedPlayerSheet(
 
     val playerContentExpansionFraction = remember { Animatable(0f) }
     val visualOvershootScaleY = remember { Animatable(1f) } // For Y-axis scale overshoot
+    val currentTransformOrigin = remember { mutableStateOf(TransformOrigin.Center) }
     val scope = rememberCoroutineScope() // Needed for launching the secondary animation
 
     LaunchedEffect(showPlayerContentArea, currentSheetContentState) {
@@ -217,6 +218,7 @@ fun UnifiedPlayerSheet(
         if (showPlayerContentArea) { // Only if player is meant to be visible
             scope.launch {
                 if (targetFraction == 1f) { // Expanded
+                    currentTransformOrigin.value = TransformOrigin(0.5f, 1f) // Scale from bottom
                     visualOvershootScaleY.snapTo(1f) // Reset before animation
                     visualOvershootScaleY.animateTo(
                         targetValue = 1f,
@@ -228,6 +230,7 @@ fun UnifiedPlayerSheet(
                         }
                     )
                 } else { // Collapsed (targetFraction == 0f)
+                    currentTransformOrigin.value = TransformOrigin(0.5f, 0f) // Scale from top
                     visualOvershootScaleY.snapTo(1f) // Reset before animation
                     visualOvershootScaleY.animateTo(
                         targetValue = 1f,
@@ -241,9 +244,10 @@ fun UnifiedPlayerSheet(
                 }
             }
         } else {
-            // If player content area is not shown, ensure scale is reset
+            // If player content area is not shown, ensure scale is reset and origin is centered
             scope.launch {
                 visualOvershootScaleY.snapTo(1f)
+                currentTransformOrigin.value = TransformOrigin.Center
             }
         }
     }
@@ -774,7 +778,8 @@ fun UnifiedPlayerSheet(
                             .height(playerContentAreaActualHeightDp)
                             .graphicsLayer { // Apply translation for swipe animation
                                 translationX = horizontalDragOffset
-                                scaleY = visualOvershootScaleY.value // Apply Y-axis scale for overshoot
+                                scaleY = visualOvershootScaleY.value
+                                transformOrigin = currentTransformOrigin.value
                             }
                             // NUEVO: Aplicar shadow antes del background
                             .shadow(
