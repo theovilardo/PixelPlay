@@ -617,10 +617,11 @@ fun UnifiedPlayerSheet(
                 if (playerUiState.showDismissUndoBar) {
                     AnimatedVisibility(
                         visible = true, // Controlled by the outer if-condition now
-                        enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(), // Or adjust animation
-                        exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut(),  // Or adjust animation
-                        // Apply similar padding and height as the miniplayer for consistent placement
-                        modifier = Modifier.padding(horizontal = currentHorizontalPadding) // Match miniplayer padding
+                        enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
+                        exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut(),
+                        modifier = Modifier
+                            .padding(horizontal = currentHorizontalPadding) // Match miniplayer padding
+                            .height(MiniPlayerHeight) // Ensure this space is reserved in the Column
                     ) {
                         DismissUndoBar(
                             onUndo = {
