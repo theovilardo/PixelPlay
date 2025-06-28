@@ -202,15 +202,68 @@ fun UnifiedPlayerSheet(
     }
 
     val playerContentExpansionFraction = remember { Animatable(0f) }
+    val visualOvershootScaleY = remember { Animatable(1f) } // For Y-axis scale overshoot
+    val scope = rememberCoroutineScope() // Needed for launching the secondary animation
+
     LaunchedEffect(showPlayerContentArea, currentSheetContentState) {
         val targetFraction = if (showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) 1f else 0f
+        // Animate primary expansion/collapse
         playerContentExpansionFraction.animateTo(
             targetFraction,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioLowBouncy, // For a slight overshoot
-                stiffness = Spring.StiffnessMedium // Adjust as needed
-            )
+            animationSpec = tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
         )
+
+        // After primary animation completes, trigger overshoot/undershoot effect
+        if (showPlayerContentArea) { // Only if player is meant to be visible
+            scope.launch {
+                if (targetFraction == 1f) { // Expanded
+                    visualOvershootScaleY.snapTo(1f) // Reset before animation
+                    visualOvershootScaleY.animateTo(
+                        targetValue = 1f,
+                        animationSpec = keyframes {
+                            durationMillis = 250 // Total duration for the bounce effect
+                            1.0f at 0 // Start at normal scale
+                            1.05f at 125 // Overshoot target
+                            1.0f at 250 // Settle back to normal scale
+                        }
+                    )
+                } else { // Collapsed (targetFraction == 0f)
+                    visualOvershootScaleY.snapTo(1f) // Reset before animation
+                    visualOvershootScaleY.animateTo(
+                        targetValue = 1f,
+                        animationSpec = keyframes {
+                            durationMillis = 250
+                            1.0f at 0
+                            0.95f at 125 // Undershoot target
+                            1.0f at 250
+                        }
+                    )
+                }
+            }
+        } else {
+            // If player content area is not shown, ensure scale is reset
+            scope.launch {
+                visualOvershootScaleY.snapTo(1f)
+            }
+        }
+    }
+
+    val currentBottomPadding by remember(
+        showPlayerContentArea,
+        // playerContentExpansionFraction, // Not strictly needed if bottom padding only driven by predictive back
+        collapsedStateHorizontalPadding, // Target padding, same as horizontal for symmetry
+        predictiveBackCollapseProgress,
+        currentSheetContentState
+    ) {
+        derivedStateOf {
+            if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
+                // During predictive back (from expanded state), padding goes from 0.dp to collapsedStateHorizontalPadding
+                lerp(0.dp, collapsedStateHorizontalPadding, predictiveBackCollapseProgress)
+            } else {
+                // Default to 0.dp when not in predictive back collapse or sheet is not expanded.
+                0.dp
+            }
+        }
     }
 
     val playerContentAreaActualHeightPx by remember(showPlayerContentArea, playerContentExpansionFraction, screenHeightPx, miniPlayerContentHeightPx) {
@@ -247,26 +300,6 @@ fun UnifiedPlayerSheet(
                 lerp(totalSheetHeightWhenContentCollapsedPx, screenHeightPx, playerContentExpansionFraction.value)
             } else { // Neither player nor undo bar is shown
                 navBarHeightPx
-            }
-        }
-    }
-
-    val currentBottomPadding by remember(
-        showPlayerContentArea,
-        playerContentExpansionFraction, // Keep dependency if normal state should affect it
-        collapsedStateHorizontalPadding, // Target padding, same as horizontal for symmetry
-        predictiveBackCollapseProgress,
-        currentSheetContentState
-    ) {
-        derivedStateOf {
-            if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                // During predictive back (from expanded state), padding goes from 0.dp to collapsedStateHorizontalPadding
-                lerp(0.dp, collapsedStateHorizontalPadding, predictiveBackCollapseProgress)
-            } else {
-                // Default to 0.dp when not in predictive back collapse or sheet is not expanded.
-                // Or, if there's a normal bottom padding based on playerContentExpansionFraction, calculate it here.
-                // For now, assuming 0.dp for non-predictive-back scenarios unless specified otherwise.
-                0.dp
             }
         }
     }
@@ -465,13 +498,12 @@ fun UnifiedPlayerSheet(
         predictiveBackCollapseProgress // Add this dependency
     ) {
         derivedStateOf {
-            val expansionValue = playerContentExpansionFraction.value // Use the raw value for most calcs
             if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
                 // During predictive back (from expanded state), padding goes from 0.dp to collapsedStateHorizontalPadding
                 lerp(0.dp, collapsedStateHorizontalPadding, predictiveBackCollapseProgress)
             } else if (showPlayerContentArea) {
-                // Normal calculation based on expansion fraction, coerce to prevent negative padding due to overshoot
-                lerp(collapsedStateHorizontalPadding, 0.dp, expansionValue.coerceIn(0f, 1f))
+                // Normal calculation based on expansion fraction
+                lerp(collapsedStateHorizontalPadding, 0.dp, playerContentExpansionFraction.value)
             } else {
                 // Default when no content or not in predictive back
                 collapsedStateHorizontalPadding
@@ -742,6 +774,7 @@ fun UnifiedPlayerSheet(
                             .height(playerContentAreaActualHeightDp)
                             .graphicsLayer { // Apply translation for swipe animation
                                 translationX = horizontalDragOffset
+                                scaleY = visualOvershootScaleY.value // Apply Y-axis scale for overshoot
                             }
                             // NUEVO: Aplicar shadow antes del background
                             .shadow(
