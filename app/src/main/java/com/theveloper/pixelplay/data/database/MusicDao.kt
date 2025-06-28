@@ -45,14 +45,34 @@ interface MusicDao {
     suspend fun clearAllArtists()
 
     // --- Song Queries ---
-    @Query("SELECT * FROM songs ORDER BY title ASC LIMIT :pageSize OFFSET :offset")
-    fun getSongs(pageSize: Int, offset: Int): Flow<List<SongEntity>>
+    // Updated getSongs to potentially filter by parent_directory_path
+    @Query("""
+        SELECT * FROM songs
+        WHERE (:applyDirectoryFilter = 0 OR parent_directory_path IN (:allowedParentDirs))
+        ORDER BY title ASC
+        LIMIT :pageSize OFFSET :offset
+    """)
+    fun getSongs(
+        pageSize: Int,
+        offset: Int,
+        allowedParentDirs: List<String>,
+        applyDirectoryFilter: Boolean
+    ): Flow<List<SongEntity>>
 
     @Query("SELECT * FROM songs WHERE id = :songId")
     fun getSongById(songId: Long): Flow<SongEntity?>
 
-    @Query("SELECT * FROM songs WHERE id IN (:songIds)")
-    fun getSongsByIds(songIds: List<Long>): Flow<List<SongEntity>>
+    //@Query("SELECT * FROM songs WHERE id IN (:songIds)")
+    @Query("""
+        SELECT * FROM songs
+        WHERE id IN (:songIds)
+        AND (:applyDirectoryFilter = 0 OR parent_directory_path IN (:allowedParentDirs))
+    """)
+    fun getSongsByIds(
+        songIds: List<Long>,
+        allowedParentDirs: List<String>,
+        applyDirectoryFilter: Boolean
+    ): Flow<List<SongEntity>>
 
     @Query("SELECT * FROM songs WHERE album_id = :albumId ORDER BY title ASC")
     fun getSongsByAlbumId(albumId: Long): Flow<List<SongEntity>>
@@ -60,15 +80,35 @@ interface MusicDao {
     @Query("SELECT * FROM songs WHERE artist_id = :artistId ORDER BY title ASC")
     fun getSongsByArtistId(artistId: Long): Flow<List<SongEntity>>
 
-    @Query("SELECT * FROM songs WHERE title LIKE '%' || :query || '%' ORDER BY title ASC")
-    fun searchSongs(query: String): Flow<List<SongEntity>>
+    @Query("""
+        SELECT * FROM songs
+        WHERE (:applyDirectoryFilter = 0 OR parent_directory_path IN (:allowedParentDirs))
+        AND (title LIKE '%' || :query || '%' OR artist_name LIKE '%' || :query || '%')
+        ORDER BY title ASC
+    """)
+    fun searchSongs(
+        query: String,
+        allowedParentDirs: List<String>,
+        applyDirectoryFilter: Boolean
+    ): Flow<List<SongEntity>>
 
     @Query("SELECT COUNT(*) FROM songs")
     fun getSongCount(): Flow<Int>
 
     // --- Album Queries ---
-    @Query("SELECT * FROM albums ORDER BY title ASC LIMIT :pageSize OFFSET :offset")
-    fun getAlbums(pageSize: Int, offset: Int): Flow<List<AlbumEntity>>
+    @Query("""
+        SELECT DISTINCT albums.* FROM albums
+        INNER JOIN songs ON albums.id = songs.album_id
+        WHERE (:applyDirectoryFilter = 0 OR songs.parent_directory_path IN (:allowedParentDirs))
+        ORDER BY albums.title ASC
+        LIMIT :pageSize OFFSET :offset
+    """)
+    fun getAlbums(
+        pageSize: Int,
+        offset: Int,
+        allowedParentDirs: List<String>,
+        applyDirectoryFilter: Boolean
+    ): Flow<List<AlbumEntity>>
 
     @Query("SELECT * FROM albums WHERE id = :albumId")
     fun getAlbumById(albumId: Long): Flow<AlbumEntity?>
@@ -82,10 +122,33 @@ interface MusicDao {
     @Query("SELECT * FROM albums WHERE artist_id = :artistId ORDER BY title ASC")
     fun getAlbumsByArtistId(artistId: Long): Flow<List<AlbumEntity>>
 
+    @Query("""
+        SELECT DISTINCT albums.* FROM albums
+        INNER JOIN songs ON albums.id = songs.album_id
+        WHERE (:applyDirectoryFilter = 0 OR songs.parent_directory_path IN (:allowedParentDirs))
+        AND (albums.title LIKE '%' || :query || '%' OR albums.artist_name LIKE '%' || :query || '%')
+        ORDER BY albums.title ASC
+    """)
+    fun searchAlbums(
+        query: String,
+        allowedParentDirs: List<String>,
+        applyDirectoryFilter: Boolean
+    ): Flow<List<AlbumEntity>>
 
     // --- Artist Queries ---
-    @Query("SELECT * FROM artists ORDER BY name ASC LIMIT :pageSize OFFSET :offset")
-    fun getArtists(pageSize: Int, offset: Int): Flow<List<ArtistEntity>>
+    @Query("""
+        SELECT DISTINCT artists.* FROM artists
+        INNER JOIN songs ON artists.id = songs.artist_id
+        WHERE (:applyDirectoryFilter = 0 OR songs.parent_directory_path IN (:allowedParentDirs))
+        ORDER BY artists.name ASC
+        LIMIT :pageSize OFFSET :offset
+    """)
+    fun getArtists(
+        pageSize: Int,
+        offset: Int,
+        allowedParentDirs: List<String>,
+        applyDirectoryFilter: Boolean
+    ): Flow<List<ArtistEntity>>
 
     @Query("SELECT * FROM artists WHERE id = :artistId")
     fun getArtistById(artistId: Long): Flow<ArtistEntity?>
@@ -96,10 +159,32 @@ interface MusicDao {
     @Query("SELECT COUNT(*) FROM artists")
     fun getArtistCount(): Flow<Int>
 
+    @Query("""
+        SELECT DISTINCT artists.* FROM artists
+        INNER JOIN songs ON artists.id = songs.artist_id
+        WHERE (:applyDirectoryFilter = 0 OR songs.parent_directory_path IN (:allowedParentDirs))
+        AND artists.name LIKE '%' || :query || '%'
+        ORDER BY artists.name ASC
+    """)
+    fun searchArtists(
+        query: String,
+        allowedParentDirs: List<String>,
+        applyDirectoryFilter: Boolean
+    ): Flow<List<ArtistEntity>>
+
     // --- Genre Queries ---
     // Example: Get all songs for a specific genre
-    @Query("SELECT * FROM songs WHERE genre LIKE :genreName ORDER BY title ASC")
-    fun getSongsByGenre(genreName: String): Flow<List<SongEntity>>
+    @Query("""
+        SELECT * FROM songs
+        WHERE (:applyDirectoryFilter = 0 OR parent_directory_path IN (:allowedParentDirs))
+        AND genre LIKE :genreName
+        ORDER BY title ASC
+    """)
+    fun getSongsByGenre(
+        genreName: String,
+        allowedParentDirs: List<String>,
+        applyDirectoryFilter: Boolean
+    ): Flow<List<SongEntity>>
 
     // Example: Get all unique genre names
     @Query("SELECT DISTINCT genre FROM songs WHERE genre IS NOT NULL AND genre != '' ORDER BY genre ASC")

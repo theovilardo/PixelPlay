@@ -13,7 +13,8 @@ import com.theveloper.pixelplay.data.model.Song
         Index(value = ["title"], unique = false),
         // Index(value = ["album_id"], unique = false), // ForeignKey crea este índice
         // Index(value = ["artist_id"], unique = false), // ForeignKey crea este índice
-        Index(value = ["genre"], unique = false)
+        Index(value = ["genre"], unique = false),
+        Index(value = ["parent_directory_path"], unique = false) // Índice para filtrado por directorio
     ],
     foreignKeys = [
         ForeignKey(
@@ -43,7 +44,8 @@ data class SongEntity(
     @ColumnInfo(name = "album_art_uri_string") val albumArtUriString: String?,
     @ColumnInfo(name = "duration") val duration: Long,
     @ColumnInfo(name = "genre") val genre: String?,
-    @ColumnInfo(name = "file_path") val filePath: String // Added filePath
+    @ColumnInfo(name = "file_path") val filePath: String, // Added filePath
+    @ColumnInfo(name = "parent_directory_path") val parentDirectoryPath: String // Added for directory filtering
 )
 
 fun SongEntity.toSong(): Song {
@@ -68,8 +70,8 @@ fun List<SongEntity>.toSongs(): List<Song> {
 
 // El modelo Song usa id como String, pero la entidad lo necesita como Long (de MediaStore)
 // El modelo Song no tiene filePath, así que no se puede mapear desde ahí directamente.
-// filePath se poblará desde MediaStore en el SyncWorker.
-fun Song.toEntity(filePathFromMediaStore: String): SongEntity {
+// filePath y parentDirectoryPath se poblarán desde MediaStore en el SyncWorker.
+fun Song.toEntity(filePathFromMediaStore: String, parentDirFromMediaStore: String): SongEntity {
     return SongEntity(
         id = this.id.toLong(), // Asumiendo que el ID del modelo Song puede convertirse a Long
         title = this.title,
@@ -81,13 +83,14 @@ fun Song.toEntity(filePathFromMediaStore: String): SongEntity {
         albumArtUriString = this.albumArtUriString,
         duration = this.duration,
         genre = this.genre,
-        filePath = filePathFromMediaStore
+        filePath = filePathFromMediaStore,
+        parentDirectoryPath = parentDirFromMediaStore
     )
 }
 
-// Sobrecarga o alternativa si el path no está disponible o no es necesario al convertir de Modelo a Entidad
-// (menos probable que se use si la entidad siempre requiere el path)
-fun Song.toEntityWithoutPath(): SongEntity {
+// Sobrecarga o alternativa si los paths no están disponibles o no son necesarios al convertir de Modelo a Entidad
+// (menos probable que se use si la entidad siempre requiere los paths)
+fun Song.toEntityWithoutPaths(): SongEntity {
     return SongEntity(
         id = this.id.toLong(),
         title = this.title,
@@ -99,6 +102,7 @@ fun Song.toEntityWithoutPath(): SongEntity {
         albumArtUriString = this.albumArtUriString,
         duration = this.duration,
         genre = this.genre,
-        filePath = "" // Default o manejar como no disponible
+        filePath = "", // Default o manejar como no disponible
+        parentDirectoryPath = "" // Default o manejar como no disponible
     )
 }

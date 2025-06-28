@@ -97,6 +97,8 @@ class SyncWorker @AssistedInject constructor(
                 val id = c.getLong(idCol)
                 val albumId = c.getLong(albumIdCol)
                 val songArtistId = c.getLong(artistIdCol)
+                val filePath = c.getString(dataCol) ?: ""
+                val parentDir = java.io.File(filePath).parent ?: ""
 
                 val contentUriString = ContentUris.withAppendedId(
                     MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id
@@ -140,7 +142,8 @@ class SyncWorker @AssistedInject constructor(
                         albumArtUriString = albumArtUriString,
                         duration = c.getLong(durationCol),
                         genre = genreName,
-                        filePath = c.getString(dataCol) ?: ""
+                        filePath = filePath,
+                        parentDirectoryPath = parentDir
                     )
                 )
             }

@@ -424,7 +424,10 @@ fun LibraryScreen(
                                     1 -> LibraryAlbumsTab(
                                         uiState,
                                         playerViewModel,
-                                        bottomBarHeightDp
+                                        bottomBarHeightDp,
+                                        onAlbumClick = { albumId ->
+                                            navController.navigate(Screen.AlbumDetail.createRoute(albumId))
+                                        }
                                     )
 
                                     2 -> LibraryArtistsTab(
@@ -892,7 +895,7 @@ fun EnhancedSongListItem(
 }
 
 @Composable
-fun LibraryAlbumsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, bottomBarHeight: Dp) {
+fun LibraryAlbumsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, bottomBarHeight: Dp, onAlbumClick: (Long) -> Unit) {
     val gridState = rememberLazyGridState()
     if (uiState.isLoadingLibraryCategories && uiState.albums.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
@@ -932,7 +935,7 @@ fun LibraryAlbumsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, b
                     AlbumGridItemRedesigned( // Usar el nuevo Composable
                         album = album,
                         albumColorSchemePairFlow = albumSpecificColorSchemeFlow,
-                        onClick = { playerViewModel.playAlbum(album) }
+                        onClick = { onAlbumClick(album.id) }
                     )
                 }
                 if (uiState.isLoadingLibraryCategories && uiState.albums.isNotEmpty()) {

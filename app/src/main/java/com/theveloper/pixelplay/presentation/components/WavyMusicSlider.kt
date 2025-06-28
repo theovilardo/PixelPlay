@@ -57,7 +57,7 @@ import androidx.compose.ui.util.lerp
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
 fun WavyMusicSlider(
-    value: Float,
+    valueProvider: () -> Float, // Cambiado de value: Float
     onValueChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
@@ -112,10 +112,13 @@ fun WavyMusicSlider(
     val thumbLineHeightPxInternal = with(LocalDensity.current) { thumbLineHeightWhenInteracting.toPx() }
     val thumbGapPx = with(LocalDensity.current) { 4.dp.toPx() }
 
-    val normalizedValue = remember(value, valueRange) {
-        if (valueRange.endInclusive == valueRange.start) 0f
-        else ((value - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
-    }
+    // normalizedValue ahora usa valueProvider() y se recalcula cuando valueProvider() cambia.
+    // Ya no se puede 'remember' de la misma manera directa si queremos que reaccione a cambios en el proveedor.
+    // Se leerá dentro de drawWithCache donde se necesita.
+    // val normalizedValue = valueProvider().let { v ->
+    //     if (valueRange.endInclusive == valueRange.start) 0f
+    //     else ((v - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
+    // }
 
     val wavePath = remember { Path() }
 
@@ -124,8 +127,13 @@ fun WavyMusicSlider(
     }
 
     BoxWithConstraints(modifier = modifier.clipToBounds()) {
+        // El Slider subyacente todavía necesita un valor Float.
+        // Lo obtenemos del provider aquí. Si el provider cambia, esto se recompondrá.
+        // La optimización es que WavyMusicSlider en sí mismo no se recompone si SOLO el valor del provider cambia
+        // pero otros parámetros de WavyMusicSlider (como colores, etc.) no.
+        val currentValue = valueProvider()
         Slider(
-            value = value,
+            value = currentValue,
             onValueChange = onValueChange,
             modifier = Modifier
                 .fillMaxWidth()
@@ -152,6 +160,12 @@ fun WavyMusicSlider(
                     val localTrackStart = thumbRadiusPx
                     val localTrackEnd = canvasWidth - thumbRadiusPx
                     val localTrackWidth = (localTrackEnd - localTrackStart).coerceAtLeast(0f)
+
+                    // Obtener el valor normalizado aquí dentro, usando el provider
+                    val normalizedValue = valueProvider().let { v ->
+                        if (valueRange.endInclusive == valueRange.start) 0f
+                        else ((v - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
+                    }
 
                     // El lambda onDraw DEBE devolver un DrawResult.
                     // Lo hacemos llamando a onDrawWithContent al final,

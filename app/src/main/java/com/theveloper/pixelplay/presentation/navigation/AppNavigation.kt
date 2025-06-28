@@ -14,6 +14,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.theveloper.pixelplay.presentation.screens.AlbumDetailScreen
 import com.theveloper.pixelplay.presentation.screens.DailyMixScreen
 import com.theveloper.pixelplay.presentation.screens.GenreDetailScreen
 import com.theveloper.pixelplay.presentation.screens.HomeScreen
@@ -92,6 +93,45 @@ fun AppNavigation(
                     Text("Error: Genre ID missing", modifier = Modifier.padding(paddingValues))
                 }
             }
+
+
+            // CORRECCIÓN: La definición de la ruta DEBE incluir el placeholder para el argumento.
+            // Se usa StringType para el ID para que coincida con la firma de la pantalla de destino.
+            composable(
+                route = Screen.AlbumDetail.route + "/{albumId}",
+                arguments = listOf(navArgument("albumId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                // El viewModel se inyectará automáticamente en AlbumDetailScreen.
+                // Aquí pasamos los parámetros requeridos por la firma de la pantalla.
+                val albumId = backStackEntry.arguments?.getString("albumId")
+                if (albumId != null) {
+                    AlbumDetailScreen(
+                        albumId = albumId,
+                        navController = navController,
+                        playerViewModel = playerViewModel
+                    )
+                }
+            }
+
+//            composable(
+//                route = Screen.AlbumDetail.route,
+//                arguments = listOf(navArgument("albumId") { type = NavType.StringType })
+//            ) { backStackEntry ->
+//                val albumId = backStackEntry.arguments?.getString("albumId")
+//                // PlayerViewModel ya está disponible en el scope de AppNavigation
+//                val albumDetailViewModel: com.theveloper.pixelplay.presentation.viewmodel.AlbumDetailViewModel = hiltViewModel()
+//
+//                if (albumId != null) {
+//                    com.theveloper.pixelplay.presentation.screens.AlbumDetailScreen(
+//                        albumId = albumId,
+//                        navController = navController,
+//                        playerViewModel = playerViewModel, // Pasando la instancia existente
+//                        viewModel = albumDetailViewModel
+//                    )
+//                } else {
+//                    Text("Error: Album ID missing", modifier = Modifier.padding(paddingValues))
+//                }
+//            }
         }
     }
 }

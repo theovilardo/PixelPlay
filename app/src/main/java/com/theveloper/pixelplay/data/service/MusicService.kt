@@ -66,11 +66,21 @@ class MusicService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        initializePlayer()
-        initializeMediaSession()
-        // Solo aquí arrancamos en foreground
-        startForeground(NOTIF_ID, buildServiceNotification())
-        Log.d(TAG, "Service started in foreground")
+
+        // *** FIX: Start foreground immediately with a loading notification to prevent ANR. ***
+        // This is the critical change. We show a basic notification right away.
+        startForeground(NOTIF_ID, buildLoadingNotification())
+        Log.d(TAG, "Service started in foreground immediately to prevent ANR.")
+
+        // Now, defer the heavy initialization.
+        serviceScope.launch {
+            Log.d(TAG, "Starting deferred initialization...")
+            initializePlayer()
+            initializeMediaSession()
+            Log.d(TAG, "Deferred initialization complete.")
+            // The notification will be updated automatically by the player listener
+            // when the state changes.
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -78,6 +88,18 @@ class MusicService : MediaSessionService() {
         intent?.action?.let { handleIntentAction(it) }
         return START_STICKY
     }
+
+    // This notification is shown for a very short time while the player initializes.
+    private fun buildLoadingNotification(): Notification =
+        NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle(getString(R.string.app_name))
+            .setContentText("Iniciando servicio de música...")
+            .setSmallIcon(R.drawable.rounded_circle_notifications_24)
+            .setOngoing(true)
+            .setCategory(Notification.CATEGORY_SERVICE)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+
 
     private fun buildServiceNotification(): Notification =
         NotificationCompat.Builder(this, CHANNEL_ID)
@@ -113,9 +135,7 @@ class MusicService : MediaSessionService() {
         exoPlayer.setAudioAttributes(attrs, true)
         exoPlayer.setHandleAudioBecomingNoisy(true)
         exoPlayer.addListener(object : Player.Listener {
-            // Removed @OptIn(UnstableApi::class) if stop(false) was the only reason
             override fun onPlaybackStateChanged(playbackState: Int) {
-                // EOT specific logic removed from here
                 updateWidgetFullState()
             }
 
@@ -182,132 +202,110 @@ class MusicService : MediaSessionService() {
         }
     }
 
-    // Track last widget update time to implement throttling
     private var lastWidgetUpdateTime = 0L
     private var lastWidgetArtUri = ""
     private var pendingWidgetUpdate = false
     private var widgetUpdateJob: Job? = null
     private var lastWidgetPlayState = false
 
-    // Throttle widget updates to reduce image decoding frequency
     private fun updateWidgetFullState() {
         val currentTime = System.currentTimeMillis()
         val currentItem = exoPlayer.currentMediaItem
         val uriString = currentItem?.mediaMetadata?.artworkUri?.toString().orEmpty()
         val isPlaying = exoPlayer.isPlaying && exoPlayer.playbackState != Player.STATE_ENDED
-        
-        // Only process immediate updates for:
-        // 1. Play/pause state changes (affects UI controls)
-        // 2. Media item changes (new song)
-        // 3. First update after a long time (>5 seconds)
+
         val isPlayStateChange = lastWidgetPlayState != isPlaying
         val isMediaItemChange = lastWidgetArtUri != uriString
         val isTimeToUpdate = currentTime - lastWidgetUpdateTime > 5000
-        
+
         if (isPlayStateChange || isMediaItemChange || isTimeToUpdate) {
-            // Cancel any pending updates
             widgetUpdateJob?.cancel()
             pendingWidgetUpdate = false
-            
-            // Update immediately
             processWidgetUpdate(uriString, isPlaying)
         } else if (!pendingWidgetUpdate) {
-            // Schedule a delayed update to avoid too frequent updates
             pendingWidgetUpdate = true
             widgetUpdateJob = serviceScope.launch {
-                delay(1000) // Wait 1 second before updating
+                delay(1000)
                 if (pendingWidgetUpdate) {
                     processWidgetUpdate(uriString, isPlaying)
                     pendingWidgetUpdate = false
                 }
             }
         }
-        
-        // Always update the last play state
+
         lastWidgetPlayState = isPlaying
     }
 
     private fun processWidgetUpdate(uriString: String, isPlaying: Boolean) {
         serviceScope.launch {
-            // --- 1) Toda lectura de exoPlayer en Main ---
             val currentItem = exoPlayer.currentMediaItem
             val title = currentItem?.mediaMetadata?.title?.toString().orEmpty()
             val artist = currentItem?.mediaMetadata?.artist?.toString().orEmpty()
             val currentPositionMs = exoPlayer.currentPosition
             val totalDurationMs = exoPlayer.duration
 
-            // --- 2) Carga de bitmap en I/O solo si ha cambiado ---
             val artBytes = if (uriString.isNotEmpty() && uriString != lastWidgetArtUri) {
                 withContext(Dispatchers.IO) {
                     loadBitmapDataFromUri(applicationContext, Uri.parse(uriString))
                 }
             } else null
 
-            // --- 3) Construcción del proto en Main ---
             val playerInfoData = PlayerInfo(
                 songTitle = title,
                 artistName = artist,
                 isPlaying = isPlaying,
-                albumArtUri = uriString.ifEmpty { null }, // Store null if empty string
-                albumArtBitmapData = artBytes, // Pass the loaded ByteArray? directly
+                albumArtUri = uriString.ifEmpty { null },
+                albumArtBitmapData = artBytes,
                 currentPositionMs = currentPositionMs,
                 totalDurationMs = totalDurationMs
             )
 
-            // --- 4) Guardar en DataStore en I/O ---
             val glanceManager = GlanceAppWidgetManager(applicationContext)
             val glanceIds = glanceManager.getGlanceIds(PixelPlayGlanceWidget::class.java)
             withContext(Dispatchers.IO) {
                 glanceIds.forEach { id ->
                     updateAppWidgetState(
                         applicationContext,
-                        PlayerInfoStateDefinition, // This now uses PlayerInfo and JSON serializer
+                        PlayerInfoStateDefinition,
                         id
                     ) { playerInfoData }
                 }
             }
 
-            // --- 5) Actualizar UI del widget en Main ---
             glanceIds.forEach { id ->
                 PixelPlayGlanceWidget().update(applicationContext, id)
             }
-            
-            // Update tracking variables
+
             lastWidgetUpdateTime = System.currentTimeMillis()
             lastWidgetArtUri = uriString
         }
     }
 
-    // Cache for widget album art to avoid repeated decoding
-    private val widgetArtCache = LruCache<String, ByteArray>(5) // Cache last 5 album arts
-    
+    private val widgetArtCache = LruCache<String, ByteArray>(5)
+
     private suspend fun loadBitmapDataFromUri(
         context: Context,
         uri: Uri
     ): ByteArray? = withContext(Dispatchers.IO) {
         val uriString = uri.toString()
-        
-        // Check cache first
+
         widgetArtCache.get(uriString)?.let { return@withContext it }
-        
+
         try {
             val request = ImageRequest.Builder(context)
                 .data(uri)
-                .size(Size(128, 128)) // Request a reasonably sized image from Coil
-                .allowHardware(false) // Important for software bitmap access
-                .bitmapConfig(Bitmap.Config.ARGB_8888) // Ensure config is compatible with JPEG (which ignores alpha)
+                .size(Size(128, 128))
+                .allowHardware(false)
+                .bitmapConfig(Bitmap.Config.ARGB_8888)
                 .build()
             val drawable = context.imageLoader.execute(request).drawable
             drawable?.let {
-                // Ensure we get a bitmap that we can compress. ARGB_8888 is fine for JPEG, alpha is ignored.
                 val originalBitmap = it.toBitmap(
-                    width = if (it.intrinsicWidth > 0) it.intrinsicWidth.coerceAtMost(256) else 128, // Cap size before compression
+                    width = if (it.intrinsicWidth > 0) it.intrinsicWidth.coerceAtMost(256) else 128,
                     height = if (it.intrinsicHeight > 0) it.intrinsicHeight.coerceAtMost(256) else 128,
-                    config = Bitmap.Config.ARGB_8888 // Use ARGB_8888, JPEG will handle it
+                    config = Bitmap.Config.ARGB_8888
                 )
 
-                // Create a mutable copy if necessary, though toBitmap should often provide a new one.
-                // For safety, especially if originalBitmap might be recycled by Coil or is immutable.
                 val bitmapToCompress = if (!originalBitmap.isMutable) {
                     originalBitmap.copy(Bitmap.Config.ARGB_8888, false)
                 } else {
@@ -315,13 +313,7 @@ class MusicService : MediaSessionService() {
                 }
 
                 val stream = ByteArrayOutputStream()
-                // Use JPEG for better compression for photographic album art
                 bitmapToCompress.compress(Bitmap.CompressFormat.JPEG, 85, stream)
-                
-                // If originalBitmap was copied to bitmapToCompress, and originalBitmap is not needed elsewhere,
-                // it could be recycled if we were manually managing it. However, Coil manages its own cache,
-                // and originalBitmap comes from Coil's drawable. Let GC and Coil handle originalBitmap.
-                // bitmapToCompress (if it's a copy) will also be GC'd after stream.toByteArray().
 
                 stream.toByteArray()
             }

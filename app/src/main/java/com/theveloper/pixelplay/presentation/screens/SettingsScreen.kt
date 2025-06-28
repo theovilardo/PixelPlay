@@ -188,6 +188,11 @@ fun SettingsScreen(
                 }
             ) {
                 //SettingsCard {
+                Column(
+                    modifier = Modifier.clip(
+                        shape = RoundedCornerShape(24.dp)
+                    )
+                ) {
                     SettingsItem(
                         title = "Allowed Directories",
                         subtitle = "Choose the directories you want to get the music files from.",
@@ -207,19 +212,21 @@ fun SettingsScreen(
                         },
                         onClick = { showDirectoryDialog = true }
                     )
-                //}
-                SettingsItem(
-                    title = "Refresh Library",
-                    subtitle = "Rescan MediaStore and update the local database.",
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Outlined.Sync,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.secondary
-                        )
-                    },
-                    onClick = { settingsViewModel.refreshLibrary() }
-                )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    //}
+                    SettingsItem(
+                        title = "Refresh Library",
+                        subtitle = "Rescan MediaStore and update the local database.",
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Outlined.Sync,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
+                        },
+                        onClick = { settingsViewModel.refreshLibrary() }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -342,7 +349,7 @@ fun SettingsItem(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(10.dp))
             .clickable(onClick = onClick)
     ) {
         Row(
