@@ -14,7 +14,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AlbumEntity::class,
         ArtistEntity::class
     ],
-    version = 3, // Incremented version
+    version = 4, // Incremented version for adding parentDirectoryPath
     exportSchema = false
 )
 //@TypeConverters(ColorConverters::class) // Necesitaremos conversores para los ColorScheme
@@ -24,6 +24,12 @@ abstract class PixelPlayDatabase : RoomDatabase() {
     abstract fun musicDao(): MusicDao // Added MusicDao
 
     companion object {
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE songs ADD COLUMN parent_directory_path TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         // Example of a simple migration if needed.
         // For adding a new table, Room often handles it if schema validation passes.
         // However, explicit migrations are best practice for production.
@@ -39,7 +45,12 @@ abstract class PixelPlayDatabase : RoomDatabase() {
         // }
 
         // In a real app, this would be added to the Room.databaseBuilder() call:
-        // .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
-        // We will assume fallbackToDestructiveMigration is handled at the DI / DB instantiation level for now.
+        // .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        // We will assume fallbackToDestructiveMigration or manual addition of migrations
+        // is handled at the DI / DB instantiation level for now.
+        // For example, in AppModule:
+        // Room.databaseBuilder(context, PixelPlayDatabase::class.java, "pixelplay_db")
+        //     .addMigrations(PixelPlayDatabase.MIGRATION_3_4) // Add other migrations as needed
+        //     .build()
     }
 }
