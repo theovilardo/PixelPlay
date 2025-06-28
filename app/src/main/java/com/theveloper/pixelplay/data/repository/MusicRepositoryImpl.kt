@@ -35,7 +35,9 @@ import com.theveloper.pixelplay.data.database.SongEntity
 import com.theveloper.pixelplay.data.database.toAlbum
 import com.theveloper.pixelplay.data.database.toArtist
 import com.theveloper.pixelplay.data.database.toSong
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first // Still needed for initialSetupDoneFlow.first() if used that way
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
@@ -56,6 +58,7 @@ class MusicRepositoryImpl @Inject constructor(
 
     private val directoryScanMutex = Mutex()
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     override fun getAudioFiles(page: Int, pageSize: Int): Flow<List<Song>> {
         Log.d("MusicRepo/Songs", "getAudioFiles (DAO based) - Page: $page, PageSize: $pageSize")
         val offset = (page - 1).coerceAtLeast(0) * pageSize
@@ -102,6 +105,7 @@ class MusicRepositoryImpl @Inject constructor(
         }.flowOn(Dispatchers.IO)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     override fun getAlbumById(id: Long): Flow<Album?> {
         // This method might need to consider allowed directories as well if consistency is key.
         // For now, it fetches directly. If an album exists but all its songs are in disallowed
@@ -130,7 +134,7 @@ class MusicRepositoryImpl @Inject constructor(
                     } else {
                         flowOf(null) // No permitted songs for this album
                     }
-                }.flatMapLatest { it } // Flatten the Flow<Flow<Album?>> to Flow<Album?>
+                }.flatMapLatest { it!! } // Flatten the Flow<Flow<Album?>> to Flow<Album?>
         }.flowOn(Dispatchers.IO)
         // Original simpler version (kept for reference, might be okay depending on requirements):
         // return musicDao.getAlbumById(id).map { it?.toAlbum() }.flowOn(Dispatchers.IO)
