@@ -12,6 +12,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -101,6 +102,7 @@ import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
@@ -202,12 +204,66 @@ fun UnifiedPlayerSheet(
     }
 
     val playerContentExpansionFraction = remember { Animatable(0f) }
+    val visualOvershootScaleY = remember { Animatable(1f) } // For Y-axis scale overshoot/undershoot
+    //val scope = rememberCoroutineScope() // Needed for launching the secondary animation
+
     LaunchedEffect(showPlayerContentArea, currentSheetContentState) {
         val targetFraction = if (showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) 1f else 0f
+        // Animate primary expansion/collapse
         playerContentExpansionFraction.animateTo(
             targetFraction,
             animationSpec = tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
         )
+
+        // After primary animation completes, trigger overshoot/undershoot effect
+        if (showPlayerContentArea) { // Only if player is meant to be visible
+            scope.launch {
+                visualOvershootScaleY.snapTo(1f) // Reset before animation
+                if (targetFraction == 1f) { // Expanded: Overshoot (stretch upwards)
+                    visualOvershootScaleY.animateTo(
+                        targetValue = 1f,
+                        animationSpec = keyframes {
+                            durationMillis = 50 // Total duration for the bounce effect
+                            1.0f at 0 // Start at normal scale
+                            1.05f at 125 // Overshoot target
+                            1.0f at 250 // Settle back to normal scale
+                        }
+                    )
+                } else { // Collapsed (targetFraction == 0f): Undershoot (squash downwards from top)
+                    visualOvershootScaleY.animateTo(
+                        targetValue = 1f,
+                        animationSpec = keyframes {
+                            durationMillis = 150
+                            1.0f at 0
+                            0.95f at 0 // Undershoot target (makes top edge come down)
+                            1.0f at 250
+                        }
+                    )
+                }
+            }
+        } else {
+            // If player content area is not shown, ensure scale is reset
+            scope.launch {
+                visualOvershootScaleY.snapTo(1f)
+            }
+        }
+    }
+
+    val currentBottomPadding by remember(
+        showPlayerContentArea,
+        collapsedStateHorizontalPadding, // Target padding, same as horizontal for symmetry
+        predictiveBackCollapseProgress,
+        currentSheetContentState
+    ) {
+        derivedStateOf {
+            if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
+                // During predictive back (from expanded state), padding goes from 0.dp to collapsedStateHorizontalPadding
+                lerp(0.dp, collapsedStateHorizontalPadding, predictiveBackCollapseProgress)
+            } else {
+                // Default to 0.dp when not in predictive back collapse or sheet is not expanded.
+                0.dp
+            }
+        }
     }
 
     val playerContentAreaActualHeightPx by remember(showPlayerContentArea, playerContentExpansionFraction, screenHeightPx, miniPlayerContentHeightPx) {
@@ -632,6 +688,7 @@ fun UnifiedPlayerSheet(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .padding(bottom = currentBottomPadding.value.dp) // Apply bottom padding here
             ) {
                 // Player Content Area OR Dismiss Undo Bar
                 if (playerUiState.showDismissUndoBar) {
@@ -717,6 +774,8 @@ fun UnifiedPlayerSheet(
                             .height(playerContentAreaActualHeightDp)
                             .graphicsLayer { // Apply translation for swipe animation
                                 translationX = horizontalDragOffset
+                                scaleY = visualOvershootScaleY.value
+                                transformOrigin = TransformOrigin(0.5f, 1f) // Fixed origin at bottom center
                             }
                             // NUEVO: Aplicar shadow antes del background
                             .shadow(
