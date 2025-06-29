@@ -77,6 +77,7 @@ import kotlinx.coroutines.flow.stateIn
 import java.util.concurrent.TimeUnit
 import androidx.lifecycle.asFlow
 import androidx.work.WorkInfo
+import androidx.core.net.toUri
 
 // Nuevo enum para el estado del sheet
 enum class PlayerSheetState {
@@ -380,7 +381,7 @@ class PlayerViewModel @Inject constructor(
         // *** BLOQUE CORREGIDO ***
         // Observar el estado de SyncWorker (now using isSyncingStateFlow)
         viewModelScope.launch {
-            var wasSyncingBefore = _playerUiState.value.isSyncingLibrary // This UI state field will be updated by the flow
+            val wasSyncingBefore = _playerUiState.value.isSyncingLibrary // This UI state field will be updated by the flow
             Log.d("PlayerViewModel", "Setting up isSyncingStateFlow observer. Initial isSyncingLibrary from UIState: ${wasSyncingBefore}, isSyncingStateFlow.value: ${isSyncingStateFlow.value}")
 
             isSyncingStateFlow // Observe the new StateFlow
@@ -470,8 +471,8 @@ class PlayerViewModel @Inject constructor(
 
     private fun resetAndLoadInitialData(caller: String = "Unknown") {
         val functionStartTime = System.currentTimeMillis()
-    Log.i("PlayerViewModel", "resetAndLoadInitialData called from: $caller")
-    Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData START - Called by: $caller")
+        Log.i("PlayerViewModel", "resetAndLoadInitialData called from: $caller")
+        Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData START - Called by: $caller")
         currentSongPage = 1
         currentAlbumPage = 1
         currentArtistPage = 1
@@ -545,7 +546,7 @@ class PlayerViewModel @Inject constructor(
                 if (actualNewSongsList.isNotEmpty() && actualNewSongsList.size == PAGE_SIZE) {
                     currentSongPage++
                     Log.d("PlayerViewModelPerformance", "loadSongsFromRepository ($loadType): Incremented currentSongPage to $currentSongPage")
-                } else if (actualNewSongsList.isEmpty() && PAGE_SIZE > 0) {
+                } else if (actualNewSongsList.isEmpty()) {
                     // Si no se cargaron canciones y se esperaba alguna, probablemente no haya más
                     _playerUiState.update { it.copy(canLoadMoreSongs = false) }
                     Log.d("PlayerViewModelPerformance", "loadSongsFromRepository ($loadType): No songs returned, setting canLoadMoreSongs to false.")
@@ -615,7 +616,7 @@ class PlayerViewModel @Inject constructor(
                     if (actualNewAlbums.isNotEmpty() && actualNewAlbums.size == PAGE_SIZE) {
                         currentAlbumPage++
                         Log.d("PlayerViewModelPerformance", "loadLibraryCategories $loadTypeLog: Incremented currentAlbumPage to $currentAlbumPage")
-                    } else if (actualNewAlbums.isEmpty() && PAGE_SIZE > 0) {
+                    } else if (actualNewAlbums.isEmpty()) {
                         _playerUiState.update { it.copy(canLoadMoreAlbums = false) }
                         Log.d("PlayerViewModelPerformance", "loadLibraryCategories $loadTypeLog: No albums returned for page $currentAlbumPage, setting canLoadMoreAlbums to false.")
                     }
@@ -649,7 +650,7 @@ class PlayerViewModel @Inject constructor(
                     if (actualNewArtists.isNotEmpty() && actualNewArtists.size == PAGE_SIZE) {
                         currentArtistPage++
                         Log.d("PlayerViewModelPerformance", "loadLibraryCategories $loadTypeLog: Incremented currentArtistPage to $currentArtistPage")
-                    } else if (actualNewArtists.isEmpty() && PAGE_SIZE > 0) {
+                    } else if (actualNewArtists.isEmpty()) {
                         _playerUiState.update { it.copy(canLoadMoreArtists = false) }
                         Log.d("PlayerViewModelPerformance", "loadLibraryCategories $loadTypeLog: No artists returned for page $currentArtistPage, setting canLoadMoreArtists to false.")
                     }
@@ -824,7 +825,7 @@ class PlayerViewModel @Inject constructor(
                 }
                 _playerUiState.update { it.copy(currentPosition = playerCtrl.currentPosition.coerceAtLeast(0L)) } // Use playerCtrl
                 viewModelScope.launch { // ver si causa problemas, extractAndGenerateColorScheme ahora es suspend
-                    song.albumArtUriString?.let { Uri.parse(it) }?.let { uri ->
+                    song.albumArtUriString?.toUri()?.let { uri ->
                         extractAndGenerateColorScheme(uri)
                     }
                 }
@@ -834,7 +835,7 @@ class PlayerViewModel @Inject constructor(
             } else {
                 _stablePlayerState.update { it.copy(currentSong = null, isPlaying = false) }
                 _playerUiState.update { it.copy(currentPosition = 0L) }
-                if (_isSheetVisible.value) { /* hideSheetCompletely() */ }
+                //if (_isSheetVisible.value) { /* hideSheetCompletely() */ }
             }
         }
 
@@ -850,7 +851,7 @@ class PlayerViewModel @Inject constructor(
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
                     val activeEotSongId = com.theveloper.pixelplay.data.EotStateHolder.eotTargetSongId.value
                     // Correctly get previousMediaItem using the playerCtrl instance
-                    val previousSongId = playerCtrl.run { if (previousMediaItemIndex != C.INDEX_UNSET) getMediaItemAt(previousMediaItemIndex)?.mediaId else null }
+                    val previousSongId = playerCtrl.run { if (previousMediaItemIndex != C.INDEX_UNSET) getMediaItemAt(previousMediaItemIndex).mediaId else null }
 
                     if (_isEndOfTrackTimerActive.value && activeEotSongId != null && previousSongId != null && previousSongId == activeEotSongId) {
                         // EOT Condition Met: The EOT target song (previousSongId) just finished naturally.
@@ -888,7 +889,7 @@ class PlayerViewModel @Inject constructor(
 
                     song?.let { currentSongValue ->
                         viewModelScope.launch {
-                            currentSongValue.albumArtUriString?.let { Uri.parse(it) }?.let { uri ->
+                            currentSongValue.albumArtUriString?.toUri()?.let { uri ->
                                 extractAndGenerateColorScheme(uri)
                             }
                         }
@@ -937,12 +938,12 @@ class PlayerViewModel @Inject constructor(
                 val metadata = MediaMetadata.Builder()
                     .setTitle(song.title)
                     .setArtist(song.artist)
-                    .setArtworkUri(song.albumArtUriString?.let { Uri.parse(it) })
+                    .setArtworkUri(song.albumArtUriString?.toUri())
                     // .setAlbumTitle(song.album) // Opcional: Considerar añadir si es útil
                     .build()
                 MediaItem.Builder()
                     .setMediaId(song.id)
-                    .setUri(Uri.parse(song.contentUriString))
+                    .setUri(song.contentUriString.toUri())
                     .setMediaMetadata(metadata)
                     .build()
             }
@@ -955,7 +956,7 @@ class PlayerViewModel @Inject constructor(
                 _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
                 //_stablePlayerState.update { it.copy(currentSong = startSong, isPlaying = true) }
                 viewModelScope.launch {
-                    startSong.albumArtUriString?.let { Uri.parse(it) }?.let { uri ->
+                    startSong.albumArtUriString?.toUri()?.let { uri ->
                         extractAndGenerateColorScheme(uri)
                     }
                 }
@@ -970,12 +971,12 @@ class PlayerViewModel @Inject constructor(
             val metadata = MediaMetadata.Builder()
                 .setTitle(song.title)
                 .setArtist(song.artist)
-                .setArtworkUri(song.albumArtUriString?.let { Uri.parse(it) })
+                .setArtworkUri(song.albumArtUriString?.toUri())
                 // .setAlbumTitle(song.album) // Opcional: Considerar añadir si es útil
                 .build()
             val mediaItem = MediaItem.Builder()
                 .setMediaId(song.id)
-                .setUri(Uri.parse(song.contentUriString))
+                .setUri(song.contentUriString.toUri())
                 .setMediaMetadata(metadata)
                 .build()
             if (controller.currentMediaItem?.mediaId == song.id) {
@@ -987,7 +988,7 @@ class PlayerViewModel @Inject constructor(
             }
             _stablePlayerState.update { it.copy(currentSong = song, isPlaying = true) }
             viewModelScope.launch {
-                song.albumArtUriString?.let { Uri.parse(it) }?.let { uri ->
+                song.albumArtUriString?.toUri()?.let { uri ->
                     extractAndGenerateColorScheme(uri, isPreload = false)
                 }
             }
@@ -1045,11 +1046,11 @@ class PlayerViewModel @Inject constructor(
         mediaController?.let { controller ->
             val mediaItem = MediaItem.Builder()
                 .setMediaId(song.id)
-                .setUri(Uri.parse(song.contentUriString))
+                .setUri(song.contentUriString.toUri())
                 .setMediaMetadata(MediaMetadata.Builder()
                     .setTitle(song.title)
                     .setArtist(song.artist)
-                    .setArtworkUri(song.albumArtUriString?.let { Uri.parse(it) })
+                    .setArtworkUri(song.albumArtUriString?.toUri())
                     .build())
                 .build()
             controller.addMediaItem(mediaItem)
@@ -1206,7 +1207,7 @@ class PlayerViewModel @Inject constructor(
 
     private fun mapEntityToColorSchemePair(entity: AlbumArtThemeEntity): ColorSchemePair {
         fun mapStoredValuesToScheme(sv: StoredColorSchemeValues, isDark: Boolean): ColorScheme {
-            val defaultForRole = if (isDark) DarkColorScheme else LightColorScheme
+            if (isDark) DarkColorScheme else LightColorScheme
             val placeholderColor = Color.Magenta
             return ColorScheme(
                 primary = sv.primary.toComposeColor(), onPrimary = sv.onPrimary.toComposeColor(), primaryContainer = sv.primaryContainer.toComposeColor(), onPrimaryContainer = sv.onPrimaryContainer.toComposeColor(),

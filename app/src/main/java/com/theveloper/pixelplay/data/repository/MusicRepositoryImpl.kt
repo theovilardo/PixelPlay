@@ -48,6 +48,7 @@ import kotlinx.coroutines.withContext
 // import kotlinx.coroutines.sync.withLock // May not be needed if directoryScanMutex logic changes
 import java.io.File
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @Singleton
 class MusicRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -268,6 +269,7 @@ class MusicRepositoryImpl @Inject constructor(
             }
         }.flowOn(Dispatchers.IO)
     }
+
 
     override fun searchAlbums(query: String): Flow<List<Album>> {
         if (query.isBlank()) return flowOf(emptyList())
