@@ -12,6 +12,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -101,6 +102,7 @@ import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
@@ -203,7 +205,7 @@ fun UnifiedPlayerSheet(
 
     val playerContentExpansionFraction = remember { Animatable(0f) }
     val visualOvershootScaleY = remember { Animatable(1f) } // For Y-axis scale overshoot/undershoot
-    val scope = rememberCoroutineScope() // Needed for launching the secondary animation
+    //val scope = rememberCoroutineScope() // Needed for launching the secondary animation
 
     LaunchedEffect(showPlayerContentArea, currentSheetContentState) {
         val targetFraction = if (showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) 1f else 0f
@@ -221,7 +223,7 @@ fun UnifiedPlayerSheet(
                     visualOvershootScaleY.animateTo(
                         targetValue = 1f,
                         animationSpec = keyframes {
-                            durationMillis = 250 // Total duration for the bounce effect
+                            durationMillis = 50 // Total duration for the bounce effect
                             1.0f at 0 // Start at normal scale
                             1.05f at 125 // Overshoot target
                             1.0f at 250 // Settle back to normal scale
@@ -231,9 +233,9 @@ fun UnifiedPlayerSheet(
                     visualOvershootScaleY.animateTo(
                         targetValue = 1f,
                         animationSpec = keyframes {
-                            durationMillis = 250
+                            durationMillis = 150
                             1.0f at 0
-                            0.95f at 125 // Undershoot target (makes top edge come down)
+                            0.95f at 0 // Undershoot target (makes top edge come down)
                             1.0f at 250
                         }
                     )
@@ -686,7 +688,7 @@ fun UnifiedPlayerSheet(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = currentBottomPadding.value) // Apply bottom padding here
+                    .padding(bottom = currentBottomPadding.value.dp) // Apply bottom padding here
             ) {
                 // Player Content Area OR Dismiss Undo Bar
                 if (playerUiState.showDismissUndoBar) {
