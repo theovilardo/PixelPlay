@@ -206,14 +206,19 @@ fun UnifiedPlayerSheet(
     val playerContentExpansionFraction = remember { Animatable(0f) }
     val visualOvershootScaleY = remember { Animatable(1f) } // For Y-axis scale overshoot/undershoot
     var shouldRenderFullPlayer by remember { mutableStateOf(false) }
-    val fullPlayerContentAlpha = remember { Animatable(0f) } // New animatable for fade-in
+    val fullPlayerContentAlpha = remember { Animatable(0f) }
+
+    val density = LocalDensity.current // Get density for dp to px conversion
+    val initialFullPlayerOffsetY = remember(density) { with(density) { 24.dp.toPx() } }
+    val fullPlayerTranslationY = remember { Animatable(initialFullPlayerOffsetY) }
 
     LaunchedEffect(showPlayerContentArea, currentSheetContentState) {
         val targetFraction = if (showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) 1f else 0f
 
         if (targetFraction == 0f) { // Collapsing
             shouldRenderFullPlayer = false
-            fullPlayerContentAlpha.snapTo(0f) // Reset alpha immediately on collapse
+            fullPlayerContentAlpha.snapTo(0f)
+            fullPlayerTranslationY.snapTo(initialFullPlayerOffsetY) // Reset translation on collapse
         }
 
         // Animate primary expansion/collapse
@@ -223,12 +228,22 @@ fun UnifiedPlayerSheet(
         ) { // This is the finishedListener for animateTo
             if (targetFraction == 1f && this.value == 1f) { // Successfully expanded
                 shouldRenderFullPlayer = true
-                // Launch a new coroutine for the alpha animation
-                scope.launch { // Ensure 'scope' is available (rememberCoroutineScope)
-                    fullPlayerContentAlpha.animateTo(
-                        1f,
-                        animationSpec = tween(durationMillis = ANIMATION_DURATION_MS / 2) // Faster fade-in
-                    )
+                scope.launch {
+                    launch {
+                        fullPlayerContentAlpha.animateTo(
+                            1f,
+                            animationSpec = tween(durationMillis = ANIMATION_DURATION_MS / 2, easing = FastOutSlowInEasing)
+                        )
+                    }
+                    launch {
+                        fullPlayerTranslationY.animateTo(
+                            targetValue = 0f,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessLow
+                            )
+                        )
+                    }
                 }
             }
         }
@@ -981,7 +996,10 @@ fun UnifiedPlayerSheet(
                                 CompositionLocalProvider(
                                     LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
                                 ) {
-                                    Box(modifier = Modifier.graphicsLayer { alpha = fullPlayerContentAlpha.value }) { // MODIFIED: Use new alpha
+                                    Box(modifier = Modifier.graphicsLayer {
+                                        alpha = fullPlayerContentAlpha.value
+                                        translationY = fullPlayerTranslationY.value
+                                    }) {
                                         FullPlayerContentInternal(
                                             //currentPosition = playerUiState.currentPosition,
                                             currentSong = stablePlayerState.currentSong,
