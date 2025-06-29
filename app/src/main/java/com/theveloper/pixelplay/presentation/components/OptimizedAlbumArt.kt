@@ -43,6 +43,7 @@ fun OptimizedAlbumArt(
     val request = remember(uri) {
         ImageRequest.Builder(context)
             .data(uri)
+            .placeholder(com.theveloper.pixelplay.R.drawable.rounded_album_24) // Added placeholder
             // .size(Size.ORIGINAL) // Removed to allow Coil to determine size dynamically
             .crossfade(true)                           // subtle fade-in
             .dispatcher(Dispatchers.IO)                // offload decode to IO

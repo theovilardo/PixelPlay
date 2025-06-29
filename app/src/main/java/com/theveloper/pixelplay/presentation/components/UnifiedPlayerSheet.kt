@@ -205,17 +205,28 @@ fun UnifiedPlayerSheet(
 
     val playerContentExpansionFraction = remember { Animatable(0f) }
     val visualOvershootScaleY = remember { Animatable(1f) } // For Y-axis scale overshoot/undershoot
-    //val scope = rememberCoroutineScope() // Needed for launching the secondary animation
+    var shouldRenderFullPlayer by remember { mutableStateOf(false) }
 
     LaunchedEffect(showPlayerContentArea, currentSheetContentState) {
         val targetFraction = if (showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) 1f else 0f
+
+        if (targetFraction == 0f) { // Collapsing
+            shouldRenderFullPlayer = false
+        }
+
         // Animate primary expansion/collapse
         playerContentExpansionFraction.animateTo(
             targetFraction,
             animationSpec = tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
-        )
+        ) { // This is the finishedListener for animateTo
+            if (targetFraction == 1f && this.value == 1f) { // Successfully expanded
+                shouldRenderFullPlayer = true
+            }
+        }
+
 
         // After primary animation completes, trigger overshoot/undershoot effect
+        // This part might need adjustment if it interferes with shouldRenderFullPlayer logic
         if (showPlayerContentArea) { // Only if player is meant to be visible
             scope.launch {
                 visualOvershootScaleY.snapTo(1f) // Reset before animation
@@ -246,6 +257,7 @@ fun UnifiedPlayerSheet(
             scope.launch {
                 visualOvershootScaleY.snapTo(1f)
             }
+            shouldRenderFullPlayer = false // Ensure full player is not rendered if content area not shown
         }
     }
 
@@ -955,7 +967,7 @@ fun UnifiedPlayerSheet(
                             }
 
                             val fullPlayerAlpha by remember { derivedStateOf { playerContentExpansionFraction.value.pow(2) } }
-                            if (fullPlayerAlpha > 0.01f) {
+                            if (shouldRenderFullPlayer && fullPlayerAlpha > 0.01f) { // MODIFIED: Added shouldRenderFullPlayer check
                                 // Aplicar el tema del álbum al full player
                                 CompositionLocalProvider(
                                     LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)

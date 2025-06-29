@@ -94,6 +94,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.theveloper.pixelplay.R
+import com.theveloper.pixelplay.presentation.components.ShimmerBox // Added import for ShimmerBox
 import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.data.model.Playlist
@@ -133,13 +134,20 @@ fun LibraryScreen(
     val favoriteSongs by playerViewModel.favoriteSongs.collectAsState() // Keep if used elsewhere, or remove if only favoriteIds is needed for this screen
     val favoriteIds by playerViewModel.favoriteSongIds.collectAsState()
     val scope = rememberCoroutineScope()
+    val lastTabIndex by playerViewModel.lastLibraryTabIndexFlow.collectAsState()
 
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     var selectedSongForInfo by remember { mutableStateOf<Song?>(null) }
 
     val tabTitles = listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "LIKED")
-    val pagerState = rememberPagerState { tabTitles.size }
+    val pagerState = rememberPagerState(initialPage = lastTabIndex) { tabTitles.size }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.currentPage }.collect { page ->
+            playerViewModel.saveLastLibraryTabIndex(page)
+        }
+    }
 
     // States for sort menu visibility and selected options for each tab
     var showSortMenu by remember { mutableStateOf(false) }
@@ -666,10 +674,11 @@ fun LibrarySongsTab(
 ) {
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
     val listState = rememberLazyListState()
-    if (uiState.isLoadingInitialSongs && uiState.allSongs.isEmpty()) { /* ... Loading ... */ }
-    else if (uiState.allSongs.isEmpty() && !uiState.canLoadMoreSongs) { /* ... No songs ... */ }
-    else {
-        Box(modifier = Modifier.fillMaxSize()) {
+
+    // Determine content based on loading state and data availability
+    when {
+        uiState.isLoadingInitialSongs && uiState.allSongs.isEmpty() -> {
+            // Show Shimmering Placeholder List
             LazyColumn(
                 modifier = Modifier
                     .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
@@ -680,39 +689,95 @@ fun LibrarySongsTab(
                             bottomStart = PlayerSheetCollapsedCornerRadius,
                             bottomEnd = PlayerSheetCollapsedCornerRadius
                         )
-                    ),
+                    )
+                    .fillMaxSize(), // Fill available space
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 10.dp) // Espacio para el FAB
+                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 10.dp)
             ) {
-                item {
-                    Spacer(Modifier.height(0.dp))
-                }
-                items(uiState.allSongs, key = { it.id }) { song ->
-                    val isPlayingThisSong = song.id == stablePlayerState.currentSong?.id
+                items(15) { // Show 15 shimmer items
                     EnhancedSongListItem(
-                        song = song,
-                        isPlaying = isPlayingThisSong,
-                        onMoreOptionsClick = { onMoreOptionsClick(song) }
-                    ) {
-                        playerViewModel.showAndPlaySong(song)
-                    }
+                        song = Song.emptySong(), // Dummy song, won't be used due to isLoading
+                        isPlaying = false,
+                        isLoading = true,
+                        onMoreOptionsClick = {},
+                        onClick = {}
+                    )
                 }
-                if (uiState.isLoadingMoreSongs) {
-                    item {
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(8.dp),
-                            Alignment.Center
+            }
+        }
+        uiState.allSongs.isEmpty() && !uiState.canLoadMoreSongs && !uiState.isLoadingInitialSongs -> {
+            // Show Empty State (No songs found)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_music_off), // Replace with your actual "no music" icon
+                        contentDescription = "No songs found",
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text("No songs found in your library.", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Try rescanning your library in settings if you have music on your device.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+        else -> {
+            // Show Actual Song List
+            Box(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    modifier = Modifier
+                        .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
+                        .clip(
+                            RoundedCornerShape(
+                                topStart = 26.dp,
+                                topEnd = 26.dp,
+                                bottomStart = PlayerSheetCollapsedCornerRadius,
+                                bottomEnd = PlayerSheetCollapsedCornerRadius
+                            )
+                        ),
+                    state = listState,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 10.dp)
+                ) {
+                    item { Spacer(Modifier.height(0.dp)) } // Initial spacer if needed
+
+                    items(uiState.allSongs, key = { "song_${it.id}" }) { song ->
+                        val isPlayingThisSong = song.id == stablePlayerState.currentSong?.id && stablePlayerState.isPlaying
+                        EnhancedSongListItem(
+                            song = song,
+                            isPlaying = isPlayingThisSong,
+                            isLoading = false, // Not loading individually here
+                            onMoreOptionsClick = { onMoreOptionsClick(song) }
                         ) {
-                            CircularProgressIndicator()
+                            playerViewModel.showAndPlaySong(song)
+                        }
+                    }
+                    if (uiState.isLoadingMoreSongs) {
+                        item {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 16.dp), // Increased padding for visibility
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator()
+                            }
                         }
                     }
                 }
-            }
 
-            // Gradiente superior para el efecto de desvanecimiento
+                // Gradiente superior para el efecto de desvanecimiento
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -743,22 +808,19 @@ fun EnhancedSongListItem(
     modifier: Modifier = Modifier,
     song: Song,
     isPlaying: Boolean,
-    onMoreOptionsClick: (Song) -> Unit, // Added parameter
+    isLoading: Boolean = false, // New parameter for shimmer state
+    onMoreOptionsClick: (Song) -> Unit,
     onClick: () -> Unit
 ) {
-    //val itemCornerRadius = 60.dp
-    val coverCornerRadius = 60.dp
-
-    // Animaciones para el botón de favorito
+    val itemCornerRadiusValue = if (isPlaying && !isLoading) 26.dp else 60.dp
     val itemCornerRadius by animateDpAsState(
-        targetValue = if (isPlaying) 26.dp else 60.dp, // 28.dp para hacerlo circular en un alto de 56.dp
+        targetValue = itemCornerRadiusValue,
         animationSpec = tween(durationMillis = 300), label = "ItemCornerAnimation"
     )
 
     val colors = MaterialTheme.colorScheme
-
-    val containerColor = if (isPlaying) colors.primaryContainer.copy(alpha = 0.34f) else colors.surfaceContainerLow
-    val contentColor = if (isPlaying) colors.primary else colors.onSurface
+    val containerColor = if (isPlaying && !isLoading) colors.primaryContainer.copy(alpha = 0.34f) else colors.surfaceContainerLow
+    val contentColor = if (isPlaying && !isLoading) colors.primary else colors.onSurface
 
     val surfaceShape = AbsoluteSmoothCornerShape(
         cornerRadiusBL = itemCornerRadius,
@@ -771,125 +833,152 @@ fun EnhancedSongListItem(
         smoothnessAsPercentBL = 60
     )
 
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(
-                surfaceShape
-            )
-            .clickable {
-                onClick()
-            },
-            //.padding(end = 6.dp, start = 2.dp),
-        shape = AbsoluteSmoothCornerShape(
-            cornerRadiusBL = itemCornerRadius,
-            smoothnessAsPercentTL = 60,
-            cornerRadiusTR = itemCornerRadius,
-            smoothnessAsPercentTR = 60,
-            cornerRadiusBR = itemCornerRadius,
-            smoothnessAsPercentBR = 60,
-            cornerRadiusTL = itemCornerRadius,
-            smoothnessAsPercentBL = 60
-        ),
-        color = containerColor,
-    ) {
-        Row(
-            modifier = Modifier
+    if (isLoading) {
+        // Shimmer Placeholder Layout
+        Surface(
+            modifier = modifier
                 .fillMaxWidth()
-                .padding(horizontal = 13.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .clip(surfaceShape),
+            shape = surfaceShape,
+            color = colors.surfaceContainerLow,
         ) {
-            // Album art con sombra y esquinas más suaves
-            Box(
+            Row(
                 modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .fillMaxWidth()
+                    .padding(horizontal = 13.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                SmartImage(
-                    model = song.albumArtUriString ?: R.drawable.rounded_album_24,
-                    contentDescription = song.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                ShimmerBox(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                )
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 12.dp)
+                ) {
+                    ShimmerBox(
+                        modifier = Modifier
+                            .fillMaxWidth(0.7f)
+                            .height(20.dp) // Approx height of title
+                            .clip(RoundedCornerShape(4.dp))
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    ShimmerBox(
+                        modifier = Modifier
+                            .fillMaxWidth(0.5f)
+                            .height(16.dp) // Approx height of artist
+                            .clip(RoundedCornerShape(4.dp))
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    ShimmerBox(
+                        modifier = Modifier
+                            .fillMaxWidth(0.3f)
+                            .height(16.dp) // Approx height of duration
+                            .clip(RoundedCornerShape(4.dp))
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                ShimmerBox(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape) // MoreVert button placeholder
                 )
             }
-
-            // Song info con mejor espaciado
-            Column(
+        }
+    } else {
+        // Actual Song Item Layout
+        Surface(
+            modifier = modifier
+                .fillMaxWidth()
+                .clip(surfaceShape)
+                .clickable { onClick() },
+            shape = surfaceShape,
+            color = containerColor,
+        ) {
+            Row(
                 modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 12.dp)
+                    .fillMaxWidth()
+                    .padding(horizontal = 13.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = song.title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    color = contentColor,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Person,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = contentColor.copy(alpha = 0.7f)
+                    SmartImage(
+                        model = song.albumArtUriString ?: R.drawable.rounded_album_24,
+                        contentDescription = song.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
                     )
+                }
 
-                    Spacer(modifier = Modifier.width(4.dp))
-
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 12.dp)
+                ) {
                     Text(
-                        text = song.artist,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = contentColor.copy(alpha = 0.7f),
+                        text = song.title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
+                        color = contentColor,
                         overflow = TextOverflow.Ellipsis
                     )
-                }
-
-                if (song.duration > 0) {
-                    Spacer(modifier = Modifier.height(2.dp))
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = Icons.Rounded.Schedule,
+                            imageVector = Icons.Rounded.Person,
                             contentDescription = null,
                             modifier = Modifier.size(14.dp),
-                            tint = contentColor.copy(alpha = 0.5f)
+                            tint = contentColor.copy(alpha = 0.7f)
                         )
-
                         Spacer(modifier = Modifier.width(4.dp))
-
                         Text(
-                            text = formatDuration(song.duration),
+                            text = song.artist,
                             style = MaterialTheme.typography.bodySmall,
-                            color = contentColor.copy(alpha = 0.5f)
+                            color = contentColor.copy(alpha = 0.7f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
+                    if (song.duration > 0) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Rounded.Schedule,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = contentColor.copy(alpha = 0.5f)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = formatDuration(song.duration),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = contentColor.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
                 }
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            IconButton(
-                onClick = { onMoreOptionsClick(song) }, // Modified onClick
-                modifier = Modifier
-                    .size(36.dp)
-                    .padding(end = 4.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.MoreVert,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp),
-                    tint = contentColor.copy(alpha = 0.7f)
-                )
+                Spacer(modifier = Modifier.width(12.dp))
+                IconButton(
+                    onClick = { onMoreOptionsClick(song) },
+                    modifier = Modifier
+                        .size(36.dp)
+                        .padding(end = 4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.MoreVert,
+                        contentDescription = "More options for ${song.title}",
+                        modifier = Modifier.size(24.dp),
+                        tint = contentColor.copy(alpha = 0.7f)
+                    )
+                }
             }
         }
     }

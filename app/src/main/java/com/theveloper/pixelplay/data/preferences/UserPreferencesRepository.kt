@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey // Added import
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -50,6 +51,9 @@ class UserPreferencesRepository @Inject constructor(
         val ARTISTS_SORT_OPTION = stringPreferencesKey("artists_sort_option")
         val PLAYLISTS_SORT_OPTION = stringPreferencesKey("playlists_sort_option")
         val LIKED_SONGS_SORT_OPTION = stringPreferencesKey("liked_songs_sort_option")
+
+        // UI State Keys
+        val LAST_LIBRARY_TAB_INDEX = intPreferencesKey("last_library_tab_index") // Corrected: Add intPreferencesKey here
     }
 
     val allowedDirectoriesFlow: Flow<Set<String>> = dataStore.data
@@ -264,6 +268,18 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setLikedSongsSortOption(optionName: String) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.LIKED_SONGS_SORT_OPTION] = optionName
+        }
+    }
+
+    // --- Library UI State ---
+    val lastLibraryTabIndexFlow: Flow<Int> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.LAST_LIBRARY_TAB_INDEX] ?: 0 // Default to 0 (Songs tab)
+        }
+
+    suspend fun saveLastLibraryTabIndex(tabIndex: Int) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.LAST_LIBRARY_TAB_INDEX] = tabIndex
         }
     }
 }

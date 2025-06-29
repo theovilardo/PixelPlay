@@ -15,4 +15,21 @@ data class Song(
     val albumArtUriString: String?, // Uri de la carátula del álbum
     val duration: Long, // en milisegundos
     val genre: String? = null // Added genre field
-)
+) {
+    companion object {
+        fun emptySong(): Song {
+            return Song(
+                id = "-1",
+                title = "",
+                artist = "",
+                artistId = -1L,
+                album = "",
+                albumId = -1L,
+                contentUriString = "",
+                albumArtUriString = null,
+                duration = 0L,
+                genre = null
+            )
+        }
+    }
+}
