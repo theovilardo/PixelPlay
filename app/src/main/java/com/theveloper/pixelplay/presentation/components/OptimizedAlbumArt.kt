@@ -26,8 +26,9 @@ import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import coil.request.CachePolicy
 import coil.request.ImageRequest
-import coil.size.Size
+// import coil.size.Size // Not strictly needed if ORIGINAL is not used
 import kotlinx.coroutines.Dispatchers
+import com.theveloper.pixelplay.R // Import R explicitly for drawable resources
 
 @OptIn(ExperimentalCoilApi::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -35,46 +36,64 @@ fun OptimizedAlbumArt(
     uri: String,
     title: String,
     expansionFraction: Float,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier // This modifier will be applied to the outer Box
 ) {
     val context = LocalContext.current
 
-    // 1) Build an ImageRequest that uses Dispatchers.IO for decoding & caches aggressively
     val request = remember(uri) {
         ImageRequest.Builder(context)
             .data(uri)
-            .placeholder(com.theveloper.pixelplay.R.drawable.rounded_album_24) // Added placeholder
-            // .size(Size.ORIGINAL) // Removed to allow Coil to determine size dynamically
-            .crossfade(true)                           // subtle fade-in
-            .dispatcher(Dispatchers.IO)                // offload decode to IO
-            .memoryCachePolicy(CachePolicy.ENABLED)    // keep in memory
-            .diskCachePolicy(CachePolicy.ENABLED)      // disk cache for faster repeat loads
+            // Keep placeholder for Coil internal use, it might show briefly before state is Loading
+            .placeholder(R.drawable.rounded_album_24)
+            .error(R.drawable.rounded_broken_image_24) // Define an error drawable in request
+            .crossfade(true)
+            .dispatcher(Dispatchers.IO)
+            .memoryCachePolicy(CachePolicy.ENABLED)
+            .diskCachePolicy(CachePolicy.ENABLED)
             .build()
     }
 
     val painter = rememberAsyncImagePainter(
         model = request,
-        onSuccess = { state: AsyncImagePainter.State.Success ->
-            // state contains the drawable
+        onSuccess = { state ->
             (state.result.drawable as? BitmapDrawable)
                 ?.bitmap
                 ?.asImageBitmap()
                 ?.prepareToDraw()
         }
+        // onError and onLoading can also be handled here if needed,
+        // but painter.state handles it more explicitly for UI switching.
     )
 
-
-    // 4) Lift alpha & shadow out of graphicsLayer into separate modifiers
-    Image(
-        painter = painter,
-        contentDescription = "Album art of $title",
-        contentScale = ContentScale.Crop,
-        modifier = modifier
+    Box(
+        modifier = modifier // Apply the passed modifier to the Box
             .padding(vertical = lerp(4.dp, 16.dp, expansionFraction))
             .fillMaxWidth(lerp(0.5f, 0.8f, expansionFraction))
             .aspectRatio(1f)
             .clip(RoundedCornerShape(lerp(16.dp, 24.dp, expansionFraction)))
-            .shadow(elevation = 16.dp * expansionFraction)  // use Modifier.shadow()
-            .graphicsLayer { alpha = expansionFraction }    // only alpha remains in layer
-    )
+            .shadow(elevation = 16.dp * expansionFraction)
+            .graphicsLayer { alpha = expansionFraction }
+    ) {
+        when (painter.state) {
+            is AsyncImagePainter.State.Loading -> {
+                ShimmerBox(modifier = Modifier.fillMaxSize())
+            }
+            is AsyncImagePainter.State.Error -> {
+                Image(
+                    painter = painterResource(id = R.drawable.rounded_broken_image_24), // Fallback error image
+                    contentDescription = "Error loading album art",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
+            else -> { // AsyncImagePainter.State.Success or AsyncImagePainter.State.Empty
+                Image(
+                    painter = painter,
+                    contentDescription = "Album art of $title",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+    }
 }
