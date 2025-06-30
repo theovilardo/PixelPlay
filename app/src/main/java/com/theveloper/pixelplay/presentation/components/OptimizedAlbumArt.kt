@@ -28,8 +28,9 @@ import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import coil.request.CachePolicy
 import coil.request.ImageRequest
+import coil.size.Size // Importar Size de Coil
 import com.theveloper.pixelplay.R
-import kotlinx.coroutines.Dispatchers
+// kotlinx.coroutines.Dispatchers ya no es necesario aquí si lo quitamos de la request
 
 @OptIn(ExperimentalCoilApi::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -47,12 +48,16 @@ fun OptimizedAlbumArt(
             .crossfade(false)
             .placeholder(R.drawable.rounded_album_24)
             .error(R.drawable.rounded_broken_image_24)
-            .dispatcher(Dispatchers.IO)
+            // .dispatcher(Dispatchers.IO) // Comentado temporalmente
+            .size(Size.ORIGINAL) // Añadido para probar si ayuda a resolver la carga
             .memoryCachePolicy(CachePolicy.ENABLED)
             .diskCachePolicy(CachePolicy.ENABLED)
             .build(),
         onState = { state ->
-            Log.d("OptimizedAlbumArt", "Painter state: $state for URI: $uri")
+            Log.d("OptimizedAlbumArt", "Painter State (Size.ORIGINAL): $state for URI: $uri")
+            if (state is AsyncImagePainter.State.Error) {
+                Log.e("OptimizedAlbumArt", "Coil Error State for URI: $uri", state.result.throwable)
+            }
         }
     )
 
@@ -77,6 +82,7 @@ fun OptimizedAlbumArt(
                 ShimmerBox(modifier = Modifier.fillMaxSize())
             }
             is AsyncImagePainter.State.Error -> {
+                Log.e("OptimizedAlbumArt", "Displaying error placeholder for URI: $uri", currentState.result.throwable)
                 Image(
                     painter = painterResource(id = R.drawable.rounded_broken_image_24),
                     contentDescription = "Error loading album art for $title",
@@ -95,7 +101,7 @@ fun OptimizedAlbumArt(
             is AsyncImagePainter.State.Empty -> {
                 Image(
                     painter = painterResource(id = R.drawable.rounded_album_24),
-                    contentDescription = "Album art placeholder for $title",
+                    contentDescription = "Album art placeholder for $title (empty URI)",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
