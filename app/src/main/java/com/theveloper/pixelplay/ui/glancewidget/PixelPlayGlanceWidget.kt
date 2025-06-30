@@ -225,32 +225,71 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 Image(
                     provider = ImageProvider(R.drawable.rounded_favorite_24),
                     contentDescription = "Abrir en app",
-                    modifier = GlanceModifier.size(28.dp).clickable(actionStartActivity<MainActivity>()).padding(2.dp),
+                    modifier = GlanceModifier
+                        .size(28.dp)
+                        .clickable(actionStartActivity(IntentProvider.mainActivityIntent(context)))
+                        .padding(2.dp),
                     colorFilter = ColorFilter.tint(textColor)
                 )
             }
             if (totalDurationMs > 0L) {
                 LinearProgressIndicator(
                     progress = currentProgressMs.toFloat() / totalDurationMs.toFloat(),
-                    modifier = GlanceModifier.fillMaxWidth().height(4.dp).cornerRadius(2.dp),
+                    modifier = GlanceModifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .cornerRadius(2.dp),
                     color = accentColor,
-                    backgroundColor = textColor
+                    backgroundColor = textColor.copy(alpha = 0.3f) // Un poco más tenue para el fondo
                 )
-                Row(GlanceModifier.fillMaxWidth().padding(top = 4.dp)) {
+                Row(
+                    GlanceModifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    horizontalAlignment = Alignment.SpaceBetween // Para separar los textos
+                ) {
                     Text(formatDurationGlance(currentProgressMs), style = TextStyle(fontSize = 10.sp, color = textColor))
                     Text(formatDurationGlance(totalDurationMs), style = TextStyle(fontSize = 10.sp, color = textColor))
                 }
             } else {
-                Spacer(GlanceModifier.height(4.dp + 10.sp.value.dp)) // Mantener espacio similar
+                Spacer(GlanceModifier.height(4.dp + 10.sp.value.dp + 4.dp)) // Mantener espacio similar, +4 por el padding del Row
             }
-            Spacer(GlanceModifier.height(8.dp))
+            Spacer(GlanceModifier.height(10.dp)) // Aumentar un poco el espacio
+            // Fila de Controles Rediseñada
             Row(
-                modifier = GlanceModifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = GlanceModifier
+                    .fillMaxWidth()
+                    .height(48.dp) // Altura fija para los botones
+                    .cornerRadius(24.dp), // Redondeo para la fila completa si se quiere un fondo unificado
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalAlignment = Alignment.Center
             ) {
-                PreviousButtonGlance(size = 36.dp, iconColor = textColor)
-                PlayPauseButtonGlance(isPlaying = isPlaying, size = 44.dp, iconColor = textColor)
-                NextButtonGlance(size = 36.dp, iconColor = textColor)
+                val secondaryColor = GlanceTheme.colors.secondaryContainer
+                val onSecondaryColor = GlanceTheme.colors.onSecondaryContainer
+                val tertiaryColor = GlanceTheme.colors.tertiaryContainer
+                val onTertiaryColor = GlanceTheme.colors.onTertiaryContainer
+
+                PreviousButtonGlance(
+                    modifier = GlanceModifier.defaultWeight(),
+                    iconColor = onSecondaryColor,
+                    backgroundColor = secondaryColor,
+                    cornerRadius = Dp(24f)
+                )
+                Spacer(GlanceModifier.width(8.dp)) // Espacio entre botones
+                PlayPauseButtonGlance(
+                    modifier = GlanceModifier.defaultWeight(),
+                    isPlaying = isPlaying,
+                    iconColor = GlanceTheme.colors.onPrimaryContainer,
+                    backgroundColor = GlanceTheme.colors.primaryContainer,
+                    cornerRadius = Dp(24f)
+                )
+                Spacer(GlanceModifier.width(8.dp)) // Espacio entre botones
+                NextButtonGlance(
+                    modifier = GlanceModifier.defaultWeight(),
+                    iconColor = onTertiaryColor,
+                    backgroundColor = tertiaryColor,
+                    cornerRadius = Dp(24f)
+                )
             }
         }
     }
@@ -259,47 +298,95 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
     fun ExtraLargeWidgetLayout( // Nuevo layout para el tamaño más grande
         modifier: GlanceModifier, title: String, artist: String, albumArtBitmapData: ByteArray?,
         isPlaying: Boolean, currentProgressMs: Long, totalDurationMs: Long,
-        textColor: ColorProvider, accentColor: ColorProvider
+        textColor: ColorProvider, accentColor: ColorProvider,
+        context: Context // Añadir contexto para el Intent
     ) {
         Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
             // Fila superior: Carátula e Info
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = GlanceModifier.fillMaxWidth()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = GlanceModifier.fillMaxWidth()
+            ) {
                 AlbumArtImageGlance(bitmapData = albumArtBitmapData, size = 80.dp, cornerRadius = 22.dp)
                 Spacer(GlanceModifier.width(16.dp))
                 Column(modifier = GlanceModifier.defaultWeight()) {
-                    Text(text = title, style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textColor), maxLines = 2) // Permitir 2 líneas
-                    Text(text = artist, style = TextStyle(fontSize = 14.sp, color = textColor), maxLines = 1)
+                    Text(
+                        text = title,
+                        style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textColor),
+                        maxLines = 2
+                    ) // Permitir 2 líneas
+                    Text(
+                        text = artist,
+                        style = TextStyle(fontSize = 14.sp, color = textColor),
+                        maxLines = 1
+                    )
                 }
+                // Podríamos añadir un botón de "Abrir App" aquí también si se desea, similar a LargeWidgetLayout
             }
 
             // Fila media: Barra de progreso y tiempos
-            Column(modifier = GlanceModifier.fillMaxWidth().padding(vertical = 8.dp)) {
+            Column(modifier = GlanceModifier.fillMaxWidth().padding(vertical = 12.dp)) { // Más padding vertical
                 if (totalDurationMs > 0L) {
                     LinearProgressIndicator(
                         progress = currentProgressMs.toFloat() / totalDurationMs.toFloat(),
-                        modifier = GlanceModifier.fillMaxWidth().height(6.dp).cornerRadius(3.dp), // Barra más gruesa
+                        modifier = GlanceModifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .cornerRadius(3.dp), // Barra más gruesa
                         color = accentColor,
-                        backgroundColor = textColor
+                        backgroundColor = textColor.copy(alpha = 0.3f) // Un poco más tenue para el fondo
                     )
-                    Row(GlanceModifier.fillMaxWidth().padding(top = 4.dp)) {
+                    Row(
+                        GlanceModifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp), // Más padding superior
+                        horizontalAlignment = Alignment.SpaceBetween // Para separar los textos
+                    ) {
                         Text(formatDurationGlance(currentProgressMs), style = TextStyle(fontSize = 12.sp, color = textColor))
                         Text(formatDurationGlance(totalDurationMs), style = TextStyle(fontSize = 12.sp, color = textColor))
                     }
                 } else {
-                    Spacer(GlanceModifier.height(6.dp + 12.sp.value.dp)) // Mantener espacio
+                    Spacer(GlanceModifier.height(6.dp + 12.sp.value.dp + 6.dp)) // Mantener espacio, +6 por padding
                 }
             }
 
-            // Fila inferior: Controles
+            // Fila inferior: Controles Rediseñada
             Row(
-                modifier = GlanceModifier.fillMaxWidth(),
+                modifier = GlanceModifier
+                    .fillMaxWidth()
+                    .height(56.dp) // Altura mayor para botones más grandes
+                    .cornerRadius(28.dp), // Redondeo para la fila completa
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Podríamos añadir Shuffle y Repeat aquí si el espacio lo permite
-                // Por ahora, mantenemos los controles básicos más grandes
-                PreviousButtonGlance(size = 40.dp, iconColor = textColor)
-                PlayPauseButtonGlance(isPlaying = isPlaying, size = 52.dp, iconColor = textColor) // Botón de play más grande
-                NextButtonGlance(size = 40.dp, iconColor = textColor)
+                val secondaryColor = GlanceTheme.colors.secondaryContainer
+                val onSecondaryColor = GlanceTheme.colors.onSecondaryContainer
+                val tertiaryColor = GlanceTheme.colors.tertiaryContainer
+                val onTertiaryColor = GlanceTheme.colors.onTertiaryContainer
+
+                PreviousButtonGlance(
+                    modifier = GlanceModifier.defaultWeight(),
+                    iconColor = onSecondaryColor,
+                    backgroundColor = secondaryColor,
+                    iconSize = 28.dp, // Iconos más grandes
+                    cornerRadius = Dp(28f)
+                )
+                Spacer(GlanceModifier.width(10.dp)) // Espacio mayor entre botones
+                PlayPauseButtonGlance(
+                    modifier = GlanceModifier.defaultWeight(),
+                    isPlaying = isPlaying,
+                    iconColor = GlanceTheme.colors.onPrimaryContainer,
+                    backgroundColor = GlanceTheme.colors.primaryContainer,
+                    iconSize = 30.dp, // Icono más grande
+                    cornerRadius = Dp(28f)
+                )
+                Spacer(GlanceModifier.width(10.dp)) // Espacio mayor entre botones
+                NextButtonGlance(
+                    modifier = GlanceModifier.defaultWeight(),
+                    iconColor = onTertiaryColor,
+                    backgroundColor = tertiaryColor,
+                    iconSize = 28.dp, // Iconos más grandes
+                    cornerRadius = Dp(28f)
+                )
             }
         }
     }
@@ -333,40 +420,81 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
     }
 
     @Composable
-    fun PlayPauseButtonGlance(isPlaying: Boolean, size: Dp = 36.dp, iconColor: ColorProvider = GlanceTheme.colors.onSurfaceVariant) {
+    fun PlayPauseButtonGlance(
+        modifier: GlanceModifier = GlanceModifier,
+        isPlaying: Boolean,
+        iconColor: ColorProvider = GlanceTheme.colors.onSurfaceVariant,
+        backgroundColor: ColorProvider = GlanceTheme.colors.surfaceVariant,
+        iconSize: Dp = 24.dp,
+        cornerRadius: Dp = 8.dp
+    ) {
         val params = actionParametersOf(PlayerActions.key to PlayerActions.PLAY_PAUSE)
         Box(
-            modifier = GlanceModifier.size(size).clickable(actionRunCallback<PlayerControlActionCallback>(params)).padding(4.dp),
+            modifier = modifier
+                .fillMaxSize() // Llenar el espacio asignado por el peso
+                .background(backgroundColor)
+                .cornerRadius(cornerRadius)
+                .clickable(actionRunCallback<PlayerControlActionCallback>(params)),
             contentAlignment = Alignment.Center
         ) {
             Image(
                 provider = ImageProvider(if (isPlaying) R.drawable.rounded_pause_24 else R.drawable.rounded_play_arrow_24),
                 contentDescription = if (isPlaying) "Pause" else "Play",
-                modifier = GlanceModifier.size(size - 8.dp),
+                modifier = GlanceModifier.size(iconSize),
                 colorFilter = ColorFilter.tint(iconColor)
             )
         }
     }
 
     @Composable
-    fun NextButtonGlance(size: Dp = 36.dp, iconColor: ColorProvider = GlanceTheme.colors.onSurfaceVariant) {
+    fun NextButtonGlance(
+        modifier: GlanceModifier = GlanceModifier,
+        iconColor: ColorProvider = GlanceTheme.colors.onSurfaceVariant,
+        backgroundColor: ColorProvider = GlanceTheme.colors.surfaceVariant,
+        iconSize: Dp = 24.dp,
+        cornerRadius: Dp = 8.dp
+    ) {
         val params = actionParametersOf(PlayerActions.key to PlayerActions.NEXT)
         Box(
-            modifier = GlanceModifier.size(size).clickable(actionRunCallback<PlayerControlActionCallback>(params)).padding(4.dp),
+            modifier = modifier
+                .fillMaxSize() // Llenar el espacio asignado por el peso
+                .background(backgroundColor)
+                .cornerRadius(cornerRadius)
+                .clickable(actionRunCallback<PlayerControlActionCallback>(params)),
             contentAlignment = Alignment.Center
         ) {
-            Image(provider = ImageProvider(R.drawable.rounded_skip_next_24), contentDescription = "Next", modifier = GlanceModifier.size(size - 8.dp), colorFilter = ColorFilter.tint(iconColor))
+            Image(
+                provider = ImageProvider(R.drawable.rounded_skip_next_24),
+                contentDescription = "Next",
+                modifier = GlanceModifier.size(iconSize),
+                colorFilter = ColorFilter.tint(iconColor)
+            )
         }
     }
 
     @Composable
-    fun PreviousButtonGlance(size: Dp = 36.dp, iconColor: ColorProvider = GlanceTheme.colors.onSurfaceVariant) {
+    fun PreviousButtonGlance(
+        modifier: GlanceModifier = GlanceModifier,
+        iconColor: ColorProvider = GlanceTheme.colors.onSurfaceVariant,
+        backgroundColor: ColorProvider = GlanceTheme.colors.surfaceVariant,
+        iconSize: Dp = 24.dp,
+        cornerRadius: Dp = 8.dp
+    ) {
         val params = actionParametersOf(PlayerActions.key to PlayerActions.PREVIOUS)
         Box(
-            modifier = GlanceModifier.size(size).clickable(actionRunCallback<PlayerControlActionCallback>(params)).padding(4.dp),
+            modifier = modifier
+                .fillMaxSize() // Llenar el espacio asignado por el peso
+                .background(backgroundColor)
+                .cornerRadius(cornerRadius)
+                .clickable(actionRunCallback<PlayerControlActionCallback>(params)),
             contentAlignment = Alignment.Center
         ) {
-            Image(provider = ImageProvider(R.drawable.rounded_skip_previous_24), contentDescription = "Previous", modifier = GlanceModifier.size(size - 8.dp), colorFilter = ColorFilter.tint(iconColor))
+            Image(
+                provider = ImageProvider(R.drawable.rounded_skip_previous_24),
+                contentDescription = "Previous",
+                modifier = GlanceModifier.size(iconSize),
+                colorFilter = ColorFilter.tint(iconColor)
+            )
         }
     }
 }
