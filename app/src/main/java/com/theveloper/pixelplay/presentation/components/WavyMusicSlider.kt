@@ -210,7 +210,7 @@ fun WavyMusicSlider(
                                         waveStartDrawX,
                                         localCenterY + waveAmplitudePxInternal * sin(waveFrequency * waveStartDrawX + phaseShift)
                                     )
-                                    val waveStep = 1f
+                                    val waveStep = 2f // Aumentado de 1f a 2f para reducir cálculos
                                     var x = waveStartDrawX + waveStep
                                     while (x < waveEndDrawX) {
                                         val wavePhase = waveFrequency * x + phaseShift

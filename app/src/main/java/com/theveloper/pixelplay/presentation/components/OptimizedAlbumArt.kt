@@ -78,8 +78,14 @@ fun OptimizedAlbumArt(
         label = "AlbumArtCrossfade"
     ) { currentState ->
         when (currentState) {
-            is AsyncImagePainter.State.Loading -> {
-                ShimmerBox(modifier = Modifier.fillMaxSize())
+            is AsyncImagePainter.State.Loading,
+            is AsyncImagePainter.State.Empty -> { // Show static placeholder for Loading and Empty states
+                Image(
+                    painter = painterResource(id = R.drawable.rounded_album_24),
+                    contentDescription = "$title placeholder", // Adjusted content description
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
             is AsyncImagePainter.State.Error -> {
                 Log.e("OptimizedAlbumArt", "Displaying error placeholder for URI: $uri", currentState.result.throwable)
@@ -98,14 +104,9 @@ fun OptimizedAlbumArt(
                     modifier = Modifier.fillMaxSize()
                 )
             }
-            is AsyncImagePainter.State.Empty -> {
-                Image(
-                    painter = painterResource(id = R.drawable.rounded_album_24),
-                    contentDescription = "Album art placeholder for $title (empty URI)",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
+            // Note: AsyncImagePainter.State.Empty is now handled with Loading.
+            // If a distinct visual for Empty is needed and it's different from Loading,
+            // it would need its own branch. For now, grouped with Loading to show the static placeholder.
         }
     }
 }
