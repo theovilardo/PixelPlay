@@ -317,7 +317,7 @@ class MusicService : MediaSessionService() {
                 songTitle = title,
                 artistName = artist,
                 isPlaying = isPlaying,
-                albumArtUri = uriString.ifEmpty { null },
+                albumArtUri = artUriString.ifEmpty { null },
                 albumArtBitmapData = artBytes,
                 currentPositionMs = currentPositionMs,
                 totalDurationMs = totalDurationMs

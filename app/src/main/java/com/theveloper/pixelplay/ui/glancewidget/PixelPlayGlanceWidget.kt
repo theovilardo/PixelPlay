@@ -18,6 +18,7 @@ import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
 import androidx.glance.Image
 import androidx.glance.ImageProvider
+import androidx.glance.LocalContext
 import androidx.glance.LocalSize
 import androidx.glance.action.actionParametersOf
 import androidx.glance.action.actionStartActivity
@@ -26,6 +27,7 @@ import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.LinearProgressIndicator
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionRunCallback
+import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -36,6 +38,7 @@ import androidx.glance.layout.Column
 import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
+import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
@@ -107,6 +110,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 
     @Composable
     private fun WidgetUi(playerInfo: PlayerInfo, size: DpSize) { // Changed to PlayerInfo
+        val context = LocalContext.current
         val title = playerInfo.songTitle.ifEmpty { "PixelPlay" }
         val artist = playerInfo.artistName.ifEmpty { "Toca para abrir" }
         val isPlaying = playerInfo.isPlaying
@@ -148,16 +152,38 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 ThinWidgetLayout(baseModifier.padding(horizontal = 16.dp, vertical = 10.dp), title, artist, albumArtBitmapData, isPlaying, onBackgroundColor, context)
             }
             size.width < MEDIUM_LAYOUT_SIZE.width || size.height < MEDIUM_LAYOUT_SIZE.height -> {
-                SmallWidgetLayout(baseModifier.padding(16.dp), title, albumArtBitmapData, isPlaying, onBackgroundColor, context)
+                SmallWidgetLayout(baseModifier.padding(16.dp), title, albumArtBitmapData, isPlaying, onBackgroundColor)
             }
             size.width < LARGE_LAYOUT_SIZE.width || size.height < LARGE_LAYOUT_SIZE.height -> {
-                MediumWidgetLayout(baseModifier.padding(12.dp), title, artist, albumArtBitmapData, isPlaying, onBackgroundColor, context)
+                MediumWidgetLayout(baseModifier.padding(12.dp), title, artist, albumArtBitmapData, isPlaying, onBackgroundColor)
             }
             size.width < EXTRA_LARGE_LAYOUT_SIZE.width || size.height < EXTRA_LARGE_LAYOUT_SIZE.height -> { // Condición para el layout grande
-                LargeWidgetLayout(baseModifier.padding(16.dp), title, artist, albumArtBitmapData, isPlaying, currentProgress, totalDuration, onBackgroundColor, primaryColor, context)
+                LargeWidgetLayout(
+                    baseModifier.padding(16.dp),
+                    title,
+                    artist,
+                    albumArtBitmapData,
+                    isPlaying,
+                    currentProgress,
+                    totalDuration,
+                    onBackgroundColor,
+                    primaryColor,
+                    context = context
+                )
             }
             else -> { // Layout extra grande
-                ExtraLargeWidgetLayout(baseModifier.padding(16.dp), title, artist, albumArtBitmapData, isPlaying, currentProgress, totalDuration, onBackgroundColor, primaryColor, context = context)
+                ExtraLargeWidgetLayout(
+                    baseModifier.padding(16.dp),
+                    title,
+                    artist,
+                    albumArtBitmapData,
+                    isPlaying,
+                    currentProgress,
+                    totalDuration,
+                    onBackgroundColor,
+                    primaryColor,
+                    context = context
+                )
             }
         }
     }
@@ -174,8 +200,8 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 }
             }
             Spacer(GlanceModifier.width(6.dp))
-            PlayPauseButtonGlance(modifier = GlanceModifier.size(30.dp), isPlaying = isPlaying, iconColor = textColor, backgroundColor = GlanceTheme.colors.secondaryContainer.copy(alpha = 0f), iconSize = 20.dp, cornerRadius = 15.dp)
-            NextButtonGlance(modifier = GlanceModifier.size(30.dp), iconColor = textColor, backgroundColor = GlanceTheme.colors.secondaryContainer.copy(alpha = 0f), iconSize = 20.dp, cornerRadius = 15.dp)
+            PlayPauseButtonGlance(modifier = GlanceModifier.size(30.dp), isPlaying = isPlaying, iconColor = textColor, backgroundColor = GlanceTheme.colors.secondaryContainer, iconSize = 20.dp, cornerRadius = 15.dp)
+            NextButtonGlance(modifier = GlanceModifier.size(30.dp), iconColor = textColor, backgroundColor = GlanceTheme.colors.secondaryContainer, iconSize = 20.dp, cornerRadius = 15.dp)
         }
     }
 
@@ -192,23 +218,23 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 }
             }
             Spacer(GlanceModifier.width(8.dp))
-            PlayPauseButtonGlance(modifier = GlanceModifier.size(36.dp), isPlaying = isPlaying, iconColor = textColor, backgroundColor = GlanceTheme.colors.secondaryContainer.copy(alpha = 0f), iconSize = 24.dp, cornerRadius = 18.dp)
-            NextButtonGlance(modifier = GlanceModifier.size(36.dp), iconColor = textColor, backgroundColor = GlanceTheme.colors.secondaryContainer.copy(alpha = 0f), iconSize = 24.dp, cornerRadius = 18.dp)
+            PlayPauseButtonGlance(isPlaying = isPlaying, iconSize = 36.dp, iconColor = textColor)
+            NextButtonGlance(iconSize = 36.dp, iconColor = textColor)
         }
     }
 
     @Composable
-    fun SmallWidgetLayout(modifier: GlanceModifier, title: String, albumArtBitmapData: ByteArray?, isPlaying: Boolean, textColor: ColorProvider, context: Context) {
+    fun SmallWidgetLayout(modifier: GlanceModifier, title: String, albumArtBitmapData: ByteArray?, isPlaying: Boolean, textColor: ColorProvider) {
         Column(modifier = modifier, verticalAlignment = Alignment.CenterVertically, horizontalAlignment = Alignment.CenterHorizontally) {
             AlbumArtImageGlance(bitmapData = albumArtBitmapData, size = 60.dp, cornerRadius = 30.dp, modifier = GlanceModifier.padding(bottom = 8.dp)) // Circular
             Text(text = title, style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = textColor, textAlign = TextAlign.Center), maxLines = 1)
             Spacer(GlanceModifier.height(8.dp))
-            PlayPauseButtonGlance(modifier = GlanceModifier.size(40.dp), isPlaying = isPlaying, iconColor = textColor, backgroundColor = GlanceTheme.colors.secondaryContainer.copy(alpha = 0f), iconSize = 28.dp, cornerRadius = 20.dp)
+            PlayPauseButtonGlance(isPlaying = isPlaying, iconSize = 40.dp, iconColor = textColor)
         }
     }
 
     @Composable
-    fun MediumWidgetLayout(modifier: GlanceModifier, title: String, artist: String, albumArtBitmapData: ByteArray?, isPlaying: Boolean, textColor: ColorProvider, context: Context) {
+    fun MediumWidgetLayout(modifier: GlanceModifier, title: String, artist: String, albumArtBitmapData: ByteArray?, isPlaying: Boolean, textColor: ColorProvider) {
         Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
             AlbumArtImageGlance(bitmapData = albumArtBitmapData, size = 64.dp, cornerRadius = 16.dp) // Rectángulo redondeado
             Spacer(GlanceModifier.width(12.dp))
@@ -217,10 +243,13 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 Text(text = artist, style = TextStyle(fontSize = 13.sp, color = textColor), maxLines = 1)
             }
             Spacer(GlanceModifier.width(8.dp))
+            PreviousButtonGlance(iconSize = 32.dp, iconColor = textColor)
+            PlayPauseButtonGlance(isPlaying = isPlaying, iconSize = 38.dp, iconColor = textColor)
+            NextButtonGlance(iconSize = 32.dp, iconColor = textColor)
             val controlButtonModifier = GlanceModifier.size(36.dp) // Tamaño unificado para esta fila
             val controlIconSize = 22.dp
             val controlButtonCornerRadius = 18.dp
-            val transparentBg = GlanceTheme.colors.surface.copy(alpha = 0f)
+            val transparentBg = GlanceTheme.colors.surface
 
             PreviousButtonGlance(modifier = controlButtonModifier, iconColor = textColor, backgroundColor = transparentBg, iconSize = controlIconSize, cornerRadius = controlButtonCornerRadius)
             PlayPauseButtonGlance(modifier = controlButtonModifier, isPlaying = isPlaying, iconColor = textColor, backgroundColor = transparentBg, iconSize = controlIconSize, cornerRadius = controlButtonCornerRadius)
@@ -261,7 +290,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                         .height(4.dp)
                         .cornerRadius(2.dp),
                     color = accentColor,
-                    backgroundColor = textColor.copy(alpha = 0.3f) // Un poco más tenue para el fondo
+                    backgroundColor = textColor // Un poco más tenue para el fondo
                 )
                 Row(
                     GlanceModifier
@@ -358,7 +387,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                             .height(6.dp)
                             .cornerRadius(3.dp), // Barra más gruesa
                         color = accentColor,
-                        backgroundColor = textColor.copy(alpha = 0.3f) // Un poco más tenue para el fondo
+                        backgroundColor = textColor // Un poco más tenue para el fondo
                     )
                     Row(
                         GlanceModifier
@@ -458,7 +487,8 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         val params = actionParametersOf(PlayerActions.key to PlayerActions.PLAY_PAUSE)
         Box(
             modifier = modifier
-                .fillMaxSize() // Llenar el espacio asignado por el peso
+                //.fillMaxSize() // Llenar el espacio asignado por el peso
+                .fillMaxHeight()
                 .background(backgroundColor)
                 .cornerRadius(cornerRadius)
                 .clickable(actionRunCallback<PlayerControlActionCallback>(params)),
@@ -484,7 +514,8 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         val params = actionParametersOf(PlayerActions.key to PlayerActions.NEXT)
         Box(
             modifier = modifier
-                .fillMaxSize() // Llenar el espacio asignado por el peso
+                //.fillMaxSize() // Llenar el espacio asignado por el peso
+                .fillMaxHeight()
                 .background(backgroundColor)
                 .cornerRadius(cornerRadius)
                 .clickable(actionRunCallback<PlayerControlActionCallback>(params)),
@@ -510,7 +541,8 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         val params = actionParametersOf(PlayerActions.key to PlayerActions.PREVIOUS)
         Box(
             modifier = modifier
-                .fillMaxSize() // Llenar el espacio asignado por el peso
+                //.fillMaxSize() // Llenar el espacio asignado por el peso
+                .fillMaxHeight()
                 .background(backgroundColor)
                 .cornerRadius(cornerRadius)
                 .clickable(actionRunCallback<PlayerControlActionCallback>(params)),
