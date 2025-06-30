@@ -203,52 +203,115 @@ class MusicService : MediaSessionService() {
     }
 
     private var lastWidgetUpdateTime = 0L
-    private var lastWidgetArtUri = ""
-    private var pendingWidgetUpdate = false
+    private var lastWidgetArtUriString = "" // Renombrado para claridad
     private var widgetUpdateJob: Job? = null
-    private var lastWidgetPlayState = false
+    private var lastWidgetIsPlayingState = false
 
-    private fun updateWidgetFullState() {
-        val currentTime = System.currentTimeMillis()
-        val currentItem = exoPlayer.currentMediaItem
-        val uriString = currentItem?.mediaMetadata?.artworkUri?.toString().orEmpty()
-        val isPlaying = exoPlayer.isPlaying && exoPlayer.playbackState != Player.STATE_ENDED
+    // LruCache para ByteArrays de carátulas, clave es URI en String
+    private val widgetArtByteArrayCache = LruCache<String, ByteArray>(5)
+    private var progressUpdateJob: Job? = null
 
-        val isPlayStateChange = lastWidgetPlayState != isPlaying
-        val isMediaItemChange = lastWidgetArtUri != uriString
-        val isTimeToUpdate = currentTime - lastWidgetUpdateTime > 5000
-
-        if (isPlayStateChange || isMediaItemChange || isTimeToUpdate) {
-            widgetUpdateJob?.cancel()
-            pendingWidgetUpdate = false
-            processWidgetUpdate(uriString, isPlaying)
-        } else if (!pendingWidgetUpdate) {
-            pendingWidgetUpdate = true
-            widgetUpdateJob = serviceScope.launch {
-                delay(1000)
-                if (pendingWidgetUpdate) {
-                    processWidgetUpdate(uriString, isPlaying)
-                    pendingWidgetUpdate = false
+    private fun startProgressUpdater() {
+        stopProgressUpdater() // Detiene cualquier actualizador anterior
+        if (exoPlayer.isPlaying && exoPlayer.playbackState != Player.STATE_ENDED) {
+            progressUpdateJob = serviceScope.launch {
+                while (true) {
+                    updateWidgetFullState(isProgressUpdate = true)
+                    delay(1000) // Actualiza el progreso cada segundo
                 }
             }
         }
-
-        lastWidgetPlayState = isPlaying
     }
 
-    private fun processWidgetUpdate(uriString: String, isPlaying: Boolean) {
+    private fun stopProgressUpdater() {
+        progressUpdateJob?.cancel()
+        progressUpdateJob = null
+    }
+
+    private fun updateWidgetFullState(isProgressUpdate: Boolean = false) {
+        val currentTime = System.currentTimeMillis()
+        val currentMediaItem = exoPlayer.currentMediaItem
+        val currentArtUriString = currentMediaItem?.mediaMetadata?.artworkUri?.toString().orEmpty()
+        val currentIsPlaying = exoPlayer.isPlaying && exoPlayer.playbackState != Player.STATE_ENDED
+
+        val hasPlayStateChanged = lastWidgetIsPlayingState != currentIsPlaying
+        val hasMediaItemChanged = lastWidgetArtUriString != currentArtUriString
+
+        // Si es una actualización de progreso, forzamos el procesamiento.
+        // Si no, verificamos si el estado cambió o si pasó mucho tiempo.
+        val shouldProcessUpdate = isProgressUpdate || hasPlayStateChanged || hasMediaItemChanged || (currentTime - lastWidgetUpdateTime > 5000)
+
+        if (shouldProcessUpdate) {
+            widgetUpdateJob?.cancel() // Cancela cualquier trabajo de actualización pendiente "completo"
+            widgetUpdateJob = serviceScope.launch {
+                // Si no es una actualización de progreso (es decir, un cambio de estado mayor o tiempo),
+                // podemos introducir un pequeño delay para agrupar cambios rápidos.
+                if (!isProgressUpdate) {
+                    delay(250) // Pequeño delay para cambios de canción o estado de reproducción
+                }
+                processWidgetUpdateInternal(currentArtUriString, currentIsPlaying, isProgressUpdate)
+            }
+        }
+
+        if (hasPlayStateChanged) {
+            if (currentIsPlaying) {
+                startProgressUpdater()
+            } else {
+                stopProgressUpdater()
+            }
+        }
+        // Actualizar estados para la próxima comparación
+        // lastWidgetIsPlayingState se actualiza en processWidgetUpdateInternal después del envío
+        // lastWidgetArtUriString se actualiza en processWidgetUpdateInternal solo si la carga de arte es exitosa
+    }
+
+
+    private fun processWidgetUpdateInternal(artUriString: String, isPlaying: Boolean, isProgressOnlyUpdate: Boolean) {
         serviceScope.launch {
             val currentItem = exoPlayer.currentMediaItem
             val title = currentItem?.mediaMetadata?.title?.toString().orEmpty()
             val artist = currentItem?.mediaMetadata?.artist?.toString().orEmpty()
             val currentPositionMs = exoPlayer.currentPosition
-            val totalDurationMs = exoPlayer.duration
+            val totalDurationMs = exoPlayer.duration.coerceAtLeast(0) // Asegurar que no sea negativo
 
-            val artBytes = if (uriString.isNotEmpty() && uriString != lastWidgetArtUri) {
-                withContext(Dispatchers.IO) {
-                    loadBitmapDataFromUri(applicationContext, Uri.parse(uriString))
+            var artBytes: ByteArray? = null
+
+            if (!isProgressOnlyUpdate && artUriString.isNotEmpty()) {
+                // Intentar obtener de la caché primero
+                artBytes = widgetArtByteArrayCache.get(artUriString)
+                if (artBytes == null) { // Si no está en caché, cargar
+                    Log.d(TAG, "Cache miss for art URI: $artUriString. Loading image.")
+                    artBytes = withContext(Dispatchers.IO) {
+                        loadBitmapDataFromUri(applicationContext, Uri.parse(artUriString))
+                    }
+                    if (artBytes != null) {
+                        widgetArtByteArrayCache.put(artUriString, artBytes) // Guardar en caché si la carga fue exitosa
+                        lastWidgetArtUriString = artUriString // Actualizar solo si la carga fue exitosa
+                    } else {
+                        Log.w(TAG, "Failed to load album art for URI: $artUriString")
+                        // No actualizamos lastWidgetArtUriString para que se intente de nuevo la próxima vez si la URI es la misma
+                    }
+                } else {
+                    Log.d(TAG, "Cache hit for art URI: $artUriString.")
+                    // Si se encuentra en caché, significa que lastWidgetArtUriString ya debería ser esta URI
+                    // y se cargó correctamente antes.
+                    if (lastWidgetArtUriString != artUriString) { // Sincronizar por si acaso
+                        lastWidgetArtUriString = artUriString
+                    }
                 }
-            } else null
+            } else if (artUriString.isEmpty() && !isProgressOnlyUpdate) {
+                lastWidgetArtUriString = "" // Limpiar si no hay URI
+                widgetArtByteArrayCache.evictAll() // Podríamos limpiar la caché si no hay arte
+            } else if (isProgressOnlyUpdate && artUriString.isNotEmpty()) {
+                // Para actualizaciones de progreso, reutilizar la imagen de la caché si la URI no ha cambiado
+                // y ya estaba cargada.
+                if (artUriString == lastWidgetArtUriString) {
+                    artBytes = widgetArtByteArrayCache.get(artUriString)
+                }
+                // Si la URI cambió durante una actualización de progreso (improbable pero posible),
+                // artBytes permanecerá nulo y se manejará como una actualización completa en la próxima llamada no-progreso.
+            }
+
 
             val playerInfoData = PlayerInfo(
                 songTitle = title,
@@ -277,24 +340,28 @@ class MusicService : MediaSessionService() {
             }
 
             lastWidgetUpdateTime = System.currentTimeMillis()
-            lastWidgetArtUri = uriString
+            lastWidgetIsPlayingState = isPlaying // Actualizar el estado de reproducción
+            // lastWidgetArtUriString ya se actualiza condicionalmente arriba
+            Log.d(TAG, "Widget state updated. Playing: $isPlaying, Title: $title, Art URI: $artUriString, Progress: $currentPositionMs")
         }
     }
 
-    private val widgetArtCache = LruCache<String, ByteArray>(5)
+    // widgetArtByteArrayCache se define arriba
+    // private val widgetArtCache = LruCache<String, ByteArray>(5) // Movido y renombrado
 
     private suspend fun loadBitmapDataFromUri(
         context: Context,
         uri: Uri
     ): ByteArray? = withContext(Dispatchers.IO) {
-        val uriString = uri.toString()
+        val uriString = uri.toString() // Clave para la caché
 
-        widgetArtCache.get(uriString)?.let { return@withContext it }
+        // La verificación de caché ahora se hace en processWidgetUpdateInternal antes de llamar a esta función.
+        // Esta función ahora solo carga y comprime.
 
         try {
             val request = ImageRequest.Builder(context)
                 .data(uri)
-                .size(Size(128, 128))
+                .size(Size(256, 256)) // Aumentado un poco para mejor calidad si el widget es grande
                 .allowHardware(false)
                 .bitmapConfig(Bitmap.Config.ARGB_8888)
                 .build()
@@ -313,16 +380,30 @@ class MusicService : MediaSessionService() {
                 }
 
                 val stream = ByteArrayOutputStream()
-                bitmapToCompress.compress(Bitmap.CompressFormat.JPEG, 85, stream)
-
-                stream.toByteArray()
+                // Usar WEBP para mejor calidad/compresión si es posible, o JPEG con calidad decente.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    bitmapToCompress.compress(Bitmap.CompressFormat.WEBP_LOSSY, 80, stream)
+                } else {
+                    bitmapToCompress.compress(Bitmap.CompressFormat.JPEG, 85, stream)
+                }
+                val byteArray = stream.toByteArray()
+                Log.d(TAG, "Bitmap loaded and compressed for URI: $uriString, size: ${byteArray.size} bytes")
+                byteArray
+            } ?: run {
+                Log.w(TAG, "Drawable was null for URI: $uriString")
+                null
             }
-        } catch (e: Exception) { Log.e(TAG, "Failed to load bitmap from URI: $uri", e); null }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load bitmap from URI: $uriString", e)
+            null
+        }
     }
 
     override fun onDestroy() {
+        stopProgressUpdater()
         mediaSession?.release()
         mediaSession = null
         super.onDestroy()
+        serviceScope.cancel() // Cancelar el scope del servicio
     }
 }
