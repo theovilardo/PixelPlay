@@ -94,9 +94,10 @@ private fun DailyMixCard(
             DailyMixSongList(songs = songsToPlay, playerViewModel)
             ViewAllDailyMixButton(
                 modifier = Modifier
+                    .fillMaxWidth()
                     .padding(
                         start = 10.dp,
-                        end = 6.dp,
+                        end = 10.dp,
                         top = 6.dp,
                         bottom = 6.dp
                     ),

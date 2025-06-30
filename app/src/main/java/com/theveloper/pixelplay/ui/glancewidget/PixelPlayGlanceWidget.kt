@@ -311,7 +311,8 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
             Row(
                 modifier = GlanceModifier
                     .fillMaxWidth()
-                    .height(48.dp), // Altura fija para los botones
+                    .fillMaxHeight(),
+                    //.height(48.dp), // Altura fija para los botones
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 val secondaryColor = GlanceTheme.colors.secondaryContainer
