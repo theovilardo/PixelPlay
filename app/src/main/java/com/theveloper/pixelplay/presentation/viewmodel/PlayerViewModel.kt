@@ -242,6 +242,10 @@ class PlayerViewModel @Inject constructor(
     // Room es el caché persistente.
     private val individualAlbumColorSchemes = mutableMapOf<String, MutableStateFlow<ColorSchemePair?>>()
 
+    // Cola para procesar solicitudes de generación de ColorScheme
+    private val colorSchemeRequestChannel = kotlinx.coroutines.channels.Channel<String>(kotlinx.coroutines.channels.Channel.UNLIMITED)
+    private val urisBeingProcessed = mutableSetOf<String>() // Para evitar encolar duplicados
+
     private var mediaController: MediaController? = null
     private val sessionToken = SessionToken(context, ComponentName(context, MusicService::class.java))
     private val mediaControllerFuture: ListenableFuture<MediaController> =
@@ -337,6 +341,9 @@ class PlayerViewModel @Inject constructor(
                 _favoriteSongIds.value = ids
             }
         }
+
+        // Iniciar el procesador de la cola de esquemas de color
+        launchColorSchemeProcessor()
 
         // Observe sort option preferences
         viewModelScope.launch {
@@ -1069,28 +1076,67 @@ class PlayerViewModel @Inject constructor(
 
     // Función para ser llamada por AlbumGridItem
     fun getAlbumColorSchemeFlow(albumArtUri: String?): StateFlow<ColorSchemePair?> {
-        val uriString = albumArtUri?.toString() ?: "default_fallback_key" // Usar una clave de fallback si la URI es null
+        val uriString = albumArtUri?.toString() ?: "default_fallback_key"
 
-        // Devolver flujo existente o crear uno nuevo
-        return individualAlbumColorSchemes.getOrPut(uriString) {
-            MutableStateFlow(null) // Inicialmente null, se poblará asíncronamente
-        }.also { flow ->
-            // Si el flujo es nuevo o no tiene valor, e la URI no es la de fallback, intentar cargar/generar
-            if (flow.value == null && albumArtUri != null) {
-                viewModelScope.launch {
-                    val scheme = getOrGenerateColorSchemeForUri(albumArtUri, false)
-                    flow.value = scheme // Emitir el esquema al flujo específico del álbum
+        val existingFlow = individualAlbumColorSchemes[uriString]
+        if (existingFlow != null) {
+            // Si el flujo existe y ya tiene un valor (o está siendo procesado y lo tendrá), devuélvelo.
+            // Si no tiene valor Y no está siendo procesado Y es una URI válida, podría encolarse.
+            // Esta lógica de re-encolar si es null y no procesándose es para cubrir casos borde.
+            if (existingFlow.value == null && albumArtUri != null && !urisBeingProcessed.contains(uriString)) {
+                synchronized(urisBeingProcessed) {
+                    if (!urisBeingProcessed.contains(uriString)) { // Doble check por concurrencia
+                        urisBeingProcessed.add(uriString)
+                        colorSchemeRequestChannel.trySend(albumArtUri) // Enviar a la cola para procesamiento
+                        Log.d("PlayerViewModel", "Re-queued $uriString for color scheme processing.")
+                    }
                 }
-            } else if (albumArtUri == null && flow.value == null) {
-                // Para el caso de fallback (sin URI), usar los defaults
-                flow.value = ColorSchemePair(LightColorScheme, DarkColorScheme)
+            }
+            return existingFlow
+        }
+
+        // Si el flujo no existe, créalo, encola la tarea y devuélvelo.
+        val newFlow = MutableStateFlow<ColorSchemePair?>(null)
+        individualAlbumColorSchemes[uriString] = newFlow
+
+        if (albumArtUri != null) { // Solo procesa URIs válidas
+            synchronized(urisBeingProcessed) {
+                if (!urisBeingProcessed.contains(uriString)) {
+                    urisBeingProcessed.add(uriString)
+                    colorSchemeRequestChannel.trySend(albumArtUri) // Enviar a la cola para procesamiento
+                    Log.d("PlayerViewModel", "Enqueued $uriString for color scheme processing.")
+                }
+            }
+        } else if (uriString == "default_fallback_key") {
+            // Para la clave de fallback (URI nula), establece directamente el esquema por defecto.
+            newFlow.value = ColorSchemePair(LightColorScheme, DarkColorScheme)
+        }
+        return newFlow
+    }
+
+    private fun launchColorSchemeProcessor() {
+        viewModelScope.launch(Dispatchers.IO) { // Usar Dispatchers.IO para el bucle del canal
+            for (albumArtUri in colorSchemeRequestChannel) { // Consume de la cola
+                try {
+                    Log.d("PlayerViewModel", "Processing $albumArtUri from queue.")
+                    val scheme = getOrGenerateColorSchemeForUri(albumArtUri, false) // isPreload = false
+                    individualAlbumColorSchemes[albumArtUri]?.value = scheme
+                    Log.d("PlayerViewModel", "Finished processing $albumArtUri. Scheme: ${scheme != null}")
+                } catch (e: Exception) {
+                    Log.e("PlayerViewModel", "Error processing $albumArtUri in ColorSchemeProcessor", e)
+                    individualAlbumColorSchemes[albumArtUri]?.value = null // O un esquema de error/default
+                } finally {
+                    synchronized(urisBeingProcessed) {
+                        urisBeingProcessed.remove(albumArtUri) // Eliminar de procesándose
+                    }
+                }
             }
         }
     }
 
     // Modificada para devolver el ColorSchemePair y ser usada por getAlbumColorSchemeFlow y la precarga
     private suspend fun getOrGenerateColorSchemeForUri(albumArtUri: String, isPreload: Boolean): ColorSchemePair? {
-        val uriString = albumArtUri.toString()
+        val uriString = albumArtUri // uriString ya es el albumArtUri
         val cachedEntity = withContext(Dispatchers.IO) { albumArtThemeDao.getThemeByUri(uriString) }
 
         if (cachedEntity != null) {
