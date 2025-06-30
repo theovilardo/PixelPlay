@@ -232,15 +232,15 @@ fun UnifiedPlayerSheet(
                     launch {
                         fullPlayerContentAlpha.animateTo(
                             1f,
-                            animationSpec = tween(durationMillis = ANIMATION_DURATION_MS / 2, easing = FastOutSlowInEasing)
+                            animationSpec = tween(durationMillis = 100, easing = FastOutSlowInEasing) // Más rápido
                         )
                     }
                     launch {
                         fullPlayerTranslationY.animateTo(
                             targetValue = 0f,
                             animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioMediumBouncy,
-                                stiffness = Spring.StiffnessLow
+                                dampingRatio = Spring.DampingRatioNoBouncy, // Menos rebote
+                                stiffness = Spring.StiffnessMedium // Un poco más rígido/rápido
                             )
                         )
                     }
