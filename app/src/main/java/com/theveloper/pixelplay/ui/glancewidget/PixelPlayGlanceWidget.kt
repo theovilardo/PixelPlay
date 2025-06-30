@@ -245,50 +245,53 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 Row(
                     GlanceModifier
                         .fillMaxWidth()
-                        .padding(top = 4.dp),
-                    horizontalAlignment = Alignment.SpaceBetween // Para separar los textos
+                        .padding(top = 4.dp)
+                    // horizontalAlignment = Alignment.SpaceBetween  <- Esto no funciona en Glance Row directamente
                 ) {
                     Text(formatDurationGlance(currentProgressMs), style = TextStyle(fontSize = 10.sp, color = textColor))
+                    Spacer(GlanceModifier.defaultWeight()) // Spacer con weight para empujar el siguiente texto al final
                     Text(formatDurationGlance(totalDurationMs), style = TextStyle(fontSize = 10.sp, color = textColor))
                 }
             } else {
-                Spacer(GlanceModifier.height(4.dp + 10.sp.value.dp + 4.dp)) // Mantener espacio similar, +4 por el padding del Row
+                Spacer(GlanceModifier.height(4.dp + 10.sp.value.dp + 4.dp)) // Mantener espacio similar
             }
-            Spacer(GlanceModifier.height(10.dp)) // Aumentar un poco el espacio
+            Spacer(GlanceModifier.height(10.dp))
+
             // Fila de Controles Rediseñada
             Row(
                 modifier = GlanceModifier
                     .fillMaxWidth()
-                    .height(48.dp) // Altura fija para los botones
-                    .cornerRadius(24.dp), // Redondeo para la fila completa si se quiere un fondo unificado
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalAlignment = Alignment.Center
+                    .height(48.dp), // Altura fija para los botones
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 val secondaryColor = GlanceTheme.colors.secondaryContainer
                 val onSecondaryColor = GlanceTheme.colors.onSecondaryContainer
+                val primaryContainerColor = GlanceTheme.colors.primaryContainer
+                val onPrimaryContainerColor = GlanceTheme.colors.onPrimaryContainer
                 val tertiaryColor = GlanceTheme.colors.tertiaryContainer
                 val onTertiaryColor = GlanceTheme.colors.onTertiaryContainer
+                val buttonCornerRadius = 24.dp // Redondeo para cada botón
 
                 PreviousButtonGlance(
-                    modifier = GlanceModifier.defaultWeight(),
+                    modifier = GlanceModifier.defaultWeight(), // Aplicar weight aquí
                     iconColor = onSecondaryColor,
                     backgroundColor = secondaryColor,
-                    cornerRadius = Dp(24f)
+                    cornerRadius = buttonCornerRadius
                 )
-                Spacer(GlanceModifier.width(8.dp)) // Espacio entre botones
+                Spacer(GlanceModifier.width(8.dp))
                 PlayPauseButtonGlance(
-                    modifier = GlanceModifier.defaultWeight(),
+                    modifier = GlanceModifier.defaultWeight(), // Aplicar weight aquí
                     isPlaying = isPlaying,
-                    iconColor = GlanceTheme.colors.onPrimaryContainer,
-                    backgroundColor = GlanceTheme.colors.primaryContainer,
-                    cornerRadius = Dp(24f)
+                    iconColor = onPrimaryContainerColor,
+                    backgroundColor = primaryContainerColor,
+                    cornerRadius = buttonCornerRadius
                 )
-                Spacer(GlanceModifier.width(8.dp)) // Espacio entre botones
+                Spacer(GlanceModifier.width(8.dp))
                 NextButtonGlance(
-                    modifier = GlanceModifier.defaultWeight(),
+                    modifier = GlanceModifier.defaultWeight(), // Aplicar weight aquí
                     iconColor = onTertiaryColor,
                     backgroundColor = tertiaryColor,
-                    cornerRadius = Dp(24f)
+                    cornerRadius = buttonCornerRadius
                 )
             }
         }
@@ -339,14 +342,15 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                     Row(
                         GlanceModifier
                             .fillMaxWidth()
-                            .padding(top = 6.dp), // Más padding superior
-                        horizontalAlignment = Alignment.SpaceBetween // Para separar los textos
+                            .padding(top = 6.dp) // Más padding superior
+                        // horizontalAlignment = Alignment.SpaceBetween // <- Esto no funciona en Glance Row directamente
                     ) {
                         Text(formatDurationGlance(currentProgressMs), style = TextStyle(fontSize = 12.sp, color = textColor))
+                        Spacer(GlanceModifier.defaultWeight()) // Spacer con weight para empujar el siguiente texto al final
                         Text(formatDurationGlance(totalDurationMs), style = TextStyle(fontSize = 12.sp, color = textColor))
                     }
                 } else {
-                    Spacer(GlanceModifier.height(6.dp + 12.sp.value.dp + 6.dp)) // Mantener espacio, +6 por padding
+                    Spacer(GlanceModifier.height(6.dp + 12.sp.value.dp + 6.dp)) // Mantener espacio
                 }
             }
 
@@ -354,38 +358,40 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
             Row(
                 modifier = GlanceModifier
                     .fillMaxWidth()
-                    .height(56.dp) // Altura mayor para botones más grandes
-                    .cornerRadius(28.dp), // Redondeo para la fila completa
+                    .height(56.dp), // Altura mayor para botones más grandes
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 val secondaryColor = GlanceTheme.colors.secondaryContainer
                 val onSecondaryColor = GlanceTheme.colors.onSecondaryContainer
+                val primaryContainerColor = GlanceTheme.colors.primaryContainer
+                val onPrimaryContainerColor = GlanceTheme.colors.onPrimaryContainer
                 val tertiaryColor = GlanceTheme.colors.tertiaryContainer
                 val onTertiaryColor = GlanceTheme.colors.onTertiaryContainer
+                val buttonCornerRadius = 28.dp // Redondeo para cada botón
 
                 PreviousButtonGlance(
-                    modifier = GlanceModifier.defaultWeight(),
+                    modifier = GlanceModifier.defaultWeight(), // Aplicar weight aquí
                     iconColor = onSecondaryColor,
                     backgroundColor = secondaryColor,
-                    iconSize = 28.dp, // Iconos más grandes
-                    cornerRadius = Dp(28f)
+                    iconSize = 28.dp,
+                    cornerRadius = buttonCornerRadius
                 )
-                Spacer(GlanceModifier.width(10.dp)) // Espacio mayor entre botones
+                Spacer(GlanceModifier.width(10.dp))
                 PlayPauseButtonGlance(
-                    modifier = GlanceModifier.defaultWeight(),
+                    modifier = GlanceModifier.defaultWeight(), // Aplicar weight aquí
                     isPlaying = isPlaying,
-                    iconColor = GlanceTheme.colors.onPrimaryContainer,
-                    backgroundColor = GlanceTheme.colors.primaryContainer,
-                    iconSize = 30.dp, // Icono más grande
-                    cornerRadius = Dp(28f)
+                    iconColor = onPrimaryContainerColor,
+                    backgroundColor = primaryContainerColor,
+                    iconSize = 30.dp,
+                    cornerRadius = buttonCornerRadius
                 )
-                Spacer(GlanceModifier.width(10.dp)) // Espacio mayor entre botones
+                Spacer(GlanceModifier.width(10.dp))
                 NextButtonGlance(
-                    modifier = GlanceModifier.defaultWeight(),
+                    modifier = GlanceModifier.defaultWeight(), // Aplicar weight aquí
                     iconColor = onTertiaryColor,
                     backgroundColor = tertiaryColor,
-                    iconSize = 28.dp, // Iconos más grandes
-                    cornerRadius = Dp(28f)
+                    iconSize = 28.dp,
+                    cornerRadius = buttonCornerRadius
                 )
             }
         }
