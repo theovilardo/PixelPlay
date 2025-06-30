@@ -653,9 +653,48 @@ fun UnifiedPlayerSheet(
 
     val currentAlbumColorSchemePair by playerViewModel.currentAlbumArtColorSchemePair.collectAsState()
     val isDarkTheme = isSystemInDarkTheme()
-    val albumColorScheme = remember(currentAlbumColorSchemePair, isDarkTheme) {
-        if (isDarkTheme) currentAlbumColorSchemePair?.dark else currentAlbumColorSchemePair?.light
+    val systemColorScheme = MaterialTheme.colorScheme
+
+    val targetColorScheme = remember(currentAlbumColorSchemePair, isDarkTheme, systemColorScheme) {
+        (if (isDarkTheme) currentAlbumColorSchemePair?.dark else currentAlbumColorSchemePair?.light)
+            ?: systemColorScheme // Fallback to current MaterialTheme.colorScheme if album specific is null
     }
+
+    val colorAnimationSpec = remember { tween<Color>(durationMillis = 700, easing = FastOutSlowInEasing) }
+
+    val animPrimary by animateColorAsState(targetColorScheme.primary, colorAnimationSpec, label = "animPrimary")
+    val animOnPrimary by animateColorAsState(targetColorScheme.onPrimary, colorAnimationSpec, label = "animOnPrimary")
+    val animPrimaryContainer by animateColorAsState(targetColorScheme.primaryContainer, colorAnimationSpec, label = "animPrimaryContainer")
+    val animOnPrimaryContainer by animateColorAsState(targetColorScheme.onPrimaryContainer, colorAnimationSpec, label = "animOnPrimaryContainer")
+    val animSecondary by animateColorAsState(targetColorScheme.secondary, colorAnimationSpec, label = "animSecondary")
+    val animOnSecondary by animateColorAsState(targetColorScheme.onSecondary, colorAnimationSpec, label = "animOnSecondary")
+    val animTertiary by animateColorAsState(targetColorScheme.tertiary, colorAnimationSpec, label = "animTertiary")
+    val animOnTertiary by animateColorAsState(targetColorScheme.onTertiary, colorAnimationSpec, label = "animOnTertiary")
+    val animSurface by animateColorAsState(targetColorScheme.surface, colorAnimationSpec, label = "animSurface") // For MiniPlayer background if needed
+    val animOnSurface by animateColorAsState(targetColorScheme.onSurface, colorAnimationSpec, label = "animOnSurface")
+
+    // Create the animated ColorScheme to be provided locally
+    val animatedAlbumColorScheme = remember(
+        animPrimary, animOnPrimary, animPrimaryContainer, animOnPrimaryContainer,
+        animSecondary, animOnSecondary, animTertiary, animOnTertiary, animSurface, animOnSurface, targetColorScheme
+    ) {
+        // Use targetColorScheme.copy to ensure all other colors not explicitly animated
+        // are still from the target (either album-specific or fallback system theme)
+        targetColorScheme.copy(
+            primary = animPrimary,
+            onPrimary = animOnPrimary,
+            primaryContainer = animPrimaryContainer,
+            onPrimaryContainer = animOnPrimaryContainer,
+            secondary = animSecondary,
+            onSecondary = animOnSecondary,
+            tertiary = animTertiary,
+            onTertiary = animOnTertiary,
+            surface = animSurface, // If MiniPlayer background is themed
+            onSurface = animOnSurface
+        )
+    }
+    val albumColorScheme = animatedAlbumColorScheme // Use this for the CompositionLocalProvider
+
 
     // NUEVO: Elevation animada para el área del player
     val playerAreaElevation by animateDpAsState(
