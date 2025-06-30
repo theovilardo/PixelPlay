@@ -77,6 +77,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -716,7 +717,7 @@ fun LibrarySongsTab(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
-                        painter = painterResource(id = R.drawable.ic_music_off), // Replace with your actual "no music" icon
+                        painter = painterResource(id = R.drawable.rounded_music_off_24), // Replace with your actual "no music" icon
                         contentDescription = "No songs found",
                         modifier = Modifier.size(48.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -753,7 +754,8 @@ fun LibrarySongsTab(
                     item { Spacer(Modifier.height(0.dp)) } // Initial spacer if needed
 
                     items(uiState.allSongs, key = { "song_${it.id}" }) { song ->
-                        val isPlayingThisSong = song.id == stablePlayerState.currentSong?.id && stablePlayerState.isPlaying
+                        val isPlayingThisSong =
+                            song.id == stablePlayerState.currentSong?.id && stablePlayerState.isPlaying
                         EnhancedSongListItem(
                             song = song,
                             isPlaying = isPlayingThisSong,
@@ -776,6 +778,7 @@ fun LibrarySongsTab(
                         }
                     }
                 }
+            }
 
                 // Gradiente superior para el efecto de desvanecimiento
             Box(
@@ -790,7 +793,7 @@ fun LibrarySongsTab(
                             )
                         )
                     )
-                    .align(Alignment.TopCenter)
+                    //.align(Alignment.TopCenter)
             )
 
             InfiniteListHandler(listState = listState) {
