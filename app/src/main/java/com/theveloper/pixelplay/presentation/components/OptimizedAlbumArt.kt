@@ -29,8 +29,14 @@ import coil.request.ImageRequest
 // import coil.size.Size // Not strictly needed if ORIGINAL is not used
 import kotlinx.coroutines.Dispatchers
 import com.theveloper.pixelplay.R // Import R explicitly for drawable resources
+import androidx.compose.animation.AnimatedContent // Added import
+import androidx.compose.animation.fadeIn // Added import
+import androidx.compose.animation.fadeOut // Added import
+import androidx.compose.animation.togetherWith // Added import
+import androidx.compose.animation.slideInVertically // Added import
+import androidx.compose.animation.slideOutVertically // Added import
 
-@OptIn(ExperimentalCoilApi::class, ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalCoilApi::class, ExperimentalComposeUiApi::class, ExperimentalAnimationApi::class) // Added ExperimentalAnimationApi
 @Composable
 fun OptimizedAlbumArt(
     uri: String,
@@ -74,25 +80,34 @@ fun OptimizedAlbumArt(
             .shadow(elevation = 16.dp * expansionFraction)
             .graphicsLayer { alpha = expansionFraction }
     ) {
-        when (painter.state) {
-            is AsyncImagePainter.State.Loading -> {
-                ShimmerBox(modifier = Modifier.fillMaxSize())
-            }
-            is AsyncImagePainter.State.Error -> {
-                Image(
-                    painter = painterResource(id = R.drawable.rounded_broken_image_24), // Fallback error image
-                    contentDescription = "Error loading album art",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            }
-            else -> { // AsyncImagePainter.State.Success or AsyncImagePainter.State.Empty
-                Image(
-                    painter = painter,
-                    contentDescription = "Album art of $title",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
+        AnimatedContent(
+            targetState = painter.state,
+            transitionSpec = {
+                // Define a transition: fade in new content, fade out old content
+                fadeIn(animationSpec = tween(300)) togetherWith fadeOut(animationSpec = tween(300))
+            },
+            label = "AlbumArtStateAnimation"
+        ) { state ->
+            when (state) {
+                is AsyncImagePainter.State.Loading -> {
+                    ShimmerBox(modifier = Modifier.fillMaxSize())
+                }
+                is AsyncImagePainter.State.Error -> {
+                    Image(
+                        painter = painterResource(id = R.drawable.rounded_broken_image_24), // Fallback error image
+                        contentDescription = "Error loading album art",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+                else -> { // AsyncImagePainter.State.Success or AsyncImagePainter.State.Empty
+                    Image(
+                        painter = painter, // Use the original painter here
+                        contentDescription = "Album art of $title",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
         }
     }
