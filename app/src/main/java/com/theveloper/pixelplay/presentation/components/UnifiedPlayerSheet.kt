@@ -19,6 +19,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Image // Import Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -33,6 +34,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.fillMaxSize
@@ -106,8 +108,13 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+// Coil imports for FullPlayerContentInternal
+import coil.compose.AsyncImagePainter
+import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
+import coil.request.CachePolicy
+import kotlinx.coroutines.Dispatchers
 
-// Definir un CompositionLocal para el tema del álbum
 import com.theveloper.pixelplay.utils.formatDuration
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.delay
@@ -123,31 +130,25 @@ import kotlin.math.roundToLong
 private val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error("No ColorScheme provided") }
 
 val MiniPlayerHeight = 64.dp
-val PlayerSheetExpandedCornerRadius = 32.dp // Totalmente expandido -> sin esquinas
-val PlayerSheetCollapsedCornerRadius = 32.dp // Cuando está colapsado -> forma de píldora
+val PlayerSheetExpandedCornerRadius = 32.dp
+val PlayerSheetCollapsedCornerRadius = 32.dp
 val CollapsedPlayerContentSpacerHeight = 6.dp
-const val ANIMATION_DURATION_MS = 255 // Duración para animaciones con tween
+const val ANIMATION_DURATION_MS = 255
 
-/**
- * ColorPalette generada desde la portada del álbum
- * Basada en principios de Material You pero personalizada para nuestra app
- */
 data class AlbumColorPalette(
     val primary: Color,
     val onPrimary: Color,
     val secondary: Color,
-    val onSecondary: Color, // Añadido para contraste en secundario
+    val onSecondary: Color,
     val tertiary: Color,
-    val onTertiary: Color, // Añadido para contraste en terciario
+    val onTertiary: Color,
     val surface: Color,
-    val onSurface: Color,    // Añadido para contraste en superficie
-    val surfaceVariant: Color, // Para elementos ligeramente distintos de la superficie
+    val onSurface: Color,
+    val surfaceVariant: Color,
     val onSurfaceVariant: Color,
     val outline: Color,
     val gradient: List<Color>
 )
-
-// --- UnifiedPlayerSheet (Versión mejorada con gestos más sensibles y animaciones suaves) ---
 
 @Composable
 fun UnifiedPlayerSheet(
@@ -158,10 +159,9 @@ fun UnifiedPlayerSheet(
     collapsedStateHorizontalPadding: Dp = 12.dp,
     collapsedStateBottomMargin: Dp = 0.dp,
     hideNavBar: Boolean = false
-    // isKeyboardVisible: Boolean // Removed
 ) {
     val context = LocalContext.current
-    LaunchedEffect(key1 = Unit) { // Or key1 = playerViewModel if it can change
+    LaunchedEffect(key1 = Unit) {
         playerViewModel.toastEvents.collect { message ->
             android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
         }
@@ -176,7 +176,6 @@ fun UnifiedPlayerSheet(
     val configuration = LocalConfiguration.current
     val scope = rememberCoroutineScope()
 
-    // State for horizontal drag offset of the miniplayer
     var horizontalDragOffset by remember { mutableFloatStateOf(0f) }
 
     val screenWidthPx = remember(configuration, density) { with(density) { configuration.screenWidthDp.dp.toPx() } }
@@ -204,63 +203,94 @@ fun UnifiedPlayerSheet(
     }
 
     val playerContentExpansionFraction = remember { Animatable(0f) }
-    val visualOvershootScaleY = remember { Animatable(1f) } // For Y-axis scale overshoot/undershoot
-    //val scope = rememberCoroutineScope() // Needed for launching the secondary animation
+    val visualOvershootScaleY = remember { Animatable(1f) }
+    var shouldRenderFullPlayer by remember { mutableStateOf(false) }
+    val fullPlayerContentAlpha = remember { Animatable(0f) }
+    val initialFullPlayerOffsetY = remember(density) { with(density) { 24.dp.toPx() } }
+    val fullPlayerTranslationY = remember { Animatable(initialFullPlayerOffsetY) }
 
     LaunchedEffect(showPlayerContentArea, currentSheetContentState) {
         val targetFraction = if (showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) 1f else 0f
-        // Animate primary expansion/collapse
+
+        if (targetFraction == 0f) {
+            shouldRenderFullPlayer = false
+            fullPlayerContentAlpha.snapTo(0f)
+            fullPlayerTranslationY.snapTo(initialFullPlayerOffsetY)
+        }
+
         playerContentExpansionFraction.animateTo(
             targetFraction,
             animationSpec = tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
-        )
+        ) {
+            if (targetFraction == 1f && this.value == 1f) {
+                shouldRenderFullPlayer = true
+                scope.launch {
+                    launch {
+                        fullPlayerContentAlpha.animateTo(
+                            1f,
+                            animationSpec = tween(durationMillis = 100, easing = FastOutSlowInEasing)
+                        )
+                    }
+                    launch {
+                        fullPlayerTranslationY.animateTo(
+                            targetValue = 0f,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioNoBouncy,
+                                stiffness = Spring.StiffnessMedium
+                            )
+                        )
+                    }
+                }
+            }
+        }
 
-        // After primary animation completes, trigger overshoot/undershoot effect
-        if (showPlayerContentArea) { // Only if player is meant to be visible
+        if (showPlayerContentArea) {
             scope.launch {
-                visualOvershootScaleY.snapTo(1f) // Reset before animation
-                if (targetFraction == 1f) { // Expanded: Overshoot (stretch upwards)
+                visualOvershootScaleY.snapTo(1f)
+                if (targetFraction == 1f) {
                     visualOvershootScaleY.animateTo(
                         targetValue = 1f,
                         animationSpec = keyframes {
-                            durationMillis = 50 // Total duration for the bounce effect
-                            1.0f at 0 // Start at normal scale
-                            1.05f at 125 // Overshoot target
-                            1.0f at 250 // Settle back to normal scale
+                            durationMillis = 50
+                            1.0f at 0
+                            1.05f at 125
+                            1.0f at 250
                         }
                     )
-                } else { // Collapsed (targetFraction == 0f): Undershoot (squash downwards from top)
+                } else {
                     visualOvershootScaleY.animateTo(
                         targetValue = 1f,
                         animationSpec = keyframes {
                             durationMillis = 150
                             1.0f at 0
-                            0.95f at 0 // Undershoot target (makes top edge come down)
+                            0.95f at 0
                             1.0f at 250
                         }
                     )
                 }
             }
         } else {
-            // If player content area is not shown, ensure scale is reset
             scope.launch {
                 visualOvershootScaleY.snapTo(1f)
+            }
+            if(shouldRenderFullPlayer) { // Check if it was true before to avoid unnecessary snaps
+                shouldRenderFullPlayer = false
+                fullPlayerContentAlpha.snapTo(0f)
+                fullPlayerTranslationY.snapTo(initialFullPlayerOffsetY)
             }
         }
     }
 
     val currentBottomPadding by remember(
         showPlayerContentArea,
-        collapsedStateHorizontalPadding, // Target padding, same as horizontal for symmetry
+        collapsedStateHorizontalPadding,
         predictiveBackCollapseProgress,
         currentSheetContentState
     ) {
         derivedStateOf {
             if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                // During predictive back (from expanded state), padding goes from 0.dp to collapsedStateHorizontalPadding
                 lerp(0.dp, collapsedStateHorizontalPadding, predictiveBackCollapseProgress)
             } else {
-                // Default to 0.dp when not in predictive back collapse or sheet is not expanded.
                 0.dp
             }
         }
@@ -275,9 +305,8 @@ fun UnifiedPlayerSheet(
     }
     val playerContentAreaActualHeightDp = with(density) { playerContentAreaActualHeightPx.toDp() }
 
-    // MEJORADO: Cálculo de altura total considerando navbar oculta
     val totalSheetHeightWhenContentCollapsedPx = remember(
-        isPlayerSlotOccupied, // MODIFIED: Use combined state
+        isPlayerSlotOccupied,
         hideNavBar,
         miniPlayerAndSpacerHeightPx,
         navBarHeightPx
@@ -288,34 +317,31 @@ fun UnifiedPlayerSheet(
     }
 
     val animatedTotalSheetHeightPx by remember(
-        isPlayerSlotOccupied, // MODIFIED
+        isPlayerSlotOccupied,
         playerContentExpansionFraction,
         screenHeightPx,
         totalSheetHeightWhenContentCollapsedPx
     ) {
         derivedStateOf {
-            if (isPlayerSlotOccupied) { // If player slot is occupied (by player OR undo bar)
-                // When undo bar is shown, playerContentExpansionFraction should be 0.
-                // The lerp should effectively be totalSheetHeightWhenContentCollapsedPx.
+            if (isPlayerSlotOccupied) {
                 lerp(totalSheetHeightWhenContentCollapsedPx, screenHeightPx, playerContentExpansionFraction.value)
-            } else { // Neither player nor undo bar is shown
+            } else {
                 navBarHeightPx
             }
         }
     }
 
-    // NUEVO: Altura con espacio extra para la sombra
     val navBarElevation = if (!hideNavBar) 3.dp else 0.dp
     val shadowSpacePx = remember(density, navBarElevation) {
-        with(density) { (navBarElevation * 8).toPx() } // Espacio extra para la sombra
+        with(density) { (navBarElevation * 8).toPx() }
     }
 
     val animatedTotalSheetHeightWithShadowPx by remember(animatedTotalSheetHeightPx, hideNavBar, shadowSpacePx) {
         derivedStateOf {
             if (hideNavBar) {
-                animatedTotalSheetHeightPx // Sin navbar, no necesitamos espacio extra
+                animatedTotalSheetHeightPx
             } else {
-                animatedTotalSheetHeightPx + shadowSpacePx // Con navbar, añadimos espacio para la sombra
+                animatedTotalSheetHeightPx + shadowSpacePx
             }
         }
     }
@@ -346,7 +372,6 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    // CORREGIDO: Animación suave de esquinas redondeadas del sheet principal con spring
     val overallSheetTopCornerRadiusTargetValue by remember(
         showPlayerContentArea,
         playerContentExpansionFraction,
@@ -356,27 +381,24 @@ fun UnifiedPlayerSheet(
     ) {
         derivedStateOf {
             if (showPlayerContentArea) {
-                // Check if a predictive back gesture is in progress on an expanded sheet
                 if (predictiveBackCollapseProgress > 0f && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                    val expandedCorner = 0.dp // Corner radius when fully expanded
+                    val expandedCorner = 0.dp
                     val collapsedCornerTarget = if (hideNavBar) 32.dp else PlayerSheetCollapsedCornerRadius
                     lerp(expandedCorner, collapsedCornerTarget, predictiveBackCollapseProgress)
                 } else {
-                    // Original logic when not in predictive back or sheet not expanded
                     val fraction = playerContentExpansionFraction.value
                     val expandedTarget = 0.dp
                     val collapsedTarget = if (hideNavBar) 32.dp else PlayerSheetCollapsedCornerRadius
                     lerp(collapsedTarget, expandedTarget, fraction)
                 }
             } else {
-                // No player content
                 if (hideNavBar) 32.dp else PlayerSheetCollapsedCornerRadius
             }
         }
     }
 
     val overallSheetTopCornerRadius by animateDpAsState(
-        targetValue = overallSheetTopCornerRadiusTargetValue, // Use the new target
+        targetValue = overallSheetTopCornerRadiusTargetValue,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMedium
@@ -391,7 +413,6 @@ fun UnifiedPlayerSheet(
         bottomEnd = PlayerSheetCollapsedCornerRadius
     )
 
-    // CORREGIDO: Animación de esquinas redondeadas basada en la fracción de expansión
     val playerContentActualBottomRadiusTargetValue by remember(
         hideNavBar,
         hideNavBar,
@@ -401,7 +422,7 @@ fun UnifiedPlayerSheet(
         stablePlayerState.currentSong,
         predictiveBackCollapseProgress,
         currentSheetContentState,
-        swipeDismissProgress.value // ADDED DEPENDENCY
+        swipeDismissProgress.value
     ) {
         derivedStateOf {
             val calculatedNormally = if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
@@ -427,14 +448,13 @@ fun UnifiedPlayerSheet(
                 }
             }
 
-            // Apply swipe modification if collapsed and swiping
             if (currentSheetContentState == PlayerSheetState.COLLAPSED &&
                 swipeDismissProgress.value > 0f &&
                 !hideNavBar &&
                 showPlayerContentArea &&
-                playerContentExpansionFraction.value < 0.01f // Ensure it's truly collapsed (allow small tolerance for float comparison)
+                playerContentExpansionFraction.value < 0.01f
             ) {
-                val baseCollapsedRadius = 12.dp // This is the normal radius for a collapsed miniplayer bottom (!hideNavBar)
+                val baseCollapsedRadius = 12.dp
                 lerp(baseCollapsedRadius, PlayerSheetCollapsedCornerRadius, swipeDismissProgress.value)
             } else {
                 calculatedNormally
@@ -443,7 +463,7 @@ fun UnifiedPlayerSheet(
     }
 
     val playerContentActualBottomRadius by animateDpAsState(
-        targetValue = playerContentActualBottomRadiusTargetValue, // Use the new target
+        targetValue = playerContentActualBottomRadiusTargetValue,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMedium
@@ -454,7 +474,7 @@ fun UnifiedPlayerSheet(
     val navBarActualTopRadiusTarget by remember(
         showPlayerContentArea, playerContentExpansionFraction,
         currentSheetContentState, swipeDismissProgress.value,
-        hideNavBar // Added for consistency with playerContentActualBottomRadiusTargetValue conditions
+        hideNavBar
     ) {
         derivedStateOf {
             val calculatedNormally = if (showPlayerContentArea) {
@@ -472,9 +492,9 @@ fun UnifiedPlayerSheet(
                 swipeDismissProgress.value > 0f &&
                 !hideNavBar &&
                 showPlayerContentArea &&
-                playerContentExpansionFraction.value < 0.01f // Ensure it's truly collapsed
+                playerContentExpansionFraction.value < 0.01f
             ) {
-                val baseCollapsedRadius = 12.dp // Normal radius for navbar top when miniplayer is collapsed
+                val baseCollapsedRadius = 12.dp
                 lerp(baseCollapsedRadius, PlayerSheetCollapsedCornerRadius, swipeDismissProgress.value)
             } else {
                 calculatedNormally
@@ -483,7 +503,7 @@ fun UnifiedPlayerSheet(
     }
 
     val navBarActualTopRadius by animateDpAsState(
-        targetValue = navBarActualTopRadiusTarget.value.dp, // Use .value from derivedStateOf
+        targetValue = navBarActualTopRadiusTarget.value.dp,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMedium
@@ -495,17 +515,14 @@ fun UnifiedPlayerSheet(
         showPlayerContentArea,
         playerContentExpansionFraction,
         collapsedStateHorizontalPadding,
-        predictiveBackCollapseProgress // Add this dependency
+        predictiveBackCollapseProgress
     ) {
         derivedStateOf {
             if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                // During predictive back (from expanded state), padding goes from 0.dp to collapsedStateHorizontalPadding
                 lerp(0.dp, collapsedStateHorizontalPadding, predictiveBackCollapseProgress)
             } else if (showPlayerContentArea) {
-                // Normal calculation based on expansion fraction
                 lerp(collapsedStateHorizontalPadding, 0.dp, playerContentExpansionFraction.value)
             } else {
-                // Default when no content or not in predictive back
                 collapsedStateHorizontalPadding
             }
         }
@@ -514,15 +531,13 @@ fun UnifiedPlayerSheet(
     val currentDimLayerAlpha by remember(
         playerContentExpansionFraction,
         predictiveBackCollapseProgress,
-        currentSheetContentState // Add this dependency
+        currentSheetContentState
     ) {
         derivedStateOf {
-            val baseAlpha = playerContentExpansionFraction.value // Alpha when fully expanded is 1f, collapsed is 0f.
+            val baseAlpha = playerContentExpansionFraction.value
             if (predictiveBackCollapseProgress > 0f && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                // During predictive back (from expanded state), alpha goes from baseAlpha (should be ~1f) towards 0f.
                 lerp(baseAlpha, 0f, predictiveBackCollapseProgress)
             } else {
-                // Normal alpha based on expansion fraction.
                 baseAlpha
             }
         }
@@ -534,56 +549,29 @@ fun UnifiedPlayerSheet(
     val velocityTracker = remember { VelocityTracker() }
     var accumulatedDragYSinceStart by remember { mutableFloatStateOf(0f) }
 
-    PredictiveBackHandler( // Removed 'keys' parameter
+    PredictiveBackHandler(
         enabled = showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED && !isDragging
     ) { progressFlow ->
         try {
             progressFlow.collect { backEvent ->
                 playerViewModel.updatePredictiveBackCollapseFraction(backEvent.progress)
             }
-            // On completion (back gesture committed by user)
             scope.launch {
-                // 1. Capture the gesture's progress at the point of release/commit.
-                //    This value is crucial for determining the starting point of the ensuing animations.
-                //    At this stage, playerViewModel.predictiveBackCollapseFraction.value holds the latest
-                //    progress reported by the gesture before it's forced to 1f.
                 val progressAtRelease = playerViewModel.predictiveBackCollapseFraction.value
-
-                // 2. Set the *current values* of the main Animatables to reflect their visual state
-                //    at the moment the gesture was released. This makes subsequent animations start smoothly.
-
-                // For currentSheetTranslationY:
-                // It should be at the position dictated by progressAtRelease.
                 val currentVisualY = lerp(sheetExpandedTargetY, sheetCollapsedTargetY, progressAtRelease)
                 currentSheetTranslationY.snapTo(currentVisualY)
-
-                // For playerContentExpansionFraction:
-                // Its visual equivalent is inversely related to gesture progress (1.0 when progress is 0, 0.0 when progress is 1.0).
                 val currentVisualExpansionFraction = (1f - progressAtRelease).coerceIn(0f, 1f)
                 playerContentExpansionFraction.snapTo(currentVisualExpansionFraction)
-
-                // 3. Now, signal the ViewModel to update the overall predictive fraction to 1 (full commit)
-                //    and then trigger the collapse by changing the sheet's logical state.
-                playerViewModel.updatePredictiveBackCollapseFraction(1f) // Visually signals "target is now fully collapsed"
-                playerViewModel.collapsePlayerSheet() // Changes currentSheetContentState to PlayerSheetState.COLLAPSED
-
-                // When currentSheetContentState changes to COLLAPSED, the LaunchedEffects watching it will trigger:
-                // - playerContentExpansionFraction.animateTo(0f, ...) will animate from currentVisualExpansionFraction to 0f.
-                // - currentSheetTranslationY.animateTo(sheetCollapsedTargetY, ...) will animate from currentVisualY to sheetCollapsedTargetY.
-                // This should produce the desired continuous animation from the release point.
-
-                // 4. Reset the overall predictive back progress state for the next gesture.
-                //    This is done after the collapse has been initiated.
+                playerViewModel.updatePredictiveBackCollapseFraction(1f)
+                playerViewModel.collapsePlayerSheet()
                 playerViewModel.updatePredictiveBackCollapseFraction(0f)
             }
         } catch (e: CancellationException) {
-            // On cancellation (back gesture cancelled by user)
             scope.launch {
-                // Corrected Animatable usage:
                 Animatable(playerViewModel.predictiveBackCollapseFraction.value).animateTo(
                     targetValue = 0f,
                     animationSpec = tween(ANIMATION_DURATION_MS)
-                ) { // `this` is Animatable.AnimationScope<Float, AnimationVector1D>
+                ) {
                     playerViewModel.updatePredictiveBackCollapseFraction(this.value)
                 }
 
@@ -596,16 +584,14 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    // NUEVO: Solo mostrar el Surface si hay contenido para mostrar
     val shouldShowSheet by remember(showPlayerContentArea, hideNavBar) {
         derivedStateOf { showPlayerContentArea || !hideNavBar }
     }
 
     var internalIsKeyboardVisible by remember { mutableStateOf(false) }
 
-    // Observe IME visibility using snapshotFlow (recommended)
     val imeInsets = WindowInsets.ime
-    LaunchedEffect(imeInsets, density) { // Relaunch if imeInsets object or density changes
+    LaunchedEffect(imeInsets, density) {
         snapshotFlow { imeInsets.getBottom(density) > 0 }
             .collectLatest { isVisible ->
                 internalIsKeyboardVisible = isVisible
@@ -617,15 +603,49 @@ fun UnifiedPlayerSheet(
 
     val currentAlbumColorSchemePair by playerViewModel.currentAlbumArtColorSchemePair.collectAsState()
     val isDarkTheme = isSystemInDarkTheme()
-    val albumColorScheme = remember(currentAlbumColorSchemePair, isDarkTheme) {
-        if (isDarkTheme) currentAlbumColorSchemePair?.dark else currentAlbumColorSchemePair?.light
+    val systemColorScheme = MaterialTheme.colorScheme
+
+    val targetColorScheme = remember(currentAlbumColorSchemePair, isDarkTheme, systemColorScheme) {
+        (if (isDarkTheme) currentAlbumColorSchemePair?.dark else currentAlbumColorSchemePair?.light)
+            ?: systemColorScheme
     }
 
-    // NUEVO: Elevation animada para el área del player
+    val colorAnimationSpec = remember { tween<Color>(durationMillis = 700, easing = FastOutSlowInEasing) }
+
+    val animPrimary by animateColorAsState(targetColorScheme.primary, colorAnimationSpec, label = "animPrimary")
+    val animOnPrimary by animateColorAsState(targetColorScheme.onPrimary, colorAnimationSpec, label = "animOnPrimary")
+    val animPrimaryContainer by animateColorAsState(targetColorScheme.primaryContainer, colorAnimationSpec, label = "animPrimaryContainer")
+    val animOnPrimaryContainer by animateColorAsState(targetColorScheme.onPrimaryContainer, colorAnimationSpec, label = "animOnPrimaryContainer")
+    val animSecondary by animateColorAsState(targetColorScheme.secondary, colorAnimationSpec, label = "animSecondary")
+    val animOnSecondary by animateColorAsState(targetColorScheme.onSecondary, colorAnimationSpec, label = "animOnSecondary")
+    val animTertiary by animateColorAsState(targetColorScheme.tertiary, colorAnimationSpec, label = "animTertiary")
+    val animOnTertiary by animateColorAsState(targetColorScheme.onTertiary, colorAnimationSpec, label = "animOnTertiary")
+    val animSurface by animateColorAsState(targetColorScheme.surface, colorAnimationSpec, label = "animSurface")
+    val animOnSurface by animateColorAsState(targetColorScheme.onSurface, colorAnimationSpec, label = "animOnSurface")
+
+    val animatedAlbumColorScheme = remember(
+        animPrimary, animOnPrimary, animPrimaryContainer, animOnPrimaryContainer,
+        animSecondary, animOnSecondary, animTertiary, animOnTertiary, animSurface, animOnSurface, targetColorScheme
+    ) {
+        targetColorScheme.copy(
+            primary = animPrimary,
+            onPrimary = animOnPrimary,
+            primaryContainer = animPrimaryContainer,
+            onPrimaryContainer = animOnPrimaryContainer,
+            secondary = animSecondary,
+            onSecondary = animOnSecondary,
+            tertiary = animTertiary,
+            onTertiary = animOnTertiary,
+            surface = animSurface,
+            onSurface = animOnSurface
+        )
+    }
+    val albumColorScheme = animatedAlbumColorScheme
+
+
     val playerAreaElevation by animateDpAsState(
         targetValue = if (showPlayerContentArea) {
             val fraction = playerContentExpansionFraction.value
-            // Elevation más alta cuando está expandido, menor cuando está colapsado
             lerp(2.dp, 12.dp, fraction)
         } else {
             0.dp
@@ -637,7 +657,6 @@ fun UnifiedPlayerSheet(
         label = "PlayerAreaElevation"
     )
 
-    // NUEVO: Formas para las sombras del player
     val playerShadowShape = remember(overallSheetTopCornerRadius, playerContentActualBottomRadius) {
         AbsoluteSmoothCornerShape(
             cornerRadiusTL = overallSheetTopCornerRadius,
@@ -671,9 +690,6 @@ fun UnifiedPlayerSheet(
         )
     }
 
-    // Main sheet content logic:
-    // The AnimatedVisibility that was here (using slideInVertically/slideOutVertically) is REMOVED.
-    // It is REPLACED by this 'if' statement:
     if (actuallyShowSheetContent) {
         Surface(
             modifier = Modifier
@@ -683,78 +699,63 @@ fun UnifiedPlayerSheet(
             shadowElevation = 0.dp,
             color = Color.Transparent
         ) {
-            // The original Column and its content (player area, spacer, PlayerInternalNavigationBar)
-            // remain structurally the same inside this Surface.
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = currentBottomPadding.value.dp) // Apply bottom padding here
+                    .padding(bottom = currentBottomPadding.value.dp)
             ) {
-                // Player Content Area OR Dismiss Undo Bar
                 if (playerUiState.showDismissUndoBar) {
                     AnimatedVisibility(
-                        visible = true, // Controlled by the outer if-condition now
+                        visible = true,
                         enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
                         exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut(),
                         modifier = Modifier
-                            .padding(horizontal = currentHorizontalPadding) // Match miniplayer padding
-                            .height(MiniPlayerHeight) // Ensure this space is reserved in the Column
+                            .padding(horizontal = currentHorizontalPadding)
+                            .height(MiniPlayerHeight)
                     ) {
                         DismissUndoBar(
                             onUndo = {
                                 playerViewModel.undoDismissPlaylist()
-                                // Potentially manually hide here if state doesn't auto-clear fast enough,
-                                // though ViewModel should handle showDismissUndoBar state.
                             },
                             durationMillis = playerUiState.undoBarVisibleDuration,
-                            modifier = Modifier.height(MiniPlayerHeight) // Ensure it takes up miniplayer height
-                                             // Removed .padding(bottom = collapsedStateBottomMargin) as position is now in Column
+                            modifier = Modifier.height(MiniPlayerHeight)
                         )
                     }
                 } else if (showPlayerContentArea) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            // Horizontal Drag gesture for dismissal - MOVED BEFORE PADDING
                             .pointerInput(playerViewModel, showPlayerContentArea, currentSheetContentState, configuration, density, scope) {
-                                // Only allow swipe to dismiss when content is shown and sheet is collapsed
                                 if (!showPlayerContentArea || currentSheetContentState != PlayerSheetState.COLLAPSED) {
-                                    // Ensure offset is reset if state is not allowing dismissal
                                     if (horizontalDragOffset != 0f) horizontalDragOffset = 0f
                                     return@pointerInput
                                 }
-
-                                var accumulatedDragX = 0f // Local to this gesture cycle
-
+                                var accumulatedDragX = 0f
                                 detectHorizontalDragGestures(
                                     onDragStart = {
                                         accumulatedDragX = 0f
-                                        // horizontalDragOffset is already managed, no need to reset here unless specific logic dictates
                                     },
                                     onHorizontalDrag = { change, dragAmount ->
                                         change.consume()
                                         accumulatedDragX += dragAmount
-                                        // Update visual offset, allow dragging left and right
                                         horizontalDragOffset += dragAmount
                                     },
                                     onDragEnd = {
                                         val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
-                                        val dismissThreshold = screenWidthPx * 0.4f // Same threshold for both directions
+                                        val dismissThreshold = screenWidthPx * 0.4f
                                         val currentVisualOffset = horizontalDragOffset
-
-                                        // Check for dismissal based on absolute accumulated drag
                                         if (abs(accumulatedDragX) > dismissThreshold) {
-                                            val targetDismissOffset = if (accumulatedDragX < 0) -screenWidthPx else screenWidthPx // Target left or right
+                                            val targetDismissOffset = if (accumulatedDragX < 0) -screenWidthPx else screenWidthPx
                                             scope.launch {
                                                 Animatable(currentVisualOffset).animateTo(
                                                     targetValue = targetDismissOffset,
                                                     animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
                                                 ) { horizontalDragOffset = value }
                                                 playerViewModel.dismissPlaylistAndShowUndo()
-                                                horizontalDragOffset = 0f // Reset after dismissal
+                                                horizontalDragOffset = 0f
                                                 accumulatedDragX = 0f
                                             }
-                                        } else { // Snap back
+                                        } else {
                                             scope.launch {
                                                 Animatable(currentVisualOffset).animateTo(
                                                     targetValue = 0f,
@@ -763,8 +764,7 @@ fun UnifiedPlayerSheet(
                                                         stiffness = Spring.StiffnessMedium
                                                     )
                                                 ) { horizontalDragOffset = value }
-                                                // horizontalDragOffset will be 0f due to animation
-                                                accumulatedDragX = 0f // Reset accumulated drag
+                                                accumulatedDragX = 0f
                                             }
                                         }
                                     }
@@ -772,16 +772,15 @@ fun UnifiedPlayerSheet(
                             }
                             .padding(horizontal = currentHorizontalPadding)
                             .height(playerContentAreaActualHeightDp)
-                            .graphicsLayer { // Apply translation for swipe animation
+                            .graphicsLayer {
                                 translationX = horizontalDragOffset
                                 scaleY = visualOvershootScaleY.value
-                                transformOrigin = TransformOrigin(0.5f, 1f) // Fixed origin at bottom center
+                                transformOrigin = TransformOrigin(0.5f, 1f)
                             }
-                            // NUEVO: Aplicar shadow antes del background
                             .shadow(
                                 elevation = playerAreaElevation,
                                 shape = playerShadowShape,
-                                clip = false // No recortar la sombra
+                                clip = false
                             )
                             .background(
                                 color = albumColorScheme?.primaryContainer
@@ -798,7 +797,6 @@ fun UnifiedPlayerSheet(
                                 )
                             )
                             .clipToBounds()
-                            // NUEVO: Gestos aplicados solo al área del player
                             .pointerInput(
                                 showPlayerContentArea,
                                 sheetCollapsedTargetY,
@@ -808,7 +806,6 @@ fun UnifiedPlayerSheet(
                                 if (!showPlayerContentArea) return@pointerInput
                                 var initialFractionOnDragStart = 0f
                                 var initialYOnDragStart = 0f
-
                                 detectVerticalDragGestures(
                                     onDragStart = { offset ->
                                         scope.launch {
@@ -826,15 +823,12 @@ fun UnifiedPlayerSheet(
                                         change.consume()
                                         accumulatedDragYSinceStart += dragAmount
                                         scope.launch {
-                                            // La traslación Y sigue directamente al dedo
                                             val newY = (currentSheetTranslationY.value + dragAmount)
                                                 .coerceIn(
                                                     sheetExpandedTargetY - miniPlayerContentHeightPx * 0.2f,
                                                     sheetCollapsedTargetY + miniPlayerContentHeightPx * 0.2f
                                                 )
                                             currentSheetTranslationY.snapTo(newY)
-
-                                            // La fracción de expansión del contenido se calcula basada en la nueva posición Y
                                             val dragRatio =
                                                 (initialYOnDragStart - newY) / (sheetCollapsedTargetY - sheetExpandedTargetY).coerceAtLeast(
                                                     1f
@@ -850,31 +844,21 @@ fun UnifiedPlayerSheet(
                                         isDraggingPlayerArea = false
                                         val verticalVelocity = velocityTracker.calculateVelocity().y
                                         val currentExpansionFraction = playerContentExpansionFraction.value
-
-                                        // CORREGIDO: Umbrales aún más sensibles para evitar rebotes
                                         val minDragThresholdPx =
-                                            with(density) { 5.dp.toPx() } // Reducido de 8dp a 5dp
+                                            with(density) { 5.dp.toPx() }
                                         val velocityThresholdForInstantTrigger =
-                                            150f // Reducido de 200f a 150f
-
-                                        // CORREGIDO: Lógica de decisión que respeta la intención del gesto
+                                            150f
                                         val targetContentState = when {
-                                            // 1. Prioridad absoluta: Si hay movimiento mínimo, respetarlo SIEMPRE
                                             abs(accumulatedDragYSinceStart) > minDragThresholdPx -> {
                                                 if (accumulatedDragYSinceStart < 0) PlayerSheetState.EXPANDED else PlayerSheetState.COLLAPSED
                                             }
-                                            // 2. Si hay velocidad pero poco movimiento, considerar la velocidad
                                             abs(verticalVelocity) > velocityThresholdForInstantTrigger -> {
                                                 if (verticalVelocity < 0) PlayerSheetState.EXPANDED else PlayerSheetState.COLLAPSED
                                             }
-                                            // 3. Solo si NO hay movimiento ni velocidad significativa, usar posición actual
                                             else -> {
-                                                // Usar un umbral más conservador solo para gestos muy pequeños
                                                 if (currentExpansionFraction > 0.5f) PlayerSheetState.EXPANDED else PlayerSheetState.COLLAPSED
                                             }
                                         }
-
-                                        // Actualiza el estado del ViewModel y coordina la animación
                                         scope.launch {
                                             if (targetContentState == PlayerSheetState.EXPANDED) {
                                                 launch {
@@ -918,12 +902,10 @@ fun UnifiedPlayerSheet(
                                                 playerViewModel.collapsePlayerSheet()
                                             }
                                         }
-
                                         accumulatedDragYSinceStart = 0f
                                     }
                                 )
                             }
-                            // MEJORADO: Click solo en área del player y cuando no se está dragando
                             .clickable(
                                 enabled = true,
                                 interactionSource = remember { MutableInteractionSource() },
@@ -936,7 +918,6 @@ fun UnifiedPlayerSheet(
                             val currentSong = stablePlayerState.currentSong!!
                             val miniPlayerAlpha by remember { derivedStateOf { (1f - playerContentExpansionFraction.value * 2f).coerceIn(0f, 1f) } }
                             if (miniPlayerAlpha > 0.01f) {
-                                // Aplicar el tema del álbum al mini player
                                 CompositionLocalProvider(
                                     LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
                                 ) {
@@ -954,28 +935,27 @@ fun UnifiedPlayerSheet(
                                 }
                             }
 
-                            val fullPlayerAlpha by remember { derivedStateOf { playerContentExpansionFraction.value.pow(2) } }
-                            if (fullPlayerAlpha > 0.01f) {
-                                // Aplicar el tema del álbum al full player
+                            if (shouldRenderFullPlayer) {
                                 CompositionLocalProvider(
                                     LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
                                 ) {
-                                    Box(modifier = Modifier.graphicsLayer { alpha = fullPlayerAlpha }) {
+                                    Box(modifier = Modifier.graphicsLayer {
+                                        alpha = fullPlayerContentAlpha.value
+                                        translationY = fullPlayerTranslationY.value
+                                    }) {
                                         FullPlayerContentInternal(
-                                            //currentPosition = playerUiState.currentPosition,
                                             currentSong = stablePlayerState.currentSong,
                                             isPlaying = stablePlayerState.isPlaying,
                                             isShuffleEnabled = stablePlayerState.isShuffleEnabled,
                                             repeatMode = stablePlayerState.repeatMode,
                                             isFavorite = stablePlayerState.isCurrentSongFavorite,
-                                            //totalDuration = stablePlayerState.totalDuration,
                                             onPlayPause = { playerViewModel.playPause() }, onSeek = { playerViewModel.seekTo(it) },
                                             onNext = { playerViewModel.nextSong() }, onPrevious = { playerViewModel.previousSong() },
                                             onCollapse = { playerViewModel.collapsePlayerSheet() }, expansionFraction = playerContentExpansionFraction.value,
                                             currentSheetState = currentSheetContentState, onShowQueueClicked = { showQueueSheet = true },
-                                            onShuffleToggle = { playerViewModel.toggleShuffle() },      // ADDED
-                                            onRepeatToggle = { playerViewModel.cycleRepeatMode() },    // ADDED
-                                            onFavoriteToggle = { playerViewModel.toggleFavorite() },   // ADDED
+                                            onShuffleToggle = { playerViewModel.toggleShuffle() },
+                                            onRepeatToggle = { playerViewModel.cycleRepeatMode() },
+                                            onFavoriteToggle = { playerViewModel.toggleFavorite() },
                                             playerViewModel = playerViewModel
                                         )
                                     }
@@ -985,8 +965,6 @@ fun UnifiedPlayerSheet(
                     }
                 }
 
-                // Spacer entre player/undobar y navigation bar
-                // Visible if the slot above navbar is occupied AND navbar is not hidden
                 val isPlayerOrUndoBarVisible = showPlayerContentArea || playerUiState.showDismissUndoBar
                 if (isPlayerOrUndoBarVisible && !hideNavBar) {
                     val spacerTargetHeight = lerp(
@@ -996,21 +974,20 @@ fun UnifiedPlayerSheet(
                     )
                     val animatedSpacerHeight by animateDpAsState(
                         targetValue = spacerTargetHeight,
-                        animationSpec = spring(stiffness = Spring.StiffnessMedium), // Using a spring
+                        animationSpec = spring(stiffness = Spring.StiffnessMedium),
                         label = "SpacerHeightAnimation"
                     )
 
-                    if (animatedSpacerHeight > 0.1.dp) { // Use a small threshold to avoid composing for negligible heights
+                    if (animatedSpacerHeight > 0.1.dp) {
                         Spacer(
                             Modifier
                                 .height(animatedSpacerHeight)
                                 .fillMaxWidth()
-                                .background(Color.Transparent) // Or its original background
+                                .background(Color.Transparent)
                         )
                     }
                 }
 
-                // MEJORADO: Navigation bar sin gestos de drag
                 if (!hideNavBar) {
                     val navBarHideFraction = if (showPlayerContentArea) playerContentExpansionFraction.value.pow(2) else 0f
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -1066,10 +1043,7 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    // Dismiss Undo Bar - MOVED into the main Column structure above
-
-    // Queue bottom sheet
-    if (showQueueSheet && !internalIsKeyboardVisible) { // Use internalIsKeyboardVisible
+    if (showQueueSheet && !internalIsKeyboardVisible) {
         CompositionLocalProvider(
             LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
         ) {
@@ -1091,13 +1065,11 @@ fun UnifiedPlayerSheet(
                 isShuffleOn = stablePlayerState.isShuffleEnabled,
                 onToggleRepeat = { playerViewModel.cycleRepeatMode() },
                 onToggleShuffle = { playerViewModel.toggleShuffle() },
-                // onTimerClick removed
                 activeTimerValueDisplay = playerViewModel.activeTimerValueDisplay.collectAsState().value,
                 isEndOfTrackTimerActive = playerViewModel.isEndOfTrackTimerActive.collectAsState().value,
                 onSetPredefinedTimer = { minutes -> playerViewModel.setSleepTimer(minutes) },
                 onSetEndOfTrackTimer = { enable -> playerViewModel.setEndOfTrackTimer(enable) },
                 onOpenCustomTimePicker = {
-                    // TODO: Implement custom time picker dialog / UI
                     Log.d("TimerOptions", "OpenCustomTimePicker clicked")
                 },
                 onCancelTimer = { playerViewModel.cancelSleepTimer() }
@@ -1163,7 +1135,6 @@ private fun MiniPlayerContentInternal(
         }
         Spacer(modifier = Modifier.width(8.dp))
 
-        // Play/Pause button with morphing animation
         Box(
             modifier = Modifier
                 .size(36.dp)
@@ -1188,7 +1159,6 @@ private fun MiniPlayerContentInternal(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // Next button
         Box(
             modifier = Modifier
                 .size(36.dp)
@@ -1213,7 +1183,6 @@ private fun MiniPlayerContentInternal(
     }
 }
 
-// Enum para identificar qué botón fue presionado
 private enum class ButtonType {
     NONE, PREVIOUS, PLAY_PAUSE, NEXT
 }
@@ -1243,7 +1212,6 @@ private fun FullPlayerContentInternal(
 ) {
     val song = currentSong ?: return
 
-    // RECOLECTAR LOS VALORES QUE CAMBIAN FRECUENTEMENTE AQUÍ UNA SOLA VEZ
     val currentPositionValue by remember(playerViewModel.playerUiState) {
         playerViewModel.playerUiState.map { it.currentPosition }
     }.collectAsStateWithLifecycle(initialValue = playerViewModel.playerUiState.value.currentPosition)
@@ -1252,13 +1220,11 @@ private fun FullPlayerContentInternal(
         playerViewModel.stablePlayerState.map { it.totalDuration }
     }.collectAsStateWithLifecycle(initialValue = playerViewModel.stablePlayerState.value.totalDuration)
 
-    // CALCULAR LA FRACCIÓN DE PROGRESO AQUÍ
     val progressFractionValue = remember(currentPositionValue, totalDurationValue) {
         (currentPositionValue.coerceAtLeast(0).toFloat() /
                 totalDurationValue.coerceAtLeast(1).toFloat())
     }.coerceIn(0f, 1f)
 
-    // Definir la AnimationSpec estable para los controles de reproducción
     val stableControlAnimationSpec = remember {
         spring<Float>(
             dampingRatio = Spring.DampingRatioNoBouncy,
@@ -1266,14 +1232,10 @@ private fun FullPlayerContentInternal(
         )
     }
 
-    // Leer colores del tema una vez si no cambian con el tema del álbum aquí
-    // Si sí cambian con el tema del álbum, LocalMaterialTheme.current es correcto.
     val controlOtherButtonsColor = LocalMaterialTheme.current.primary.copy(alpha = 0.15f)
     val controlPlayPauseColor = LocalMaterialTheme.current.primary
     val controlTintPlayPauseIcon = LocalMaterialTheme.current.onPrimary
     val controlTintOtherIcons = LocalMaterialTheme.current.primary
-
-    //Log.d("Recomposition", "FullPlayerContentInternal RECOMPOSED - Song: ${song.title}, IsPlaying: $isPlaying, ExpFrac: $expansionFraction")
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -1305,7 +1267,6 @@ private fun FullPlayerContentInternal(
                     }
                 },
                 actions = {
-                    // Botón para mostrar la cola
                     IconButton(
                         modifier = Modifier.padding(end = 14.dp),
                         onClick = onShowQueueClicked
@@ -1326,21 +1287,28 @@ private fun FullPlayerContentInternal(
                 ),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Album Cover - Asegurando suficiente espacio
-            song.albumArtUriString?.let {
-                OptimizedAlbumArt(
-                    uri = it,
-                    title = song.title,
-                    expansionFraction = expansionFraction
-                )
-            }
+            // Album Cover section
+            val albumArtContainerModifier = Modifier
+                .padding(vertical = lerp(4.dp, 16.dp, expansionFraction))
+                .fillMaxWidth(lerp(0.5f, 0.8f, expansionFraction))
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(lerp(16.dp, 24.dp, expansionFraction)))
+                .shadow(elevation = 16.dp * expansionFraction)
+                .graphicsLayer { alpha = expansionFraction }
 
-            // Song Info - Asegurando que no ocupe demasiado espacio
+            OptimizedAlbumArt(
+                uri = song.albumArtUriString, // Pass URI to OptimizedAlbumArt
+                title = song.title,
+                expansionFraction = expansionFraction, // Pass expansionFraction
+                modifier = albumArtContainerModifier
+            )
+
+            // Song Info
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .padding(vertical = lerp(2.dp, 10.dp, expansionFraction))
-                    .fillMaxWidth(0.9f) // Limita el ancho del texto
+                    .fillMaxWidth(0.9f)
                     .graphicsLayer {
                         alpha = expansionFraction
                         translationY = (1f - expansionFraction) * 24f
@@ -1351,10 +1319,9 @@ private fun FullPlayerContentInternal(
                     style = MaterialTheme.typography.headlineSmall.copy(
                         fontWeight = FontWeight.Bold,
                         fontFamily = GoogleSansRounded
-                        //letterSpacing = (-0.5).sp
                     ),
                     color = LocalMaterialTheme.current.onPrimaryContainer,
-                    maxLines = 1, // Forzamos una sola línea
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center
                 )
@@ -1369,7 +1336,7 @@ private fun FullPlayerContentInternal(
                 )
             }
 
-            // Progress Bar and Times - Asegurando altura fija
+            // Progress Bar and Times
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1377,15 +1344,13 @@ private fun FullPlayerContentInternal(
                     .graphicsLayer {
                         alpha = expansionFraction
                     }
-                    .heightIn(min = 70.dp) // Altura mínima fija para este componente
+                    .heightIn(min = 70.dp)
             ) {
-                // IMPLEMENTACIÓN DE WAVY SLIDER CON ESTADO DE REPRODUCCIÓN
                 val onSliderValueChange = remember(onSeek, totalDurationValue) { { frac: Float -> onSeek((frac * totalDurationValue).roundToLong()) } }
                 WavyMusicSlider(
-                    valueProvider = { progressFractionValue }, // Cambiado a lambda
+                    valueProvider = { progressFractionValue },
                     onValueChange = onSliderValueChange,
                     onValueChangeFinished = {
-                        // Opcional: acciones cuando el usuario termina de arrastrar
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1396,7 +1361,7 @@ private fun FullPlayerContentInternal(
                     inactiveTrackColor = LocalMaterialTheme.current.primary.copy(alpha = 0.2f),
                     thumbColor = LocalMaterialTheme.current.primary,
                     waveFrequency = 0.08f,
-                    isPlaying = (isPlaying && currentSheetState == PlayerSheetState.EXPANDED) // Pasamos el estado de reproducción
+                    isPlaying = (isPlaying && currentSheetState == PlayerSheetState.EXPANDED)
                 )
 
                 Row(
@@ -1420,23 +1385,18 @@ private fun FullPlayerContentInternal(
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f)) // Espaciador flexible para empujar los controles hacia abajo
+            Spacer(modifier = Modifier.weight(1f))
 
-            // Playback Controls - Contenedor con altura fija
-            //Log.d("Recomposition", "FullPlayerContentInternal - Calling AnimatedPlaybackControls, isPlaying: $isPlaying")
             AnimatedPlaybackControls(
                 modifier = Modifier
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 isPlaying = isPlaying,
-                onPrevious = onPrevious,     // Estas deben ser referencias estables
-                onPlayPause = onPlayPause,   // o lambdas recordadas
-                onNext = onNext,           //
+                onPrevious = onPrevious,
+                onPlayPause = onPlayPause,
+                onNext = onNext,
                 height = 80.dp,
-                // Pasar la AnimationSpec estable
                 pressAnimationSpec = stableControlAnimationSpec,
-                releaseDelay = 220L, // Más corto
-                // Pasar colores estables (si los defines fuera como hice arriba)
-                // o dejar que AnimatedPlaybackControls los tome del tema si está bien
+                releaseDelay = 220L,
                 colorOtherButtons = controlOtherButtonsColor,
                 colorPlayPause = controlPlayPauseColor,
                 tintPlayPauseIcon = controlTintPlayPauseIcon,
@@ -1445,25 +1405,22 @@ private fun FullPlayerContentInternal(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Bottom toggle row con altura fija
             BottomToggleRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 38.dp, max = 88.dp) // Altura mínima fija
+                    .heightIn(min = 38.dp, max = 88.dp)
                     .padding(horizontal = 26.dp, vertical = 8.dp),
                 isShuffleEnabled = isShuffleEnabled,
                 repeatMode = repeatMode,
                 isFavorite = isFavorite,
-                onShuffleToggle = onShuffleToggle,    // CHANGED
-                onRepeatToggle = onRepeatToggle,      // CHANGED
-                onFavoriteToggle = onFavoriteToggle   // CHANGED
+                onShuffleToggle = onShuffleToggle,
+                onRepeatToggle = onRepeatToggle,
+                onFavoriteToggle = onFavoriteToggle
             )
         }
     }
 }
 
-// Define una AnimationSpec estable que se pueda usar como valor por defecto.
-// Puedes poner esto a nivel de archivo o como un objeto companion.
 private val DefaultPlaybackControlAnimationSpec: AnimationSpec<Float> =
     spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
 
@@ -1474,13 +1431,12 @@ fun AnimatedPlaybackControls(
     onPrevious: () -> Unit,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
-    // Parámetros configurables
     modifier: Modifier = Modifier,
     height: Dp = 90.dp,
     baseWeight: Float = 1f,
     expansionWeight: Float = 1.1f,
     compressionWeight: Float = 0.65f,
-    pressAnimationSpec: AnimationSpec<Float>, //= DefaultPlaybackControlAnimationSpec,//tween(durationMillis = 150, easing = FastOutSlowInEasing),
+    pressAnimationSpec: AnimationSpec<Float>,
     releaseDelay: Long = 220L,
     playPauseCornerPlaying: Dp = 70.dp,
     playPauseCornerPaused: Dp = 26.dp,
@@ -1491,10 +1447,8 @@ fun AnimatedPlaybackControls(
     playPauseIconSize: Dp = 36.dp,
     iconSize: Dp = 32.dp
 ) {
-    // Estado interno: último botón tocado
     var lastClicked by remember { mutableStateOf<ButtonType?>(null) }
 
-    // Efecto para resetear lastClicked tras la animación
     LaunchedEffect(lastClicked) {
         if (lastClicked != null) {
             delay(releaseDelay)
@@ -1506,21 +1460,18 @@ fun AnimatedPlaybackControls(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
-            //.background(color = Color.Red)
     ) {
         Row(
             modifier = Modifier.fillMaxSize(),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Helper para calcular peso dinámico
             fun weightFor(button: ButtonType): Float = when (lastClicked) {
                 button   -> expansionWeight
                 null     -> baseWeight
                 else     -> compressionWeight
             }
 
-            // --- Previous Button ---
             val prevWeight by animateFloatAsState(
                 targetValue = weightFor(ButtonType.PREVIOUS),
                 animationSpec = pressAnimationSpec
@@ -1545,24 +1496,18 @@ fun AnimatedPlaybackControls(
                 )
             }
 
-            // --- Play/Pause Button ---
             val playWeight by animateFloatAsState(
                 targetValue = weightFor(ButtonType.PLAY_PAUSE),
                 animationSpec = pressAnimationSpec
             )
-            // Animar el corner radius según isPlaying
             val playCorner by animateDpAsState(
                 targetValue = if (!isPlaying) playPauseCornerPlaying else playPauseCornerPaused,
                 animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioNoBouncy, // O MediumBouncy si quieres un leve rebote
-                    stiffness = Spring.StiffnessMedium // Ajusta según necesites
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMedium
                 ),
-                label = "PlayCornerRadiusAnim" // Añadir label
+                label = "PlayCornerRadiusAnim"
             )
-//            val playCorner by animateDpAsState(
-//                targetValue = if (!isPlaying) playPauseCornerPlaying else playPauseCornerPaused,
-//                animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
-//            )
             val playShape = RoundedCornerShape(playCorner)
             Box(
                 modifier = Modifier
@@ -1587,7 +1532,6 @@ fun AnimatedPlaybackControls(
                 )
             }
 
-            // --- Next Button ---
             val nextWeight by animateFloatAsState(
                 targetValue = weightFor(ButtonType.NEXT),
                 animationSpec = pressAnimationSpec
@@ -1625,11 +1569,9 @@ private fun BottomToggleRow(
     onRepeatToggle: () -> Unit,
     onFavoriteToggle: () -> Unit
 ) {
-    // Parámetros de estilo
     val rowCorners = 60.dp
     val inactiveBg = LocalMaterialTheme.current.primary.copy(alpha = 0.08f)
 
-    // Fonde de la fila segmentada
     Box(
         modifier = modifier.background(
             color = LocalMaterialTheme.current.onPrimary,
@@ -1666,10 +1608,8 @@ private fun BottomToggleRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Composable reutilizable
             val commonModifier = Modifier.weight(1f)
 
-            // Shuffle
             ToggleSegmentButton(
                 modifier = commonModifier,
                 active = isShuffleEnabled,
@@ -1681,7 +1621,6 @@ private fun BottomToggleRow(
                 iconId = R.drawable.rounded_shuffle_24,
                 contentDesc = "Aleatorio"
             )
-            // Repeat
             val repeatActive = repeatMode != Player.REPEAT_MODE_OFF
             val repeatIcon = when (repeatMode) {
                 Player.REPEAT_MODE_ONE -> R.drawable.rounded_repeat_one_on_24
@@ -1699,7 +1638,6 @@ private fun BottomToggleRow(
                 iconId = repeatIcon,
                 contentDesc = "Repetir"
             )
-            // Favorite
             ToggleSegmentButton(
                 modifier = commonModifier,
                 active = isFavorite,
@@ -1727,12 +1665,10 @@ fun ToggleSegmentButton(
     iconId: Int,
     contentDesc: String
 ) {
-    // Animación de color de fondo
     val bgColor by animateColorAsState(
         targetValue = if (active) activeColor else inactiveColor,
         animationSpec = tween(durationMillis = 250)
     )
-    // Animación de radio de esquina
     val cornerRadius by animateDpAsState(
         targetValue = if (active) activeCornerRadius else 8.dp,
         animationSpec = spring(stiffness = Spring.StiffnessLow)
@@ -1741,7 +1677,6 @@ fun ToggleSegmentButton(
     Box(
         modifier = modifier
             .fillMaxSize()
-            //.size(buttonSize)
             .clip(RoundedCornerShape(cornerRadius))
             .background(bgColor)
             .clickable(onClick = onClick),
@@ -1768,18 +1703,18 @@ fun DismissUndoBar(
         val startTime = System.currentTimeMillis()
         while (System.currentTimeMillis() < startTime + durationMillis && progress > 0f) {
             progress = 1f - (System.currentTimeMillis() - startTime).toFloat() / durationMillis
-            delay(16) // ~60 fps
+            delay(16)
         }
         progress = 0f
     }
 
-    Surface( // Use Surface for background color and elevation if needed
+    Surface(
         modifier = modifier
             .fillMaxWidth()
-            .height(MiniPlayerHeight), // Same height as mini player
+            .height(MiniPlayerHeight),
         shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceVariant, // Or a custom color
-        tonalElevation = 4.dp // Optional elevation
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        tonalElevation = 4.dp
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Row(
@@ -1798,7 +1733,6 @@ fun DismissUndoBar(
                     Text("Undo", color = MaterialTheme.colorScheme.primary)
                 }
             }
-            // Progress Line
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomStart)

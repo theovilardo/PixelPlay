@@ -188,6 +188,14 @@ class PlayerViewModel @Inject constructor(
     private val _toastEvents = MutableSharedFlow<String>()
     val toastEvents = _toastEvents.asSharedFlow()
 
+    // Last Library Tab Index
+    val lastLibraryTabIndexFlow: StateFlow<Int> =
+        userPreferencesRepository.lastLibraryTabIndexFlow.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0 // Default to Songs tab
+        )
+
     // StateFlow to hold the sync status, converted from syncManager.isSyncing (Flow)
     // Initial value true, as we might assume sync is active on app start until proven otherwise.
     val isSyncingStateFlow: StateFlow<Boolean> = syncManager.isSyncing
@@ -1679,5 +1687,11 @@ class PlayerViewModel @Inject constructor(
             .filter { song -> song.genre.equals(genreName, ignoreCase = true) }
             .take(3)
             .mapNotNull { song -> song.albumArtUriString?.ifEmpty { null } } // Ensure URI is not null and not empty
+    }
+
+    fun saveLastLibraryTabIndex(tabIndex: Int) {
+        viewModelScope.launch {
+            userPreferencesRepository.saveLastLibraryTabIndex(tabIndex)
+        }
     }
 }

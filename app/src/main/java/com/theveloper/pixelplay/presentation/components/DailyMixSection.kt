@@ -17,8 +17,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -90,6 +93,13 @@ private fun DailyMixCard(
             DailyMixHeader(thumbnails = headerSongs)
             DailyMixSongList(songs = songsToPlay, playerViewModel)
             ViewAllDailyMixButton(
+                modifier = Modifier
+                    .padding(
+                        start = 10.dp,
+                        end = 6.dp,
+                        top = 6.dp,
+                        bottom = 6.dp
+                    ),
                 onClickOpen = {
                     onClickOpen()
                 },
@@ -220,26 +230,26 @@ private fun DailyMixSongList(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ViewAllDailyMixButton(
+    modifier: Modifier = Modifier,
     onClickOpen: () -> Unit
 ) {
-    TextButton(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 6.dp),
+    FilledTonalButton(
+        modifier = modifier,
         onClick = {
             onClickOpen()
         },
     ) {
         Text(
             text = "Check all of Daily Mix",
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodyLargeEmphasized,
             fontWeight = FontWeight.Medium
         )
-        Spacer(modifier = Modifier.width(4.dp))
+        Spacer(modifier = Modifier.width(8.dp))
         Icon(
-            painter = painterResource(R.drawable.rounded_keyboard_arrow_right_24),
+            painter = painterResource(R.drawable.rounded_arrow_forward_24),
             contentDescription = null,
             modifier = Modifier.size(20.dp)
         )
