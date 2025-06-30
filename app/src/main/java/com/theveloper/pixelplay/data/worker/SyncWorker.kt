@@ -36,11 +36,31 @@ class SyncWorker @AssistedInject constructor(
             Log.i(TAG, "Starting MediaStore synchronization...")
             val startTime = System.currentTimeMillis()
 
-            val songs = fetchAllSongsFromMediaStore()
+            var songs = fetchAllSongsFromMediaStore() // mutable list now
+            val genreMappings = fetchGenreMappings()
+
+            Log.i(TAG, "Fetched ${songs.size} songs initially. Fetched ${genreMappings.size} genre mappings.")
+
+            // Populate genres for songs
+            songs = songs.map { song ->
+                val genreName = genreMappings[song.id]
+                if (genreName != null) {
+                    song.copy(genre = genreName)
+                } else {
+                    val staticGenres = GenreDataSource.staticGenres
+                    if (staticGenres.isNotEmpty()) {
+                        val genreIndex = (song.id % staticGenres.size.toLong()).toInt()
+                        song.copy(genre = staticGenres[genreIndex].name)
+                    } else {
+                        song.copy(genre = "Unknown Genre")
+                    }
+                }
+            }.toMutableList() // ensure it's a List for subsequent functions
+
             val albums = fetchAllAlbumsFromMediaStore(songs)
             val artists = fetchAllArtistsFromMediaStore(songs)
 
-            Log.i(TAG, "Fetched ${songs.size} songs, ${albums.size} albums, ${artists.size} artists from MediaStore.")
+            Log.i(TAG, "Processed ${songs.size} songs with genres, ${albums.size} albums, ${artists.size} artists from MediaStore.")
 
             if (songs.isEmpty() && albums.isEmpty() && artists.isEmpty()) {
                 Log.w(TAG, "MediaStore fetch resulted in empty lists for songs, albums, and artists. No data will be inserted.")
@@ -59,7 +79,52 @@ class SyncWorker @AssistedInject constructor(
         }
     }
 
-    private fun fetchAllSongsFromMediaStore(): List<SongEntity> {
+    private fun fetchGenreMappings(): Map<Long, String> {
+        val genreMap = mutableMapOf<Long, String>()
+        val genreProjection = arrayOf(
+            MediaStore.Audio.Genres._ID,
+            MediaStore.Audio.Genres.NAME
+        )
+
+        // 1. Get all genres
+        contentResolver.query(
+            MediaStore.Audio.Genres.EXTERNAL_CONTENT_URI,
+            genreProjection,
+            null,
+            null,
+            null
+        )?.use { genreCursor ->
+            val genreIdCol = genreCursor.getColumnIndexOrThrow(MediaStore.Audio.Genres._ID)
+            val genreNameCol = genreCursor.getColumnIndexOrThrow(MediaStore.Audio.Genres.NAME)
+
+            while (genreCursor.moveToNext()) {
+                val genreId = genreCursor.getLong(genreIdCol)
+                val genreName = genreCursor.getString(genreNameCol) ?: "Unknown Genre"
+
+                // 2. For each genre, get its member songs
+                val memberUri = MediaStore.Audio.Genres.Members.getContentUri("external", genreId)
+                val membersProjection = arrayOf(MediaStore.Audio.Media._ID) // Or MediaStore.Audio.Genres.Members.AUDIO_ID
+
+                contentResolver.query(memberUri, membersProjection, null, null, null)
+                    ?.use { membersCursor ->
+                        val audioIdCol = membersCursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                        while (membersCursor.moveToNext()) {
+                            val audioId = membersCursor.getLong(audioIdCol)
+                            // A song might belong to multiple genres.
+                            // We are taking the first one found, or you could decide on a strategy (e.g., concatenate).
+                            // For simplicity, MediaStore often links a song to one primary genre via this table.
+                            if (!genreMap.containsKey(audioId)) {
+                                genreMap[audioId] = genreName
+                            }
+                        }
+                    }
+            }
+        }
+        Log.i(TAG, "Built genre map with ${genreMap.size} entries.")
+        return genreMap
+    }
+
+    private fun fetchAllSongsFromMediaStore(): MutableList<SongEntity> { // Return MutableList
         val songs = mutableListOf<SongEntity>()
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
@@ -107,29 +172,7 @@ class SyncWorker @AssistedInject constructor(
                     "content://media/external/audio/albumart".toUri(), albumId
                 )?.toString()
 
-                var genreName: String? = null
-                try {
-                    val genreUri = MediaStore.Audio.Genres.getContentUriForAudioId("external", id.toInt())
-                    val genreProjection = arrayOf(MediaStore.Audio.GenresColumns.NAME)
-                    contentResolver.query(genreUri, genreProjection, null, null, null)?.use { genreCursor ->
-                        if (genreCursor.moveToFirst()) {
-                            val genreNameColumn = genreCursor.getColumnIndexOrThrow(MediaStore.Audio.GenresColumns.NAME)
-                            genreName = genreCursor.getString(genreNameColumn)
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Error fetching genre for song ID: $id", e)
-                }
-                if (genreName.isNullOrEmpty()) {
-                    val staticGenres = GenreDataSource.staticGenres
-                    if (staticGenres.isNotEmpty()) {
-                        val genreIndex = (id % staticGenres.size.toLong()).toInt()
-                        genreName = staticGenres[genreIndex].name
-                    } else {
-                        genreName = "Unknown Genre"
-                    }
-                }
-
+                // Genre will be populated in a later step
                 songs.add(
                     SongEntity(
                         id = id,
@@ -141,7 +184,7 @@ class SyncWorker @AssistedInject constructor(
                         contentUriString = contentUriString,
                         albumArtUriString = albumArtUriString,
                         duration = c.getLong(durationCol),
-                        genre = genreName,
+                        genre = null, // Initially null, to be populated later
                         filePath = filePath,
                         parentDirectoryPath = parentDir
                     )
