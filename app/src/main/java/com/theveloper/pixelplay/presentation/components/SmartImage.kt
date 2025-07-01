@@ -29,8 +29,8 @@ fun SmartImage(
     model: Any?,
     contentDescription: String?,
     modifier: Modifier = Modifier,
-    placeholderResId: Int? = null, // e.g., R.drawable.rounded_imagesmode_24
-    errorResId: Int? = null,       // e.g., R.drawable.rounded_broken_image_24
+    placeholderResId: Int = R.drawable.rounded_album_24, // Default placeholder
+    errorResId: Int = R.drawable.rounded_broken_image_24,       // Default error
     shape: Shape = RectangleShape,
     contentScale: ContentScale = ContentScale.Crop,
     crossfadeDurationMillis: Int = 300,
@@ -46,29 +46,19 @@ fun SmartImage(
     AsyncImage(
         model = ImageRequest.Builder(context)
             .data(model)
-            .apply {
-                if (placeholderResId != null) {
-                    placeholder(placeholderResId)
-                }
-                if (errorResId != null) {
-                    error(errorResId)
-                }
-                crossfade(crossfadeDurationMillis)
-                diskCachePolicy(if (useDiskCache) CachePolicy.ENABLED else CachePolicy.DISABLED)
-                memoryCachePolicy(if (useMemoryCache) CachePolicy.ENABLED else CachePolicy.DISABLED)
-                allowHardware(allowHardware) // Important if you need to read the bitmap on CPU later
-                // Add other request options if needed, e.g., transformations
-            }
+            .placeholder(placeholderResId)
+            .error(errorResId)
+            .crossfade(crossfadeDurationMillis)
+            .diskCachePolicy(if (useDiskCache) CachePolicy.ENABLED else CachePolicy.DISABLED)
+            .memoryCachePolicy(if (useMemoryCache) CachePolicy.ENABLED else CachePolicy.DISABLED)
+            .allowHardware(allowHardware) // Important if you need to read the bitmap on CPU later
             .build(),
         contentDescription = contentDescription,
         modifier = modifier.clip(shape),
         contentScale = contentScale,
         colorFilter = colorFilter,
         alpha = alpha,
-        onState = onState, // Propagate the state change
-        // For simple placeholder/error without needing the full state:
-        //placeholder = placeholderResId?.let { painterResource(id = it) },
-        //error = errorResId?.let { painterResource(id = it) }
+        onState = onState,
     )
 }
 //@OptIn(ExperimentalCoilApi::class)

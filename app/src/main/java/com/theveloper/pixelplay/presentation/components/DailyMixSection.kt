@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -31,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -242,17 +244,37 @@ private fun ViewAllDailyMixButton(
         onClick = {
             onClickOpen()
         },
+        colors = ButtonDefaults.filledTonalButtonColors(
+            containerColor = Color.Transparent
+        ),
+        shape = AbsoluteSmoothCornerShape(
+            cornerRadiusTL = 10.dp,
+            cornerRadiusTR = 10.dp,
+            smoothnessAsPercentTL = 70,
+            smoothnessAsPercentTR = 70,
+            cornerRadiusBL = 60.dp,
+            cornerRadiusBR = 60.dp,
+            smoothnessAsPercentBL = 70,
+            smoothnessAsPercentBR = 70
+
+        )
     ) {
-        Text(
-            text = "Check all of Daily Mix",
-            style = MaterialTheme.typography.bodyLargeEmphasized,
-            fontWeight = FontWeight.Medium
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Icon(
-            painter = painterResource(R.drawable.rounded_arrow_forward_24),
-            contentDescription = null,
-            modifier = Modifier.size(20.dp)
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Check all of Daily Mix",
+                style = MaterialTheme.typography.bodyLargeEmphasized,
+                fontWeight = FontWeight.Medium
+            )
+            //Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                painter = painterResource(R.drawable.rounded_arrow_forward_24),
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+        }
     }
 }

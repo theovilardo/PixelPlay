@@ -94,6 +94,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import coil.compose.AsyncImagePainter
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.components.ShimmerBox // Added import for ShimmerBox
 import com.theveloper.pixelplay.data.model.Album
@@ -676,66 +677,15 @@ fun LibrarySongsTab(
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
     val listState = rememberLazyListState()
 
-    // Determine content based on loading state and data availability
-    when {
-        uiState.isLoadingInitialSongs && uiState.allSongs.isEmpty() -> {
-            // Show Shimmering Placeholder List
-            LazyColumn(
-                modifier = Modifier
-                    .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
-                    .clip(
-                        RoundedCornerShape(
-                            topStart = 26.dp,
-                            topEnd = 26.dp,
-                            bottomStart = PlayerSheetCollapsedCornerRadius,
-                            bottomEnd = PlayerSheetCollapsedCornerRadius
-                        )
-                    )
-                    .fillMaxSize(), // Fill available space
-                state = listState,
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 10.dp)
-            ) {
-                items(15) { // Show 15 shimmer items
-                    EnhancedSongListItem(
-                        song = Song.emptySong(), // Dummy song, won't be used due to isLoading
-                        isPlaying = false,
-                        isLoading = true,
-                        onMoreOptionsClick = {},
-                        onClick = {}
-                    )
-                }
-            }
+    if (uiState.isLoadingInitialSongs && uiState.allSongs.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
         }
-        uiState.allSongs.isEmpty() && !uiState.canLoadMoreSongs && !uiState.isLoadingInitialSongs -> {
-            // Show Empty State (No songs found)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.rounded_music_off_24), // Replace with your actual "no music" icon
-                        contentDescription = "No songs found",
-                        modifier = Modifier.size(48.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text("No songs found in your library.", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        "Try rescanning your library in settings if you have music on your device.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-        }
-        else -> {
-            // Show Actual Song List
-            Box(modifier = Modifier.fillMaxSize()) {
+    } else {
+        // Determine content based on loading state and data availability
+        when {
+            uiState.isLoadingInitialSongs && uiState.allSongs.isEmpty() -> {
+                // Show Shimmering Placeholder List
                 LazyColumn(
                     modifier = Modifier
                         .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
@@ -746,59 +696,116 @@ fun LibrarySongsTab(
                                 bottomStart = PlayerSheetCollapsedCornerRadius,
                                 bottomEnd = PlayerSheetCollapsedCornerRadius
                             )
-                        ),
+                        )
+                        .fillMaxSize(), // Fill available space
                     state = listState,
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 10.dp)
                 ) {
-                    item { Spacer(Modifier.height(0.dp)) } // Initial spacer if needed
-
-                    items(uiState.allSongs, key = { "song_${it.id}" }) { song ->
-                        val isPlayingThisSong =
-                            song.id == stablePlayerState.currentSong?.id && stablePlayerState.isPlaying
+                    items(15) { // Show 15 shimmer items
                         EnhancedSongListItem(
-                            song = song,
-                            isPlaying = isPlayingThisSong,
-                            isLoading = false, // Not loading individually here
-                            onMoreOptionsClick = { onMoreOptionsClick(song) }
-                        ) {
-                            playerViewModel.showAndPlaySong(song)
-                        }
+                            song = Song.emptySong(), // Dummy song, won't be used due to isLoading
+                            isPlaying = false,
+                            isLoading = true,
+                            onMoreOptionsClick = {},
+                            onClick = {}
+                        )
                     }
-                    if (uiState.isLoadingMoreSongs) {
-                        item {
-                            Box(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 16.dp), // Increased padding for visibility
-                                contentAlignment = Alignment.Center
+                }
+            }
+            uiState.allSongs.isEmpty() && !uiState.canLoadMoreSongs && !uiState.isLoadingInitialSongs -> {
+                // Show Empty State (No songs found)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.rounded_music_off_24), // Replace with your actual "no music" icon
+                            contentDescription = "No songs found",
+                            modifier = Modifier.size(48.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text("No songs found in your library.", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Try rescanning your library in settings if you have music on your device.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+            else -> {
+                // Show Actual Song List
+                Box(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        modifier = Modifier
+                            .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
+                            .clip(
+                                RoundedCornerShape(
+                                    topStart = 26.dp,
+                                    topEnd = 26.dp,
+                                    bottomStart = PlayerSheetCollapsedCornerRadius,
+                                    bottomEnd = PlayerSheetCollapsedCornerRadius
+                                )
+                            ),
+                        state = listState,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 10.dp)
+                    ) {
+                        item { Spacer(Modifier.height(0.dp)) } // Initial spacer if needed
+
+                        items(uiState.allSongs, key = { "song_${it.id}" }) { song ->
+                            val isPlayingThisSong =
+                                song.id == stablePlayerState.currentSong?.id && stablePlayerState.isPlaying
+                            EnhancedSongListItem(
+                                song = song,
+                                isPlaying = isPlayingThisSong,
+                                isLoading = false, // Not loading individually here
+                                onMoreOptionsClick = { onMoreOptionsClick(song) }
                             ) {
-                                CircularProgressIndicator()
+                                playerViewModel.showAndPlaySong(song)
+                            }
+                        }
+                        if (uiState.isLoadingMoreSongs) {
+                            item {
+                                Box(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 16.dp), // Increased padding for visibility
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator()
+                                }
                             }
                         }
                     }
                 }
-            }
 
                 // Gradiente superior para el efecto de desvanecimiento
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(10.dp)
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.surface,
-                                Color.Transparent
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(10.dp)
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    MaterialTheme.colorScheme.surface,
+                                    Color.Transparent
+                                )
                             )
                         )
-                    )
                     //.align(Alignment.TopCenter)
-            )
+                )
 
-            InfiniteListHandler(listState = listState) {
-                if (uiState.canLoadMoreSongs && !uiState.isLoadingMoreSongs) {
-                    playerViewModel.loadMoreSongs()
+                InfiniteListHandler(listState = listState) {
+                    if (uiState.canLoadMoreSongs && !uiState.isLoadingMoreSongs) {
+                        playerViewModel.loadMoreSongs()
+                    }
                 }
             }
         }
@@ -912,12 +919,19 @@ fun EnhancedSongListItem(
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.surfaceVariant)
                 ) {
+                    var isLoadingImage by remember { mutableStateOf(true) }
                     SmartImage(
                         model = song.albumArtUriString ?: R.drawable.rounded_album_24,
                         contentDescription = song.title,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize(),
+                        onState = { state ->
+                            isLoadingImage = state is AsyncImagePainter.State.Loading
+                        }
                     )
+                    if (isLoadingImage) {
+                        ShimmerBox(modifier = Modifier.fillMaxSize())
+                    }
                 }
 
                 Column(
@@ -1028,7 +1042,8 @@ fun LibraryAlbumsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, b
                     AlbumGridItemRedesigned( // Usar el nuevo Composable
                         album = album,
                         albumColorSchemePairFlow = albumSpecificColorSchemeFlow,
-                        onClick = { onAlbumClick(album.id) }
+                        onClick = { onAlbumClick(album.id) },
+                        isLoading = uiState.isLoadingLibraryCategories
                     )
                 }
                 if (uiState.isLoadingLibraryCategories && uiState.albums.isNotEmpty()) {
@@ -1064,92 +1079,166 @@ fun LibraryAlbumsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, b
 @Composable
 fun AlbumGridItemRedesigned(
     album: Album,
-    albumColorSchemePairFlow: StateFlow<ColorSchemePair?>, // Recibe el Flow
-    onClick: () -> Unit
+    albumColorSchemePairFlow: StateFlow<ColorSchemePair?>,
+    onClick: () -> Unit,
+    isLoading: Boolean = false
 ) {
     val albumColorSchemePair by albumColorSchemePairFlow.collectAsState()
     val systemIsDark = isSystemInDarkTheme()
 
-    // Determinar el ColorScheme específico para este ítem.
-    // Si no está listo, usa un fallback temporal basado en el tema actual de la app.
     val itemDesignColorScheme = albumColorSchemePair?.let { if (systemIsDark) it.dark else it.light }
-        ?: MaterialTheme.colorScheme // Fallback al tema actual de la app mientras carga el específico
+        ?: MaterialTheme.colorScheme
 
-    val gradientBaseColor = itemDesignColorScheme.primaryContainer // Un color del tema específico del álbum
+    val gradientBaseColor = itemDesignColorScheme.primaryContainer
     val onGradientColor = itemDesignColorScheme.onPrimaryContainer
     val cardCornerRadius = 26.dp
 
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = AbsoluteSmoothCornerShape(
-            cornerRadiusTL = cardCornerRadius,
-            smoothnessAsPercentTR = 60,
-            cornerRadiusTR = cardCornerRadius,
-            smoothnessAsPercentTL = 60,
-            cornerRadiusBR = cardCornerRadius,
-            smoothnessAsPercentBL = 60,
-            cornerRadiusBL = cardCornerRadius,
-            smoothnessAsPercentBR = 60
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp, pressedElevation = 8.dp),
-        colors = CardDefaults.cardColors(containerColor = itemDesignColorScheme.surfaceVariant.copy(alpha = 0.3f)) // Un fondo sutil
-    ) {
-        Column(
-            modifier = Modifier.background(
-                color = gradientBaseColor,
-                shape = AbsoluteSmoothCornerShape(
-                    cornerRadiusTL = cardCornerRadius,
-                    smoothnessAsPercentTR = 60,
-                    cornerRadiusTR = cardCornerRadius,
-                    smoothnessAsPercentTL = 60,
-                    cornerRadiusBR = cardCornerRadius,
-                    smoothnessAsPercentBL = 60,
-                    cornerRadiusBL = cardCornerRadius,
-                    smoothnessAsPercentBR = 60
-                )
-            )
+    if (isLoading) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = AbsoluteSmoothCornerShape(
+                cornerRadiusTL = cardCornerRadius,
+                smoothnessAsPercentTR = 60,
+                cornerRadiusTR = cardCornerRadius,
+                smoothnessAsPercentTL = 60,
+                cornerRadiusBR = cardCornerRadius,
+                smoothnessAsPercentBL = 60,
+                cornerRadiusBL = cardCornerRadius,
+                smoothnessAsPercentBR = 60
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
         ) {
-            Box(contentAlignment = Alignment.BottomStart) {
-                SmartImage(
-                    model = album.albumArtUriString ?: R.drawable.rounded_album_24,
-                    contentDescription = "Carátula de ${album.title}",
-                    contentScale = ContentScale.Crop,
+            Column(
+                modifier = Modifier.background(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = AbsoluteSmoothCornerShape(
+                        cornerRadiusTL = cardCornerRadius,
+                        smoothnessAsPercentTR = 60,
+                        cornerRadiusTR = cardCornerRadius,
+                        smoothnessAsPercentTL = 60,
+                        cornerRadiusBR = cardCornerRadius,
+                        smoothnessAsPercentBL = 60,
+                        cornerRadiusBL = cardCornerRadius,
+                        smoothnessAsPercentBR = 60
+                    )
+                )
+            ) {
+                ShimmerBox(
                     modifier = Modifier
                         .aspectRatio(3f / 2f)
                         .fillMaxSize()
                 )
-                // Gradiente que permite ver ~70% de la carátula
-                Box(
+                Column(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .aspectRatio(3f / 2f)
-                        //.height(90.dp)
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Transparent,
-                                    gradientBaseColor
+                        .fillMaxWidth()
+                        .padding(12.dp)
+                ) {
+                    ShimmerBox(
+                        modifier = Modifier
+                            .fillMaxWidth(0.8f)
+                            .height(20.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    ShimmerBox(
+                        modifier = Modifier
+                            .fillMaxWidth(0.6f)
+                            .height(16.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    ShimmerBox(
+                        modifier = Modifier
+                            .fillMaxWidth(0.4f)
+                            .height(16.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                    )
+                }
+            }
+        }
+    } else {
+        Card(
+            onClick = onClick,
+            modifier = Modifier.fillMaxWidth(),
+            shape = AbsoluteSmoothCornerShape(
+                cornerRadiusTL = cardCornerRadius,
+                smoothnessAsPercentTR = 60,
+                cornerRadiusTR = cardCornerRadius,
+                smoothnessAsPercentTL = 60,
+                cornerRadiusBR = cardCornerRadius,
+                smoothnessAsPercentBL = 60,
+                cornerRadiusBL = cardCornerRadius,
+                smoothnessAsPercentBR = 60
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp, pressedElevation = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = itemDesignColorScheme.surfaceVariant.copy(alpha = 0.3f))
+        ) {
+            Column(
+                modifier = Modifier.background(
+                    color = gradientBaseColor,
+                    shape = AbsoluteSmoothCornerShape(
+                        cornerRadiusTL = cardCornerRadius,
+                        smoothnessAsPercentTR = 60,
+                        cornerRadiusTR = cardCornerRadius,
+                        smoothnessAsPercentTL = 60,
+                        cornerRadiusBR = cardCornerRadius,
+                        smoothnessAsPercentBL = 60,
+                        cornerRadiusBL = cardCornerRadius,
+                        smoothnessAsPercentBR = 60
+                    )
+                )
+            ) {
+                Box(contentAlignment = Alignment.BottomStart) {
+                    var isLoadingImage by remember { mutableStateOf(true) }
+                    SmartImage(
+                        model = album.albumArtUriString ?: R.drawable.rounded_album_24,
+                        contentDescription = "Carátula de ${album.title}",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .aspectRatio(3f / 2f)
+                            .fillMaxSize(),
+                        onState = { state ->
+                            isLoadingImage = state is AsyncImagePainter.State.Loading
+                        }
+                    )
+                    if (isLoadingImage) {
+                        ShimmerBox(
+                            modifier = Modifier
+                                .aspectRatio(3f / 2f)
+                                .fillMaxSize()
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .aspectRatio(3f / 2f)
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.Transparent,
+                                        gradientBaseColor
+                                    )
                                 )
                             )
-                        )
-                )
-            }
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp)
-            ) {
-                Text(
-                    album.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = onGradientColor,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(album.artist, style = MaterialTheme.typography.bodySmall, color = onGradientColor.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${album.songCount} canciones", style = MaterialTheme.typography.bodySmall, color = onGradientColor.copy(alpha = 0.7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    )
+                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp)
+                ) {
+                    Text(
+                        album.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = onGradientColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(album.artist, style = MaterialTheme.typography.bodySmall, color = onGradientColor.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("${album.songCount} canciones", style = MaterialTheme.typography.bodySmall, color = onGradientColor.copy(alpha = 0.7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
     }

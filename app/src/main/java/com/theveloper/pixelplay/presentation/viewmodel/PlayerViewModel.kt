@@ -65,6 +65,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.theveloper.pixelplay.data.model.SearchFilterType
 import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import com.theveloper.pixelplay.data.model.SearchResultItem
@@ -162,10 +163,8 @@ class PlayerViewModel @Inject constructor(
     val currentAlbumArtColorSchemePair: StateFlow<ColorSchemePair?> = _currentAlbumArtColorSchemePair.asStateFlow()
     // Global and Player theme preferences are now managed by UserPreferencesRepository,
     // but PlayerViewModel still needs to observe them to react to changes.
-    private val _globalThemePreference = MutableStateFlow(ThemePreference.DYNAMIC)
-    val globalThemePreference: StateFlow<String> = _globalThemePreference.asStateFlow()
-    private val _playerThemePreference = MutableStateFlow(ThemePreference.GLOBAL)
-    val playerThemePreference: StateFlow<String> = _playerThemePreference.asStateFlow()
+    val globalThemePreference: StateFlow<String> = userPreferencesRepository.globalThemePreferenceFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemePreference.DYNAMIC)
+    val playerThemePreference: StateFlow<String> = userPreferencesRepository.playerThemePreferenceFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemePreference.GLOBAL)
 
     private val _isInitialThemePreloadComplete = MutableStateFlow(false)
     val isInitialThemePreloadComplete: StateFlow<Boolean> = _isInitialThemePreloadComplete.asStateFlow()
@@ -217,7 +216,7 @@ class PlayerViewModel @Inject constructor(
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val activeGlobalColorSchemePair: StateFlow<ColorSchemePair?> = combine(
-        _globalThemePreference, _currentAlbumArtColorSchemePair
+        globalThemePreference, _currentAlbumArtColorSchemePair
     ) { globalPref, albumScheme ->
         when (globalPref) {
             ThemePreference.ALBUM_ART -> albumScheme // Si es null, Theme.kt usará dynamic/default
@@ -228,7 +227,7 @@ class PlayerViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null) // Eagerly para que esté disponible al inicio
 
     val activePlayerColorSchemePair: StateFlow<ColorSchemePair?> = combine(
-        _playerThemePreference, activeGlobalColorSchemePair, _currentAlbumArtColorSchemePair
+        playerThemePreference, activeGlobalColorSchemePair, _currentAlbumArtColorSchemePair
     ) { playerPref, globalSchemeResult, albumScheme ->
         when (playerPref) {
             ThemePreference.ALBUM_ART -> albumScheme // Puede ser null, Theme.kt en MainActivity lo manejará
@@ -251,12 +250,11 @@ class PlayerViewModel @Inject constructor(
     private val mediaControllerFuture: ListenableFuture<MediaController> =
         MediaController.Builder(context, sessionToken).buildAsync()
 
-    private val _favoriteSongIds = MutableStateFlow<Set<String>>(emptySet())
-    val favoriteSongIds: StateFlow<Set<String>> = _favoriteSongIds.asStateFlow() // Exposed as StateFlow
+    val favoriteSongIds: StateFlow<Set<String>> = userPreferencesRepository.favoriteSongIdsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     // Nuevo StateFlow para la lista de objetos Song favoritos
     val favoriteSongs: StateFlow<ImmutableList<Song>> = combine(
-        _favoriteSongIds, // Now uses the public favoriteSongIds or private _favoriteSongIds
+        favoriteSongIds, // Now uses the public favoriteSongIds
         _playerUiState // Depends on allSongs and currentFavoriteSortOption from uiState
     ) { ids, uiState ->
         val favoriteSongsList = uiState.allSongs.filter { song -> ids.contains(song.id) }
@@ -331,29 +329,17 @@ class PlayerViewModel @Inject constructor(
 
     init {
         Log.i("PlayerViewModel", "init started.")
-        // Observe theme preferences
-        viewModelScope.launch { userPreferencesRepository.globalThemePreferenceFlow.collect { _globalThemePreference.value = it } }
-        viewModelScope.launch { userPreferencesRepository.playerThemePreferenceFlow.collect { _playerThemePreference.value = it } }
+        
 
-        // Observe favorite songs
-        viewModelScope.launch {
-            userPreferencesRepository.favoriteSongIdsFlow.collect { ids ->
-                _favoriteSongIds.value = ids
-            }
-        }
-
-        // Iniciar el procesador de la cola de esquemas de color
         launchColorSchemeProcessor()
 
-        // Observe sort option preferences
         viewModelScope.launch {
             userPreferencesRepository.songsSortOptionFlow.collect { optionName ->
                 getSortOptionFromString(optionName)?.let { sortOption ->
-                    if (_playerUiState.value.currentSongSortOption != sortOption) { // Avoid re-sorting if option hasn't changed
-                        // Update state first, then call sort which uses the state
+                    if (_playerUiState.value.currentSongSortOption != sortOption) {
                         _playerUiState.update { it.copy(currentSongSortOption = sortOption) }
                         if (!_playerUiState.value.isLoadingInitialSongs && _playerUiState.value.allSongs.isNotEmpty()) {
-                             sortSongs(sortOption) // This will use the updated state
+                            sortSongs(sortOption)
                         }
                     }
                 }
@@ -386,47 +372,27 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferencesRepository.likedSongsSortOptionFlow.collect { optionName ->
                 getSortOptionFromString(optionName)?.let { sortOption ->
-                     // The favoriteSongs flow automatically uses currentFavoriteSortOption from playerUiState.
-                     // Just updating the state is enough to trigger re-composition and re-sorting.
                     _playerUiState.update { it.copy(currentFavoriteSortOption = sortOption) }
                 }
             }
         }
 
-        // *** BLOQUE CORREGIDO ***
-        // Observar el estado de SyncWorker (now using isSyncingStateFlow)
         viewModelScope.launch {
-            val wasSyncingBefore = _playerUiState.value.isSyncingLibrary // This UI state field will be updated by the flow
-            Log.d("PlayerViewModel", "Setting up isSyncingStateFlow observer. Initial isSyncingLibrary from UIState: ${wasSyncingBefore}, isSyncingStateFlow.value: ${isSyncingStateFlow.value}")
+            isSyncingStateFlow.collect { isSyncing ->
+                val oldSyncingLibraryState = _playerUiState.value.isSyncingLibrary
+                _playerUiState.update { it.copy(isSyncingLibrary = isSyncing) }
 
-            isSyncingStateFlow // Observe the new StateFlow
-                .collect { isSyncing ->
-                    Log.d("PlayerViewModel", "isSyncingStateFlow changed. Old UI state for isSyncingLibrary: ${_playerUiState.value.isSyncingLibrary}, New emitted value: $isSyncing")
-                    val oldSyncingLibraryState = _playerUiState.value.isSyncingLibrary
-                    _playerUiState.update { it.copy(isSyncingLibrary = isSyncing) }
-
-                    // Si el estado cambió de "sincronizando" a "no sincronizando", el worker ha terminado.
-                    if (oldSyncingLibraryState && !isSyncing) {
-                        Log.i("PlayerViewModel", "SyncWorker finished (observed via isSyncingStateFlow). Reloading initial data from observer.")
-                        resetAndLoadInitialData("isSyncingStateFlow observer")
-                    }
-                    // wasSyncingBefore is not strictly needed here anymore as distinctUntilChanged handles it for the flow,
-                    // and oldSyncingLibraryState captures the UI state before update.
+                if (oldSyncingLibraryState && !isSyncing) {
+                    resetAndLoadInitialData("isSyncingStateFlow observer")
                 }
+            }
         }
 
-        // Check current sync state immediately after setting up the observer
-        // This handles cases where sync finishes before the observer is fully active or if sync was very fast.
         viewModelScope.launch {
-            // Adding a small delay to ensure the flow collection might have had a chance to emit once
-            // though ideally, the check against .value should be sufficient.
-            // delay(50) // Optional: small delay, might not be strictly necessary.
-            Log.d("PlayerViewModel", "Initial check: isSyncingStateFlow.value = ${isSyncingStateFlow.value}. PlayerUIState: isLoadingInitial = ${_playerUiState.value.isLoadingInitialSongs}, allSongs empty = ${_playerUiState.value.allSongs.isEmpty()}")
-            if (!isSyncingStateFlow.value && // Sync is NOT currently running (use the new StateFlow's value)
-                _playerUiState.value.isLoadingInitialSongs && // We are still in the initial loading phase
-                _playerUiState.value.allSongs.isEmpty() // And no songs have been loaded yet
+            if (!isSyncingStateFlow.value &&
+                _playerUiState.value.isLoadingInitialSongs &&
+                _playerUiState.value.allSongs.isEmpty()
             ) {
-                Log.i("PlayerViewModel", "SyncWorker likely finished before observer was fully active or was very fast. Triggering data load from initial check.")
                 resetAndLoadInitialData("Initial Check")
             }
         }
@@ -439,8 +405,12 @@ class PlayerViewModel @Inject constructor(
                 _playerUiState.update { it.copy(isLoadingInitialSongs = false, isLoadingLibraryCategories = false) }
                 Log.e("PlayerViewModel", "Error setting up MediaController", e)
             }
-        }, MoreExecutors.directExecutor())
+        }, ContextCompat.getMainExecutor(context))
 
+
+    }
+
+    fun onMainActivityStart() {
         preloadThemesAndInitialData()
     }
 
@@ -1014,7 +984,7 @@ class PlayerViewModel @Inject constructor(
     private fun updateFavoriteStatusForCurrentSong() {
         val currentSongId = _stablePlayerState.value.currentSong?.id
         _stablePlayerState.update {
-            it.copy(isCurrentSongFavorite = currentSongId != null && _favoriteSongIds.value.contains(currentSongId))
+            it.copy(isCurrentSongFavorite = currentSongId != null && favoriteSongIds.value.contains(currentSongId))
         }
     }
 

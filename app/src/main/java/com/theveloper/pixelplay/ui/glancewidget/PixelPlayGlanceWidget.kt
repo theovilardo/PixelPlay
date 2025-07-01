@@ -5,7 +5,6 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Log
 import android.util.LruCache
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
@@ -53,6 +52,7 @@ import androidx.glance.unit.ColorProvider
 import com.theveloper.pixelplay.MainActivity
 import com.theveloper.pixelplay.data.model.PlayerInfo // Changed import
 import com.theveloper.pixelplay.R
+import com.theveloper.pixelplay.ui.glancewidget.subcomponents.WavyLinearProgressIndicator
 
 class PixelPlayGlanceWidget : GlanceAppWidget() {
 
@@ -136,6 +136,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                                                         // GlanceTheme.colors.surfaceContainer // Este sería el ideal si existe
         val actualBackgroundColor = GlanceTheme.colors.surface // Fallback si surfaceContainer no está
         val onBackgroundColor = GlanceTheme.colors.onSurface
+        val progressBgColor = ColorProvider(GlanceTheme.colors.onSurface.getColor(context).copy(alpha = 0.2f))
         val primaryColor = GlanceTheme.colors.primary
 
         val baseModifier = GlanceModifier
@@ -166,8 +167,9 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                     isPlaying,
                     currentProgress,
                     totalDuration,
-                    onBackgroundColor,
-                    primaryColor,
+                    textColor = onBackgroundColor,
+                    progressBgColor = progressBgColor,
+                    accentColor = primaryColor,
                     context = context
                 )
             }
@@ -182,7 +184,8 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                     totalDuration,
                     onBackgroundColor,
                     primaryColor,
-                    context = context
+                    context = context,
+                    progressBgColor = progressBgColor
                 )
             }
         }
@@ -262,6 +265,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         modifier: GlanceModifier, title: String, artist: String, albumArtBitmapData: ByteArray?,
         isPlaying: Boolean, currentProgressMs: Long, totalDurationMs: Long,
         textColor: ColorProvider, accentColor: ColorProvider,
+        progressBgColor: ColorProvider,
         context: Context // Añadir contexto para el Intent
     ) {
         Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -272,35 +276,53 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                     Text(text = title, style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textColor), maxLines = 1)
                     Text(text = artist, style = TextStyle(fontSize = 13.sp, color = textColor), maxLines = 1)
                 }
+                Spacer(GlanceModifier.width(4.dp))
                 Image(
                     provider = ImageProvider(R.drawable.rounded_favorite_24),
-                    contentDescription = "Abrir en app",
+                    contentDescription = "favorite",
                     modifier = GlanceModifier
                         .size(28.dp)
                         .clickable(actionStartActivity(IntentProvider.mainActivityIntent(context)))
                         .padding(2.dp),
                     colorFilter = ColorFilter.tint(textColor)
                 )
+                Spacer(GlanceModifier.width(8.dp))
             }
+            Spacer(GlanceModifier.height(4.dp))
             if (totalDurationMs > 0L) {
-                LinearProgressIndicator(
-                    progress = currentProgressMs.toFloat() / totalDurationMs.toFloat(),
+                WavyLinearProgressIndicator(
                     modifier = GlanceModifier
                         .fillMaxWidth()
-                        .height(4.dp)
+                        .height(6.dp)
                         .cornerRadius(2.dp),
-                    color = accentColor,
-                    backgroundColor = textColor // Un poco más tenue para el fondo
+                    progress = currentProgressMs.toFloat() / totalDurationMs.toFloat(),
+                    isPlaying = isPlaying,
+                    trackHeight = 4.dp,
+                    waveAmplitude = 2.dp,
+                    thumbRadius = 6.dp,
+                    trackBackgroundColor = progressBgColor.getColor(context),
+                    activeTrackColor = accentColor.getColor(context),
+                    thumbColor = accentColor.getColor(context)
                 )
+//                LinearProgressIndicator(
+//                    progress = currentProgressMs.toFloat() / totalDurationMs.toFloat(),
+//                    modifier = GlanceModifier
+//                        .fillMaxWidth()
+//                        .height(6.dp)
+//                        .cornerRadius(2.dp),
+//                    color = accentColor,
+//                    backgroundColor = progressBgColor // Un poco más tenue para el fondo
+//                )
+                Spacer(GlanceModifier.height(2.dp))
                 Row(
                     GlanceModifier
                         .fillMaxWidth()
-                        .padding(top = 4.dp)
+                        .padding(top = 2.dp, end = 8.dp, start = 8.dp)
                     // horizontalAlignment = Alignment.SpaceBetween  <- Esto no funciona en Glance Row directamente
                 ) {
-                    Text(formatDurationGlance(currentProgressMs), style = TextStyle(fontSize = 10.sp, color = textColor))
+                    Text(formatDurationGlance(currentProgressMs), style = TextStyle(fontSize = 12.sp, color = textColor))
                     Spacer(GlanceModifier.defaultWeight()) // Spacer con weight para empujar el siguiente texto al final
-                    Text(formatDurationGlance(totalDurationMs), style = TextStyle(fontSize = 10.sp, color = textColor))
+                    Text(formatDurationGlance(totalDurationMs), style = TextStyle(fontSize = 12.sp, color = textColor))
                 }
             } else {
                 Spacer(GlanceModifier.height(4.dp + 10.sp.value.dp + 4.dp)) // Mantener espacio similar
@@ -321,7 +343,8 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 val onPrimaryContainerColor = GlanceTheme.colors.onPrimaryContainer
                 val tertiaryColor = GlanceTheme.colors.tertiaryContainer
                 val onTertiaryColor = GlanceTheme.colors.onTertiaryContainer
-                val buttonCornerRadius = 24.dp // Redondeo para cada botón
+                val buttonCornerRadius = 60.dp // Redondeo para cada botón
+                val playButtonCornerRadius = if (isPlaying) 20.dp else 60.dp
 
                 PreviousButtonGlance(
                     modifier = GlanceModifier.defaultWeight(), // Aplicar weight aquí
@@ -335,13 +358,13 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                     isPlaying = isPlaying,
                     iconColor = onPrimaryContainerColor,
                     backgroundColor = primaryContainerColor,
-                    cornerRadius = buttonCornerRadius
+                    cornerRadius = playButtonCornerRadius
                 )
                 Spacer(GlanceModifier.width(8.dp))
                 NextButtonGlance(
                     modifier = GlanceModifier.defaultWeight(), // Aplicar weight aquí
-                    iconColor = onTertiaryColor,
-                    backgroundColor = tertiaryColor,
+                    iconColor = onSecondaryColor,
+                    backgroundColor = secondaryColor,
                     cornerRadius = buttonCornerRadius
                 )
             }
@@ -353,6 +376,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         modifier: GlanceModifier, title: String, artist: String, albumArtBitmapData: ByteArray?,
         isPlaying: Boolean, currentProgressMs: Long, totalDurationMs: Long,
         textColor: ColorProvider, accentColor: ColorProvider,
+        progressBgColor: ColorProvider,
         context: Context // Añadir contexto para el Intent
     ) {
         Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -378,17 +402,21 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 // Podríamos añadir un botón de "Abrir App" aquí también si se desea, similar a LargeWidgetLayout
             }
 
+            Spacer(GlanceModifier.height(8.dp))
+
             // Fila media: Barra de progreso y tiempos
-            Column(modifier = GlanceModifier.fillMaxWidth().padding(vertical = 12.dp)) { // Más padding vertical
+            Column(
+                modifier = GlanceModifier.fillMaxWidth().padding(vertical = 12.dp)
+            ) { // Más padding vertical
                 if (totalDurationMs > 0L) {
                     LinearProgressIndicator(
                         progress = currentProgressMs.toFloat() / totalDurationMs.toFloat(),
                         modifier = GlanceModifier
                             .fillMaxWidth()
                             .height(6.dp)
-                            .cornerRadius(3.dp), // Barra más gruesa
+                            .cornerRadius(30.dp), // Barra más gruesa
                         color = accentColor,
-                        backgroundColor = textColor // Un poco más tenue para el fondo
+                        backgroundColor = progressBgColor // Un poco más tenue para el fondo
                     )
                     Row(
                         GlanceModifier
@@ -483,7 +511,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         iconColor: ColorProvider = GlanceTheme.colors.onSurfaceVariant,
         backgroundColor: ColorProvider = GlanceTheme.colors.surfaceVariant,
         iconSize: Dp = 24.dp,
-        cornerRadius: Dp = 8.dp
+        cornerRadius: Dp = 0.dp
     ) {
         val params = actionParametersOf(PlayerActions.key to PlayerActions.PLAY_PAUSE)
         Box(
