@@ -59,7 +59,15 @@ class SyncWorker @AssistedInject constructor(
                 }
 
                 Log.i(TAG, "Processed ${songs.size} songs, ${albums.size} albums, ${artists.size} artists.")
-                musicDao.insertMusicData(songs, albums, artists)
+                musicDao.insertArtists(artists)
+                musicDao.insertAlbums(albums)
+                musicDao.insertSongs(songs)
+
+                // Delete songs that are no longer present in MediaStore
+                val currentSongIds = songs.map { it.id }
+                musicDao.deleteMissingSongs(currentSongIds)
+                musicDao.deleteOrphanedAlbums()
+                musicDao.deleteOrphanedArtists()
                 Log.i(TAG, "Music data insertion call completed.")
             } else {
                 Log.w(TAG, "MediaStore fetch resulted in empty list for songs. No data will be inserted.")
@@ -76,7 +84,8 @@ class SyncWorker @AssistedInject constructor(
 
     private fun fetchAllMusicData(): List<SongEntity> {
         val songs = mutableListOf<SongEntity>()
-        val genreMap = fetchGenreMappings()
+        // Removed genre mapping from initial sync for performance.
+        // Genre will be "Unknown Genre" or from static genres for now.
 
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
@@ -122,7 +131,7 @@ class SyncWorker @AssistedInject constructor(
                     "content://media/external/audio/albumart".toUri(), albumId
                 )?.toString()
 
-                val genreName = genreMap[id] ?: run {
+                val genreName = run {
                     val staticGenres = GenreDataSource.staticGenres
                     if (staticGenres.isNotEmpty()) {
                         staticGenres[(id % staticGenres.size).toInt()].name
@@ -152,33 +161,7 @@ class SyncWorker @AssistedInject constructor(
         return songs
     }
 
-        private fun fetchGenreMappings(): Map<Long, String> {
-        val genreMap = mutableMapOf<Long, String>()
-        val uri = MediaStore.Audio.Genres.EXTERNAL_CONTENT_URI
-        val projection = arrayOf(MediaStore.Audio.Genres._ID, MediaStore.Audio.Genres.NAME)
-
-        contentResolver.query(uri, projection, null, null, null)?.use { genreCursor ->
-            val idColumn = genreCursor.getColumnIndexOrThrow(MediaStore.Audio.Genres._ID)
-            val nameColumn = genreCursor.getColumnIndexOrThrow(MediaStore.Audio.Genres.NAME)
-
-            while (genreCursor.moveToNext()) {
-                val genreId = genreCursor.getLong(idColumn)
-                val genreName = genreCursor.getString(nameColumn)
-
-                val membersUri = MediaStore.Audio.Genres.Members.getContentUri("external", genreId)
-                val membersProjection = arrayOf(MediaStore.Audio.Media._ID)
-
-                contentResolver.query(membersUri, membersProjection, null, null, null)?.use { membersCursor ->
-                    val audioIdColumn = membersCursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-                    while (membersCursor.moveToNext()) {
-                        val audioId = membersCursor.getLong(audioIdColumn)
-                        genreMap[audioId] = genreName
-                    }
-                }
-            }
-        }
-        return genreMap
-    }
+        
 
     companion object {
         const val WORK_NAME = "com.theveloper.pixelplay.data.worker.SyncWorker"

@@ -88,9 +88,9 @@ fun HomeScreen(
     val yourMixSong: String = "Today's Mix for you"
 
     // 2) Observar sólo el currentSong (o null) para saber si mostrar padding
-    val currentSong by playerViewModel.stablePlayerState
-        .map { it.currentSong }
-        .collectAsState(initial = null)
+    val currentSong by remember(playerViewModel.stablePlayerState) {
+        playerViewModel.stablePlayerState.map { it.currentSong }
+    }.collectAsState(initial = null)
 
     // 3) Calcular y recordar los URIs para el header
     val recentUrisForHeader: ImmutableList<String?> = remember(allSongs) {
