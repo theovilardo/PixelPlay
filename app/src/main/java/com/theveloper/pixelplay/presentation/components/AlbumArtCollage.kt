@@ -13,8 +13,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -42,7 +44,11 @@ import com.theveloper.pixelplay.utils.shapes.createRoundedHexagonShape
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.internal.toImmutableList
+
+@Stable
+data class Config(val size: Dp, val width: Dp, val height: Dp, val align: Alignment, val rot: Float, val shape: Shape, val offsetX: Dp, val offsetY: Dp)
 
 // Asegúrate de que tus recursos R y Song estén disponibles
 // import com.your_app_name.R
@@ -63,30 +69,28 @@ fun AlbumArtCollage(
     height: Dp = 400.dp,
     padding: Dp = 0.dp
 ) {
-    // 1) Memoriza el contexto y la lista “normalizada” sólo cuando cambian
     val context = LocalContext.current
-    val artsToShow = remember(albumArts) {
-        albumArts.take(6).let {
-            if (it.size == 6) it
-            else it + List(6 - it.size) { null }
-        }
-    }.toImmutableList()
+    val artsToShow by remember(albumArts) {
+        mutableStateOf(
+            (albumArts.take(6) + List(6 - albumArts.size.coerceAtMost(6)) { null }).toImmutableList()
+        )
+    }
 
-    // 2) Prepara las ImageRequest y las configs de forma memoizada
-    val requests = remember(artsToShow) {
-        artsToShow.map { uri ->
-            uri?.let {
-                ImageRequest.Builder(context)
-                    .data(it)
-                    .dispatcher(Dispatchers.IO)
-                    .crossfade(true)
-                    .placeholder(R.drawable.rounded_album_24)
-                    .error(R.drawable.rounded_album_24)
-                    .build()
-            }
-        }
-    }.toImmutableList()
-    data class Config(val size: Dp, val width: Dp, val height: Dp, val align: Alignment, val rot: Float, val shape: Shape, val offsetX: Dp, val offsetY: Dp)
+    val requests by remember(artsToShow, context) {
+        mutableStateOf(
+            artsToShow.map { uri ->
+                uri?.let {
+                    ImageRequest.Builder(context)
+                        .data(it)
+                        .dispatcher(Dispatchers.IO)
+                        .crossfade(true)
+                        .placeholder(R.drawable.rounded_album_24)
+                        .error(R.drawable.rounded_album_24)
+                        .build()
+                }
+            }.toImmutableList()
+        )
+    }
 
     BoxWithConstraints(
         modifier = modifier
@@ -94,121 +98,61 @@ fun AlbumArtCollage(
             .height(height)
             .padding(padding)
     ) {
-        val boxW = maxWidth
-        val boxH = maxHeight
-
-        // 3) Calcula las dos regiones sólo una vez por recomposición de tamaño
-        val (topConfigs, bottomConfigs) = remember(boxW, boxH) {
-            val min = minOf(boxW, boxH)
-            // Superior: ocupa 60%
-            val topH = boxH * 0.6f
-            val topMin = minOf(boxW, topH)
-            val pill = Config(
-                size = topMin * 0.8f,
-                width = topMin * 0.6f,
-                height = topMin * 0.9f,
-                align = Alignment.Center,
-                rot = 45f,
-                shape = RoundedCornerShape(percent = 50),
-                offsetX = 0.dp,
-                offsetY = 0.dp
-            )
-            val circle1 = Config(
-                size = topMin * 0.3f,
-                width = topMin * 0.3f,
-                height = topMin * 0.3f,
-                align = Alignment.TopStart,
-                rot = 0f,
-                shape = CircleShape,
-                offsetX = (boxW * 0.05f),
-                offsetY = (topH * 0.05f)
-            )
-            val circle2 = Config(
-                size = topMin * 0.3f,
-                width = topMin * 0.3f,
-                height = topMin * 0.3f,
-                align = Alignment.BottomEnd,
-                rot = 0f,
-                shape = CircleShape,
-                offsetX = -(boxW * 0.05f),
-                offsetY = -(topH * 0.05f)
-            )
-
-            // Inferior: ocupa 40%
-            val bottomH = boxH * 0.4f
-            val bottomMin = minOf(boxW, bottomH)
-            val squircle1 = Config(
-                size = bottomMin * 0.6f,
-                width = bottomMin * 0.6f,
-                height = bottomMin * 0.6f,
-                align = Alignment.TopStart,
-                rot = -20f,
-                shape = RoundedCornerShape(20.dp),
-                offsetX = (boxW * 0.1f),
-                offsetY = (bottomH * 0.1f)
-            )
-            val star = Config(
-                size = bottomMin * 0.9f,
-                width = bottomMin * 0.9f,
-                height = bottomMin * 0.9f,
-                align = Alignment.BottomEnd,
-                rot = 0f,
-                shape = RoundedStarShape(sides = 6, curve = 0.09, rotation = 45f),
-                offsetX = (-42).dp,
-                offsetY = 0.dp
-            )
-            listOf(listOf(pill, circle1, circle2), listOf(squircle1, star))
+        val boxMaxHeight = maxHeight // Capture maxHeight from BoxWithConstraintsScope
+        val shapeConfigs by produceState<List<Config>>(initialValue = emptyList(), artsToShow, boxMaxHeight) {
+            value = withContext(Dispatchers.Default) {
+                val min = minOf(300.dp, height) // Simplified calculation for shapes
+                listOf(
+                    Config(size = min * 0.8f, width = min * 0.48f, height = min * 0.8f, align = Alignment.Center, rot = 45f, shape = RoundedCornerShape(percent = 50), offsetX = 0.dp, offsetY = 0.dp),
+                    Config(size = min * 0.4f, width = min * 0.24f, height = min * 0.24f, align = Alignment.TopStart, rot = 0f, shape = CircleShape, offsetX = (300.dp * 0.05f), offsetY = (boxMaxHeight * 0.05f)),
+                    Config(size = min * 0.4f, width = min * 0.24f, height = min * 0.24f, align = Alignment.BottomEnd, rot = 0f, shape = CircleShape, offsetX = -(300.dp * 0.05f), offsetY = -(boxMaxHeight * 0.05f)),
+                    Config(size = min * 0.6f, width = min * 0.35f, height = min * 0.35f, align = Alignment.TopStart, rot = -20f, shape = RoundedCornerShape(20.dp), offsetX = (300.dp * 0.1f), offsetY = (boxMaxHeight * 0.1f)),
+                    Config(size = min * 0.9f, width = min * 0.9f, height = min * 0.9f, align = Alignment.BottomEnd, rot = 0f, shape = RoundedStarShape(sides = 6, curve = 0.09, rotation = 45f), offsetX = (42).dp, offsetY = 0.dp)
+                )
+            }
         }
 
-        // 4) Dibuja sólo lo que toca, usando los configs y las requests memoizadas
-        Column(Modifier.fillMaxSize()) {
-            // Superior
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(boxH * 0.6f)
-            ) {
-                topConfigs.forEachIndexed { idx, cfg ->
-                    requests.getOrNull(idx)?.let { req ->
-                        AsyncImage(
-                            model = req,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .size(cfg.width, cfg.height)
-                                .align(cfg.align)
-                                .offset(cfg.offsetX, cfg.offsetY)
-                                .graphicsLayer { rotationZ = cfg.rot }
-                                .clip(cfg.shape)
-                        )
+        if (shapeConfigs.isNotEmpty()) {
+            val (topConfigs, bottomConfigs) = shapeConfigs.take(3) to shapeConfigs.drop(3)
+
+            Column(Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxWidth().height(boxMaxHeight * 0.6f)) {
+                    topConfigs.forEachIndexed { idx, cfg ->
+                        requests.getOrNull(idx)?.let { req ->
+                            AsyncImage(
+                                model = req,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(cfg.width, cfg.height)
+                                    .align(cfg.align)
+                                    .offset(cfg.offsetX, cfg.offsetY)
+                                    .graphicsLayer { rotationZ = cfg.rot }
+                                    .clip(cfg.shape)
+                            )
+                        }
                     }
                 }
-            }
-            // Inferior
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(boxH * 0.4f)
-            ) {
-                bottomConfigs.forEachIndexed { j, cfg ->
-                    requests.getOrNull(j + 3)?.let { req ->
-                        AsyncImage(
-                            model = req,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .size(cfg.width, cfg.height)
-                                .align(cfg.align)
-                                .offset(cfg.offsetX, cfg.offsetY)
-                                .graphicsLayer { rotationZ = cfg.rot }
-                                .clip(cfg.shape)
-                        )
+                Box(Modifier.fillMaxWidth().height(boxMaxHeight * 0.4f)) {
+                    bottomConfigs.forEachIndexed { j, cfg ->
+                        requests.getOrNull(j + 3)?.let { req ->
+                            AsyncImage(
+                                model = req,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(cfg.width, cfg.height)
+                                    .align(cfg.align)
+                                    .offset(cfg.offsetX, cfg.offsetY)
+                                    .graphicsLayer { rotationZ = cfg.rot }
+                                    .clip(cfg.shape)
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // 5) Si no hay nada, placeholder
         if (albumArts.all { it == null }) {
             Box(Modifier.matchParentSize(), contentAlignment = Alignment.Center) {
                 Icon(

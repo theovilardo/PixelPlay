@@ -178,22 +178,8 @@ dependencies {
     // Kotlin Collections
     implementation(libs.kotlinx.collections.immutable) // Verifica la última versión
 
-    //permisisons
+        //permisisons
     implementation(libs.accompanist.permissions)
 }
 
-// protobuf { // Eliminado bloque de configuración de Protobuf
-//    protoc {
-//        // Descarga el compilador de Protocol Buffers desde Maven Central.
-//        artifact = "com.google.protobuf:protoc:3.25.1" // Usa la misma versión que la dependencia protobuf-javalite
-//    }
-//    generateProtoTasks {
-//        all().configureEach {
-//            builtins {
-//                maybeCreate("java").apply {
-//                    option("lite") // Use lite runtime for Android
-//                }
-//            }
-//        }
-//    }
-// }
+
