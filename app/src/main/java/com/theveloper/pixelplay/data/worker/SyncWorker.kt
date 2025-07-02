@@ -9,6 +9,7 @@ import android.provider.MediaStore
 import android.util.Log
 import androidx.core.net.toUri
 import androidx.hilt.work.HiltWorker
+import android.os.Trace // Import Trace
 import androidx.work.CoroutineWorker
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkerParameters
@@ -32,6 +33,7 @@ class SyncWorker @AssistedInject constructor(
     private val contentResolver: ContentResolver = appContext.contentResolver
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+        Trace.beginSection("SyncWorker.doWork")
         try {
             Log.i(TAG, "Starting MediaStore synchronization...")
             val startTime = System.currentTimeMillis()
@@ -77,10 +79,13 @@ class SyncWorker @AssistedInject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "Error during MediaStore synchronization", e)
             Result.failure()
+        } finally {
+            Trace.endSection() // End SyncWorker.doWork
         }
     }
 
     private fun fetchAllMusicData(): List<SongEntity> {
+        Trace.beginSection("SyncWorker.fetchAllMusicData")
         val songs = mutableListOf<SongEntity>()
         // Removed genre mapping from initial sync for performance.
         // Genre will be "Unknown Genre" or from static genres for now.
@@ -156,6 +161,7 @@ class SyncWorker @AssistedInject constructor(
                 )
             }
         }
+        Trace.endSection() // End SyncWorker.fetchAllMusicData
         return songs
     }
 

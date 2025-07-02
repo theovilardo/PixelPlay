@@ -75,6 +75,7 @@ import com.theveloper.pixelplay.data.worker.SyncManager
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import android.os.Trace // Import Trace
 import kotlinx.coroutines.flow.stateIn
 import java.util.concurrent.TimeUnit
 import androidx.lifecycle.asFlow
@@ -339,6 +340,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     init {
+        Trace.beginSection("PlayerViewModel.init")
         Log.i("PlayerViewModel", "init started.")
         
 
@@ -422,14 +424,17 @@ class PlayerViewModel @Inject constructor(
             }
         }, ContextCompat.getMainExecutor(context))
 
-
+        Trace.endSection() // End PlayerViewModel.init
     }
 
     fun onMainActivityStart() {
+        Trace.beginSection("PlayerViewModel.onMainActivityStart")
         preloadThemesAndInitialData()
+        Trace.endSection()
     }
 
     private fun preloadThemesAndInitialData() {
+        Trace.beginSection("PlayerViewModel.preloadThemesAndInitialData")
         val functionStartTime = System.currentTimeMillis()
         Log.d("PlayerViewModelPerformance", "preloadThemesAndInitialData START")
 
@@ -460,11 +465,14 @@ class PlayerViewModel @Inject constructor(
             Log.d("PlayerViewModelPerformance", "Initial theme preload complete (async data loading dispatched). Total time since overallInitStart: ${timeToComplete} ms")
         }
         Log.d("PlayerViewModelPerformance", "preloadThemesAndInitialData END. Total function time: ${System.currentTimeMillis() - functionStartTime} ms (dispatching async work)")
+        Trace.endSection() // End PlayerViewModel.preloadThemesAndInitialData
     }
 
     private fun resetAndLoadInitialData(caller: String = "Unknown") {
+        Trace.beginSection("PlayerViewModel.resetAndLoadInitialData")
         if (_isInitialDataLoaded.value && _playerUiState.value.allSongs.isNotEmpty()) {
             Log.i("PlayerViewModel", "resetAndLoadInitialData called from: $caller, but initial data already loaded. Skipping.")
+            Trace.endSection() // End PlayerViewModel.resetAndLoadInitialData (early exit)
             return
         }
         val functionStartTime = System.currentTimeMillis()
@@ -491,6 +499,7 @@ class PlayerViewModel @Inject constructor(
         loadSongsFromRepository() // No longer takes isInitialLoad
         // Initial load for albums and artists will be triggered by their respective tabs if needed.
         Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData END (dispatching async work). Total function time: ${System.currentTimeMillis() - functionStartTime} ms")
+        Trace.endSection() // End PlayerViewModel.resetAndLoadInitialData
     }
 
     private fun loadSongsFromRepository() {
@@ -498,6 +507,7 @@ class PlayerViewModel @Inject constructor(
         // No longer need checks for isLoadingMoreSongs or canLoadMoreSongs
 
         viewModelScope.launch { // Default dispatcher is Main.Immediate which is fine for launching.
+            Trace.beginSection("PlayerViewModel.loadSongsFromRepository_coroutine")
             val functionStartTime = System.currentTimeMillis()
             Log.d("PlayerViewModelPerformance", "loadSongsFromRepository (All) START")
 
@@ -539,6 +549,8 @@ class PlayerViewModel @Inject constructor(
                 }
                 val totalFunctionTime = System.currentTimeMillis() - functionStartTime
                 Log.d("PlayerViewModelPerformance", "loadSongsFromRepository (All) FAILED. Total time: $totalFunctionTime ms")
+            } finally {
+                Trace.endSection() // End PlayerViewModel.loadSongsFromRepository_coroutine
             }
         }
     }
@@ -553,6 +565,7 @@ class PlayerViewModel @Inject constructor(
         Log.d("PlayerViewModelPerformance", "loadAlbumsFromRepository (All) called.")
 
         viewModelScope.launch {
+            Trace.beginSection("PlayerViewModel.loadAlbumsFromRepository_coroutine")
             val functionStartTime = System.currentTimeMillis()
             Log.d("PlayerViewModelPerformance", "loadAlbumsFromRepository (All) START")
 
@@ -579,6 +592,8 @@ class PlayerViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e("PlayerViewModel", "Error loading all albums", e)
                 _playerUiState.update { it.copy(isLoadingLibraryCategories = false) }
+            } finally {
+                Trace.endSection() // End PlayerViewModel.loadAlbumsFromRepository_coroutine
             }
         }
     }
@@ -779,7 +794,8 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun setupMediaControllerListeners() {
-        val playerCtrl = mediaController ?: return // Renamed to avoid shadowing
+        Trace.beginSection("PlayerViewModel.setupMediaControllerListeners")
+        val playerCtrl = mediaController ?: return Trace.endSection() // Renamed to avoid shadowing, ensure trace ends if early exit
         _stablePlayerState.update {
             it.copy(
                 isShuffleEnabled = playerCtrl.shuffleModeEnabled, // Use playerCtrl
@@ -899,6 +915,7 @@ class PlayerViewModel @Inject constructor(
                 if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) updateCurrentPlaybackQueueFromPlayer(playerCtrl) // Pass playerCtrl
             }
         })
+        Trace.endSection() // End PlayerViewModel.setupMediaControllerListeners
     }
 
     // Modificado para establecer una lista de reproducción
@@ -1098,26 +1115,34 @@ class PlayerViewModel @Inject constructor(
 
     private fun launchColorSchemeProcessor() {
         viewModelScope.launch(Dispatchers.IO) { // Usar Dispatchers.IO para el bucle del canal
-            for (albumArtUri in colorSchemeRequestChannel) { // Consume de la cola
-                try {
-                    Log.d("PlayerViewModel", "Processing $albumArtUri from queue.")
-                    val scheme = getOrGenerateColorSchemeForUri(albumArtUri, false) // isPreload = false
-                    individualAlbumColorSchemes[albumArtUri]?.value = scheme
-                    Log.d("PlayerViewModel", "Finished processing $albumArtUri. Scheme: ${scheme != null}")
-                } catch (e: Exception) {
-                    Log.e("PlayerViewModel", "Error processing $albumArtUri in ColorSchemeProcessor", e)
-                    individualAlbumColorSchemes[albumArtUri]?.value = null // O un esquema de error/default
-                } finally {
-                    synchronized(urisBeingProcessed) {
-                        urisBeingProcessed.remove(albumArtUri) // Eliminar de procesándose
+            Trace.beginSection("PlayerViewModel.colorSchemeProcessorLoop")
+            try {
+                for (albumArtUri in colorSchemeRequestChannel) { // Consume de la cola
+                    Trace.beginSection("PlayerViewModel.processColorSchemeForUri")
+                    try {
+                        Log.d("PlayerViewModel", "Processing $albumArtUri from queue.")
+                        val scheme = getOrGenerateColorSchemeForUri(albumArtUri, false) // isPreload = false
+                        individualAlbumColorSchemes[albumArtUri]?.value = scheme
+                        Log.d("PlayerViewModel", "Finished processing $albumArtUri. Scheme: ${scheme != null}")
+                    } catch (e: Exception) {
+                        Log.e("PlayerViewModel", "Error processing $albumArtUri in ColorSchemeProcessor", e)
+                        individualAlbumColorSchemes[albumArtUri]?.value = null // O un esquema de error/default
+                    } finally {
+                        synchronized(urisBeingProcessed) {
+                            urisBeingProcessed.remove(albumArtUri) // Eliminar de procesándose
+                        }
+                        Trace.endSection() // End PlayerViewModel.processColorSchemeForUri
                     }
                 }
+            } finally {
+                Trace.endSection() // End PlayerViewModel.colorSchemeProcessorLoop
             }
         }
     }
 
     // Modificada para devolver el ColorSchemePair y ser usada por getAlbumColorSchemeFlow y la precarga
     private suspend fun getOrGenerateColorSchemeForUri(albumArtUri: String, isPreload: Boolean): ColorSchemePair? {
+        Trace.beginSection("PlayerViewModel.getOrGenerateColorSchemeForUri")
         val uriString = albumArtUri // uriString ya es el albumArtUri
         val cachedEntity = withContext(Dispatchers.IO) { albumArtThemeDao.getThemeByUri(uriString) }
 
@@ -1166,6 +1191,7 @@ class PlayerViewModel @Inject constructor(
                     _currentAlbumArtColorSchemePair.value = null
                     updateLavaLampColorsBasedOnActivePlayerScheme()
                 }
+                Trace.endSection() // End PlayerViewModel.getOrGenerateColorSchemeForUri (bitmap was null)
                 null
             }
         } catch (e: Exception) {
@@ -1173,17 +1199,20 @@ class PlayerViewModel @Inject constructor(
                 _currentAlbumArtColorSchemePair.value = null
                 updateLavaLampColorsBasedOnActivePlayerScheme()
             }
+            Trace.endSection() // End PlayerViewModel.getOrGenerateColorSchemeForUri (exception)
             null
         }
     }
 
     private suspend fun extractAndGenerateColorScheme(albumArtUriAsUri: Uri?, isPreload: Boolean = false) {
+        Trace.beginSection("PlayerViewModel.extractAndGenerateColorScheme")
         if (albumArtUriAsUri == null) {
             // Check current song's string URI when determining if it's the one without art
             if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == null) {
                 _currentAlbumArtColorSchemePair.value = null
                 updateLavaLampColorsBasedOnActivePlayerScheme()
             }
+            Trace.endSection() // End PlayerViewModel.extractAndGenerateColorScheme (URI null)
             return
         }
         val uriString = albumArtUriAsUri.toString()
@@ -1197,6 +1226,7 @@ class PlayerViewModel @Inject constructor(
             } else if (isPreload) {
                 // No es necesario actualizar _currentAlbumArtColorSchemePair durante la precarga
             }
+            Trace.endSection() // End PlayerViewModel.extractAndGenerateColorScheme (cached)
             return
         }
 
@@ -1231,6 +1261,9 @@ class PlayerViewModel @Inject constructor(
                 }
             } ?: run { if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) { _currentAlbumArtColorSchemePair.value = null; updateLavaLampColorsBasedOnActivePlayerScheme() } }
         } catch (e: Exception) { if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) { _currentAlbumArtColorSchemePair.value = null; updateLavaLampColorsBasedOnActivePlayerScheme() } }
+        finally {
+            Trace.endSection() // End PlayerViewModel.extractAndGenerateColorScheme (after generation attempt)
+        }
     }
 
     // Funciones de Mapeo Entity <-> ColorSchemePair (Corregidas)

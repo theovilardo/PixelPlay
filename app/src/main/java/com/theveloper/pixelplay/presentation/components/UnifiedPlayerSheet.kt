@@ -118,6 +118,7 @@ import kotlinx.coroutines.Dispatchers
 import com.theveloper.pixelplay.utils.formatDuration
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.delay
+import android.os.Trace // Import Trace
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -160,6 +161,7 @@ fun UnifiedPlayerSheet(
     collapsedStateBottomMargin: Dp = 0.dp,
     hideNavBar: Boolean = false
 ) {
+    Trace.beginSection("UnifiedPlayerSheet.Composition")
     val context = LocalContext.current
     LaunchedEffect(key1 = Unit) {
         playerViewModel.toastEvents.collect { message ->
@@ -1076,6 +1078,7 @@ fun UnifiedPlayerSheet(
             )
         }
     }
+    Trace.endSection() // End UnifiedPlayerSheet.Composition
 }
 
 @Composable

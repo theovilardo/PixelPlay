@@ -67,6 +67,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import android.os.Trace // Import Trace
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
@@ -96,6 +97,7 @@ fun DailyMixScreen(
     playerViewModel: PlayerViewModel,
     navController: NavController
 ) {
+    Trace.beginSection("DailyMixScreen.Composition")
     val dailyMixSongs: ImmutableList<Song> by playerViewModel.favoriteSongs.collectAsState()
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
     val playerSheetState by playerViewModel.sheetState.collectAsState()
@@ -302,6 +304,7 @@ fun DailyMixScreen(
 
         }
     }
+    Trace.endSection() // End DailyMixScreen.Composition
 }
 
 
@@ -311,6 +314,7 @@ private fun ExpressiveDailyMixHeader(
     songs: List<Song>,
     scrollState: LazyListState
 ) {
+    Trace.beginSection("ExpressiveDailyMixHeader.Composition")
     val albumArts = remember(songs) { songs.map { it.albumArtUriString }.distinct().take(3) }
     val totalDuration = remember(songs) { songs.sumOf { it.duration } }
 
@@ -438,4 +442,5 @@ private fun ExpressiveDailyMixHeader(
             }
         }
     }
+    Trace.endSection() // End ExpressiveDailyMixHeader.Composition
 }
