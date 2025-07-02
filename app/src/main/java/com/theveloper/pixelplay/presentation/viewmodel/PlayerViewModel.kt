@@ -204,6 +204,8 @@ class PlayerViewModel @Inject constructor(
             initialValue = true // Assuming sync might be initially active
         )
 
+    private val _isInitialDataLoaded = MutableStateFlow(false) // Flag to prevent double loading
+
     // Paginación - REMOVED
     // private var currentSongPage = 1
     // private var currentAlbumPage = 1
@@ -392,17 +394,20 @@ class PlayerViewModel @Inject constructor(
                 val oldSyncingLibraryState = _playerUiState.value.isSyncingLibrary
                 _playerUiState.update { it.copy(isSyncingLibrary = isSyncing) }
 
-                if (oldSyncingLibraryState && !isSyncing) {
+                if (oldSyncingLibraryState && !isSyncing && !_isInitialDataLoaded.value) {
+                    Log.i("PlayerViewModel", "Sync completed and initial data not loaded. Calling resetAndLoadInitialData from isSyncingStateFlow observer.")
                     resetAndLoadInitialData("isSyncingStateFlow observer")
+                } else if (oldSyncingLibraryState && !isSyncing && _isInitialDataLoaded.value) {
+                    Log.i("PlayerViewModel", "Sync completed but initial data already loaded. Skipping resetAndLoadInitialData from isSyncingStateFlow observer.")
                 }
             }
         }
 
         viewModelScope.launch {
-            if (!isSyncingStateFlow.value &&
-                _playerUiState.value.isLoadingInitialSongs &&
-                _playerUiState.value.allSongs.isEmpty()
-            ) {
+            // This check ensures that if sync is already complete (e.g. on subsequent app starts or if sync was very fast)
+            // and data hasn't been loaded yet, it gets loaded.
+            if (!isSyncingStateFlow.value && !_isInitialDataLoaded.value && _playerUiState.value.allSongs.isEmpty()) {
+                Log.i("PlayerViewModel", "Initial check: Sync not active and initial data not loaded. Calling resetAndLoadInitialData.")
                 resetAndLoadInitialData("Initial Check")
             }
         }
@@ -438,14 +443,13 @@ class PlayerViewModel @Inject constructor(
             // We might not need to call it unconditionally here anymore if the init block's logic is robust.
             // However, if sync is not involved (e.g. app already synced), this ensures data is loaded.
             // The conditional calls in init block aim to prevent redundant loads if sync just finished.
-            // For safety, ensuring it's called if still in initial loading phase and no songs.
-            if (_playerUiState.value.isLoadingInitialSongs && _playerUiState.value.allSongs.isEmpty() && isSyncingStateFlow.value) { // Use new StateFlow
-                 Log.i("PlayerViewModel", "preloadThemesAndInitialData: Sync is active, deferring initial load to sync completion handler.")
-            } else if (_playerUiState.value.isLoadingInitialSongs && _playerUiState.value.allSongs.isEmpty()) {
-                Log.i("PlayerViewModel", "preloadThemesAndInitialData: No sync active or already finished, and no songs loaded. Calling resetAndLoadInitialData from preload.")
+            if (isSyncingStateFlow.value && !_isInitialDataLoaded.value) {
+                 Log.i("PlayerViewModel", "preloadThemesAndInitialData: Sync is active and initial data not yet loaded, deferring initial load to sync completion handler.")
+            } else if (!_isInitialDataLoaded.value && _playerUiState.value.allSongs.isEmpty()) { // Check _isInitialDataLoaded
+                Log.i("PlayerViewModel", "preloadThemesAndInitialData: Sync not active or already finished, and initial data not loaded. Calling resetAndLoadInitialData from preload.")
                 resetAndLoadInitialData("preloadThemesAndInitialData")
             } else {
-                Log.i("PlayerViewModel", "preloadThemesAndInitialData: Initial songs already loading or loaded. Skipping direct call to resetAndLoadInitialData.")
+                Log.i("PlayerViewModel", "preloadThemesAndInitialData: Initial data already loaded or sync is active and will trigger load. Skipping direct call to resetAndLoadInitialData from preload.")
             }
             //Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData() call took ${System.currentTimeMillis() - resetLoadDataStartTime} ms (Note: actual loading is async). Time from overallInitStart: ${System.currentTimeMillis() - overallInitStartTime} ms")
 
@@ -459,40 +463,54 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun resetAndLoadInitialData(caller: String = "Unknown") {
-        val functionStartTime = System.currentTimeMillis()
-        Log.i("PlayerViewModel", "resetAndLoadInitialData called from: $caller")
-        Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData START - Called by: $caller")
-        // currentSongPage = 1 // Removed
-        // currentAlbumPage = 1 // Removed
-        // currentArtistPage = 1 // Removed
-        _playerUiState.update {
-            it.copy(
-                allSongs = emptyList<Song>().toImmutableList(),
-                albums = emptyList<Album>().toImmutableList(),
-                artists = emptyList<Artist>().toImmutableList()
-                // canLoadMore flags removed from PlayerUiState
-            )
+        if (_isInitialDataLoaded.value && _playerUiState.value.allSongs.isNotEmpty()) {
+            Log.i("PlayerViewModel", "resetAndLoadInitialData called from: $caller, but initial data already loaded. Skipping.")
+            return
         }
+        val functionStartTime = System.currentTimeMillis()
+        Log.i("PlayerViewModel", "resetAndLoadInitialData called from: $caller. Proceeding with load.")
+        Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData START - Called by: $caller")
+
+        // Reset relevant parts of UI state, but only if we are truly reloading.
+        // If allSongs is empty, it's a genuine first load or a forced refresh.
+        if (_playerUiState.value.allSongs.isEmpty()) {
+            _playerUiState.update {
+                it.copy(
+                    allSongs = persistentListOf(), // Use persistentListOf() for empty immutable list
+                    albums = persistentListOf(),
+                    artists = persistentListOf(),
+                    isLoadingInitialSongs = true // Set loading true before starting
+                )
+            }
+        } else {
+            // If songs are not empty, but _isInitialDataLoaded was false (e.g. after a sync that cleared it),
+            // still mark as loading.
+             _playerUiState.update { it.copy(isLoadingInitialSongs = true) }
+        }
+
         loadSongsFromRepository() // No longer takes isInitialLoad
         // Initial load for albums and artists will be triggered by their respective tabs if needed.
-        Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData END. Total function time: ${System.currentTimeMillis() - functionStartTime} ms")
+        Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData END (dispatching async work). Total function time: ${System.currentTimeMillis() - functionStartTime} ms")
     }
 
     private fun loadSongsFromRepository() {
         Log.d("PlayerViewModel", "loadSongsFromRepository called.")
         // No longer need checks for isLoadingMoreSongs or canLoadMoreSongs
 
-        viewModelScope.launch {
+        viewModelScope.launch { // Default dispatcher is Main.Immediate which is fine for launching.
             val functionStartTime = System.currentTimeMillis()
             Log.d("PlayerViewModelPerformance", "loadSongsFromRepository (All) START")
 
-            _playerUiState.update { it.copy(isLoadingInitialSongs = true) }
+            // isLoadingInitialSongs should be true already if resetAndLoadInitialData was called.
+            // If called directly, ensure it's set.
+            if (!_playerUiState.value.isLoadingInitialSongs) {
+                 _playerUiState.update { it.copy(isLoadingInitialSongs = true) }
+            }
 
             try {
                 val repoCallStartTime = System.currentTimeMillis()
-                val allSongsList: List<Song> = withContext(Dispatchers.IO) {
-                    musicRepository.getAudioFiles().first() // Fetches all songs
-                }
+                // musicRepository.getAudioFiles() already uses flowOn(Dispatchers.IO)
+                val allSongsList: List<Song> = musicRepository.getAudioFiles().first()
                 val repoCallDuration = System.currentTimeMillis() - repoCallStartTime
                 Log.d("PlayerViewModelPerformance", "musicRepository.getAudioFiles (All) took $repoCallDuration ms for ${allSongsList.size} songs.")
 
@@ -504,7 +522,8 @@ class PlayerViewModel @Inject constructor(
                         // canLoadMoreSongs = false // No more pagination
                     )
                 }
-                Log.d("PlayerViewModel", "allSongs updated. New size: ${_playerUiState.value.allSongs.size}. isLoadingInitialSongs: ${_playerUiState.value.isLoadingInitialSongs}")
+                _isInitialDataLoaded.value = true // Set the flag after successful load
+                Log.d("PlayerViewModel", "allSongs updated. New size: ${_playerUiState.value.allSongs.size}. isLoadingInitialSongs: ${_playerUiState.value.isLoadingInitialSongs}. _isInitialDataLoaded: ${_isInitialDataLoaded.value}")
 
                 val totalFunctionTime = System.currentTimeMillis() - functionStartTime
                 Log.d("PlayerViewModelPerformance", "loadSongsFromRepository (All) END. Data update complete. Total time: $totalFunctionTime ms")
@@ -1115,7 +1134,14 @@ class PlayerViewModel @Inject constructor(
         // Si no está en caché, generar
         return try {
             val bitmap = withContext(Dispatchers.IO) {
-                val request = ImageRequest.Builder(context).data(albumArtUri).allowHardware(false).size(Size(128, 128)).build()
+                val request = ImageRequest.Builder(context)
+                    .data(albumArtUri)
+                    .allowHardware(false)
+                    .size(Size(128, 128))
+                    .bitmapConfig(Bitmap.Config.ARGB_8888) // Asegurar consistencia
+                    .memoryCachePolicy(CachePolicy.ENABLED) // Consistencia con extractAndGenerateColorScheme
+                    .diskCachePolicy(CachePolicy.ENABLED)   // Consistencia con extractAndGenerateColorScheme
+                    .build()
                 val result = context.imageLoader.execute(request).drawable
                 result?.let { drawable ->
                     createBitmap(
