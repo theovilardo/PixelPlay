@@ -23,6 +23,7 @@ import coil.request.CachePolicy
 import coil.request.ImageRequest
 import com.theveloper.pixelplay.R
 import kotlinx.coroutines.Dispatchers
+import coil.size.Size // Import Coil's Size
 
 @Composable
 fun SmartImage(
@@ -37,22 +38,28 @@ fun SmartImage(
     useDiskCache: Boolean = true,
     useMemoryCache: Boolean = true,
     allowHardware: Boolean = true, // Default to true, set to false if CPU access to Bitmap is needed later
+    targetSize: Size? = null, // New parameter for specifying image size
     colorFilter: ColorFilter? = null,
     alpha: Float = 1f,
     onState: ((AsyncImagePainter.State) -> Unit)? = null // Callback for image loading state
 ) {
     val context = LocalContext.current
 
+    val requestBuilder = ImageRequest.Builder(context)
+        .data(model)
+        .placeholder(placeholderResId)
+        .error(errorResId)
+        .crossfade(crossfadeDurationMillis)
+        .diskCachePolicy(if (useDiskCache) CachePolicy.ENABLED else CachePolicy.DISABLED)
+        .memoryCachePolicy(if (useMemoryCache) CachePolicy.ENABLED else CachePolicy.DISABLED)
+        .allowHardware(allowHardware) // Important if you need to read the bitmap on CPU later
+
+    targetSize?.let {
+        requestBuilder.size(it)
+    }
+
     AsyncImage(
-        model = ImageRequest.Builder(context)
-            .data(model)
-            .placeholder(placeholderResId)
-            .error(errorResId)
-            .crossfade(crossfadeDurationMillis)
-            .diskCachePolicy(if (useDiskCache) CachePolicy.ENABLED else CachePolicy.DISABLED)
-            .memoryCachePolicy(if (useMemoryCache) CachePolicy.ENABLED else CachePolicy.DISABLED)
-            .allowHardware(allowHardware) // Important if you need to read the bitmap on CPU later
-            .build(),
+        model = requestBuilder.build(),
         contentDescription = contentDescription,
         modifier = modifier.clip(shape),
         contentScale = contentScale,
