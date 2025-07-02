@@ -80,6 +80,7 @@ import java.util.concurrent.TimeUnit
 import androidx.lifecycle.asFlow
 import androidx.work.WorkInfo
 import androidx.core.net.toUri
+import kotlinx.coroutines.flow.flowOn
 
 // Nuevo enum para el estado del sheet
 enum class PlayerSheetState {
@@ -259,7 +260,7 @@ class PlayerViewModel @Inject constructor(
         _playerUiState // Depends on allSongs and currentFavoriteSortOption from uiState
     ) { ids, uiState ->
         Log.d("PlayerViewModel", "Calculating favoriteSongs. IDs size: ${ids.size}, All songs size: ${uiState.allSongs.size}")
-        val favoriteSongsList = uiState.allSongs.filter { song -> ids.contains(song.id) }
+        //val favoriteSongsList = uiState.allSongs.filter { song -> ids.contains(song.id) }
         Log.d("PlayerViewModel", "Calculating favoriteSongs on ${Thread.currentThread().name}. IDs size: ${ids.size}, All songs size: ${uiState.allSongs.size}")
         val favoriteSongsList = uiState.allSongs.filter { song -> ids.contains(song.id) }
         Log.d("PlayerViewModel", "Filtered favoriteSongsList size: ${favoriteSongsList.size}")
