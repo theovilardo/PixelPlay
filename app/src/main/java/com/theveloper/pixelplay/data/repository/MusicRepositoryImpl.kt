@@ -60,10 +60,8 @@ class MusicRepositoryImpl @Inject constructor(
     private val directoryScanMutex = Mutex()
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    override fun getAudioFiles(page: Int, pageSize: Int): Flow<List<Song>> {
-        Log.d("MusicRepo/Songs", "getAudioFiles (DAO based) - Page: $page, PageSize: $pageSize")
-        val offset = (page - 1).coerceAtLeast(0) * pageSize
-
+    override fun getAudioFiles(): Flow<List<Song>> {
+        Log.d("MusicRepo/Songs", "getAudioFiles (DAO based) - Fetching all songs")
         return combine(
             userPreferencesRepository.allowedDirectoriesFlow,
             userPreferencesRepository.initialSetupDoneFlow
@@ -74,8 +72,6 @@ class MusicRepositoryImpl @Inject constructor(
                 flowOf(emptyList<Song>()) // No directories allowed, return empty list of Songs
             } else {
                 musicDao.getSongs(
-                    pageSize = pageSize,
-                    offset = offset,
                     allowedParentDirs = allowedDirs,
                     applyDirectoryFilter = initialSetupDone // Only apply filter if setup is done
                 ).map { entities -> entities.map { it.toSong() } }
@@ -83,10 +79,8 @@ class MusicRepositoryImpl @Inject constructor(
         }.flowOn(Dispatchers.IO)
     }
 
-    override fun getAlbums(page: Int, pageSize: Int): Flow<List<Album>> {
-        Log.d("MusicRepo/Albums", "getAlbums (DAO based) - Page: $page, PageSize: $pageSize")
-        val offset = (page - 1).coerceAtLeast(0) * pageSize
-
+    override fun getAlbums(): Flow<List<Album>> {
+        Log.d("MusicRepo/Albums", "getAlbums (DAO based) - Fetching all albums")
         return combine(
             userPreferencesRepository.allowedDirectoriesFlow,
             userPreferencesRepository.initialSetupDoneFlow
@@ -97,8 +91,6 @@ class MusicRepositoryImpl @Inject constructor(
                 flowOf(emptyList<Album>())
             } else {
                 musicDao.getAlbums(
-                    pageSize = pageSize,
-                    offset = offset,
                     allowedParentDirs = allowedDirs,
                     applyDirectoryFilter = initialSetupDone
                 ).map { entities -> entities.map { it.toAlbum() } }
@@ -141,10 +133,8 @@ class MusicRepositoryImpl @Inject constructor(
         // return musicDao.getAlbumById(id).map { it?.toAlbum() }.flowOn(Dispatchers.IO)
     }
 
-    override fun getArtists(page: Int, pageSize: Int): Flow<List<Artist>> {
-        Log.d("MusicRepo/Artists", "getArtists (DAO based) - Page: $page, PageSize: $pageSize")
-        val offset = (page - 1).coerceAtLeast(0) * pageSize
-
+    override fun getArtists(): Flow<List<Artist>> {
+        Log.d("MusicRepo/Artists", "getArtists (DAO based) - Fetching all artists")
         return combine(
             userPreferencesRepository.allowedDirectoriesFlow,
             userPreferencesRepository.initialSetupDoneFlow
@@ -155,8 +145,6 @@ class MusicRepositoryImpl @Inject constructor(
                 flowOf(emptyList<Artist>())
             } else {
                 musicDao.getArtists(
-                    pageSize = pageSize,
-                    offset = offset,
                     allowedParentDirs = allowedDirs,
                     applyDirectoryFilter = initialSetupDone
                 ).map { entities -> entities.map { it.toArtist() } }
@@ -235,8 +223,6 @@ class MusicRepositoryImpl @Inject constructor(
             } else {
                 // Use the already modified musicDao.getSongs which handles directory filtering
                 musicDao.getSongs(
-                    pageSize = Int.MAX_VALUE, // Get all relevant songs for their URIs
-                    offset = 0,
                     allowedParentDirs = allowedDirs,
                     applyDirectoryFilter = initialSetupDone
                 ).map { songEntities ->

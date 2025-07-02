@@ -77,7 +77,7 @@ import com.theveloper.pixelplay.presentation.components.DailyMixHeader
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet
-import com.theveloper.pixelplay.presentation.components.ThreeShapeSwitch
+import com.theveloper.pixelplay.presentation.components.threeShapeSwitch
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.MainViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
@@ -85,6 +85,7 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.utils.formatDuration
 import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.map
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
@@ -349,12 +350,25 @@ private fun ExpressiveDailyMixHeader(
                         2 -> 15f
                         else -> 0f
                     }
+                    val shape = threeShapeSwitch(index, thirdShapeCornerRadius = 30.dp)
                     Box(
                         modifier = Modifier
                             .size(size)
                             .graphicsLayer { rotationZ = rotation }
-                            .clip(RoundedCornerShape(12.dp))
-                            .border(3.dp, MaterialTheme.colorScheme.surface.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                            .clip(shape)
+//                            .border(
+//                                width = 24.dp,
+//                                brush = Brush.radialGradient(
+//                                    listOf(
+//                                        Color.Transparent,
+//                                        Color.Transparent,
+//                                        Color.Transparent,
+//                                        MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+//                                        MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+//                                    )
+//                                ),
+//                                shape = shape
+//                            )
                     ) {
                         SmartImage(
                             model = artUrl ?: R.drawable.rounded_album_24,

@@ -102,8 +102,8 @@ import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.data.model.Playlist
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.model.SortOption
-import com.theveloper.pixelplay.presentation.components.InfiniteGridHandler
-import com.theveloper.pixelplay.presentation.components.InfiniteListHandler
+// import com.theveloper.pixelplay.presentation.components.InfiniteGridHandler // Removed
+// import com.theveloper.pixelplay.presentation.components.InfiniteListHandler // Removed
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.NavBarPersistentHeight
 import com.theveloper.pixelplay.presentation.components.PlayerSheetCollapsedCornerRadius
@@ -117,6 +117,7 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistUiState
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 import com.theveloper.pixelplay.utils.formatDuration
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import okhttp3.internal.toImmutableList
@@ -148,6 +149,12 @@ fun LibraryScreen(
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.currentPage }.collect { page ->
             playerViewModel.saveLastLibraryTabIndex(page)
+            when (page) {
+                1 -> playerViewModel.loadAlbumsIfNeeded() // Índice 1 para la pestaña de Álbumes
+                2 -> playerViewModel.loadArtistsIfNeeded() // Índice 2 para la pestaña de Artistas
+                // Las canciones (índice 0) se cargan inicialmente o con resetAndLoadInitialData
+                // Playlists (índice 3) y Liked (índice 4) tienen su propia lógica de carga o ya están disponibles.
+            }
         }
     }
 
@@ -160,11 +167,11 @@ fun LibraryScreen(
     var selectedSortOptionForLiked by remember { mutableStateOf<SortOption>(SortOption.LikedSongTitleAZ) }
 
 
-    LaunchedEffect(Unit) {
-        if (uiState.allSongs.isEmpty() && uiState.canLoadMoreSongs) playerViewModel.loadMoreSongs()
-        if (uiState.albums.isEmpty() && uiState.canLoadMoreAlbums) playerViewModel.loadMoreAlbums()
-        if (uiState.artists.isEmpty() && uiState.canLoadMoreArtists) playerViewModel.loadMoreArtists()
-    }
+    // LaunchedEffect(Unit) { // Removed - ViewModel now loads all data initially or on demand per tab
+    //     if (uiState.allSongs.isEmpty() /* && uiState.canLoadMoreSongs */) playerViewModel.loadMoreSongs() // canLoadMoreSongs removed
+    //     if (uiState.albums.isEmpty() /* && uiState.canLoadMoreAlbums */) playerViewModel.loadMoreAlbums() // canLoadMoreAlbums removed
+    //     if (uiState.artists.isEmpty() /* && uiState.canLoadMoreArtists */) playerViewModel.loadMoreArtists() // canLoadMoreArtists removed
+    // }
 
     val fabState by remember { derivedStateOf { pagerState.currentPage } }
     val transition = updateTransition(targetState = fabState, label = "Action Button Icon Transition")
@@ -418,38 +425,45 @@ fun LibraryScreen(
                             ) {
                                 when (page) {
                                     0 -> LibrarySongsTab(
-                                        uiState,
-                                        playerViewModel,
-                                        bottomBarHeightDp
+                                        songs = uiState.allSongs,
+                                        isLoadingInitial = uiState.isLoadingInitialSongs,
+                                        // isLoadingMore = uiState.isLoadingMoreSongs, // Removed
+                                        // canLoadMore = uiState.canLoadMoreSongs, // Removed
+                                        playerViewModel = playerViewModel,
+                                        bottomBarHeight = bottomBarHeightDp
                                     ) { songFromItem ->
                                         selectedSongForInfo = songFromItem
                                         showSongInfoBottomSheet = true
                                     }
 
                                     1 -> LibraryAlbumsTab(
-                                        uiState,
-                                        playerViewModel,
-                                        bottomBarHeightDp,
+                                        albums = uiState.albums,
+                                        isLoading = uiState.isLoadingLibraryCategories, // This now covers the whole load for albums
+                                        // canLoadMore = uiState.canLoadMoreAlbums, // Removed
+                                        playerViewModel = playerViewModel,
+                                        bottomBarHeight = bottomBarHeightDp,
                                         onAlbumClick = { albumId ->
                                             navController.navigate(Screen.AlbumDetail.createRoute(albumId))
                                         }
                                     )
 
                                     2 -> LibraryArtistsTab(
-                                        uiState,
-                                        playerViewModel,
-                                        bottomBarHeightDp
-                                    ) // Assuming no bottom bar needed or handled internally
+                                        artists = uiState.artists,
+                                        isLoading = uiState.isLoadingLibraryCategories, // This now covers the whole load for artists
+                                        // canLoadMore = uiState.canLoadMoreArtists, // Removed
+                                        playerViewModel = playerViewModel,
+                                        bottomBarHeight = bottomBarHeightDp
+                                    )
                                     3 -> LibraryPlaylistsTab(
-                                        playlistUiState,
+                                        playlistUiState, // PlaylistViewModel maneja su propio estado granular
                                         navController,
                                         bottomBarHeightDp
                                     )
 
-                                    4 -> LibraryFavoritesTab(
-                                        favoriteSongs,
-                                        playerViewModel,
-                                        bottomBarHeightDp
+                                    4 -> LibraryFavoritesTab( // favoriteSongs ya es un StateFlow granular
+                                        favoriteSongs = favoriteSongs, // Pasando la lista directamente
+                                        playerViewModel = playerViewModel,
+                                        bottomBarHeight = bottomBarHeightDp
                                     ) { songFromItem ->
                                         selectedSongForInfo = songFromItem
                                         showSongInfoBottomSheet = true
@@ -460,7 +474,7 @@ fun LibraryScreen(
                     }
                 }
 
-                if (uiState.isSyncingLibrary) {
+                if (uiState.isSyncingLibrary || ((uiState.isLoadingInitialSongs || uiState.isLoadingLibraryCategories) && (uiState.allSongs.isEmpty() && uiState.albums.isEmpty() && uiState.artists.isEmpty()))) {
                     Surface( // Fondo semitransparente para el indicador
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f)
@@ -664,7 +678,10 @@ fun LibraryFavoritesTab(
 
 @Composable
 fun LibrarySongsTab(
-    uiState: PlayerUiState,
+    songs: ImmutableList<Song>,
+    isLoadingInitial: Boolean,
+    // isLoadingMore: Boolean, // Removed
+    // canLoadMore: Boolean, // Removed
     playerViewModel: PlayerViewModel,
     bottomBarHeight: Dp,
     onMoreOptionsClick: (Song) -> Unit
@@ -672,15 +689,14 @@ fun LibrarySongsTab(
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
     val listState = rememberLazyListState()
 
-    if (uiState.isLoadingInitialSongs && uiState.allSongs.isEmpty()) {
+    if (isLoadingInitial && songs.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
+            CircularProgressIndicator() // O Shimmer para la lista completa
         }
     } else {
         // Determine content based on loading state and data availability
         when {
-            uiState.isLoadingInitialSongs && uiState.allSongs.isEmpty() -> {
-                // Show Shimmering Placeholder List
+            isLoadingInitial && songs.isEmpty() -> { // Este caso ya está cubierto arriba, pero es bueno para claridad
                 LazyColumn(
                     modifier = Modifier
                         .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
@@ -692,33 +708,27 @@ fun LibrarySongsTab(
                                 bottomEnd = PlayerSheetCollapsedCornerRadius
                             )
                         )
-                        .fillMaxSize(), // Fill available space
+                        .fillMaxSize(),
                     state = listState,
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 10.dp)
                 ) {
-                    items(15) { // Show 15 shimmer items
+                    items(15) {
                         EnhancedSongListItem(
-                            song = Song.emptySong(), // Dummy song, won't be used due to isLoading
-                            isPlaying = false,
-                            isLoading = true,
-                            onMoreOptionsClick = {},
-                            onClick = {}
+                            song = Song.emptySong(), isPlaying = false, isLoading = true,
+                            onMoreOptionsClick = {}, onClick = {}
                         )
                     }
                 }
             }
-            uiState.allSongs.isEmpty() && !uiState.canLoadMoreSongs && !uiState.isLoadingInitialSongs -> {
-                // Show Empty State (No songs found)
+            songs.isEmpty() && !isLoadingInitial -> { // canLoadMore removed from condition
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
-                            painter = painterResource(id = R.drawable.rounded_music_off_24), // Replace with your actual "no music" icon
+                            painter = painterResource(id = R.drawable.rounded_music_off_24),
                             contentDescription = "No songs found",
                             modifier = Modifier.size(48.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -735,7 +745,6 @@ fun LibrarySongsTab(
                 }
             }
             else -> {
-                // Show Actual Song List
                 Box(modifier = Modifier.fillMaxSize()) {
                     LazyColumn(
                         modifier = Modifier
@@ -752,56 +761,44 @@ fun LibrarySongsTab(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 10.dp)
                     ) {
-                        item { Spacer(Modifier.height(0.dp)) } // Initial spacer if needed
-
-                        items(uiState.allSongs, key = { "song_${it.id}" }) { song ->
+                        item { Spacer(Modifier.height(0.dp)) }
+                        items(songs, key = { "song_${it.id}" }) { song ->
                             val isPlayingThisSong =
                                 song.id == stablePlayerState.currentSong?.id && stablePlayerState.isPlaying
                             EnhancedSongListItem(
-                                song = song,
-                                isPlaying = isPlayingThisSong,
-                                isLoading = false, // Not loading individually here
+                                song = song, isPlaying = isPlayingThisSong, isLoading = false,
                                 onMoreOptionsClick = { onMoreOptionsClick(song) }
                             ) {
                                 playerViewModel.showAndPlaySong(song)
                             }
                         }
-                        if (uiState.isLoadingMoreSongs) {
-                            item {
-                                Box(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 16.dp), // Increased padding for visibility
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    CircularProgressIndicator()
-                                }
-                            }
-                        }
+                        // isLoadingMore indicator removed as all songs are loaded at once.
+                        // if (isLoadingMore) {
+                        //     item {
+                        //         Box(
+                        //             Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                        //             contentAlignment = Alignment.Center
+                        //         ) { CircularProgressIndicator() }
+                        //     }
+                        // }
                     }
                 }
-
-                // Gradiente superior para el efecto de desvanecimiento
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(10.dp)
                         .background(
                             brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    MaterialTheme.colorScheme.surface,
-                                    Color.Transparent
-                                )
+                                colors = listOf(MaterialTheme.colorScheme.surface, Color.Transparent)
                             )
                         )
-                    //.align(Alignment.TopCenter)
                 )
-
-                InfiniteListHandler(listState = listState) {
-                    if (uiState.canLoadMoreSongs && !uiState.isLoadingMoreSongs) {
-                        playerViewModel.loadMoreSongs()
-                    }
-                }
+                // InfiniteListHandler removed as all songs are loaded at once.
+                // InfiniteListHandler(listState = listState) {
+                //     if (canLoadMore && !isLoadingMore) {
+                //         playerViewModel.loadMoreSongs()
+                //     }
+                // }
             }
         }
     }
@@ -905,6 +902,7 @@ fun EnhancedSongListItem(
                         model = song.albumArtUriString ?: R.drawable.rounded_album_24,
                         contentDescription = song.title,
                         contentScale = ContentScale.Crop,
+                        targetSize = coil.size.Size(168, 168), // 56dp * 3 (densidad asumida) approx
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -977,11 +975,18 @@ fun EnhancedSongListItem(
 }
 
 @Composable
-fun LibraryAlbumsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, bottomBarHeight: Dp, onAlbumClick: (Long) -> Unit) {
+fun LibraryAlbumsTab(
+    albums: ImmutableList<Album>,
+    isLoading: Boolean, // This now represents the loading state for all albums
+    // canLoadMore: Boolean, // Removed
+    playerViewModel: PlayerViewModel,
+    bottomBarHeight: Dp,
+    onAlbumClick: (Long) -> Unit
+) {
     val gridState = rememberLazyGridState()
-    if (uiState.isLoadingLibraryCategories && uiState.albums.isEmpty()) {
+    if (isLoading && albums.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-    } else if (uiState.albums.isEmpty() && !uiState.canLoadMoreAlbums) {
+    } else if (albums.isEmpty() && !isLoading) { // canLoadMore removed
         Box(modifier = Modifier
             .fillMaxSize()
             .padding(16.dp), contentAlignment = Alignment.Center) {
@@ -1005,48 +1010,48 @@ fun LibraryAlbumsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, b
                     ),
                 state = gridState,
                 columns = GridCells.Fixed(2),
-                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 14.dp), // Espacio para el FAB
+                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 14.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Spacer(Modifier.height(4.dp))
                 }
-                items(uiState.albums, key = { "album_${it.id}" }) { album ->
+                items(albums, key = { "album_${it.id}" }) { album ->
                     val albumSpecificColorSchemeFlow = playerViewModel.getAlbumColorSchemeFlow(album.albumArtUriString)
-                    AlbumGridItemRedesigned( // Usar el nuevo Composable
+                    AlbumGridItemRedesigned(
                         album = album,
                         albumColorSchemePairFlow = albumSpecificColorSchemeFlow,
                         onClick = { onAlbumClick(album.id) },
-                        isLoading = uiState.isLoadingLibraryCategories
+                        isLoading = isLoading && albums.isEmpty() // Shimmer solo si está cargando Y la lista está vacía
                     )
                 }
-                if (uiState.isLoadingLibraryCategories && uiState.albums.isNotEmpty()) {
-                    item { Box(Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp), Alignment.Center) { CircularProgressIndicator() } }
-                }
+                // "Load more" indicator removed as all albums are loaded at once
+                // if (isLoading && albums.isNotEmpty()) {
+                //     item(span = { GridItemSpan(maxLineSpan) }) {
+                //         Box(Modifier
+                //             .fillMaxWidth()
+                //             .padding(16.dp), Alignment.Center) { CircularProgressIndicator() }
+                //     }
+                // }
             }
-            // Gradiente superior para el efecto de desvanecimiento
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(14.dp)
                     .background(
                         brush = Brush.verticalGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.surface,
-                                Color.Transparent
-                            )
+                            colors = listOf(MaterialTheme.colorScheme.surface, Color.Transparent)
                         )
                     )
                     .align(Alignment.TopCenter)
             )
-            InfiniteGridHandler(gridState = gridState) {
-                if (uiState.canLoadMoreAlbums && !uiState.isLoadingLibraryCategories) {
-                    playerViewModel.loadMoreAlbums()
-                }
-            }
+            // InfiniteGridHandler removed as all albums are loaded at once
+            // InfiniteGridHandler(gridState = gridState) {
+            //     if (canLoadMore && !isLoading) {
+            //         playerViewModel.loadMoreAlbums()
+            //     }
+            // }
         }
     }
 }
@@ -1134,6 +1139,7 @@ fun AlbumGridItemRedesigned(
                         model = album.albumArtUriString ?: R.drawable.rounded_album_24,
                         contentDescription = "Carátula de ${album.title}",
                         contentScale = ContentScale.Crop,
+                            targetSize = coil.size.Size(480, 320), // Estimación para ~160dp x ~106dp @3x
                         modifier = Modifier
                             .aspectRatio(3f / 2f)
                             .fillMaxSize(),
@@ -1184,10 +1190,16 @@ fun AlbumGridItemRedesigned(
 }
 
 @Composable
-fun LibraryArtistsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, bottomBarHeight: Dp) {
-    val listState = rememberLazyListState() // Artistas en una lista por ahora
-    if (uiState.isLoadingLibraryCategories && uiState.artists.isEmpty()) { /* ... Loading ... */ }
-    else if (uiState.artists.isEmpty() && !uiState.canLoadMoreArtists) { /* ... No artists ... */ }
+fun LibraryArtistsTab(
+    artists: ImmutableList<Artist>,
+    isLoading: Boolean, // This now represents the loading state for all artists
+    // canLoadMore: Boolean, // Removed
+    playerViewModel: PlayerViewModel,
+    bottomBarHeight: Dp
+) {
+    val listState = rememberLazyListState()
+    if (isLoading && artists.isEmpty()) { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
+    else if (artists.isEmpty() && !isLoading) { /* ... No artists ... */ } // canLoadMore removed
     else {
         Box(
             modifier = Modifier.fillMaxSize()
@@ -1210,12 +1222,13 @@ fun LibraryArtistsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, 
                 item {
                     Spacer(Modifier.height(4.dp))
                 }
-                items(uiState.artists, key = { it.id }) { artist -> ArtistListItem(artist = artist) { playerViewModel.playArtist(artist) } }
-                if (uiState.isLoadingLibraryCategories && uiState.artists.isNotEmpty()) {
-                    item { Box(Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp), Alignment.Center) { CircularProgressIndicator() } }
-                }
+                items(artists, key = { "artist_${it.id}" }) { artist -> ArtistListItem(artist = artist) { playerViewModel.playArtist(artist) } }
+                // "Load more" indicator removed as all artists are loaded at once
+                // if (isLoading && artists.isNotEmpty()) {
+                //     item { Box(Modifier
+                //         .fillMaxWidth()
+                //         .padding(16.dp), Alignment.Center) { CircularProgressIndicator() } }
+                // }
             }
             Box(
                 modifier = Modifier
@@ -1223,19 +1236,17 @@ fun LibraryArtistsTab(uiState: PlayerUiState, playerViewModel: PlayerViewModel, 
                     .height(10.dp)
                     .background(
                         brush = Brush.verticalGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.surface,
-                                Color.Transparent
-                            )
+                            colors = listOf(MaterialTheme.colorScheme.surface, Color.Transparent)
                         )
                     )
                     .align(Alignment.TopCenter)
             )
-            InfiniteListHandler(listState = listState) {
-                if (uiState.canLoadMoreArtists && !uiState.isLoadingLibraryCategories) {
-                    playerViewModel.loadMoreArtists()
-                }
-            }
+            // InfiniteListHandler removed as all artists are loaded at once
+            // InfiniteListHandler(listState = listState) {
+            //     if (canLoadMore && !isLoading) {
+            //         playerViewModel.loadMoreArtists()
+            //     }
+            // }
         }
     }
 }

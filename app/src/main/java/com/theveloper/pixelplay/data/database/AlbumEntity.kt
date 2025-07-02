@@ -10,7 +10,8 @@ import com.theveloper.pixelplay.data.model.Album
     tableName = "albums",
     indices = [
         Index(value = ["title"], unique = false),
-        Index(value = ["artist_id"], unique = false) // Para buscar álbumes por artista
+        Index(value = ["artist_id"], unique = false), // Para buscar álbumes por artista
+        Index(value = ["artist_name"], unique = false) // Nuevo índice para búsquedas por nombre de artista del álbum
     ]
 )
 data class AlbumEntity(

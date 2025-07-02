@@ -93,8 +93,6 @@ data class ColorSchemePair( // Definición local si no está en un archivo comú
     val dark: ColorScheme
 )
 
-private const val PAGE_SIZE = 30 // Número de items por página
-
 // Estado para datos que no cambian cada segundo
 data class StablePlayerState(
     val currentSong: Song? = null,
@@ -109,17 +107,17 @@ data class PlayerUiState(
     // currentSong, isPlaying, totalDuration, shuffle, repeat, favorite se mueven a StablePlayerState
     val currentPosition: Long = 0L, // Este se actualiza frecuentemente
     val isLoadingInitialSongs: Boolean = true,
-    val isLoadingMoreSongs: Boolean = false,
+    // val isLoadingMoreSongs: Boolean = false, // Removed
     val allSongs: ImmutableList<Song> = persistentListOf(),
-    val canLoadMoreSongs: Boolean = true,
+    // val canLoadMoreSongs: Boolean = true, // Removed
     val currentPlaybackQueue: ImmutableList<Song> = persistentListOf(),
     val currentQueueSourceName: String = "All Songs",
     val lavaLampColors: ImmutableList<Color> = persistentListOf(),
     val albums: ImmutableList<Album> = persistentListOf(),
     val artists: ImmutableList<Artist> = persistentListOf(),
-    val isLoadingLibraryCategories: Boolean = true,
-    val canLoadMoreAlbums: Boolean = true,
-    val canLoadMoreArtists: Boolean = true,
+    val isLoadingLibraryCategories: Boolean = false, // Default to false, might need separate flags for albums/artists
+    // val canLoadMoreAlbums: Boolean = true, // Removed
+    // val canLoadMoreArtists: Boolean = true, // Removed
     val currentSongSortOption: SortOption = SortOption.SongTitleAZ,
     val currentAlbumSortOption: SortOption = SortOption.AlbumTitleAZ,
     val currentArtistSortOption: SortOption = SortOption.ArtistNameAZ,
@@ -206,10 +204,10 @@ class PlayerViewModel @Inject constructor(
             initialValue = true // Assuming sync might be initially active
         )
 
-    // Paginación
-    private var currentSongPage = 1
-    private var currentAlbumPage = 1
-    private var currentArtistPage = 1
+    // Paginación - REMOVED
+    // private var currentSongPage = 1
+    // private var currentAlbumPage = 1
+    // private var currentArtistPage = 1
 
     // Flow dedicado sólo a la lista de canciones:
     val allSongsFlow: StateFlow<List<Song>> =
@@ -254,17 +252,20 @@ class PlayerViewModel @Inject constructor(
 
     val favoriteSongIds: StateFlow<Set<String>> = userPreferencesRepository.favoriteSongIdsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
+    // StateFlow separado para la opción de ordenación de canciones favoritas
+    private val _currentFavoriteSortOptionStateFlow = MutableStateFlow<SortOption>(SortOption.LikedSongTitleAZ) // Default. Especificar el tipo general SortOption.
+    val currentFavoriteSortOptionStateFlow: StateFlow<SortOption> = _currentFavoriteSortOptionStateFlow.asStateFlow()
+
     // Nuevo StateFlow para la lista de objetos Song favoritos
     val favoriteSongs: StateFlow<ImmutableList<Song>> = combine(
-        favoriteSongIds, // Now uses the public favoriteSongIds
-        _playerUiState // Depends on allSongs and currentFavoriteSortOption from uiState
-    ) { ids, uiState ->
-        Log.d("PlayerViewModel", "Calculating favoriteSongs. IDs size: ${ids.size}, All songs size: ${uiState.allSongs.size}")
-        //val favoriteSongsList = uiState.allSongs.filter { song -> ids.contains(song.id) }
-        Log.d("PlayerViewModel", "Calculating favoriteSongs on ${Thread.currentThread().name}. IDs size: ${ids.size}, All songs size: ${uiState.allSongs.size}")
-        val favoriteSongsList = uiState.allSongs.filter { song -> ids.contains(song.id) }
+        favoriteSongIds,
+        allSongsFlow, // Depende del allSongsFlow más granular
+        currentFavoriteSortOptionStateFlow // Depende del StateFlow de ordenación dedicado
+    ) { ids, allSongsList, sortOption ->
+        Log.d("PlayerViewModel", "Calculating favoriteSongs. IDs size: ${ids.size}, All songs size: ${allSongsList.size}, SortOption: $sortOption")
+        val favoriteSongsList = allSongsList.filter { song -> ids.contains(song.id) }
         Log.d("PlayerViewModel", "Filtered favoriteSongsList size: ${favoriteSongsList.size}")
-        when (uiState.currentFavoriteSortOption) {
+        when (sortOption) {
             SortOption.LikedSongTitleAZ -> favoriteSongsList.sortedBy { it.title }
             SortOption.LikedSongTitleZA -> favoriteSongsList.sortedByDescending { it.title }
             SortOption.LikedSongArtist -> favoriteSongsList.sortedBy { it.artist }
@@ -380,7 +381,8 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferencesRepository.likedSongsSortOptionFlow.collect { optionName ->
                 getSortOptionFromString(optionName)?.let { sortOption ->
-                    _playerUiState.update { it.copy(currentFavoriteSortOption = sortOption) }
+                    // _playerUiState.update { it.copy(currentFavoriteSortOption = sortOption) } // Ya no se actualiza aquí
+                    _currentFavoriteSortOptionStateFlow.value = sortOption // Actualizar el StateFlow dedicado
                 }
             }
         }
@@ -460,226 +462,178 @@ class PlayerViewModel @Inject constructor(
         val functionStartTime = System.currentTimeMillis()
         Log.i("PlayerViewModel", "resetAndLoadInitialData called from: $caller")
         Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData START - Called by: $caller")
-        currentSongPage = 1
-        currentAlbumPage = 1
-        currentArtistPage = 1
+        // currentSongPage = 1 // Removed
+        // currentAlbumPage = 1 // Removed
+        // currentArtistPage = 1 // Removed
         _playerUiState.update {
             it.copy(
                 allSongs = emptyList<Song>().toImmutableList(),
                 albums = emptyList<Album>().toImmutableList(),
-                artists = emptyList<Artist>().toImmutableList(),
-                canLoadMoreSongs = true,
-                canLoadMoreAlbums = true,
-                canLoadMoreArtists = true
+                artists = emptyList<Artist>().toImmutableList()
+                // canLoadMore flags removed from PlayerUiState
             )
         }
-        loadSongsFromRepository(isInitialLoad = true)
-        loadLibraryCategories(isInitialLoad = true)
+        loadSongsFromRepository() // No longer takes isInitialLoad
+        // Initial load for albums and artists will be triggered by their respective tabs if needed.
         Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData END. Total function time: ${System.currentTimeMillis() - functionStartTime} ms")
     }
 
-    private fun loadSongsFromRepository(isInitialLoad: Boolean = false) {
-        Log.d("PlayerViewModel", "loadSongsFromRepository called. isInitialLoad: $isInitialLoad")
-        // Estas comprobaciones iniciales están bien
-        if (_playerUiState.value.isLoadingMoreSongs && !isInitialLoad) {
-            Log.d("PlayerViewModelPerformance", "loadSongsFromRepository: Already loading more songs. Skipping.")
-            return
-        }
-        if (!_playerUiState.value.canLoadMoreSongs && !isInitialLoad) {
-            Log.d("PlayerViewModelPerformance", "loadSongsFromRepository: Cannot load more songs. Skipping.")
-            return
-        }
+    private fun loadSongsFromRepository() {
+        Log.d("PlayerViewModel", "loadSongsFromRepository called.")
+        // No longer need checks for isLoadingMoreSongs or canLoadMoreSongs
 
         viewModelScope.launch {
             val functionStartTime = System.currentTimeMillis()
-            val loadType = if (isInitialLoad) "Initial" else "More"
-            Log.d("PlayerViewModelPerformance", "loadSongsFromRepository ($loadType) START")
+            Log.d("PlayerViewModelPerformance", "loadSongsFromRepository (All) START")
 
-            // Actualizar el estado de carga
-            if (isInitialLoad) {
-                _playerUiState.update { it.copy(isLoadingInitialSongs = true) }
-            } else {
-                _playerUiState.update { it.copy(isLoadingMoreSongs = true) }
-            }
+            _playerUiState.update { it.copy(isLoadingInitialSongs = true) }
 
             try {
                 val repoCallStartTime = System.currentTimeMillis()
-
-                // Colecta la lista del Flow.
-                // Asumimos que getAudioFiles emite una sola lista para la página solicitada.
-                val actualNewSongsList: List<Song> = withContext(Dispatchers.IO) {
-                    musicRepository.getAudioFiles(currentSongPage, PAGE_SIZE).first()
+                val allSongsList: List<Song> = withContext(Dispatchers.IO) {
+                    musicRepository.getAudioFiles().first() // Fetches all songs
                 }
-
                 val repoCallDuration = System.currentTimeMillis() - repoCallStartTime
-                Log.d("PlayerViewModelPerformance", "musicRepository.getAudioFiles ($loadType) took $repoCallDuration ms for ${actualNewSongsList.size} songs. Page: $currentSongPage")
+                Log.d("PlayerViewModelPerformance", "musicRepository.getAudioFiles (All) took $repoCallDuration ms for ${allSongsList.size} songs.")
 
-                // UI update must be on the Main thread, which is the default context for viewModelScope.launch
                 _playerUiState.update { currentState ->
-                    val updatedAllSongs = if (isInitialLoad) {
-                        actualNewSongsList.toImmutableList()
-                    } else {
-                        // Asegurarse de que no haya duplicados si se recarga la misma página por error
-                        // Esto es opcional y depende de cómo manejes la lógica de currentSongPage
-                        val currentSongIds = currentState.allSongs.map { it.id }.toSet()
-                        val uniqueNewSongs = actualNewSongsList.filterNot { currentSongIds.contains(it.id) }
-                        (currentState.allSongs + uniqueNewSongs).toImmutableList()
-                    }
                     currentState.copy(
-                        allSongs = updatedAllSongs,
-                        isLoadingInitialSongs = false,
-                        isLoadingMoreSongs = false,
-                        canLoadMoreSongs = actualNewSongsList.size == PAGE_SIZE
+                        allSongs = allSongsList.toImmutableList(),
+                        isLoadingInitialSongs = false
+                        // isLoadingMoreSongs = false, // Removed
+                        // canLoadMoreSongs = false // No more pagination
                     )
                 }
                 Log.d("PlayerViewModel", "allSongs updated. New size: ${_playerUiState.value.allSongs.size}. isLoadingInitialSongs: ${_playerUiState.value.isLoadingInitialSongs}")
 
-                // Incrementar la página solo si se cargaron canciones y se espera que haya más
-                if (actualNewSongsList.isNotEmpty() && actualNewSongsList.size == PAGE_SIZE) {
-                    currentSongPage++
-                    Log.d("PlayerViewModelPerformance", "loadSongsFromRepository ($loadType): Incremented currentSongPage to $currentSongPage")
-                } else if (actualNewSongsList.isEmpty()) {
-                    // Si no se cargaron canciones y se esperaba alguna, probablemente no haya más
-                    _playerUiState.update { it.copy(canLoadMoreSongs = false) }
-                    Log.d("PlayerViewModelPerformance", "loadSongsFromRepository ($loadType): No songs returned, setting canLoadMoreSongs to false.")
-                }
-
-
                 val totalFunctionTime = System.currentTimeMillis() - functionStartTime
-                Log.d("PlayerViewModelPerformance", "loadSongsFromRepository ($loadType) END. Data update complete. Total time: $totalFunctionTime ms")
+                Log.d("PlayerViewModelPerformance", "loadSongsFromRepository (All) END. Data update complete. Total time: $totalFunctionTime ms")
 
             } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Error loading songs from repository ($loadType)", e)
+                Log.e("PlayerViewModel", "Error loading all songs from repository", e)
                 _playerUiState.update {
                     it.copy(
-                        isLoadingInitialSongs = false,
-                        isLoadingMoreSongs = false,
-                        //errorLoadingSongs = "Failed to load songs: ${e.localizedMessage ?: "Unknown error"}"
+                        isLoadingInitialSongs = false
+                        // isLoadingMoreSongs = false, // Removed
+                        // errorLoadingSongs = "Failed to load songs: ${e.localizedMessage ?: "Unknown error"}" // Consider adding error state
                     )
                 }
                 val totalFunctionTime = System.currentTimeMillis() - functionStartTime
-                Log.d("PlayerViewModelPerformance", "loadSongsFromRepository ($loadType) FAILED. Total time: $totalFunctionTime ms")
+                Log.d("PlayerViewModelPerformance", "loadSongsFromRepository (All) FAILED. Total time: $totalFunctionTime ms")
             }
         }
     }
 
-    fun loadMoreSongs() {
-        loadSongsFromRepository()
-    }
+    // fun loadMoreSongs() { // REMOVED
+    //     loadSongsFromRepository()
+    // }
 
-    private fun loadLibraryCategories(isInitialLoad: Boolean = false) {
-        if (_playerUiState.value.isLoadingLibraryCategories && !isInitialLoad) {
-            Log.d("PlayerViewModelPerformance", "loadLibraryCategories: Already loading. Skipping.")
-            return
-        }
+    // Funciones para cargar álbumes
+    private fun loadAlbumsFromRepository() {
+        // No longer need checks for isLoadingLibraryCategories (for more) or canLoadMoreAlbums
+        Log.d("PlayerViewModelPerformance", "loadAlbumsFromRepository (All) called.")
 
         viewModelScope.launch {
             val functionStartTime = System.currentTimeMillis()
-            val loadTypeLog = if (isInitialLoad) "(Initial)" else "(More)"
-            Log.d("PlayerViewModelPerformance", "loadLibraryCategories $loadTypeLog START")
+            Log.d("PlayerViewModelPerformance", "loadAlbumsFromRepository (All) START")
 
+            // Use isLoadingLibraryCategories for initial load of albums for now.
+            // Consider separate isLoadingAlbums if more granularity is needed.
             _playerUiState.update { it.copy(isLoadingLibraryCategories = true) }
 
             try {
-                // Cargar Álbumes
-                if (_playerUiState.value.canLoadMoreAlbums || isInitialLoad) {
-                    val repoCallAlbumsStartTime = System.currentTimeMillis()
-                    // Colectar la lista de álbumes del Flow
-                    val actualNewAlbums: List<Album> = withContext(Dispatchers.IO) {
-                        musicRepository.getAlbums(currentAlbumPage, PAGE_SIZE).first()
-                    }
-                    val albumsLoadDuration = System.currentTimeMillis() - repoCallAlbumsStartTime
-
-                    Log.d("PlayerViewModelPerformance", "musicRepository.getAlbums $loadTypeLog took $albumsLoadDuration ms for ${actualNewAlbums.size} albums. Page: $currentAlbumPage")
-
-                    // UI update must be on the Main thread
-                    _playerUiState.update { currentState ->
-                        val updatedAlbums = if (isInitialLoad) {
-                            actualNewAlbums.toImmutableList()
-                        } else {
-                            val currentAlbumIds = currentState.albums.map { it.id }.toSet()
-                            val uniqueNewAlbums = actualNewAlbums.filterNot { currentAlbumIds.contains(it.id) }
-                            (currentState.albums + uniqueNewAlbums).toImmutableList()
-                        }
-                        currentState.copy(
-                            albums = updatedAlbums,
-                            canLoadMoreAlbums = actualNewAlbums.size == PAGE_SIZE
-                            // isLoadingLibraryCategories se manejará al final o si hay error
-                        )
-                    }
-
-                    if (actualNewAlbums.isNotEmpty() && actualNewAlbums.size == PAGE_SIZE) {
-                        currentAlbumPage++
-                        Log.d("PlayerViewModelPerformance", "loadLibraryCategories $loadTypeLog: Incremented currentAlbumPage to $currentAlbumPage")
-                    } else if (actualNewAlbums.isEmpty()) {
-                        _playerUiState.update { it.copy(canLoadMoreAlbums = false) }
-                        Log.d("PlayerViewModelPerformance", "loadLibraryCategories $loadTypeLog: No albums returned for page $currentAlbumPage, setting canLoadMoreAlbums to false.")
-                    }
-                    Log.d("PlayerViewModelPerformance", "loadLibraryCategories $loadTypeLog Album data update complete. Time from start: ${System.currentTimeMillis() - functionStartTime} ms")
+                val repoCallAlbumsStartTime = System.currentTimeMillis()
+                val allAlbumsList: List<Album> = withContext(Dispatchers.IO) {
+                    musicRepository.getAlbums().first() // Fetches all albums
                 }
+                val albumsLoadDuration = System.currentTimeMillis() - repoCallAlbumsStartTime
+                Log.d("PlayerViewModelPerformance", "musicRepository.getAlbums (All) took $albumsLoadDuration ms for ${allAlbumsList.size} albums.")
 
-                // Cargar Artistas
-                if (_playerUiState.value.canLoadMoreArtists || isInitialLoad) {
-                    val repoCallArtistsStartTime = System.currentTimeMillis()
-                    // Colectar la lista de artistas del Flow
-                    val actualNewArtists: List<Artist> = withContext(Dispatchers.IO) {
-                        musicRepository.getArtists(currentArtistPage, PAGE_SIZE).first()
-                    }
-                    val artistsLoadDuration = System.currentTimeMillis() - repoCallArtistsStartTime
-
-                    Log.d("PlayerViewModelPerformance", "musicRepository.getArtists $loadTypeLog took $artistsLoadDuration ms for ${actualNewArtists.size} artists. Page: $currentArtistPage")
-
-                    // UI update must be on the Main thread
-                    _playerUiState.update { currentState ->
-                        val updatedArtists = if (isInitialLoad) {
-                            actualNewArtists.toImmutableList()
-                        } else {
-                            val currentArtistIds = currentState.artists.map { it.id }.toSet()
-                            val uniqueNewArtists = actualNewArtists.filterNot { currentArtistIds.contains(it.id) }
-                            (currentState.artists + uniqueNewArtists).toImmutableList()
-                        }
-                        currentState.copy(
-                            artists = updatedArtists,
-                            canLoadMoreArtists = actualNewArtists.size == PAGE_SIZE
-                            // isLoadingLibraryCategories se manejará al final o si hay error
-                        )
-                    }
-
-                    if (actualNewArtists.isNotEmpty() && actualNewArtists.size == PAGE_SIZE) {
-                        currentArtistPage++
-                        Log.d("PlayerViewModelPerformance", "loadLibraryCategories $loadTypeLog: Incremented currentArtistPage to $currentArtistPage")
-                    } else if (actualNewArtists.isEmpty()) {
-                        _playerUiState.update { it.copy(canLoadMoreArtists = false) }
-                        Log.d("PlayerViewModelPerformance", "loadLibraryCategories $loadTypeLog: No artists returned for page $currentArtistPage, setting canLoadMoreArtists to false.")
-                    }
-                    Log.d("PlayerViewModelPerformance", "loadLibraryCategories $loadTypeLog Artist data update complete. Time from start: ${System.currentTimeMillis() - functionStartTime} ms")
-                }
-
-                _playerUiState.update { it.copy(isLoadingLibraryCategories = false) }
-                Log.d("PlayerViewModelPerformance", "loadLibraryCategories $loadTypeLog END. All categories processed. Total time: ${System.currentTimeMillis() - functionStartTime} ms")
-
-            } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Error loading library categories $loadTypeLog", e)
-                _playerUiState.update {
-                    it.copy(
-                        isLoadingLibraryCategories = false,
-                        //errorLoadingCategories = "Failed to load categories: ${e.localizedMessage ?: "Unknown error"}"
+                _playerUiState.update { currentState ->
+                    currentState.copy(
+                        albums = allAlbumsList.toImmutableList(),
+                        // canLoadMoreAlbums = false, // No more pagination
+                        isLoadingLibraryCategories = false
                     )
                 }
-                Log.d("PlayerViewModelPerformance", "loadLibraryCategories $loadTypeLog FAILED. Total time: ${System.currentTimeMillis() - functionStartTime} ms")
+                Log.d("PlayerViewModelPerformance", "loadAlbumsFromRepository (All) END. Total time: ${System.currentTimeMillis() - functionStartTime} ms. Albums loaded: ${allAlbumsList.size}")
+            } catch (e: Exception) {
+                Log.e("PlayerViewModel", "Error loading all albums", e)
+                _playerUiState.update { it.copy(isLoadingLibraryCategories = false) }
             }
         }
     }
 
-    fun loadMoreAlbums() {
-        if (!_playerUiState.value.isLoadingLibraryCategories && _playerUiState.value.canLoadMoreAlbums) {
-            loadLibraryCategories()
+    // fun loadMoreAlbums() { // REMOVED
+    // }
+
+    fun loadAlbumsIfNeeded() {
+        val albumsEmpty = _playerUiState.value.albums.isEmpty()
+        // val canLoadMore = _playerUiState.value.canLoadMoreAlbums // Removed
+        val notLoading = !_playerUiState.value.isLoadingLibraryCategories // Still relevant for initial load
+        Log.d("PlayerViewModel", "loadAlbumsIfNeeded: albumsEmpty=$albumsEmpty, notLoadingLibraryCategories=$notLoading")
+        if (albumsEmpty && notLoading) { // Simplified condition
+            Log.i("PlayerViewModel", "loadAlbumsIfNeeded: Conditions met. Loading all albums.")
+            loadAlbumsFromRepository() // No isInitialLoad parameter
+        } else {
+            var reason = ""
+            if (!albumsEmpty) reason += "Albums not empty. "
+            if (!notLoading) reason += "Currently loading library categories. "
+            Log.w("PlayerViewModel", "loadAlbumsIfNeeded: Conditions NOT met. Skipping load. Reason: $reason")
         }
     }
 
-    fun loadMoreArtists() {
-        if (!_playerUiState.value.isLoadingLibraryCategories && _playerUiState.value.canLoadMoreArtists) {
-            loadLibraryCategories()
+    // Funciones para cargar artistas
+    private fun loadArtistsFromRepository() {
+        // No longer need checks for isLoadingLibraryCategories (for more) or canLoadMoreArtists
+        Log.d("PlayerViewModelPerformance", "loadArtistsFromRepository (All) called.")
+
+        viewModelScope.launch {
+            val functionStartTime = System.currentTimeMillis()
+            Log.d("PlayerViewModelPerformance", "loadArtistsFromRepository (All) START")
+
+            // Use isLoadingLibraryCategories for initial load of artists for now.
+            _playerUiState.update { it.copy(isLoadingLibraryCategories = true) }
+
+            try {
+                val repoCallArtistsStartTime = System.currentTimeMillis()
+                val allArtistsList: List<Artist> = withContext(Dispatchers.IO) {
+                    musicRepository.getArtists().first() // Fetches all artists
+                }
+                val artistsLoadDuration = System.currentTimeMillis() - repoCallArtistsStartTime
+                Log.d("PlayerViewModelPerformance", "musicRepository.getArtists (All) took $artistsLoadDuration ms for ${allArtistsList.size} artists.")
+
+                _playerUiState.update { currentState ->
+                    currentState.copy(
+                        artists = allArtistsList.toImmutableList(),
+                        // canLoadMoreArtists = false, // No more pagination
+                        isLoadingLibraryCategories = false
+                    )
+                }
+                 Log.d("PlayerViewModelPerformance", "loadArtistsFromRepository (All) END. Total time: ${System.currentTimeMillis() - functionStartTime} ms. Artists loaded: ${allArtistsList.size}")
+            } catch (e: Exception) {
+                Log.e("PlayerViewModel", "Error loading all artists", e)
+                _playerUiState.update { it.copy(isLoadingLibraryCategories = false) }
+            }
+        }
+    }
+
+    // fun loadMoreArtists() { // REMOVED
+    // }
+
+    fun loadArtistsIfNeeded() {
+        val artistsEmpty = _playerUiState.value.artists.isEmpty()
+        // val canLoadMore = _playerUiState.value.canLoadMoreArtists // Removed
+        val notLoading = !_playerUiState.value.isLoadingLibraryCategories // Still relevant for initial load
+        Log.d("PlayerViewModel", "loadArtistsIfNeeded: artistsEmpty=$artistsEmpty, notLoadingLibraryCategories=$notLoading")
+        if (artistsEmpty && notLoading) { // Simplified condition
+            Log.i("PlayerViewModel", "loadArtistsIfNeeded: Conditions met. Loading all artists.")
+            loadArtistsFromRepository() // No isInitialLoad parameter
+        } else {
+            var reason = ""
+            if (!artistsEmpty) reason += "Artists not empty. "
+            if (!notLoading) reason += "Currently loading library categories. "
+            Log.w("PlayerViewModel", "loadArtistsIfNeeded: Conditions NOT met. Skipping load. Reason: $reason")
         }
     }
 
@@ -1082,35 +1036,38 @@ class PlayerViewModel @Inject constructor(
 
     // Función para ser llamada por AlbumGridItem
     fun getAlbumColorSchemeFlow(albumArtUri: String?): StateFlow<ColorSchemePair?> {
-        val uriString = albumArtUri?.toString() ?: "default_fallback_key"
+        val uriString = albumArtUri ?: "default_fallback_key" // Usar el operador Elvis para el valor por defecto
 
-        val existingFlow = individualAlbumColorSchemes[uriString]
-        if (existingFlow != null) {
-            // Si el flujo existe y ya tiene un valor (o está siendo procesado y lo tendrá), devuélvelo.
-            // Si no tiene valor Y no está siendo procesado Y es una URI válida, podría encolarse.
-            // Esta lógica de re-encolar si es null y no procesándose es para cubrir casos borde.
-            if (existingFlow.value == null && albumArtUri != null && !urisBeingProcessed.contains(uriString)) {
-                synchronized(urisBeingProcessed) {
-                    if (!urisBeingProcessed.contains(uriString)) { // Doble check por concurrencia
-                        urisBeingProcessed.add(uriString)
-                        colorSchemeRequestChannel.trySend(albumArtUri) // Enviar a la cola para procesamiento
-                        Log.d("PlayerViewModel", "Re-queued $uriString for color scheme processing.")
-                    }
-                }
-            }
-            return existingFlow
-        }
+        // Devolver flujo existente si ya está en la caché en memoria.
+        individualAlbumColorSchemes[uriString]?.let { return it }
 
-        // Si el flujo no existe, créalo, encola la tarea y devuélvelo.
+        // Si el flujo no existe, créalo, encola la tarea (si es una URI válida) y devuélvelo.
         val newFlow = MutableStateFlow<ColorSchemePair?>(null)
         individualAlbumColorSchemes[uriString] = newFlow
 
-        if (albumArtUri != null) { // Solo procesa URIs válidas
+        if (albumArtUri != null) { // Solo procesa URIs válidas, no la clave de fallback aquí.
+            // urisBeingProcessed previene que la misma URI se encole múltiples veces si la llamada es rápida.
+            // El procesador del canal (launchColorSchemeProcessor) se encargará de la generación.
+            // No es necesario añadir a urisBeingProcessed aquí, launchColorSchemeProcessor lo maneja
+            // al consumir del canal y antes de llamar a getOrGenerateColorSchemeForUri.
+            // Sin embargo, el check original en launchColorSchemeProcessor es para evitar que se procese
+            // algo que ya se está procesando activamente. La adición a urisBeingProcessed
+            // debería ocurrir ANTES de enviar al canal para evitar que múltiples llamadas a esta función
+            // encolen la misma URI antes de que el procesador la tome.
+
+            // Sincronizar el acceso a urisBeingProcessed y el envío al canal
             synchronized(urisBeingProcessed) {
                 if (!urisBeingProcessed.contains(uriString)) {
-                    urisBeingProcessed.add(uriString)
-                    colorSchemeRequestChannel.trySend(albumArtUri) // Enviar a la cola para procesamiento
-                    Log.d("PlayerViewModel", "Enqueued $uriString for color scheme processing.")
+                    urisBeingProcessed.add(uriString) // Marcar como "intención de procesar"
+                    val successfullySent = colorSchemeRequestChannel.trySend(albumArtUri) // Enviar a la cola para procesamiento
+                    if (successfullySent.isSuccess) {
+                        Log.d("PlayerViewModel", "Enqueued $uriString for color scheme processing.")
+                    } else {
+                        Log.w("PlayerViewModel", "Failed to enqueue $uriString, channel might be closed or full (if not UNLIMITED). Removing from urisBeingProcessed.")
+                        urisBeingProcessed.remove(uriString) // Limpiar si no se pudo encolar
+                    }
+                } else {
+                    Log.d("PlayerViewModel", "$uriString is already being processed or pending. Not re-enqueuing.")
                 }
             }
         } else if (uriString == "default_fallback_key") {
@@ -1471,8 +1428,9 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun sortFavoriteSongs(sortOption: SortOption) {
-        _playerUiState.update { it.copy(currentFavoriteSortOption = sortOption) }
-        // The actual sorting is handled by the 'favoriteSongs' StateFlow reacting to 'currentFavoriteSortOption'.
+        // _playerUiState.update { it.copy(currentFavoriteSortOption = sortOption) } // Ya no se actualiza aquí
+        _currentFavoriteSortOptionStateFlow.value = sortOption // Actualizar el StateFlow dedicado
+        // The actual sorting is handled by the 'favoriteSongs' StateFlow reacting to 'currentFavoriteSortOptionStateFlow'.
         viewModelScope.launch {
             userPreferencesRepository.setLikedSongsSortOption(sortOption.displayName)
         }
