@@ -217,7 +217,7 @@ class MusicRepositoryImpl @Inject constructor(
             val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
             if (!initialSetupDone && directories.isNotEmpty()) {
                 Log.i("MusicRepo", "Initial setup: saving all found audio directories (${directories.size}) as allowed.")
-                runBlocking { userPreferencesRepository.updateAllowedDirectories(directories) }
+                userPreferencesRepository.updateAllowedDirectories(directories)
             }
             return@withLock directories
         }

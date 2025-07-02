@@ -439,17 +439,11 @@ class PlayerViewModel @Inject constructor(
             }
             //Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData() call took ${System.currentTimeMillis() - resetLoadDataStartTime} ms (Note: actual loading is async). Time from overallInitStart: ${System.currentTimeMillis() - overallInitStartTime} ms")
 
-            // Wait for the initial songs, albums, and artists to be loaded before marking initial theme/UI setup as complete.
-            // This ensures that the primary content for all main library tabs is available when the loading screen disappears.
-            viewModelScope.launch {
-                _playerUiState.first { state ->
-                    !state.isLoadingInitialSongs && !state.isLoadingLibraryCategories
-                }
-                // At this point, the first page of songs, albums, and artists has been loaded.
-                _isInitialThemePreloadComplete.value = true
-                val timeToComplete = System.currentTimeMillis() - overallInitStartTime
-                Log.d("PlayerViewModelPerformance", "Initial song, album, and artist load complete. _isInitialThemePreloadComplete set to true. Total time since overallInitStart: ${timeToComplete} ms")
-            }
+            // The UI will observe isLoadingInitialSongs and isLoadingLibraryCategories directly.
+            // We set _isInitialThemePreloadComplete to true immediately after dispatching async work.
+            _isInitialThemePreloadComplete.value = true
+            val timeToComplete = System.currentTimeMillis() - overallInitStartTime
+            Log.d("PlayerViewModelPerformance", "Initial theme preload complete (async data loading dispatched). Total time since overallInitStart: ${timeToComplete} ms")
         }
         Log.d("PlayerViewModelPerformance", "preloadThemesAndInitialData END. Total function time: ${System.currentTimeMillis() - functionStartTime} ms (dispatching async work)")
     }

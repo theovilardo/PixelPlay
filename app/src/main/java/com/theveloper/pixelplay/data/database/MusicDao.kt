@@ -22,10 +22,9 @@ interface MusicDao {
 
     @Transaction
     suspend fun insertMusicData(songs: List<SongEntity>, albums: List<AlbumEntity>, artists: List<ArtistEntity>) {
-        // Clear old data first to ensure consistency, especially if sync is destructive.
-        // Alternatively, handle updates more granularly if needed.
-        // For this phase, a full clear and re-insert is simpler for the initial sync.
-        
+        clearAllSongs()
+        clearAllAlbums()
+        clearAllArtists()
 
         insertArtists(artists)
         insertAlbums(albums)

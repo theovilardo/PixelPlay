@@ -299,16 +299,11 @@ fun LibraryScreen(
                         .fillMaxSize()
                         .padding(horizontal = 14.dp, vertical = 8.dp), // Added vertical padding
                     color = MaterialTheme.colorScheme.surface,
-                    // Using RoundedCornerShape as AbsoluteSmoothCornerShape is custom
-                    shape = AbsoluteSmoothCornerShape(
-                        cornerRadiusTL = 34.dp,
-                        smoothnessAsPercentTL = 60,
-                        cornerRadiusTR = 34.dp,
-                        smoothnessAsPercentTR = 60,
-                        cornerRadiusBL = 0.dp,
-                        smoothnessAsPercentBL = 60,
-                        cornerRadiusBR = 0.dp,
-                        smoothnessAsPercentBR = 60
+                    shape = RoundedCornerShape(
+                        topStart = 34.dp,
+                        topEnd = 34.dp,
+                        bottomStart = 0.dp,
+                        bottomEnd = 0.dp
                     )
                     // shape = AbsoluteSmoothCornerShape(cornerRadiusTL = 24.dp, smoothnessAsPercentTR = 60, /*...*/) // Your custom shape
                 ) {
@@ -822,26 +817,13 @@ fun EnhancedSongListItem(
     onMoreOptionsClick: (Song) -> Unit,
     onClick: () -> Unit
 ) {
-    val itemCornerRadiusValue = if (isPlaying && !isLoading) 26.dp else 60.dp
-    val itemCornerRadius by animateDpAsState(
-        targetValue = itemCornerRadiusValue,
-        animationSpec = tween(durationMillis = 300), label = "ItemCornerAnimation"
-    )
+    val itemCornerRadius = 26.dp // Fixed for performance testing
 
     val colors = MaterialTheme.colorScheme
     val containerColor = if (isPlaying && !isLoading) colors.primaryContainer.copy(alpha = 0.34f) else colors.surfaceContainerLow
     val contentColor = if (isPlaying && !isLoading) colors.primary else colors.onSurface
 
-    val surfaceShape = AbsoluteSmoothCornerShape(
-        cornerRadiusBL = itemCornerRadius,
-        smoothnessAsPercentTL = 60,
-        cornerRadiusTR = itemCornerRadius,
-        smoothnessAsPercentTR = 60,
-        cornerRadiusBR = itemCornerRadius,
-        smoothnessAsPercentBR = 60,
-        cornerRadiusTL = itemCornerRadius,
-        smoothnessAsPercentBL = 60
-    )
+    val surfaceShape = RoundedCornerShape(itemCornerRadius)
 
     if (isLoading) {
         // Shimmer Placeholder Layout
@@ -919,19 +901,12 @@ fun EnhancedSongListItem(
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.surfaceVariant)
                 ) {
-                    var isLoadingImage by remember { mutableStateOf(true) }
                     SmartImage(
                         model = song.albumArtUriString ?: R.drawable.rounded_album_24,
                         contentDescription = song.title,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                        onState = { state ->
-                            isLoadingImage = state is AsyncImagePainter.State.Loading
-                        }
+                        modifier = Modifier.fillMaxSize()
                     )
-                    if (isLoadingImage) {
-                        ShimmerBox(modifier = Modifier.fillMaxSize())
-                    }
                 }
 
                 Column(
@@ -1096,32 +1071,14 @@ fun AlbumGridItemRedesigned(
     if (isLoading) {
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = AbsoluteSmoothCornerShape(
-                cornerRadiusTL = cardCornerRadius,
-                smoothnessAsPercentTR = 60,
-                cornerRadiusTR = cardCornerRadius,
-                smoothnessAsPercentTL = 60,
-                cornerRadiusBR = cardCornerRadius,
-                smoothnessAsPercentBL = 60,
-                cornerRadiusBL = cardCornerRadius,
-                smoothnessAsPercentBR = 60
-            ),
+            shape = RoundedCornerShape(cardCornerRadius),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
         ) {
             Column(
                 modifier = Modifier.background(
                     color = MaterialTheme.colorScheme.primaryContainer,
-                    shape = AbsoluteSmoothCornerShape(
-                        cornerRadiusTL = cardCornerRadius,
-                        smoothnessAsPercentTR = 60,
-                        cornerRadiusTR = cardCornerRadius,
-                        smoothnessAsPercentTL = 60,
-                        cornerRadiusBR = cardCornerRadius,
-                        smoothnessAsPercentBL = 60,
-                        cornerRadiusBL = cardCornerRadius,
-                        smoothnessAsPercentBR = 60
-                    )
+                    shape = RoundedCornerShape(cardCornerRadius)
                 )
             ) {
                 ShimmerBox(
@@ -1161,32 +1118,14 @@ fun AlbumGridItemRedesigned(
         Card(
             onClick = onClick,
             modifier = Modifier.fillMaxWidth(),
-            shape = AbsoluteSmoothCornerShape(
-                cornerRadiusTL = cardCornerRadius,
-                smoothnessAsPercentTR = 60,
-                cornerRadiusTR = cardCornerRadius,
-                smoothnessAsPercentTL = 60,
-                cornerRadiusBR = cardCornerRadius,
-                smoothnessAsPercentBL = 60,
-                cornerRadiusBL = cardCornerRadius,
-                smoothnessAsPercentBR = 60
-            ),
+            shape = RoundedCornerShape(cardCornerRadius),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp, pressedElevation = 8.dp),
             colors = CardDefaults.cardColors(containerColor = itemDesignColorScheme.surfaceVariant.copy(alpha = 0.3f))
         ) {
             Column(
                 modifier = Modifier.background(
                     color = gradientBaseColor,
-                    shape = AbsoluteSmoothCornerShape(
-                        cornerRadiusTL = cardCornerRadius,
-                        smoothnessAsPercentTR = 60,
-                        cornerRadiusTR = cardCornerRadius,
-                        smoothnessAsPercentTL = 60,
-                        cornerRadiusBR = cardCornerRadius,
-                        smoothnessAsPercentBL = 60,
-                        cornerRadiusBL = cardCornerRadius,
-                        smoothnessAsPercentBR = 60
-                    )
+                    shape = RoundedCornerShape(cardCornerRadius)
                 )
             ) {
                 Box(contentAlignment = Alignment.BottomStart) {

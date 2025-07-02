@@ -59,9 +59,7 @@ class SyncWorker @AssistedInject constructor(
                 }
 
                 Log.i(TAG, "Processed ${songs.size} songs, ${albums.size} albums, ${artists.size} artists.")
-                musicDao.insertArtists(artists)
-                musicDao.insertAlbums(albums)
-                musicDao.insertSongs(songs)
+                musicDao.insertMusicData(songs, albums, artists)
 
                 // Delete songs that are no longer present in MediaStore
                 val currentSongIds = songs.map { it.id }

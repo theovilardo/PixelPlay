@@ -128,7 +128,7 @@ dependencies {
     implementation("androidx.compose.material3:material3-window-size-class:1.3.1")
 
     //Coil
-    implementation (libs.coil.compose)
+    implementation(libs.coil.compose)
 
     //Capturable
     implementation(libs.capturable) // Verifica la última versión en GitHub
