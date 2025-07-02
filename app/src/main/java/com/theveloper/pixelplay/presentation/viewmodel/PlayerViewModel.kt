@@ -117,7 +117,7 @@ data class PlayerUiState(
     val lavaLampColors: ImmutableList<Color> = persistentListOf(),
     val albums: ImmutableList<Album> = persistentListOf(),
     val artists: ImmutableList<Artist> = persistentListOf(),
-    val isLoadingLibraryCategories: Boolean = true,
+    val isLoadingLibraryCategories: Boolean = false, // Default to false
     val canLoadMoreAlbums: Boolean = true,
     val canLoadMoreArtists: Boolean = true,
     val currentSongSortOption: SortOption = SortOption.SongTitleAZ,
@@ -634,11 +634,19 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun loadAlbumsIfNeeded() {
-        if (_playerUiState.value.albums.isEmpty() && _playerUiState.value.canLoadMoreAlbums && !_playerUiState.value.isLoadingLibraryCategories) {
-            Log.d("PlayerViewModel", "loadAlbumsIfNeeded: Loading initial albums.")
+        val albumsEmpty = _playerUiState.value.albums.isEmpty()
+        val canLoadMore = _playerUiState.value.canLoadMoreAlbums
+        val notLoading = !_playerUiState.value.isLoadingLibraryCategories
+        Log.d("PlayerViewModel", "loadAlbumsIfNeeded: albumsEmpty=$albumsEmpty, canLoadMore=$canLoadMore, notLoadingLibraryCategories=$notLoading")
+        if (albumsEmpty && canLoadMore && notLoading) {
+            Log.i("PlayerViewModel", "loadAlbumsIfNeeded: Conditions met. Loading initial albums.")
             loadAlbumsFromRepository(isInitialLoad = true)
         } else {
-            Log.d("PlayerViewModel", "loadAlbumsIfNeeded: Albums already loaded, loading, or cannot load more.")
+            var reason = ""
+            if (!albumsEmpty) reason += "Albums not empty. "
+            if (!canLoadMore) reason += "Cannot load more albums. "
+            if (!notLoading) reason += "Currently loading library categories. "
+            Log.w("PlayerViewModel", "loadAlbumsIfNeeded: Conditions NOT met. Skipping load. Reason: $reason")
         }
     }
 
@@ -703,11 +711,19 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun loadArtistsIfNeeded() {
-        if (_playerUiState.value.artists.isEmpty() && _playerUiState.value.canLoadMoreArtists && !_playerUiState.value.isLoadingLibraryCategories) {
-            Log.d("PlayerViewModel", "loadArtistsIfNeeded: Loading initial artists.")
+        val artistsEmpty = _playerUiState.value.artists.isEmpty()
+        val canLoadMore = _playerUiState.value.canLoadMoreArtists
+        val notLoading = !_playerUiState.value.isLoadingLibraryCategories
+        Log.d("PlayerViewModel", "loadArtistsIfNeeded: artistsEmpty=$artistsEmpty, canLoadMore=$canLoadMore, notLoadingLibraryCategories=$notLoading")
+        if (artistsEmpty && canLoadMore && notLoading) {
+            Log.i("PlayerViewModel", "loadArtistsIfNeeded: Conditions met. Loading initial artists.")
             loadArtistsFromRepository(isInitialLoad = true)
         } else {
-            Log.d("PlayerViewModel", "loadArtistsIfNeeded: Artists already loaded, loading, or cannot load more.")
+            var reason = ""
+            if (!artistsEmpty) reason += "Artists not empty. "
+            if (!canLoadMore) reason += "Cannot load more artists. "
+            if (!notLoading) reason += "Currently loading library categories. "
+            Log.w("PlayerViewModel", "loadArtistsIfNeeded: Conditions NOT met. Skipping load. Reason: $reason")
         }
     }
 
