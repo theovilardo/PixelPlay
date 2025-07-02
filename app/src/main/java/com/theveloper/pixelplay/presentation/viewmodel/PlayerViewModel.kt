@@ -93,7 +93,8 @@ data class ColorSchemePair( // Definición local si no está en un archivo comú
     val dark: ColorScheme
 )
 
-private const val PAGE_SIZE = 30 // Número de items por página
+private const val PAGE_SIZE = 30 // Número de items por página para cargas subsecuentes
+private const val INITIAL_LOAD_PAGE_SIZE = 10 // Número de items para la carga inicial crítica
 
 // Estado para datos que no cambian cada segundo
 data class StablePlayerState(
@@ -513,8 +514,9 @@ class PlayerViewModel @Inject constructor(
 
                 // Colecta la lista del Flow.
                 // Asumimos que getAudioFiles emite una sola lista para la página solicitada.
+                val pageSizeToUse = if (isInitialLoad) INITIAL_LOAD_PAGE_SIZE else PAGE_SIZE
                 val actualNewSongsList: List<Song> = withContext(Dispatchers.IO) {
-                    musicRepository.getAudioFiles(currentSongPage, PAGE_SIZE).first()
+                    musicRepository.getAudioFiles(currentSongPage, pageSizeToUse).first()
                 }
 
                 val repoCallDuration = System.currentTimeMillis() - repoCallStartTime
