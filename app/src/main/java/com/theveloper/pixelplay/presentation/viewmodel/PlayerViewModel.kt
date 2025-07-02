@@ -257,7 +257,9 @@ class PlayerViewModel @Inject constructor(
         favoriteSongIds, // Now uses the public favoriteSongIds
         _playerUiState // Depends on allSongs and currentFavoriteSortOption from uiState
     ) { ids, uiState ->
+        Log.d("PlayerViewModel", "Calculating favoriteSongs. IDs size: ${ids.size}, All songs size: ${uiState.allSongs.size}")
         val favoriteSongsList = uiState.allSongs.filter { song -> ids.contains(song.id) }
+        Log.d("PlayerViewModel", "Filtered favoriteSongsList size: ${favoriteSongsList.size}")
         when (uiState.currentFavoriteSortOption) {
             SortOption.LikedSongTitleAZ -> favoriteSongsList.sortedBy { it.title }
             SortOption.LikedSongTitleZA -> favoriteSongsList.sortedByDescending { it.title }
@@ -471,6 +473,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun loadSongsFromRepository(isInitialLoad: Boolean = false) {
+        Log.d("PlayerViewModel", "loadSongsFromRepository called. isInitialLoad: $isInitialLoad")
         // Estas comprobaciones iniciales están bien
         if (_playerUiState.value.isLoadingMoreSongs && !isInitialLoad) {
             Log.d("PlayerViewModelPerformance", "loadSongsFromRepository: Already loading more songs. Skipping.")
@@ -520,6 +523,7 @@ class PlayerViewModel @Inject constructor(
                         canLoadMoreSongs = actualNewSongsList.size == PAGE_SIZE
                     )
                 }
+                Log.d("PlayerViewModel", "allSongs updated. New size: ${_playerUiState.value.allSongs.size}. isLoadingInitialSongs: ${_playerUiState.value.isLoadingInitialSongs}")
 
                 // Incrementar la página solo si se cargaron canciones y se espera que haya más
                 if (actualNewSongsList.isNotEmpty() && actualNewSongsList.size == PAGE_SIZE) {
