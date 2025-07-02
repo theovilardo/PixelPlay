@@ -24,6 +24,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
 import javax.inject.Singleton
+import kotlinx.coroutines.Dispatchers
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -87,9 +88,8 @@ object AppModule {
         @ApplicationContext context: Context
     ): ImageLoader {
         return ImageLoader.Builder(context)
-            // Add any custom configurations here if needed
-            // .crossfade(true)
-            // .okHttpClient { ... }
+            .dispatcher(Dispatchers.Default) // Use CPU-bound dispatcher for decoding
+            .allowHardware(true) // Re-enable hardware bitmaps for better performance
             .build()
     }
 

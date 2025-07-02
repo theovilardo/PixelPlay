@@ -22,9 +22,6 @@ interface MusicDao {
 
     @Transaction
     suspend fun insertMusicData(songs: List<SongEntity>, albums: List<AlbumEntity>, artists: List<ArtistEntity>) {
-        // Clear old data first to ensure consistency, especially if sync is destructive.
-        // Alternatively, handle updates more granularly if needed.
-        // For this phase, a full clear and re-insert is simpler for the initial sync.
         clearAllSongs()
         clearAllAlbums()
         clearAllArtists()
@@ -194,4 +191,13 @@ interface MusicDao {
     // E.g., Get all album art URIs from songs (could be useful for theme preloading from SSoT)
     @Query("SELECT DISTINCT album_art_uri_string FROM songs WHERE album_art_uri_string IS NOT NULL")
     fun getAllUniqueAlbumArtUrisFromSongs(): Flow<List<String>>
+
+    @Query("DELETE FROM songs WHERE id NOT IN (:currentSongIds)")
+    suspend fun deleteMissingSongs(currentSongIds: List<Long>)
+
+    @Query("DELETE FROM albums WHERE id NOT IN (SELECT DISTINCT album_id FROM songs)")
+    suspend fun deleteOrphanedAlbums()
+
+    @Query("DELETE FROM artists WHERE id NOT IN (SELECT DISTINCT artist_id FROM songs)")
+    suspend fun deleteOrphanedArtists()
 }

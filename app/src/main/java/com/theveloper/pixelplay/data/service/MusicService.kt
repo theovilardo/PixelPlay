@@ -217,7 +217,7 @@ class MusicService : MediaSessionService() {
             progressUpdateJob = serviceScope.launch {
                 while (true) {
                     updateWidgetFullState(isProgressUpdate = true)
-                    delay(1000) // Actualiza el progreso cada segundo
+                    delay(5000) // Actualiza el progreso cada 2 segundos para reducir la carga
                 }
             }
         }

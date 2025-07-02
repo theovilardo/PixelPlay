@@ -193,15 +193,11 @@ fun DailyMixScreen(
                                 .weight(1f)
                                 .height(76.dp),
                             enabled = dailyMixSongs.isNotEmpty(),
-                            shape = AbsoluteSmoothCornerShape(
-                                cornerRadiusTL = 60.dp,
-                                smoothnessAsPercentTR = 60,
-                                cornerRadiusTR = 14.dp,
-                                smoothnessAsPercentTL = 60,
-                                cornerRadiusBL = 60.dp,
-                                smoothnessAsPercentBR = 60,
-                                cornerRadiusBR = 14.dp,
-                                smoothnessAsPercentBL = 60
+                            shape = RoundedCornerShape(
+                                topStart = 60.dp,
+                                topEnd = 14.dp,
+                                bottomStart = 60.dp,
+                                bottomEnd = 14.dp
                             )
                         ) {
                             Icon(Icons.Filled.PlayArrow, contentDescription = "Play", modifier = Modifier.size(
@@ -220,15 +216,11 @@ fun DailyMixScreen(
                                 .weight(1f)
                                 .height(76.dp),
                             enabled = dailyMixSongs.isNotEmpty(),
-                            shape = AbsoluteSmoothCornerShape(
-                                cornerRadiusTL = 14.dp,
-                                smoothnessAsPercentTR = 60,
-                                cornerRadiusTR = 60.dp,
-                                smoothnessAsPercentTL = 60,
-                                cornerRadiusBL = 14.dp,
-                                smoothnessAsPercentBR = 60,
-                                cornerRadiusBR = 60.dp,
-                                smoothnessAsPercentBL = 60
+                            shape = RoundedCornerShape(
+                                topStart = 14.dp,
+                                topEnd = 60.dp,
+                                bottomStart = 14.dp,
+                                bottomEnd = 60.dp
                             )
                         ) {
                             Icon(Icons.Filled.Shuffle, contentDescription = "Shuffle", modifier = Modifier.size(
@@ -361,8 +353,8 @@ private fun ExpressiveDailyMixHeader(
                         modifier = Modifier
                             .size(size)
                             .graphicsLayer { rotationZ = rotation }
-                            .clip(ThreeShapeSwitch(index))
-                            .border(3.dp, MaterialTheme.colorScheme.surface.copy(alpha = 0.5f), ThreeShapeSwitch(index))
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(3.dp, MaterialTheme.colorScheme.surface.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
                     ) {
                         SmartImage(
                             model = artUrl ?: R.drawable.rounded_album_24,

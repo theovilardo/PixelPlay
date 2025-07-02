@@ -11,8 +11,8 @@ import com.theveloper.pixelplay.data.model.Song
     tableName = "songs",
     indices = [
         Index(value = ["title"], unique = false),
-        // Index(value = ["album_id"], unique = false), // ForeignKey crea este índice
-        // Index(value = ["artist_id"], unique = false), // ForeignKey crea este índice
+        Index(value = ["album_id"], unique = false),
+        Index(value = ["artist_id"], unique = false),
         Index(value = ["genre"], unique = false),
         Index(value = ["parent_directory_path"], unique = false) // Índice para filtrado por directorio
     ],

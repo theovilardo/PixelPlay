@@ -65,6 +65,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import android.util.Log
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toBitmap
 import com.theveloper.pixelplay.data.model.SearchFilterType
 import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import com.theveloper.pixelplay.data.model.SearchResultItem
@@ -162,10 +164,8 @@ class PlayerViewModel @Inject constructor(
     val currentAlbumArtColorSchemePair: StateFlow<ColorSchemePair?> = _currentAlbumArtColorSchemePair.asStateFlow()
     // Global and Player theme preferences are now managed by UserPreferencesRepository,
     // but PlayerViewModel still needs to observe them to react to changes.
-    private val _globalThemePreference = MutableStateFlow(ThemePreference.DYNAMIC)
-    val globalThemePreference: StateFlow<String> = _globalThemePreference.asStateFlow()
-    private val _playerThemePreference = MutableStateFlow(ThemePreference.GLOBAL)
-    val playerThemePreference: StateFlow<String> = _playerThemePreference.asStateFlow()
+    val globalThemePreference: StateFlow<String> = userPreferencesRepository.globalThemePreferenceFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemePreference.DYNAMIC)
+    val playerThemePreference: StateFlow<String> = userPreferencesRepository.playerThemePreferenceFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemePreference.GLOBAL)
 
     private val _isInitialThemePreloadComplete = MutableStateFlow(false)
     val isInitialThemePreloadComplete: StateFlow<Boolean> = _isInitialThemePreloadComplete.asStateFlow()
@@ -217,7 +217,7 @@ class PlayerViewModel @Inject constructor(
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val activeGlobalColorSchemePair: StateFlow<ColorSchemePair?> = combine(
-        _globalThemePreference, _currentAlbumArtColorSchemePair
+        globalThemePreference, _currentAlbumArtColorSchemePair
     ) { globalPref, albumScheme ->
         when (globalPref) {
             ThemePreference.ALBUM_ART -> albumScheme // Si es null, Theme.kt usará dynamic/default
@@ -228,7 +228,7 @@ class PlayerViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null) // Eagerly para que esté disponible al inicio
 
     val activePlayerColorSchemePair: StateFlow<ColorSchemePair?> = combine(
-        _playerThemePreference, activeGlobalColorSchemePair, _currentAlbumArtColorSchemePair
+        playerThemePreference, activeGlobalColorSchemePair, _currentAlbumArtColorSchemePair
     ) { playerPref, globalSchemeResult, albumScheme ->
         when (playerPref) {
             ThemePreference.ALBUM_ART -> albumScheme // Puede ser null, Theme.kt en MainActivity lo manejará
@@ -242,20 +242,25 @@ class PlayerViewModel @Inject constructor(
     // Room es el caché persistente.
     private val individualAlbumColorSchemes = mutableMapOf<String, MutableStateFlow<ColorSchemePair?>>()
 
+    // Cola para procesar solicitudes de generación de ColorScheme
+    private val colorSchemeRequestChannel = kotlinx.coroutines.channels.Channel<String>(kotlinx.coroutines.channels.Channel.UNLIMITED)
+    private val urisBeingProcessed = mutableSetOf<String>() // Para evitar encolar duplicados
+
     private var mediaController: MediaController? = null
     private val sessionToken = SessionToken(context, ComponentName(context, MusicService::class.java))
     private val mediaControllerFuture: ListenableFuture<MediaController> =
         MediaController.Builder(context, sessionToken).buildAsync()
 
-    private val _favoriteSongIds = MutableStateFlow<Set<String>>(emptySet())
-    val favoriteSongIds: StateFlow<Set<String>> = _favoriteSongIds.asStateFlow() // Exposed as StateFlow
+    val favoriteSongIds: StateFlow<Set<String>> = userPreferencesRepository.favoriteSongIdsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     // Nuevo StateFlow para la lista de objetos Song favoritos
     val favoriteSongs: StateFlow<ImmutableList<Song>> = combine(
-        _favoriteSongIds, // Now uses the public favoriteSongIds or private _favoriteSongIds
+        favoriteSongIds, // Now uses the public favoriteSongIds
         _playerUiState // Depends on allSongs and currentFavoriteSortOption from uiState
     ) { ids, uiState ->
+        Log.d("PlayerViewModel", "Calculating favoriteSongs. IDs size: ${ids.size}, All songs size: ${uiState.allSongs.size}")
         val favoriteSongsList = uiState.allSongs.filter { song -> ids.contains(song.id) }
+        Log.d("PlayerViewModel", "Filtered favoriteSongsList size: ${favoriteSongsList.size}")
         when (uiState.currentFavoriteSortOption) {
             SortOption.LikedSongTitleAZ -> favoriteSongsList.sortedBy { it.title }
             SortOption.LikedSongTitleZA -> favoriteSongsList.sortedByDescending { it.title }
@@ -327,26 +332,17 @@ class PlayerViewModel @Inject constructor(
 
     init {
         Log.i("PlayerViewModel", "init started.")
-        // Observe theme preferences
-        viewModelScope.launch { userPreferencesRepository.globalThemePreferenceFlow.collect { _globalThemePreference.value = it } }
-        viewModelScope.launch { userPreferencesRepository.playerThemePreferenceFlow.collect { _playerThemePreference.value = it } }
+        
 
-        // Observe favorite songs
-        viewModelScope.launch {
-            userPreferencesRepository.favoriteSongIdsFlow.collect { ids ->
-                _favoriteSongIds.value = ids
-            }
-        }
+        launchColorSchemeProcessor()
 
-        // Observe sort option preferences
         viewModelScope.launch {
             userPreferencesRepository.songsSortOptionFlow.collect { optionName ->
                 getSortOptionFromString(optionName)?.let { sortOption ->
-                    if (_playerUiState.value.currentSongSortOption != sortOption) { // Avoid re-sorting if option hasn't changed
-                        // Update state first, then call sort which uses the state
+                    if (_playerUiState.value.currentSongSortOption != sortOption) {
                         _playerUiState.update { it.copy(currentSongSortOption = sortOption) }
                         if (!_playerUiState.value.isLoadingInitialSongs && _playerUiState.value.allSongs.isNotEmpty()) {
-                             sortSongs(sortOption) // This will use the updated state
+                            sortSongs(sortOption)
                         }
                     }
                 }
@@ -379,47 +375,27 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferencesRepository.likedSongsSortOptionFlow.collect { optionName ->
                 getSortOptionFromString(optionName)?.let { sortOption ->
-                     // The favoriteSongs flow automatically uses currentFavoriteSortOption from playerUiState.
-                     // Just updating the state is enough to trigger re-composition and re-sorting.
                     _playerUiState.update { it.copy(currentFavoriteSortOption = sortOption) }
                 }
             }
         }
 
-        // *** BLOQUE CORREGIDO ***
-        // Observar el estado de SyncWorker (now using isSyncingStateFlow)
         viewModelScope.launch {
-            val wasSyncingBefore = _playerUiState.value.isSyncingLibrary // This UI state field will be updated by the flow
-            Log.d("PlayerViewModel", "Setting up isSyncingStateFlow observer. Initial isSyncingLibrary from UIState: ${wasSyncingBefore}, isSyncingStateFlow.value: ${isSyncingStateFlow.value}")
+            isSyncingStateFlow.collect { isSyncing ->
+                val oldSyncingLibraryState = _playerUiState.value.isSyncingLibrary
+                _playerUiState.update { it.copy(isSyncingLibrary = isSyncing) }
 
-            isSyncingStateFlow // Observe the new StateFlow
-                .collect { isSyncing ->
-                    Log.d("PlayerViewModel", "isSyncingStateFlow changed. Old UI state for isSyncingLibrary: ${_playerUiState.value.isSyncingLibrary}, New emitted value: $isSyncing")
-                    val oldSyncingLibraryState = _playerUiState.value.isSyncingLibrary
-                    _playerUiState.update { it.copy(isSyncingLibrary = isSyncing) }
-
-                    // Si el estado cambió de "sincronizando" a "no sincronizando", el worker ha terminado.
-                    if (oldSyncingLibraryState && !isSyncing) {
-                        Log.i("PlayerViewModel", "SyncWorker finished (observed via isSyncingStateFlow). Reloading initial data from observer.")
-                        resetAndLoadInitialData("isSyncingStateFlow observer")
-                    }
-                    // wasSyncingBefore is not strictly needed here anymore as distinctUntilChanged handles it for the flow,
-                    // and oldSyncingLibraryState captures the UI state before update.
+                if (oldSyncingLibraryState && !isSyncing) {
+                    resetAndLoadInitialData("isSyncingStateFlow observer")
                 }
+            }
         }
 
-        // Check current sync state immediately after setting up the observer
-        // This handles cases where sync finishes before the observer is fully active or if sync was very fast.
         viewModelScope.launch {
-            // Adding a small delay to ensure the flow collection might have had a chance to emit once
-            // though ideally, the check against .value should be sufficient.
-            // delay(50) // Optional: small delay, might not be strictly necessary.
-            Log.d("PlayerViewModel", "Initial check: isSyncingStateFlow.value = ${isSyncingStateFlow.value}. PlayerUIState: isLoadingInitial = ${_playerUiState.value.isLoadingInitialSongs}, allSongs empty = ${_playerUiState.value.allSongs.isEmpty()}")
-            if (!isSyncingStateFlow.value && // Sync is NOT currently running (use the new StateFlow's value)
-                _playerUiState.value.isLoadingInitialSongs && // We are still in the initial loading phase
-                _playerUiState.value.allSongs.isEmpty() // And no songs have been loaded yet
+            if (!isSyncingStateFlow.value &&
+                _playerUiState.value.isLoadingInitialSongs &&
+                _playerUiState.value.allSongs.isEmpty()
             ) {
-                Log.i("PlayerViewModel", "SyncWorker likely finished before observer was fully active or was very fast. Triggering data load from initial check.")
                 resetAndLoadInitialData("Initial Check")
             }
         }
@@ -432,8 +408,12 @@ class PlayerViewModel @Inject constructor(
                 _playerUiState.update { it.copy(isLoadingInitialSongs = false, isLoadingLibraryCategories = false) }
                 Log.e("PlayerViewModel", "Error setting up MediaController", e)
             }
-        }, MoreExecutors.directExecutor())
+        }, ContextCompat.getMainExecutor(context))
 
+
+    }
+
+    fun onMainActivityStart() {
         preloadThemesAndInitialData()
     }
 
@@ -462,17 +442,11 @@ class PlayerViewModel @Inject constructor(
             }
             //Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData() call took ${System.currentTimeMillis() - resetLoadDataStartTime} ms (Note: actual loading is async). Time from overallInitStart: ${System.currentTimeMillis() - overallInitStartTime} ms")
 
-            // Wait for the initial songs, albums, and artists to be loaded before marking initial theme/UI setup as complete.
-            // This ensures that the primary content for all main library tabs is available when the loading screen disappears.
-            viewModelScope.launch {
-                _playerUiState.first { state ->
-                    !state.isLoadingInitialSongs && !state.isLoadingLibraryCategories
-                }
-                // At this point, the first page of songs, albums, and artists has been loaded.
-                _isInitialThemePreloadComplete.value = true
-                val timeToComplete = System.currentTimeMillis() - overallInitStartTime
-                Log.d("PlayerViewModelPerformance", "Initial song, album, and artist load complete. _isInitialThemePreloadComplete set to true. Total time since overallInitStart: ${timeToComplete} ms")
-            }
+            // The UI will observe isLoadingInitialSongs and isLoadingLibraryCategories directly.
+            // We set _isInitialThemePreloadComplete to true immediately after dispatching async work.
+            _isInitialThemePreloadComplete.value = true
+            val timeToComplete = System.currentTimeMillis() - overallInitStartTime
+            Log.d("PlayerViewModelPerformance", "Initial theme preload complete (async data loading dispatched). Total time since overallInitStart: ${timeToComplete} ms")
         }
         Log.d("PlayerViewModelPerformance", "preloadThemesAndInitialData END. Total function time: ${System.currentTimeMillis() - functionStartTime} ms (dispatching async work)")
     }
@@ -500,6 +474,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun loadSongsFromRepository(isInitialLoad: Boolean = false) {
+        Log.d("PlayerViewModel", "loadSongsFromRepository called. isInitialLoad: $isInitialLoad")
         // Estas comprobaciones iniciales están bien
         if (_playerUiState.value.isLoadingMoreSongs && !isInitialLoad) {
             Log.d("PlayerViewModelPerformance", "loadSongsFromRepository: Already loading more songs. Skipping.")
@@ -549,6 +524,7 @@ class PlayerViewModel @Inject constructor(
                         canLoadMoreSongs = actualNewSongsList.size == PAGE_SIZE
                     )
                 }
+                Log.d("PlayerViewModel", "allSongs updated. New size: ${_playerUiState.value.allSongs.size}. isLoadingInitialSongs: ${_playerUiState.value.isLoadingInitialSongs}")
 
                 // Incrementar la página solo si se cargaron canciones y se espera que haya más
                 if (actualNewSongsList.isNotEmpty() && actualNewSongsList.size == PAGE_SIZE) {
@@ -935,6 +911,12 @@ class PlayerViewModel @Inject constructor(
     // Modificado para establecer una lista de reproducción
     // Modificar playSongs para que la cola sea la lista completa de allSongs si se inicia desde ahí
     fun playSongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None") {
+        viewModelScope.launch {
+            internalPlaySongs(songsToPlay, startSong, queueName)
+        }
+    }
+
+    private suspend fun internalPlaySongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None") {
         // Old EOT deactivation logic removed, handled by eotSongMonitorJob
         mediaController?.let { controller ->
             // Si la lista de canciones a reproducir es la lista 'allSongs' (paginada),
@@ -943,12 +925,24 @@ class PlayerViewModel @Inject constructor(
             // o la cola se limita a lo ya cargado.
             // Por ahora, usaremos `songsToPlay` como viene.
             val mediaItems = songsToPlay.map { song ->
-                val metadata = MediaMetadata.Builder()
+                val artworkBytes = loadArtworkData(song.albumArtUriString)
+                val metadataBuilder = MediaMetadata.Builder()
                     .setTitle(song.title)
                     .setArtist(song.artist)
-                    .setArtworkUri(song.albumArtUriString?.toUri())
-                    // .setAlbumTitle(song.album) // Opcional: Considerar añadir si es útil
-                    .build()
+                    // .setAlbumTitle(song.album) // Opcional
+
+                if (artworkBytes != null) {
+                    metadataBuilder.setArtworkData(artworkBytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
+                } else {
+                    // Fallback: still set the URI if bytes are not available.
+                    // Media3 might handle this URI loading asynchronously or it might be null.
+                    // This is better than crashing if loadArtworkData fails.
+                    // The original StrictMode violation might still occur if this URI is problematic AND resolution fails.
+                    song.albumArtUriString?.toUri()?.let { metadataBuilder.setArtworkUri(it) }
+                }
+
+                val metadata = metadataBuilder.build()
+
                 MediaItem.Builder()
                     .setMediaId(song.id)
                     .setUri(song.contentUriString.toUri())
@@ -963,16 +957,15 @@ class PlayerViewModel @Inject constructor(
                 controller.play()
                 _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
                 //_stablePlayerState.update { it.copy(currentSong = startSong, isPlaying = true) }
-                viewModelScope.launch {
-                    startSong.albumArtUriString?.toUri()?.let { uri ->
-                        extractAndGenerateColorScheme(uri)
-                    }
-                }
-                updateFavoriteStatusForCurrentSong()
+                // The extractAndGenerateColorScheme call will happen via onMediaItemTransition listener setup,
+                // so no need to explicitly call it here for startSong after this refactor.
+                // The listener should pick up the current song and process its artwork URI.
+                updateFavoriteStatusForCurrentSong() // This depends on stablePlayerState.currentSong, ensure it's updated timely.
             }
         }
         _playerUiState.update { it.copy(isLoadingInitialSongs = false) } // Marcar que la carga inicial de esta canción terminó
     }
+
 
     private fun loadAndPlaySong(song: Song) {
         mediaController?.let { controller ->
@@ -1007,7 +1000,7 @@ class PlayerViewModel @Inject constructor(
     private fun updateFavoriteStatusForCurrentSong() {
         val currentSongId = _stablePlayerState.value.currentSong?.id
         _stablePlayerState.update {
-            it.copy(isCurrentSongFavorite = currentSongId != null && _favoriteSongIds.value.contains(currentSongId))
+            it.copy(isCurrentSongFavorite = currentSongId != null && favoriteSongIds.value.contains(currentSongId))
         }
     }
 
@@ -1069,28 +1062,67 @@ class PlayerViewModel @Inject constructor(
 
     // Función para ser llamada por AlbumGridItem
     fun getAlbumColorSchemeFlow(albumArtUri: String?): StateFlow<ColorSchemePair?> {
-        val uriString = albumArtUri?.toString() ?: "default_fallback_key" // Usar una clave de fallback si la URI es null
+        val uriString = albumArtUri?.toString() ?: "default_fallback_key"
 
-        // Devolver flujo existente o crear uno nuevo
-        return individualAlbumColorSchemes.getOrPut(uriString) {
-            MutableStateFlow(null) // Inicialmente null, se poblará asíncronamente
-        }.also { flow ->
-            // Si el flujo es nuevo o no tiene valor, e la URI no es la de fallback, intentar cargar/generar
-            if (flow.value == null && albumArtUri != null) {
-                viewModelScope.launch {
-                    val scheme = getOrGenerateColorSchemeForUri(albumArtUri, false)
-                    flow.value = scheme // Emitir el esquema al flujo específico del álbum
+        val existingFlow = individualAlbumColorSchemes[uriString]
+        if (existingFlow != null) {
+            // Si el flujo existe y ya tiene un valor (o está siendo procesado y lo tendrá), devuélvelo.
+            // Si no tiene valor Y no está siendo procesado Y es una URI válida, podría encolarse.
+            // Esta lógica de re-encolar si es null y no procesándose es para cubrir casos borde.
+            if (existingFlow.value == null && albumArtUri != null && !urisBeingProcessed.contains(uriString)) {
+                synchronized(urisBeingProcessed) {
+                    if (!urisBeingProcessed.contains(uriString)) { // Doble check por concurrencia
+                        urisBeingProcessed.add(uriString)
+                        colorSchemeRequestChannel.trySend(albumArtUri) // Enviar a la cola para procesamiento
+                        Log.d("PlayerViewModel", "Re-queued $uriString for color scheme processing.")
+                    }
                 }
-            } else if (albumArtUri == null && flow.value == null) {
-                // Para el caso de fallback (sin URI), usar los defaults
-                flow.value = ColorSchemePair(LightColorScheme, DarkColorScheme)
+            }
+            return existingFlow
+        }
+
+        // Si el flujo no existe, créalo, encola la tarea y devuélvelo.
+        val newFlow = MutableStateFlow<ColorSchemePair?>(null)
+        individualAlbumColorSchemes[uriString] = newFlow
+
+        if (albumArtUri != null) { // Solo procesa URIs válidas
+            synchronized(urisBeingProcessed) {
+                if (!urisBeingProcessed.contains(uriString)) {
+                    urisBeingProcessed.add(uriString)
+                    colorSchemeRequestChannel.trySend(albumArtUri) // Enviar a la cola para procesamiento
+                    Log.d("PlayerViewModel", "Enqueued $uriString for color scheme processing.")
+                }
+            }
+        } else if (uriString == "default_fallback_key") {
+            // Para la clave de fallback (URI nula), establece directamente el esquema por defecto.
+            newFlow.value = ColorSchemePair(LightColorScheme, DarkColorScheme)
+        }
+        return newFlow
+    }
+
+    private fun launchColorSchemeProcessor() {
+        viewModelScope.launch(Dispatchers.IO) { // Usar Dispatchers.IO para el bucle del canal
+            for (albumArtUri in colorSchemeRequestChannel) { // Consume de la cola
+                try {
+                    Log.d("PlayerViewModel", "Processing $albumArtUri from queue.")
+                    val scheme = getOrGenerateColorSchemeForUri(albumArtUri, false) // isPreload = false
+                    individualAlbumColorSchemes[albumArtUri]?.value = scheme
+                    Log.d("PlayerViewModel", "Finished processing $albumArtUri. Scheme: ${scheme != null}")
+                } catch (e: Exception) {
+                    Log.e("PlayerViewModel", "Error processing $albumArtUri in ColorSchemeProcessor", e)
+                    individualAlbumColorSchemes[albumArtUri]?.value = null // O un esquema de error/default
+                } finally {
+                    synchronized(urisBeingProcessed) {
+                        urisBeingProcessed.remove(albumArtUri) // Eliminar de procesándose
+                    }
+                }
             }
         }
     }
 
     // Modificada para devolver el ColorSchemePair y ser usada por getAlbumColorSchemeFlow y la precarga
     private suspend fun getOrGenerateColorSchemeForUri(albumArtUri: String, isPreload: Boolean): ColorSchemePair? {
-        val uriString = albumArtUri.toString()
+        val uriString = albumArtUri // uriString ya es el albumArtUri
         val cachedEntity = withContext(Dispatchers.IO) { albumArtThemeDao.getThemeByUri(uriString) }
 
         if (cachedEntity != null) {
@@ -1327,6 +1359,40 @@ class PlayerViewModel @Inject constructor(
     private fun stopProgressUpdates() {
         progressJob?.cancel()
         progressJob = null
+    }
+
+    private suspend fun loadArtworkData(uriString: String?): ByteArray? {
+        if (uriString == null) return null
+        return withContext(Dispatchers.IO) {
+            try {
+                val request = ImageRequest.Builder(context)
+                    .data(uriString.toUri())
+                    .size(Size(256, 256)) // Consistent with MusicService, can be adjusted
+                    .allowHardware(false) // Important for direct manipulation/conversion
+                    .bitmapConfig(Bitmap.Config.ARGB_8888)
+                    .build()
+                val drawable = context.imageLoader.execute(request).drawable
+                drawable?.let {
+                    val bitmap = it.toBitmap(
+                        width = it.intrinsicWidth.coerceAtMost(256).coerceAtLeast(1),
+                        height = it.intrinsicHeight.coerceAtMost(256).coerceAtLeast(1),
+                        config = Bitmap.Config.ARGB_8888
+                    )
+
+                    val stream = java.io.ByteArrayOutputStream()
+                    // Use WEBP for better quality/compression if possible, or JPEG with decent quality.
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                        bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 80, stream)
+                    } else {
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream)
+                    }
+                    stream.toByteArray()
+                }
+            } catch (e: Exception) {
+                Log.e("PlayerViewModel", "Error loading artwork data for MediaMetadata: $uriString", e)
+                null
+            }
+        }
     }
 
     //Sorting
