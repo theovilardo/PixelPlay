@@ -899,6 +899,7 @@ fun EnhancedSongListItem(
                         model = song.albumArtUriString ?: R.drawable.rounded_album_24,
                         contentDescription = song.title,
                         contentScale = ContentScale.Crop,
+                        targetSize = coil.size.Size(168, 168), // 56dp * 3 (densidad asumida) approx
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -1133,6 +1134,7 @@ fun AlbumGridItemRedesigned(
                         model = album.albumArtUriString ?: R.drawable.rounded_album_24,
                         contentDescription = "Carátula de ${album.title}",
                         contentScale = ContentScale.Crop,
+                            targetSize = coil.size.Size(480, 320), // Estimación para ~160dp x ~106dp @3x
                         modifier = Modifier
                             .aspectRatio(3f / 2f)
                             .fillMaxSize(),
