@@ -323,9 +323,10 @@ class MusicService : MediaSessionService() {
                 totalDurationMs = totalDurationMs
             )
 
-            val glanceManager = GlanceAppWidgetManager(applicationContext)
-            val glanceIds = glanceManager.getGlanceIds(PixelPlayGlanceWidget::class.java)
+            // All Glance AppWidget operations should be off the main thread.
             withContext(Dispatchers.IO) {
+                val glanceManager = GlanceAppWidgetManager(applicationContext)
+                val glanceIds = glanceManager.getGlanceIds(PixelPlayGlanceWidget::class.java)
                 glanceIds.forEach { id ->
                     updateAppWidgetState(
                         applicationContext,
@@ -333,10 +334,9 @@ class MusicService : MediaSessionService() {
                         id
                     ) { playerInfoData }
                 }
-            }
-
-            glanceIds.forEach { id ->
-                PixelPlayGlanceWidget().update(applicationContext, id)
+                glanceIds.forEach { id ->
+                    PixelPlayGlanceWidget().update(applicationContext, id)
+                }
             }
 
             lastWidgetUpdateTime = System.currentTimeMillis()

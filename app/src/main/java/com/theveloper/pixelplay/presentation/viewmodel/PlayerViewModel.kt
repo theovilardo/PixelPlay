@@ -80,6 +80,7 @@ import java.util.concurrent.TimeUnit
 import androidx.lifecycle.asFlow
 import androidx.work.WorkInfo
 import androidx.core.net.toUri
+import kotlinx.coroutines.flow.flowOn
 
 // Nuevo enum para el estado del sheet
 enum class PlayerSheetState {
@@ -259,6 +260,8 @@ class PlayerViewModel @Inject constructor(
         _playerUiState // Depends on allSongs and currentFavoriteSortOption from uiState
     ) { ids, uiState ->
         Log.d("PlayerViewModel", "Calculating favoriteSongs. IDs size: ${ids.size}, All songs size: ${uiState.allSongs.size}")
+        //val favoriteSongsList = uiState.allSongs.filter { song -> ids.contains(song.id) }
+        Log.d("PlayerViewModel", "Calculating favoriteSongs on ${Thread.currentThread().name}. IDs size: ${ids.size}, All songs size: ${uiState.allSongs.size}")
         val favoriteSongsList = uiState.allSongs.filter { song -> ids.contains(song.id) }
         Log.d("PlayerViewModel", "Filtered favoriteSongsList size: ${favoriteSongsList.size}")
         when (uiState.currentFavoriteSortOption) {
@@ -269,7 +272,9 @@ class PlayerViewModel @Inject constructor(
             SortOption.LikedSongDateLiked -> favoriteSongsList.sortedByDescending { it.id } // Assuming dateAdded for Liked
             else -> favoriteSongsList // Should not happen
         }.toImmutableList()
-    }.stateIn(viewModelScope, SharingStarted.Lazily, persistentListOf())
+    }
+    .flowOn(Dispatchers.Default) // Execute combine and transformations on Default dispatcher
+    .stateIn(viewModelScope, SharingStarted.Lazily, persistentListOf())
 
     private var progressJob: Job? = null
 
@@ -502,11 +507,14 @@ class PlayerViewModel @Inject constructor(
 
                 // Colecta la lista del Flow.
                 // Asumimos que getAudioFiles emite una sola lista para la página solicitada.
-                val actualNewSongsList: List<Song> = musicRepository.getAudioFiles(currentSongPage, PAGE_SIZE).first()
+                val actualNewSongsList: List<Song> = withContext(Dispatchers.IO) {
+                    musicRepository.getAudioFiles(currentSongPage, PAGE_SIZE).first()
+                }
 
                 val repoCallDuration = System.currentTimeMillis() - repoCallStartTime
                 Log.d("PlayerViewModelPerformance", "musicRepository.getAudioFiles ($loadType) took $repoCallDuration ms for ${actualNewSongsList.size} songs. Page: $currentSongPage")
 
+                // UI update must be on the Main thread, which is the default context for viewModelScope.launch
                 _playerUiState.update { currentState ->
                     val updatedAllSongs = if (isInitialLoad) {
                         actualNewSongsList.toImmutableList()
@@ -577,11 +585,14 @@ class PlayerViewModel @Inject constructor(
                 if (_playerUiState.value.canLoadMoreAlbums || isInitialLoad) {
                     val repoCallAlbumsStartTime = System.currentTimeMillis()
                     // Colectar la lista de álbumes del Flow
-                    val actualNewAlbums: List<Album> = musicRepository.getAlbums(currentAlbumPage, PAGE_SIZE).first()
+                    val actualNewAlbums: List<Album> = withContext(Dispatchers.IO) {
+                        musicRepository.getAlbums(currentAlbumPage, PAGE_SIZE).first()
+                    }
                     val albumsLoadDuration = System.currentTimeMillis() - repoCallAlbumsStartTime
 
                     Log.d("PlayerViewModelPerformance", "musicRepository.getAlbums $loadTypeLog took $albumsLoadDuration ms for ${actualNewAlbums.size} albums. Page: $currentAlbumPage")
 
+                    // UI update must be on the Main thread
                     _playerUiState.update { currentState ->
                         val updatedAlbums = if (isInitialLoad) {
                             actualNewAlbums.toImmutableList()
@@ -611,11 +622,14 @@ class PlayerViewModel @Inject constructor(
                 if (_playerUiState.value.canLoadMoreArtists || isInitialLoad) {
                     val repoCallArtistsStartTime = System.currentTimeMillis()
                     // Colectar la lista de artistas del Flow
-                    val actualNewArtists: List<Artist> = musicRepository.getArtists(currentArtistPage, PAGE_SIZE).first()
+                    val actualNewArtists: List<Artist> = withContext(Dispatchers.IO) {
+                        musicRepository.getArtists(currentArtistPage, PAGE_SIZE).first()
+                    }
                     val artistsLoadDuration = System.currentTimeMillis() - repoCallArtistsStartTime
 
                     Log.d("PlayerViewModelPerformance", "musicRepository.getArtists $loadTypeLog took $artistsLoadDuration ms for ${actualNewArtists.size} artists. Page: $currentArtistPage")
 
+                    // UI update must be on the Main thread
                     _playerUiState.update { currentState ->
                         val updatedArtists = if (isInitialLoad) {
                             actualNewArtists.toImmutableList()
@@ -692,10 +706,13 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 // Colecta la lista de canciones del Flow
-                val songsList: List<Song> = musicRepository.getSongsForAlbum(album.id).first()
+                val songsList: List<Song> = withContext(Dispatchers.IO) {
+                    musicRepository.getSongsForAlbum(album.id).first()
+                }
 
                 if (songsList.isNotEmpty()) {
                     // Ahora songsList es una List<Song>, y songsList.first() es una Song
+                    // UI updates and calls to playSongs (which might interact with MediaController) should be on Main
                     playSongs(songsList, songsList.first(), album.title)
                     _isSheetVisible.value = true // Mostrar reproductor
                 } else {
@@ -714,10 +731,13 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 // Colecta la lista de canciones del Flow
-                val songsList: List<Song> = musicRepository.getSongsForArtist(artist.id).first()
+                val songsList: List<Song> = withContext(Dispatchers.IO) {
+                    musicRepository.getSongsForArtist(artist.id).first()
+                }
 
                 if (songsList.isNotEmpty()) {
                     // Ahora songsList es una List<Song>, y songsList.first() es una Song
+                    // UI updates and calls to playSongs should be on Main
                     playSongs(songsList, songsList.first(), artist.name)
                     _isSheetVisible.value = true
                 } else {
@@ -1471,7 +1491,9 @@ class PlayerViewModel @Inject constructor(
 
     fun loadSearchHistory(limit: Int = 15) { // Default limit to 15 or configurable
         viewModelScope.launch {
-            val history = musicRepository.getRecentSearchHistory(limit)
+            val history = withContext(Dispatchers.IO) {
+                musicRepository.getRecentSearchHistory(limit)
+            }
             _playerUiState.update { it.copy(searchHistory = history.toImmutableList()) }
         }
     }
@@ -1480,8 +1502,10 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 if (query.isNotBlank()) {
-                    musicRepository.addSearchHistoryItem(query)
-                    loadSearchHistory() // Refresh history after adding new item
+                    withContext(Dispatchers.IO) {
+                        musicRepository.addSearchHistoryItem(query)
+                    }
+                    loadSearchHistory() // Refresh history after adding new item (loadSearchHistory also needs to be checked)
                 }
 
                 if (query.isBlank()) {
@@ -1496,7 +1520,9 @@ class PlayerViewModel @Inject constructor(
                 // Colecta la lista de resultados del Flow.
                 // Asumimos que musicRepository.searchAll devuelve Flow<List<SearchResultItem>>
                 // y que _playerUiState.value.searchResults espera ImmutableList<SearchResultItem>
-                val resultsList: List<SearchResultItem> = musicRepository.searchAll(query, currentFilter).first()
+                val resultsList: List<SearchResultItem> = withContext(Dispatchers.IO) {
+                    musicRepository.searchAll(query, currentFilter).first()
+                }
 
                 _playerUiState.update { it.copy(searchResults = resultsList.toImmutableList()) }
 
@@ -1515,14 +1541,18 @@ class PlayerViewModel @Inject constructor(
 
     fun deleteSearchHistoryItem(query: String) {
         viewModelScope.launch {
-            musicRepository.deleteSearchHistoryItemByQuery(query)
+            withContext(Dispatchers.IO) {
+                musicRepository.deleteSearchHistoryItemByQuery(query)
+            }
             loadSearchHistory() // Refresh the list
         }
     }
 
     fun clearSearchHistory() {
         viewModelScope.launch {
-            musicRepository.clearSearchHistory()
+            withContext(Dispatchers.IO) {
+                musicRepository.clearSearchHistory()
+            }
             _playerUiState.update { it.copy(searchHistory = persistentListOf()) }
         }
     }
