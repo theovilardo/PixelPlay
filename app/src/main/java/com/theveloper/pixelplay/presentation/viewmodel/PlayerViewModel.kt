@@ -646,6 +646,22 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun loadSongsIfNeeded() {
+        val songsEmpty = _playerUiState.value.allSongs.isEmpty()
+        val notLoading = !_playerUiState.value.isLoadingInitialSongs
+
+        Log.d("PlayerViewModel", "loadSongsIfNeeded: songsEmpty=$songsEmpty, notLoadingInitialSongs=$notLoading")
+        if (songsEmpty && notLoading) {
+            Log.i("PlayerViewModel", "loadSongsIfNeeded: Conditions met. Loading all songs.")
+            loadSongsFromRepository()
+        } else {
+            var reason = ""
+            if (!songsEmpty) reason += "Songs not empty. "
+            if (!notLoading) reason += "Currently loading initial songs. "
+            Log.w("PlayerViewModel", "loadSongsIfNeeded: Conditions NOT met. Skipping load. Reason: $reason")
+        }
+    }
+
     // fun loadMoreAlbums() { // REMOVED
     // }
 
