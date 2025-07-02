@@ -99,9 +99,13 @@ fun DailyMixScreen(
 ) {
     Trace.beginSection("DailyMixScreen.Composition")
     val dailyMixSongs: ImmutableList<Song> by playerViewModel.favoriteSongs.collectAsState()
-    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
-    val playerSheetState by playerViewModel.sheetState.collectAsState()
-    val favoriteSongIds by playerViewModel.favoriteSongIds.collectAsState() // Collect favorite IDs
+    // Granular state collection for stablePlayerState fields
+    val currentSongId by remember { playerViewModel.stablePlayerState.map { it.currentSong?.id }.distinctUntilChanged() }.collectAsState(initial = null)
+    val isPlaying by remember { playerViewModel.stablePlayerState.map { it.isPlaying }.distinctUntilChanged() }.collectAsState(initial = false)
+    val isShuffleEnabled by remember { playerViewModel.stablePlayerState.map { it.isShuffleEnabled }.distinctUntilChanged() }.collectAsState(initial = false)
+
+    val playerSheetState by playerViewModel.sheetState.collectAsState() // This is a simple enum, less critical but fine
+    val favoriteSongIds by playerViewModel.favoriteSongIds.collectAsState()
     val lazyListState = rememberLazyListState()
 
     var showSongInfoSheet by remember { mutableStateOf(false) }
@@ -189,7 +193,7 @@ fun DailyMixScreen(
                             onClick = {
                                 if (dailyMixSongs.isNotEmpty()) {
                                     playerViewModel.playSongs(dailyMixSongs, dailyMixSongs.first(), "Daily Mix")
-                                    stablePlayerState.isShuffleEnabled.let { if(it) playerViewModel.toggleShuffle() } // Desactivar shuffle si estaba activo
+                                    if (isShuffleEnabled) playerViewModel.toggleShuffle() // Desactivar shuffle si estaba activo
                                 }
                             },
                             modifier = Modifier
@@ -211,7 +215,7 @@ fun DailyMixScreen(
                         FilledTonalButton(
                             onClick = {
                                 if (dailyMixSongs.isNotEmpty()) {
-                                    stablePlayerState.isShuffleEnabled.let { if(!it) playerViewModel.toggleShuffle() } // Activar shuffle si no estaba activo
+                                    if (!isShuffleEnabled) playerViewModel.toggleShuffle() // Activar shuffle si no estaba activo
                                     playerViewModel.playSongs(dailyMixSongs, dailyMixSongs.random(), "Daily Mix")
                                 }
                             },
@@ -239,7 +243,7 @@ fun DailyMixScreen(
                         modifier = Modifier
                             .padding(horizontal = 16.dp),
                         song = song,
-                        isPlaying = stablePlayerState.currentSong?.id == song.id && stablePlayerState.isPlaying,
+                        isPlaying = currentSongId == song.id && isPlaying,
                         onClick = { playerViewModel.showAndPlaySong(song, dailyMixSongs, "Daily Mix") },
                         onMoreOptionsClick = {
                             selectedSongForInfo = it

@@ -170,7 +170,36 @@ fun UnifiedPlayerSheet(
     }
 
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
-    val playerUiState by playerViewModel.playerUiState.collectAsState()
+    // Granular collection for playerUiState fields used directly by UnifiedPlayerSheet or its main sub-components
+    val currentPosition by remember {
+        playerViewModel.playerUiState.map { it.currentPosition }.distinctUntilChanged()
+    }.collectAsState(initial = 0L)
+    val currentPlaybackQueue by remember {
+        playerViewModel.playerUiState.map { it.currentPlaybackQueue }.distinctUntilChanged()
+    }.collectAsState(initial = persistentListOf())
+    val currentQueueSourceName by remember {
+        playerViewModel.playerUiState.map { it.currentQueueSourceName }.distinctUntilChanged()
+    }.collectAsState(initial = "")
+    val showDismissUndoBar by remember {
+        playerViewModel.playerUiState.map { it.showDismissUndoBar }.distinctUntilChanged()
+    }.collectAsState(initial = false)
+    val dismissedSong by remember {
+        playerViewModel.playerUiState.map { it.dismissedSong }.distinctUntilChanged()
+    }.collectAsState(initial = null)
+    val dismissedQueue by remember {
+        playerViewModel.playerUiState.map { it.dismissedQueue }.distinctUntilChanged()
+    }.collectAsState(initial = persistentListOf())
+    val dismissedQueueName by remember {
+        playerViewModel.playerUiState.map { it.dismissedQueueName }.distinctUntilChanged()
+    }.collectAsState(initial = "")
+    val dismissedPosition by remember {
+        playerViewModel.playerUiState.map { it.dismissedPosition }.distinctUntilChanged()
+    }.collectAsState(initial = 0L)
+    val undoBarVisibleDuration by remember { // Assuming this doesn't change often, mapping for consistency
+        playerViewModel.playerUiState.map { it.undoBarVisibleDuration }.distinctUntilChanged()
+    }.collectAsState(initial = 4000L)
+
+
     val currentSheetContentState by playerViewModel.sheetState.collectAsState()
     val predictiveBackCollapseProgress by playerViewModel.predictiveBackCollapseFraction.collectAsState()
 
@@ -198,9 +227,10 @@ fun UnifiedPlayerSheet(
 
     val showPlayerContentArea by remember { derivedStateOf { stablePlayerState.currentSong != null } }
 
-    val isPlayerSlotOccupied by remember(showPlayerContentArea, playerUiState.showDismissUndoBar) {
+    // Use the granular showDismissUndoBar here
+    val isPlayerSlotOccupied by remember(showPlayerContentArea, showDismissUndoBar) {
         derivedStateOf {
-            showPlayerContentArea || playerUiState.showDismissUndoBar
+            showPlayerContentArea || showDismissUndoBar
         }
     }
 
@@ -706,7 +736,8 @@ fun UnifiedPlayerSheet(
                     .fillMaxSize()
                     .padding(bottom = currentBottomPadding.value.dp)
             ) {
-                if (playerUiState.showDismissUndoBar) {
+            // Use granular showDismissUndoBar and undoBarVisibleDuration
+            if (showDismissUndoBar) {
                     AnimatedVisibility(
                         visible = true,
                         enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
@@ -719,7 +750,7 @@ fun UnifiedPlayerSheet(
                             onUndo = {
                                 playerViewModel.undoDismissPlaylist()
                             },
-                            durationMillis = playerUiState.undoBarVisibleDuration,
+                        durationMillis = undoBarVisibleDuration, // Use granular state
                             modifier = Modifier.height(MiniPlayerHeight)
                         )
                     }
@@ -917,49 +948,58 @@ fun UnifiedPlayerSheet(
                             }
                     ) {
                         if (showPlayerContentArea) {
-                            val currentSong = stablePlayerState.currentSong!!
-                            val miniPlayerAlpha by remember { derivedStateOf { (1f - playerContentExpansionFraction.value * 2f).coerceIn(0f, 1f) } }
-                            if (miniPlayerAlpha > 0.01f) {
-                                CompositionLocalProvider(
-                                    LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.TopCenter)
-                                            .graphicsLayer { alpha = miniPlayerAlpha }
+                            // stablePlayerState.currentSong is already available from the top-level collection
+                            stablePlayerState.currentSong?.let { currentSongNonNull ->
+                                val miniPlayerAlpha by remember { derivedStateOf { (1f - playerContentExpansionFraction.value * 2f).coerceIn(0f, 1f) } }
+                                if (miniPlayerAlpha > 0.01f) {
+                                    CompositionLocalProvider(
+                                        LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
                                     ) {
-                                        MiniPlayerContentInternal(
-                                            song = currentSong, isPlaying = stablePlayerState.isPlaying,
-                                            onPlayPause = { playerViewModel.playPause() }, onNext = { playerViewModel.nextSong() },
-                                            modifier = Modifier.fillMaxSize()
-                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopCenter)
+                                                .graphicsLayer { alpha = miniPlayerAlpha }
+                                        ) {
+                                            MiniPlayerContentInternal(
+                                                song = currentSongNonNull, // Use non-null version
+                                                isPlaying = stablePlayerState.isPlaying, // from top-level stablePlayerState
+                                                onPlayPause = { playerViewModel.playPause() },
+                                                onNext = { playerViewModel.nextSong() },
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
                                     }
                                 }
-                            }
 
-                            if (shouldRenderFullPlayer) {
-                                CompositionLocalProvider(
-                                    LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
-                                ) {
-                                    Box(modifier = Modifier.graphicsLayer {
-                                        alpha = fullPlayerContentAlpha.value
-                                        translationY = fullPlayerTranslationY.value
-                                    }) {
-                                        FullPlayerContentInternal(
-                                            currentSong = stablePlayerState.currentSong,
-                                            isPlaying = stablePlayerState.isPlaying,
-                                            isShuffleEnabled = stablePlayerState.isShuffleEnabled,
-                                            repeatMode = stablePlayerState.repeatMode,
-                                            isFavorite = stablePlayerState.isCurrentSongFavorite,
-                                            onPlayPause = { playerViewModel.playPause() }, onSeek = { playerViewModel.seekTo(it) },
-                                            onNext = { playerViewModel.nextSong() }, onPrevious = { playerViewModel.previousSong() },
-                                            onCollapse = { playerViewModel.collapsePlayerSheet() }, expansionFraction = playerContentExpansionFraction.value,
-                                            currentSheetState = currentSheetContentState, onShowQueueClicked = { showQueueSheet = true },
-                                            onShuffleToggle = { playerViewModel.toggleShuffle() },
-                                            onRepeatToggle = { playerViewModel.cycleRepeatMode() },
-                                            onFavoriteToggle = { playerViewModel.toggleFavorite() },
-                                            playerViewModel = playerViewModel
-                                        )
+                                if (shouldRenderFullPlayer) {
+                                    CompositionLocalProvider(
+                                        LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
+                                    ) {
+                                        Box(modifier = Modifier.graphicsLayer {
+                                            alpha = fullPlayerContentAlpha.value
+                                            translationY = fullPlayerTranslationY.value
+                                        }) {
+                                            FullPlayerContentInternal(
+                                                currentSong = currentSongNonNull, // Use non-null version
+                                                currentPosition = currentPosition, // Pass granular currentPosition
+                                                isPlaying = stablePlayerState.isPlaying,
+                                                isShuffleEnabled = stablePlayerState.isShuffleEnabled,
+                                                repeatMode = stablePlayerState.repeatMode,
+                                                isFavorite = stablePlayerState.isCurrentSongFavorite,
+                                                onPlayPause = { playerViewModel.playPause() },
+                                                onSeek = { playerViewModel.seekTo(it) },
+                                                onNext = { playerViewModel.nextSong() },
+                                                onPrevious = { playerViewModel.previousSong() },
+                                                onCollapse = { playerViewModel.collapsePlayerSheet() },
+                                                expansionFraction = playerContentExpansionFraction.value,
+                                                currentSheetState = currentSheetContentState,
+                                                onShowQueueClicked = { showQueueSheet = true },
+                                                onShuffleToggle = { playerViewModel.toggleShuffle() },
+                                                onRepeatToggle = { playerViewModel.cycleRepeatMode() },
+                                                onFavoriteToggle = { playerViewModel.toggleFavorite() },
+                                                playerViewModel = playerViewModel // Keep passing ViewModel if FullPlayerContentInternal needs other parts of it
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -967,7 +1007,8 @@ fun UnifiedPlayerSheet(
                     }
                 }
 
-                val isPlayerOrUndoBarVisible = showPlayerContentArea || playerUiState.showDismissUndoBar
+                // Use granular showDismissUndoBar
+                val isPlayerOrUndoBarVisible = showPlayerContentArea || showDismissUndoBar
                 if (isPlayerOrUndoBarVisible && !hideNavBar) {
                     val spacerTargetHeight = lerp(
                         start = CollapsedPlayerContentSpacerHeight,
@@ -1050,15 +1091,15 @@ fun UnifiedPlayerSheet(
             LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
         ) {
             QueueBottomSheet(
-                queue = playerUiState.currentPlaybackQueue,
-                currentQueueSourceName = playerUiState.currentQueueSourceName,
-                currentSongId = stablePlayerState.currentSong?.id,
+                queue = currentPlaybackQueue, // Use granular state
+                currentQueueSourceName = currentQueueSourceName, // Use granular state
+                currentSongId = stablePlayerState.currentSong?.id, // stablePlayerState is fine here
                 onDismiss = { showQueueSheet = false },
                 onPlaySong = { song ->
                     playerViewModel.playSongs(
-                        playerUiState.currentPlaybackQueue,
+                        currentPlaybackQueue, // Use granular state
                         song,
-                        playerUiState.currentQueueSourceName
+                        currentQueueSourceName // Use granular state
                     )
                 },
                 onRemoveSong = { songId -> playerViewModel.removeSongFromQueue(songId) },
@@ -1083,7 +1124,7 @@ fun UnifiedPlayerSheet(
 
 @Composable
 private fun PlayerProgressBarSection(
-    currentPositionValue: Long,
+    currentPosition: Long, // Changed from currentPositionValue
     totalDurationValue: Long,
     progressFractionValue: Float,
     onSeek: (Long) -> Unit,
@@ -1131,7 +1172,7 @@ private fun PlayerProgressBarSection(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                formatDuration(currentPositionValue),
+                formatDuration(currentPosition), // Use currentPosition
                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                 color = timeTextColor,
                 fontSize = 12.sp
@@ -1303,6 +1344,7 @@ private enum class ButtonType {
 @Composable
 private fun FullPlayerContentInternal(
     currentSong: Song?,
+    currentPosition: Long, // Added currentPosition
     isPlaying: Boolean,
     isShuffleEnabled: Boolean,
     repeatMode: Int,
@@ -1318,20 +1360,18 @@ private fun FullPlayerContentInternal(
     onShuffleToggle: () -> Unit,
     onRepeatToggle: () -> Unit,
     onFavoriteToggle: () -> Unit,
-    playerViewModel: PlayerViewModel
+    playerViewModel: PlayerViewModel // Kept for stablePlayerState access for totalDuration, or could pass totalDuration too
 ) {
     val song = currentSong ?: return
 
-    val currentPositionValue by remember(playerViewModel.playerUiState) {
-        playerViewModel.playerUiState.map { it.currentPosition }
-    }.collectAsStateWithLifecycle(initialValue = playerViewModel.playerUiState.value.currentPosition)
+    // totalDurationValue is still needed from stablePlayerState, or could be passed granularly too.
+    // For this iteration, we'll keep stablePlayerState for totalDuration.
+    val totalDurationValue by remember {
+        playerViewModel.stablePlayerState.map { it.totalDuration }.distinctUntilChanged()
+    }.collectAsState(initial = 0L)
 
-    val totalDurationValue by remember(playerViewModel.stablePlayerState) {
-        playerViewModel.stablePlayerState.map { it.totalDuration }
-    }.collectAsStateWithLifecycle(initialValue = playerViewModel.stablePlayerState.value.totalDuration)
-
-    val progressFractionValue = remember(currentPositionValue, totalDurationValue) {
-        (currentPositionValue.coerceAtLeast(0).toFloat() /
+    val progressFractionValue = remember(currentPosition, totalDurationValue) { // Use injected currentPosition
+        (currentPosition.coerceAtLeast(0).toFloat() /
                 totalDurationValue.coerceAtLeast(1).toFloat())
     }.coerceIn(0f, 1f)
 
@@ -1424,7 +1464,7 @@ private fun FullPlayerContentInternal(
 
             // Progress Bar and Times
             PlayerProgressBarSection(
-                currentPositionValue = currentPositionValue,
+                currentPosition = currentPosition, // Pass granular currentPosition
                 totalDurationValue = totalDurationValue,
                 progressFractionValue = progressFractionValue,
                 onSeek = onSeek,
