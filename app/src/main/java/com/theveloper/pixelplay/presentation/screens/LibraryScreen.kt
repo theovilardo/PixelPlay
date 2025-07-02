@@ -132,6 +132,7 @@ fun LibraryScreen(
 ) {
     // La recolección de estados de alto nivel se mantiene mínima.
     val lastTabIndex by playerViewModel.lastLibraryTabIndexFlow.collectAsState()
+    val favoriteIds by playerViewModel.favoriteSongIds.collectAsState() // Reintroducir favoriteIds aquí
     val scope = rememberCoroutineScope() // Mantener si se usa para acciones de UI
 
     // Estados locales para dialogs/bottom sheets, etc.
