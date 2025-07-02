@@ -196,6 +196,54 @@ class PlayerViewModel @Inject constructor(
             initialValue = 0 // Default to Songs tab
         )
 
+    // CAMBIO 1: Añadir estado para rastrear las pestañas ya cargadas.
+    private val _loadedTabs = MutableStateFlow(emptySet<Int>())
+
+    // CAMBIO 3: Mover la lógica de las opciones de ordenamiento al ViewModel.
+    val availableSortOptions: StateFlow<List<SortOption>> =
+        lastLibraryTabIndexFlow.map { tabIndex ->
+            Trace.beginSection("PlayerViewModel.availableSortOptionsMapping")
+            val options = when (tabIndex) {
+                0 -> listOf(
+                    SortOption.SongTitleAZ,
+                    SortOption.SongTitleZA,
+                    SortOption.SongArtist,
+                    SortOption.SongAlbum,
+                    SortOption.SongDateAdded,
+                    SortOption.SongDuration
+                )
+                1 -> listOf(
+                    SortOption.AlbumTitleAZ,
+                    SortOption.AlbumTitleZA,
+                    SortOption.AlbumArtist,
+                    SortOption.AlbumReleaseYear
+                )
+                2 -> listOf(SortOption.ArtistNameAZ, SortOption.ArtistNameZA)
+                3 -> listOf( // Assuming Playlist sort options might exist
+                    SortOption.PlaylistNameAZ,
+                    SortOption.PlaylistNameZA,
+                    SortOption.PlaylistDateCreated
+                )
+                4 -> listOf(
+                    SortOption.LikedSongTitleAZ,
+                    SortOption.LikedSongTitleZA,
+                    SortOption.LikedSongArtist,
+                    SortOption.LikedSongAlbum,
+                    SortOption.LikedSongDateLiked
+                )
+                else -> emptyList()
+            }
+            Trace.endSection()
+            options
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = listOf( // Provide a default initial value based on initialTab index 0
+                SortOption.SongTitleAZ, SortOption.SongTitleZA, SortOption.SongArtist,
+                SortOption.SongAlbum, SortOption.SongDateAdded, SortOption.SongDuration
+            )
+        )
+
     // StateFlow to hold the sync status, converted from syncManager.isSyncing (Flow)
     // Initial value true, as we might assume sync is active on app start until proven otherwise.
     val isSyncingStateFlow: StateFlow<Boolean> = syncManager.isSyncing
@@ -1806,5 +1854,45 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferencesRepository.saveLastLibraryTabIndex(tabIndex)
         }
+    }
+
+    // CAMBIO 1: Nueva función para manejar la carga de datos de forma diferida (lazy).
+    fun onLibraryTabSelected(tabIndex: Int) {
+        Trace.beginSection("PlayerViewModel.onLibraryTabSelected")
+        // Guarda el índice para la próxima vez que el usuario abra la app.
+        // Esta llamada ya está en el ViewModel, así que la lógica de persistencia está bien.
+        // No necesitamos llamarla explícitamente aquí si ya se llama cuando cambia el tab en la UI.
+        // Sin embargo, si esta función es la *única* fuente de verdad para la selección de tabs,
+        // entonces sí es necesario llamar a saveLastLibraryTabIndex(tabIndex).
+        // La especificación indica que LibraryScreen lo llamará, así que aquí es correcto.
+        saveLastLibraryTabIndex(tabIndex)
+
+        // Si la pestaña ya fue cargada, no hacemos nada para evitar trabajo innecesario.
+        if (_loadedTabs.value.contains(tabIndex)) {
+            Log.d("PlayerViewModel", "Tab $tabIndex already loaded. Skipping data load.")
+            Trace.endSection()
+            return
+        }
+
+        Log.d("PlayerViewModel", "Tab $tabIndex selected. Attempting to load data.")
+        // Inicia la carga de datos para la pestaña seleccionada en un hilo de fondo.
+        viewModelScope.launch {
+            Trace.beginSection("PlayerViewModel.onLibraryTabSelected_coroutine_load")
+            try {
+                when (tabIndex) {
+                    0 -> loadSongsIfNeeded() // Carga canciones si es necesario
+                    1 -> loadAlbumsIfNeeded() // Carga álbumes si es necesario
+                    2 -> loadArtistsIfNeeded() // Carga artistas si es necesario
+                    // Las pestañas 3 (Playlists) y 4 (Liked) ya tienen su propia lógica
+                    // de carga a través de otros ViewModels o flujos, lo cual está bien.
+                }
+                // Marca la pestaña como cargada para no volver a cargarla.
+                _loadedTabs.update { currentTabs -> currentTabs + tabIndex }
+                Log.d("PlayerViewModel", "Tab $tabIndex marked as loaded. Current loaded tabs: ${_loadedTabs.value}")
+            } finally {
+                Trace.endSection() // End PlayerViewModel.onLibraryTabSelected_coroutine_load
+            }
+        }
+        Trace.endSection() // End PlayerViewModel.onLibraryTabSelected
     }
 }
