@@ -910,6 +910,12 @@ class PlayerViewModel @Inject constructor(
     // Modificado para establecer una lista de reproducción
     // Modificar playSongs para que la cola sea la lista completa de allSongs si se inicia desde ahí
     fun playSongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None") {
+        viewModelScope.launch {
+            internalPlaySongs(songsToPlay, startSong, queueName)
+        }
+    }
+
+    private suspend fun internalPlaySongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None") {
         // Old EOT deactivation logic removed, handled by eotSongMonitorJob
         mediaController?.let { controller ->
             // Si la lista de canciones a reproducir es la lista 'allSongs' (paginada),
@@ -918,12 +924,24 @@ class PlayerViewModel @Inject constructor(
             // o la cola se limita a lo ya cargado.
             // Por ahora, usaremos `songsToPlay` como viene.
             val mediaItems = songsToPlay.map { song ->
-                val metadata = MediaMetadata.Builder()
+                val artworkBytes = loadArtworkData(song.albumArtUriString)
+                val metadataBuilder = MediaMetadata.Builder()
                     .setTitle(song.title)
                     .setArtist(song.artist)
-                    .setArtworkUri(song.albumArtUriString?.toUri())
-                    // .setAlbumTitle(song.album) // Opcional: Considerar añadir si es útil
-                    .build()
+                    // .setAlbumTitle(song.album) // Opcional
+
+                if (artworkBytes != null) {
+                    metadataBuilder.setArtworkData(artworkBytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
+                } else {
+                    // Fallback: still set the URI if bytes are not available.
+                    // Media3 might handle this URI loading asynchronously or it might be null.
+                    // This is better than crashing if loadArtworkData fails.
+                    // The original StrictMode violation might still occur if this URI is problematic AND resolution fails.
+                    song.albumArtUriString?.toUri()?.let { metadataBuilder.setArtworkUri(it) }
+                }
+
+                val metadata = metadataBuilder.build()
+
                 MediaItem.Builder()
                     .setMediaId(song.id)
                     .setUri(song.contentUriString.toUri())
@@ -938,16 +956,15 @@ class PlayerViewModel @Inject constructor(
                 controller.play()
                 _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
                 //_stablePlayerState.update { it.copy(currentSong = startSong, isPlaying = true) }
-                viewModelScope.launch {
-                    startSong.albumArtUriString?.toUri()?.let { uri ->
-                        extractAndGenerateColorScheme(uri)
-                    }
-                }
-                updateFavoriteStatusForCurrentSong()
+                // The extractAndGenerateColorScheme call will happen via onMediaItemTransition listener setup,
+                // so no need to explicitly call it here for startSong after this refactor.
+                // The listener should pick up the current song and process its artwork URI.
+                updateFavoriteStatusForCurrentSong() // This depends on stablePlayerState.currentSong, ensure it's updated timely.
             }
         }
         _playerUiState.update { it.copy(isLoadingInitialSongs = false) } // Marcar que la carga inicial de esta canción terminó
     }
+
 
     private fun loadAndPlaySong(song: Song) {
         mediaController?.let { controller ->
@@ -1341,6 +1358,40 @@ class PlayerViewModel @Inject constructor(
     private fun stopProgressUpdates() {
         progressJob?.cancel()
         progressJob = null
+    }
+
+    private suspend fun loadArtworkData(uriString: String?): ByteArray? {
+        if (uriString == null) return null
+        return withContext(Dispatchers.IO) {
+            try {
+                val request = ImageRequest.Builder(context)
+                    .data(uriString.toUri())
+                    .size(Size(256, 256)) // Consistent with MusicService, can be adjusted
+                    .allowHardware(false) // Important for direct manipulation/conversion
+                    .bitmapConfig(Bitmap.Config.ARGB_8888)
+                    .build()
+                val drawable = context.imageLoader.execute(request).drawable
+                drawable?.let {
+                    val bitmap = it.toBitmap(
+                        width = it.intrinsicWidth.coerceAtMost(256).coerceAtLeast(1),
+                        height = it.intrinsicHeight.coerceAtMost(256).coerceAtLeast(1),
+                        config = Bitmap.Config.ARGB_8888
+                    )
+
+                    val stream = java.io.ByteArrayOutputStream()
+                    // Use WEBP for better quality/compression if possible, or JPEG with decent quality.
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                        bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 80, stream)
+                    } else {
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream)
+                    }
+                    stream.toByteArray()
+                }
+            } catch (e: Exception) {
+                Log.e("PlayerViewModel", "Error loading artwork data for MediaMetadata: $uriString", e)
+                null
+            }
+        }
     }
 
     //Sorting
