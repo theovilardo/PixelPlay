@@ -12,20 +12,16 @@ import kotlinx.coroutines.flow.Flow
 
 interface MusicRepository {
     /**
-     * Obtiene la lista de archivos de audio (canciones) paginada y filtrada por directorios permitidos.
-     * @param page El número de página (empezando en 1).
-     * @param pageSize El número de elementos por página.
-     * @return Flow que emite una lista de objetos Song para la página solicitada.
+     * Obtiene la lista de archivos de audio (canciones) filtrada por directorios permitidos.
+     * @return Flow que emite una lista completa de objetos Song.
      */
-    fun getAudioFiles(page: Int, pageSize: Int): Flow<List<Song>>
+    fun getAudioFiles(): Flow<List<Song>>
 
     /**
-     * Obtiene la lista de álbumes paginada y filtrada.
-     * @param page El número de página (empezando en 1).
-     * @param pageSize El número de elementos por página.
-     * @return Flow que emite una lista de objetos Album para la página solicitada.
+     * Obtiene la lista de álbumes filtrada.
+     * @return Flow que emite una lista completa de objetos Album.
      */
-    fun getAlbums(page: Int, pageSize: Int): Flow<List<Album>>
+    fun getAlbums(): Flow<List<Album>>
 
     /**
      * Obtiene un álbum específico por su ID.
@@ -35,12 +31,10 @@ interface MusicRepository {
     fun getAlbumById(id: Long): Flow<Album?>
 
     /**
-     * Obtiene la lista de artistas paginada y filtrada.
-     * @param page El número de página (empezando en 1).
-     * @param pageSize El número de elementos por página.
-     * @return Flow que emite una lista de objetos Artist para la página solicitada.
+     * Obtiene la lista de artistas filtrada.
+     * @return Flow que emite una lista completa de objetos Artist.
      */
-    fun getArtists(page: Int, pageSize: Int): Flow<List<Artist>>
+    fun getArtists(): Flow<List<Artist>>
 
     /**
      * Obtiene la lista de canciones para un álbum específico (NO paginada para la cola de reproducción).

@@ -47,11 +47,8 @@ interface MusicDao {
         SELECT * FROM songs
         WHERE (:applyDirectoryFilter = 0 OR parent_directory_path IN (:allowedParentDirs))
         ORDER BY title ASC
-        LIMIT :pageSize OFFSET :offset
     """)
     fun getSongs(
-        pageSize: Int,
-        offset: Int,
         allowedParentDirs: List<String>,
         applyDirectoryFilter: Boolean
     ): Flow<List<SongEntity>>
@@ -98,11 +95,8 @@ interface MusicDao {
         INNER JOIN songs ON albums.id = songs.album_id
         WHERE (:applyDirectoryFilter = 0 OR songs.parent_directory_path IN (:allowedParentDirs))
         ORDER BY albums.title ASC
-        LIMIT :pageSize OFFSET :offset
     """)
     fun getAlbums(
-        pageSize: Int,
-        offset: Int,
         allowedParentDirs: List<String>,
         applyDirectoryFilter: Boolean
     ): Flow<List<AlbumEntity>>
@@ -138,11 +132,8 @@ interface MusicDao {
         INNER JOIN songs ON artists.id = songs.artist_id
         WHERE (:applyDirectoryFilter = 0 OR songs.parent_directory_path IN (:allowedParentDirs))
         ORDER BY artists.name ASC
-        LIMIT :pageSize OFFSET :offset
     """)
     fun getArtists(
-        pageSize: Int,
-        offset: Int,
         allowedParentDirs: List<String>,
         applyDirectoryFilter: Boolean
     ): Flow<List<ArtistEntity>>

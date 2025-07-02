@@ -102,8 +102,8 @@ import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.data.model.Playlist
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.model.SortOption
-import com.theveloper.pixelplay.presentation.components.InfiniteGridHandler
-import com.theveloper.pixelplay.presentation.components.InfiniteListHandler
+// import com.theveloper.pixelplay.presentation.components.InfiniteGridHandler // Removed
+// import com.theveloper.pixelplay.presentation.components.InfiniteListHandler // Removed
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.NavBarPersistentHeight
 import com.theveloper.pixelplay.presentation.components.PlayerSheetCollapsedCornerRadius
@@ -166,11 +166,11 @@ fun LibraryScreen(
     var selectedSortOptionForLiked by remember { mutableStateOf<SortOption>(SortOption.LikedSongTitleAZ) }
 
 
-    LaunchedEffect(Unit) {
-        if (uiState.allSongs.isEmpty() && uiState.canLoadMoreSongs) playerViewModel.loadMoreSongs()
-        if (uiState.albums.isEmpty() && uiState.canLoadMoreAlbums) playerViewModel.loadMoreAlbums()
-        if (uiState.artists.isEmpty() && uiState.canLoadMoreArtists) playerViewModel.loadMoreArtists()
-    }
+    // LaunchedEffect(Unit) { // Removed - ViewModel now loads all data initially or on demand per tab
+    //     if (uiState.allSongs.isEmpty() /* && uiState.canLoadMoreSongs */) playerViewModel.loadMoreSongs() // canLoadMoreSongs removed
+    //     if (uiState.albums.isEmpty() /* && uiState.canLoadMoreAlbums */) playerViewModel.loadMoreAlbums() // canLoadMoreAlbums removed
+    //     if (uiState.artists.isEmpty() /* && uiState.canLoadMoreArtists */) playerViewModel.loadMoreArtists() // canLoadMoreArtists removed
+    // }
 
     val fabState by remember { derivedStateOf { pagerState.currentPage } }
     val transition = updateTransition(targetState = fabState, label = "Action Button Icon Transition")
@@ -426,8 +426,8 @@ fun LibraryScreen(
                                     0 -> LibrarySongsTab(
                                         songs = uiState.allSongs,
                                         isLoadingInitial = uiState.isLoadingInitialSongs,
-                                        isLoadingMore = uiState.isLoadingMoreSongs,
-                                        canLoadMore = uiState.canLoadMoreSongs,
+                                        // isLoadingMore = uiState.isLoadingMoreSongs, // Removed
+                                        // canLoadMore = uiState.canLoadMoreSongs, // Removed
                                         playerViewModel = playerViewModel,
                                         bottomBarHeight = bottomBarHeightDp
                                     ) { songFromItem ->
@@ -437,8 +437,8 @@ fun LibraryScreen(
 
                                     1 -> LibraryAlbumsTab(
                                         albums = uiState.albums,
-                                        isLoading = uiState.isLoadingLibraryCategories, // Podría necesitar un isLoadingAlbums específico
-                                        canLoadMore = uiState.canLoadMoreAlbums,
+                                        isLoading = uiState.isLoadingLibraryCategories, // This now covers the whole load for albums
+                                        // canLoadMore = uiState.canLoadMoreAlbums, // Removed
                                         playerViewModel = playerViewModel,
                                         bottomBarHeight = bottomBarHeightDp,
                                         onAlbumClick = { albumId ->
@@ -448,8 +448,8 @@ fun LibraryScreen(
 
                                     2 -> LibraryArtistsTab(
                                         artists = uiState.artists,
-                                        isLoading = uiState.isLoadingLibraryCategories, // Podría necesitar un isLoadingArtists específico
-                                        canLoadMore = uiState.canLoadMoreArtists,
+                                        isLoading = uiState.isLoadingLibraryCategories, // This now covers the whole load for artists
+                                        // canLoadMore = uiState.canLoadMoreArtists, // Removed
                                         playerViewModel = playerViewModel,
                                         bottomBarHeight = bottomBarHeightDp
                                     )
@@ -679,8 +679,8 @@ fun LibraryFavoritesTab(
 fun LibrarySongsTab(
     songs: ImmutableList<Song>,
     isLoadingInitial: Boolean,
-    isLoadingMore: Boolean,
-    canLoadMore: Boolean,
+    // isLoadingMore: Boolean, // Removed
+    // canLoadMore: Boolean, // Removed
     playerViewModel: PlayerViewModel,
     bottomBarHeight: Dp,
     onMoreOptionsClick: (Song) -> Unit
@@ -720,7 +720,7 @@ fun LibrarySongsTab(
                     }
                 }
             }
-            songs.isEmpty() && !canLoadMore && !isLoadingInitial -> {
+            songs.isEmpty() && !isLoadingInitial -> { // canLoadMore removed from condition
                 Box(
                     modifier = Modifier.fillMaxSize().padding(16.dp),
                     contentAlignment = Alignment.Center
@@ -771,14 +771,15 @@ fun LibrarySongsTab(
                                 playerViewModel.showAndPlaySong(song)
                             }
                         }
-                        if (isLoadingMore) {
-                            item {
-                                Box(
-                                    Modifier.fillMaxWidth().padding(vertical = 16.dp),
-                                    contentAlignment = Alignment.Center
-                                ) { CircularProgressIndicator() }
-                            }
-                        }
+                        // isLoadingMore indicator removed as all songs are loaded at once.
+                        // if (isLoadingMore) {
+                        //     item {
+                        //         Box(
+                        //             Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                        //             contentAlignment = Alignment.Center
+                        //         ) { CircularProgressIndicator() }
+                        //     }
+                        // }
                     }
                 }
                 Box(
@@ -791,11 +792,12 @@ fun LibrarySongsTab(
                             )
                         )
                 )
-                InfiniteListHandler(listState = listState) {
-                    if (canLoadMore && !isLoadingMore) {
-                        playerViewModel.loadMoreSongs()
-                    }
-                }
+                // InfiniteListHandler removed as all songs are loaded at once.
+                // InfiniteListHandler(listState = listState) {
+                //     if (canLoadMore && !isLoadingMore) {
+                //         playerViewModel.loadMoreSongs()
+                //     }
+                // }
             }
         }
     }
@@ -974,8 +976,8 @@ fun EnhancedSongListItem(
 @Composable
 fun LibraryAlbumsTab(
     albums: ImmutableList<Album>,
-    isLoading: Boolean, // Usar este en lugar de uiState.isLoadingLibraryCategories
-    canLoadMore: Boolean, // Usar este en lugar de uiState.canLoadMoreAlbums
+    isLoading: Boolean, // This now represents the loading state for all albums
+    // canLoadMore: Boolean, // Removed
     playerViewModel: PlayerViewModel,
     bottomBarHeight: Dp,
     onAlbumClick: (Long) -> Unit
@@ -983,7 +985,7 @@ fun LibraryAlbumsTab(
     val gridState = rememberLazyGridState()
     if (isLoading && albums.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-    } else if (albums.isEmpty() && !canLoadMore) {
+    } else if (albums.isEmpty() && !isLoading) { // canLoadMore removed
         Box(modifier = Modifier
             .fillMaxSize()
             .padding(16.dp), contentAlignment = Alignment.Center) {
@@ -1023,13 +1025,14 @@ fun LibraryAlbumsTab(
                         isLoading = isLoading && albums.isEmpty() // Shimmer solo si está cargando Y la lista está vacía
                     )
                 }
-                if (isLoading && albums.isNotEmpty()) { // Indicador de carga "more"
-                    item(span = { GridItemSpan(maxLineSpan) }) { // Asegurar que ocupe todo el ancho
-                        Box(Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp), Alignment.Center) { CircularProgressIndicator() }
-                    }
-                }
+                // "Load more" indicator removed as all albums are loaded at once
+                // if (isLoading && albums.isNotEmpty()) {
+                //     item(span = { GridItemSpan(maxLineSpan) }) {
+                //         Box(Modifier
+                //             .fillMaxWidth()
+                //             .padding(16.dp), Alignment.Center) { CircularProgressIndicator() }
+                //     }
+                // }
             }
             Box(
                 modifier = Modifier
@@ -1042,11 +1045,12 @@ fun LibraryAlbumsTab(
                     )
                     .align(Alignment.TopCenter)
             )
-            InfiniteGridHandler(gridState = gridState) {
-                if (canLoadMore && !isLoading) {
-                    playerViewModel.loadMoreAlbums()
-                }
-            }
+            // InfiniteGridHandler removed as all albums are loaded at once
+            // InfiniteGridHandler(gridState = gridState) {
+            //     if (canLoadMore && !isLoading) {
+            //         playerViewModel.loadMoreAlbums()
+            //     }
+            // }
         }
     }
 }
@@ -1187,14 +1191,14 @@ fun AlbumGridItemRedesigned(
 @Composable
 fun LibraryArtistsTab(
     artists: ImmutableList<Artist>,
-    isLoading: Boolean, // Usar este
-    canLoadMore: Boolean, // Usar este
+    isLoading: Boolean, // This now represents the loading state for all artists
+    // canLoadMore: Boolean, // Removed
     playerViewModel: PlayerViewModel,
     bottomBarHeight: Dp
 ) {
     val listState = rememberLazyListState()
     if (isLoading && artists.isEmpty()) { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
-    else if (artists.isEmpty() && !canLoadMore) { /* ... No artists ... */ }
+    else if (artists.isEmpty() && !isLoading) { /* ... No artists ... */ } // canLoadMore removed
     else {
         Box(
             modifier = Modifier.fillMaxSize()
@@ -1218,11 +1222,12 @@ fun LibraryArtistsTab(
                     Spacer(Modifier.height(4.dp))
                 }
                 items(artists, key = { "artist_${it.id}" }) { artist -> ArtistListItem(artist = artist) { playerViewModel.playArtist(artist) } }
-                if (isLoading && artists.isNotEmpty()) { // Indicador de carga "more"
-                    item { Box(Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp), Alignment.Center) { CircularProgressIndicator() } }
-                }
+                // "Load more" indicator removed as all artists are loaded at once
+                // if (isLoading && artists.isNotEmpty()) {
+                //     item { Box(Modifier
+                //         .fillMaxWidth()
+                //         .padding(16.dp), Alignment.Center) { CircularProgressIndicator() } }
+                // }
             }
             Box(
                 modifier = Modifier
@@ -1235,11 +1240,12 @@ fun LibraryArtistsTab(
                     )
                     .align(Alignment.TopCenter)
             )
-            InfiniteListHandler(listState = listState) {
-                if (canLoadMore && !isLoading) {
-                    playerViewModel.loadMoreArtists()
-                }
-            }
+            // InfiniteListHandler removed as all artists are loaded at once
+            // InfiniteListHandler(listState = listState) {
+            //     if (canLoadMore && !isLoading) {
+            //         playerViewModel.loadMoreArtists()
+            //     }
+            // }
         }
     }
 }
