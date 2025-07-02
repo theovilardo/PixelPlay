@@ -255,7 +255,7 @@ class PlayerViewModel @Inject constructor(
     val favoriteSongIds: StateFlow<Set<String>> = userPreferencesRepository.favoriteSongIdsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     // StateFlow separado para la opción de ordenación de canciones favoritas
-    private val _currentFavoriteSortOptionStateFlow = MutableStateFlow(SortOption.LikedSongTitleAZ) // Default
+    private val _currentFavoriteSortOptionStateFlow = MutableStateFlow<SortOption>(SortOption.LikedSongTitleAZ) // Default. Especificar el tipo general SortOption.
     val currentFavoriteSortOptionStateFlow: StateFlow<SortOption> = _currentFavoriteSortOptionStateFlow.asStateFlow()
 
     // Nuevo StateFlow para la lista de objetos Song favoritos
