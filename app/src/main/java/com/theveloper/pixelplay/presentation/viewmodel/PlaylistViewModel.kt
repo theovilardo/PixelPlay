@@ -123,7 +123,7 @@ class PlaylistViewModel @Inject constructor(
             try {
                 // Colectar la lista de canciones del Flow en un hilo de IO
                 val actualNewSongsList: List<Song> = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    musicRepository.getAudioFiles(pageToLoad, SONG_SELECTION_PAGE_SIZE).first()
+                    musicRepository.getAudioFiles().first()
                 }
                 Log.d("PlaylistVM", "Loaded ${actualNewSongsList.size} songs for selection.")
 

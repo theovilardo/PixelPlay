@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
@@ -169,8 +170,8 @@ fun DailyMixHeader(thumbnails: ImmutableList<Song>) {
                     Box(
                         modifier = modifier
                             //.size(48.dp)
-                            .clip(ThreeShapeSwitch(index))
-                            .border(2.dp, MaterialTheme.colorScheme.surface, ThreeShapeSwitch(index))
+                            .clip(threeShapeSwitch(index))
+                            .border(2.dp, MaterialTheme.colorScheme.surface, threeShapeSwitch(index))
                     ) {
                         SmartImage(
                             model = song.albumArtUriString ?: R.drawable.rounded_album_24,
@@ -186,7 +187,7 @@ fun DailyMixHeader(thumbnails: ImmutableList<Song>) {
 }
 
 @Composable
-fun ThreeShapeSwitch(index: Int): Shape { // Ensure the function returns a Shape
+fun threeShapeSwitch(index: Int, thirdShapeCornerRadius: Dp = 16.dp): Shape { // Ensure the function returns a Shape
     return when (index) { // Return the result of the when expression
         0 -> RoundedStarShape(
             sides = 6,
@@ -194,12 +195,12 @@ fun ThreeShapeSwitch(index: Int): Shape { // Ensure the function returns a Shape
         )
         1 -> CircleShape
         2 -> AbsoluteSmoothCornerShape(
-            cornerRadiusBL = 16.dp,
-            cornerRadiusTR = 16.dp,
+            cornerRadiusBL = thirdShapeCornerRadius,
+            cornerRadiusTR = thirdShapeCornerRadius,
             smoothnessAsPercentBL = 60,
             smoothnessAsPercentTR = 60,
-            cornerRadiusTL = 16.dp,
-            cornerRadiusBR = 16.dp,
+            cornerRadiusTL = thirdShapeCornerRadius,
+            cornerRadiusBR = thirdShapeCornerRadius,
             smoothnessAsPercentTL = 60,
             smoothnessAsPercentBR = 60
         )

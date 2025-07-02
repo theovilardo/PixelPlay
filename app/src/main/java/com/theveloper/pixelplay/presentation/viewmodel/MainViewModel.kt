@@ -35,7 +35,7 @@ class MainViewModel @Inject constructor(
     val isLibraryEmpty: StateFlow<Boolean> = musicRepository
         // --- CORRECCIÓN AQUÍ ---
         // Llamamos al método correcto pidiendo solo la primera canción para verificar si la biblioteca está vacía.
-        .getAudioFiles(page = 1, pageSize = 1)
+        .getAudioFiles()
         .map { it.isEmpty() }
         .stateIn(
             scope = viewModelScope,
