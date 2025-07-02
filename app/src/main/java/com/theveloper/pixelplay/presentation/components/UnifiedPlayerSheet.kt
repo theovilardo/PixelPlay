@@ -1079,6 +1079,113 @@ fun UnifiedPlayerSheet(
 }
 
 @Composable
+private fun PlayerProgressBarSection(
+    currentPositionValue: Long,
+    totalDurationValue: Long,
+    progressFractionValue: Float,
+    onSeek: (Long) -> Unit,
+    expansionFraction: Float,
+    isPlaying: Boolean,
+    currentSheetState: PlayerSheetState,
+    activeTrackColor: Color,
+    inactiveTrackColor: Color,
+    thumbColor: Color,
+    timeTextColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = lerp(2.dp, 10.dp, expansionFraction))
+            .graphicsLayer {
+                alpha = expansionFraction
+            }
+            .heightIn(min = 70.dp)
+    ) {
+        val onSliderValueChange = remember(onSeek, totalDurationValue) {
+            { frac: Float -> onSeek((frac * totalDurationValue).roundToLong()) }
+        }
+        WavyMusicSlider(
+            valueProvider = { progressFractionValue },
+            onValueChange = onSliderValueChange,
+            onValueChangeFinished = { /* No specific action on finish needed for now */ },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            trackHeight = 6.dp,
+            thumbRadius = 8.dp,
+            activeTrackColor = activeTrackColor,
+            inactiveTrackColor = inactiveTrackColor,
+            thumbColor = thumbColor,
+            waveFrequency = 0.08f,
+            isPlaying = (isPlaying && currentSheetState == PlayerSheetState.EXPANDED) // Wave animation only when expanded and playing
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                formatDuration(currentPositionValue),
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                color = timeTextColor,
+                fontSize = 12.sp
+            )
+            Text(
+                formatDuration(totalDurationValue),
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                color = timeTextColor,
+                fontSize = 12.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlayerSongInfo(
+    title: String,
+    artist: String,
+    expansionFraction: Float,
+    textColor: Color,
+    artistTextColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .padding(vertical = lerp(2.dp, 10.dp, expansionFraction))
+            .fillMaxWidth(0.9f)
+            .graphicsLayer {
+                alpha = expansionFraction
+                translationY = (1f - expansionFraction) * 24f
+            }
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineSmall.copy(
+                fontWeight = FontWeight.Bold,
+                fontFamily = GoogleSansRounded
+            ),
+            color = textColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = artist,
+            style = MaterialTheme.typography.titleMedium.copy(letterSpacing = 0.sp),
+            color = artistTextColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
 fun getNavigationBarHeight(): Dp {
     val insets = WindowInsets.safeDrawing.asPaddingValues()
     return insets.calculateBottomPadding()
@@ -1304,86 +1411,28 @@ private fun FullPlayerContentInternal(
             )
 
             // Song Info
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .padding(vertical = lerp(2.dp, 10.dp, expansionFraction))
-                    .fillMaxWidth(0.9f)
-                    .graphicsLayer {
-                        alpha = expansionFraction
-                        translationY = (1f - expansionFraction) * 24f
-                    }
-            ) {
-                Text(
-                    text = song.title,
-                    style = MaterialTheme.typography.headlineSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = GoogleSansRounded
-                    ),
-                    color = LocalMaterialTheme.current.onPrimaryContainer,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = song.artist,
-                    style = MaterialTheme.typography.titleMedium.copy(letterSpacing = 0.sp),
-                    color = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.8f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center
-                )
-            }
+            PlayerSongInfo(
+                title = song.title,
+                artist = song.artist,
+                expansionFraction = expansionFraction,
+                textColor = LocalMaterialTheme.current.onPrimaryContainer,
+                artistTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.8f)
+            )
 
             // Progress Bar and Times
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = lerp(2.dp, 10.dp, expansionFraction))
-                    .graphicsLayer {
-                        alpha = expansionFraction
-                    }
-                    .heightIn(min = 70.dp)
-            ) {
-                val onSliderValueChange = remember(onSeek, totalDurationValue) { { frac: Float -> onSeek((frac * totalDurationValue).roundToLong()) } }
-                WavyMusicSlider(
-                    valueProvider = { progressFractionValue },
-                    onValueChange = onSliderValueChange,
-                    onValueChangeFinished = {
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    trackHeight = 6.dp,
-                    thumbRadius = 8.dp,
-                    activeTrackColor = LocalMaterialTheme.current.primary,
-                    inactiveTrackColor = LocalMaterialTheme.current.primary.copy(alpha = 0.2f),
-                    thumbColor = LocalMaterialTheme.current.primary,
-                    waveFrequency = 0.08f,
-                    isPlaying = (isPlaying && currentSheetState == PlayerSheetState.EXPANDED)
-                )
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        formatDuration(currentPositionValue),
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                        color = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f),
-                        fontSize = 12.sp
-                    )
-                    Text(
-                        formatDuration(totalDurationValue),
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                        color = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f),
-                        fontSize = 12.sp
-                    )
-                }
-            }
+            PlayerProgressBarSection(
+                currentPositionValue = currentPositionValue,
+                totalDurationValue = totalDurationValue,
+                progressFractionValue = progressFractionValue,
+                onSeek = onSeek,
+                expansionFraction = expansionFraction,
+                isPlaying = isPlaying,
+                currentSheetState = currentSheetState,
+                activeTrackColor = LocalMaterialTheme.current.primary,
+                inactiveTrackColor = LocalMaterialTheme.current.primary.copy(alpha = 0.2f),
+                thumbColor = LocalMaterialTheme.current.primary,
+                timeTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f)
+            )
 
             Spacer(modifier = Modifier.weight(1f))
 
