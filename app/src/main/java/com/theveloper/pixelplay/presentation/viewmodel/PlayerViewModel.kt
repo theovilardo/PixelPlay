@@ -260,6 +260,8 @@ class PlayerViewModel @Inject constructor(
     ) { ids, uiState ->
         Log.d("PlayerViewModel", "Calculating favoriteSongs. IDs size: ${ids.size}, All songs size: ${uiState.allSongs.size}")
         val favoriteSongsList = uiState.allSongs.filter { song -> ids.contains(song.id) }
+        Log.d("PlayerViewModel", "Calculating favoriteSongs on ${Thread.currentThread().name}. IDs size: ${ids.size}, All songs size: ${uiState.allSongs.size}")
+        val favoriteSongsList = uiState.allSongs.filter { song -> ids.contains(song.id) }
         Log.d("PlayerViewModel", "Filtered favoriteSongsList size: ${favoriteSongsList.size}")
         when (uiState.currentFavoriteSortOption) {
             SortOption.LikedSongTitleAZ -> favoriteSongsList.sortedBy { it.title }
@@ -269,7 +271,9 @@ class PlayerViewModel @Inject constructor(
             SortOption.LikedSongDateLiked -> favoriteSongsList.sortedByDescending { it.id } // Assuming dateAdded for Liked
             else -> favoriteSongsList // Should not happen
         }.toImmutableList()
-    }.stateIn(viewModelScope, SharingStarted.Lazily, persistentListOf())
+    }
+    .flowOn(Dispatchers.Default) // Execute combine and transformations on Default dispatcher
+    .stateIn(viewModelScope, SharingStarted.Lazily, persistentListOf())
 
     private var progressJob: Job? = null
 

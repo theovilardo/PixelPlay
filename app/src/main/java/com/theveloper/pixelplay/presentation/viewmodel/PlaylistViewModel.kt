@@ -120,10 +120,13 @@ class PlaylistViewModel @Inject constructor(
             Log.d("PlaylistVM", "Loading songs for selection. Page: $pageToLoad, PageSize: $SONG_SELECTION_PAGE_SIZE")
 
             try {
-                // Colectar la lista de canciones del Flow
-                val actualNewSongsList: List<Song> = musicRepository.getAudioFiles(pageToLoad, SONG_SELECTION_PAGE_SIZE).first()
+                // Colectar la lista de canciones del Flow en un hilo de IO
+                val actualNewSongsList: List<Song> = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    musicRepository.getAudioFiles(pageToLoad, SONG_SELECTION_PAGE_SIZE).first()
+                }
                 Log.d("PlaylistVM", "Loaded ${actualNewSongsList.size} songs for selection.")
 
+                // La actualización del UI se hace en el hilo principal (contexto por defecto de viewModelScope.launch)
                 _uiState.update { currentStateAfterLoad ->
                     val updatedSongSelectionList = if (isInitialLoad) {
                         actualNewSongsList
@@ -181,9 +184,11 @@ class PlaylistViewModel @Inject constructor(
                     .find { it.id == playlistId }
 
                 if (playlist != null) {
-                    // Colectar la lista de canciones del Flow devuelto por el repositorio
-                    val songsList: List<Song> = musicRepository.getSongsByIds(playlist.songIds).first()
-
+                    // Colectar la lista de canciones del Flow devuelto por el repositorio en un hilo de IO
+                    val songsList: List<Song> = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        musicRepository.getSongsByIds(playlist.songIds).first()
+                    }
+                    // La actualización del UI se hace en el hilo principal
                     _uiState.update {
                         it.copy(
                             currentPlaylistDetails = playlist,
