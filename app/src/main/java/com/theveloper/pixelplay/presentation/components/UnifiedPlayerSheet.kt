@@ -119,7 +119,9 @@ import com.theveloper.pixelplay.utils.formatDuration
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.delay
 import android.os.Trace // Import Trace
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape

@@ -88,6 +88,7 @@ import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
@@ -364,19 +365,6 @@ private fun ExpressiveDailyMixHeader(
                             .size(size)
                             .graphicsLayer { rotationZ = rotation }
                             .clip(shape)
-//                            .border(
-//                                width = 24.dp,
-//                                brush = Brush.radialGradient(
-//                                    listOf(
-//                                        Color.Transparent,
-//                                        Color.Transparent,
-//                                        Color.Transparent,
-//                                        MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-//                                        MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-//                                    )
-//                                ),
-//                                shape = shape
-//                            )
                     ) {
                         SmartImage(
                             model = artUrl ?: R.drawable.rounded_album_24,
