@@ -334,6 +334,15 @@ class MusicService : MediaSessionService() {
             }
             if (currentItem == null) { // Si no hay canción, no es favorito
                 actualIsFavorite = false
+            Log.d(TAG, "processWidgetUpdateInternal: currentItem is null. Art URI and artBytes will be null/empty.")
+        } else {
+            Log.d(TAG, "processWidgetUpdateInternal: artUriString = $artUriString")
+        }
+
+        if (artBytes == null) {
+            Log.d(TAG, "processWidgetUpdateInternal: artBytes is NULL after attempting load/cache.")
+        } else {
+            Log.d(TAG, "processWidgetUpdateInternal: artBytes is NOT NULL, size = ${artBytes.size}")
             }
 
 

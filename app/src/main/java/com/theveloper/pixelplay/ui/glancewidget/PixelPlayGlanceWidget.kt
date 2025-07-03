@@ -118,6 +118,8 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         val currentProgress = playerInfo.currentPositionMs
         val totalDuration = playerInfo.totalDurationMs
 
+        Log.d("PixelPlayGlanceWidget", "WidgetUi: PlayerInfo received. Title: $title, Artist: $artist, HasBitmapData: ${albumArtBitmapData != null}, BitmapDataSize: ${albumArtBitmapData?.size ?: "N/A"}")
+
         // Cambio de color de fondo solicitado por el usuario
         // Intentaremos usar surfaceContainer. Si no existe, surfaceContainerLow, luego surface.
         // Por ahora, asumimos que GlanceTheme.colors.surfaceContainer está disponible o es un buen proxy.
@@ -478,48 +480,78 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 
     @Composable
     fun AlbumArtImageGlance(bitmapData: ByteArray?, size: Dp, context: Context, modifier: GlanceModifier = GlanceModifier, cornerRadius: Dp = 16.dp) {
+        val TAG_AAIG = "AlbumArtImageGlance"
+        Log.d(TAG_AAIG, "Init. bitmapData is null: ${bitmapData == null}. Requested Dp size: $size")
+        if (bitmapData != null) Log.d(TAG_AAIG, "bitmapData size: ${bitmapData.size} bytes")
+
         val imageProvider = bitmapData?.let { data ->
-            val cacheKey = AlbumArtBitmapCache.getKey(data) // Use original data for cache key
+            val cacheKey = AlbumArtBitmapCache.getKey(data)
             var bitmap = AlbumArtBitmapCache.getBitmap(cacheKey)
 
-            if (bitmap == null) {
-                val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                BitmapFactory.decodeByteArray(data, 0, data.size, options)
+            if (bitmap != null) {
+                Log.d(TAG_AAIG, "Bitmap cache HIT for key: $cacheKey. Using cached bitmap.")
+            } else {
+                Log.d(TAG_AAIG, "Bitmap cache MISS for key: $cacheKey. Decoding new bitmap.")
+                try {
+                    // 1. Decode bounds
+                    val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeByteArray(data, 0, data.size, options)
+                    Log.d(TAG_AAIG, "Initial bounds: ${options.outWidth}x${options.outHeight}")
 
-                // Calculate inSampleSize
-                // Raw height and width of image
-                val imageHeight = options.outHeight
-                val imageWidth = options.outWidth
-                var inSampleSize = 1
+                    // Calculate inSampleSize
+                    val imageHeight = options.outHeight
+                    val imageWidth = options.outWidth
+                    var inSampleSize = 1
+                    val targetSizePx = with(context.resources.displayMetrics) { size.value * density }.toInt()
+                    Log.d(TAG_AAIG, "Target Px size for Dp $size : $targetSizePx")
 
-                val targetSizePx = with(context.resources.displayMetrics) { size.value * density }.toInt()
-
-                if (imageHeight > targetSizePx || imageWidth > targetSizePx) {
-                    val halfHeight: Int = imageHeight / 2
-                    val halfWidth: Int = imageWidth / 2
-                    // Calculate the largest inSampleSize value that is a power of 2 and keeps both
-                    // height and width larger than the requested height and width.
-                    while (halfHeight / inSampleSize >= targetSizePx && halfWidth / inSampleSize >= targetSizePx) {
-                        inSampleSize *= 2
+                    if (imageHeight > targetSizePx || imageWidth > targetSizePx) {
+                        val halfHeight: Int = imageHeight / 2
+                        val halfWidth: Int = imageWidth / 2
+                        while (halfHeight / inSampleSize >= targetSizePx && halfWidth / inSampleSize >= targetSizePx) {
+                            inSampleSize *= 2
+                        }
                     }
-                }
-                options.inSampleSize = inSampleSize
-                options.inJustDecodeBounds = false
-                bitmap = BitmapFactory.decodeByteArray(data, 0, data.size, options)
+                    Log.d(TAG_AAIG, "Calculated inSampleSize: $inSampleSize")
 
-                bitmap?.let {
-                    // Resize to a fixed small size if it's still too large after sampling
-                    // This step ensures a consistent small bitmap, good for cache and widget performance
-                    val scaledBitmap = Bitmap.createScaledBitmap(it, targetSizePx, targetSizePx, true)
-                    if (scaledBitmap != it) { // If scaling created a new bitmap
-                        it.recycle() // Recycle the larger sampled bitmap if it's different
+                    // 2. Decode with inSampleSize
+                    options.inSampleSize = inSampleSize
+                    options.inJustDecodeBounds = false
+                    val sampledBitmap = BitmapFactory.decodeByteArray(data, 0, data.size, options)
+
+                    if (sampledBitmap == null) {
+                        Log.e(TAG_AAIG, "BitmapFactory.decodeByteArray returned null after sampling.")
+                        return@let null // Fallback to placeholder
                     }
-                    bitmap = scaledBitmap
-                    AlbumArtBitmapCache.putBitmap(cacheKey, scaledBitmap) // Cache the resized bitmap
+                    Log.d(TAG_AAIG, "Sampled bitmap size: ${sampledBitmap.width}x${sampledBitmap.height}")
+
+                    // 3. Scale to exact target size if necessary
+                    if (sampledBitmap.width != targetSizePx || sampledBitmap.height != targetSizePx) {
+                        Log.d(TAG_AAIG, "Scaling sampled bitmap from ${sampledBitmap.width}x${sampledBitmap.height} to ${targetSizePx}x${targetSizePx}")
+                        val scaledBitmap = Bitmap.createScaledBitmap(sampledBitmap, targetSizePx, targetSizePx, true)
+                        if (scaledBitmap != sampledBitmap) { // If scaling created a new bitmap instance
+                            sampledBitmap.recycle() // Recycle the larger/intermediate sampled bitmap
+                            Log.d(TAG_AAIG, "Recycled intermediate sampledBitmap.")
+                        }
+                        bitmap = scaledBitmap
+                    } else {
+                        bitmap = sampledBitmap
+                        Log.d(TAG_AAIG, "No final scaling needed. Using sampled bitmap directly.")
+                    }
+
+                    Log.d(TAG_AAIG, "Final bitmap size: ${bitmap?.width}x${bitmap?.height}. Putting into cache with key: $cacheKey")
+                    bitmap?.let { AlbumArtBitmapCache.putBitmap(cacheKey, it) }
+
+                } catch (e: Exception) {
+                    Log.e(TAG_AAIG, "Error decoding or scaling bitmap: ${e.message}", e)
+                    bitmap = null // Ensure fallback to placeholder on error
                 }
             }
             bitmap?.let { ImageProvider(it) }
-        } ?: ImageProvider(R.drawable.rounded_album_24)
+        } ?: run {
+            Log.d(TAG_AAIG, "Using placeholder image because bitmapData was null or processing failed.")
+            ImageProvider(R.drawable.rounded_album_24)
+        }
 
 
         Image(
