@@ -422,8 +422,12 @@ fun LibraryScreen(
                                             .distinctUntilChanged()
                                     }.collectAsState(initial = albums.isEmpty())
 
-                                    val stableOnAlbumClick = remember<(Long) -> Unit> { albumId ->
-                                        navController.navigate(Screen.AlbumDetail.createRoute(albumId))
+                                    val stableOnAlbumClick: (Long) -> Unit = remember(navController) { // (1)
+                                        // Esta es la lambda que `remember` ejecutará (solo una vez si navController no cambia)
+                                        // Su trabajo es DEVOLVER la lambda que realmente quieres usar.
+                                        { albumId: Long -> // (2) Esta es la lambda (Long) -> Unit que se recuerda
+                                            navController.navigate(Screen.AlbumDetail.createRoute(albumId))
+                                        }
                                     }
                                     LibraryAlbumsTab(
                                         albums = albums,
@@ -813,8 +817,16 @@ fun LibrarySongsTab(
                                 song.id == stablePlayerState.currentSong?.id && stablePlayerState.isPlaying
 
                             // Estabilizar lambdas
-                            val rememberedOnMoreOptionsClick = remember(song) { { onMoreOptionsClick(song) } }
-                            val rememberedOnClick = remember(song) { { playerViewModel.showAndPlaySong(song) } }
+                            val rememberedOnMoreOptionsClick: (Song) -> Unit = remember(onMoreOptionsClick) {
+                                // Esta es la lambda que `remember` ejecutará para producir el valor recordado.
+                                // El valor recordado es la propia función `onMoreOptionsClick` (o una lambda que la llama).
+                                { songFromListItem -> // Esta es la lambda (Song) -> Unit que se recuerda
+                                    onMoreOptionsClick(songFromListItem)
+                                }
+                            }
+                            val rememberedOnClick: () -> Unit = remember(song) {
+                                { playerViewModel.showAndPlaySong(song) }
+                            }
 
                             EnhancedSongListItem(
                                 song = song,
@@ -1153,9 +1165,14 @@ fun AlbumGridItemRedesigned(
     val albumColorSchemePair by albumColorSchemePairFlow.collectAsState()
     val systemIsDark = isSystemInDarkTheme()
 
-    val itemDesignColorScheme = remember(albumColorSchemePair, systemIsDark) {
-        albumColorSchemePair?.let { pair -> if (systemIsDark) pair.dark else pair.light }
-            ?: MaterialTheme.colorScheme
+    // 1. Obtén el colorScheme del tema actual aquí, en el scope Composable.
+    val currentMaterialColorScheme = MaterialTheme.colorScheme
+
+    val itemDesignColorScheme = remember(albumColorSchemePair, systemIsDark, currentMaterialColorScheme) {
+        // 2. Ahora, currentMaterialColorScheme es una variable estable que puedes usar.
+        albumColorSchemePair?.let { pair ->
+            if (systemIsDark) pair.dark else pair.light
+        } ?: currentMaterialColorScheme // Usa la variable capturada
     }
 
     val gradientBaseColor = itemDesignColorScheme.primaryContainer

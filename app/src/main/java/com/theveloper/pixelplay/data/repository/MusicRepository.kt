@@ -53,7 +53,7 @@ interface MusicRepository {
      * Obtiene la lista de artistas filtrada.
      * @return Flow que emite una lista completa de objetos Artist.
      */
-    fun getArtists(): Flow<List<Artist>>
+    //fun getArtists(): Flow<List<Artist>>
 
     /**
      * Obtiene la lista de canciones para un álbum específico (NO paginada para la cola de reproducción).
