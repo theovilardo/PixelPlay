@@ -110,6 +110,18 @@ interface MusicDao {
     @Query("SELECT COUNT(*) FROM albums")
     fun getAlbumCount(): Flow<Int>
 
+    // Version of getAlbums that returns a List for one-shot reads
+    @Query("""
+        SELECT DISTINCT albums.* FROM albums
+        INNER JOIN songs ON albums.id = songs.album_id
+        WHERE (:applyDirectoryFilter = 0 OR songs.parent_directory_path IN (:allowedParentDirs))
+        ORDER BY albums.title ASC
+    """)
+    suspend fun getAllAlbumsList(
+        allowedParentDirs: List<String>,
+        applyDirectoryFilter: Boolean
+    ): List<AlbumEntity>
+
     @Query("SELECT * FROM albums WHERE artist_id = :artistId ORDER BY title ASC")
     fun getAlbumsByArtistId(artistId: Long): Flow<List<AlbumEntity>>
 
@@ -146,6 +158,18 @@ interface MusicDao {
 
     @Query("SELECT COUNT(*) FROM artists")
     fun getArtistCount(): Flow<Int>
+
+    // Version of getArtists that returns a List for one-shot reads
+    @Query("""
+        SELECT DISTINCT artists.* FROM artists
+        INNER JOIN songs ON artists.id = songs.artist_id
+        WHERE (:applyDirectoryFilter = 0 OR songs.parent_directory_path IN (:allowedParentDirs))
+        ORDER BY artists.name ASC
+    """)
+    suspend fun getAllArtistsList(
+        allowedParentDirs: List<String>,
+        applyDirectoryFilter: Boolean
+    ): List<ArtistEntity>
 
     @Query("""
         SELECT DISTINCT artists.* FROM artists

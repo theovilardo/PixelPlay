@@ -1,7 +1,9 @@
 package com.theveloper.pixelplay.data.model
 
+import androidx.compose.runtime.Immutable
 import java.io.File
 
+@Immutable
 data class DirectoryItem(
     val path: String,
     var isAllowed: Boolean

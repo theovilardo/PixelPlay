@@ -1,8 +1,10 @@
 package com.theveloper.pixelplay.data.model
 
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import kotlinx.serialization.Serializable
 
+@Immutable
 @Serializable // Para poder convertirlo a/desde JSON
 data class Playlist(
     val id: String, // UUID o timestamp para unicidad
