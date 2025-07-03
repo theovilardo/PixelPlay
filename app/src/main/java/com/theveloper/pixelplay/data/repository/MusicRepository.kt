@@ -15,13 +15,32 @@ interface MusicRepository {
      * Obtiene la lista de archivos de audio (canciones) filtrada por directorios permitidos.
      * @return Flow que emite una lista completa de objetos Song.
      */
-    fun getAudioFiles(): Flow<List<Song>>
+    fun getAudioFiles(): Flow<List<Song>> // Existing Flow for reactive updates
 
     /**
      * Obtiene la lista de álbumes filtrada.
      * @return Flow que emite una lista completa de objetos Album.
      */
-    fun getAlbums(): Flow<List<Album>>
+    fun getAlbums(): Flow<List<Album>> // Existing Flow for reactive updates
+
+    /**
+     * Obtiene la lista de artistas filtrada.
+     * @return Flow que emite una lista completa de objetos Artist.
+     */
+    fun getArtists(): Flow<List<Artist>> // Existing Flow for reactive updates
+
+    // New suspend functions for one-shot data loading as per performance report
+    /**
+     * Obtiene la lista completa de álbumes una sola vez.
+     * @return Lista de objetos Album.
+     */
+    suspend fun getAllAlbumsOnce(): List<Album>
+
+    /**
+     * Obtiene la lista completa de artistas una sola vez.
+     * @return Lista de objetos Artist.
+     */
+    suspend fun getAllArtistsOnce(): List<Artist>
 
     /**
      * Obtiene un álbum específico por su ID.

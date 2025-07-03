@@ -416,4 +416,33 @@ class MusicRepositoryImpl @Inject constructor(
         // Esta función ahora está en SyncWorker. Se deja el esqueleto por si se llama desde otro lugar.
         Log.w("MusicRepo", "syncMusicFromContentResolver was called directly on repository. This should be handled by SyncWorker.")
     }
+
+    // Implementación de las nuevas funciones suspend para carga única
+    override suspend fun getAllAlbumsOnce(): List<Album> = withContext(Dispatchers.IO) {
+        val allowedDirs = userPreferencesRepository.allowedDirectoriesFlow.first().toList()
+        val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
+
+        if (initialSetupDone && allowedDirs.isEmpty()) {
+            emptyList()
+        } else {
+            musicDao.getAllAlbumsList( // Llamando a la nueva función DAO suspend
+                allowedParentDirs = allowedDirs,
+                applyDirectoryFilter = initialSetupDone
+            ).map { it.toAlbum() }
+        }
+    }
+
+    override suspend fun getAllArtistsOnce(): List<Artist> = withContext(Dispatchers.IO) {
+        val allowedDirs = userPreferencesRepository.allowedDirectoriesFlow.first().toList()
+        val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
+
+        if (initialSetupDone && allowedDirs.isEmpty()) {
+            emptyList()
+        } else {
+            musicDao.getAllArtistsList( // Llamando a la nueva función DAO suspend
+                allowedParentDirs = allowedDirs,
+                applyDirectoryFilter = initialSetupDone
+            ).map { it.toArtist() }
+        }
+    }
 }

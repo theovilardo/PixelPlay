@@ -66,6 +66,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import android.util.Log
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.joinAll
 import androidx.core.graphics.drawable.toBitmap
 import com.theveloper.pixelplay.data.model.SearchFilterType
 import com.theveloper.pixelplay.data.model.SearchHistoryItem
@@ -516,6 +517,73 @@ class PlayerViewModel @Inject constructor(
         Trace.endSection() // End PlayerViewModel.preloadThemesAndInitialData
     }
 
+    // Nueva función para carga paralela
+    private fun loadInitialLibraryDataParallel() {
+        _playerUiState.update {
+            it.copy(
+                isLoadingInitialSongs = true,
+                isLoadingLibraryCategories = true // Marcar ambos como cargando
+            )
+        }
+
+        val songsJob = viewModelScope.launch {
+            Log.d("PlayerViewModel", "Loading songs in parallel...")
+            try {
+                val songsList = musicRepository.getAudioFiles().first()
+                _playerUiState.update { currentState ->
+                    currentState.copy(
+                        allSongs = songsList.toImmutableList(),
+                        isLoadingInitialSongs = false
+                    )
+                }
+                Log.d("PlayerViewModel", "Songs loaded in parallel. Count: ${songsList.size}")
+            } catch (e: Exception) {
+                Log.e("PlayerViewModel", "Error loading songs in parallel", e)
+                _playerUiState.update { it.copy(isLoadingInitialSongs = false) }
+            }
+        }
+
+        val albumsJob = viewModelScope.launch {
+            Log.d("PlayerViewModel", "Loading albums in parallel...")
+            try {
+                val albumsList = musicRepository.getAllAlbumsOnce()
+                _playerUiState.update { it.copy(albums = albumsList.toImmutableList()) }
+                Log.d("PlayerViewModel", "Albums loaded in parallel. Count: ${albumsList.size}")
+            } catch (e: Exception) {
+                Log.e("PlayerViewModel", "Error loading albums in parallel", e)
+            }
+        }
+
+        val artistsJob = viewModelScope.launch {
+            Log.d("PlayerViewModel", "Loading artists in parallel...")
+            try {
+                val artistsList = musicRepository.getAllArtistsOnce()
+                _playerUiState.update { it.copy(artists = artistsList.toImmutableList()) }
+                Log.d("PlayerViewModel", "Artists loaded in parallel. Count: ${artistsList.size}")
+            } catch (e: Exception) {
+                Log.e("PlayerViewModel", "Error loading artists in parallel", e)
+            }
+        }
+
+        viewModelScope.launch {
+            try {
+                joinAll(songsJob, albumsJob, artistsJob) // Esperar a que todas las cargas finalicen
+                Log.d("PlayerViewModel", "All parallel loads (songs, albums, artists) completed.")
+            } catch (e: Exception) {
+                Log.e("PlayerViewModel", "Error during parallel data loading completion", e)
+            } finally {
+                _playerUiState.update {
+                    it.copy(
+                        isLoadingInitialSongs = false, // Asegurarse de que estén en false
+                        isLoadingLibraryCategories = false
+                    )
+                }
+                _isInitialDataLoaded.value = true
+                Log.d("PlayerViewModel", "_isInitialDataLoaded set to true after all parallel loads completed.")
+            }
+        }
+    }
+
     private fun resetAndLoadInitialData(caller: String = "Unknown") {
         Trace.beginSection("PlayerViewModel.resetAndLoadInitialData")
         if (_isInitialDataLoaded.value && _playerUiState.value.allSongs.isNotEmpty()) {
@@ -527,76 +595,56 @@ class PlayerViewModel @Inject constructor(
         Log.i("PlayerViewModel", "resetAndLoadInitialData called from: $caller. Proceeding with load.")
         Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData START - Called by: $caller")
 
-        // Reset relevant parts of UI state, but only if we are truly reloading.
-        // If allSongs is empty, it's a genuine first load or a forced refresh.
-        if (_playerUiState.value.allSongs.isEmpty()) {
-            _playerUiState.update {
-                it.copy(
-                    allSongs = persistentListOf(), // Use persistentListOf() for empty immutable list
-                    albums = persistentListOf(),
-                    artists = persistentListOf(),
-                    isLoadingInitialSongs = true // Set loading true before starting
-                )
-            }
-        } else {
-            // If songs are not empty, but _isInitialDataLoaded was false (e.g. after a sync that cleared it),
-            // still mark as loading.
-             _playerUiState.update { it.copy(isLoadingInitialSongs = true) }
-        }
+        // Reset relevant parts of UI state is handled by loadInitialLibraryDataParallel
+        // by setting isLoading flags to true at its beginning.
 
-        loadSongsFromRepository() // No longer takes isInitialLoad
+        loadInitialLibraryDataParallel() // Call the new parallel loading function
+
         // Initial load for albums and artists will be triggered by their respective tabs if needed.
-        Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData END (dispatching async work). Total function time: ${System.currentTimeMillis() - functionStartTime} ms")
+        Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData END (dispatching parallel async work). Total function time: ${System.currentTimeMillis() - functionStartTime} ms")
         Trace.endSection() // End PlayerViewModel.resetAndLoadInitialData
     }
 
+    // This function might still be called by loadSongsIfNeeded,
+    // but _isInitialDataLoaded should now be primarily managed by loadInitialLibraryDataParallel
     private fun loadSongsFromRepository() {
-        Log.d("PlayerViewModel", "loadSongsFromRepository called.")
+        Log.d("PlayerViewModel", "loadSongsFromRepository called (potentially for individual tab load or refresh).")
         // No longer need checks for isLoadingMoreSongs or canLoadMoreSongs
 
         viewModelScope.launch { // Default dispatcher is Main.Immediate which is fine for launching.
             Trace.beginSection("PlayerViewModel.loadSongsFromRepository_coroutine")
             val functionStartTime = System.currentTimeMillis()
-            Log.d("PlayerViewModelPerformance", "loadSongsFromRepository (All) START")
+            Log.d("PlayerViewModelPerformance", "loadSongsFromRepository (Single Action) START")
 
-            // isLoadingInitialSongs should be true already if resetAndLoadInitialData was called.
-            // If called directly, ensure it's set.
             if (!_playerUiState.value.isLoadingInitialSongs) {
                  _playerUiState.update { it.copy(isLoadingInitialSongs = true) }
             }
 
             try {
                 val repoCallStartTime = System.currentTimeMillis()
-                // musicRepository.getAudioFiles() already uses flowOn(Dispatchers.IO)
                 val allSongsList: List<Song> = musicRepository.getAudioFiles().first()
                 val repoCallDuration = System.currentTimeMillis() - repoCallStartTime
-                Log.d("PlayerViewModelPerformance", "musicRepository.getAudioFiles (All) took $repoCallDuration ms for ${allSongsList.size} songs.")
+                Log.d("PlayerViewModelPerformance", "musicRepository.getAudioFiles (Single Action) took $repoCallDuration ms for ${allSongsList.size} songs.")
 
                 _playerUiState.update { currentState ->
                     currentState.copy(
                         allSongs = allSongsList.toImmutableList(),
                         isLoadingInitialSongs = false
-                        // isLoadingMoreSongs = false, // Removed
-                        // canLoadMoreSongs = false // No more pagination
                     )
                 }
-                _isInitialDataLoaded.value = true // Set the flag after successful load
-                Log.d("PlayerViewModel", "allSongs updated. New size: ${_playerUiState.value.allSongs.size}. isLoadingInitialSongs: ${_playerUiState.value.isLoadingInitialSongs}. _isInitialDataLoaded: ${_isInitialDataLoaded.value}")
+                // _isInitialDataLoaded.value = true; // This flag is now set by loadInitialLibraryDataParallel
+                Log.d("PlayerViewModel", "allSongs updated by loadSongsFromRepository. New size: ${_playerUiState.value.allSongs.size}. isLoadingInitialSongs: ${_playerUiState.value.isLoadingInitialSongs}.")
 
                 val totalFunctionTime = System.currentTimeMillis() - functionStartTime
-                Log.d("PlayerViewModelPerformance", "loadSongsFromRepository (All) END. Data update complete. Total time: $totalFunctionTime ms")
+                Log.d("PlayerViewModelPerformance", "loadSongsFromRepository (Single Action) END. Data update complete. Total time: $totalFunctionTime ms")
 
             } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Error loading all songs from repository", e)
+                Log.e("PlayerViewModel", "Error loading songs from repository (Single Action)", e)
                 _playerUiState.update {
-                    it.copy(
-                        isLoadingInitialSongs = false
-                        // isLoadingMoreSongs = false, // Removed
-                        // errorLoadingSongs = "Failed to load songs: ${e.localizedMessage ?: "Unknown error"}" // Consider adding error state
-                    )
+                    it.copy(isLoadingInitialSongs = false)
                 }
                 val totalFunctionTime = System.currentTimeMillis() - functionStartTime
-                Log.d("PlayerViewModelPerformance", "loadSongsFromRepository (All) FAILED. Total time: $totalFunctionTime ms")
+                Log.d("PlayerViewModelPerformance", "loadSongsFromRepository (Single Action) FAILED. Total time: $totalFunctionTime ms")
             } finally {
                 Trace.endSection() // End PlayerViewModel.loadSongsFromRepository_coroutine
             }
@@ -623,22 +671,20 @@ class PlayerViewModel @Inject constructor(
 
             try {
                 val repoCallAlbumsStartTime = System.currentTimeMillis()
-                val allAlbumsList: List<Album> = withContext(Dispatchers.IO) {
-                    musicRepository.getAlbums().first() // Fetches all albums
-                }
+                // Usar la nueva función suspend del repositorio
+                val allAlbumsList: List<Album> = musicRepository.getAllAlbumsOnce()
                 val albumsLoadDuration = System.currentTimeMillis() - repoCallAlbumsStartTime
-                Log.d("PlayerViewModelPerformance", "musicRepository.getAlbums (All) took $albumsLoadDuration ms for ${allAlbumsList.size} albums.")
+                Log.d("PlayerViewModelPerformance", "musicRepository.getAllAlbumsOnce (All) took $albumsLoadDuration ms for ${allAlbumsList.size} albums.")
 
                 _playerUiState.update { currentState ->
                     currentState.copy(
                         albums = allAlbumsList.toImmutableList(),
-                        // canLoadMoreAlbums = false, // No more pagination
                         isLoadingLibraryCategories = false
                     )
                 }
                 Log.d("PlayerViewModelPerformance", "loadAlbumsFromRepository (All) END. Total time: ${System.currentTimeMillis() - functionStartTime} ms. Albums loaded: ${allAlbumsList.size}")
             } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Error loading all albums", e)
+                Log.e("PlayerViewModel", "Error loading all albums from getAllAlbumsOnce", e)
                 _playerUiState.update { it.copy(isLoadingLibraryCategories = false) }
             } finally {
                 Trace.endSection() // End PlayerViewModel.loadAlbumsFromRepository_coroutine
@@ -695,22 +741,20 @@ class PlayerViewModel @Inject constructor(
 
             try {
                 val repoCallArtistsStartTime = System.currentTimeMillis()
-                val allArtistsList: List<Artist> = withContext(Dispatchers.IO) {
-                    musicRepository.getArtists().first() // Fetches all artists
-                }
+                // Usar la nueva función suspend del repositorio
+                val allArtistsList: List<Artist> = musicRepository.getAllArtistsOnce()
                 val artistsLoadDuration = System.currentTimeMillis() - repoCallArtistsStartTime
-                Log.d("PlayerViewModelPerformance", "musicRepository.getArtists (All) took $artistsLoadDuration ms for ${allArtistsList.size} artists.")
+                Log.d("PlayerViewModelPerformance", "musicRepository.getAllArtistsOnce (All) took $artistsLoadDuration ms for ${allArtistsList.size} artists.")
 
                 _playerUiState.update { currentState ->
                     currentState.copy(
                         artists = allArtistsList.toImmutableList(),
-                        // canLoadMoreArtists = false, // No more pagination
                         isLoadingLibraryCategories = false
                     )
                 }
                  Log.d("PlayerViewModelPerformance", "loadArtistsFromRepository (All) END. Total time: ${System.currentTimeMillis() - functionStartTime} ms. Artists loaded: ${allArtistsList.size}")
             } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Error loading all artists", e)
+                Log.e("PlayerViewModel", "Error loading all artists from getAllArtistsOnce", e)
                 _playerUiState.update { it.copy(isLoadingLibraryCategories = false) }
             }
         }
