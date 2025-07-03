@@ -315,19 +315,19 @@ class MusicService : MediaSessionService() {
                     artUriStringForPlayerInfo = artworkUriFromMetadata?.toString() // Guardar para PlayerInfo
 
                     if (artworkUriFromMetadata != null) {
-                        val uriString = artworkUriFromMetadata.toString()
-                        Log.d(TAG, "processWidgetUpdateInternal: artworkUri found in MediaMetadata: $uriString")
-                        artBytes = widgetArtByteArrayCache.get(uriString) // Intentar desde la caché del servicio
+                        val localArtUriString = artworkUriFromMetadata.toString() // Variable local para esta rama
+                        Log.d(TAG, "processWidgetUpdateInternal: artworkUri found in MediaMetadata: $localArtUriString")
+                        artBytes = widgetArtByteArrayCache.get(localArtUriString) // Intentar desde la caché del servicio
                         if (artBytes != null) {
-                            Log.d(TAG, "processWidgetUpdateInternal: Widget Art Cache HIT for URI: $uriString, size: ${artBytes.size}")
+                            Log.d(TAG, "processWidgetUpdateInternal: Widget Art Cache HIT for URI: $localArtUriString, size: ${artBytes.size}")
                         } else {
-                            Log.d(TAG, "processWidgetUpdateInternal: Widget Art Cache MISS for URI: $uriString. Loading image via loadBitmapDataFromUri.")
+                            Log.d(TAG, "processWidgetUpdateInternal: Widget Art Cache MISS for URI: $localArtUriString. Loading image via loadBitmapDataFromUri.")
                             artBytes = loadBitmapDataFromUri(applicationContext, artworkUriFromMetadata)
                             if (artBytes != null) {
-                                widgetArtByteArrayCache.put(uriString, artBytes)
-                                Log.d(TAG, "processWidgetUpdateInternal: Loaded and cached artBytes from URI: $uriString, size: ${artBytes.size}")
+                                widgetArtByteArrayCache.put(localArtUriString, artBytes)
+                                Log.d(TAG, "processWidgetUpdateInternal: Loaded and cached artBytes from URI: $localArtUriString, size: ${artBytes.size}")
                             } else {
-                                Log.w(TAG, "processWidgetUpdateInternal: Failed to load album art from URI: $uriString (loadBitmapDataFromUri returned null)")
+                                Log.w(TAG, "processWidgetUpdateInternal: Failed to load album art from URI: $localArtUriString (loadBitmapDataFromUri returned null)")
                             }
                         }
                     } else {
@@ -427,14 +427,9 @@ class MusicService : MediaSessionService() {
             if (successfullySent) { // Actualizar los 'last' estados si el envío fue exitoso
                 lastProcessedWidgetUpdateTimeMs = currentTimeMs
                 lastWidgetIsPlayingState = isPlaying
-                lastWidgetFavoriteState = actualIsFavorite // CORREGIDO: Usar actualIsFavorite
-                if (artUriString.isNotEmpty() && artBytes != null) { // Solo actualizar lastWidgetArtUriString si el arte se cargó/obtuvo de caché con éxito
-                    lastWidgetArtUriString = artUriString
-                } else if (artUriString.isEmpty()) {
-                    lastWidgetArtUriString = "" // Limpiar si la URI actual está vacía
-                }
-                // Si artUriString no está vacío pero artBytes es nulo (fallo de carga), lastWidgetArtUriString no cambia,
-                // para que se intente cargar de nuevo en la próxima actualización completa.
+                lastWidgetFavoriteState = actualIsFavorite
+                // Actualizar lastWidgetArtUriString con la URI que se usó/intentó para PlayerInfo
+                lastWidgetArtUriString = artUriStringForPlayerInfo ?: ""
             }
         }
     }
