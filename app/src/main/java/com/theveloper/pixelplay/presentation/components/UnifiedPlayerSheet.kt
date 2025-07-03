@@ -1294,6 +1294,7 @@ private fun MiniPlayerContentInternal(
             model = song.albumArtUriString ?: R.drawable.rounded_album_24,
             contentDescription = "Carátula de ${song.title}",
             shape = CircleShape,
+            targetSize = coil.size.Size(150, 150),
             modifier = Modifier
                 .size(44.dp)
         )
