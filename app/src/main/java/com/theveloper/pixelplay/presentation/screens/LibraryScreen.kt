@@ -394,15 +394,19 @@ fun LibraryScreen(
                                             .distinctUntilChanged()
                                     }.collectAsState(initial = songs.isEmpty())
 
+                                    val stableOnMoreOptionsClickForSongs = remember<(Song) -> Unit> {
+                                        { songClicked ->
+                                            selectedSongForInfo = songClicked
+                                            showSongInfoBottomSheet = true
+                                        }
+                                    }
                                     LibrarySongsTab(
                                         songs = songs,
                                         isLoadingInitial = isLoading,
                                         playerViewModel = playerViewModel,
-                                        bottomBarHeight = bottomBarHeightDp
-                                    ) { song ->
-                                        selectedSongForInfo = song
-                                        showSongInfoBottomSheet = true
-                                    }
+                                        bottomBarHeight = bottomBarHeightDp,
+                                        onMoreOptionsClick = stableOnMoreOptionsClickForSongs
+                                    )
                                 }
 
                                 1 -> {
@@ -418,14 +422,15 @@ fun LibraryScreen(
                                             .distinctUntilChanged()
                                     }.collectAsState(initial = albums.isEmpty())
 
+                                    val stableOnAlbumClick = remember<(Long) -> Unit> { albumId ->
+                                        navController.navigate(Screen.AlbumDetail.createRoute(albumId))
+                                    }
                                     LibraryAlbumsTab(
                                         albums = albums,
                                         isLoading = isLoading,
                                         playerViewModel = playerViewModel,
                                         bottomBarHeight = bottomBarHeightDp,
-                                        onAlbumClick = { albumId ->
-                                            navController.navigate(Screen.AlbumDetail.createRoute(albumId))
-                                        }
+                                        onAlbumClick = stableOnAlbumClick
                                     )
                                 }
 
@@ -806,12 +811,18 @@ fun LibrarySongsTab(
                         items(songs, key = { "song_${it.id}" }) { song ->
                             val isPlayingThisSong =
                                 song.id == stablePlayerState.currentSong?.id && stablePlayerState.isPlaying
+
+                            // Estabilizar lambdas
+                            val rememberedOnMoreOptionsClick = remember(song) { { onMoreOptionsClick(song) } }
+                            val rememberedOnClick = remember(song) { { playerViewModel.showAndPlaySong(song) } }
+
                             EnhancedSongListItem(
-                                song = song, isPlaying = isPlayingThisSong, isLoading = false,
-                                onMoreOptionsClick = { onMoreOptionsClick(song) }
-                            ) {
-                                playerViewModel.showAndPlaySong(song)
-                            }
+                                song = song,
+                                isPlaying = isPlayingThisSong,
+                                isLoading = false,
+                                onMoreOptionsClick = rememberedOnMoreOptionsClick,
+                                onClick = rememberedOnClick
+                            )
                         }
                         // isLoadingMore indicator removed as all songs are loaded at once.
                         // if (isLoadingMore) {
@@ -861,7 +872,7 @@ fun EnhancedSongListItem(
     val containerColor = if (isPlaying && !isLoading) colors.primaryContainer.copy(alpha = 0.34f) else colors.surfaceContainerLow
     val contentColor = if (isPlaying && !isLoading) colors.primary else colors.onSurface
 
-    val surfaceShape = RoundedCornerShape(itemCornerRadius)
+    val surfaceShape = remember { RoundedCornerShape(itemCornerRadius) }
 
     if (isLoading) {
         // Shimmer Placeholder Layout
@@ -1094,10 +1105,11 @@ fun LibraryAlbumsTab(
                 }
                 items(albums, key = { "album_${it.id}" }) { album ->
                     val albumSpecificColorSchemeFlow = playerViewModel.getAlbumColorSchemeFlow(album.albumArtUriString)
+                    val rememberedOnClick = remember(album.id) { { onAlbumClick(album.id) } }
                     AlbumGridItemRedesigned(
                         album = album,
                         albumColorSchemePairFlow = albumSpecificColorSchemeFlow,
-                        onClick = { onAlbumClick(album.id) },
+                        onClick = rememberedOnClick,
                         isLoading = isLoading && albums.isEmpty() // Shimmer solo si está cargando Y la lista está vacía
                     )
                 }
@@ -1141,8 +1153,10 @@ fun AlbumGridItemRedesigned(
     val albumColorSchemePair by albumColorSchemePairFlow.collectAsState()
     val systemIsDark = isSystemInDarkTheme()
 
-    val itemDesignColorScheme = albumColorSchemePair?.let { if (systemIsDark) it.dark else it.light }
-        ?: MaterialTheme.colorScheme
+    val itemDesignColorScheme = remember(albumColorSchemePair, systemIsDark) {
+        albumColorSchemePair?.let { pair -> if (systemIsDark) pair.dark else pair.light }
+            ?: MaterialTheme.colorScheme
+    }
 
     val gradientBaseColor = itemDesignColorScheme.primaryContainer
     val onGradientColor = itemDesignColorScheme.onPrimaryContainer
@@ -1236,12 +1250,14 @@ fun AlbumGridItemRedesigned(
                             .fillMaxSize()
                             .aspectRatio(3f / 2f)
                             .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color.Transparent,
-                                        gradientBaseColor
+                                remember(gradientBaseColor) { // Recordar el Brush
+                                    Brush.verticalGradient(
+                                        colors = listOf(
+                                            Color.Transparent,
+                                            gradientBaseColor
+                                        )
                                     )
-                                )
+                                }
                             )
                     )
                 }
@@ -1299,7 +1315,10 @@ fun LibraryArtistsTab(
                 item {
                     Spacer(Modifier.height(4.dp))
                 }
-                items(artists, key = { "artist_${it.id}" }) { artist -> ArtistListItem(artist = artist) { playerViewModel.playArtist(artist) } }
+                items(artists, key = { "artist_${it.id}" }) { artist ->
+                    val rememberedOnClick = remember(artist) { { playerViewModel.playArtist(artist) } }
+                    ArtistListItem(artist = artist, onClick = rememberedOnClick)
+                }
                 // "Load more" indicator removed as all artists are loaded at once
                 // if (isLoading && artists.isNotEmpty()) {
                 //     item { Box(Modifier
@@ -1386,9 +1405,10 @@ fun LibraryPlaylistsTab(
                     Spacer(Modifier.height(4.dp))
                 }
                 items(playlistUiState.playlists, key = { it.id }) { playlist ->
-                    PlaylistItem(playlist = playlist) {
-                        navController.navigate(Screen.PlaylistDetail.createRoute(playlist.id))
+                    val rememberedOnClick = remember(playlist.id) {
+                        { navController.navigate(Screen.PlaylistDetail.createRoute(playlist.id)) }
                     }
+                    PlaylistItem(playlist = playlist, onClick = rememberedOnClick)
                 }
             }
             Box(
