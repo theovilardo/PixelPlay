@@ -1124,6 +1124,44 @@ fun UnifiedPlayerSheet(
     Trace.endSection() // End UnifiedPlayerSheet.Composition
 }
 
+
+@Composable
+private fun AlbumArtDisplaySection( // Renamed for clarity and to avoid conflict if OptimizedAlbumArt is used directly
+    song: Song?, // Nullable, comes from stablePlayerState
+    expansionFraction: Float,
+    modifier: Modifier = Modifier
+) {
+    song?.let { currentSong ->
+        OptimizedAlbumArt(
+            uri = currentSong.albumArtUriString,
+            title = currentSong.title,
+            expansionFraction = expansionFraction,
+            modifier = modifier,
+            targetSize = coil.size.Size(600, 600) // Tamaño específico para el reproductor expandido
+        )
+    }
+}
+
+@Composable
+private fun SongMetadataDisplaySection( // Renamed for clarity
+    song: Song?, // Nullable, comes from stablePlayerState
+    expansionFraction: Float,
+    textColor: Color,
+    artistTextColor: Color,
+    modifier: Modifier = Modifier
+) {
+    song?.let { currentSong ->
+        PlayerSongInfo(
+            title = currentSong.title,
+            artist = currentSong.artist,
+            expansionFraction = expansionFraction,
+            textColor = textColor,
+            artistTextColor = artistTextColor,
+            modifier = modifier
+        )
+    }
+}
+
 @Composable
 private fun PlayerProgressBarSection(
     currentPosition: Long, // Changed from currentPositionValue
@@ -1364,15 +1402,15 @@ private fun FullPlayerContentInternal(
     onFavoriteToggle: () -> Unit,
     playerViewModel: PlayerViewModel // Kept for stablePlayerState access for totalDuration, or could pass totalDuration too
 ) {
-    val song = currentSong ?: return
+    val song = currentSong ?: return // Early exit if no song
 
-    // totalDurationValue is still needed from stablePlayerState, or could be passed granularly too.
-    // For this iteration, we'll keep stablePlayerState for totalDuration.
+    // totalDurationValue is derived from stablePlayerState, so it's fine.
     val totalDurationValue by remember {
         playerViewModel.stablePlayerState.map { it.totalDuration }.distinctUntilChanged()
     }.collectAsState(initial = 0L)
 
-    val progressFractionValue = remember(currentPosition, totalDurationValue) { // Use injected currentPosition
+    // progressFractionValue depends on currentPosition, so it will change frequently.
+    val progressFractionValue = remember(currentPosition, totalDurationValue) {
         (currentPosition.coerceAtLeast(0).toFloat() /
                 totalDurationValue.coerceAtLeast(1).toFloat())
     }.coerceIn(0f, 1f)
@@ -1448,23 +1486,23 @@ private fun FullPlayerContentInternal(
                 .shadow(elevation = 16.dp * expansionFraction)
                 .graphicsLayer { alpha = expansionFraction }
 
-            OptimizedAlbumArt(
-                uri = song.albumArtUriString, // Pass URI to OptimizedAlbumArt
-                title = song.title,
-                expansionFraction = expansionFraction, // Pass expansionFraction
+            // Album Cover section - uses new Composable
+            AlbumArtDisplaySection(
+                song = currentSong, // currentSong is from stablePlayerState via FullPlayerContentInternal's parameter
+                expansionFraction = expansionFraction,
                 modifier = albumArtContainerModifier
             )
 
-            // Song Info
-            PlayerSongInfo(
-                title = song.title,
-                artist = song.artist,
+            // Song Info - uses new Composable
+            SongMetadataDisplaySection(
+                song = currentSong, // currentSong is from stablePlayerState
                 expansionFraction = expansionFraction,
                 textColor = LocalMaterialTheme.current.onPrimaryContainer,
                 artistTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.8f)
+                // modifier for PlayerSongInfo is internal to SongMetadataDisplaySection if needed, or pass one
             )
 
-            // Progress Bar and Times
+            // Progress Bar and Times - this section *will* recompose with currentPosition
             PlayerProgressBarSection(
                 currentPosition = currentPosition, // Pass granular currentPosition
                 totalDurationValue = totalDurationValue,
