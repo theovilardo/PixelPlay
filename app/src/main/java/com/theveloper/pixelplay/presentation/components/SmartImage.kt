@@ -37,7 +37,7 @@ fun SmartImage(
     crossfadeDurationMillis: Int = 300,
     useDiskCache: Boolean = true,
     useMemoryCache: Boolean = true,
-    allowHardware: Boolean = true, // Default to true, set to false if CPU access to Bitmap is needed later
+    allowHardware: Boolean = false, // Default to true, set to false if CPU access to Bitmap is needed later
     targetSize: Size = Size(300, 300), // New parameter for specifying image size
     colorFilter: ColorFilter? = null,
     alpha: Float = 1f,
@@ -53,6 +53,8 @@ fun SmartImage(
         .diskCachePolicy(if (useDiskCache) CachePolicy.ENABLED else CachePolicy.DISABLED)
         .memoryCachePolicy(if (useMemoryCache) CachePolicy.ENABLED else CachePolicy.DISABLED)
         .allowHardware(allowHardware) // Important if you need to read the bitmap on CPU later
+        .memoryCacheKey(model?.toString()?.plus("_${targetSize.width}x${targetSize.height}"))
+        .diskCacheKey(model?.toString()?.plus("_${targetSize.width}x${targetSize.height}"))
 
     targetSize?.let {
         requestBuilder.size(it)
