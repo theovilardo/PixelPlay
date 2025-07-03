@@ -288,7 +288,6 @@ class MusicService : MediaSessionService() {
 
         serviceScope.launch { // Asegurarse de que se ejecuta en el serviceScope
             val currentItem = exoPlayer.currentMediaItem
-            val artUriString = currentItem?.mediaMetadata?.artworkUri?.toString().orEmpty()
             val isPlaying = exoPlayer.isPlaying && exoPlayer.playbackState != Player.STATE_ENDED
             val title = currentItem?.mediaMetadata?.title?.toString().orEmpty()
             val artist = currentItem?.mediaMetadata?.artist?.toString().orEmpty()
@@ -296,54 +295,62 @@ class MusicService : MediaSessionService() {
             val totalDurationMs = exoPlayer.duration.coerceAtLeast(0)
 
             var artBytes: ByteArray? = null
-            // val artUriChanged = artUriString != lastWidgetArtUriString // No se usa directamente aquí
+            var artUriStringForPlayerInfo: String? = null // Para PlayerInfo.albumArtUri
 
-            if (artUriString.isNotEmpty()) {
-                artBytes = widgetArtByteArrayCache.get(artUriString)
-                if (artBytes == null) {
-                    Log.d(TAG, "Widget Art Cache MISS for URI: $artUriString. Loading image.")
-                    artBytes = loadBitmapDataFromUri(applicationContext, Uri.parse(artUriString))
-                    if (artBytes != null) {
-                        widgetArtByteArrayCache.put(artUriString, artBytes)
-                    } else {
-                        Log.w(TAG, "Failed to load album art for widget for URI: $artUriString")
-                    }
+            if (currentItem == null) {
+                Log.d(TAG, "processWidgetUpdateInternal: currentItem is null. artBytes will be null.")
+            } else {
+                // 1. Intentar obtener artworkData directamente del MediaItem
+                artBytes = currentItem.mediaMetadata.artworkData
+                if (artBytes != null && artBytes.isNotEmpty()) {
+                    Log.d(TAG, "processWidgetUpdateInternal: Got artBytes directly from MediaMetadata, size: ${artBytes.size}")
+                    // Si tenemos artworkData, la URI original podría no ser relevante o ser diferente.
+                    // Podríamos intentar obtenerla también para PlayerInfo, o dejarla null.
+                    artUriStringForPlayerInfo = currentItem.mediaMetadata.artworkUri?.toString()
+                    Log.d(TAG, "processWidgetUpdateInternal: MediaMetadata artworkUri (if any, with direct data): $artUriStringForPlayerInfo")
                 } else {
-                    Log.d(TAG, "Widget Art Cache HIT for URI: $artUriString.")
+                    Log.d(TAG, "processWidgetUpdateInternal: artworkData is null or empty in MediaMetadata. Trying artworkUri.")
+                    // 2. Si no hay artworkData, intentar con artworkUri
+                    val artworkUriFromMetadata = currentItem.mediaMetadata.artworkUri
+                    artUriStringForPlayerInfo = artworkUriFromMetadata?.toString() // Guardar para PlayerInfo
+
+                    if (artworkUriFromMetadata != null) {
+                        val uriString = artworkUriFromMetadata.toString()
+                        Log.d(TAG, "processWidgetUpdateInternal: artworkUri found in MediaMetadata: $uriString")
+                        artBytes = widgetArtByteArrayCache.get(uriString) // Intentar desde la caché del servicio
+                        if (artBytes != null) {
+                            Log.d(TAG, "processWidgetUpdateInternal: Widget Art Cache HIT for URI: $uriString, size: ${artBytes.size}")
+                        } else {
+                            Log.d(TAG, "processWidgetUpdateInternal: Widget Art Cache MISS for URI: $uriString. Loading image via loadBitmapDataFromUri.")
+                            artBytes = loadBitmapDataFromUri(applicationContext, artworkUriFromMetadata)
+                            if (artBytes != null) {
+                                widgetArtByteArrayCache.put(uriString, artBytes)
+                                Log.d(TAG, "processWidgetUpdateInternal: Loaded and cached artBytes from URI: $uriString, size: ${artBytes.size}")
+                            } else {
+                                Log.w(TAG, "processWidgetUpdateInternal: Failed to load album art from URI: $uriString (loadBitmapDataFromUri returned null)")
+                            }
+                        }
+                    } else {
+                        Log.d(TAG, "processWidgetUpdateInternal: artworkUri is also null in MediaMetadata.")
+                    }
                 }
-            } else if (artUriString.isEmpty() && lastWidgetArtUriString.isNotEmpty()) {
-                // Si la URI nueva está vacía pero la anterior no, significa que el arte debe limpiarse.
-                // No es necesario evictAll() aquí si la lógica de abajo maneja artBytes nulo.
-                // widgetArtByteArrayCache.evictAll() // Considerar si es necesario o si solo con artBytes = null es suficiente
             }
 
-            // Obtener el estado real de favorito desde el repositorio
+            // Log final sobre artBytes antes de construir PlayerInfo
+            if (artBytes == null) {
+                Log.d(TAG, "processWidgetUpdateInternal: Final artBytes is NULL.")
+            } else {
+                Log.d(TAG, "processWidgetUpdateInternal: Final artBytes is NOT NULL, size = ${artBytes.size}")
+            }
+
+            // Obtener el estado real de favorito
             var actualIsFavorite = false
             currentItem?.mediaId?.let { songId ->
-                // Primero intentar con el caché local inmediato por si acaba de cambiar
                 actualIsFavorite = isFavoriteMap[songId] ?: false
-                // Luego, obtener el estado real del repositorio (podría ser una llamada suspendida)
-                // Para simplificar y evitar Flow aquí, asumimos que `getSong` podría ser suspend o
-                // que el `PlayerViewModel` ya tiene esta info.
-                // Por ahora, confiamos en el `isFavoriteMap` que se actualiza en `toggleFavorite`.
-                // Para una SSoT más robusta, aquí se obtendría de una fuente de datos actualizada.
-                // Ejemplo conceptual si tuviéramos una función suspend getSong en el repo:
-                // val songFromRepo = musicRepository.getSongNonFlow(songId) // Necesitaría crear esta función
-                // actualIsFavorite = songFromRepo?.isFavorite ?: false
-                // isFavoriteMap[songId] = actualIsFavorite // Actualizar caché local
             }
-            if (currentItem == null) { // Si no hay canción, no es favorito
-                actualIsFavorite = false
-            Log.d(TAG, "processWidgetUpdateInternal: currentItem is null. Art URI and artBytes will be null/empty.")
-        } else {
-            Log.d(TAG, "processWidgetUpdateInternal: artUriString = $artUriString")
-        }
-
-        if (artBytes == null) {
-            Log.d(TAG, "processWidgetUpdateInternal: artBytes is NULL after attempting load/cache.")
-        } else {
-            Log.d(TAG, "processWidgetUpdateInternal: artBytes is NOT NULL, size = ${artBytes.size}")
-            }
+            // El log para currentItem null ya está arriba.
+            // No es necesario loguear artUriString aquí ya que su propósito principal era cargar artBytes.
+            // artUriStringForPlayerInfo es lo que se pasará a PlayerInfo.
 
 
             // Determinar si realmente necesitamos enviar una actualización al widget.
@@ -384,7 +391,7 @@ class MusicService : MediaSessionService() {
                 songTitle = title,
                 artistName = artist,
                 isPlaying = isPlaying,
-                albumArtUri = artUriString.ifEmpty { null },
+                albumArtUri = artUriStringForPlayerInfo, // Usar la URI obtenida, puede ser null
                 albumArtBitmapData = artBytes,
                 currentPositionMs = currentPositionMs,
                 totalDurationMs = totalDurationMs,
