@@ -943,7 +943,7 @@ fun EnhancedSongListItem(
                         model = song.albumArtUriString ?: R.drawable.rounded_album_24,
                         contentDescription = song.title,
                         contentScale = ContentScale.Crop,
-                        targetSize = coil.size.Size(168, 168), // 56dp * 3 (densidad asumida) approx
+                        targetSize = Size(100, 100), // 56dp * 3 (densidad asumida) approx
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -1216,7 +1216,7 @@ fun AlbumGridItemRedesigned(
                         contentScale = ContentScale.Crop,
                             // Reducido el tamaño para mejorar el rendimiento del scroll, como se sugiere en el informe.
                             // ContentScale.Crop se encargará de ajustar la imagen al aspect ratio.
-                            targetSize = coil.size.Size(256, 256),
+                            targetSize = Size(256, 256),
                         modifier = Modifier
                             .aspectRatio(3f / 2f)
                             .fillMaxSize(),

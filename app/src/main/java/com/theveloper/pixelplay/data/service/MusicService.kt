@@ -137,15 +137,15 @@ class MusicService : MediaSessionService() {
     // Listener de ExoPlayer (ya modificado en el paso anterior para usar requestWidgetFullUpdate)
     // ... (playerListener definido previamente) ...
 
-    private fun initializePlayer() {
-        val attrs = AudioAttributes.Builder()
-            .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-            .setUsage(C.USAGE_MEDIA)
-            .build()
-        exoPlayer.setAudioAttributes(attrs, true)
-        exoPlayer.setHandleAudioBecomingNoisy(true)
-        exoPlayer.addListener(playerListener) // Usar la instancia del listener definida arriba
-    }
+//    private fun initializePlayer() {
+//        val attrs = AudioAttributes.Builder()
+//            .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+//            .setUsage(C.USAGE_MEDIA)
+//            .build()
+//        exoPlayer.setAudioAttributes(attrs, true)
+//        exoPlayer.setHandleAudioBecomingNoisy(true)
+//        exoPlayer.addListener(playerListener) // Usar la instancia del listener definida arriba
+//    }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
