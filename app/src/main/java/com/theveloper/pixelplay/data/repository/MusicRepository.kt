@@ -106,4 +106,18 @@ interface MusicRepository {
      * @return Flow que emite una lista de objetos Song (simulada para este género).
      */
     fun getMusicByGenre(genreId: String): Flow<List<Song>> // Changed to Flow
+
+    /**
+     * Cambia el estado de favorito de una canción.
+     * @param songId El ID de la canción.
+     * @return El nuevo estado de favorito (true si es favorito, false si no).
+     */
+    suspend fun toggleFavoriteStatus(songId: String): Boolean
+
+    /**
+     * Obtiene una canción específica por su ID.
+     * @param songId El ID de la canción.
+     * @return Flow que emite el objeto Song o null si no se encuentra.
+     */
+    fun getSong(songId: String): Flow<Song?>
 }

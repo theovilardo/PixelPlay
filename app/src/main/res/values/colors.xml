@@ -22,4 +22,6 @@
     <color name="my_on_tertiary">#FFFFFF</color>
     <color name="pixelplay_widget_background_color">#FF2C1D4D</color>
 
+    <color name="pixel_play_purple_dark">#FF1E1234</color>
+    <color name="light_background">#FFFDF7FF</color>
 </resources>

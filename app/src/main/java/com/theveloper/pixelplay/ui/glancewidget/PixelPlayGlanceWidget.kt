@@ -97,25 +97,23 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
-            val playerInfo = currentState<PlayerInfo>() ?: PlayerInfo() // Changed to PlayerInfo
+            val playerInfo = currentState<PlayerInfo>() ?: PlayerInfo()
             val currentSize = LocalSize.current
 
             Log.d("PixelPlayGlanceWidget", "Providing Glance. PlayerInfo: title='${playerInfo.songTitle}', artist='${playerInfo.artistName}', isPlaying=${playerInfo.isPlaying}, hasBitmap=${playerInfo.albumArtBitmapData != null}, progress=${playerInfo.currentPositionMs}/${playerInfo.totalDurationMs}")
 
             GlanceTheme {
-                WidgetUi(playerInfo = playerInfo, size = currentSize)
+                WidgetUi(playerInfo = playerInfo, size = currentSize, context = context)
             }
         }
     }
 
     @Composable
-    private fun WidgetUi(playerInfo: PlayerInfo, size: DpSize) { // Changed to PlayerInfo
-        val context = LocalContext.current
+    private fun WidgetUi(playerInfo: PlayerInfo, size: DpSize, context: Context) {
         val title = playerInfo.songTitle.ifEmpty { "PixelPlay" }
         val artist = playerInfo.artistName.ifEmpty { "Toca para abrir" }
         val isPlaying = playerInfo.isPlaying
         val isFavorite = playerInfo.isFavorite
-        // playerInfo.albumArtBitmapData is already ByteArray?
         val albumArtBitmapData = playerInfo.albumArtBitmapData
         val currentProgress = playerInfo.currentPositionMs
         val totalDuration = playerInfo.totalDurationMs
@@ -154,10 +152,10 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 ThinWidgetLayout(baseModifier.padding(horizontal = 16.dp, vertical = 10.dp), title, artist, albumArtBitmapData, isPlaying, onBackgroundColor, context)
             }
             size.width < MEDIUM_LAYOUT_SIZE.width || size.height < MEDIUM_LAYOUT_SIZE.height -> {
-                SmallWidgetLayout(baseModifier.padding(16.dp), title, albumArtBitmapData, isPlaying, onBackgroundColor)
+                SmallWidgetLayout(baseModifier.padding(16.dp), title, albumArtBitmapData, isPlaying, onBackgroundColor, context)
             }
             size.width < LARGE_LAYOUT_SIZE.width || size.height < LARGE_LAYOUT_SIZE.height -> {
-                MediumWidgetLayout(baseModifier.padding(12.dp), title, artist, albumArtBitmapData, isPlaying, onBackgroundColor)
+                MediumWidgetLayout(baseModifier.padding(12.dp), title, artist, albumArtBitmapData, isPlaying, onBackgroundColor, context)
             }
             size.width < EXTRA_LARGE_LAYOUT_SIZE.width || size.height < EXTRA_LARGE_LAYOUT_SIZE.height -> { // Condición para el layout grande
                 LargeWidgetLayout(
@@ -196,7 +194,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
     @Composable
     fun VeryThinWidgetLayout(modifier: GlanceModifier, title: String, artist: String, albumArtBitmapData: ByteArray?, isPlaying: Boolean, textColor: ColorProvider, context: Context) {
         Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-            AlbumArtImageGlance(bitmapData = albumArtBitmapData, size = 36.dp, cornerRadius = 18.dp) // Circular
+            AlbumArtImageGlance(bitmapData = albumArtBitmapData, size = 36.dp, context = context, cornerRadius = 18.dp) // Circular
             Spacer(GlanceModifier.width(8.dp))
             Column(modifier = GlanceModifier.defaultWeight()) {
                 Text(text = title, style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textColor), maxLines = 1)
@@ -214,7 +212,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
     @Composable
     fun ThinWidgetLayout(modifier: GlanceModifier, title: String, artist: String, albumArtBitmapData: ByteArray?, isPlaying: Boolean, textColor: ColorProvider, context: Context) {
         Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-            AlbumArtImageGlance(bitmapData = albumArtBitmapData, size = 48.dp, cornerRadius = 24.dp) // Circular
+            AlbumArtImageGlance(bitmapData = albumArtBitmapData, size = 48.dp, context = context, cornerRadius = 24.dp) // Circular
             Spacer(GlanceModifier.width(10.dp))
             Column(modifier = GlanceModifier.defaultWeight()) {
                 Text(text = title, style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = textColor), maxLines = 1)
@@ -229,9 +227,9 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
     }
 
     @Composable
-    fun SmallWidgetLayout(modifier: GlanceModifier, title: String, albumArtBitmapData: ByteArray?, isPlaying: Boolean, textColor: ColorProvider) {
+    fun SmallWidgetLayout(modifier: GlanceModifier, title: String, albumArtBitmapData: ByteArray?, isPlaying: Boolean, textColor: ColorProvider, context: Context) {
         Column(modifier = modifier, verticalAlignment = Alignment.CenterVertically, horizontalAlignment = Alignment.CenterHorizontally) {
-            AlbumArtImageGlance(bitmapData = albumArtBitmapData, size = 60.dp, cornerRadius = 30.dp, modifier = GlanceModifier.padding(bottom = 8.dp)) // Circular
+            AlbumArtImageGlance(bitmapData = albumArtBitmapData, size = 60.dp, context = context, cornerRadius = 30.dp, modifier = GlanceModifier.padding(bottom = 8.dp)) // Circular
             Text(text = title, style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = textColor, textAlign = TextAlign.Center), maxLines = 1)
             Spacer(GlanceModifier.height(8.dp))
             PlayPauseButtonGlance(isPlaying = isPlaying, iconSize = 40.dp, iconColor = textColor)
@@ -239,9 +237,9 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
     }
 
     @Composable
-    fun MediumWidgetLayout(modifier: GlanceModifier, title: String, artist: String, albumArtBitmapData: ByteArray?, isPlaying: Boolean, textColor: ColorProvider) {
+    fun MediumWidgetLayout(modifier: GlanceModifier, title: String, artist: String, albumArtBitmapData: ByteArray?, isPlaying: Boolean, textColor: ColorProvider, context: Context) {
         Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-            AlbumArtImageGlance(bitmapData = albumArtBitmapData, size = 64.dp, cornerRadius = 16.dp) // Rectángulo redondeado
+            AlbumArtImageGlance(bitmapData = albumArtBitmapData, size = 64.dp, context = context, cornerRadius = 16.dp) // Rectángulo redondeado
             Spacer(GlanceModifier.width(12.dp))
             Column(modifier = GlanceModifier.defaultWeight()) {
                 Text(text = title, style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textColor), maxLines = 1)
@@ -272,7 +270,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
     ) {
         Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = GlanceModifier.fillMaxWidth().padding(bottom = 8.dp)) {
-                AlbumArtImageGlance(bitmapData = albumArtBitmapData, size = 64.dp, cornerRadius = 18.dp)
+                AlbumArtImageGlance(bitmapData = albumArtBitmapData, size = 64.dp, context = context, cornerRadius = 18.dp)
                 Spacer(GlanceModifier.width(12.dp))
                 Column(modifier = GlanceModifier.defaultWeight()) {
                     Text(text = title, style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textColor), maxLines = 1)
@@ -387,7 +385,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = GlanceModifier.fillMaxWidth()
             ) {
-                AlbumArtImageGlance(bitmapData = albumArtBitmapData, size = 80.dp, cornerRadius = 22.dp)
+                AlbumArtImageGlance(bitmapData = albumArtBitmapData, size = 80.dp, context = context, cornerRadius = 22.dp)
                 Spacer(GlanceModifier.width(16.dp))
                 Column(modifier = GlanceModifier.defaultWeight()) {
                     Text(
@@ -479,11 +477,50 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
     }
 
     @Composable
-    fun AlbumArtImageGlance(bitmapData: ByteArray?, size: Dp, modifier: GlanceModifier = GlanceModifier, cornerRadius: Dp = 16.dp) {
+    fun AlbumArtImageGlance(bitmapData: ByteArray?, size: Dp, context: Context, modifier: GlanceModifier = GlanceModifier, cornerRadius: Dp = 16.dp) {
         val imageProvider = bitmapData?.let { data ->
-            val cacheKey = AlbumArtBitmapCache.getKey(data)
-            AlbumArtBitmapCache.getBitmap(cacheKey)?.let { ImageProvider(it) }
+            val cacheKey = AlbumArtBitmapCache.getKey(data) // Use original data for cache key
+            var bitmap = AlbumArtBitmapCache.getBitmap(cacheKey)
+
+            if (bitmap == null) {
+                val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeByteArray(data, 0, data.size, options)
+
+                // Calculate inSampleSize
+                // Raw height and width of image
+                val imageHeight = options.outHeight
+                val imageWidth = options.outWidth
+                var inSampleSize = 1
+
+                val targetSizePx = with(context.resources.displayMetrics) { size.value * density }.toInt()
+
+                if (imageHeight > targetSizePx || imageWidth > targetSizePx) {
+                    val halfHeight: Int = imageHeight / 2
+                    val halfWidth: Int = imageWidth / 2
+                    // Calculate the largest inSampleSize value that is a power of 2 and keeps both
+                    // height and width larger than the requested height and width.
+                    while (halfHeight / inSampleSize >= targetSizePx && halfWidth / inSampleSize >= targetSizePx) {
+                        inSampleSize *= 2
+                    }
+                }
+                options.inSampleSize = inSampleSize
+                options.inJustDecodeBounds = false
+                bitmap = BitmapFactory.decodeByteArray(data, 0, data.size, options)
+
+                bitmap?.let {
+                    // Resize to a fixed small size if it's still too large after sampling
+                    // This step ensures a consistent small bitmap, good for cache and widget performance
+                    val scaledBitmap = Bitmap.createScaledBitmap(it, targetSizePx, targetSizePx, true)
+                    if (scaledBitmap != it) { // If scaling created a new bitmap
+                        it.recycle() // Recycle the larger sampled bitmap if it's different
+                    }
+                    bitmap = scaledBitmap
+                    AlbumArtBitmapCache.putBitmap(cacheKey, scaledBitmap) // Cache the resized bitmap
+                }
+            }
+            bitmap?.let { ImageProvider(it) }
         } ?: ImageProvider(R.drawable.rounded_album_24)
+
 
         Image(
             provider = imageProvider,

@@ -3,6 +3,7 @@
 
     <!-- Base app theme -->
     <style name="Theme.PixelPlay" parent="Theme.Material3.Light.NoActionBar">
+        <item name="android:windowBackground">@color/light_background</item>
         <!-- Primary & its container -->
         <item name="colorPrimary">@color/my_primary</item>
         <item name="colorOnPrimary">@color/my_on_primary</item>
@@ -22,7 +23,8 @@
 
     <!-- Splash screen theme can still extend Theme.SplashScreen -->
     <style name="Theme.App.Starting" parent="Theme.SplashScreen">
-        <!-- Splash attributes… -->
+        <item name="windowSplashScreenBackground">@color/light_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
         <item name="postSplashScreenTheme">@style/Theme.PixelPlay</item>
     </style>
 </resources>
