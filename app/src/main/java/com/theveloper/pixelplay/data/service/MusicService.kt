@@ -411,7 +411,7 @@ class MusicService : MediaSessionService() {
             if (successfullySent) { // Actualizar los 'last' estados si el envío fue exitoso
                 lastProcessedWidgetUpdateTimeMs = currentTimeMs
                 lastWidgetIsPlayingState = isPlaying
-                lastWidgetFavoriteState = isFavorite
+                lastWidgetFavoriteState = actualIsFavorite // CORREGIDO: Usar actualIsFavorite
                 if (artUriString.isNotEmpty() && artBytes != null) { // Solo actualizar lastWidgetArtUriString si el arte se cargó/obtuvo de caché con éxito
                     lastWidgetArtUriString = artUriString
                 } else if (artUriString.isEmpty()) {
