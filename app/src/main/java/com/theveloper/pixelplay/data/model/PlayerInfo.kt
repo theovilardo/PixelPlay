@@ -9,12 +9,10 @@ data class PlayerInfo(
     val artistName: String = "",
     val isPlaying: Boolean = false,
     val albumArtUri: String? = null,
-    // kotlinx.serialization puede manejar ByteArray a/desde Base64 String en JSON por defecto
-    // o podríamos necesitar un serializador custom si el manejo por defecto no es ideal.
-    // Por ahora, lo dejamos como ByteArray?. Si da problemas, lo cambiamos a String (Base64).
     val albumArtBitmapData: ByteArray? = null,
     val currentPositionMs: Long = 0L,
-    val totalDurationMs: Long = 0L
+    val totalDurationMs: Long = 0L,
+    val isFavorite: Boolean = false
 ) {
     // equals y hashCode para ByteArray, ya que el por defecto no es comparando contenido
     override fun equals(other: Any?): Boolean {

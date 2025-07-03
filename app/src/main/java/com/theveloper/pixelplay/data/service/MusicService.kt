@@ -125,13 +125,14 @@ class MusicService : MediaSessionService() {
             PlayerActions.PLAY_PAUSE -> togglePlayPause()
             PlayerActions.NEXT       -> playNext()
             PlayerActions.PREVIOUS   -> playPrevious()
+            PlayerActions.FAVORITE   -> toggleFavorite()
             // No es necesario llamar a requestWidgetFullUpdate() aquí explícitamente
             // si las funciones togglePlayPause, playNext, playPrevious
             // ya modifican el estado de ExoPlayer, lo que activará el playerListener.
             // Sin embargo, para asegurar la inmediatez de la respuesta a la acción del usuario,
             // una llamada directa puede ser beneficiosa, y el debounce se encargará de la eficiencia.
         }
-        requestWidgetFullUpdate() // Solicitar actualización después de una acción. El debounce lo manejará.
+        requestWidgetFullUpdate(force = true) // Solicitar actualización después de una acción. El debounce lo manejará.
     }
 
     // Listener de ExoPlayer (ya modificado en el paso anterior para usar requestWidgetFullUpdate)
@@ -200,47 +201,37 @@ class MusicService : MediaSessionService() {
         }
     }
 
+    private fun toggleFavorite() {
+        // Lógica para añadir/quitar de favoritos
+        // Aquí iría la llamada al repositorio/base de datos
+        // Por ahora, solo invertimos un estado simulado
+        val currentSongId = exoPlayer.currentMediaItem?.mediaId ?: return
+        isFavoriteMap[currentSongId] = !(isFavoriteMap[currentSongId] ?: false)
+    }
+
+    private val isFavoriteMap = mutableMapOf<String, Boolean>()
+
     private var lastProcessedWidgetUpdateTimeMs = 0L
     private var lastWidgetArtUriString = ""
     private var debouncedWidgetUpdateJob: Job? = null // Para actualizaciones completas (no solo progreso)
     private var lastWidgetIsPlayingState = false
+    private var lastWidgetFavoriteState = false
 
     // LruCache para ByteArrays de carátulas, clave es URI en String
     private val widgetArtByteArrayCache = LruCache<String, ByteArray>(5)
-    private var progressUpdateJob: Job? = null
-
-    // Intervalo para la actualización del progreso del widget (en milisegundos)
-    private val WIDGET_PROGRESS_UPDATE_INTERVAL_MS = 1000L // Actualizar cada segundo como sugiere el informe
     // Tiempo de debounce para actualizaciones de estado completas (en milisegundos)
     private val WIDGET_STATE_DEBOUNCE_MS = 300L
 
-
-    private fun startProgressUpdater() {
-        stopProgressUpdater()
-        if (exoPlayer.isPlaying && exoPlayer.playbackState != Player.STATE_ENDED) {
-            progressUpdateJob = serviceScope.launch {
-                while (true) {
-                    // Esta llamada es específicamente para una actualización de progreso.
-                    processWidgetUpdateInternal(isProgressOnlyUpdate = true)
-                    delay(WIDGET_PROGRESS_UPDATE_INTERVAL_MS)
-                }
-            }
-        }
-    }
-
-    private fun stopProgressUpdater() {
-        progressUpdateJob?.cancel()
-        progressUpdateJob = null
-    }
-
     // Esta función se llamará cuando cambie el estado del reproductor (canción, play/pausa, etc.)
     // O cuando una acción del usuario (botón de siguiente/anterior) lo requiera.
-    private fun requestWidgetFullUpdate() {
+    private fun requestWidgetFullUpdate(force: Boolean = false) {
         debouncedWidgetUpdateJob?.cancel() // Cancela el job de debounce anterior
         debouncedWidgetUpdateJob = serviceScope.launch {
-            delay(WIDGET_STATE_DEBOUNCE_MS) // Espera a que cesen los cambios rápidos
+            if (!force) {
+                delay(WIDGET_STATE_DEBOUNCE_MS) // Espera a que cesen los cambios rápidos
+            }
             // Esta llamada es para una actualización completa, no solo de progreso.
-            processWidgetUpdateInternal(isProgressOnlyUpdate = false)
+            processWidgetUpdateInternal()
         }
     }
 
@@ -248,20 +239,10 @@ class MusicService : MediaSessionService() {
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
             requestWidgetFullUpdate()
-            if (playbackState == Player.STATE_READY && exoPlayer.isPlaying) {
-                startProgressUpdater()
-            } else if (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_IDLE) {
-                stopProgressUpdater()
-            }
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             requestWidgetFullUpdate()
-            if (isPlaying) {
-                startProgressUpdater()
-            } else {
-                stopProgressUpdater()
-            }
         }
 
         override fun onMediaItemTransition(item: MediaItem?, reason: Int) {
@@ -270,10 +251,9 @@ class MusicService : MediaSessionService() {
 
         override fun onPlayerError(error: PlaybackException) {
             Log.e(TAG, "PlayerError: ${error.message}")
-            stopProgressUpdater()
             exoPlayer.stop() // Considerar limpiar la cola o manejar el error de forma más robusta
             exoPlayer.clearMediaItems()
-            requestWidgetFullUpdate() // Reflejar el estado de error en el widget
+            requestWidgetFullUpdate(force = true) // Reflejar el estado de error en el widget
         }
     }
 
@@ -288,9 +268,7 @@ class MusicService : MediaSessionService() {
     }
 
     // Esta es la función principal que ahora construye y envía la actualización del widget.
-    // isProgressOnlyUpdate: true si esta actualización es solo para el progreso de la canción.
-    //                       false si es una actualización completa (cambio de canción, estado play/pausa, etc.).
-    private fun processWidgetUpdateInternal(isProgressOnlyUpdate: Boolean) {
+    private fun processWidgetUpdateInternal() {
         val currentTimeMs = System.currentTimeMillis()
 
         // Throttle: Si es una actualización de progreso y la última actualización (de cualquier tipo) fue hace muy poco, podríamos saltarla.
@@ -310,10 +288,9 @@ class MusicService : MediaSessionService() {
             var artBytes: ByteArray? = null
             val artUriChanged = artUriString != lastWidgetArtUriString
 
-            // Solo cargar/recargar la imagen si:
-            // 1. No es solo una actualización de progreso (es una actualización completa) Y la URI del arte es válida.
-            // 2. O si la URI del arte ha cambiado (incluso para una actualización de progreso, aunque es menos común).
-            if ((!isProgressOnlyUpdate && artUriString.isNotEmpty()) || (artUriString.isNotEmpty() && artUriChanged)) {
+            // 1. La URI del arte es válida.
+            // 2. O si la URI del arte ha cambiado.
+            if (artUriString.isNotEmpty()) {
                 artBytes = widgetArtByteArrayCache.get(artUriString) // Intentar desde la caché
                 if (artBytes == null) {
                     Log.d(TAG, "Widget Art Cache MISS for URI: $artUriString. Loading image.")
@@ -326,39 +303,27 @@ class MusicService : MediaSessionService() {
                 } else {
                     Log.d(TAG, "Widget Art Cache HIT for URI: $artUriString.")
                 }
-            } else if (artUriString.isEmpty() && !isProgressOnlyUpdate) {
+            } else if (artUriString.isEmpty()) {
                 // Si la URI está vacía y es una actualización completa, limpiar la caché de arte.
                 widgetArtByteArrayCache.evictAll()
-            } else if (isProgressOnlyUpdate && artUriString.isNotEmpty() && artUriString == lastWidgetArtUriString) {
-                // Si es solo progreso y la URI no ha cambiado, usar la versión en caché si existe.
-                artBytes = widgetArtByteArrayCache.get(artUriString)
-            }
+            } 
 
+
+            val isFavorite = isFavoriteMap[currentItem?.mediaId] ?: false
 
             // Determinar si realmente necesitamos enviar una actualización al widget.
             // Esto es crucial para evitar el "shedding".
             val significantChangeOccurred = lastWidgetIsPlayingState != isPlaying ||
                                             lastWidgetArtUriString != artUriString || // Si la URI del arte cambió
-                                            (artBytes != null && widgetArtByteArrayCache.get(artUriString) != artBytes) || // Si el arte cargado es nuevo
-                                            !isProgressOnlyUpdate // Siempre actualizar si es una actualización completa (debounced)
+                                            lastWidgetFavoriteState != isFavorite || // Si el estado de favorito cambió
+                                            (artBytes != null && widgetArtByteArrayCache.get(artUriString) != artBytes) // Si el arte cargado es nuevo
 
             // Para actualizaciones de progreso, solo actualizamos si ha pasado el tiempo mínimo.
             // Para actualizaciones completas (debounced), siempre actualizamos.
-            val shouldSendUpdateToWidget = if (isProgressOnlyUpdate) {
-                // Para actualizaciones de progreso, solo enviar si el estado de reproducción o la posición son significativamente diferentes
-                // o si es la primera actualización de progreso después de un cambio de estado.
-                // La cadencia ya está controlada por WIDGET_PROGRESS_UPDATE_INTERVAL_MS.
-                // Aquí podríamos añadir una comprobación de si la posición ha cambiado realmente,
-                // pero PlayerInfo siempre se construye con la posición actual.
-                // El chequeo principal es si la información que se envía es diferente a la última enviada.
-                // Por ahora, dejaremos que se envíe cada segundo si está reproduciendo.
-                true // El progressUpdateJob ya controla la frecuencia a 1Hz.
-            } else {
-                significantChangeOccurred // Para actualizaciones completas, enviar si algo significativo cambió.
-            }
+            val shouldSendUpdateToWidget = significantChangeOccurred
 
-            if (!shouldSendUpdateToWidget && isProgressOnlyUpdate) {
-                 Log.v(TAG, "Skipping progress-only widget update as no significant change detected or too soon.")
+            if (!shouldSendUpdateToWidget) {
+                 Log.v(TAG, "Skipping widget update as no significant change detected.")
                  return@launch // No enviar actualización al widget
             }
 
@@ -369,7 +334,8 @@ class MusicService : MediaSessionService() {
                 albumArtUri = artUriString.ifEmpty { null },
                 albumArtBitmapData = artBytes,
                 currentPositionMs = currentPositionMs,
-                totalDurationMs = totalDurationMs
+                totalDurationMs = totalDurationMs,
+                isFavorite = isFavoriteMap[currentItem?.mediaId] ?: false
             )
 
             // All Glance AppWidget operations should be off the main thread.
@@ -398,9 +364,10 @@ class MusicService : MediaSessionService() {
                 }
             }
 
-            if (successfullySent || !isProgressOnlyUpdate) { // Actualizar los 'last' estados si el envío fue exitoso o si es una actualización completa (para mantener la coherencia del estado interno)
+            if (successfullySent) { // Actualizar los 'last' estados si el envío fue exitoso
                 lastProcessedWidgetUpdateTimeMs = currentTimeMs
                 lastWidgetIsPlayingState = isPlaying
+                lastWidgetFavoriteState = isFavorite
                 if (artUriString.isNotEmpty() && artBytes != null) { // Solo actualizar lastWidgetArtUriString si el arte se cargó/obtuvo de caché con éxito
                     lastWidgetArtUriString = artUriString
                 } else if (artUriString.isEmpty()) {
@@ -466,7 +433,6 @@ class MusicService : MediaSessionService() {
     }
 
     override fun onDestroy() {
-        stopProgressUpdater()
         mediaSession?.release()
         mediaSession = null
         super.onDestroy()

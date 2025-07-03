@@ -50,4 +50,5 @@ object PlayerActions {
     const val PLAY_PAUSE = "com.example.pixelplay.ACTION_WIDGET_PLAY_PAUSE"
     const val NEXT = "com.example.pixelplay.ACTION_WIDGET_NEXT"
     const val PREVIOUS = "com.example.pixelplay.ACTION_WIDGET_PREVIOUS"
+    const val FAVORITE = "com.example.pixelplay.ACTION_WIDGET_FAVORITE"
 }

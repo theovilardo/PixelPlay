@@ -114,6 +114,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         val title = playerInfo.songTitle.ifEmpty { "PixelPlay" }
         val artist = playerInfo.artistName.ifEmpty { "Toca para abrir" }
         val isPlaying = playerInfo.isPlaying
+        val isFavorite = playerInfo.isFavorite
         // playerInfo.albumArtBitmapData is already ByteArray?
         val albumArtBitmapData = playerInfo.albumArtBitmapData
         val currentProgress = playerInfo.currentPositionMs
@@ -165,6 +166,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                     artist,
                     albumArtBitmapData,
                     isPlaying,
+                    isFavorite,
                     currentProgress,
                     totalDuration,
                     textColor = onBackgroundColor,
@@ -263,7 +265,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
     @Composable
     fun LargeWidgetLayout(
         modifier: GlanceModifier, title: String, artist: String, albumArtBitmapData: ByteArray?,
-        isPlaying: Boolean, currentProgressMs: Long, totalDurationMs: Long,
+        isPlaying: Boolean, isFavorite: Boolean, currentProgressMs: Long, totalDurationMs: Long,
         textColor: ColorProvider, accentColor: ColorProvider,
         progressBgColor: ColorProvider,
         context: Context // Añadir contexto para el Intent
@@ -278,11 +280,11 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 }
                 Spacer(GlanceModifier.width(4.dp))
                 Image(
-                    provider = ImageProvider(R.drawable.rounded_favorite_24),
+                    provider = ImageProvider(if (isFavorite) R.drawable.round_favorite_24 else R.drawable.rounded_favorite_24),
                     contentDescription = "favorite",
                     modifier = GlanceModifier
                         .size(28.dp)
-                        .clickable(actionStartActivity(IntentProvider.mainActivityIntent(context)))
+                        .clickable(actionRunCallback<PlayerControlActionCallback>(actionParametersOf(PlayerActions.key to PlayerActions.FAVORITE)))
                         .padding(2.dp),
                     colorFilter = ColorFilter.tint(textColor)
                 )
@@ -480,20 +482,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
     fun AlbumArtImageGlance(bitmapData: ByteArray?, size: Dp, modifier: GlanceModifier = GlanceModifier, cornerRadius: Dp = 16.dp) {
         val imageProvider = bitmapData?.let { data ->
             val cacheKey = AlbumArtBitmapCache.getKey(data)
-            var bitmap = AlbumArtBitmapCache.getBitmap(cacheKey)
-
-            if (bitmap == null) {
-                try {
-                    bitmap = BitmapFactory.decodeByteArray(data, 0, data.size)
-                    bitmap?.let { bmp ->
-                        AlbumArtBitmapCache.putBitmap(cacheKey, bmp)
-                    }
-                } catch (e: Exception) {
-                    Log.e("PixelPlayGlanceWidget", "Error decoding bitmap for cache key: $cacheKey", e)
-                    // bitmap remains null
-                }
-            }
-            bitmap?.let { ImageProvider(it) }
+            AlbumArtBitmapCache.getBitmap(cacheKey)?.let { ImageProvider(it) }
         } ?: ImageProvider(R.drawable.rounded_album_24)
 
         Image(
