@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.presentation.screens
 
+import android.os.Trace
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
@@ -95,6 +96,9 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImagePainter
+import coil.imageLoader
+import coil.request.ImageRequest
+import coil.size.Size
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.components.ShimmerBox // Added import for ShimmerBox
 import com.theveloper.pixelplay.data.model.Album
@@ -118,7 +122,10 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlaylistUiState
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 import com.theveloper.pixelplay.utils.formatDuration
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import okhttp3.internal.toImmutableList
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
@@ -130,51 +137,33 @@ fun LibraryScreen(
     playerViewModel: PlayerViewModel = hiltViewModel(),
     playlistViewModel: PlaylistViewModel = hiltViewModel()
 ) {
-    val uiState by playerViewModel.playerUiState.collectAsState()
-    // val stablePlayerState by playerViewModel.stablePlayerState.collectAsState() // Uncomment if used
-    val playlistUiState by playlistViewModel.uiState.collectAsState()
-    // val sheetVisibility by playerViewModel.isSheetVisible.collectAsState() // Uncomment if used
-    val favoriteSongs by playerViewModel.favoriteSongs.collectAsState() // Keep if used elsewhere, or remove if only favoriteIds is needed for this screen
-    val favoriteIds by playerViewModel.favoriteSongIds.collectAsState()
-    val scope = rememberCoroutineScope()
+    // La recolección de estados de alto nivel se mantiene mínima.
     val lastTabIndex by playerViewModel.lastLibraryTabIndexFlow.collectAsState()
+    val favoriteIds by playerViewModel.favoriteSongIds.collectAsState() // Reintroducir favoriteIds aquí
+    val scope = rememberCoroutineScope() // Mantener si se usa para acciones de UI
 
+    // Estados locales para dialogs/bottom sheets, etc.
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     var selectedSongForInfo by remember { mutableStateOf<Song?>(null) }
-
     val tabTitles = listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "LIKED")
     val pagerState = rememberPagerState(initialPage = lastTabIndex) { tabTitles.size }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) } // Mantener para la visibilidad del menú
 
-    LaunchedEffect(pagerState) {
-        snapshotFlow { pagerState.currentPage }.collect { page ->
-            playerViewModel.saveLastLibraryTabIndex(page)
-            when (page) {
-                1 -> playerViewModel.loadAlbumsIfNeeded() // Índice 1 para la pestaña de Álbumes
-                2 -> playerViewModel.loadArtistsIfNeeded() // Índice 2 para la pestaña de Artistas
-                // Las canciones (índice 0) se cargan inicialmente o con resetAndLoadInitialData
-                // Playlists (índice 3) y Liked (índice 4) tienen su propia lógica de carga o ya están disponibles.
-            }
-        }
+    // La lógica de carga diferida (lazy loading) se mantiene.
+    LaunchedEffect(Unit) {
+        Trace.beginSection("LibraryScreen.InitialTabLoad")
+        playerViewModel.onLibraryTabSelected(lastTabIndex)
+        Trace.endSection()
+    }
+    LaunchedEffect(pagerState.currentPage) {
+        Trace.beginSection("LibraryScreen.PageChangeTabLoad")
+        playerViewModel.onLibraryTabSelected(pagerState.currentPage)
+        Trace.endSection()
     }
 
-    // States for sort menu visibility and selected options for each tab
-    var showSortMenu by remember { mutableStateOf(false) }
-    var selectedSortOptionForSongs by remember { mutableStateOf<SortOption>(SortOption.SongTitleAZ) }
-    var selectedSortOptionForAlbums by remember { mutableStateOf<SortOption>(SortOption.AlbumTitleAZ) }
-    var selectedSortOptionForArtists by remember { mutableStateOf<SortOption>(SortOption.ArtistNameAZ) }
-    var selectedSortOptionForPlaylists by remember { mutableStateOf<SortOption>(SortOption.PlaylistNameAZ) }
-    var selectedSortOptionForLiked by remember { mutableStateOf<SortOption>(SortOption.LikedSongTitleAZ) }
-
-
-    // LaunchedEffect(Unit) { // Removed - ViewModel now loads all data initially or on demand per tab
-    //     if (uiState.allSongs.isEmpty() /* && uiState.canLoadMoreSongs */) playerViewModel.loadMoreSongs() // canLoadMoreSongs removed
-    //     if (uiState.albums.isEmpty() /* && uiState.canLoadMoreAlbums */) playerViewModel.loadMoreAlbums() // canLoadMoreAlbums removed
-    //     if (uiState.artists.isEmpty() /* && uiState.canLoadMoreArtists */) playerViewModel.loadMoreArtists() // canLoadMoreArtists removed
-    // }
-
-    val fabState by remember { derivedStateOf { pagerState.currentPage } }
-    val transition = updateTransition(targetState = fabState, label = "Action Button Icon Transition")
+    val fabState by remember { derivedStateOf { pagerState.currentPage } } // UI sin cambios
+    val transition = updateTransition(targetState = fabState, label = "Action Button Icon Transition") // UI sin cambios
 
     val bottomBarHeightDp = NavBarPersistentHeight
 
@@ -315,70 +304,39 @@ fun LibraryScreen(
                     // shape = AbsoluteSmoothCornerShape(cornerRadiusTL = 24.dp, smoothnessAsPercentTR = 60, /*...*/) // Your custom shape
                 ) {
                     Column(Modifier.fillMaxSize()) {
-                        // Determine current sort option and handler based on selected page
-                        val (currentSelectedSortOption, onSortOptionChanged) = when (pagerState.currentPage) {
-                            0 -> selectedSortOptionForSongs to { option: SortOption ->
-                                selectedSortOptionForSongs = option
-                                playerViewModel.sortSongs(option)
-                            }
+                        // OPTIMIZACIÓN: La lógica de ordenamiento ahora es más eficiente.
+                        val availableSortOptions by playerViewModel.availableSortOptions.collectAsState()
 
-                            1 -> selectedSortOptionForAlbums to { option: SortOption ->
-                                selectedSortOptionForAlbums = option
-                                playerViewModel.sortAlbums(option)
-                            }
+                        // Recolectamos el estado de ordenación de forma más inteligente.
+                        // `distinctUntilChanged()` evita recomposiciones si la opción de ordenación no ha cambiado.
+                        val currentSelectedSortOption by remember(playerViewModel, pagerState.currentPage) { // pagerState.currentPage es clave aquí
+                            playerViewModel.playerUiState.map {
+                                when (pagerState.currentPage) {
+                                    0 -> it.currentSongSortOption
+                                    1 -> it.currentAlbumSortOption
+                                    2 -> it.currentArtistSortOption
+                                    4 -> it.currentFavoriteSortOption // Este es de PlayerViewModel
+                                    else -> SortOption.SongTitleAZ // Fallback para pestañas no cubiertas por PlayerViewModel directamente
+                                }
+                            }.distinctUntilChanged()
+                        }.collectAsState(initial = SortOption.SongTitleAZ) // Un initialValue razonable
 
-                            2 -> selectedSortOptionForArtists to { option: SortOption ->
-                                selectedSortOptionForArtists = option
-                                playerViewModel.sortArtists(option)
-                            }
+                        // Playlist sort option se maneja por separado ya que viene de otro ViewModel
+                        val playlistSortOption by remember(playlistViewModel) { // Solo depende de playlistViewModel
+                            playlistViewModel.uiState.map { it.currentPlaylistSortOption }.distinctUntilChanged()
+                        }.collectAsState(initial = SortOption.PlaylistNameAZ) // Un initialValue razonable
 
-                            3 -> selectedSortOptionForPlaylists to { option: SortOption ->
-                                selectedSortOptionForPlaylists = option
-                                playlistViewModel.sortPlaylists(option)
-                            }
+                        val finalSortOption = if (pagerState.currentPage == 3) playlistSortOption else currentSelectedSortOption
 
-                            4 -> selectedSortOptionForLiked to { option: SortOption ->
-                                selectedSortOptionForLiked = option
-                                playerViewModel.sortFavoriteSongs(option)
-                            }
-
-                            else -> selectedSortOptionForSongs to { _: SortOption -> } // Fallback
-                        }
-
-                        val availableSortOptions = remember(pagerState.currentPage) {
-                            when (pagerState.currentPage) {
-                                0 -> listOf(
-                                    SortOption.SongTitleAZ,
-                                    SortOption.SongTitleZA,
-                                    SortOption.SongArtist,
-                                    SortOption.SongAlbum,
-                                    SortOption.SongDateAdded,
-                                    SortOption.SongDuration
-                                )
-
-                                1 -> listOf(
-                                    SortOption.AlbumTitleAZ,
-                                    SortOption.AlbumTitleZA,
-                                    SortOption.AlbumArtist,
-                                    SortOption.AlbumReleaseYear
-                                )
-
-                                2 -> listOf(SortOption.ArtistNameAZ, SortOption.ArtistNameZA)
-                                3 -> listOf(
-                                    SortOption.PlaylistNameAZ,
-                                    SortOption.PlaylistNameZA,
-                                    SortOption.PlaylistDateCreated
-                                )
-
-                                4 -> listOf(
-                                    SortOption.LikedSongTitleAZ,
-                                    SortOption.LikedSongTitleZA,
-                                    SortOption.LikedSongArtist,
-                                    SortOption.LikedSongAlbum,
-                                    SortOption.LikedSongDateLiked
-                                )
-
-                                else -> emptyList()
+                        val onSortOptionChanged: (SortOption) -> Unit = remember(playerViewModel, playlistViewModel, pagerState.currentPage) {
+                            { option ->
+                                when (pagerState.currentPage) {
+                                    0 -> playerViewModel.sortSongs(option)
+                                    1 -> playerViewModel.sortAlbums(option)
+                                    2 -> playerViewModel.sortArtists(option)
+                                    3 -> playlistViewModel.sortPlaylists(option)
+                                    4 -> playerViewModel.sortFavoriteSongs(option)
+                                }
                             }
                         }
 
@@ -416,56 +374,103 @@ fun LibraryScreen(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(top = 8.dp), // Ensure content is below ActionRow
-                            pageSpacing = 0.dp,
+                            pageSpacing = 0.dp, // No pageSpacing as per original
                         ) { page ->
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                // .padding(top = 8.dp) // This padding is now on the HorizontalPager itself
-                            ) {
-                                when (page) {
-                                    0 -> LibrarySongsTab(
-                                        songs = uiState.allSongs,
-                                        isLoadingInitial = uiState.isLoadingInitialSongs,
-                                        // isLoadingMore = uiState.isLoadingMoreSongs, // Removed
-                                        // canLoadMore = uiState.canLoadMoreSongs, // Removed
+                            // El contenido de cada página ahora es más independiente.
+                            when (page) {
+                                0 -> {
+                                    // OPTIMIZACIÓN: Cada pestaña recolecta solo los datos que necesita.
+                                    // Usamos `map` para extraer solo la lista de canciones.
+                                    // `distinctUntilChanged` previene recomposiciones si la lista no cambia.
+                                    val songs by remember {
+                                        playerViewModel.playerUiState
+                                            .map { it.allSongs }
+                                            .distinctUntilChanged()
+                                    }.collectAsState(initial = persistentListOf())
+
+                                    val isLoading by remember {
+                                        playerViewModel.playerUiState
+                                            .map { it.isLoadingInitialSongs }
+                                            .distinctUntilChanged()
+                                    }.collectAsState(initial = songs.isEmpty())
+
+                                    LibrarySongsTab(
+                                        songs = songs,
+                                        isLoadingInitial = isLoading,
                                         playerViewModel = playerViewModel,
                                         bottomBarHeight = bottomBarHeightDp
-                                    ) { songFromItem ->
-                                        selectedSongForInfo = songFromItem
+                                    ) { song ->
+                                        selectedSongForInfo = song
                                         showSongInfoBottomSheet = true
                                     }
+                                }
 
-                                    1 -> LibraryAlbumsTab(
-                                        albums = uiState.albums,
-                                        isLoading = uiState.isLoadingLibraryCategories, // This now covers the whole load for albums
-                                        // canLoadMore = uiState.canLoadMoreAlbums, // Removed
+                                1 -> {
+                                    val albums by remember {
+                                        playerViewModel.playerUiState
+                                            .map { it.albums }
+                                            .distinctUntilChanged()
+                                    }.collectAsState(initial = persistentListOf())
+
+                                    val isLoading by remember {
+                                        playerViewModel.playerUiState
+                                            .map { it.isLoadingLibraryCategories }
+                                            .distinctUntilChanged()
+                                    }.collectAsState(initial = albums.isEmpty())
+
+                                    LibraryAlbumsTab(
+                                        albums = albums,
+                                        isLoading = isLoading,
                                         playerViewModel = playerViewModel,
                                         bottomBarHeight = bottomBarHeightDp,
                                         onAlbumClick = { albumId ->
                                             navController.navigate(Screen.AlbumDetail.createRoute(albumId))
                                         }
                                     )
+                                }
 
-                                    2 -> LibraryArtistsTab(
-                                        artists = uiState.artists,
-                                        isLoading = uiState.isLoadingLibraryCategories, // This now covers the whole load for artists
-                                        // canLoadMore = uiState.canLoadMoreArtists, // Removed
+                                2 -> {
+                                    val artists by remember {
+                                        playerViewModel.playerUiState
+                                            .map { it.artists }
+                                            .distinctUntilChanged()
+                                    }.collectAsState(initial = persistentListOf())
+
+                                    val isLoading by remember {
+                                        playerViewModel.playerUiState
+                                            .map { it.isLoadingLibraryCategories }
+                                            .distinctUntilChanged()
+                                    }.collectAsState(initial = artists.isEmpty())
+
+                                    LibraryArtistsTab(
+                                        artists = artists,
+                                        isLoading = isLoading,
                                         playerViewModel = playerViewModel,
                                         bottomBarHeight = bottomBarHeightDp
                                     )
-                                    3 -> LibraryPlaylistsTab(
-                                        playlistUiState, // PlaylistViewModel maneja su propio estado granular
-                                        navController,
-                                        bottomBarHeightDp
+                                }
+                                3 -> {
+                                    // playlistUiState ya es granular y se recolecta una vez fuera del Pager
+                                    // si se va a usar para el `currentSelectedSortOption`.
+                                    // Si no, se puede recolectar aquí. Para consistencia con el prompt,
+                                    // asumimos que `playlistUiState` ya está disponible.
+                                    val currentPlaylistUiState by playlistViewModel.uiState.collectAsState()
+                                    LibraryPlaylistsTab(
+                                        playlistUiState = currentPlaylistUiState,
+                                        navController = navController,
+                                        bottomBarHeight = bottomBarHeightDp
                                     )
+                                }
 
-                                    4 -> LibraryFavoritesTab( // favoriteSongs ya es un StateFlow granular
-                                        favoriteSongs = favoriteSongs, // Pasando la lista directamente
+                                4 -> {
+                                    // favoriteSongs ya es un Flow separado, lo cual es perfecto.
+                                    val favoriteSongs by playerViewModel.favoriteSongs.collectAsState()
+                                    LibraryFavoritesTab(
+                                        favoriteSongs = favoriteSongs,
                                         playerViewModel = playerViewModel,
                                         bottomBarHeight = bottomBarHeightDp
-                                    ) { songFromItem ->
-                                        selectedSongForInfo = songFromItem
+                                    ) { song ->
+                                        selectedSongForInfo = song
                                         showSongInfoBottomSheet = true
                                     }
                                 }
@@ -474,7 +479,10 @@ fun LibraryScreen(
                     }
                 }
 
-                if (uiState.isSyncingLibrary || ((uiState.isLoadingInitialSongs || uiState.isLoadingLibraryCategories) && (uiState.allSongs.isEmpty() && uiState.albums.isEmpty() && uiState.artists.isEmpty()))) {
+                // El indicador de carga global puede permanecer, ya que es una superposición.
+                // Recolectar playerUiState aquí solo para el indicador de carga global.
+                val globalLoadingState by playerViewModel.playerUiState.collectAsState()
+                if (globalLoadingState.isSyncingLibrary || ((globalLoadingState.isLoadingInitialSongs || globalLoadingState.isLoadingLibraryCategories) && (globalLoadingState.allSongs.isEmpty() && globalLoadingState.albums.isEmpty() && globalLoadingState.artists.isEmpty()))) {
                     Surface( // Fondo semitransparente para el indicador
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f)
@@ -688,6 +696,39 @@ fun LibrarySongsTab(
 ) {
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
     val listState = rememberLazyListState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val imageLoader = context.imageLoader
+
+    // Prefetching logic for LibrarySongsTab
+    LaunchedEffect(songs, listState) {
+        snapshotFlow { listState.layoutInfo }
+            .distinctUntilChanged()
+            .collect { layoutInfo ->
+                val visibleItemsInfo = layoutInfo.visibleItemsInfo
+                if (visibleItemsInfo.isNotEmpty() && songs.isNotEmpty()) {
+                    val lastVisibleItemIndex = visibleItemsInfo.last().index
+                    val totalItemsCount = songs.size
+                    val prefetchThreshold = 10 // Start prefetching when 10 items are left
+                    val prefetchCount = 20    // Prefetch next 20 items
+
+                    if (totalItemsCount > lastVisibleItemIndex + 1 && lastVisibleItemIndex + prefetchThreshold >= totalItemsCount - prefetchCount ) {
+                         val startIndexToPrefetch = lastVisibleItemIndex + 1
+                         val endIndexToPrefetch = (startIndexToPrefetch + prefetchCount).coerceAtMost(totalItemsCount)
+
+                        (startIndexToPrefetch until endIndexToPrefetch).forEach { indexToPrefetch ->
+                            val song = songs.getOrNull(indexToPrefetch)
+                            song?.albumArtUriString?.let { uri ->
+                                val request = ImageRequest.Builder(context)
+                                    .data(uri)
+                                    .size(Size(168, 168)) // Same size as in EnhancedSongListItem
+                                    .build()
+                                imageLoader.enqueue(request)
+                            }
+                        }
+                    }
+                }
+            }
+    }
 
     if (isLoadingInitial && songs.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -902,7 +943,7 @@ fun EnhancedSongListItem(
                         model = song.albumArtUriString ?: R.drawable.rounded_album_24,
                         contentDescription = song.title,
                         contentScale = ContentScale.Crop,
-                        targetSize = coil.size.Size(168, 168), // 56dp * 3 (densidad asumida) approx
+                        targetSize = Size(100, 100), // 56dp * 3 (densidad asumida) approx
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -984,6 +1025,40 @@ fun LibraryAlbumsTab(
     onAlbumClick: (Long) -> Unit
 ) {
     val gridState = rememberLazyGridState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val imageLoader = context.imageLoader
+
+    // Prefetching logic for LibraryAlbumsTab
+    LaunchedEffect(albums, gridState) {
+        snapshotFlow { gridState.layoutInfo }
+            .distinctUntilChanged()
+            .collect { layoutInfo ->
+                val visibleItemsInfo = layoutInfo.visibleItemsInfo
+                if (visibleItemsInfo.isNotEmpty() && albums.isNotEmpty()) {
+                    val lastVisibleItemIndex = visibleItemsInfo.last().index
+                    val totalItemsCount = albums.size
+                    val prefetchThreshold = 5 // Start prefetching when 5 items are left to be displayed from current visible ones
+                    val prefetchCount = 10 // Prefetch next 10 items
+
+                    if (totalItemsCount > lastVisibleItemIndex + 1 && lastVisibleItemIndex + prefetchThreshold >= totalItemsCount - prefetchCount) {
+                        val startIndexToPrefetch = lastVisibleItemIndex + 1
+                        val endIndexToPrefetch = (startIndexToPrefetch + prefetchCount).coerceAtMost(totalItemsCount)
+
+                        (startIndexToPrefetch until endIndexToPrefetch).forEach { indexToPrefetch ->
+                            val album = albums.getOrNull(indexToPrefetch)
+                            album?.albumArtUriString?.let { uri ->
+                                val request = ImageRequest.Builder(context)
+                                    .data(uri)
+                                    .size(Size(256,256)) // Same size as in AlbumGridItemRedesigned
+                                    .build()
+                                imageLoader.enqueue(request)
+                            }
+                        }
+                    }
+                }
+            }
+    }
+
     if (isLoading && albums.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
     } else if (albums.isEmpty() && !isLoading) { // canLoadMore removed
@@ -1139,7 +1214,9 @@ fun AlbumGridItemRedesigned(
                         model = album.albumArtUriString ?: R.drawable.rounded_album_24,
                         contentDescription = "Carátula de ${album.title}",
                         contentScale = ContentScale.Crop,
-                            targetSize = coil.size.Size(480, 320), // Estimación para ~160dp x ~106dp @3x
+                            // Reducido el tamaño para mejorar el rendimiento del scroll, como se sugiere en el informe.
+                            // ContentScale.Crop se encargará de ajustar la imagen al aspect ratio.
+                            targetSize = Size(256, 256),
                         modifier = Modifier
                             .aspectRatio(3f / 2f)
                             .fillMaxSize(),

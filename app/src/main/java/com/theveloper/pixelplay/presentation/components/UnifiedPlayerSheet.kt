@@ -118,7 +118,10 @@ import kotlinx.coroutines.Dispatchers
 import com.theveloper.pixelplay.utils.formatDuration
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.delay
+import android.os.Trace // Import Trace
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
@@ -160,6 +163,7 @@ fun UnifiedPlayerSheet(
     collapsedStateBottomMargin: Dp = 0.dp,
     hideNavBar: Boolean = false
 ) {
+    Trace.beginSection("UnifiedPlayerSheet.Composition")
     val context = LocalContext.current
     LaunchedEffect(key1 = Unit) {
         playerViewModel.toastEvents.collect { message ->
@@ -168,7 +172,36 @@ fun UnifiedPlayerSheet(
     }
 
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
-    val playerUiState by playerViewModel.playerUiState.collectAsState()
+    // Granular collection for playerUiState fields used directly by UnifiedPlayerSheet or its main sub-components
+    val currentPosition by remember {
+        playerViewModel.playerUiState.map { it.currentPosition }.distinctUntilChanged()
+    }.collectAsState(initial = 0L)
+    val currentPlaybackQueue by remember {
+        playerViewModel.playerUiState.map { it.currentPlaybackQueue }.distinctUntilChanged()
+    }.collectAsState(initial = persistentListOf())
+    val currentQueueSourceName by remember {
+        playerViewModel.playerUiState.map { it.currentQueueSourceName }.distinctUntilChanged()
+    }.collectAsState(initial = "")
+    val showDismissUndoBar by remember {
+        playerViewModel.playerUiState.map { it.showDismissUndoBar }.distinctUntilChanged()
+    }.collectAsState(initial = false)
+    val dismissedSong by remember {
+        playerViewModel.playerUiState.map { it.dismissedSong }.distinctUntilChanged()
+    }.collectAsState(initial = null)
+    val dismissedQueue by remember {
+        playerViewModel.playerUiState.map { it.dismissedQueue }.distinctUntilChanged()
+    }.collectAsState(initial = persistentListOf())
+    val dismissedQueueName by remember {
+        playerViewModel.playerUiState.map { it.dismissedQueueName }.distinctUntilChanged()
+    }.collectAsState(initial = "")
+    val dismissedPosition by remember {
+        playerViewModel.playerUiState.map { it.dismissedPosition }.distinctUntilChanged()
+    }.collectAsState(initial = 0L)
+    val undoBarVisibleDuration by remember { // Assuming this doesn't change often, mapping for consistency
+        playerViewModel.playerUiState.map { it.undoBarVisibleDuration }.distinctUntilChanged()
+    }.collectAsState(initial = 4000L)
+
+
     val currentSheetContentState by playerViewModel.sheetState.collectAsState()
     val predictiveBackCollapseProgress by playerViewModel.predictiveBackCollapseFraction.collectAsState()
 
@@ -196,9 +229,10 @@ fun UnifiedPlayerSheet(
 
     val showPlayerContentArea by remember { derivedStateOf { stablePlayerState.currentSong != null } }
 
-    val isPlayerSlotOccupied by remember(showPlayerContentArea, playerUiState.showDismissUndoBar) {
+    // Use the granular showDismissUndoBar here
+    val isPlayerSlotOccupied by remember(showPlayerContentArea, showDismissUndoBar) {
         derivedStateOf {
-            showPlayerContentArea || playerUiState.showDismissUndoBar
+            showPlayerContentArea || showDismissUndoBar
         }
     }
 
@@ -704,7 +738,8 @@ fun UnifiedPlayerSheet(
                     .fillMaxSize()
                     .padding(bottom = currentBottomPadding.value.dp)
             ) {
-                if (playerUiState.showDismissUndoBar) {
+            // Use granular showDismissUndoBar and undoBarVisibleDuration
+            if (showDismissUndoBar) {
                     AnimatedVisibility(
                         visible = true,
                         enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
@@ -717,7 +752,7 @@ fun UnifiedPlayerSheet(
                             onUndo = {
                                 playerViewModel.undoDismissPlaylist()
                             },
-                            durationMillis = playerUiState.undoBarVisibleDuration,
+                        durationMillis = undoBarVisibleDuration, // Use granular state
                             modifier = Modifier.height(MiniPlayerHeight)
                         )
                     }
@@ -915,49 +950,58 @@ fun UnifiedPlayerSheet(
                             }
                     ) {
                         if (showPlayerContentArea) {
-                            val currentSong = stablePlayerState.currentSong!!
-                            val miniPlayerAlpha by remember { derivedStateOf { (1f - playerContentExpansionFraction.value * 2f).coerceIn(0f, 1f) } }
-                            if (miniPlayerAlpha > 0.01f) {
-                                CompositionLocalProvider(
-                                    LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.TopCenter)
-                                            .graphicsLayer { alpha = miniPlayerAlpha }
+                            // stablePlayerState.currentSong is already available from the top-level collection
+                            stablePlayerState.currentSong?.let { currentSongNonNull ->
+                                val miniPlayerAlpha by remember { derivedStateOf { (1f - playerContentExpansionFraction.value * 2f).coerceIn(0f, 1f) } }
+                                if (miniPlayerAlpha > 0.01f) {
+                                    CompositionLocalProvider(
+                                        LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
                                     ) {
-                                        MiniPlayerContentInternal(
-                                            song = currentSong, isPlaying = stablePlayerState.isPlaying,
-                                            onPlayPause = { playerViewModel.playPause() }, onNext = { playerViewModel.nextSong() },
-                                            modifier = Modifier.fillMaxSize()
-                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopCenter)
+                                                .graphicsLayer { alpha = miniPlayerAlpha }
+                                        ) {
+                                            MiniPlayerContentInternal(
+                                                song = currentSongNonNull, // Use non-null version
+                                                isPlaying = stablePlayerState.isPlaying, // from top-level stablePlayerState
+                                                onPlayPause = { playerViewModel.playPause() },
+                                                onNext = { playerViewModel.nextSong() },
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
                                     }
                                 }
-                            }
 
-                            if (shouldRenderFullPlayer) {
-                                CompositionLocalProvider(
-                                    LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
-                                ) {
-                                    Box(modifier = Modifier.graphicsLayer {
-                                        alpha = fullPlayerContentAlpha.value
-                                        translationY = fullPlayerTranslationY.value
-                                    }) {
-                                        FullPlayerContentInternal(
-                                            currentSong = stablePlayerState.currentSong,
-                                            isPlaying = stablePlayerState.isPlaying,
-                                            isShuffleEnabled = stablePlayerState.isShuffleEnabled,
-                                            repeatMode = stablePlayerState.repeatMode,
-                                            isFavorite = stablePlayerState.isCurrentSongFavorite,
-                                            onPlayPause = { playerViewModel.playPause() }, onSeek = { playerViewModel.seekTo(it) },
-                                            onNext = { playerViewModel.nextSong() }, onPrevious = { playerViewModel.previousSong() },
-                                            onCollapse = { playerViewModel.collapsePlayerSheet() }, expansionFraction = playerContentExpansionFraction.value,
-                                            currentSheetState = currentSheetContentState, onShowQueueClicked = { showQueueSheet = true },
-                                            onShuffleToggle = { playerViewModel.toggleShuffle() },
-                                            onRepeatToggle = { playerViewModel.cycleRepeatMode() },
-                                            onFavoriteToggle = { playerViewModel.toggleFavorite() },
-                                            playerViewModel = playerViewModel
-                                        )
+                                if (shouldRenderFullPlayer) {
+                                    CompositionLocalProvider(
+                                        LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
+                                    ) {
+                                        Box(modifier = Modifier.graphicsLayer {
+                                            alpha = fullPlayerContentAlpha.value
+                                            translationY = fullPlayerTranslationY.value
+                                        }) {
+                                            FullPlayerContentInternal(
+                                                currentSong = currentSongNonNull, // Use non-null version
+                                                currentPosition = currentPosition, // Pass granular currentPosition
+                                                isPlaying = stablePlayerState.isPlaying,
+                                                isShuffleEnabled = stablePlayerState.isShuffleEnabled,
+                                                repeatMode = stablePlayerState.repeatMode,
+                                                isFavorite = stablePlayerState.isCurrentSongFavorite,
+                                                onPlayPause = { playerViewModel.playPause() },
+                                                onSeek = { playerViewModel.seekTo(it) },
+                                                onNext = { playerViewModel.nextSong() },
+                                                onPrevious = { playerViewModel.previousSong() },
+                                                onCollapse = { playerViewModel.collapsePlayerSheet() },
+                                                expansionFraction = playerContentExpansionFraction.value,
+                                                currentSheetState = currentSheetContentState,
+                                                onShowQueueClicked = { showQueueSheet = true },
+                                                onShuffleToggle = { playerViewModel.toggleShuffle() },
+                                                onRepeatToggle = { playerViewModel.cycleRepeatMode() },
+                                                onFavoriteToggle = { playerViewModel.toggleFavorite() },
+                                                playerViewModel = playerViewModel // Keep passing ViewModel if FullPlayerContentInternal needs other parts of it
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -965,7 +1009,8 @@ fun UnifiedPlayerSheet(
                     }
                 }
 
-                val isPlayerOrUndoBarVisible = showPlayerContentArea || playerUiState.showDismissUndoBar
+                // Use granular showDismissUndoBar
+                val isPlayerOrUndoBarVisible = showPlayerContentArea || showDismissUndoBar
                 if (isPlayerOrUndoBarVisible && !hideNavBar) {
                     val spacerTargetHeight = lerp(
                         start = CollapsedPlayerContentSpacerHeight,
@@ -1048,15 +1093,15 @@ fun UnifiedPlayerSheet(
             LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
         ) {
             QueueBottomSheet(
-                queue = playerUiState.currentPlaybackQueue,
-                currentQueueSourceName = playerUiState.currentQueueSourceName,
-                currentSongId = stablePlayerState.currentSong?.id,
+                queue = currentPlaybackQueue, // Use granular state
+                currentQueueSourceName = currentQueueSourceName, // Use granular state
+                currentSongId = stablePlayerState.currentSong?.id, // stablePlayerState is fine here
                 onDismiss = { showQueueSheet = false },
                 onPlaySong = { song ->
                     playerViewModel.playSongs(
-                        playerUiState.currentPlaybackQueue,
+                        currentPlaybackQueue, // Use granular state
                         song,
-                        playerUiState.currentQueueSourceName
+                        currentQueueSourceName // Use granular state
                     )
                 },
                 onRemoveSong = { songId -> playerViewModel.removeSongFromQueue(songId) },
@@ -1076,11 +1121,50 @@ fun UnifiedPlayerSheet(
             )
         }
     }
+    Trace.endSection() // End UnifiedPlayerSheet.Composition
+}
+
+
+@Composable
+private fun AlbumArtDisplaySection( // Renamed for clarity and to avoid conflict if OptimizedAlbumArt is used directly
+    song: Song?, // Nullable, comes from stablePlayerState
+    expansionFraction: Float,
+    modifier: Modifier = Modifier
+) {
+    song?.let { currentSong ->
+        OptimizedAlbumArt(
+            uri = currentSong.albumArtUriString,
+            title = currentSong.title,
+            expansionFraction = expansionFraction,
+            modifier = modifier,
+            targetSize = coil.size.Size(600, 600) // Tamaño específico para el reproductor expandido
+        )
+    }
+}
+
+@Composable
+private fun SongMetadataDisplaySection( // Renamed for clarity
+    song: Song?, // Nullable, comes from stablePlayerState
+    expansionFraction: Float,
+    textColor: Color,
+    artistTextColor: Color,
+    modifier: Modifier = Modifier
+) {
+    song?.let { currentSong ->
+        PlayerSongInfo(
+            title = currentSong.title,
+            artist = currentSong.artist,
+            expansionFraction = expansionFraction,
+            textColor = textColor,
+            artistTextColor = artistTextColor,
+            modifier = modifier
+        )
+    }
 }
 
 @Composable
 private fun PlayerProgressBarSection(
-    currentPositionValue: Long,
+    currentPosition: Long, // Changed from currentPositionValue
     totalDurationValue: Long,
     progressFractionValue: Float,
     onSeek: (Long) -> Unit,
@@ -1128,7 +1212,7 @@ private fun PlayerProgressBarSection(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                formatDuration(currentPositionValue),
+                formatDuration(currentPosition), // Use currentPosition
                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                 color = timeTextColor,
                 fontSize = 12.sp
@@ -1210,6 +1294,7 @@ private fun MiniPlayerContentInternal(
             model = song.albumArtUriString ?: R.drawable.rounded_album_24,
             contentDescription = "Carátula de ${song.title}",
             shape = CircleShape,
+            targetSize = coil.size.Size(150, 150),
             modifier = Modifier
                 .size(44.dp)
         )
@@ -1300,6 +1385,7 @@ private enum class ButtonType {
 @Composable
 private fun FullPlayerContentInternal(
     currentSong: Song?,
+    currentPosition: Long, // Added currentPosition
     isPlaying: Boolean,
     isShuffleEnabled: Boolean,
     repeatMode: Int,
@@ -1315,20 +1401,18 @@ private fun FullPlayerContentInternal(
     onShuffleToggle: () -> Unit,
     onRepeatToggle: () -> Unit,
     onFavoriteToggle: () -> Unit,
-    playerViewModel: PlayerViewModel
+    playerViewModel: PlayerViewModel // Kept for stablePlayerState access for totalDuration, or could pass totalDuration too
 ) {
-    val song = currentSong ?: return
+    val song = currentSong ?: return // Early exit if no song
 
-    val currentPositionValue by remember(playerViewModel.playerUiState) {
-        playerViewModel.playerUiState.map { it.currentPosition }
-    }.collectAsStateWithLifecycle(initialValue = playerViewModel.playerUiState.value.currentPosition)
+    // totalDurationValue is derived from stablePlayerState, so it's fine.
+    val totalDurationValue by remember {
+        playerViewModel.stablePlayerState.map { it.totalDuration }.distinctUntilChanged()
+    }.collectAsState(initial = 0L)
 
-    val totalDurationValue by remember(playerViewModel.stablePlayerState) {
-        playerViewModel.stablePlayerState.map { it.totalDuration }
-    }.collectAsStateWithLifecycle(initialValue = playerViewModel.stablePlayerState.value.totalDuration)
-
-    val progressFractionValue = remember(currentPositionValue, totalDurationValue) {
-        (currentPositionValue.coerceAtLeast(0).toFloat() /
+    // progressFractionValue depends on currentPosition, so it will change frequently.
+    val progressFractionValue = remember(currentPosition, totalDurationValue) {
+        (currentPosition.coerceAtLeast(0).toFloat() /
                 totalDurationValue.coerceAtLeast(1).toFloat())
     }.coerceIn(0f, 1f)
 
@@ -1403,25 +1487,25 @@ private fun FullPlayerContentInternal(
                 .shadow(elevation = 16.dp * expansionFraction)
                 .graphicsLayer { alpha = expansionFraction }
 
-            OptimizedAlbumArt(
-                uri = song.albumArtUriString, // Pass URI to OptimizedAlbumArt
-                title = song.title,
-                expansionFraction = expansionFraction, // Pass expansionFraction
+            // Album Cover section - uses new Composable
+            AlbumArtDisplaySection(
+                song = currentSong, // currentSong is from stablePlayerState via FullPlayerContentInternal's parameter
+                expansionFraction = expansionFraction,
                 modifier = albumArtContainerModifier
             )
 
-            // Song Info
-            PlayerSongInfo(
-                title = song.title,
-                artist = song.artist,
+            // Song Info - uses new Composable
+            SongMetadataDisplaySection(
+                song = currentSong, // currentSong is from stablePlayerState
                 expansionFraction = expansionFraction,
                 textColor = LocalMaterialTheme.current.onPrimaryContainer,
                 artistTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.8f)
+                // modifier for PlayerSongInfo is internal to SongMetadataDisplaySection if needed, or pass one
             )
 
-            // Progress Bar and Times
+            // Progress Bar and Times - this section *will* recompose with currentPosition
             PlayerProgressBarSection(
-                currentPositionValue = currentPositionValue,
+                currentPosition = currentPosition, // Pass granular currentPosition
                 totalDurationValue = totalDurationValue,
                 progressFractionValue = progressFractionValue,
                 onSeek = onSeek,

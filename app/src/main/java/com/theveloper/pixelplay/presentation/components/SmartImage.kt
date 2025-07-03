@@ -38,7 +38,7 @@ fun SmartImage(
     useDiskCache: Boolean = true,
     useMemoryCache: Boolean = true,
     allowHardware: Boolean = true, // Default to true, set to false if CPU access to Bitmap is needed later
-    targetSize: Size? = null, // New parameter for specifying image size
+    targetSize: Size = Size(300, 300), // New parameter for specifying image size
     colorFilter: ColorFilter? = null,
     alpha: Float = 1f,
     onState: ((AsyncImagePainter.State) -> Unit)? = null // Callback for image loading state

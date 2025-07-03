@@ -45,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
+import android.os.Trace // Import Trace
 import androidx.compose.ui.unit.Dp
 // import androidx.compose.ui.platform.LocalView // No longer needed for this
 // import androidx.core.view.ViewCompat // No longer needed for this
@@ -141,6 +142,7 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun MainAppContent(playerViewModel: PlayerViewModel, mainViewModel: MainViewModel) {
+        Trace.beginSection("MainActivity.MainAppContent")
         val navController = rememberNavController()
         val isSyncing by mainViewModel.isSyncing.collectAsState()
         val isLibraryEmpty by mainViewModel.isLibraryEmpty.collectAsState()
@@ -174,10 +176,12 @@ class MainActivity : ComponentActivity() {
                 LoadingOverlay()
             }
         }
+        Trace.endSection() // End MainActivity.MainAppContent
     }
 
     @Composable
     private fun MainUI(playerViewModel: PlayerViewModel, navController: NavHostController) {
+        Trace.beginSection("MainActivity.MainUI")
         val useDarkTheme = isSystemInDarkTheme()
         val globalColorSchemePairForApp by playerViewModel.activeGlobalColorSchemePair.collectAsState()
         val commonNavItems = remember {
@@ -244,6 +248,7 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+        Trace.endSection() // End MainActivity.MainUI
     }
 
     @Composable

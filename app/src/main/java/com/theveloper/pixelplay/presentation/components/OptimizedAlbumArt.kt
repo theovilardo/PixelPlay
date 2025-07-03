@@ -39,7 +39,8 @@ fun OptimizedAlbumArt(
     uri: String?,
     title: String,
     expansionFraction: Float,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    targetSize: Size = Size.ORIGINAL // Nuevo parámetro con valor predeterminado ORIGINAL
 ) {
     val context = LocalContext.current
 
@@ -50,12 +51,12 @@ fun OptimizedAlbumArt(
             .placeholder(R.drawable.rounded_album_24)
             .error(R.drawable.rounded_broken_image_24)
             // .dispatcher(Dispatchers.IO) // Comentado temporalmente
-            .size(Size.ORIGINAL) // Añadido para probar si ayuda a resolver la carga
+            .size(targetSize) // Usar el parámetro targetSize
             .memoryCachePolicy(CachePolicy.ENABLED)
             .diskCachePolicy(CachePolicy.ENABLED)
             .build(),
         onState = { state ->
-            Log.d("OptimizedAlbumArt", "Painter State (Size.ORIGINAL): $state for URI: $uri")
+            Log.d("OptimizedAlbumArt", "Painter State (Size: $targetSize): $state for URI: $uri")
             if (state is AsyncImagePainter.State.Error) {
                 Log.e("OptimizedAlbumArt", "Coil Error State for URI: $uri", state.result.throwable)
             }

@@ -75,6 +75,7 @@ import com.theveloper.pixelplay.data.worker.SyncManager
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import android.os.Trace // Import Trace
 import kotlinx.coroutines.flow.stateIn
 import java.util.concurrent.TimeUnit
 import androidx.lifecycle.asFlow
@@ -195,6 +196,54 @@ class PlayerViewModel @Inject constructor(
             initialValue = 0 // Default to Songs tab
         )
 
+    // CAMBIO 1: Añadir estado para rastrear las pestañas ya cargadas.
+    private val _loadedTabs = MutableStateFlow(emptySet<Int>())
+
+    // CAMBIO 3: Mover la lógica de las opciones de ordenamiento al ViewModel.
+    val availableSortOptions: StateFlow<List<SortOption>> =
+        lastLibraryTabIndexFlow.map { tabIndex ->
+            Trace.beginSection("PlayerViewModel.availableSortOptionsMapping")
+            val options = when (tabIndex) {
+                0 -> listOf(
+                    SortOption.SongTitleAZ,
+                    SortOption.SongTitleZA,
+                    SortOption.SongArtist,
+                    SortOption.SongAlbum,
+                    SortOption.SongDateAdded,
+                    SortOption.SongDuration
+                )
+                1 -> listOf(
+                    SortOption.AlbumTitleAZ,
+                    SortOption.AlbumTitleZA,
+                    SortOption.AlbumArtist,
+                    SortOption.AlbumReleaseYear
+                )
+                2 -> listOf(SortOption.ArtistNameAZ, SortOption.ArtistNameZA)
+                3 -> listOf( // Assuming Playlist sort options might exist
+                    SortOption.PlaylistNameAZ,
+                    SortOption.PlaylistNameZA,
+                    SortOption.PlaylistDateCreated
+                )
+                4 -> listOf(
+                    SortOption.LikedSongTitleAZ,
+                    SortOption.LikedSongTitleZA,
+                    SortOption.LikedSongArtist,
+                    SortOption.LikedSongAlbum,
+                    SortOption.LikedSongDateLiked
+                )
+                else -> emptyList()
+            }
+            Trace.endSection()
+            options
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = listOf( // Provide a default initial value based on initialTab index 0
+                SortOption.SongTitleAZ, SortOption.SongTitleZA, SortOption.SongArtist,
+                SortOption.SongAlbum, SortOption.SongDateAdded, SortOption.SongDuration
+            )
+        )
+
     // StateFlow to hold the sync status, converted from syncManager.isSyncing (Flow)
     // Initial value true, as we might assume sync is active on app start until proven otherwise.
     val isSyncingStateFlow: StateFlow<Boolean> = syncManager.isSyncing
@@ -203,6 +252,8 @@ class PlayerViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = true // Assuming sync might be initially active
         )
+
+    private val _isInitialDataLoaded = MutableStateFlow(false) // Flag to prevent double loading
 
     // Paginación - REMOVED
     // private var currentSongPage = 1
@@ -337,6 +388,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     init {
+        Trace.beginSection("PlayerViewModel.init")
         Log.i("PlayerViewModel", "init started.")
         
 
@@ -392,17 +444,20 @@ class PlayerViewModel @Inject constructor(
                 val oldSyncingLibraryState = _playerUiState.value.isSyncingLibrary
                 _playerUiState.update { it.copy(isSyncingLibrary = isSyncing) }
 
-                if (oldSyncingLibraryState && !isSyncing) {
+                if (oldSyncingLibraryState && !isSyncing && !_isInitialDataLoaded.value) {
+                    Log.i("PlayerViewModel", "Sync completed and initial data not loaded. Calling resetAndLoadInitialData from isSyncingStateFlow observer.")
                     resetAndLoadInitialData("isSyncingStateFlow observer")
+                } else if (oldSyncingLibraryState && !isSyncing && _isInitialDataLoaded.value) {
+                    Log.i("PlayerViewModel", "Sync completed but initial data already loaded. Skipping resetAndLoadInitialData from isSyncingStateFlow observer.")
                 }
             }
         }
 
         viewModelScope.launch {
-            if (!isSyncingStateFlow.value &&
-                _playerUiState.value.isLoadingInitialSongs &&
-                _playerUiState.value.allSongs.isEmpty()
-            ) {
+            // This check ensures that if sync is already complete (e.g. on subsequent app starts or if sync was very fast)
+            // and data hasn't been loaded yet, it gets loaded.
+            if (!isSyncingStateFlow.value && !_isInitialDataLoaded.value && _playerUiState.value.allSongs.isEmpty()) {
+                Log.i("PlayerViewModel", "Initial check: Sync not active and initial data not loaded. Calling resetAndLoadInitialData.")
                 resetAndLoadInitialData("Initial Check")
             }
         }
@@ -417,14 +472,17 @@ class PlayerViewModel @Inject constructor(
             }
         }, ContextCompat.getMainExecutor(context))
 
-
+        Trace.endSection() // End PlayerViewModel.init
     }
 
     fun onMainActivityStart() {
+        Trace.beginSection("PlayerViewModel.onMainActivityStart")
         preloadThemesAndInitialData()
+        Trace.endSection()
     }
 
     private fun preloadThemesAndInitialData() {
+        Trace.beginSection("PlayerViewModel.preloadThemesAndInitialData")
         val functionStartTime = System.currentTimeMillis()
         Log.d("PlayerViewModelPerformance", "preloadThemesAndInitialData START")
 
@@ -438,14 +496,13 @@ class PlayerViewModel @Inject constructor(
             // We might not need to call it unconditionally here anymore if the init block's logic is robust.
             // However, if sync is not involved (e.g. app already synced), this ensures data is loaded.
             // The conditional calls in init block aim to prevent redundant loads if sync just finished.
-            // For safety, ensuring it's called if still in initial loading phase and no songs.
-            if (_playerUiState.value.isLoadingInitialSongs && _playerUiState.value.allSongs.isEmpty() && isSyncingStateFlow.value) { // Use new StateFlow
-                 Log.i("PlayerViewModel", "preloadThemesAndInitialData: Sync is active, deferring initial load to sync completion handler.")
-            } else if (_playerUiState.value.isLoadingInitialSongs && _playerUiState.value.allSongs.isEmpty()) {
-                Log.i("PlayerViewModel", "preloadThemesAndInitialData: No sync active or already finished, and no songs loaded. Calling resetAndLoadInitialData from preload.")
+            if (isSyncingStateFlow.value && !_isInitialDataLoaded.value) {
+                 Log.i("PlayerViewModel", "preloadThemesAndInitialData: Sync is active and initial data not yet loaded, deferring initial load to sync completion handler.")
+            } else if (!_isInitialDataLoaded.value && _playerUiState.value.allSongs.isEmpty()) { // Check _isInitialDataLoaded
+                Log.i("PlayerViewModel", "preloadThemesAndInitialData: Sync not active or already finished, and initial data not loaded. Calling resetAndLoadInitialData from preload.")
                 resetAndLoadInitialData("preloadThemesAndInitialData")
             } else {
-                Log.i("PlayerViewModel", "preloadThemesAndInitialData: Initial songs already loading or loaded. Skipping direct call to resetAndLoadInitialData.")
+                Log.i("PlayerViewModel", "preloadThemesAndInitialData: Initial data already loaded or sync is active and will trigger load. Skipping direct call to resetAndLoadInitialData from preload.")
             }
             //Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData() call took ${System.currentTimeMillis() - resetLoadDataStartTime} ms (Note: actual loading is async). Time from overallInitStart: ${System.currentTimeMillis() - overallInitStartTime} ms")
 
@@ -456,43 +513,62 @@ class PlayerViewModel @Inject constructor(
             Log.d("PlayerViewModelPerformance", "Initial theme preload complete (async data loading dispatched). Total time since overallInitStart: ${timeToComplete} ms")
         }
         Log.d("PlayerViewModelPerformance", "preloadThemesAndInitialData END. Total function time: ${System.currentTimeMillis() - functionStartTime} ms (dispatching async work)")
+        Trace.endSection() // End PlayerViewModel.preloadThemesAndInitialData
     }
 
     private fun resetAndLoadInitialData(caller: String = "Unknown") {
-        val functionStartTime = System.currentTimeMillis()
-        Log.i("PlayerViewModel", "resetAndLoadInitialData called from: $caller")
-        Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData START - Called by: $caller")
-        // currentSongPage = 1 // Removed
-        // currentAlbumPage = 1 // Removed
-        // currentArtistPage = 1 // Removed
-        _playerUiState.update {
-            it.copy(
-                allSongs = emptyList<Song>().toImmutableList(),
-                albums = emptyList<Album>().toImmutableList(),
-                artists = emptyList<Artist>().toImmutableList()
-                // canLoadMore flags removed from PlayerUiState
-            )
+        Trace.beginSection("PlayerViewModel.resetAndLoadInitialData")
+        if (_isInitialDataLoaded.value && _playerUiState.value.allSongs.isNotEmpty()) {
+            Log.i("PlayerViewModel", "resetAndLoadInitialData called from: $caller, but initial data already loaded. Skipping.")
+            Trace.endSection() // End PlayerViewModel.resetAndLoadInitialData (early exit)
+            return
         }
+        val functionStartTime = System.currentTimeMillis()
+        Log.i("PlayerViewModel", "resetAndLoadInitialData called from: $caller. Proceeding with load.")
+        Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData START - Called by: $caller")
+
+        // Reset relevant parts of UI state, but only if we are truly reloading.
+        // If allSongs is empty, it's a genuine first load or a forced refresh.
+        if (_playerUiState.value.allSongs.isEmpty()) {
+            _playerUiState.update {
+                it.copy(
+                    allSongs = persistentListOf(), // Use persistentListOf() for empty immutable list
+                    albums = persistentListOf(),
+                    artists = persistentListOf(),
+                    isLoadingInitialSongs = true // Set loading true before starting
+                )
+            }
+        } else {
+            // If songs are not empty, but _isInitialDataLoaded was false (e.g. after a sync that cleared it),
+            // still mark as loading.
+             _playerUiState.update { it.copy(isLoadingInitialSongs = true) }
+        }
+
         loadSongsFromRepository() // No longer takes isInitialLoad
         // Initial load for albums and artists will be triggered by their respective tabs if needed.
-        Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData END. Total function time: ${System.currentTimeMillis() - functionStartTime} ms")
+        Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData END (dispatching async work). Total function time: ${System.currentTimeMillis() - functionStartTime} ms")
+        Trace.endSection() // End PlayerViewModel.resetAndLoadInitialData
     }
 
     private fun loadSongsFromRepository() {
         Log.d("PlayerViewModel", "loadSongsFromRepository called.")
         // No longer need checks for isLoadingMoreSongs or canLoadMoreSongs
 
-        viewModelScope.launch {
+        viewModelScope.launch { // Default dispatcher is Main.Immediate which is fine for launching.
+            Trace.beginSection("PlayerViewModel.loadSongsFromRepository_coroutine")
             val functionStartTime = System.currentTimeMillis()
             Log.d("PlayerViewModelPerformance", "loadSongsFromRepository (All) START")
 
-            _playerUiState.update { it.copy(isLoadingInitialSongs = true) }
+            // isLoadingInitialSongs should be true already if resetAndLoadInitialData was called.
+            // If called directly, ensure it's set.
+            if (!_playerUiState.value.isLoadingInitialSongs) {
+                 _playerUiState.update { it.copy(isLoadingInitialSongs = true) }
+            }
 
             try {
                 val repoCallStartTime = System.currentTimeMillis()
-                val allSongsList: List<Song> = withContext(Dispatchers.IO) {
-                    musicRepository.getAudioFiles().first() // Fetches all songs
-                }
+                // musicRepository.getAudioFiles() already uses flowOn(Dispatchers.IO)
+                val allSongsList: List<Song> = musicRepository.getAudioFiles().first()
                 val repoCallDuration = System.currentTimeMillis() - repoCallStartTime
                 Log.d("PlayerViewModelPerformance", "musicRepository.getAudioFiles (All) took $repoCallDuration ms for ${allSongsList.size} songs.")
 
@@ -504,7 +580,8 @@ class PlayerViewModel @Inject constructor(
                         // canLoadMoreSongs = false // No more pagination
                     )
                 }
-                Log.d("PlayerViewModel", "allSongs updated. New size: ${_playerUiState.value.allSongs.size}. isLoadingInitialSongs: ${_playerUiState.value.isLoadingInitialSongs}")
+                _isInitialDataLoaded.value = true // Set the flag after successful load
+                Log.d("PlayerViewModel", "allSongs updated. New size: ${_playerUiState.value.allSongs.size}. isLoadingInitialSongs: ${_playerUiState.value.isLoadingInitialSongs}. _isInitialDataLoaded: ${_isInitialDataLoaded.value}")
 
                 val totalFunctionTime = System.currentTimeMillis() - functionStartTime
                 Log.d("PlayerViewModelPerformance", "loadSongsFromRepository (All) END. Data update complete. Total time: $totalFunctionTime ms")
@@ -520,6 +597,8 @@ class PlayerViewModel @Inject constructor(
                 }
                 val totalFunctionTime = System.currentTimeMillis() - functionStartTime
                 Log.d("PlayerViewModelPerformance", "loadSongsFromRepository (All) FAILED. Total time: $totalFunctionTime ms")
+            } finally {
+                Trace.endSection() // End PlayerViewModel.loadSongsFromRepository_coroutine
             }
         }
     }
@@ -534,6 +613,7 @@ class PlayerViewModel @Inject constructor(
         Log.d("PlayerViewModelPerformance", "loadAlbumsFromRepository (All) called.")
 
         viewModelScope.launch {
+            Trace.beginSection("PlayerViewModel.loadAlbumsFromRepository_coroutine")
             val functionStartTime = System.currentTimeMillis()
             Log.d("PlayerViewModelPerformance", "loadAlbumsFromRepository (All) START")
 
@@ -560,7 +640,25 @@ class PlayerViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e("PlayerViewModel", "Error loading all albums", e)
                 _playerUiState.update { it.copy(isLoadingLibraryCategories = false) }
+            } finally {
+                Trace.endSection() // End PlayerViewModel.loadAlbumsFromRepository_coroutine
             }
+        }
+    }
+
+    fun loadSongsIfNeeded() {
+        val songsEmpty = _playerUiState.value.allSongs.isEmpty()
+        val notLoading = !_playerUiState.value.isLoadingInitialSongs
+
+        Log.d("PlayerViewModel", "loadSongsIfNeeded: songsEmpty=$songsEmpty, notLoadingInitialSongs=$notLoading")
+        if (songsEmpty && notLoading) {
+            Log.i("PlayerViewModel", "loadSongsIfNeeded: Conditions met. Loading all songs.")
+            loadSongsFromRepository()
+        } else {
+            var reason = ""
+            if (!songsEmpty) reason += "Songs not empty. "
+            if (!notLoading) reason += "Currently loading initial songs. "
+            Log.w("PlayerViewModel", "loadSongsIfNeeded: Conditions NOT met. Skipping load. Reason: $reason")
         }
     }
 
@@ -760,7 +858,8 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun setupMediaControllerListeners() {
-        val playerCtrl = mediaController ?: return // Renamed to avoid shadowing
+        Trace.beginSection("PlayerViewModel.setupMediaControllerListeners")
+        val playerCtrl = mediaController ?: return Trace.endSection() // Renamed to avoid shadowing, ensure trace ends if early exit
         _stablePlayerState.update {
             it.copy(
                 isShuffleEnabled = playerCtrl.shuffleModeEnabled, // Use playerCtrl
@@ -880,6 +979,7 @@ class PlayerViewModel @Inject constructor(
                 if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) updateCurrentPlaybackQueueFromPlayer(playerCtrl) // Pass playerCtrl
             }
         })
+        Trace.endSection() // End PlayerViewModel.setupMediaControllerListeners
     }
 
     // Modificado para establecer una lista de reproducción
@@ -1079,26 +1179,34 @@ class PlayerViewModel @Inject constructor(
 
     private fun launchColorSchemeProcessor() {
         viewModelScope.launch(Dispatchers.IO) { // Usar Dispatchers.IO para el bucle del canal
-            for (albumArtUri in colorSchemeRequestChannel) { // Consume de la cola
-                try {
-                    Log.d("PlayerViewModel", "Processing $albumArtUri from queue.")
-                    val scheme = getOrGenerateColorSchemeForUri(albumArtUri, false) // isPreload = false
-                    individualAlbumColorSchemes[albumArtUri]?.value = scheme
-                    Log.d("PlayerViewModel", "Finished processing $albumArtUri. Scheme: ${scheme != null}")
-                } catch (e: Exception) {
-                    Log.e("PlayerViewModel", "Error processing $albumArtUri in ColorSchemeProcessor", e)
-                    individualAlbumColorSchemes[albumArtUri]?.value = null // O un esquema de error/default
-                } finally {
-                    synchronized(urisBeingProcessed) {
-                        urisBeingProcessed.remove(albumArtUri) // Eliminar de procesándose
+            Trace.beginSection("PlayerViewModel.colorSchemeProcessorLoop")
+            try {
+                for (albumArtUri in colorSchemeRequestChannel) { // Consume de la cola
+                    Trace.beginSection("PlayerViewModel.processColorSchemeForUri")
+                    try {
+                        Log.d("PlayerViewModel", "Processing $albumArtUri from queue.")
+                        val scheme = getOrGenerateColorSchemeForUri(albumArtUri, false) // isPreload = false
+                        individualAlbumColorSchemes[albumArtUri]?.value = scheme
+                        Log.d("PlayerViewModel", "Finished processing $albumArtUri. Scheme: ${scheme != null}")
+                    } catch (e: Exception) {
+                        Log.e("PlayerViewModel", "Error processing $albumArtUri in ColorSchemeProcessor", e)
+                        individualAlbumColorSchemes[albumArtUri]?.value = null // O un esquema de error/default
+                    } finally {
+                        synchronized(urisBeingProcessed) {
+                            urisBeingProcessed.remove(albumArtUri) // Eliminar de procesándose
+                        }
+                        Trace.endSection() // End PlayerViewModel.processColorSchemeForUri
                     }
                 }
+            } finally {
+                Trace.endSection() // End PlayerViewModel.colorSchemeProcessorLoop
             }
         }
     }
 
     // Modificada para devolver el ColorSchemePair y ser usada por getAlbumColorSchemeFlow y la precarga
     private suspend fun getOrGenerateColorSchemeForUri(albumArtUri: String, isPreload: Boolean): ColorSchemePair? {
+        Trace.beginSection("PlayerViewModel.getOrGenerateColorSchemeForUri")
         val uriString = albumArtUri // uriString ya es el albumArtUri
         val cachedEntity = withContext(Dispatchers.IO) { albumArtThemeDao.getThemeByUri(uriString) }
 
@@ -1115,7 +1223,14 @@ class PlayerViewModel @Inject constructor(
         // Si no está en caché, generar
         return try {
             val bitmap = withContext(Dispatchers.IO) {
-                val request = ImageRequest.Builder(context).data(albumArtUri).allowHardware(false).size(Size(128, 128)).build()
+                val request = ImageRequest.Builder(context)
+                    .data(albumArtUri)
+                    .allowHardware(false)
+                    .size(Size(128, 128))
+                    .bitmapConfig(Bitmap.Config.ARGB_8888) // Asegurar consistencia
+                    .memoryCachePolicy(CachePolicy.ENABLED) // Consistencia con extractAndGenerateColorScheme
+                    .diskCachePolicy(CachePolicy.ENABLED)   // Consistencia con extractAndGenerateColorScheme
+                    .build()
                 val result = context.imageLoader.execute(request).drawable
                 result?.let { drawable ->
                     createBitmap(
@@ -1140,6 +1255,7 @@ class PlayerViewModel @Inject constructor(
                     _currentAlbumArtColorSchemePair.value = null
                     updateLavaLampColorsBasedOnActivePlayerScheme()
                 }
+                Trace.endSection() // End PlayerViewModel.getOrGenerateColorSchemeForUri (bitmap was null)
                 null
             }
         } catch (e: Exception) {
@@ -1147,17 +1263,20 @@ class PlayerViewModel @Inject constructor(
                 _currentAlbumArtColorSchemePair.value = null
                 updateLavaLampColorsBasedOnActivePlayerScheme()
             }
+            Trace.endSection() // End PlayerViewModel.getOrGenerateColorSchemeForUri (exception)
             null
         }
     }
 
     private suspend fun extractAndGenerateColorScheme(albumArtUriAsUri: Uri?, isPreload: Boolean = false) {
+        Trace.beginSection("PlayerViewModel.extractAndGenerateColorScheme")
         if (albumArtUriAsUri == null) {
             // Check current song's string URI when determining if it's the one without art
             if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == null) {
                 _currentAlbumArtColorSchemePair.value = null
                 updateLavaLampColorsBasedOnActivePlayerScheme()
             }
+            Trace.endSection() // End PlayerViewModel.extractAndGenerateColorScheme (URI null)
             return
         }
         val uriString = albumArtUriAsUri.toString()
@@ -1171,6 +1290,7 @@ class PlayerViewModel @Inject constructor(
             } else if (isPreload) {
                 // No es necesario actualizar _currentAlbumArtColorSchemePair durante la precarga
             }
+            Trace.endSection() // End PlayerViewModel.extractAndGenerateColorScheme (cached)
             return
         }
 
@@ -1205,6 +1325,9 @@ class PlayerViewModel @Inject constructor(
                 }
             } ?: run { if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) { _currentAlbumArtColorSchemePair.value = null; updateLavaLampColorsBasedOnActivePlayerScheme() } }
         } catch (e: Exception) { if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) { _currentAlbumArtColorSchemePair.value = null; updateLavaLampColorsBasedOnActivePlayerScheme() } }
+        finally {
+            Trace.endSection() // End PlayerViewModel.extractAndGenerateColorScheme (after generation attempt)
+        }
     }
 
     // Funciones de Mapeo Entity <-> ColorSchemePair (Corregidas)
@@ -1747,5 +1870,45 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferencesRepository.saveLastLibraryTabIndex(tabIndex)
         }
+    }
+
+    // CAMBIO 1: Nueva función para manejar la carga de datos de forma diferida (lazy).
+    fun onLibraryTabSelected(tabIndex: Int) {
+        Trace.beginSection("PlayerViewModel.onLibraryTabSelected")
+        // Guarda el índice para la próxima vez que el usuario abra la app.
+        // Esta llamada ya está en el ViewModel, así que la lógica de persistencia está bien.
+        // No necesitamos llamarla explícitamente aquí si ya se llama cuando cambia el tab en la UI.
+        // Sin embargo, si esta función es la *única* fuente de verdad para la selección de tabs,
+        // entonces sí es necesario llamar a saveLastLibraryTabIndex(tabIndex).
+        // La especificación indica que LibraryScreen lo llamará, así que aquí es correcto.
+        saveLastLibraryTabIndex(tabIndex)
+
+        // Si la pestaña ya fue cargada, no hacemos nada para evitar trabajo innecesario.
+        if (_loadedTabs.value.contains(tabIndex)) {
+            Log.d("PlayerViewModel", "Tab $tabIndex already loaded. Skipping data load.")
+            Trace.endSection()
+            return
+        }
+
+        Log.d("PlayerViewModel", "Tab $tabIndex selected. Attempting to load data.")
+        // Inicia la carga de datos para la pestaña seleccionada en un hilo de fondo.
+        viewModelScope.launch {
+            Trace.beginSection("PlayerViewModel.onLibraryTabSelected_coroutine_load")
+            try {
+                when (tabIndex) {
+                    0 -> loadSongsIfNeeded() // Carga canciones si es necesario
+                    1 -> loadAlbumsIfNeeded() // Carga álbumes si es necesario
+                    2 -> loadArtistsIfNeeded() // Carga artistas si es necesario
+                    // Las pestañas 3 (Playlists) y 4 (Liked) ya tienen su propia lógica
+                    // de carga a través de otros ViewModels o flujos, lo cual está bien.
+                }
+                // Marca la pestaña como cargada para no volver a cargarla.
+                _loadedTabs.update { currentTabs -> currentTabs + tabIndex }
+                Log.d("PlayerViewModel", "Tab $tabIndex marked as loaded. Current loaded tabs: ${_loadedTabs.value}")
+            } finally {
+                Trace.endSection() // End PlayerViewModel.onLibraryTabSelected_coroutine_load
+            }
+        }
+        Trace.endSection() // End PlayerViewModel.onLibraryTabSelected
     }
 }
