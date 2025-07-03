@@ -96,6 +96,9 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImagePainter
+import coil.imageLoader
+import coil.request.ImageRequest
+import coil.size.Size
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.components.ShimmerBox // Added import for ShimmerBox
 import com.theveloper.pixelplay.data.model.Album
@@ -693,6 +696,39 @@ fun LibrarySongsTab(
 ) {
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
     val listState = rememberLazyListState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val imageLoader = context.imageLoader
+
+    // Prefetching logic for LibrarySongsTab
+    LaunchedEffect(songs, listState) {
+        snapshotFlow { listState.layoutInfo }
+            .distinctUntilChanged()
+            .collect { layoutInfo ->
+                val visibleItemsInfo = layoutInfo.visibleItemsInfo
+                if (visibleItemsInfo.isNotEmpty() && songs.isNotEmpty()) {
+                    val lastVisibleItemIndex = visibleItemsInfo.last().index
+                    val totalItemsCount = songs.size
+                    val prefetchThreshold = 10 // Start prefetching when 10 items are left
+                    val prefetchCount = 20    // Prefetch next 20 items
+
+                    if (totalItemsCount > lastVisibleItemIndex + 1 && lastVisibleItemIndex + prefetchThreshold >= totalItemsCount - prefetchCount ) {
+                         val startIndexToPrefetch = lastVisibleItemIndex + 1
+                         val endIndexToPrefetch = (startIndexToPrefetch + prefetchCount).coerceAtMost(totalItemsCount)
+
+                        (startIndexToPrefetch until endIndexToPrefetch).forEach { indexToPrefetch ->
+                            val song = songs.getOrNull(indexToPrefetch)
+                            song?.albumArtUriString?.let { uri ->
+                                val request = ImageRequest.Builder(context)
+                                    .data(uri)
+                                    .size(Size(168, 168)) // Same size as in EnhancedSongListItem
+                                    .build()
+                                imageLoader.enqueue(request)
+                            }
+                        }
+                    }
+                }
+            }
+    }
 
     if (isLoadingInitial && songs.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -989,6 +1025,40 @@ fun LibraryAlbumsTab(
     onAlbumClick: (Long) -> Unit
 ) {
     val gridState = rememberLazyGridState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val imageLoader = context.imageLoader
+
+    // Prefetching logic for LibraryAlbumsTab
+    LaunchedEffect(albums, gridState) {
+        snapshotFlow { gridState.layoutInfo }
+            .distinctUntilChanged()
+            .collect { layoutInfo ->
+                val visibleItemsInfo = layoutInfo.visibleItemsInfo
+                if (visibleItemsInfo.isNotEmpty() && albums.isNotEmpty()) {
+                    val lastVisibleItemIndex = visibleItemsInfo.last().index
+                    val totalItemsCount = albums.size
+                    val prefetchThreshold = 5 // Start prefetching when 5 items are left to be displayed from current visible ones
+                    val prefetchCount = 10 // Prefetch next 10 items
+
+                    if (totalItemsCount > lastVisibleItemIndex + 1 && lastVisibleItemIndex + prefetchThreshold >= totalItemsCount - prefetchCount) {
+                        val startIndexToPrefetch = lastVisibleItemIndex + 1
+                        val endIndexToPrefetch = (startIndexToPrefetch + prefetchCount).coerceAtMost(totalItemsCount)
+
+                        (startIndexToPrefetch until endIndexToPrefetch).forEach { indexToPrefetch ->
+                            val album = albums.getOrNull(indexToPrefetch)
+                            album?.albumArtUriString?.let { uri ->
+                                val request = ImageRequest.Builder(context)
+                                    .data(uri)
+                                    .size(Size(256,256)) // Same size as in AlbumGridItemRedesigned
+                                    .build()
+                                imageLoader.enqueue(request)
+                            }
+                        }
+                    }
+                }
+            }
+    }
+
     if (isLoading && albums.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
     } else if (albums.isEmpty() && !isLoading) { // canLoadMore removed
@@ -1144,7 +1214,9 @@ fun AlbumGridItemRedesigned(
                         model = album.albumArtUriString ?: R.drawable.rounded_album_24,
                         contentDescription = "Carátula de ${album.title}",
                         contentScale = ContentScale.Crop,
-                            targetSize = coil.size.Size(480, 320), // Estimación para ~160dp x ~106dp @3x
+                            // Reducido el tamaño para mejorar el rendimiento del scroll, como se sugiere en el informe.
+                            // ContentScale.Crop se encargará de ajustar la imagen al aspect ratio.
+                            targetSize = coil.size.Size(256, 256),
                         modifier = Modifier
                             .aspectRatio(3f / 2f)
                             .fillMaxSize(),
