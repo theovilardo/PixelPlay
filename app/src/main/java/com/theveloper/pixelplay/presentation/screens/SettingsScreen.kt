@@ -257,8 +257,8 @@ fun SettingsScreen(
                         label = "Player Theme",
                         description = "Choose the appearance for the floating player.",
                         options = mapOf(
-                            ThemePreference.ALBUM_ART to "Album Art",
-                            ThemePreference.DYNAMIC to "Dynamic (System Theme)"
+                            ThemePreference.ALBUM_ART to "Album Art", // Default
+                            ThemePreference.DYNAMIC to "System Dynamic" // Or ThemePreference.DEFAULT if it means system dynamic
                         ),
                         selectedKey = uiState.playerThemePreference,
                         onSelectionChanged = { settingsViewModel.setPlayerThemePreference(it) },

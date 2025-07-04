@@ -18,43 +18,35 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import com.theveloper.pixelplay.presentation.viewmodel.ColorSchemePair
 
-// Define neutral base colors for fallback themes
-// These replace the previous violet-centric "PixelPlay Default" theme.
-val NeutralDarkColorScheme = darkColorScheme(
-    primary = Color(0xFF7FCDCF), // Example: A muted teal/cyan
-    secondary = PixelPlayPink,      // Kept as per user feedback (general accent)
-    tertiary = PixelPlayOrange,     // Kept as per user feedback (general accent)
-    background = Color(0xFF121212), // Standard dark theme background
-    surface = Color(0xFF1E1E1E),    // Standard dark theme surface (slightly lighter)
-    onPrimary = Color.Black,
-    onSecondary = Color.Black,
-    onTertiary = Color.Black,
-    onBackground = Color.White,
-    onSurface = Color(0xFFE0E0E0),  // Light grey for text on dark surfaces
-    error = Color(0xFFCF6679),      // Standard M3 dark error
-    onError = Color.Black
+val DarkColorScheme = darkColorScheme(
+    primary = PixelPlayPurplePrimary,
+    secondary = PixelPlayPink,
+    tertiary = PixelPlayOrange,
+    background = PixelPlayPurpleDark,
+    surface = PixelPlaySurface,
+    onPrimary = PixelPlayWhite,
+    onSecondary = PixelPlayWhite,
+    onTertiary = PixelPlayWhite,
+    onBackground = PixelPlayWhite,
+    onSurface = PixelPlayLightPurple, // Texto sobre superficies
+    error = Color(0xFFFF5252),
+    onError = PixelPlayWhite
 )
 
-val NeutralLightColorScheme = lightColorScheme(
-    primary = Color(0xFF6200EE), // Example: A standard purple/blue
-    secondary = PixelPlayPink,      // Kept
-    tertiary = PixelPlayOrange,     // Kept
-    background = Color(0xFFFFFBFB), // Common M3 light background
-    surface = Color(0xFFFFFBFB),    // Common M3 light surface
-    onPrimary = Color.White,
-    onSecondary = Color.Black,
-    onTertiary = Color.Black,
-    onBackground = Color.Black,
-    onSurface = Color.Black,
-    error = Color(0xFFB00020),      // Standard M3 light error
-    onError = Color.White
+val LightColorScheme = lightColorScheme(
+    primary = LightPrimary,
+    secondary = PixelPlayPink,
+    tertiary = PixelPlayOrange,
+    background = LightBackground,
+    surface = PixelPlayWhite,
+    onPrimary = PixelPlayWhite,
+    onSecondary = PixelPlayBlack,
+    onTertiary = PixelPlayBlack,
+    onBackground = PixelPlayBlack,
+    onSurface = PixelPlayBlack,
+    error = Color(0xFFD32F2F),
+    onError = PixelPlayWhite
 )
-
-// Renamed DarkColorScheme and LightColorScheme to avoid confusion if they are imported elsewhere.
-// The PixelPlayTheme will now use NeutralDarkColorScheme and NeutralLightColorScheme as fallbacks.
-val DarkColorScheme = NeutralDarkColorScheme
-val LightColorScheme = NeutralLightColorScheme
-
 
 @Composable
 fun PixelPlayTheme(

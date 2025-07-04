@@ -25,10 +25,10 @@ import javax.inject.Singleton
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
 object ThemePreference {
-    // DEFAULT removed
+    const val DEFAULT = "default"       // Tema PixelPlay predeterminado
     const val DYNAMIC = "dynamic"       // Tema dinámico del sistema (Android 12+)
     const val ALBUM_ART = "album_art"   // Tema basado en carátula
-    // GLOBAL removed
+    const val GLOBAL = "global"         // Para que el reproductor siga el tema global
 }
 
 @Singleton
@@ -40,7 +40,7 @@ class UserPreferencesRepository @Inject constructor(
     private object PreferencesKeys {
         val ALLOWED_DIRECTORIES = stringSetPreferencesKey("allowed_directories")
         val INITIAL_SETUP_DONE = stringSetPreferencesKey("initial_setup_done_directories")
-        // GLOBAL_THEME_PREFERENCE removed
+        // val GLOBAL_THEME_PREFERENCE = stringPreferencesKey("global_theme_preference_v2") // Removed
         val PLAYER_THEME_PREFERENCE = stringPreferencesKey("player_theme_preference_v2")
         val FAVORITE_SONG_IDS = stringSetPreferencesKey("favorite_song_ids")
         val USER_PLAYLISTS = stringPreferencesKey("user_playlists_json_v1")
@@ -68,11 +68,15 @@ class UserPreferencesRepository @Inject constructor(
             preferences.contains(PreferencesKeys.INITIAL_SETUP_DONE)
         }
 
-    // globalThemePreferenceFlow removed
+    // Removed globalThemePreferenceFlow
+    // val globalThemePreferenceFlow: Flow<String> = dataStore.data
+    //     .map { preferences ->
+    //         preferences[PreferencesKeys.GLOBAL_THEME_PREFERENCE] ?: ThemePreference.DYNAMIC
+    //     }
 
     val playerThemePreferenceFlow: Flow<String> = dataStore.data
         .map { preferences ->
-            preferences[PreferencesKeys.PLAYER_THEME_PREFERENCE] ?: ThemePreference.ALBUM_ART
+            preferences[PreferencesKeys.PLAYER_THEME_PREFERENCE] ?: ThemePreference.ALBUM_ART // Default to Album Art
         }
 
     val favoriteSongIdsFlow: Flow<Set<String>> = dataStore.data // Nuevo flujo para favoritos
@@ -172,7 +176,12 @@ class UserPreferencesRepository @Inject constructor(
         }
     }
 
-    // setGlobalThemePreference function removed
+    // Removed setGlobalThemePreference
+    // suspend fun setGlobalThemePreference(themeMode: String) {
+    //     dataStore.edit { preferences ->
+    //         preferences[PreferencesKeys.GLOBAL_THEME_PREFERENCE] = themeMode
+    //     }
+    // }
 
     suspend fun setPlayerThemePreference(themeMode: String) {
         dataStore.edit { preferences ->

@@ -97,11 +97,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             val mainViewModel: MainViewModel = hiltViewModel()
             val useDarkTheme = isSystemInDarkTheme()
-            // val globalColorSchemePairForApp by playerViewModel.activeGlobalColorSchemePair.collectAsState() // This was removed in previous plan, ensuring it's gone.
+            val globalColorSchemePairForApp by playerViewModel.activeGlobalColorSchemePair.collectAsState()
 
             PixelPlayTheme(
                 darkTheme = useDarkTheme,
-                colorSchemePairOverride = null // Ensures app uses dynamic or neutral fallback theme
+                colorSchemePairOverride = globalColorSchemePairForApp
             ) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     HandlePermissions(mainViewModel)
@@ -183,8 +183,7 @@ class MainActivity : ComponentActivity() {
     private fun MainUI(playerViewModel: PlayerViewModel, navController: NavHostController) {
         Trace.beginSection("MainActivity.MainUI")
         val useDarkTheme = isSystemInDarkTheme()
-        // globalColorSchemePairForApp is removed as global theme choice is removed.
-        val activePlayerColorSchemePairForSheet by playerViewModel.activePlayerColorSchemePair.collectAsState()
+        val globalColorSchemePairForApp by playerViewModel.activeGlobalColorSchemePair.collectAsState()
         val commonNavItems = remember {
             persistentListOf(
                 BottomNavItem("Home", R.drawable.rounded_home_24, R.drawable.rounded_home_24, Screen.Home),
@@ -237,7 +236,7 @@ class MainActivity : ComponentActivity() {
 
             PixelPlayTheme(
                 darkTheme = useDarkTheme,
-                colorSchemePairOverride = null // App's main theme uses dynamic/neutral fallback
+                colorSchemePairOverride = globalColorSchemePairForApp
             ) {
                 UnifiedPlayerSheet(
                     playerViewModel = playerViewModel, navController = navController,
@@ -245,8 +244,7 @@ class MainActivity : ComponentActivity() {
                     initialTargetTranslationY = initialY,
                     collapsedStateHorizontalPadding = 22.dp,
                     collapsedStateBottomMargin = collapsedStateBottomMargin,
-                    hideNavBar = shouldHideNavBar,
-                    activePlayerColorSchemePair = activePlayerColorSchemePairForSheet // Pass the collected state
+                    hideNavBar = shouldHideNavBar
                 )
             }
         }

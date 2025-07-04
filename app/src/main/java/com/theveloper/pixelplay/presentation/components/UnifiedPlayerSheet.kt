@@ -161,8 +161,7 @@ fun UnifiedPlayerSheet(
     initialTargetTranslationY: Float,
     collapsedStateHorizontalPadding: Dp = 12.dp,
     collapsedStateBottomMargin: Dp = 0.dp,
-    hideNavBar: Boolean = false,
-    activePlayerColorSchemePair: com.theveloper.pixelplay.presentation.viewmodel.ColorSchemePair? // Added parameter
+    hideNavBar: Boolean = false
 ) {
     Trace.beginSection("UnifiedPlayerSheet.Composition")
     val context = LocalContext.current
@@ -636,13 +635,14 @@ fun UnifiedPlayerSheet(
 
     val actuallyShowSheetContent = shouldShowSheet && !internalIsKeyboardVisible
 
-    val currentAlbumColorSchemePair by playerViewModel.currentAlbumArtColorSchemePair.collectAsState()
+    // val currentAlbumColorSchemePair by playerViewModel.currentAlbumArtColorSchemePair.collectAsState() // Replaced by activePlayerColorSchemePair
+    val activePlayerSchemePair by playerViewModel.activePlayerColorSchemePair.collectAsState()
     val isDarkTheme = isSystemInDarkTheme()
-    val systemColorScheme = MaterialTheme.colorScheme
+    val systemColorScheme = MaterialTheme.colorScheme // This is the standard M3 theme
 
-    val targetColorScheme = remember(currentAlbumColorSchemePair, isDarkTheme, systemColorScheme) {
-        (if (isDarkTheme) currentAlbumColorSchemePair?.dark else currentAlbumColorSchemePair?.light)
-            ?: systemColorScheme
+    val targetColorScheme = remember(activePlayerSchemePair, isDarkTheme, systemColorScheme) {
+        val schemeFromPair = activePlayerSchemePair?.let { if (isDarkTheme) it.dark else it.light }
+        schemeFromPair ?: systemColorScheme // If activePlayerSchemePair is null (i.e. System Dynamic selected) OR the selected scheme from pair is somehow null, use systemColorScheme
     }
 
     val colorAnimationSpec = remember { tween<Color>(durationMillis = 700, easing = FastOutSlowInEasing) }
@@ -816,11 +816,12 @@ fun UnifiedPlayerSheet(
                             .shadow(
                                 elevation = playerAreaElevation,
                                 shape = playerShadowShape,
-                                clip = false // Shadow should not be clipped by this
+                                clip = false
                             )
-                            // .background(...) // Background is now handled by PixelPlayTheme's Surface
-                            .clip( // Clip the overall Box to its evolving shape for layout purposes
-                                AbsoluteSmoothCornerShape(
+                            .background(
+                                color = albumColorScheme?.primaryContainer
+                                    ?: MaterialTheme.colorScheme.primaryContainer,
+                                shape = AbsoluteSmoothCornerShape(
                                     cornerRadiusTL = overallSheetTopCornerRadius,
                                     smoothnessAsPercentBL = 60,
                                     cornerRadiusTR = overallSheetTopCornerRadius,
@@ -949,65 +950,58 @@ fun UnifiedPlayerSheet(
                                 playerViewModel.togglePlayerSheetState()
                             }
                     ) {
-                        // Apply PixelPlayTheme specifically to the player content
-                        com.theveloper.pixelplay.ui.theme.PixelPlayTheme(
-                            darkTheme = isDarkTheme,
-                            colorSchemePairOverride = activePlayerColorSchemePair
-                        ) {
-                            // This Surface will adopt the theme from PixelPlayTheme and provide the background
-                            Surface(
-                                modifier = Modifier.fillMaxSize().clipToBounds(), // Clip to prevent content bleed if padding/shape issues
-                                // Color is implicitly MaterialTheme.colorScheme.surface or background from the themed ColorScheme
-                            ) {
-                                // Capture the ColorScheme from this PixelPlayTheme instance
-                                val themedColorScheme = MaterialTheme.colorScheme
-                                CompositionLocalProvider(LocalMaterialTheme provides themedColorScheme) {
-                                    if (showPlayerContentArea) {
-                                        stablePlayerState.currentSong?.let { currentSongNonNull ->
-                                            val miniPlayerAlpha by remember { derivedStateOf { (1f - playerContentExpansionFraction.value * 2f).coerceIn(0f, 1f) } }
-                                            if (miniPlayerAlpha > 0.01f) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .align(Alignment.TopCenter)
-                                                    .graphicsLayer { alpha = miniPlayerAlpha }
-                                            ) {
-                                                MiniPlayerContentInternal(
-                                                    song = currentSongNonNull,
-                                                    isPlaying = stablePlayerState.isPlaying,
-                                                    onPlayPause = { playerViewModel.playPause() },
-                                                    onNext = { playerViewModel.nextSong() },
-                                                    modifier = Modifier.fillMaxSize()
-                                                )
-                                            }
+                        if (showPlayerContentArea) {
+                            // stablePlayerState.currentSong is already available from the top-level collection
+                            stablePlayerState.currentSong?.let { currentSongNonNull ->
+                                val miniPlayerAlpha by remember { derivedStateOf { (1f - playerContentExpansionFraction.value * 2f).coerceIn(0f, 1f) } }
+                                if (miniPlayerAlpha > 0.01f) {
+                                    CompositionLocalProvider(
+                                        LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopCenter)
+                                                .graphicsLayer { alpha = miniPlayerAlpha }
+                                        ) {
+                                            MiniPlayerContentInternal(
+                                                song = currentSongNonNull, // Use non-null version
+                                                isPlaying = stablePlayerState.isPlaying, // from top-level stablePlayerState
+                                                onPlayPause = { playerViewModel.playPause() },
+                                                onNext = { playerViewModel.nextSong() },
+                                                modifier = Modifier.fillMaxSize()
+                                            )
                                         }
+                                    }
+                                }
 
-                                        if (shouldRenderFullPlayer) {
-                                            // No explicit CompositionLocalProvider needed
-                                            Box(modifier = Modifier.graphicsLayer {
-                                                alpha = fullPlayerContentAlpha.value
-                                                translationY = fullPlayerTranslationY.value
-                                            }) {
-                                                FullPlayerContentInternal(
-                                                    currentSong = currentSongNonNull,
-                                                    currentPosition = currentPosition,
-                                                    isPlaying = stablePlayerState.isPlaying,
-                                                    isShuffleEnabled = stablePlayerState.isShuffleEnabled,
-                                                    repeatMode = stablePlayerState.repeatMode,
-                                                    isFavorite = stablePlayerState.isCurrentSongFavorite,
-                                                    onPlayPause = { playerViewModel.playPause() },
-                                                    onSeek = { playerViewModel.seekTo(it) },
-                                                    onNext = { playerViewModel.nextSong() },
-                                                    onPrevious = { playerViewModel.previousSong() },
-                                                    onCollapse = { playerViewModel.collapsePlayerSheet() },
-                                                    expansionFraction = playerContentExpansionFraction.value,
-                                                    currentSheetState = currentSheetContentState,
-                                                    onShowQueueClicked = { showQueueSheet = true },
-                                                    onShuffleToggle = { playerViewModel.toggleShuffle() },
-                                                    onRepeatToggle = { playerViewModel.cycleRepeatMode() },
-                                                    onFavoriteToggle = { playerViewModel.toggleFavorite() },
-                                                    playerViewModel = playerViewModel
-                                                )
-                                            }
+                                if (shouldRenderFullPlayer) {
+                                    CompositionLocalProvider(
+                                        LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
+                                    ) {
+                                        Box(modifier = Modifier.graphicsLayer {
+                                            alpha = fullPlayerContentAlpha.value
+                                            translationY = fullPlayerTranslationY.value
+                                        }) {
+                                            FullPlayerContentInternal(
+                                                currentSong = currentSongNonNull, // Use non-null version
+                                                currentPosition = currentPosition, // Pass granular currentPosition
+                                                isPlaying = stablePlayerState.isPlaying,
+                                                isShuffleEnabled = stablePlayerState.isShuffleEnabled,
+                                                repeatMode = stablePlayerState.repeatMode,
+                                                isFavorite = stablePlayerState.isCurrentSongFavorite,
+                                                onPlayPause = { playerViewModel.playPause() },
+                                                onSeek = { playerViewModel.seekTo(it) },
+                                                onNext = { playerViewModel.nextSong() },
+                                                onPrevious = { playerViewModel.previousSong() },
+                                                onCollapse = { playerViewModel.collapsePlayerSheet() },
+                                                expansionFraction = playerContentExpansionFraction.value,
+                                                currentSheetState = currentSheetContentState,
+                                                onShowQueueClicked = { showQueueSheet = true },
+                                                onShuffleToggle = { playerViewModel.toggleShuffle() },
+                                                onRepeatToggle = { playerViewModel.cycleRepeatMode() },
+                                                onFavoriteToggle = { playerViewModel.toggleFavorite() },
+                                                playerViewModel = playerViewModel // Keep passing ViewModel if FullPlayerContentInternal needs other parts of it
+                                            )
                                         }
                                     }
                                 }
@@ -1096,16 +1090,12 @@ fun UnifiedPlayerSheet(
     }
 
     if (showQueueSheet && !internalIsKeyboardVisible) {
-        com.theveloper.pixelplay.ui.theme.PixelPlayTheme(
-            darkTheme = isDarkTheme,
-            colorSchemePairOverride = activePlayerColorSchemePair
+        CompositionLocalProvider(
+            LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
         ) {
-            // Capture the ColorScheme from this PixelPlayTheme instance
-            val themedColorScheme = MaterialTheme.colorScheme
-            CompositionLocalProvider(LocalMaterialTheme provides themedColorScheme) {
-                QueueBottomSheet(
-                    queue = currentPlaybackQueue, // Use granular state
-                    currentQueueSourceName = currentQueueSourceName, // Use granular state
+            QueueBottomSheet(
+                queue = currentPlaybackQueue, // Use granular state
+                currentQueueSourceName = currentQueueSourceName, // Use granular state
                 currentSongId = stablePlayerState.currentSong?.id, // stablePlayerState is fine here
                 onDismiss = { showQueueSheet = false },
                 onPlaySong = { song ->

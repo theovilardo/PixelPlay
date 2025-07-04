@@ -163,9 +163,10 @@ class PlayerViewModel @Inject constructor(
 
     private val _currentAlbumArtColorSchemePair = MutableStateFlow<ColorSchemePair?>(null)
     val currentAlbumArtColorSchemePair: StateFlow<ColorSchemePair?> = _currentAlbumArtColorSchemePair.asStateFlow()
-    // Player theme preference is managed by UserPreferencesRepository.
-    // globalThemePreference is removed.
-    val playerThemePreference: StateFlow<String> = userPreferencesRepository.playerThemePreferenceFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemePreference.ALBUM_ART)
+    // Global and Player theme preferences are now managed by UserPreferencesRepository,
+    // but PlayerViewModel still needs to observe them to react to changes.
+    val globalThemePreference: StateFlow<String> = userPreferencesRepository.globalThemePreferenceFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemePreference.DYNAMIC)
+    val playerThemePreference: StateFlow<String> = userPreferencesRepository.playerThemePreferenceFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemePreference.GLOBAL)
 
     private val _isInitialThemePreloadComplete = MutableStateFlow(false)
     val isInitialThemePreloadComplete: StateFlow<Boolean> = _isInitialThemePreloadComplete.asStateFlow()
@@ -266,20 +267,28 @@ class PlayerViewModel @Inject constructor(
             .map { it.allSongs }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    // activeGlobalColorSchemePair removed.
+    // val activeGlobalColorSchemePair: StateFlow<ColorSchemePair?> = combine( // Removed
+    //     globalThemePreference, _currentAlbumArtColorSchemePair
+    // ) { globalPref, albumScheme ->
+    //     when (globalPref) {
+    //         ThemePreference.ALBUM_ART -> albumScheme
+    //         ThemePreference.DYNAMIC -> null
+    //         ThemePreference.DEFAULT -> ColorSchemePair(LightColorScheme, DarkColorScheme)
+    //         else -> null
+    //     }
+    // }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val activePlayerColorSchemePair: StateFlow<ColorSchemePair?> = combine(
         playerThemePreference, _currentAlbumArtColorSchemePair
-    ) { playerPref, albumArtScheme ->
+    ) { playerPref, albumScheme ->
         when (playerPref) {
-            ThemePreference.ALBUM_ART -> albumArtScheme // If null, PixelPlayTheme will use its fallback for player content
-            ThemePreference.DYNAMIC -> null // Signal to use dynamic/default for player content
-            // ThemePreference.GLOBAL is no longer a direct player option in settings,
-            // but if it's still in UserPreferences as a legacy value, treat as DYNAMIC.
-            ThemePreference.GLOBAL -> null
-            else -> albumArtScheme // Fallback for any other unexpected legacy values
+            ThemePreference.ALBUM_ART -> albumScheme
+            ThemePreference.DYNAMIC -> null // Signal to use system's MaterialTheme.colorScheme
+            ThemePreference.DEFAULT -> null // Effectively makes DEFAULT same as DYNAMIC (use system theme)
+            // ThemePreference.GLOBAL has been removed from defaults and options
+            else -> albumScheme // Fallback to album art if preference is somehow unknown or old 'GLOBAL'
         }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, null) // Initial value null
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null) // Initial value null (system theme)
 
     // Caché en memoria para los ColorSchemePair de álbumes individuales, para acceso rápido en la UI.
     // Room es el caché persistente.
