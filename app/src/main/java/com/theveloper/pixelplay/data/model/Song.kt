@@ -14,7 +14,8 @@ data class Song(
     val contentUriString: String, // Uri para cargar la canción
     val albumArtUriString: String?, // Uri de la carátula del álbum
     val duration: Long, // en milisegundos
-    val genre: String? = null // Added genre field
+    val genre: String? = null, // Added genre field
+    val isFavorite: Boolean = false
 ) {
     companion object {
         fun emptySong(): Song {
@@ -28,7 +29,8 @@ data class Song(
                 contentUriString = "",
                 albumArtUriString = null,
                 duration = 0L,
-                genre = null
+                genre = null,
+                isFavorite = false
             )
         }
     }

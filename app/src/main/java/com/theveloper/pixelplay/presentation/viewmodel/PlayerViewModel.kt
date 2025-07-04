@@ -1035,6 +1035,9 @@ class PlayerViewModel @Inject constructor(
     }
 
     private suspend fun internalPlaySongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None") {
+        Log.d("PlayerViewModel_MediaItem", "internalPlaySongs called. Songs count: ${songsToPlay.size}, StartSong: ${startSong.title}, QueueName: $queueName")
+        Log.d("PlayerViewModel_MediaItem", "internalPlaySongs: mediaController is null: ${mediaController == null}")
+
         // Old EOT deactivation logic removed, handled by eotSongMonitorJob
         mediaController?.let { controller ->
             // Si la lista de canciones a reproducir es la lista 'allSongs' (paginada),
@@ -1043,20 +1046,25 @@ class PlayerViewModel @Inject constructor(
             // o la cola se limita a lo ya cargado.
             // Por ahora, usaremos `songsToPlay` como viene.
             val mediaItems = songsToPlay.map { song ->
+                Log.d("PlayerViewModel_MediaItem", "Creating MediaItem for Song ID: ${song.id}, Title: ${song.title}")
+                Log.d("PlayerViewModel_MediaItem", "Song's albumArtUriString: ${song.albumArtUriString}")
+
                 val artworkBytes = loadArtworkData(song.albumArtUriString)
                 val metadataBuilder = MediaMetadata.Builder()
                     .setTitle(song.title)
                     .setArtist(song.artist)
                     // .setAlbumTitle(song.album) // Opcional
 
+                var finalArtworkUriSet: Uri? = null
                 if (artworkBytes != null) {
                     metadataBuilder.setArtworkData(artworkBytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
+                    Log.d("PlayerViewModel_MediaItem", "Set artworkData for ${song.title} (length: ${artworkBytes.size})")
                 } else {
-                    // Fallback: still set the URI if bytes are not available.
-                    // Media3 might handle this URI loading asynchronously or it might be null.
-                    // This is better than crashing if loadArtworkData fails.
-                    // The original StrictMode violation might still occur if this URI is problematic AND resolution fails.
-                    song.albumArtUriString?.toUri()?.let { metadataBuilder.setArtworkUri(it) }
+                    song.albumArtUriString?.toUri()?.let { uri ->
+                        metadataBuilder.setArtworkUri(uri)
+                        finalArtworkUriSet = uri
+                    }
+                    Log.d("PlayerViewModel_MediaItem", "Set artworkUri for ${song.title}: $finalArtworkUriSet (original string: ${song.albumArtUriString})")
                 }
 
                 val metadata = metadataBuilder.build()
@@ -1086,11 +1094,18 @@ class PlayerViewModel @Inject constructor(
 
 
     private fun loadAndPlaySong(song: Song) {
+        Log.d("PlayerViewModel_MediaItem", "(loadAndPlaySong) called for Song ID: ${song.id}, Title: ${song.title}")
+        Log.d("PlayerViewModel_MediaItem", "(loadAndPlaySong) mediaController is null: ${mediaController == null}")
         mediaController?.let { controller ->
+            Log.d("PlayerViewModel_MediaItem", "(loadAndPlaySong) Creating MediaItem for Song ID: ${song.id}, Title: ${song.title}") // Log original, mantenido para contexto dentro del let.
+            Log.d("PlayerViewModel_MediaItem", "(loadAndPlaySong) Song's albumArtUriString: ${song.albumArtUriString}")
+            val artworkUriForMediaItem = song.albumArtUriString?.toUri()
+            Log.d("PlayerViewModel_MediaItem", "(loadAndPlaySong) Setting artworkUri on MediaItem: $artworkUriForMediaItem")
+
             val metadata = MediaMetadata.Builder()
                 .setTitle(song.title)
                 .setArtist(song.artist)
-                .setArtworkUri(song.albumArtUriString?.toUri())
+                .setArtworkUri(artworkUriForMediaItem)
                 // .setAlbumTitle(song.album) // Opcional: Considerar añadir si es útil
                 .build()
             val mediaItem = MediaItem.Builder()

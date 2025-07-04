@@ -445,4 +445,47 @@ class MusicRepositoryImpl @Inject constructor(
             ).map { it.toArtist() }
         }
     }
+
+    override suspend fun toggleFavoriteStatus(songId: String): Boolean = withContext(Dispatchers.IO) {
+        val songLongId = songId.toLongOrNull()
+        if (songLongId == null) {
+            Log.w("MusicRepo", "Invalid songId format for toggleFavoriteStatus: $songId")
+            // Podrías querer devolver el estado actual o lanzar una excepción.
+            // Por ahora, si el ID no es válido, no hacemos nada y devolvemos false (o un estado anterior si lo tuviéramos).
+            // Para ser más robusto, deberíamos obtener el estado actual si es posible, pero sin ID válido es difícil.
+            return@withContext false // O lanzar IllegalArgumentException
+        }
+        return@withContext musicDao.toggleFavoriteStatus(songLongId)
+    }
+
+    override fun getSong(songId: String): Flow<Song?> {
+        val songLongId = songId.toLongOrNull()
+        if (songLongId == null) {
+            Log.w("MusicRepo", "Invalid songId format for getSong: $songId")
+            return flowOf(null)
+        }
+        // Similar a getAlbumById, necesitamos considerar los directorios permitidos.
+        // Si una canción existe pero está en un directorio no permitido, no debería devolverse.
+        return combine(
+            userPreferencesRepository.allowedDirectoriesFlow,
+            userPreferencesRepository.initialSetupDoneFlow
+        ) { allowedDirs, initialSetupDone ->
+            Pair(allowedDirs.toList(), initialSetupDone)
+        }.flatMapLatest { (allowedDirs, initialSetupDone) ->
+            musicDao.getSongById(songLongId).map { songEntity ->
+                if (songEntity == null) {
+                    null
+                } else {
+                    val songIsPermitted = !initialSetupDone || allowedDirs.contains(songEntity.parentDirectoryPath)
+                    if (initialSetupDone && allowedDirs.isEmpty()) { // Setup done, no dirs allowed
+                        null
+                    } else if (songIsPermitted) {
+                        songEntity.toSong()
+                    } else {
+                        null
+                    }
+                }
+            }
+        }.flowOn(Dispatchers.IO)
+    }
 }

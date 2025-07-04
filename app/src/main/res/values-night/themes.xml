@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.PixelPlay" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:windowBackground">@color/pixel_play_purple_dark</item>
+        <!-- Primary & its container -->
+        <item name="colorPrimary">@color/my_primary</item> <!-- Consider using dark theme specific primary if available -->
+        <item name="colorOnPrimary">@color/my_on_primary</item>
+        <item name="colorPrimaryContainer">@color/my_primary_container</item> <!-- Consider using dark theme specific container if available -->
+        <item name="colorOnPrimaryContainer">@color/my_on_primary_container</item>
+
+        <!-- Secondary & its container -->
+        <item name="colorSecondary">@color/my_secondary</item> <!-- Consider using dark theme specific secondary if available -->
+        <item name="colorOnSecondary">@color/my_on_secondary</item>
+        <item name="colorSecondaryContainer">@color/my_secondary_container</item> <!-- Consider using dark theme specific container if available -->
+        <item name="colorOnSecondaryContainer">@color/my_on_secondary_container</item>
+
+        <!-- Tertiary & its on-color -->
+        <item name="colorTertiary">@color/my_tertiary</item> <!-- Consider using dark theme specific tertiary if available -->
+        <item name="colorOnTertiary">@color/my_on_tertiary</item>
+    </style>
+
+    <!-- Splash screen theme can still extend Theme.SplashScreen, but ensure it transitions to the correct base theme -->
+    <!-- For dark mode, postSplashScreenTheme should ideally point to a dark version of Theme.PixelPlay if specific overrides are needed -->
+    <!-- However, since Theme.PixelPlay itself will be resolved from values-night, this setup should work. -->
+    <style name="Theme.App.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/pixel_play_purple_dark</item>
+        <!-- icon and animation can be the same or specific for dark theme -->
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/Theme.PixelPlay</item>
+    </style>
+</resources>

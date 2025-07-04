@@ -32,7 +32,7 @@ import com.theveloper.pixelplay.MainActivity
 // import com.theveloper.pixelplay.PlayerInfoProto // Replaced
 import com.theveloper.pixelplay.data.model.PlayerInfo // Import new data class
 import com.theveloper.pixelplay.R
-// import com.theveloper.pixelplay.data.EotStateHolder // Removed
+import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.ui.glancewidget.PixelPlayGlanceWidget
 import com.theveloper.pixelplay.ui.glancewidget.PlayerActions
 import com.theveloper.pixelplay.ui.glancewidget.PlayerInfoStateDefinition
@@ -51,6 +51,7 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MusicService : MediaSessionService() {
     @Inject lateinit var exoPlayer: ExoPlayer
+    @Inject lateinit var musicRepository: MusicRepository
     private var mediaSession: MediaSession? = null
 
     // serviceScope usa Main para ExoPlayer
@@ -202,14 +203,23 @@ class MusicService : MediaSessionService() {
     }
 
     private fun toggleFavorite() {
-        // Lógica para añadir/quitar de favoritos
-        // Aquí iría la llamada al repositorio/base de datos
-        // Por ahora, solo invertimos un estado simulado
         val currentSongId = exoPlayer.currentMediaItem?.mediaId ?: return
-        isFavoriteMap[currentSongId] = !(isFavoriteMap[currentSongId] ?: false)
+        serviceScope.launch {
+            val newFavoriteStatus = musicRepository.toggleFavoriteStatus(currentSongId)
+            // Actualizar el isFavoriteMap local para reflejar inmediatamente el cambio,
+            // aunque la SSoT vendrá del repositorio en la próxima actualización completa del widget.
+            // Esto es opcional si confías en que requestWidgetFullUpdate será lo suficientemente rápido.
+            isFavoriteMap[currentSongId] = newFavoriteStatus
+            Log.d(TAG, "Toggled favorite for song $currentSongId to $newFavoriteStatus")
+            // No es necesario llamar a requestWidgetFullUpdate aquí si la acción ya lo hace.
+            // handleIntentAction ya llama a requestWidgetFullUpdate(force = true)
+        }
     }
 
+    // isFavoriteMap se usará como una caché temporal o para acceso rápido,
+    // pero la fuente de verdad es el repositorio.
     private val isFavoriteMap = mutableMapOf<String, Boolean>()
+
 
     private var lastProcessedWidgetUpdateTimeMs = 0L
     private var lastWidgetArtUriString = ""
@@ -278,7 +288,6 @@ class MusicService : MediaSessionService() {
 
         serviceScope.launch { // Asegurarse de que se ejecuta en el serviceScope
             val currentItem = exoPlayer.currentMediaItem
-            val artUriString = currentItem?.mediaMetadata?.artworkUri?.toString().orEmpty()
             val isPlaying = exoPlayer.isPlaying && exoPlayer.playbackState != Player.STATE_ENDED
             val title = currentItem?.mediaMetadata?.title?.toString().orEmpty()
             val artist = currentItem?.mediaMetadata?.artist?.toString().orEmpty()
@@ -286,56 +295,107 @@ class MusicService : MediaSessionService() {
             val totalDurationMs = exoPlayer.duration.coerceAtLeast(0)
 
             var artBytes: ByteArray? = null
-            val artUriChanged = artUriString != lastWidgetArtUriString
+            var artUriStringForPlayerInfo: String? = null // Para PlayerInfo.albumArtUri
 
-            // 1. La URI del arte es válida.
-            // 2. O si la URI del arte ha cambiado.
-            if (artUriString.isNotEmpty()) {
-                artBytes = widgetArtByteArrayCache.get(artUriString) // Intentar desde la caché
-                if (artBytes == null) {
-                    Log.d(TAG, "Widget Art Cache MISS for URI: $artUriString. Loading image.")
-                    artBytes = loadBitmapDataFromUri(applicationContext, Uri.parse(artUriString)) // Cargar desde la red/disco
-                    if (artBytes != null) {
-                        widgetArtByteArrayCache.put(artUriString, artBytes) // Añadir a la caché si es exitoso
-                    } else {
-                        Log.w(TAG, "Failed to load album art for widget for URI: $artUriString")
-                    }
+            if (currentItem == null) {
+                Log.d(TAG, "processWidgetUpdateInternal: currentItem is null. artBytes will be null.")
+            } else {
+                // 1. Intentar obtener artworkData directamente del MediaItem
+                artBytes = currentItem.mediaMetadata.artworkData
+                if (artBytes != null && artBytes.isNotEmpty()) {
+                    Log.d(TAG, "processWidgetUpdateInternal: Got artBytes directly from MediaMetadata, size: ${artBytes.size}")
+                    // Si tenemos artworkData, la URI original podría no ser relevante o ser diferente.
+                    // Podríamos intentar obtenerla también para PlayerInfo, o dejarla null.
+                    artUriStringForPlayerInfo = currentItem.mediaMetadata.artworkUri?.toString()
+                    Log.d(TAG, "processWidgetUpdateInternal: MediaMetadata artworkUri (if any, with direct data): $artUriStringForPlayerInfo")
                 } else {
-                    Log.d(TAG, "Widget Art Cache HIT for URI: $artUriString.")
+                    Log.d(TAG, "processWidgetUpdateInternal: artworkData is null or empty in MediaMetadata. Trying artworkUri.")
+                    // 2. Si no hay artworkData, intentar con artworkUri
+                    val artworkUriFromMetadata = currentItem.mediaMetadata.artworkUri
+                    artUriStringForPlayerInfo = artworkUriFromMetadata?.toString() // Guardar para PlayerInfo
+
+                    if (artworkUriFromMetadata != null) {
+                        val localArtUriString = artworkUriFromMetadata.toString() // Variable local para esta rama
+                        Log.d(TAG, "processWidgetUpdateInternal: artworkUri found in MediaMetadata: $localArtUriString")
+                        artBytes = widgetArtByteArrayCache.get(localArtUriString) // Intentar desde la caché del servicio
+                        if (artBytes != null) {
+                            Log.d(TAG, "processWidgetUpdateInternal: Widget Art Cache HIT for URI: $localArtUriString, size: ${artBytes.size}")
+                        } else {
+                            Log.d(TAG, "processWidgetUpdateInternal: Widget Art Cache MISS for URI: $localArtUriString. Loading image via loadBitmapDataFromUri.")
+                            artBytes = loadBitmapDataFromUri(applicationContext, artworkUriFromMetadata)
+                            if (artBytes != null) {
+                                widgetArtByteArrayCache.put(localArtUriString, artBytes)
+                                Log.d(TAG, "processWidgetUpdateInternal: Loaded and cached artBytes from URI: $localArtUriString, size: ${artBytes.size}")
+                            } else {
+                                Log.w(TAG, "processWidgetUpdateInternal: Failed to load album art from URI: $localArtUriString (loadBitmapDataFromUri returned null)")
+                            }
+                        }
+                    } else {
+                        Log.d(TAG, "processWidgetUpdateInternal: artworkUri is also null in MediaMetadata.")
+                    }
                 }
-            } else if (artUriString.isEmpty()) {
-                // Si la URI está vacía y es una actualización completa, limpiar la caché de arte.
-                widgetArtByteArrayCache.evictAll()
-            } 
-
-
-            val isFavorite = isFavoriteMap[currentItem?.mediaId] ?: false
-
-            // Determinar si realmente necesitamos enviar una actualización al widget.
-            // Esto es crucial para evitar el "shedding".
-            val significantChangeOccurred = lastWidgetIsPlayingState != isPlaying ||
-                                            lastWidgetArtUriString != artUriString || // Si la URI del arte cambió
-                                            lastWidgetFavoriteState != isFavorite || // Si el estado de favorito cambió
-                                            (artBytes != null && widgetArtByteArrayCache.get(artUriString) != artBytes) // Si el arte cargado es nuevo
-
-            // Para actualizaciones de progreso, solo actualizamos si ha pasado el tiempo mínimo.
-            // Para actualizaciones completas (debounced), siempre actualizamos.
-            val shouldSendUpdateToWidget = significantChangeOccurred
-
-            if (!shouldSendUpdateToWidget) {
-                 Log.v(TAG, "Skipping widget update as no significant change detected.")
-                 return@launch // No enviar actualización al widget
             }
 
+            // Log final sobre artBytes antes de construir PlayerInfo
+            if (artBytes == null) {
+                Log.d(TAG, "processWidgetUpdateInternal: Final artBytes is NULL.")
+            } else {
+                Log.d(TAG, "processWidgetUpdateInternal: Final artBytes is NOT NULL, size = ${artBytes.size}")
+            }
+
+            // Obtener el estado real de favorito
+            var actualIsFavorite = false
+            currentItem?.mediaId?.let { songId ->
+                actualIsFavorite = isFavoriteMap[songId] ?: false
+            }
+            // El log para currentItem null ya está arriba.
+            // No es necesario loguear artUriString aquí ya que su propósito principal era cargar artBytes.
+            // artUriStringForPlayerInfo es lo que se pasará a PlayerInfo.
+
+
+            // Determinar si realmente necesitamos enviar una actualización al widget.
+            val artActuallyChanged = (artUriStringForPlayerInfo != lastWidgetArtUriString) || (artBytes != null && lastWidgetArtUriString.isEmpty()) || (artBytes == null && lastWidgetArtUriString.isNotEmpty())
+            // Considera artActuallyChanged si la URI cambió, o si el arte apareció (artBytes != null) cuando antes no había URI,
+            // o si el arte desapareció (artBytes == null) cuando antes sí había URI.
+
+            val significantChangeOccurred = lastWidgetIsPlayingState != isPlaying ||
+                                            artActuallyChanged ||
+                                            lastWidgetFavoriteState != actualIsFavorite
+                                            // No necesitamos comparar el contenido de artBytes aquí si artActuallyChanged ya cubre los casos relevantes.
+                                            // La URI es la clave principal para el arte. Si la URI es la misma, asumimos que el arte es el mismo.
+                                            // El widgetArtByteArrayCache en el servicio ayuda a no recargar innecesariamente.
+
+            // Si es una actualización forzada (ej. después de una acción del usuario), siempre enviar.
+            // La variable 'force' no está disponible aquí directamente, pero requestWidgetFullUpdate la usa para el debounce.
+            // Si estamos aquí después de un debounce, es una actualización de estado.
+            // Si estamos aquí por una actualización de progreso (no implementada por separado aún), el throttling sería diferente.
+
+            if (!significantChangeOccurred && exoPlayer.playbackState != Player.STATE_ENDED && exoPlayer.duration > 0) {
+                // Si no hubo cambios significativos Y la canción está en curso (no terminada, con duración),
+                // aún podríamos necesitar enviar una actualización de PROGRESO.
+                // Sin embargo, el widget actualmente no se actualiza solo por progreso mediante este path.
+                // Este path es para actualizaciones de ESTADO.
+                // Si el progreso es el único cambio, y no hay un path dedicado para actualizaciones de progreso,
+                // podríamos decidir no actualizar.
+                // Pero si el widget debe mostrar progreso actualizado, este chequeo es muy agresivo.
+                // Por ahora, si no hay cambio de estado, no actualizamos. El progreso se actualizará
+                // cuando haya un cambio de estado o la próxima vez que el widget se fuerce a actualizar.
+                 Log.v(TAG, "Skipping widget state update as no significant metadata/state change detected.")
+                 // No retornar aquí aún si queremos que el progreso se actualice si es el único cambio.
+                 // return@launch // Descomentar si queremos ser estrictos y no enviar nada si solo el progreso cambió.
+            }
+
+
+            // Construir PlayerInfo siempre, la decisión de enviar se toma después.
             val playerInfoData = PlayerInfo(
                 songTitle = title,
                 artistName = artist,
                 isPlaying = isPlaying,
-                albumArtUri = artUriString.ifEmpty { null },
+                albumArtUri = artUriStringForPlayerInfo, // Usar la URI obtenida, puede ser null
                 albumArtBitmapData = artBytes,
                 currentPositionMs = currentPositionMs,
                 totalDurationMs = totalDurationMs,
-                isFavorite = isFavoriteMap[currentItem?.mediaId] ?: false
+                isFavorite = actualIsFavorite // Usar el estado de favorito obtenido
             )
 
             // All Glance AppWidget operations should be off the main thread.
@@ -353,7 +413,7 @@ class MusicService : MediaSessionService() {
                         }
                         // Actualizar todos los widgets una vez después de establecer el estado
                         glanceIds.forEach { id -> PixelPlayGlanceWidget().update(applicationContext, id) }
-                        Log.d(TAG, "Widget state data sent. Playing: $isPlaying, Title: $title, Art URI: $artUriString, Progress: $currentPositionMs")
+                        Log.d(TAG, "Widget state data sent. Playing: $isPlaying, Title: $title, Art URI: $artUriStringForPlayerInfo, Progress: $currentPositionMs")
                     } else {
                         Log.d(TAG, "No Glance widget IDs found. Skipping widget update.")
                     }
@@ -367,14 +427,9 @@ class MusicService : MediaSessionService() {
             if (successfullySent) { // Actualizar los 'last' estados si el envío fue exitoso
                 lastProcessedWidgetUpdateTimeMs = currentTimeMs
                 lastWidgetIsPlayingState = isPlaying
-                lastWidgetFavoriteState = isFavorite
-                if (artUriString.isNotEmpty() && artBytes != null) { // Solo actualizar lastWidgetArtUriString si el arte se cargó/obtuvo de caché con éxito
-                    lastWidgetArtUriString = artUriString
-                } else if (artUriString.isEmpty()) {
-                    lastWidgetArtUriString = "" // Limpiar si la URI actual está vacía
-                }
-                // Si artUriString no está vacío pero artBytes es nulo (fallo de carga), lastWidgetArtUriString no cambia,
-                // para que se intente cargar de nuevo en la próxima actualización completa.
+                lastWidgetFavoriteState = actualIsFavorite
+                // Actualizar lastWidgetArtUriString con la URI que se usó/intentó para PlayerInfo
+                lastWidgetArtUriString = artUriStringForPlayerInfo ?: ""
             }
         }
     }
