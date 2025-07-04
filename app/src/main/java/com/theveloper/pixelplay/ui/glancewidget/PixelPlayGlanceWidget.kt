@@ -216,17 +216,19 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 }
                 else -> { // Layout extra grande
                     ExtraLargeWidgetLayout(
-                        baseModifier.padding(16.dp),
-                        title,
-                        artist,
-                        albumArtBitmapData,
-                        isPlaying,
-                        currentProgress,
-                        totalDuration,
-                        onBackgroundColor,
-                        primaryColor,
+                        modifier = baseModifier.padding(12.dp),
+                        title = title,
+                        artist = artist,
+                        albumArtBitmapData = albumArtBitmapData,
+                        isPlaying = isPlaying,
+                        currentProgressMs = currentProgress,
+                        totalDurationMs = totalDuration,
+                        backgroundColor = actualBackgroundColor,
+                        accentColor = primaryColor,
                         context = context,
-                        progressBgColor = progressBgColor
+                        progressBgColor = progressBgColor,
+                        bgCornerRadius = 28.dp,
+                        textColor = onBackgroundColor
                     )
                 }
             }
@@ -312,6 +314,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalAlignment = Alignment.Horizontal.CenterHorizontally
             ) {
+
                 AlbumArtImageGlance(
                     modifier = GlanceModifier.padding(6.dp),
                     bitmapData = albumArtBitmapData,
@@ -611,103 +614,118 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
     fun ExtraLargeWidgetLayout( // Nuevo layout para el tamaño más grande
         modifier: GlanceModifier, title: String, artist: String, albumArtBitmapData: ByteArray?,
         isPlaying: Boolean, currentProgressMs: Long, totalDurationMs: Long,
+        backgroundColor: ColorProvider,
+        bgCornerRadius: Dp = 28.dp,
         textColor: ColorProvider, accentColor: ColorProvider,
         progressBgColor: ColorProvider,
         context: Context // Añadir contexto para el Intent
     ) {
-        Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-            // Fila superior: Carátula e Info
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = GlanceModifier.fillMaxWidth()
-            ) {
-                AlbumArtImageGlance(bitmapData = albumArtBitmapData, size = 80.dp, context = context, cornerRadius = 22.dp)
-                Spacer(GlanceModifier.width(16.dp))
-                Column(modifier = GlanceModifier.defaultWeight()) {
-                    Text(
-                        text = title,
-                        style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textColor),
-                        maxLines = 2
-                    ) // Permitir 2 líneas
-                    Text(
-                        text = artist,
-                        style = TextStyle(fontSize = 14.sp, color = textColor),
-                        maxLines = 1
+        Box(
+            modifier = modifier
+                .background(backgroundColor)
+                .cornerRadius(bgCornerRadius)
+        ) {
+            Column(modifier = GlanceModifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+                // Fila superior: Carátula e Info
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = GlanceModifier.fillMaxWidth()
+                ) {
+                    AlbumArtImageGlance(
+                        bitmapData = albumArtBitmapData,
+                        size = 80.dp,
+                        context = context,
+                        cornerRadius = 16.dp
                     )
-                }
-                // Podríamos añadir un botón de "Abrir App" aquí también si se desea, similar a LargeWidgetLayout
-            }
-
-            Spacer(GlanceModifier.height(8.dp))
-
-            // Fila media: Barra de progreso y tiempos
-            Column(
-                modifier = GlanceModifier.fillMaxWidth().padding(vertical = 12.dp)
-            ) { // Más padding vertical
-                if (totalDurationMs > 0L) {
-                    LinearProgressIndicator(
-                        progress = currentProgressMs.toFloat() / totalDurationMs.toFloat(),
-                        modifier = GlanceModifier
-                            .fillMaxWidth()
-                            .height(6.dp)
-                            .cornerRadius(30.dp), // Barra más gruesa
-                        color = accentColor,
-                        backgroundColor = progressBgColor // Un poco más tenue para el fondo
-                    )
-                    Row(
-                        GlanceModifier
-                            .fillMaxWidth()
-                            .padding(top = 6.dp) // Más padding superior
-                        // horizontalAlignment = Alignment.SpaceBetween // <- Esto no funciona en Glance Row directamente
-                    ) {
-                        Text(formatDurationGlance(currentProgressMs), style = TextStyle(fontSize = 12.sp, color = textColor))
-                        Spacer(GlanceModifier.defaultWeight()) // Spacer con weight para empujar el siguiente texto al final
-                        Text(formatDurationGlance(totalDurationMs), style = TextStyle(fontSize = 12.sp, color = textColor))
+                    Spacer(GlanceModifier.width(16.dp))
+                    Column(modifier = GlanceModifier.defaultWeight()) {
+                        Text(
+                            text = title,
+                            style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textColor),
+                            maxLines = 2
+                        ) // Permitir 2 líneas
+                        Text(
+                            text = artist,
+                            style = TextStyle(fontSize = 14.sp, color = textColor),
+                            maxLines = 1
+                        )
                     }
-                } else {
-                    Spacer(GlanceModifier.height(6.dp + 12.sp.value.dp + 6.dp)) // Mantener espacio
+                    // Podríamos añadir un botón de "Abrir App" aquí también si se desea, similar a LargeWidgetLayout
                 }
-            }
 
-            // Fila inferior: Controles Rediseñada
-            Row(
-                modifier = GlanceModifier
-                    .fillMaxWidth()
-                    .height(56.dp), // Altura mayor para botones más grandes
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val secondaryColor = GlanceTheme.colors.secondaryContainer
-                val onSecondaryColor = GlanceTheme.colors.onSecondaryContainer
-                val primaryContainerColor = GlanceTheme.colors.primaryContainer
-                val onPrimaryContainerColor = GlanceTheme.colors.onPrimaryContainer
-                val tertiaryColor = GlanceTheme.colors.tertiaryContainer
-                val onTertiaryColor = GlanceTheme.colors.onTertiaryContainer
-                val buttonCornerRadius = 28.dp // Redondeo para cada botón
+                Spacer(GlanceModifier.height(8.dp))
 
-                PreviousButtonGlance(
-                    modifier = GlanceModifier.defaultWeight(), // Aplicar weight aquí
-                    iconColor = onSecondaryColor,
-                    backgroundColor = secondaryColor,
-                    iconSize = 28.dp,
-                    cornerRadius = buttonCornerRadius
-                )
-                Spacer(GlanceModifier.width(10.dp))
-                PlayPauseButtonGlance(
-                    modifier = GlanceModifier.defaultWeight(), // Aplicar weight aquí
-                    isPlaying = isPlaying,
-                    iconColor = onPrimaryContainerColor,
-                    backgroundColor = primaryContainerColor,
-                    iconSize = 30.dp,
-                    cornerRadius = buttonCornerRadius
-                )
-                Spacer(GlanceModifier.width(10.dp))
-                NextButtonGlance(
-                    modifier = GlanceModifier.defaultWeight(), // Aplicar weight aquí
-                    iconColor = onTertiaryColor,
-                    backgroundColor = tertiaryColor,
-                    iconSize = 28.dp,
-                    //cornerRadius = buttonCornerRadius
-                )
+                // Fila media: Barra de progreso y tiempos
+                Column(
+                    modifier = GlanceModifier.fillMaxWidth().padding(vertical = 12.dp, horizontal = 6.dp)
+                ) { // Más padding vertical
+                    if (totalDurationMs > 0L) {
+                        LinearProgressIndicator(
+                            progress = currentProgressMs.toFloat() / totalDurationMs.toFloat(),
+                            modifier = GlanceModifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .cornerRadius(30.dp), // Barra más gruesa
+                            color = accentColor,
+                            backgroundColor = progressBgColor // Un poco más tenue para el fondo
+                        )
+                        Row(
+                            GlanceModifier
+                                .fillMaxWidth()
+                                .padding(top = 6.dp) // Más padding superior
+                            // horizontalAlignment = Alignment.SpaceBetween // <- Esto no funciona en Glance Row directamente
+                        ) {
+                            Text(formatDurationGlance(currentProgressMs), style = TextStyle(fontSize = 12.sp, color = textColor))
+                            Spacer(GlanceModifier.defaultWeight()) // Spacer con weight para empujar el siguiente texto al final
+                            Text(formatDurationGlance(totalDurationMs), style = TextStyle(fontSize = 12.sp, color = textColor))
+                        }
+                    } else {
+                        Spacer(GlanceModifier.height(6.dp + 12.sp.value.dp + 6.dp)) // Mantener espacio
+                    }
+                }
+
+                // Fila inferior: Controles Rediseñada
+                Row(
+                    modifier = GlanceModifier
+                        .fillMaxWidth()
+                        .height(56.dp), // Altura mayor para botones más grandes
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val secondaryColor = GlanceTheme.colors.secondaryContainer
+                    val onSecondaryColor = GlanceTheme.colors.onSecondaryContainer
+                    val primaryContainerColor = GlanceTheme.colors.primaryContainer
+                    val onPrimaryContainerColor = GlanceTheme.colors.onPrimaryContainer
+                    val tertiaryColor = GlanceTheme.colors.tertiaryContainer
+                    val onTertiaryColor = GlanceTheme.colors.onTertiaryContainer
+                    val buttonCornerRadius = 28.dp // Redondeo para cada botón
+
+                    PreviousButtonGlance(
+                        modifier = GlanceModifier.defaultWeight(), // Aplicar weight aquí
+                        iconColor = onSecondaryColor,
+                        backgroundColor = secondaryColor,
+                        iconSize = 28.dp,
+                        cornerRadius = buttonCornerRadius
+                    )
+                    Spacer(GlanceModifier.width(10.dp))
+                    PlayPauseButtonGlance(
+                        modifier = GlanceModifier
+                            .defaultWeight()
+                            .fillMaxHeight(), // Aplicar weight aquí
+                        isPlaying = isPlaying,
+                        iconColor = onPrimaryContainerColor,
+                        backgroundColor = primaryContainerColor,
+                        iconSize = 30.dp,
+                        cornerRadius = buttonCornerRadius
+                    )
+                    Spacer(GlanceModifier.width(10.dp))
+                    NextButtonGlance(
+                        modifier = GlanceModifier.defaultWeight(), // Aplicar weight aquí
+                        iconColor = onSecondaryColor,
+                        backgroundColor = secondaryColor,
+                        iconSize = 28.dp,
+                        cornerRadius = buttonCornerRadius
+                    )
+                }
             }
         }
     }
@@ -793,17 +811,20 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
             ImageProvider(R.drawable.rounded_album_24)
         }
 
-
         Box(
             modifier = modifier
+                .size(size)
+                // La corrección clave: aplicar el cornerRadius al contenedor Box.
+                // Esto asegura que todo el contenido dentro del Box, incluyendo la imagen,
+                // sea recortado a esta forma.
+                //.cornerRadius(cornerRadius)
         ) {
             Image(
                 provider = imageProvider,
                 contentDescription = "Album Art",
-                modifier = GlanceModifier
-                    .size(size)
-                    //.background(GlanceTheme.colors.surface)
-                    .cornerRadius(cornerRadius),
+                // El modificador de la imagen ahora solo necesita llenar el espacio.
+                // El recorte (clipping) ya está manejado por el Box.
+                modifier = GlanceModifier.fillMaxSize().cornerRadius(cornerRadius),
                 contentScale = ContentScale.Crop
             )
         }

@@ -247,7 +247,6 @@ class MainActivity : ComponentActivity() {
                     collapsedStateBottomMargin = collapsedStateBottomMargin,
                     hideNavBar = shouldHideNavBar
                 )
-            }
         }
         Trace.endSection() // End MainActivity.MainUI
     }
