@@ -237,7 +237,7 @@ class MainActivity : ComponentActivity() {
 
             PixelPlayTheme(
                 darkTheme = useDarkTheme,
-                colorSchemePairOverride = playerColorSchemePairForSheet // Use player specific theme
+                colorSchemePairOverride = null // UnifiedPlayerSheet uses app's base theme; specific parts themed internally
             ) {
                 UnifiedPlayerSheet(
                     playerViewModel = playerViewModel, navController = navController,

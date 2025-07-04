@@ -18,35 +18,8 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import com.theveloper.pixelplay.presentation.viewmodel.ColorSchemePair
 
-val DarkColorScheme = darkColorScheme(
-    primary = PixelPlayPurplePrimary,
-    secondary = PixelPlayPink,
-    tertiary = PixelPlayOrange,
-    background = PixelPlayPurpleDark,
-    surface = PixelPlaySurface,
-    onPrimary = PixelPlayWhite,
-    onSecondary = PixelPlayWhite,
-    onTertiary = PixelPlayWhite,
-    onBackground = PixelPlayWhite,
-    onSurface = PixelPlayLightPurple, // Texto sobre superficies
-    error = Color(0xFFFF5252),
-    onError = PixelPlayWhite
-)
-
-val LightColorScheme = lightColorScheme(
-    primary = LightPrimary,
-    secondary = PixelPlayPink,
-    tertiary = PixelPlayOrange,
-    background = LightBackground,
-    surface = PixelPlayWhite,
-    onPrimary = PixelPlayWhite,
-    onSecondary = PixelPlayBlack,
-    onTertiary = PixelPlayBlack,
-    onBackground = PixelPlayBlack,
-    onSurface = PixelPlayBlack,
-    error = Color(0xFFD32F2F),
-    onError = PixelPlayWhite
-)
+// DarkColorScheme and LightColorScheme removed as per plan to eliminate PixelPlay Default theme.
+// Fallbacks will be handled by Material 3 defaults if dynamic theming fails.
 
 @Composable
 fun PixelPlayTheme(
@@ -61,17 +34,17 @@ fun PixelPlayTheme(
             try {
                 if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
             } catch (e: Exception) {
-                // Fallback a los defaults si dynamic colors falla (raro, pero posible en algunos dispositivos)
-                if (darkTheme) DarkColorScheme else LightColorScheme
+                // If dynamic colors fail, MaterialTheme will use its default baseline schemes.
+                // No explicit fallback to custom DarkColorScheme/LightColorScheme needed here.
+                if (darkTheme) darkColorScheme() else lightColorScheme() // Use M3 defaults
             }
         }
         colorSchemePairOverride != null -> {
             // Usar el esquema del álbum si se proporciona
             if (darkTheme) colorSchemePairOverride.dark else colorSchemePairOverride.light
         }
-        // Fallback final a los defaults si no hay override ni dynamic colors aplicables
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+        // If no override and not Android S+, MaterialTheme will use its default baseline schemes.
+        else -> if (darkTheme) darkColorScheme() else lightColorScheme() // Use M3 defaults
     }
 
     val view = LocalView.current
