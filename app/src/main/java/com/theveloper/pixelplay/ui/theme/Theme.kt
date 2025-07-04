@@ -18,8 +18,43 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import com.theveloper.pixelplay.presentation.viewmodel.ColorSchemePair
 
-// DarkColorScheme and LightColorScheme removed as per plan to eliminate PixelPlay Default theme.
-// Fallbacks will be handled by Material 3 defaults if dynamic theming fails.
+// Define neutral base colors for fallback themes
+// These replace the previous violet-centric "PixelPlay Default" theme.
+val NeutralDarkColorScheme = darkColorScheme(
+    primary = Color(0xFF7FCDCF), // Example: A muted teal/cyan
+    secondary = PixelPlayPink,      // Kept as per user feedback (general accent)
+    tertiary = PixelPlayOrange,     // Kept as per user feedback (general accent)
+    background = Color(0xFF121212), // Standard dark theme background
+    surface = Color(0xFF1E1E1E),    // Standard dark theme surface (slightly lighter)
+    onPrimary = Color.Black,
+    onSecondary = Color.Black,
+    onTertiary = Color.Black,
+    onBackground = Color.White,
+    onSurface = Color(0xFFE0E0E0),  // Light grey for text on dark surfaces
+    error = Color(0xFFCF6679),      // Standard M3 dark error
+    onError = Color.Black
+)
+
+val NeutralLightColorScheme = lightColorScheme(
+    primary = Color(0xFF6200EE), // Example: A standard purple/blue
+    secondary = PixelPlayPink,      // Kept
+    tertiary = PixelPlayOrange,     // Kept
+    background = Color(0xFFFFFBFB), // Common M3 light background
+    surface = Color(0xFFFFFBFB),    // Common M3 light surface
+    onPrimary = Color.White,
+    onSecondary = Color.Black,
+    onTertiary = Color.Black,
+    onBackground = Color.Black,
+    onSurface = Color.Black,
+    error = Color(0xFFB00020),      // Standard M3 light error
+    onError = Color.White
+)
+
+// Renamed DarkColorScheme and LightColorScheme to avoid confusion if they are imported elsewhere.
+// The PixelPlayTheme will now use NeutralDarkColorScheme and NeutralLightColorScheme as fallbacks.
+val DarkColorScheme = NeutralDarkColorScheme
+val LightColorScheme = NeutralLightColorScheme
+
 
 @Composable
 fun PixelPlayTheme(
@@ -34,17 +69,17 @@ fun PixelPlayTheme(
             try {
                 if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
             } catch (e: Exception) {
-                // If dynamic colors fail, MaterialTheme will use its default baseline schemes.
-                // No explicit fallback to custom DarkColorScheme/LightColorScheme needed here.
-                if (darkTheme) darkColorScheme() else lightColorScheme() // Use M3 defaults
+                // Fallback a los defaults si dynamic colors falla (raro, pero posible en algunos dispositivos)
+                if (darkTheme) DarkColorScheme else LightColorScheme
             }
         }
         colorSchemePairOverride != null -> {
             // Usar el esquema del álbum si se proporciona
             if (darkTheme) colorSchemePairOverride.dark else colorSchemePairOverride.light
         }
-        // If no override and not Android S+, MaterialTheme will use its default baseline schemes.
-        else -> if (darkTheme) darkColorScheme() else lightColorScheme() // Use M3 defaults
+        // Fallback final a los defaults si no hay override ni dynamic colors aplicables
+        darkTheme -> DarkColorScheme
+        else -> LightColorScheme
     }
 
     val view = LocalView.current

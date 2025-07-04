@@ -16,6 +16,7 @@ import javax.inject.Inject
 data class SettingsUiState(
     val directoryItems: List<DirectoryItem> = emptyList(),
     val isLoadingDirectories: Boolean = true,
+    // globalThemePreference removed
     val playerThemePreference: String = ThemePreference.ALBUM_ART
 )
 
@@ -31,6 +32,7 @@ class SettingsViewModel @Inject constructor(
 
     // Observar las preferencias de tema directamente
     init {
+        // globalThemePreferenceFlow collection removed
         viewModelScope.launch {
             userPreferencesRepository.playerThemePreferenceFlow.collect { preference ->
                 _uiState.update { it.copy(playerThemePreference = preference) }
@@ -90,6 +92,8 @@ class SettingsViewModel @Inject constructor(
             // la próxima vez que consulten el repositorio.
         }
     }
+
+    // setGlobalThemePreference function removed
 
     // Método para guardar la preferencia de tema del reproductor
     fun setPlayerThemePreference(preference: String) {

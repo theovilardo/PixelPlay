@@ -25,8 +25,10 @@ import javax.inject.Singleton
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
 object ThemePreference {
+    // DEFAULT removed
     const val DYNAMIC = "dynamic"       // Tema dinámico del sistema (Android 12+)
     const val ALBUM_ART = "album_art"   // Tema basado en carátula
+    // GLOBAL removed
 }
 
 @Singleton
@@ -38,6 +40,7 @@ class UserPreferencesRepository @Inject constructor(
     private object PreferencesKeys {
         val ALLOWED_DIRECTORIES = stringSetPreferencesKey("allowed_directories")
         val INITIAL_SETUP_DONE = stringSetPreferencesKey("initial_setup_done_directories")
+        // GLOBAL_THEME_PREFERENCE removed
         val PLAYER_THEME_PREFERENCE = stringPreferencesKey("player_theme_preference_v2")
         val FAVORITE_SONG_IDS = stringSetPreferencesKey("favorite_song_ids")
         val USER_PLAYLISTS = stringPreferencesKey("user_playlists_json_v1")
@@ -64,6 +67,8 @@ class UserPreferencesRepository @Inject constructor(
             // Lo usamos para decidir si la primera vez debemos permitir todos los directorios encontrados.
             preferences.contains(PreferencesKeys.INITIAL_SETUP_DONE)
         }
+
+    // globalThemePreferenceFlow removed
 
     val playerThemePreferenceFlow: Flow<String> = dataStore.data
         .map { preferences ->
@@ -166,6 +171,8 @@ class UserPreferencesRepository @Inject constructor(
             }
         }
     }
+
+    // setGlobalThemePreference function removed
 
     suspend fun setPlayerThemePreference(themeMode: String) {
         dataStore.edit { preferences ->

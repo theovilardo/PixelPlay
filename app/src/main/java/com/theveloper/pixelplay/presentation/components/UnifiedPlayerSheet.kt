@@ -635,16 +635,47 @@ fun UnifiedPlayerSheet(
 
     val actuallyShowSheetContent = shouldShowSheet && !internalIsKeyboardVisible
 
-    // Get the active player theme (could be album-based or dynamic signal)
-    val activePlayerColorSchemePair by playerViewModel.activePlayerColorSchemePair.collectAsState()
+    val currentAlbumColorSchemePair by playerViewModel.currentAlbumArtColorSchemePair.collectAsState()
     val isDarkTheme = isSystemInDarkTheme()
+    val systemColorScheme = MaterialTheme.colorScheme
 
-    // This will be the ColorScheme used by PixelPlayTheme for the player content area
-    // If activePlayerColorSchemePair is null (for dynamic), PixelPlayTheme handles it.
-    // Otherwise, it uses the light/dark scheme from the pair.
-    // The animation logic previously here for individual colors might need to be reconsidered
-    // or integrated differently if still desired within the PixelPlayTheme context.
-    // For now, we simplify by directly passing the scheme pair.
+    val targetColorScheme = remember(currentAlbumColorSchemePair, isDarkTheme, systemColorScheme) {
+        (if (isDarkTheme) currentAlbumColorSchemePair?.dark else currentAlbumColorSchemePair?.light)
+            ?: systemColorScheme
+    }
+
+    val colorAnimationSpec = remember { tween<Color>(durationMillis = 700, easing = FastOutSlowInEasing) }
+
+    val animPrimary by animateColorAsState(targetColorScheme.primary, colorAnimationSpec, label = "animPrimary")
+    val animOnPrimary by animateColorAsState(targetColorScheme.onPrimary, colorAnimationSpec, label = "animOnPrimary")
+    val animPrimaryContainer by animateColorAsState(targetColorScheme.primaryContainer, colorAnimationSpec, label = "animPrimaryContainer")
+    val animOnPrimaryContainer by animateColorAsState(targetColorScheme.onPrimaryContainer, colorAnimationSpec, label = "animOnPrimaryContainer")
+    val animSecondary by animateColorAsState(targetColorScheme.secondary, colorAnimationSpec, label = "animSecondary")
+    val animOnSecondary by animateColorAsState(targetColorScheme.onSecondary, colorAnimationSpec, label = "animOnSecondary")
+    val animTertiary by animateColorAsState(targetColorScheme.tertiary, colorAnimationSpec, label = "animTertiary")
+    val animOnTertiary by animateColorAsState(targetColorScheme.onTertiary, colorAnimationSpec, label = "animOnTertiary")
+    val animSurface by animateColorAsState(targetColorScheme.surface, colorAnimationSpec, label = "animSurface")
+    val animOnSurface by animateColorAsState(targetColorScheme.onSurface, colorAnimationSpec, label = "animOnSurface")
+
+    val animatedAlbumColorScheme = remember(
+        animPrimary, animOnPrimary, animPrimaryContainer, animOnPrimaryContainer,
+        animSecondary, animOnSecondary, animTertiary, animOnTertiary, animSurface, animOnSurface, targetColorScheme
+    ) {
+        targetColorScheme.copy(
+            primary = animPrimary,
+            onPrimary = animOnPrimary,
+            primaryContainer = animPrimaryContainer,
+            onPrimaryContainer = animOnPrimaryContainer,
+            secondary = animSecondary,
+            onSecondary = animOnSecondary,
+            tertiary = animTertiary,
+            onTertiary = animOnTertiary,
+            surface = animSurface,
+            onSurface = animOnSurface
+        )
+    }
+    val albumColorScheme = animatedAlbumColorScheme
+
 
     val playerAreaElevation by animateDpAsState(
         targetValue = if (showPlayerContentArea) {
@@ -784,11 +815,10 @@ fun UnifiedPlayerSheet(
                             .shadow(
                                 elevation = playerAreaElevation,
                                 shape = playerShadowShape,
-                                clip = false
+                                clip = false // Shadow should not be clipped by this
                             )
-                            // Background color will be handled by PixelPlayTheme's Surface
-                            // .background(...) // Removed direct background
-                            .clip( // Still clip with the dynamic shape for shadow and layout
+                            // .background(...) // Background is now handled by PixelPlayTheme's Surface
+                            .clip( // Clip the overall Box to its evolving shape for layout purposes
                                 AbsoluteSmoothCornerShape(
                                     cornerRadiusTL = overallSheetTopCornerRadius,
                                     smoothnessAsPercentBL = 60,
@@ -800,7 +830,7 @@ fun UnifiedPlayerSheet(
                                     smoothnessAsPercentTR = 60
                                 )
                             )
-                            // .clipToBounds() // PixelPlayTheme will provide its own Surface
+                            .clipToBounds()
                             .pointerInput(
                                 showPlayerContentArea,
                                 sheetCollapsedTargetY,
@@ -923,17 +953,16 @@ fun UnifiedPlayerSheet(
                             darkTheme = isDarkTheme,
                             colorSchemePairOverride = activePlayerColorSchemePair
                         ) {
-                            // The background previously applied to the Box is now handled by PixelPlayTheme's Surface.
-                            // We need to ensure this Surface clips correctly.
-                            Surface( // This Surface will adopt the theme from PixelPlayTheme
-                                modifier = Modifier.fillMaxSize().clipToBounds(), // Ensure it clips
-                                color = MaterialTheme.colorScheme.primaryContainer // Or appropriate color from the theme
+                            // This Surface will adopt the theme from PixelPlayTheme and provide the background
+                            Surface(
+                                modifier = Modifier.fillMaxSize().clipToBounds(), // Clip to prevent content bleed if padding/shape issues
+                                // Color is implicitly MaterialTheme.colorScheme.surface or background from the themed ColorScheme
                             ) {
                                 if (showPlayerContentArea) {
                                     stablePlayerState.currentSong?.let { currentSongNonNull ->
                                         val miniPlayerAlpha by remember { derivedStateOf { (1f - playerContentExpansionFraction.value * 2f).coerceIn(0f, 1f) } }
                                         if (miniPlayerAlpha > 0.01f) {
-                                            // LocalMaterialTheme provider is no longer needed here as PixelPlayTheme handles it
+                                            // No explicit CompositionLocalProvider needed, MiniPlayerContentInternal will use MaterialTheme.colorScheme
                                             Box(
                                                 modifier = Modifier
                                                     .align(Alignment.TopCenter)
@@ -950,7 +979,7 @@ fun UnifiedPlayerSheet(
                                         }
 
                                         if (shouldRenderFullPlayer) {
-                                            // LocalMaterialTheme provider is no longer needed here
+                                            // No explicit CompositionLocalProvider needed
                                             Box(modifier = Modifier.graphicsLayer {
                                                 alpha = fullPlayerContentAlpha.value
                                                 translationY = fullPlayerTranslationY.value
@@ -1064,7 +1093,6 @@ fun UnifiedPlayerSheet(
     }
 
     if (showQueueSheet && !internalIsKeyboardVisible) {
-        // Apply PixelPlayTheme specifically to the QueueBottomSheet
         com.theveloper.pixelplay.ui.theme.PixelPlayTheme(
             darkTheme = isDarkTheme,
             colorSchemePairOverride = activePlayerColorSchemePair

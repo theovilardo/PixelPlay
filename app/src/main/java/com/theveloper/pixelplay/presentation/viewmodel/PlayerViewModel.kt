@@ -164,7 +164,8 @@ class PlayerViewModel @Inject constructor(
     private val _currentAlbumArtColorSchemePair = MutableStateFlow<ColorSchemePair?>(null)
     val currentAlbumArtColorSchemePair: StateFlow<ColorSchemePair?> = _currentAlbumArtColorSchemePair.asStateFlow()
     // Player theme preference is managed by UserPreferencesRepository.
-    val playerThemePreference: StateFlow<String> = userPreferencesRepository.playerThemePreferenceFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemePreference.ALBUM_ART) // Default to ALBUM_ART
+    // globalThemePreference is removed.
+    val playerThemePreference: StateFlow<String> = userPreferencesRepository.playerThemePreferenceFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemePreference.ALBUM_ART)
 
     private val _isInitialThemePreloadComplete = MutableStateFlow(false)
     val isInitialThemePreloadComplete: StateFlow<Boolean> = _isInitialThemePreloadComplete.asStateFlow()
@@ -265,15 +266,20 @@ class PlayerViewModel @Inject constructor(
             .map { it.allSongs }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    // activeGlobalColorSchemePair removed.
+
     val activePlayerColorSchemePair: StateFlow<ColorSchemePair?> = combine(
         playerThemePreference, _currentAlbumArtColorSchemePair
-    ) { playerPref, albumScheme ->
+    ) { playerPref, albumArtScheme ->
         when (playerPref) {
-            ThemePreference.ALBUM_ART -> albumScheme // If null, PixelPlayTheme will handle fallback
-            ThemePreference.DYNAMIC -> null // Signal to PixelPlayTheme to use system dynamic colors
-            else -> albumScheme // Default to album art if preference is somehow invalid
+            ThemePreference.ALBUM_ART -> albumArtScheme // If null, PixelPlayTheme will use its fallback for player content
+            ThemePreference.DYNAMIC -> null // Signal to use dynamic/default for player content
+            // ThemePreference.GLOBAL is no longer a direct player option in settings,
+            // but if it's still in UserPreferences as a legacy value, treat as DYNAMIC.
+            ThemePreference.GLOBAL -> null
+            else -> albumArtScheme // Fallback for any other unexpected legacy values
         }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, null) // Initial value null, will be updated
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null) // Initial value null
 
     // Caché en memoria para los ColorSchemePair de álbumes individuales, para acceso rápido en la UI.
     // Room es el caché persistente.

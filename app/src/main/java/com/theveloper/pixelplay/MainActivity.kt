@@ -97,11 +97,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             val mainViewModel: MainViewModel = hiltViewModel()
             val useDarkTheme = isSystemInDarkTheme()
-            // val globalColorSchemePairForApp by playerViewModel.activeGlobalColorSchemePair.collectAsState() // Removed
+            // val globalColorSchemePairForApp by playerViewModel.activeGlobalColorSchemePair.collectAsState() // This was removed in previous plan, ensuring it's gone.
 
             PixelPlayTheme(
                 darkTheme = useDarkTheme,
-                colorSchemePairOverride = null // Always use dynamic/default for main app
+                colorSchemePairOverride = null // Ensures app uses dynamic or neutral fallback theme
             ) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     HandlePermissions(mainViewModel)
@@ -183,8 +183,7 @@ class MainActivity : ComponentActivity() {
     private fun MainUI(playerViewModel: PlayerViewModel, navController: NavHostController) {
         Trace.beginSection("MainActivity.MainUI")
         val useDarkTheme = isSystemInDarkTheme()
-        // val globalColorSchemePairForApp by playerViewModel.activeGlobalColorSchemePair.collectAsState() // Removed
-        val playerColorSchemePairForSheet by playerViewModel.activePlayerColorSchemePair.collectAsState()
+        val globalColorSchemePairForApp by playerViewModel.activeGlobalColorSchemePair.collectAsState()
         val commonNavItems = remember {
             persistentListOf(
                 BottomNavItem("Home", R.drawable.rounded_home_24, R.drawable.rounded_home_24, Screen.Home),
@@ -237,7 +236,7 @@ class MainActivity : ComponentActivity() {
 
             PixelPlayTheme(
                 darkTheme = useDarkTheme,
-                colorSchemePairOverride = null // UnifiedPlayerSheet uses app's base theme; specific parts themed internally
+                colorSchemePairOverride = globalColorSchemePairForApp
             ) {
                 UnifiedPlayerSheet(
                     playerViewModel = playerViewModel, navController = navController,
