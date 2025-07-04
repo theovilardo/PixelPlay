@@ -11,7 +11,7 @@
     <color name="my_primary">#6750A4</color>
     <color name="my_on_primary">#FFFFFF</color>
     <color name="my_primary_container">#EADDFF</color>
-    <color name="my_on_primary_container">#21005D</color>
+    <color name="my_on_primary_container">#2D2931</color>
 
     <color name="my_secondary">#625B71</color>
     <color name="my_on_secondary">#FFFFFF</color>
@@ -22,6 +22,6 @@
     <color name="my_on_tertiary">#FFFFFF</color>
     <color name="pixelplay_widget_background_color">#FF2C1D4D</color>
 
-    <color name="pixel_play_purple_dark">#FF1E1234</color>
-    <color name="light_background">#FFFDF7FF</color>
+    <color name="pixel_play_purple_dark">#19191B</color>
+    <color name="light_background">#EDEDED</color>
 </resources>

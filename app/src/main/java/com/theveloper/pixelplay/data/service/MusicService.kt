@@ -354,7 +354,7 @@ class MusicService : MediaSessionService() {
 
 
             // Determinar si realmente necesitamos enviar una actualización al widget.
-            val artActuallyChanged = (artUriString != lastWidgetArtUriString) || (artBytes != null && lastWidgetArtUriString.isEmpty()) || (artBytes == null && lastWidgetArtUriString.isNotEmpty())
+            val artActuallyChanged = (artUriStringForPlayerInfo != lastWidgetArtUriString) || (artBytes != null && lastWidgetArtUriString.isEmpty()) || (artBytes == null && lastWidgetArtUriString.isNotEmpty())
             // Considera artActuallyChanged si la URI cambió, o si el arte apareció (artBytes != null) cuando antes no había URI,
             // o si el arte desapareció (artBytes == null) cuando antes sí había URI.
 
@@ -413,7 +413,7 @@ class MusicService : MediaSessionService() {
                         }
                         // Actualizar todos los widgets una vez después de establecer el estado
                         glanceIds.forEach { id -> PixelPlayGlanceWidget().update(applicationContext, id) }
-                        Log.d(TAG, "Widget state data sent. Playing: $isPlaying, Title: $title, Art URI: $artUriString, Progress: $currentPositionMs")
+                        Log.d(TAG, "Widget state data sent. Playing: $isPlaying, Title: $title, Art URI: $artUriStringForPlayerInfo, Progress: $currentPositionMs")
                     } else {
                         Log.d(TAG, "No Glance widget IDs found. Skipping widget update.")
                     }
