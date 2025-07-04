@@ -959,14 +959,16 @@ fun UnifiedPlayerSheet(
                                 modifier = Modifier.fillMaxSize().clipToBounds(), // Clip to prevent content bleed if padding/shape issues
                                 // Color is implicitly MaterialTheme.colorScheme.surface or background from the themed ColorScheme
                             ) {
-                                if (showPlayerContentArea) {
-                                    stablePlayerState.currentSong?.let { currentSongNonNull ->
-                                        val miniPlayerAlpha by remember { derivedStateOf { (1f - playerContentExpansionFraction.value * 2f).coerceIn(0f, 1f) } }
-                                        if (miniPlayerAlpha > 0.01f) {
-                                            // No explicit CompositionLocalProvider needed, MiniPlayerContentInternal will use MaterialTheme.colorScheme
-                                            Box(
-                                                modifier = Modifier
-                                                    .align(Alignment.TopCenter)
+                                // Capture the ColorScheme from this PixelPlayTheme instance
+                                val themedColorScheme = MaterialTheme.colorScheme
+                                CompositionLocalProvider(LocalMaterialTheme provides themedColorScheme) {
+                                    if (showPlayerContentArea) {
+                                        stablePlayerState.currentSong?.let { currentSongNonNull ->
+                                            val miniPlayerAlpha by remember { derivedStateOf { (1f - playerContentExpansionFraction.value * 2f).coerceIn(0f, 1f) } }
+                                            if (miniPlayerAlpha > 0.01f) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .align(Alignment.TopCenter)
                                                     .graphicsLayer { alpha = miniPlayerAlpha }
                                             ) {
                                                 MiniPlayerContentInternal(
@@ -1098,9 +1100,12 @@ fun UnifiedPlayerSheet(
             darkTheme = isDarkTheme,
             colorSchemePairOverride = activePlayerColorSchemePair
         ) {
-            QueueBottomSheet(
-                queue = currentPlaybackQueue, // Use granular state
-                currentQueueSourceName = currentQueueSourceName, // Use granular state
+            // Capture the ColorScheme from this PixelPlayTheme instance
+            val themedColorScheme = MaterialTheme.colorScheme
+            CompositionLocalProvider(LocalMaterialTheme provides themedColorScheme) {
+                QueueBottomSheet(
+                    queue = currentPlaybackQueue, // Use granular state
+                    currentQueueSourceName = currentQueueSourceName, // Use granular state
                 currentSongId = stablePlayerState.currentSong?.id, // stablePlayerState is fine here
                 onDismiss = { showQueueSheet = false },
                 onPlaySong = { song ->
