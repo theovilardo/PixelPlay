@@ -97,11 +97,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             val mainViewModel: MainViewModel = hiltViewModel()
             val useDarkTheme = isSystemInDarkTheme()
-            val globalColorSchemePairForApp by playerViewModel.activeGlobalColorSchemePair.collectAsState()
+            // val globalColorSchemePairForApp by playerViewModel.activeGlobalColorSchemePair.collectAsState() // Removed
 
             PixelPlayTheme(
                 darkTheme = useDarkTheme,
-                colorSchemePairOverride = globalColorSchemePairForApp
+                colorSchemePairOverride = null // Always use dynamic/default for main app
             ) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     HandlePermissions(mainViewModel)
@@ -183,7 +183,8 @@ class MainActivity : ComponentActivity() {
     private fun MainUI(playerViewModel: PlayerViewModel, navController: NavHostController) {
         Trace.beginSection("MainActivity.MainUI")
         val useDarkTheme = isSystemInDarkTheme()
-        val globalColorSchemePairForApp by playerViewModel.activeGlobalColorSchemePair.collectAsState()
+        // val globalColorSchemePairForApp by playerViewModel.activeGlobalColorSchemePair.collectAsState() // Removed
+        val playerColorSchemePairForSheet by playerViewModel.activePlayerColorSchemePair.collectAsState()
         val commonNavItems = remember {
             persistentListOf(
                 BottomNavItem("Home", R.drawable.rounded_home_24, R.drawable.rounded_home_24, Screen.Home),
@@ -236,7 +237,7 @@ class MainActivity : ComponentActivity() {
 
             PixelPlayTheme(
                 darkTheme = useDarkTheme,
-                colorSchemePairOverride = globalColorSchemePairForApp
+                colorSchemePairOverride = playerColorSchemePairForSheet // Use player specific theme
             ) {
                 UnifiedPlayerSheet(
                     playerViewModel = playerViewModel, navController = navController,

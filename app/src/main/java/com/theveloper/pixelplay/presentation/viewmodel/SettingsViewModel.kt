@@ -16,8 +16,7 @@ import javax.inject.Inject
 data class SettingsUiState(
     val directoryItems: List<DirectoryItem> = emptyList(),
     val isLoadingDirectories: Boolean = true,
-    val globalThemePreference: String = ThemePreference.DYNAMIC, // Default a DYNAMIC
-    val playerThemePreference: String = ThemePreference.GLOBAL
+    val playerThemePreference: String = ThemePreference.ALBUM_ART
 )
 
 @HiltViewModel
@@ -32,11 +31,6 @@ class SettingsViewModel @Inject constructor(
 
     // Observar las preferencias de tema directamente
     init {
-        viewModelScope.launch {
-            userPreferencesRepository.globalThemePreferenceFlow.collect { preference ->
-                _uiState.update { it.copy(globalThemePreference = preference) }
-            }
-        }
         viewModelScope.launch {
             userPreferencesRepository.playerThemePreferenceFlow.collect { preference ->
                 _uiState.update { it.copy(playerThemePreference = preference) }
@@ -94,14 +88,6 @@ class SettingsViewModel @Inject constructor(
             // y también lo hará la lista de DirectoryItem en la UI de Ajustes.
             // La invalidación de caché asegura que PlayerViewModel, etc., obtengan datos frescos
             // la próxima vez que consulten el repositorio.
-        }
-    }
-
-    // Método para guardar la preferencia de tema global
-    fun setGlobalThemePreference(preference: String) {
-        viewModelScope.launch {
-            userPreferencesRepository.setGlobalThemePreference(preference)
-            // El flujo globalThemePreferenceFlow en init{} detectará el cambio y actualizará _uiState
         }
     }
 
