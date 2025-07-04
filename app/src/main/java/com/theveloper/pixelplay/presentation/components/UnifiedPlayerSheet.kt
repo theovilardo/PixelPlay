@@ -161,7 +161,8 @@ fun UnifiedPlayerSheet(
     initialTargetTranslationY: Float,
     collapsedStateHorizontalPadding: Dp = 12.dp,
     collapsedStateBottomMargin: Dp = 0.dp,
-    hideNavBar: Boolean = false
+    hideNavBar: Boolean = false,
+    activePlayerColorSchemePair: com.theveloper.pixelplay.presentation.viewmodel.ColorSchemePair? // Added parameter
 ) {
     Trace.beginSection("UnifiedPlayerSheet.Composition")
     val context = LocalContext.current

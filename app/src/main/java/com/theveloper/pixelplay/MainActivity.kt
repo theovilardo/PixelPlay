@@ -183,7 +183,8 @@ class MainActivity : ComponentActivity() {
     private fun MainUI(playerViewModel: PlayerViewModel, navController: NavHostController) {
         Trace.beginSection("MainActivity.MainUI")
         val useDarkTheme = isSystemInDarkTheme()
-        val globalColorSchemePairForApp by playerViewModel.activeGlobalColorSchemePair.collectAsState()
+        // globalColorSchemePairForApp is removed as global theme choice is removed.
+        val activePlayerColorSchemePairForSheet by playerViewModel.activePlayerColorSchemePair.collectAsState()
         val commonNavItems = remember {
             persistentListOf(
                 BottomNavItem("Home", R.drawable.rounded_home_24, R.drawable.rounded_home_24, Screen.Home),
@@ -236,7 +237,7 @@ class MainActivity : ComponentActivity() {
 
             PixelPlayTheme(
                 darkTheme = useDarkTheme,
-                colorSchemePairOverride = globalColorSchemePairForApp
+                colorSchemePairOverride = null // App's main theme uses dynamic/neutral fallback
             ) {
                 UnifiedPlayerSheet(
                     playerViewModel = playerViewModel, navController = navController,
@@ -244,7 +245,8 @@ class MainActivity : ComponentActivity() {
                     initialTargetTranslationY = initialY,
                     collapsedStateHorizontalPadding = 22.dp,
                     collapsedStateBottomMargin = collapsedStateBottomMargin,
-                    hideNavBar = shouldHideNavBar
+                    hideNavBar = shouldHideNavBar,
+                    activePlayerColorSchemePair = activePlayerColorSchemePairForSheet // Pass the collected state
                 )
             }
         }
