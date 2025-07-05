@@ -26,9 +26,15 @@ class PlayerControlActionCallback : ActionCallback {
 
         val serviceIntent = Intent(context, MusicService::class.java).apply {
             this.action = action
-            // Opcional: Podrías pasar el glanceId al servicio si necesitas actualizar
-            // solo este widget, pero MusicService actualizará todos por ahora.
-            // putExtra("glanceId_to_update", glanceId.toString())
+            if (action == PlayerActions.PLAY_FROM_QUEUE) {
+                val songId = parameters[PlayerActions.songIdKey]
+                if (songId != null) {
+                    putExtra("song_id", songId)
+                } else {
+                    Log.w(TAG, "PLAY_FROM_QUEUE action received but no songId found.")
+                    return // No hacer nada si no hay ID de canción
+                }
+            }
         }
 
         try {
@@ -41,14 +47,15 @@ class PlayerControlActionCallback : ActionCallback {
         } catch (e: Exception) {
             Log.e(TAG, "Error starting service for action $action: ${e.message}", e)
         }
-        // La actualización del widget la manejará el MusicService después de procesar la acción.
     }
 }
 
 object PlayerActions {
-    val key = ActionParameters.Key<String>("playerActionKey_v1") // Usar una key única
+    val key = ActionParameters.Key<String>("playerActionKey_v1")
+    val songIdKey = ActionParameters.Key<Long>("songIdKey_v1")
     const val PLAY_PAUSE = "com.example.pixelplay.ACTION_WIDGET_PLAY_PAUSE"
     const val NEXT = "com.example.pixelplay.ACTION_WIDGET_NEXT"
     const val PREVIOUS = "com.example.pixelplay.ACTION_WIDGET_PREVIOUS"
     const val FAVORITE = "com.example.pixelplay.ACTION_WIDGET_FAVORITE"
+    const val PLAY_FROM_QUEUE = "com.example.pixelplay.ACTION_WIDGET_PLAY_FROM_QUEUE"
 }
