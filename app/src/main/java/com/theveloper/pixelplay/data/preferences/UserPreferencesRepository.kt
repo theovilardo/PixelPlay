@@ -40,7 +40,7 @@ class UserPreferencesRepository @Inject constructor(
     private object PreferencesKeys {
         val ALLOWED_DIRECTORIES = stringSetPreferencesKey("allowed_directories")
         val INITIAL_SETUP_DONE = stringSetPreferencesKey("initial_setup_done_directories")
-        val GLOBAL_THEME_PREFERENCE = stringPreferencesKey("global_theme_preference_v2")
+        // val GLOBAL_THEME_PREFERENCE = stringPreferencesKey("global_theme_preference_v2") // Removed
         val PLAYER_THEME_PREFERENCE = stringPreferencesKey("player_theme_preference_v2")
         val FAVORITE_SONG_IDS = stringSetPreferencesKey("favorite_song_ids")
         val USER_PLAYLISTS = stringPreferencesKey("user_playlists_json_v1")
@@ -68,14 +68,15 @@ class UserPreferencesRepository @Inject constructor(
             preferences.contains(PreferencesKeys.INITIAL_SETUP_DONE)
         }
 
-    val globalThemePreferenceFlow: Flow<String> = dataStore.data
-        .map { preferences ->
-            preferences[PreferencesKeys.GLOBAL_THEME_PREFERENCE] ?: ThemePreference.DYNAMIC
-        }
+    // Removed globalThemePreferenceFlow
+    // val globalThemePreferenceFlow: Flow<String> = dataStore.data
+    //     .map { preferences ->
+    //         preferences[PreferencesKeys.GLOBAL_THEME_PREFERENCE] ?: ThemePreference.DYNAMIC
+    //     }
 
     val playerThemePreferenceFlow: Flow<String> = dataStore.data
         .map { preferences ->
-            preferences[PreferencesKeys.PLAYER_THEME_PREFERENCE] ?: ThemePreference.GLOBAL
+            preferences[PreferencesKeys.PLAYER_THEME_PREFERENCE] ?: ThemePreference.ALBUM_ART // Default to Album Art
         }
 
     val favoriteSongIdsFlow: Flow<Set<String>> = dataStore.data // Nuevo flujo para favoritos
@@ -175,11 +176,12 @@ class UserPreferencesRepository @Inject constructor(
         }
     }
 
-    suspend fun setGlobalThemePreference(themeMode: String) {
-        dataStore.edit { preferences ->
-            preferences[PreferencesKeys.GLOBAL_THEME_PREFERENCE] = themeMode
-        }
-    }
+    // Removed setGlobalThemePreference
+    // suspend fun setGlobalThemePreference(themeMode: String) {
+    //     dataStore.edit { preferences ->
+    //         preferences[PreferencesKeys.GLOBAL_THEME_PREFERENCE] = themeMode
+    //     }
+    // }
 
     suspend fun setPlayerThemePreference(themeMode: String) {
         dataStore.edit { preferences ->

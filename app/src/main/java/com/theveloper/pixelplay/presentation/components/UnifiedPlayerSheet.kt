@@ -635,13 +635,14 @@ fun UnifiedPlayerSheet(
 
     val actuallyShowSheetContent = shouldShowSheet && !internalIsKeyboardVisible
 
-    val currentAlbumColorSchemePair by playerViewModel.currentAlbumArtColorSchemePair.collectAsState()
+    // val currentAlbumColorSchemePair by playerViewModel.currentAlbumArtColorSchemePair.collectAsState() // Replaced by activePlayerColorSchemePair
+    val activePlayerSchemePair by playerViewModel.activePlayerColorSchemePair.collectAsState()
     val isDarkTheme = isSystemInDarkTheme()
-    val systemColorScheme = MaterialTheme.colorScheme
+    val systemColorScheme = MaterialTheme.colorScheme // This is the standard M3 theme
 
-    val targetColorScheme = remember(currentAlbumColorSchemePair, isDarkTheme, systemColorScheme) {
-        (if (isDarkTheme) currentAlbumColorSchemePair?.dark else currentAlbumColorSchemePair?.light)
-            ?: systemColorScheme
+    val targetColorScheme = remember(activePlayerSchemePair, isDarkTheme, systemColorScheme) {
+        val schemeFromPair = activePlayerSchemePair?.let { if (isDarkTheme) it.dark else it.light }
+        schemeFromPair ?: systemColorScheme // If activePlayerSchemePair is null (i.e. System Dynamic selected) OR the selected scheme from pair is somehow null, use systemColorScheme
     }
 
     val colorAnimationSpec = remember { tween<Color>(durationMillis = 700, easing = FastOutSlowInEasing) }

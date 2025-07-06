@@ -97,11 +97,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             val mainViewModel: MainViewModel = hiltViewModel()
             val useDarkTheme = isSystemInDarkTheme()
-            val globalColorSchemePairForApp by playerViewModel.activeGlobalColorSchemePair.collectAsState()
+            // val globalColorSchemePairForApp by playerViewModel.activeGlobalColorSchemePair.collectAsState() // Removed
 
             PixelPlayTheme(
-                darkTheme = useDarkTheme,
-                colorSchemePairOverride = globalColorSchemePairForApp
+                darkTheme = useDarkTheme
+                // colorSchemePairOverride = globalColorSchemePairForApp // Removed
             ) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     HandlePermissions(mainViewModel)
@@ -183,7 +183,7 @@ class MainActivity : ComponentActivity() {
     private fun MainUI(playerViewModel: PlayerViewModel, navController: NavHostController) {
         Trace.beginSection("MainActivity.MainUI")
         val useDarkTheme = isSystemInDarkTheme()
-        val globalColorSchemePairForApp by playerViewModel.activeGlobalColorSchemePair.collectAsState()
+        // val globalColorSchemePairForApp by playerViewModel.activeGlobalColorSchemePair.collectAsState() // Removed
         val commonNavItems = remember {
             persistentListOf(
                 BottomNavItem("Home", R.drawable.rounded_home_24, R.drawable.rounded_home_24, Screen.Home),
@@ -234,19 +234,19 @@ class MainActivity : ComponentActivity() {
             val initialTotalSheetHeightPx = initialContentHeightPx + initialNavBarHeightPx
             val initialY = screenHeightPx - initialTotalSheetHeightPx - collapsedMarginPx
 
-            PixelPlayTheme(
-                darkTheme = useDarkTheme,
-                colorSchemePairOverride = globalColorSchemePairForApp
-            ) {
-                UnifiedPlayerSheet(
-                    playerViewModel = playerViewModel, navController = navController,
+            // The PixelPlayTheme wrapping UnifiedPlayerSheet is removed as UnifiedPlayerSheet
+            // now handles its own theming internally based on playerViewModel's activePlayerColorSchemePair
+            // and the system MaterialTheme.colorScheme.
+            // The outer PixelPlayTheme in setContent > HandlePermissions > MainAppContent
+            // provides the overall app theme.
+            UnifiedPlayerSheet(
+                playerViewModel = playerViewModel, navController = navController,
                     navItems = commonNavItems,
                     initialTargetTranslationY = initialY,
                     collapsedStateHorizontalPadding = 22.dp,
                     collapsedStateBottomMargin = collapsedStateBottomMargin,
                     hideNavBar = shouldHideNavBar
                 )
-            }
         }
         Trace.endSection() // End MainActivity.MainUI
     }

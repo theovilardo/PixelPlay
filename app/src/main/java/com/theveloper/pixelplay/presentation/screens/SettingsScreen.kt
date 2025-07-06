@@ -252,36 +252,13 @@ fun SettingsScreen(
                             shape = RoundedCornerShape(24.dp)
                         )
                 ){
-                    // Selector para Tema Global
-                    ThemeSelectorItem(
-                        label = "App Theme (Beta)",
-                        description = "Choose the appearance for the app's UI.",
-                        options = mapOf(
-                            ThemePreference.DEFAULT to "PixelPlay Default",
-                            ThemePreference.DYNAMIC to "Dynamic (System Theme)",
-                            ThemePreference.ALBUM_ART to "Album Art"
-                        ),
-                        selectedKey = uiState.globalThemePreference,
-                        onSelectionChanged = { settingsViewModel.setGlobalThemePreference(it) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.Style,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary
-                            )
-                        }
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
                     // Selector para Tema del Reproductor
                     ThemeSelectorItem(
                         label = "Player Theme",
                         description = "Choose the appearance for the floating player.",
                         options = mapOf(
-                            ThemePreference.GLOBAL to "Follow app's theme",
-                            ThemePreference.ALBUM_ART to "Album Art",
-                            ThemePreference.DEFAULT to "PixelPlay Default"
+                            ThemePreference.ALBUM_ART to "Album Art", // Default
+                            ThemePreference.DYNAMIC to "System Dynamic" // Or ThemePreference.DEFAULT if it means system dynamic
                         ),
                         selectedKey = uiState.playerThemePreference,
                         onSelectionChanged = { settingsViewModel.setPlayerThemePreference(it) },

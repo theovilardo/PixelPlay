@@ -387,6 +387,15 @@ class MusicService : MediaSessionService() {
 
 
             // Construir PlayerInfo siempre, la decisión de enviar se toma después.
+            val queueItems = mutableListOf<com.theveloper.pixelplay.data.model.QueueItem>()
+            if (exoPlayer.mediaItemCount > 0) {
+                for (i in exoPlayer.currentMediaItemIndex + 1 until exoPlayer.mediaItemCount) {
+                    val mediaItem = exoPlayer.getMediaItemAt(i)
+                    val artworkData = mediaItem.mediaMetadata.artworkData
+                    queueItems.add(com.theveloper.pixelplay.data.model.QueueItem(mediaItem.mediaId.toLong(), artworkData))
+                }
+            }
+
             val playerInfoData = PlayerInfo(
                 songTitle = title,
                 artistName = artist,
@@ -395,7 +404,8 @@ class MusicService : MediaSessionService() {
                 albumArtBitmapData = artBytes,
                 currentPositionMs = currentPositionMs,
                 totalDurationMs = totalDurationMs,
-                isFavorite = actualIsFavorite // Usar el estado de favorito obtenido
+                isFavorite = actualIsFavorite, // Usar el estado de favorito obtenido
+                queue = queueItems
             )
 
             // All Glance AppWidget operations should be off the main thread.

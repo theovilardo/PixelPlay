@@ -4,6 +4,33 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient // Para campos que no queremos serializar
 
 @Serializable
+data class QueueItem(
+    val id: Long, // ID único de la canción
+    val albumArtBitmapData: ByteArray?
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as QueueItem
+
+        if (id != other.id) return false
+        if (albumArtBitmapData != null) {
+            if (other.albumArtBitmapData == null) return false
+            if (!albumArtBitmapData.contentEquals(other.albumArtBitmapData)) return false
+        } else if (other.albumArtBitmapData != null) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = id.hashCode()
+        result = 31 * result + (albumArtBitmapData?.contentHashCode() ?: 0)
+        return result
+    }
+}
+
+@Serializable
 data class PlayerInfo(
     val songTitle: String = "",
     val artistName: String = "",
@@ -12,7 +39,8 @@ data class PlayerInfo(
     val albumArtBitmapData: ByteArray? = null,
     val currentPositionMs: Long = 0L,
     val totalDurationMs: Long = 0L,
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val queue: List<QueueItem> = emptyList()
 ) {
     // equals y hashCode para ByteArray, ya que el por defecto no es comparando contenido
     override fun equals(other: Any?): Boolean {
@@ -31,6 +59,7 @@ data class PlayerInfo(
         } else if (other.albumArtBitmapData != null) return false
         if (currentPositionMs != other.currentPositionMs) return false
         if (totalDurationMs != other.totalDurationMs) return false
+        if (queue != other.queue) return false
 
         return true
     }
@@ -43,6 +72,7 @@ data class PlayerInfo(
         result = 31 * result + (albumArtBitmapData?.contentHashCode() ?: 0)
         result = 31 * result + currentPositionMs.hashCode()
         result = 31 * result + totalDurationMs.hashCode()
+        result = 31 * result + queue.hashCode()
         return result
     }
 }
