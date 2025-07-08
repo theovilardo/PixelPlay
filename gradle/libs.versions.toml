@@ -1,14 +1,17 @@
 [versions]
 agp = "8.9.2"
+amplituda = "2.3.0"
 animation = "1.8.1"
 appcompat = "1.7.0"
 capturable = "3.0.1"
 codeview = "1.3.9"
 coilCompose = "2.7.0"
+composeAudiowaveform = "1.1.2"
 composeDnd = "0.3.0"
 constraintlayoutCompose = "1.1.1"
 coreSplashscreen = "1.0.1"
 duktapeAndroid = "1.3.0"
+ffmpegKitFull = "6.0-2"
 foundation = "1.8.1"
 glance = "1.2.0-alpha01"
 graphicsShapes = "1.0.1"
@@ -28,14 +31,18 @@ composeBom = "2025.05.00"
 material = "1.12.0"
 material3 = "1.4.0-alpha15"
 media3Session = "1.3.1"
+media3Transformer = "1.7.1"
 navigationCompose = "2.9.0"
 paletteKtx = "1.0.0"
 protobufJavalite = "3.25.1"
+pytorch_android = "2.1.0"
+pytorch_android_torchvision = "2.1.0"
 reorderable = "0.9.6"
 roomCompiler = "2.7.1"
 roomKtx = "2.7.1"
 roomRuntime = "2.7.1"
 accompanist = "0.37.3"
+checkerframework = "3.49.5" # O la versión más reciente que encuentres
 
 # DI
 dagger = "2.53.1"
@@ -44,11 +51,15 @@ javax-inject = "1"
 # Annotations procesing
 ksp = "2.1.0-1.0.29"
 smoothCornerRectAndroidCompose = "v1.0.0"
+spleeterAndroidIos = "1.0.2"
+tensorflowLite = "2.17.0"
+tensorflowLiteSelectTfOps = "2.16.1"
 wavySlider = "2.0.0"
 workRuntimeKtx = "2.10.1"
 composeTesting = "1.0.0-alpha03"
 
 [libraries]
+amplituda = { module = "com.github.lincollincol:amplituda", version.ref = "amplituda" }
 androidx-animation = { module = "androidx.compose.animation:animation", version.ref = "animation" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 androidx-constraintlayout-compose = { module = "androidx.constraintlayout:constraintlayout-compose", version.ref = "constraintlayoutCompose" }
@@ -65,6 +76,7 @@ androidx-material-icons-core = { module = "androidx.compose.material:material-ic
 androidx-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
 androidx-media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "media3Session" }
 androidx-media3-session = { module = "androidx.media3:media3-session", version.ref = "media3Session" }
+androidx-media3-transformer = { module = "androidx.media3:media3-transformer", version.ref = "media3Transformer" }
 androidx-media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3Session" }
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
 androidx-palette-ktx = { module = "androidx.palette:palette-ktx", version.ref = "paletteKtx" }
@@ -75,8 +87,10 @@ androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version
 capturable = { module = "dev.shreyaspatil:capturable", version.ref = "capturable" }
 codeview = { module = "io.github.amrdeveloper:codeview", version.ref = "codeview" }
 coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coilCompose" }
+compose-audiowaveform = { module = "com.github.lincollincol:compose-audiowaveform", version.ref = "composeAudiowaveform" }
 compose-dnd = { module = "com.mohamedrejeb.dnd:compose-dnd", version.ref = "composeDnd" }
 duktape-android = { module = "com.squareup.duktape:duktape-android", version.ref = "duktapeAndroid" }
+ffmpeg-kit-full = { module = "com.arthenica:ffmpeg-kit-full", version.ref = "ffmpegKitFull" }
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hiltAndroid" }
 hilt-android-compiler = { module = "com.google.dagger:hilt-android-compiler", version.ref = "hiltAndroid" }
@@ -99,10 +113,16 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 material = { module = "com.google.android.material:material", version.ref = "material" }
 material3 = { module = "androidx.compose.material3:material3", version.ref = "material3" }
 protobuf-javalite = { module = "com.google.protobuf:protobuf-javalite", version.ref = "protobufJavalite" }
+pytorch_android = { module = "org.pytorch:pytorch_android", version.ref = "pytorch_android" }
+pytorch_android_torchvision = { module = "org.pytorch:pytorch_android_torchvision", version.ref = "pytorch_android_torchvision" }
 reorderable = { module = "org.burnoutcrew.composereorderable:reorderable", version.ref = "reorderable" }
 accompanist-permissions = { module = "com.google.accompanist:accompanist-permissions", version.ref = "accompanist" }
 smooth-corner-rect-android-compose = { module = "com.github.racra:smooth-corner-rect-android-compose", version.ref = "smoothCornerRectAndroidCompose" }
+spleeter-android-ios = { module = "com.github.FaceOnLive:Spleeter-Android-iOS", version.ref = "spleeterAndroidIos" }
+tensorflow-lite = { module = "org.tensorflow:tensorflow-lite", version.ref = "tensorflowLite" }
+tensorflow-lite-select-tf-ops = { module = "org.tensorflow:tensorflow-lite-select-tf-ops", version.ref = "tensorflowLiteSelectTfOps" }
 wavy-slider = { module = "ir.mahozad.multiplatform:wavy-slider", version.ref = "wavySlider" }
+checker-qual = { group = "org.checkerframework", name = "checker-qual", version.ref = "checkerframework" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

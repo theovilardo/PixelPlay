@@ -992,6 +992,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         context: Context, // Añadir contexto para el Intent
         queue: List<QueueItem>
     ) {
+        val playButtonCornerRadius = if (isPlaying) 12.dp else 60.dp
         Box(
             modifier = modifier
                 .background(backgroundColor)
@@ -1092,7 +1093,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                         iconColor = onPrimaryContainerColor,
                         backgroundColor = primaryContainerColor,
                         iconSize = 30.dp,
-                        cornerRadius = buttonCornerRadius
+                        cornerRadius = playButtonCornerRadius
                     )
                     Spacer(GlanceModifier.width(10.dp))
                     NextButtonGlance(

@@ -180,6 +180,24 @@ dependencies {
 
         //permisisons
     implementation(libs.accompanist.permissions)
+
+    //Audio editing
+    // Spleeter para separación de audio y Amplituda para procesar formas de onda
+    implementation(libs.tensorflow.lite)
+    implementation(libs.tensorflow.lite.select.tf.ops)
+    implementation(libs.amplituda)
+
+    // Compose-audiowaveform para la UI
+    implementation(libs.compose.audiowaveform)
+
+    // Media3 Transformer (ya debería estar, pero asegúrate)
+    implementation(libs.androidx.media3.transformer)
+
+    implementation(libs.pytorch.android)
+    implementation(libs.pytorch.android.torchvision)
+
+    //Checker framework
+    implementation(libs.checker.qual)
 }
 
 

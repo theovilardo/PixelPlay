@@ -199,7 +199,8 @@ class MainActivity : ComponentActivity() {
                 Screen.PlaylistDetail.route,
                 Screen.DailyMixScreen.route,
                 Screen.GenreDetail.route,
-                Screen.AlbumDetail.route
+                Screen.AlbumDetail.route,
+                Screen.DJSpace.route
             )
         }
         val shouldHideNavBar by remember(currentRoute) {
@@ -246,7 +247,7 @@ class MainActivity : ComponentActivity() {
                     collapsedStateHorizontalPadding = 22.dp,
                     collapsedStateBottomMargin = collapsedStateBottomMargin,
                     hideNavBar = shouldHideNavBar
-                )
+            )
         }
         Trace.endSection() // End MainActivity.MainUI
     }

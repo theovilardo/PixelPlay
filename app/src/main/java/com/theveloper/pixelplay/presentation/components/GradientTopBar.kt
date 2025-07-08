@@ -202,6 +202,7 @@ private fun Brush.copy(alpha: Float): Brush {
 @Composable
 fun HomeGradientTopBar(
     onNavigationIconClick: () -> Unit,
+    onMoreOptionsClick: () -> Unit,
 ) {
     // 1) Pinta la status bar con el color surface
     val surfaceColor = MaterialTheme.colorScheme.surface
@@ -234,7 +235,7 @@ fun HomeGradientTopBar(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                         contentColor = MaterialTheme.colorScheme.onSurface
                     ),
-                    onClick = { /* Más opciones */ }
+                    onClick = onMoreOptionsClick
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.rounded_more_vert_24),
