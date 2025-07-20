@@ -902,31 +902,31 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 }
                 Spacer(GlanceModifier.height(4.dp))
                 if (totalDurationMs > 0L) {
-                    WavyLinearProgressIndicator(
-                        modifier = GlanceModifier
-                            .fillMaxWidth()
-                            .height(6.dp)
-                            .cornerRadius(2.dp),
-                        progress = currentProgressMs.toFloat() / totalDurationMs.toFloat(),
-                        isPlaying = isPlaying,
-                        trackHeight = 4.dp,
-                        waveAmplitude = 2.dp,
-                        thumbRadius = 6.dp,
-                        trackBackgroundColor = progressBgColor.getColor(context),
-                        activeTrackColor = accentColor.getColor(context),
-                        thumbColor = accentColor.getColor(context)
-                    )
+//                    WavyLinearProgressIndicator(
+//                        modifier = GlanceModifier
+//                            .fillMaxWidth()
+//                            .height(6.dp)
+//                            .cornerRadius(2.dp),
+//                        progress = currentProgressMs.toFloat() / totalDurationMs.toFloat(),
+//                        isPlaying = isPlaying,
+//                        trackHeight = 4.dp,
+//                        waveAmplitude = 2.dp,
+//                        thumbRadius = 6.dp,
+//                        trackBackgroundColor = progressBgColor.getColor(context),
+//                        activeTrackColor = accentColor.getColor(context),
+//                        thumbColor = accentColor.getColor(context)
+//                    )
                     Spacer(GlanceModifier.height(2.dp))
-                    Row(
-                        GlanceModifier
-                            .fillMaxWidth()
-                            .padding(top = 2.dp, end = 8.dp, start = 8.dp)
-                        // horizontalAlignment = Alignment.SpaceBetween  <- Esto no funciona en Glance Row directamente
-                    ) {
-                        Text(formatDurationGlance(currentProgressMs), style = TextStyle(fontSize = 12.sp, color = textColor))
-                        Spacer(GlanceModifier.defaultWeight()) // Spacer con weight para empujar el siguiente texto al final
-                        Text(formatDurationGlance(totalDurationMs), style = TextStyle(fontSize = 12.sp, color = textColor))
-                    }
+//                    Row(
+//                        GlanceModifier
+//                            .fillMaxWidth()
+//                            .padding(top = 2.dp, end = 8.dp, start = 8.dp)
+//                        // horizontalAlignment = Alignment.SpaceBetween  <- Esto no funciona en Glance Row directamente
+//                    ) {
+//                        Text(formatDurationGlance(currentProgressMs), style = TextStyle(fontSize = 12.sp, color = textColor))
+//                        Spacer(GlanceModifier.defaultWeight()) // Spacer con weight para empujar el siguiente texto al final
+//                        Text(formatDurationGlance(totalDurationMs), style = TextStyle(fontSize = 12.sp, color = textColor))
+//                    }
                 } else {
                     Spacer(GlanceModifier.height(4.dp + 10.sp.value.dp + 4.dp)) // Mantener espacio similar
                 }
