@@ -46,8 +46,8 @@ class MusicService : MediaSessionService() {
     @Inject lateinit var musicRepository: MusicRepository
     private var mediaSession: MediaSession? = null
 
-    // serviceScope usa Main para ExoPlayer
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    // serviceScope usa IO para operaciones de música y Default para el resto
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     companion object {
         private const val TAG = "MusicService_PixelPlay"
@@ -81,24 +81,27 @@ class MusicService : MediaSessionService() {
     }
 
     private fun initializeMediaSession() {
-        val pendingIntent = packageManager.getLaunchIntentForPackage(packageName)
-            ?.let { PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_IMMUTABLE) }
-            ?: PendingIntent.getActivity(
-                this, 0,
-                Intent(this, MainActivity::class.java),
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-            )
-        mediaSession = MediaSession.Builder(this, exoPlayer)
-            .setSessionActivity(pendingIntent)
-            .build()
+        serviceScope.launch(Dispatchers.Main) {
+            val pendingIntent = packageManager.getLaunchIntentForPackage(packageName)
+                ?.let { PendingIntent.getActivity(this@MusicService, 0, it, PendingIntent.FLAG_IMMUTABLE) }
+                ?: PendingIntent.getActivity(
+                    this@MusicService, 0,
+                    Intent(this@MusicService, MainActivity::class.java),
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                )
+            mediaSession = MediaSession.Builder(this@MusicService, exoPlayer)
+                .setSessionActivity(pendingIntent)
+                .build()
+        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo) =
         mediaSession
 
-    private fun togglePlayPause() {
-        if (exoPlayer.isPlaying) exoPlayer.pause()
-        else {
+    private fun togglePlayPause() = serviceScope.launch(Dispatchers.Main) {
+        if (exoPlayer.isPlaying) {
+            exoPlayer.pause()
+        } else {
             if (exoPlayer.playbackState == Player.STATE_IDLE && exoPlayer.mediaItemCount > 0) {
                 exoPlayer.prepare()
             }
@@ -106,14 +109,14 @@ class MusicService : MediaSessionService() {
         }
     }
 
-    private fun playNext() {
+    private fun playNext() = serviceScope.launch(Dispatchers.Main) {
         if (exoPlayer.hasNextMediaItem()) {
             exoPlayer.seekToNextMediaItem()
             exoPlayer.play()
         }
     }
 
-    private fun playPrevious() {
+    private fun playPrevious() = serviceScope.launch(Dispatchers.Main) {
         if (exoPlayer.hasPreviousMediaItem()) {
             exoPlayer.seekToPreviousMediaItem()
             exoPlayer.play()
@@ -172,38 +175,46 @@ class MusicService : MediaSessionService() {
     // Listener de ExoPlayer
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
-            requestWidgetFullUpdate()
+            serviceScope.launch(Dispatchers.Main) {
+                requestWidgetFullUpdate()
+            }
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
-            requestWidgetFullUpdate()
-            if (!isPlaying) {
-                // Si la reproducción se detiene, programa la detención del servicio
-                stopServiceJob = serviceScope.launch {
-                    delay(STOP_DELAY)
-                    Log.d(TAG, "Stopping service due to inactivity.")
-                    stopSelf()
+            serviceScope.launch(Dispatchers.Main) {
+                requestWidgetFullUpdate()
+                if (!isPlaying) {
+                    // Si la reproducción se detiene, programa la detención del servicio
+                    stopServiceJob = serviceScope.launch {
+                        delay(STOP_DELAY)
+                        Log.d(TAG, "Stopping service due to inactivity.")
+                        stopSelf()
+                    }
+                } else {
+                    // Si la reproducción se reanuda, cancela la detención programada
+                    stopServiceJob?.cancel()
+                    stopServiceJob = null
                 }
-            } else {
-                // Si la reproducción se reanuda, cancela la detención programada
-                stopServiceJob?.cancel()
-                stopServiceJob = null
             }
         }
 
         override fun onMediaItemTransition(item: MediaItem?, reason: Int) {
-            requestWidgetFullUpdate() // Actualización completa al cambiar de canción
+            serviceScope.launch(Dispatchers.Main) {
+                requestWidgetFullUpdate() // Actualización completa al cambiar de canción
+            }
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            Log.e(TAG, "PlayerError: ${error.message}")
-            exoPlayer.stop() // Considerar limpiar la cola o manejar el error de forma más robusta
-            exoPlayer.clearMediaItems()
-            requestWidgetFullUpdate(force = true) // Reflejar el estado de error en el widget
+            serviceScope.launch(Dispatchers.Main) {
+                Log.e(TAG, "PlayerError: ${error.message}")
+                exoPlayer.stop() // Considerar limpiar la cola o manejar el error de forma más robusta
+                exoPlayer.clearMediaItems()
+                requestWidgetFullUpdate(force = true) // Reflejar el estado de error en el widget
+            }
         }
     }
 
-    private fun initializePlayer() {
+    private fun initializePlayer() = serviceScope.launch(Dispatchers.Main) {
         val attrs = AudioAttributes.Builder()
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .setUsage(C.USAGE_MEDIA)
@@ -220,7 +231,7 @@ class MusicService : MediaSessionService() {
         }
     }
 
-    private suspend fun buildPlayerInfo(): PlayerInfo {
+    private suspend fun buildPlayerInfo(): PlayerInfo = withContext(Dispatchers.Main) {
         val currentItem = exoPlayer.currentMediaItem
         val title = currentItem?.mediaMetadata?.title?.toString().orEmpty()
         val artist = currentItem?.mediaMetadata?.artist?.toString().orEmpty()
@@ -230,7 +241,7 @@ class MusicService : MediaSessionService() {
         val actualIsFavorite = currentItem?.mediaId?.let { isFavoriteMap[it] } ?: false
 
         val queueItems = mutableListOf<com.theveloper.pixelplay.data.model.QueueItem>()
-        if (exoPlayer.mediaItemCount > 0) {
+        if (exoPlayer.mediaItemCount >. 0) {
             for (i in exoPlayer.currentMediaItemIndex + 1 until exoPlayer.mediaItemCount) {
                 val mediaItem = exoPlayer.getMediaItemAt(i)
                 val artworkData = mediaItem.mediaMetadata.artworkData
@@ -238,7 +249,7 @@ class MusicService : MediaSessionService() {
             }
         }
 
-        return PlayerInfo(
+        PlayerInfo(
             songTitle = title,
             artistName = artist,
             isPlaying = isPlaying,
@@ -251,7 +262,7 @@ class MusicService : MediaSessionService() {
         )
     }
 
-    private suspend fun getAlbumArt(currentItem: MediaItem?): Pair<ByteArray?, String?> {
+    private fun getAlbumArt(currentItem: MediaItem?): Pair<ByteArray?, String?> {
         if (currentItem == null) return null to null
 
         // Prioridad 1: Datos de arte incrustados
@@ -273,15 +284,19 @@ class MusicService : MediaSessionService() {
         }
 
         // Cargar desde URI si no está en caché
-        Log.d(TAG, "getAlbumArt: Cache MISS for URI: $artUriString. Loading.")
-        val loadedArt = loadBitmapDataFromUri(
-            uri = artUri,
-            context = baseContext
-        )
-        if (loadedArt != null) {
-            widgetArtByteArrayCache.put(artUriString, loadedArt)
+        serviceScope.launch {
+            Log.d(TAG, "getAlbumArt: Cache MISS for URI: $artUriString. Loading.")
+            val loadedArt = loadBitmapDataFromUri(
+                uri = artUri,
+                context = baseContext
+            )
+            if (loadedArt != null) {
+                widgetArtByteArrayCache.put(artUriString, loadedArt)
+                // Request a widget update now that the art is loaded
+                requestWidgetFullUpdate(force = true)
+            }
         }
-        return loadedArt to artUriString
+        return null to artUriString // Return null for now, the update will come later
     }
 
 

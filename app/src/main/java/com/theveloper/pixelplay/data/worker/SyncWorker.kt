@@ -42,26 +42,26 @@ class SyncWorker @AssistedInject constructor(
             Log.i(TAG, "Fetched ${songs.size} songs from MediaStore.")
 
             if (songs.isNotEmpty()) {
-                val albums = songs.distinctBy { it.albumId }.map {
-                    AlbumEntity(
-                        id = it.albumId,
-                        title = it.albumName,
-                        artistName = it.artistName,
-                        artistId = it.artistId,
-                        albumArtUriString = it.albumArtUriString,
-                        songCount = songs.count { s -> s.albumId == it.albumId }
-                    )
+                songs.chunked(1000).forEach { batch ->
+                    val albums = batch.distinctBy { it.albumId }.map {
+                        AlbumEntity(
+                            id = it.albumId,
+                            title = it.albumName,
+                            artistName = it.artistName,
+                            artistId = it.artistId,
+                            albumArtUriString = it.albumArtUriString,
+                            songCount = songs.count { s -> s.albumId == it.albumId }
+                        )
+                    }
+                    val artists = batch.distinctBy { it.artistId }.map {
+                        ArtistEntity(
+                            id = it.artistId,
+                            name = it.artistName,
+                            trackCount = songs.count { s -> s.artistId == it.artistId }
+                        )
+                    }
+                    musicDao.insertMusicData(batch, albums, artists)
                 }
-                val artists = songs.distinctBy { it.artistId }.map {
-                    ArtistEntity(
-                        id = it.artistId,
-                        name = it.artistName,
-                        trackCount = songs.count { s -> s.artistId == it.artistId }
-                    )
-                }
-
-                Log.i(TAG, "Processed ${songs.size} songs, ${albums.size} albums, ${artists.size} artists.")
-                musicDao.insertMusicData(songs, albums, artists)
 
                 // Delete songs that are no longer present in MediaStore
                 val currentSongIds = songs.map { it.id }
