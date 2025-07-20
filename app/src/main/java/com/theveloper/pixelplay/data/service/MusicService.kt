@@ -1,12 +1,14 @@
 package com.theveloper.pixelplay.data.service
 
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.util.Log
 import android.util.LruCache
+import androidx.core.graphics.drawable.toBitmap
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.media3.common.AudioAttributes
@@ -272,7 +274,10 @@ class MusicService : MediaSessionService() {
 
         // Cargar desde URI si no está en caché
         Log.d(TAG, "getAlbumArt: Cache MISS for URI: $artUriString. Loading.")
-        val loadedArt = loadBitmapDataFromUri(artUri)
+        val loadedArt = loadBitmapDataFromUri(
+            uri = artUri,
+            context = baseContext
+        )
         if (loadedArt != null) {
             widgetArtByteArrayCache.put(artUriString, loadedArt)
         }
