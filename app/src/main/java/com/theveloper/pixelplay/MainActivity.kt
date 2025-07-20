@@ -78,6 +78,7 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.ui.theme.DarkColorScheme
 import com.theveloper.pixelplay.ui.theme.LightColorScheme
 import com.theveloper.pixelplay.ui.theme.PixelPlayTheme
+import com.theveloper.pixelplay.utils.LogUtils
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.delay
@@ -89,6 +90,7 @@ class MainActivity : ComponentActivity() {
     private var mediaControllerFuture: ListenableFuture<MediaController>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        LogUtils.d(this, "onCreate")
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -128,6 +130,7 @@ class MainActivity : ComponentActivity() {
 
         if (permissionState.allPermissionsGranted) {
             LaunchedEffect(Unit) {
+                LogUtils.i(this, "Permissions granted")
                 startMusicServiceIfNeeded()
                 Log.i("MainActivity", "Permissions granted. Calling mainViewModel.startSync()")
                 mainViewModel.startSync()
@@ -302,6 +305,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startMusicServiceIfNeeded() {
+        LogUtils.d(this, "startMusicServiceIfNeeded")
         val intent = Intent(this, MusicService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)
@@ -312,6 +316,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        LogUtils.d(this, "onStart")
         playerViewModel.onMainActivityStart()
         val sessionToken = SessionToken(this, ComponentName(this, MusicService::class.java))
         mediaControllerFuture = MediaController.Builder(this, sessionToken).buildAsync()
@@ -322,6 +327,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
+        LogUtils.d(this, "onStop")
         mediaControllerFuture?.let {
             MediaController.releaseFuture(it)
         }

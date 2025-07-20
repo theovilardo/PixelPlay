@@ -57,6 +57,7 @@ tensorflowLiteSelectTfOps = "2.16.1"
 wavySlider = "2.0.0"
 workRuntimeKtx = "2.10.1"
 composeTesting = "1.0.0-alpha03"
+timber = "5.0.1"
 
 [libraries]
 amplituda = { module = "com.github.lincollincol:amplituda", version.ref = "amplituda" }
@@ -121,6 +122,7 @@ smooth-corner-rect-android-compose = { module = "com.github.racra:smooth-corner-
 spleeter-android-ios = { module = "com.github.FaceOnLive:Spleeter-Android-iOS", version.ref = "spleeterAndroidIos" }
 tensorflow-lite = { module = "org.tensorflow:tensorflow-lite", version.ref = "tensorflowLite" }
 tensorflow-lite-select-tf-ops = { module = "org.tensorflow:tensorflow-lite-select-tf-ops", version.ref = "tensorflowLiteSelectTfOps" }
+timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
 wavy-slider = { module = "ir.mahozad.multiplatform:wavy-slider", version.ref = "wavySlider" }
 checker-qual = { group = "org.checkerframework", name = "checker-qual", version.ref = "checkerframework" }
 

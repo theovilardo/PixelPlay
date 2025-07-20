@@ -28,6 +28,7 @@ import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.ui.glancewidget.PixelPlayGlanceWidget
 import com.theveloper.pixelplay.ui.glancewidget.PlayerActions
 import com.theveloper.pixelplay.ui.glancewidget.PlayerInfoStateDefinition
+import com.theveloper.pixelplay.utils.LogUtils
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -55,6 +56,7 @@ class MusicService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
+        LogUtils.d(this, "onCreate")
         // La inicialización ahora es síncrona y más simple.
         // MediaSessionService gestionará el foreground state.
         initializePlayer()
@@ -64,6 +66,7 @@ class MusicService : MediaSessionService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
+        LogUtils.d(this, "onStartCommand: ${intent?.action}")
         intent?.action?.let { action ->
             handleIntentAction(action)
         }
@@ -71,6 +74,7 @@ class MusicService : MediaSessionService() {
     }
 
     private fun handleIntentAction(action: String) {
+        LogUtils.d(this, "handleIntentAction: $action")
         when (action) {
             PlayerActions.PLAY_PAUSE -> togglePlayPause()
             PlayerActions.NEXT       -> playNext()
@@ -95,10 +99,13 @@ class MusicService : MediaSessionService() {
         }
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo) =
-        mediaSession
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
+        LogUtils.d(this, "onGetSession")
+        return mediaSession
+    }
 
     private fun togglePlayPause() = serviceScope.launch(Dispatchers.Main) {
+        LogUtils.d(this, "togglePlayPause")
         if (exoPlayer.isPlaying) {
             exoPlayer.pause()
         } else {
@@ -110,6 +117,7 @@ class MusicService : MediaSessionService() {
     }
 
     private fun playNext() = serviceScope.launch(Dispatchers.Main) {
+        LogUtils.d(this, "playNext")
         if (exoPlayer.hasNextMediaItem()) {
             exoPlayer.seekToNextMediaItem()
             exoPlayer.play()
@@ -117,6 +125,7 @@ class MusicService : MediaSessionService() {
     }
 
     private fun playPrevious() = serviceScope.launch(Dispatchers.Main) {
+        LogUtils.d(this, "playPrevious")
         if (exoPlayer.hasPreviousMediaItem()) {
             exoPlayer.seekToPreviousMediaItem()
             exoPlayer.play()
@@ -127,6 +136,7 @@ class MusicService : MediaSessionService() {
     }
 
     private fun toggleFavorite() {
+        LogUtils.d(this, "toggleFavorite")
         val currentSongId = exoPlayer.currentMediaItem?.mediaId ?: return
         serviceScope.launch {
             val newFavoriteStatus = musicRepository.toggleFavoriteStatus(currentSongId)
@@ -175,12 +185,14 @@ class MusicService : MediaSessionService() {
     // Listener de ExoPlayer
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
+            LogUtils.d(this, "onPlaybackStateChanged: $playbackState")
             serviceScope.launch(Dispatchers.Main) {
                 requestWidgetFullUpdate()
             }
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
+            LogUtils.d(this, "onIsPlayingChanged: $isPlaying")
             serviceScope.launch(Dispatchers.Main) {
                 requestWidgetFullUpdate()
                 if (!isPlaying) {
@@ -199,12 +211,14 @@ class MusicService : MediaSessionService() {
         }
 
         override fun onMediaItemTransition(item: MediaItem?, reason: Int) {
+            LogUtils.d(this, "onMediaItemTransition: ${item?.mediaId}, reason: $reason")
             serviceScope.launch(Dispatchers.Main) {
                 requestWidgetFullUpdate() // Actualización completa al cambiar de canción
             }
         }
 
         override fun onPlayerError(error: PlaybackException) {
+            LogUtils.e(this, error, "onPlayerError")
             serviceScope.launch(Dispatchers.Main) {
                 Log.e(TAG, "PlayerError: ${error.message}")
                 exoPlayer.stop() // Considerar limpiar la cola o manejar el error de forma más robusta
@@ -215,6 +229,7 @@ class MusicService : MediaSessionService() {
     }
 
     private fun initializePlayer() = serviceScope.launch(Dispatchers.Main) {
+        LogUtils.d(this, "initializePlayer")
         val attrs = AudioAttributes.Builder()
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .setUsage(C.USAGE_MEDIA)
@@ -391,6 +406,7 @@ class MusicService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        LogUtils.d(this, "onDestroy")
         mediaSession?.release()
         mediaSession = null
         super.onDestroy()

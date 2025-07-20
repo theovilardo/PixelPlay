@@ -198,6 +198,9 @@ dependencies {
 
     //Checker framework
     implementation(libs.checker.qual)
+
+    // Timber
+    implementation(libs.timber)
 }
 
 
