@@ -241,7 +241,7 @@ class MusicService : MediaSessionService() {
         val actualIsFavorite = currentItem?.mediaId?.let { isFavoriteMap[it] } ?: false
 
         val queueItems = mutableListOf<com.theveloper.pixelplay.data.model.QueueItem>()
-        if (exoPlayer.mediaItemCount >. 0) {
+        if (exoPlayer.mediaItemCount > 0) {
             for (i in exoPlayer.currentMediaItemIndex + 1 until exoPlayer.mediaItemCount) {
                 val mediaItem = exoPlayer.getMediaItemAt(i)
                 val artworkData = mediaItem.mediaMetadata.artworkData
