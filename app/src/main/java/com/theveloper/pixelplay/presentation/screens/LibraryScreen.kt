@@ -974,7 +974,7 @@ fun EnhancedSongListItem(
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(start = 12.dp)
+                        .padding(start = 14.dp)
                 ) {
                     Text(
                         text = song.title,
@@ -985,22 +985,29 @@ fun EnhancedSongListItem(
                         overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Rounded.Person,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = contentColor.copy(alpha = 0.7f)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = song.artist,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = contentColor.copy(alpha = 0.7f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                    Text(
+                        text = song.artist,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = contentColor.copy(alpha = 0.7f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+//                    Row(verticalAlignment = Alignment.CenterVertically) {
+//                        Icon(
+//                            imageVector = Icons.Rounded.Person,
+//                            contentDescription = null,
+//                            modifier = Modifier.size(14.dp),
+//                            tint = contentColor.copy(alpha = 0.7f)
+//                        )
+//                        Spacer(modifier = Modifier.width(4.dp))
+//                        Text(
+//                            text = song.artist,
+//                            style = MaterialTheme.typography.bodyMedium,
+//                            color = contentColor.copy(alpha = 0.7f),
+//                            maxLines = 1,
+//                            overflow = TextOverflow.Ellipsis
+//                        )
+//                    }
 //                    if (song.duration > 0) {
 //                        Spacer(modifier = Modifier.height(2.dp))
 //                        Row(verticalAlignment = Alignment.CenterVertically) {
