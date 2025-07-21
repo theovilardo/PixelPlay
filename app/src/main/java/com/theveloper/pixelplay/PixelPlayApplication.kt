@@ -23,6 +23,11 @@ class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Pr
     @Inject
     lateinit var imageLoader: dagger.Lazy<ImageLoader>
 
+    // AÑADE EL COMPANION OBJECT
+    companion object {
+        const val NOTIFICATION_CHANNEL_ID = "pixelplay_music_channel"
+    }
+
     override fun onCreate() {
         super.onCreate()
 
@@ -50,7 +55,7 @@ class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Pr
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                "pixelplay_music_channel",
+                NOTIFICATION_CHANNEL_ID,
                 "PixelPlay Music Playback",
                 NotificationManager.IMPORTANCE_LOW
             )

@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.navigation.NavController
@@ -304,6 +305,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @androidx.annotation.OptIn(UnstableApi::class)
     private fun startMusicServiceIfNeeded() {
         LogUtils.d(this, "startMusicServiceIfNeeded")
         val intent = Intent(this, MusicService::class.java)
@@ -314,6 +316,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @androidx.annotation.OptIn(UnstableApi::class)
     override fun onStart() {
         super.onStart()
         LogUtils.d(this, "onStart")
