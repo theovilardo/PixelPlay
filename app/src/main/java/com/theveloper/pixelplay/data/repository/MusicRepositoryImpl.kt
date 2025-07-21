@@ -35,6 +35,7 @@ import com.theveloper.pixelplay.data.database.SongEntity
 import com.theveloper.pixelplay.data.database.toAlbum
 import com.theveloper.pixelplay.data.database.toArtist
 import com.theveloper.pixelplay.data.database.toSong
+import com.theveloper.pixelplay.utils.LogUtils
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first // Still needed for initialSetupDoneFlow.first() if used that way
 import kotlinx.coroutines.flow.flatMapLatest
@@ -61,7 +62,7 @@ class MusicRepositoryImpl @Inject constructor(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun getAudioFiles(): Flow<List<Song>> {
-        Log.d("MusicRepo/Songs", "getAudioFiles (DAO based) - Fetching all songs")
+        LogUtils.d(this, "getAudioFiles")
         return combine(
             userPreferencesRepository.allowedDirectoriesFlow,
             userPreferencesRepository.initialSetupDoneFlow
@@ -80,7 +81,7 @@ class MusicRepositoryImpl @Inject constructor(
     }
 
     override fun getAlbums(): Flow<List<Album>> {
-        Log.d("MusicRepo/Albums", "getAlbums (DAO based) - Fetching all albums")
+        LogUtils.d(this, "getAlbums")
         return combine(
             userPreferencesRepository.allowedDirectoriesFlow,
             userPreferencesRepository.initialSetupDoneFlow
@@ -100,6 +101,7 @@ class MusicRepositoryImpl @Inject constructor(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun getAlbumById(id: Long): Flow<Album?> {
+        LogUtils.d(this, "getAlbumById: $id")
         // This method might need to consider allowed directories as well if consistency is key.
         // For now, it fetches directly. If an album exists but all its songs are in disallowed
         // directories, this would still return the album, while getAlbums might not.
@@ -134,7 +136,7 @@ class MusicRepositoryImpl @Inject constructor(
     }
 
     override fun getArtists(): Flow<List<Artist>> {
-        Log.d("MusicRepo/Artists", "getArtists (DAO based) - Fetching all artists")
+        LogUtils.d(this, "getArtists")
         return combine(
             userPreferencesRepository.allowedDirectoriesFlow,
             userPreferencesRepository.initialSetupDoneFlow
@@ -154,6 +156,7 @@ class MusicRepositoryImpl @Inject constructor(
 
     // getSongsForAlbum and getSongsForArtist should also respect directory permissions
     override fun getSongsForAlbum(albumId: Long): Flow<List<Song>> {
+        LogUtils.d(this, "getSongsForAlbum: $albumId")
         return combine(
             userPreferencesRepository.allowedDirectoriesFlow,
             userPreferencesRepository.initialSetupDoneFlow
@@ -169,6 +172,7 @@ class MusicRepositoryImpl @Inject constructor(
     }
 
     override fun getSongsForArtist(artistId: Long): Flow<List<Song>> {
+        LogUtils.d(this, "getSongsForArtist: $artistId")
         return combine(
             userPreferencesRepository.allowedDirectoriesFlow,
             userPreferencesRepository.initialSetupDoneFlow
@@ -184,6 +188,7 @@ class MusicRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getAllUniqueAudioDirectories(): Set<String> = withContext(Dispatchers.IO) {
+        LogUtils.d(this, "getAllUniqueAudioDirectories")
         // This function's core logic of scanning MediaStore remains,
         // as it's for discovering directories, not for filtering playback.
         // The part about saving to userPreferencesRepository if initialSetupDone is false
@@ -202,6 +207,7 @@ class MusicRepositoryImpl @Inject constructor(
                     File(c.getString(dataColumn)).parent?.let { directories.add(it) }
                 }
             }
+            LogUtils.i(this, "Found ${directories.size} unique audio directories")
             val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
             if (!initialSetupDone && directories.isNotEmpty()) {
                 Log.i("MusicRepo", "Initial setup: saving all found audio directories (${directories.size}) as allowed.")

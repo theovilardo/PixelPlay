@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.data.worker.SyncManager
+import com.theveloper.pixelplay.utils.LogUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -48,6 +49,7 @@ class MainViewModel @Inject constructor(
      * Se debe llamar después de que los permisos hayan sido concedidos.
      */
     fun startSync() {
+        LogUtils.i(this, "startSync called")
         syncManager.sync()
     }
 }

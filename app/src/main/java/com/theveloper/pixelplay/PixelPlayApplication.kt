@@ -12,6 +12,7 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import timber.log.Timber
 
 @HiltAndroidApp
 class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Provider {
@@ -29,6 +30,7 @@ class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Pr
         // AHORA SE GESTIONA DESDE MainActivity.
 
         if (BuildConfig.DEBUG) {
+            Timber.plant(Timber.DebugTree())
             StrictMode.setThreadPolicy(
                 StrictMode.ThreadPolicy.Builder()
                     .detectDiskReads()

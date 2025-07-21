@@ -1,8 +1,5 @@
 package com.theveloper.pixelplay.data.service
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -11,7 +8,6 @@ import android.net.Uri
 import android.os.Build
 import android.util.Log
 import android.util.LruCache
-import androidx.core.app.NotificationCompat
 import androidx.core.graphics.drawable.toBitmap
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.updateAppWidgetState
@@ -20,22 +16,19 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-// import androidx.media3.common.util.UnstableApi // Potentially remove if not used elsewhere
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import coil.imageLoader
 import coil.request.ImageRequest
 import coil.size.Size
-// import com.google.protobuf.ByteString // No longer needed
 import com.theveloper.pixelplay.MainActivity
-// import com.theveloper.pixelplay.PlayerInfoProto // Replaced
 import com.theveloper.pixelplay.data.model.PlayerInfo // Import new data class
-import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.ui.glancewidget.PixelPlayGlanceWidget
 import com.theveloper.pixelplay.ui.glancewidget.PlayerActions
 import com.theveloper.pixelplay.ui.glancewidget.PlayerInfoStateDefinition
+import com.theveloper.pixelplay.utils.LogUtils
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -54,130 +47,68 @@ class MusicService : MediaSessionService() {
     @Inject lateinit var musicRepository: MusicRepository
     private var mediaSession: MediaSession? = null
 
-    // serviceScope usa Main para ExoPlayer
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    // serviceScope usa IO para operaciones de música y Default para el resto
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     companion object {
-        private const val TAG           = "MusicService_PixelPlay"
-        private const val CHANNEL_ID    = "pixelplay_media_playback_service"
-        private const val CHANNEL_NAME  = "PixelPlay Reproducción"
-        private const val NOTIF_ID      = 101
+        private const val TAG = "MusicService_PixelPlay"
     }
 
     override fun onCreate() {
         super.onCreate()
-        createNotificationChannel()
-
-        // *** FIX: Start foreground immediately with a loading notification to prevent ANR. ***
-        // This is the critical change. We show a basic notification right away.
-        startForeground(NOTIF_ID, buildLoadingNotification())
-        Log.d(TAG, "Service started in foreground immediately to prevent ANR.")
-
-        // Now, defer the heavy initialization.
-        serviceScope.launch {
-            Log.d(TAG, "Starting deferred initialization...")
-            initializePlayer()
-            initializeMediaSession()
-            Log.d(TAG, "Deferred initialization complete.")
-            // The notification will be updated automatically by the player listener
-            // when the state changes.
-        }
+        LogUtils.d(this, "onCreate")
+        // La inicialización ahora es síncrona y más simple.
+        // MediaSessionService gestionará el foreground state.
+        initializePlayer()
+        initializeMediaSession()
+        Log.d(TAG, "MusicService created and initialized.")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
+        LogUtils.d(this, "onStartCommand: ${intent?.action}")
         intent?.action?.let { action ->
-            handleIntentAction(action) // Llamar a requestWidgetFullUpdate DENTRO de handleIntentAction
+            handleIntentAction(action)
         }
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
-    // This notification is shown for a very short time while the player initializes.
-    private fun buildLoadingNotification(): Notification =
-        NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(getString(R.string.app_name))
-            .setContentText("Iniciando servicio de música...")
-            .setSmallIcon(R.drawable.rounded_circle_notifications_24)
-            .setOngoing(true)
-            .setCategory(Notification.CATEGORY_SERVICE)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
-
-
-    private fun buildServiceNotification(): Notification =
-        NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(getString(R.string.app_name))
-            .setContentText("Reproduciendo música")
-            .setSmallIcon(R.drawable.rounded_circle_notifications_24)
-            .setOngoing(true)
-            .setCategory(Notification.CATEGORY_SERVICE)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setContentIntent(
-                PendingIntent.getActivity(
-                    this, 0,
-                    Intent(this, MainActivity::class.java),
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-                )
-            )
-            .build()
-
     private fun handleIntentAction(action: String) {
+        LogUtils.d(this, "handleIntentAction: $action")
         when (action) {
             PlayerActions.PLAY_PAUSE -> togglePlayPause()
             PlayerActions.NEXT       -> playNext()
             PlayerActions.PREVIOUS   -> playPrevious()
             PlayerActions.FAVORITE   -> toggleFavorite()
-            // No es necesario llamar a requestWidgetFullUpdate() aquí explícitamente
-            // si las funciones togglePlayPause, playNext, playPrevious
-            // ya modifican el estado de ExoPlayer, lo que activará el playerListener.
-            // Sin embargo, para asegurar la inmediatez de la respuesta a la acción del usuario,
-            // una llamada directa puede ser beneficiosa, y el debounce se encargará de la eficiencia.
         }
-        requestWidgetFullUpdate(force = true) // Solicitar actualización después de una acción. El debounce lo manejará.
-    }
-
-    // Listener de ExoPlayer (ya modificado en el paso anterior para usar requestWidgetFullUpdate)
-    // ... (playerListener definido previamente) ...
-
-//    private fun initializePlayer() {
-//        val attrs = AudioAttributes.Builder()
-//            .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-//            .setUsage(C.USAGE_MEDIA)
-//            .build()
-//        exoPlayer.setAudioAttributes(attrs, true)
-//        exoPlayer.setHandleAudioBecomingNoisy(true)
-//        exoPlayer.addListener(playerListener) // Usar la instancia del listener definida arriba
-//    }
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val chan = NotificationChannel(
-                CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_LOW
-            ).apply { setSound(null, null) }
-            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
-                .createNotificationChannel(chan)
-        }
+        requestWidgetFullUpdate(force = true)
     }
 
     private fun initializeMediaSession() {
-        val pendingIntent = packageManager.getLaunchIntentForPackage(packageName)
-            ?.let { PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_IMMUTABLE) }
-            ?: PendingIntent.getActivity(
-                this, 0,
-                Intent(this, MainActivity::class.java),
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-            )
-        mediaSession = MediaSession.Builder(this, exoPlayer)
-            .setSessionActivity(pendingIntent)
-            .build()
+        serviceScope.launch(Dispatchers.Main) {
+            val pendingIntent = packageManager.getLaunchIntentForPackage(packageName)
+                ?.let { PendingIntent.getActivity(this@MusicService, 0, it, PendingIntent.FLAG_IMMUTABLE) }
+                ?: PendingIntent.getActivity(
+                    this@MusicService, 0,
+                    Intent(this@MusicService, MainActivity::class.java),
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                )
+            mediaSession = MediaSession.Builder(this@MusicService, exoPlayer)
+                .setSessionActivity(pendingIntent)
+                .build()
+        }
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo) =
-        mediaSession
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
+        LogUtils.d(this, "onGetSession")
+        return mediaSession
+    }
 
-    private fun togglePlayPause() {
-        if (exoPlayer.isPlaying) exoPlayer.pause()
-        else {
+    private fun togglePlayPause() = serviceScope.launch(Dispatchers.Main) {
+        LogUtils.d(this, "togglePlayPause")
+        if (exoPlayer.isPlaying) {
+            exoPlayer.pause()
+        } else {
             if (exoPlayer.playbackState == Player.STATE_IDLE && exoPlayer.mediaItemCount > 0) {
                 exoPlayer.prepare()
             }
@@ -185,14 +116,16 @@ class MusicService : MediaSessionService() {
         }
     }
 
-    private fun playNext() {
+    private fun playNext() = serviceScope.launch(Dispatchers.Main) {
+        LogUtils.d(this, "playNext")
         if (exoPlayer.hasNextMediaItem()) {
             exoPlayer.seekToNextMediaItem()
             exoPlayer.play()
         }
     }
 
-    private fun playPrevious() {
+    private fun playPrevious() = serviceScope.launch(Dispatchers.Main) {
+        LogUtils.d(this, "playPrevious")
         if (exoPlayer.hasPreviousMediaItem()) {
             exoPlayer.seekToPreviousMediaItem()
             exoPlayer.play()
@@ -203,6 +136,7 @@ class MusicService : MediaSessionService() {
     }
 
     private fun toggleFavorite() {
+        LogUtils.d(this, "toggleFavorite")
         val currentSongId = exoPlayer.currentMediaItem?.mediaId ?: return
         serviceScope.launch {
             val newFavoriteStatus = musicRepository.toggleFavoriteStatus(currentSongId)
@@ -245,29 +179,57 @@ class MusicService : MediaSessionService() {
         }
     }
 
+    private var stopServiceJob: Job? = null
+    private val STOP_DELAY = 30000L // 30 segundos
+
     // Listener de ExoPlayer
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
-            requestWidgetFullUpdate()
+            LogUtils.d(this, "onPlaybackStateChanged: $playbackState")
+            serviceScope.launch(Dispatchers.Main) {
+                requestWidgetFullUpdate()
+            }
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
-            requestWidgetFullUpdate()
+            LogUtils.d(this, "onIsPlayingChanged: $isPlaying")
+            serviceScope.launch(Dispatchers.Main) {
+                requestWidgetFullUpdate()
+                if (!isPlaying) {
+                    // Si la reproducción se detiene, programa la detención del servicio
+                    stopServiceJob = serviceScope.launch {
+                        delay(STOP_DELAY)
+                        Log.d(TAG, "Stopping service due to inactivity.")
+                        stopSelf()
+                    }
+                } else {
+                    // Si la reproducción se reanuda, cancela la detención programada
+                    stopServiceJob?.cancel()
+                    stopServiceJob = null
+                }
+            }
         }
 
         override fun onMediaItemTransition(item: MediaItem?, reason: Int) {
-            requestWidgetFullUpdate() // Actualización completa al cambiar de canción
+            LogUtils.d(this, "onMediaItemTransition: ${item?.mediaId}, reason: $reason")
+            serviceScope.launch(Dispatchers.Main) {
+                requestWidgetFullUpdate() // Actualización completa al cambiar de canción
+            }
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            Log.e(TAG, "PlayerError: ${error.message}")
-            exoPlayer.stop() // Considerar limpiar la cola o manejar el error de forma más robusta
-            exoPlayer.clearMediaItems()
-            requestWidgetFullUpdate(force = true) // Reflejar el estado de error en el widget
+            LogUtils.e(this, error, "onPlayerError")
+            serviceScope.launch(Dispatchers.Main) {
+                Log.e(TAG, "PlayerError: ${error.message}")
+                exoPlayer.stop() // Considerar limpiar la cola o manejar el error de forma más robusta
+                exoPlayer.clearMediaItems()
+                requestWidgetFullUpdate(force = true) // Reflejar el estado de error en el widget
+            }
         }
     }
 
-    private fun initializePlayer() {
+    private fun initializePlayer() = serviceScope.launch(Dispatchers.Main) {
+        LogUtils.d(this, "initializePlayer")
         val attrs = AudioAttributes.Builder()
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .setUsage(C.USAGE_MEDIA)
@@ -277,169 +239,115 @@ class MusicService : MediaSessionService() {
         exoPlayer.addListener(playerListener) // Usar la instancia del listener definida arriba
     }
 
-    // Esta es la función principal que ahora construye y envía la actualización del widget.
     private fun processWidgetUpdateInternal() {
-        val currentTimeMs = System.currentTimeMillis()
+        serviceScope.launch {
+            val playerInfo = buildPlayerInfo()
+            updateGlanceWidgets(playerInfo)
+        }
+    }
 
-        // Throttle: Si es una actualización de progreso y la última actualización (de cualquier tipo) fue hace muy poco, podríamos saltarla.
-        // Sin embargo, el progressUpdateJob ya tiene un delay de 1 segundo.
-        // Para actualizaciones completas, el debounce ya maneja la frecuencia.
-        // Así que un throttle adicional aquí podría ser excesivo, a menos que observemos problemas.
+    private suspend fun buildPlayerInfo(): PlayerInfo = withContext(Dispatchers.Main) {
+        val currentItem = exoPlayer.currentMediaItem
+        val title = currentItem?.mediaMetadata?.title?.toString().orEmpty()
+        val artist = currentItem?.mediaMetadata?.artist?.toString().orEmpty()
+        val isPlaying = exoPlayer.isPlaying && exoPlayer.playbackState != Player.STATE_ENDED
+        val (artBytes, artUriString) = getAlbumArt(currentItem)
 
-        serviceScope.launch { // Asegurarse de que se ejecuta en el serviceScope
-            val currentItem = exoPlayer.currentMediaItem
-            val isPlaying = exoPlayer.isPlaying && exoPlayer.playbackState != Player.STATE_ENDED
-            val title = currentItem?.mediaMetadata?.title?.toString().orEmpty()
-            val artist = currentItem?.mediaMetadata?.artist?.toString().orEmpty()
-            val currentPositionMs = exoPlayer.currentPosition
-            val totalDurationMs = exoPlayer.duration.coerceAtLeast(0)
+        val actualIsFavorite = currentItem?.mediaId?.let { isFavoriteMap[it] } ?: false
 
-            var artBytes: ByteArray? = null
-            var artUriStringForPlayerInfo: String? = null // Para PlayerInfo.albumArtUri
-
-            if (currentItem == null) {
-                Log.d(TAG, "processWidgetUpdateInternal: currentItem is null. artBytes will be null.")
-            } else {
-                // 1. Intentar obtener artworkData directamente del MediaItem
-                artBytes = currentItem.mediaMetadata.artworkData
-                if (artBytes != null && artBytes.isNotEmpty()) {
-                    Log.d(TAG, "processWidgetUpdateInternal: Got artBytes directly from MediaMetadata, size: ${artBytes.size}")
-                    // Si tenemos artworkData, la URI original podría no ser relevante o ser diferente.
-                    // Podríamos intentar obtenerla también para PlayerInfo, o dejarla null.
-                    artUriStringForPlayerInfo = currentItem.mediaMetadata.artworkUri?.toString()
-                    Log.d(TAG, "processWidgetUpdateInternal: MediaMetadata artworkUri (if any, with direct data): $artUriStringForPlayerInfo")
-                } else {
-                    Log.d(TAG, "processWidgetUpdateInternal: artworkData is null or empty in MediaMetadata. Trying artworkUri.")
-                    // 2. Si no hay artworkData, intentar con artworkUri
-                    val artworkUriFromMetadata = currentItem.mediaMetadata.artworkUri
-                    artUriStringForPlayerInfo = artworkUriFromMetadata?.toString() // Guardar para PlayerInfo
-
-                    if (artworkUriFromMetadata != null) {
-                        val localArtUriString = artworkUriFromMetadata.toString() // Variable local para esta rama
-                        Log.d(TAG, "processWidgetUpdateInternal: artworkUri found in MediaMetadata: $localArtUriString")
-                        artBytes = widgetArtByteArrayCache.get(localArtUriString) // Intentar desde la caché del servicio
-                        if (artBytes != null) {
-                            Log.d(TAG, "processWidgetUpdateInternal: Widget Art Cache HIT for URI: $localArtUriString, size: ${artBytes.size}")
-                        } else {
-                            Log.d(TAG, "processWidgetUpdateInternal: Widget Art Cache MISS for URI: $localArtUriString. Loading image via loadBitmapDataFromUri.")
-                            artBytes = loadBitmapDataFromUri(applicationContext, artworkUriFromMetadata)
-                            if (artBytes != null) {
-                                widgetArtByteArrayCache.put(localArtUriString, artBytes)
-                                Log.d(TAG, "processWidgetUpdateInternal: Loaded and cached artBytes from URI: $localArtUriString, size: ${artBytes.size}")
-                            } else {
-                                Log.w(TAG, "processWidgetUpdateInternal: Failed to load album art from URI: $localArtUriString (loadBitmapDataFromUri returned null)")
-                            }
-                        }
-                    } else {
-                        Log.d(TAG, "processWidgetUpdateInternal: artworkUri is also null in MediaMetadata.")
-                    }
-                }
+        val queueItems = mutableListOf<com.theveloper.pixelplay.data.model.QueueItem>()
+        if (exoPlayer.mediaItemCount > 0) {
+            for (i in exoPlayer.currentMediaItemIndex + 1 until exoPlayer.mediaItemCount) {
+                val mediaItem = exoPlayer.getMediaItemAt(i)
+                val artworkData = mediaItem.mediaMetadata.artworkData
+                queueItems.add(com.theveloper.pixelplay.data.model.QueueItem(mediaItem.mediaId.toLong(), artworkData))
             }
+        }
 
-            // Log final sobre artBytes antes de construir PlayerInfo
-            if (artBytes == null) {
-                Log.d(TAG, "processWidgetUpdateInternal: Final artBytes is NULL.")
-            } else {
-                Log.d(TAG, "processWidgetUpdateInternal: Final artBytes is NOT NULL, size = ${artBytes.size}")
-            }
+        PlayerInfo(
+            songTitle = title,
+            artistName = artist,
+            isPlaying = isPlaying,
+            albumArtUri = artUriString,
+            albumArtBitmapData = artBytes,
+            currentPositionMs = exoPlayer.currentPosition,
+            totalDurationMs = exoPlayer.duration.coerceAtLeast(0),
+            isFavorite = actualIsFavorite,
+            queue = queueItems
+        )
+    }
 
-            // Obtener el estado real de favorito
-            var actualIsFavorite = false
-            currentItem?.mediaId?.let { songId ->
-                actualIsFavorite = isFavoriteMap[songId] ?: false
-            }
-            // El log para currentItem null ya está arriba.
-            // No es necesario loguear artUriString aquí ya que su propósito principal era cargar artBytes.
-            // artUriStringForPlayerInfo es lo que se pasará a PlayerInfo.
+    private fun getAlbumArt(currentItem: MediaItem?): Pair<ByteArray?, String?> {
+        if (currentItem == null) return null to null
 
+        // Prioridad 1: Datos de arte incrustados
+        val embeddedArt = currentItem.mediaMetadata.artworkData
+        if (embeddedArt != null && embeddedArt.isNotEmpty()) {
+            Log.d(TAG, "getAlbumArt: Found embedded art, size: ${embeddedArt.size}")
+            return embeddedArt to currentItem.mediaMetadata.artworkUri?.toString()
+        }
 
-            // Determinar si realmente necesitamos enviar una actualización al widget.
-            val artActuallyChanged = (artUriStringForPlayerInfo != lastWidgetArtUriString) || (artBytes != null && lastWidgetArtUriString.isEmpty()) || (artBytes == null && lastWidgetArtUriString.isNotEmpty())
-            // Considera artActuallyChanged si la URI cambió, o si el arte apareció (artBytes != null) cuando antes no había URI,
-            // o si el arte desapareció (artBytes == null) cuando antes sí había URI.
+        // Prioridad 2: URI del arte
+        val artUri = currentItem.mediaMetadata.artworkUri ?: return null to null
+        val artUriString = artUri.toString()
 
-            val significantChangeOccurred = lastWidgetIsPlayingState != isPlaying ||
-                                            artActuallyChanged ||
-                                            lastWidgetFavoriteState != actualIsFavorite
-                                            // No necesitamos comparar el contenido de artBytes aquí si artActuallyChanged ya cubre los casos relevantes.
-                                            // La URI es la clave principal para el arte. Si la URI es la misma, asumimos que el arte es el mismo.
-                                            // El widgetArtByteArrayCache en el servicio ayuda a no recargar innecesariamente.
+        // Comprobar caché
+        val cachedArt = widgetArtByteArrayCache.get(artUriString)
+        if (cachedArt != null) {
+            Log.d(TAG, "getAlbumArt: Cache HIT for URI: $artUriString")
+            return cachedArt to artUriString
+        }
 
-            // Si es una actualización forzada (ej. después de una acción del usuario), siempre enviar.
-            // La variable 'force' no está disponible aquí directamente, pero requestWidgetFullUpdate la usa para el debounce.
-            // Si estamos aquí después de un debounce, es una actualización de estado.
-            // Si estamos aquí por una actualización de progreso (no implementada por separado aún), el throttling sería diferente.
-
-            if (!significantChangeOccurred && exoPlayer.playbackState != Player.STATE_ENDED && exoPlayer.duration > 0) {
-                // Si no hubo cambios significativos Y la canción está en curso (no terminada, con duración),
-                // aún podríamos necesitar enviar una actualización de PROGRESO.
-                // Sin embargo, el widget actualmente no se actualiza solo por progreso mediante este path.
-                // Este path es para actualizaciones de ESTADO.
-                // Si el progreso es el único cambio, y no hay un path dedicado para actualizaciones de progreso,
-                // podríamos decidir no actualizar.
-                // Pero si el widget debe mostrar progreso actualizado, este chequeo es muy agresivo.
-                // Por ahora, si no hay cambio de estado, no actualizamos. El progreso se actualizará
-                // cuando haya un cambio de estado o la próxima vez que el widget se fuerce a actualizar.
-                 Log.v(TAG, "Skipping widget state update as no significant metadata/state change detected.")
-                 // No retornar aquí aún si queremos que el progreso se actualice si es el único cambio.
-                 // return@launch // Descomentar si queremos ser estrictos y no enviar nada si solo el progreso cambió.
-            }
-
-
-            // Construir PlayerInfo siempre, la decisión de enviar se toma después.
-            val queueItems = mutableListOf<com.theveloper.pixelplay.data.model.QueueItem>()
-            if (exoPlayer.mediaItemCount > 0) {
-                for (i in exoPlayer.currentMediaItemIndex + 1 until exoPlayer.mediaItemCount) {
-                    val mediaItem = exoPlayer.getMediaItemAt(i)
-                    val artworkData = mediaItem.mediaMetadata.artworkData
-                    queueItems.add(com.theveloper.pixelplay.data.model.QueueItem(mediaItem.mediaId.toLong(), artworkData))
-                }
-            }
-
-            val playerInfoData = PlayerInfo(
-                songTitle = title,
-                artistName = artist,
-                isPlaying = isPlaying,
-                albumArtUri = artUriStringForPlayerInfo, // Usar la URI obtenida, puede ser null
-                albumArtBitmapData = artBytes,
-                currentPositionMs = currentPositionMs,
-                totalDurationMs = totalDurationMs,
-                isFavorite = actualIsFavorite, // Usar el estado de favorito obtenido
-                queue = queueItems
+        // Cargar desde URI si no está en caché
+        serviceScope.launch {
+            Log.d(TAG, "getAlbumArt: Cache MISS for URI: $artUriString. Loading.")
+            val loadedArt = loadBitmapDataFromUri(
+                uri = artUri,
+                context = baseContext
             )
-
-            // All Glance AppWidget operations should be off the main thread.
-            val successfullySent = withContext(Dispatchers.IO) {
-                try {
-                    val glanceManager = GlanceAppWidgetManager(applicationContext)
-                    val glanceIds = glanceManager.getGlanceIds(PixelPlayGlanceWidget::class.java)
-                    if (glanceIds.isNotEmpty()) {
-                        glanceIds.forEach { id ->
-                            updateAppWidgetState(
-                                applicationContext,
-                                PlayerInfoStateDefinition,
-                                id
-                            ) { playerInfoData } // Proporcionar PlayerInfo directamente
-                        }
-                        // Actualizar todos los widgets una vez después de establecer el estado
-                        glanceIds.forEach { id -> PixelPlayGlanceWidget().update(applicationContext, id) }
-                        Log.d(TAG, "Widget state data sent. Playing: $isPlaying, Title: $title, Art URI: $artUriStringForPlayerInfo, Progress: $currentPositionMs")
-                    } else {
-                        Log.d(TAG, "No Glance widget IDs found. Skipping widget update.")
-                    }
-                    true
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error updating widget state", e)
-                    false
-                }
+            if (loadedArt != null) {
+                widgetArtByteArrayCache.put(artUriString, loadedArt)
+                // Request a widget update now that the art is loaded
+                requestWidgetFullUpdate(force = true)
             }
+        }
+        return null to artUriString // Return null for now, the update will come later
+    }
 
-            if (successfullySent) { // Actualizar los 'last' estados si el envío fue exitoso
-                lastProcessedWidgetUpdateTimeMs = currentTimeMs
-                lastWidgetIsPlayingState = isPlaying
-                lastWidgetFavoriteState = actualIsFavorite
-                // Actualizar lastWidgetArtUriString con la URI que se usó/intentó para PlayerInfo
-                lastWidgetArtUriString = artUriStringForPlayerInfo ?: ""
+
+    private suspend fun updateGlanceWidgets(playerInfo: PlayerInfo) {
+        val artUriForComparison = playerInfo.albumArtUri ?: ""
+        val significantChangeOccurred = lastWidgetIsPlayingState != playerInfo.isPlaying ||
+                                        lastWidgetArtUriString != artUriForComparison ||
+                                        lastWidgetFavoriteState != playerInfo.isFavorite
+
+        // Aunque el debounce ya ayuda, este chequeo evita trabajo innecesario en el hilo de IO
+        // si el estado es idéntico al último enviado.
+        if (!significantChangeOccurred) {
+            Log.v(TAG, "Skipping widget update as state is identical to the last one.")
+            return
+        }
+
+        withContext(Dispatchers.IO) {
+            try {
+                val glanceManager = GlanceAppWidgetManager(applicationContext)
+                val glanceIds = glanceManager.getGlanceIds(PixelPlayGlanceWidget::class.java)
+                if (glanceIds.isNotEmpty()) {
+                    glanceIds.forEach { id ->
+                        updateAppWidgetState(applicationContext, PlayerInfoStateDefinition, id) { playerInfo }
+                    }
+                    glanceIds.forEach { id -> PixelPlayGlanceWidget().update(applicationContext, id) }
+                    Log.d(TAG, "Successfully sent widget update. Playing: ${playerInfo.isPlaying}, Title: ${playerInfo.songTitle}")
+
+                    // Actualizar el último estado conocido
+                    lastWidgetIsPlayingState = playerInfo.isPlaying
+                    lastWidgetFavoriteState = playerInfo.isFavorite
+                    lastWidgetArtUriString = artUriForComparison
+                } else {
+                    Log.d(TAG, "No Glance widget IDs found. Skipping widget update.")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error updating widget state", e)
             }
         }
     }
@@ -498,6 +406,7 @@ class MusicService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        LogUtils.d(this, "onDestroy")
         mediaSession?.release()
         mediaSession = null
         super.onDestroy()
