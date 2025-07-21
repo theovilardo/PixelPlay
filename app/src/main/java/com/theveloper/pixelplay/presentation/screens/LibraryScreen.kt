@@ -1001,23 +1001,23 @@ fun EnhancedSongListItem(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-                    if (song.duration > 0) {
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Rounded.Schedule,
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp),
-                                tint = contentColor.copy(alpha = 0.5f)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = formatDuration(song.duration),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = contentColor.copy(alpha = 0.5f)
-                            )
-                        }
-                    }
+//                    if (song.duration > 0) {
+//                        Spacer(modifier = Modifier.height(2.dp))
+//                        Row(verticalAlignment = Alignment.CenterVertically) {
+//                            Icon(
+//                                imageVector = Icons.Rounded.Schedule,
+//                                contentDescription = null,
+//                                modifier = Modifier.size(14.dp),
+//                                tint = contentColor.copy(alpha = 0.5f)
+//                            )
+//                            Spacer(modifier = Modifier.width(4.dp))
+//                            Text(
+//                                text = formatDuration(song.duration),
+//                                style = MaterialTheme.typography.bodySmall,
+//                                color = contentColor.copy(alpha = 0.5f)
+//                            )
+//                        }
+//                    }
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 IconButton(

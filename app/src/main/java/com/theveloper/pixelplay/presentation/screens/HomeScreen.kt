@@ -129,11 +129,6 @@ fun HomeScreen(
                     onMoreOptionsClick = {
                         showOptionsBottomSheet = true
                     }
-//                    onMoreOptionsClick = {
-//                        scope.launch {
-//                            showOptionsBottomSheet = true
-//                        }
-//                    }
                 )
             }
         ) { innerPadding ->

@@ -1,3 +1,5 @@
+import com.android.build.api.dsl.AaptOptions
+
 plugins {
     alias(libs.plugins.android.application)
     id("com.google.devtools.ksp") version "2.1.0-1.0.29"
@@ -11,6 +13,10 @@ plugins {
 android {
     namespace = "com.theveloper.pixelplay"
     compileSdk = 35
+
+    androidResources {
+        noCompress.add("tflite")
+    }
 
     defaultConfig {
         applicationId = "com.theveloper.pixelplay"
