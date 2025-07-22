@@ -1,25 +1,13 @@
 package com.theveloper.pixelplay.presentation.viewmodel
 
 import android.app.Application
-import android.content.Context
 import android.net.Uri
-import android.util.Log
-import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.media3.common.MediaItem
-import androidx.media3.common.PlaybackParameters
-import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
-import com.linc.amplituda.Amplituda
-import com.linc.amplituda.AmplitudaResult
-import com.linc.amplituda.Cache
-import com.theveloper.pixelplay.data.StemSeparator
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.presentation.viewmodel.exts.DeckController
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,7 +15,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 data class TrackStems(
@@ -44,8 +31,6 @@ data class DeckState(
     val volume: Float = 1f,
     val speed: Float = 1f,
     val stems: TrackStems = TrackStems(),
-    val isLoading: Boolean = false,
-    val loadingMessage: String = "",
     val stemWaveforms: Map<String, List<Int>> = emptyMap()
 )
 
@@ -90,51 +75,19 @@ class MashupViewModel @Inject constructor(
         }
     }
 
-    fun selectSong(song: Song, deck: Int) {
+    fun loadSongAndStems(deck: Int, song: Song, stems: Map<String, Uri>, waveforms: Map<String, List<Int>>) {
+        updateDeckState(deck) {
+            it.copy(
+                song = song,
+                stemWaveforms = waveforms
+            )
+        }
+        if (deck == 1) {
+            deck1Controller.loadStems(stems)
+        } else {
+            deck2Controller.loadStems(stems)
+        }
         closeSongPicker()
-        viewModelScope.launch(Dispatchers.IO) {
-            // Reemplaza "model_4stems" con el nombre de tu archivo de modelo en assets.
-            val separator = StemSeparator(application, "5stems")
-            try {
-                updateDeckState(deck) { it.copy(isLoading = true, loadingMessage = "Initializing...", song = song, stemWaveforms = emptyMap()) }
-                separator.init()
-
-                updateDeckState(deck) { it.copy(loadingMessage = "Separating stems...") }
-                val stemFiles = separator.separate(song.contentUriString)
-
-                if (stemFiles.isNotEmpty()) {
-                    updateDeckState(deck) { it.copy(loadingMessage = "Loading tracks...") }
-                    if (deck == 1) deck1Controller.loadStems(stemFiles) else deck2Controller.loadStems(stemFiles)
-
-                    updateDeckState(deck) { it.copy(loadingMessage = "Generating waveforms...") }
-                    val waveforms = generateWaveformsForStems(stemFiles)
-                    updateDeckState(deck) { it.copy(stemWaveforms = waveforms) }
-                } else {
-                    throw Exception("Stem separation failed.")
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(application, "Error processing song: ${e.message}", Toast.LENGTH_LONG).show()
-                    Log.e("MashupViewModel", "Error processing song", e)
-                }
-            } finally {
-                separator.close()
-                updateDeckState(deck) { it.copy(isLoading = false, loadingMessage = "") }
-            }
-        }
-    }
-
-    private suspend fun generateWaveformsForStems(stems: Map<String, Uri>): Map<String, List<Int>> {
-        val amplituda = Amplituda(application)
-        val waveformMap = mutableMapOf<String, List<Int>>()
-        stems.forEach { (name, uri) ->
-            uri.path?.let { path ->
-                val processingOutput = amplituda.processAudio(path, Cache.withParams(Cache.REUSE))
-                // CORRECCIÓN: Llamar a .get() para obtener AmplitudaResult y luego a .amplitudesAsList()
-                waveformMap[name] = processingOutput.get().amplitudesAsList()
-            }
-        }
-        return waveformMap
     }
 
     private fun updateDeckState(deck: Int, update: (DeckState) -> DeckState) {

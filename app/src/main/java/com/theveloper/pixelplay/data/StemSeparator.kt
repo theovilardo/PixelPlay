@@ -1,490 +1,340 @@
 package com.theveloper.pixelplay.data
 
 import android.content.Context
-import android.media.MediaCodec
-import android.media.MediaExtractor
-import android.media.MediaFormat
-import android.net.Uri
 import android.util.Log
-import androidx.annotation.OptIn
-import androidx.core.content.ContextCompat
-import androidx.core.net.toUri
-import androidx.media3.common.C
-import androidx.media3.common.Format
-import androidx.media3.common.MediaItem
-import androidx.media3.common.Metadata
-import androidx.media3.common.MimeTypes
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.muxer.MuxerException
-import androidx.media3.transformer.Composition
-import androidx.media3.transformer.EditedMediaItem
-import androidx.media3.transformer.ExportException
-import androidx.media3.transformer.ExportResult
-import androidx.media3.transformer.Muxer
-import androidx.media3.transformer.TransformationRequest
-import androidx.media3.transformer.Transformer
-import com.google.common.util.concurrent.FutureCallback
-import com.google.common.util.concurrent.Futures
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withContext
+import com.theveloper.pixelplay.utils.WavHeader
 import org.tensorflow.lite.Interpreter
-import org.tensorflow.lite.flex.FlexDelegate
+import timber.log.Timber
+import java.io.Closeable
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.io.IOException
-import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
-import kotlin.math.min
 
-/**
- * Handles audio stem separation using a TFLite model and Media3 Transformer for audio processing.
- * This version replaces FFmpeg with modern AndroidX libraries.
- *
- * @param context The application context.
- * @param modelName The name of the TFLite model file in assets (without the .tflite extension).
- */
-class StemSeparator(private val context: Context, private val modelName: String) {
+class StemSeparator(context: Context, modelName: String = "5stems.tflite") : Closeable {
 
-    private var interpreter: Interpreter? = null
+    private var interpreter: Interpreter?
+    val outputStemNames = listOf("vocals", "drums", "bass", "piano", "other")
+    // --- CAMBIO RADICAL 1: Reducimos drásticamente el tamaño del fragmento ---
+    private val CHUNK_SIZE_IN_SAMPLES = 16384 // ~0.18s de audio mono. Es un último intento.
 
-    fun init() {
-        try {
-            val model = loadModelFile(modelName)
-            val options = Interpreter.Options()
-            options.addDelegate(FlexDelegate())
-            options.setNumThreads(Runtime.getRuntime().availableProcessors())
-            interpreter = Interpreter(model, options)
-            // Asignar tensores una sola vez al inicio. El modelo tiene una forma de entrada fija.
-            interpreter?.allocateTensors()
-        } catch (e: Exception) {
-            Log.e("StemSeparator", "Error loading TFLite model or delegate.", e)
-            throw e
-        }
+    init {
+        val model = loadModelFile(context, modelName)
+        val options = Interpreter.Options()
+        // --- CAMBIO RADICAL 2: Forzamos el uso de un solo hilo para reducir el uso de memoria ---
+        options.setNumThreads(1)
+        interpreter = Interpreter(model, options)
     }
 
-    @Throws(IOException::class)
-    private fun loadModelFile(modelName: String): MappedByteBuffer {
-        context.assets.openFd("$modelName.tflite").use { fileDescriptor ->
-            FileInputStream(fileDescriptor.fileDescriptor).use { inputStream ->
-                val fileChannel = inputStream.channel
-                return fileChannel.map(
-                    FileChannel.MapMode.READ_ONLY,
-                    fileDescriptor.startOffset,
-                    fileDescriptor.declaredLength
-                )
+    private fun loadModelFile(context: Context, modelName: String): ByteBuffer {
+        return context.assets.openFd(modelName).use { fd ->
+            FileInputStream(fd.fileDescriptor).use { fis ->
+                fis.channel.map(FileChannel.MapMode.READ_ONLY, fd.startOffset, fd.declaredLength)
             }
         }
     }
 
-    suspend fun separate(inputAudioUriString: String): Map<String, Uri> {
-        return withContext(Dispatchers.IO) {
-            val interpreter = this@StemSeparator.interpreter ?: throw IllegalStateException("Interpreter not initialized. Call init() first.")
-            decodeAndSeparateInChunks(interpreter, inputAudioUriString)
+    fun separate(inputFile: File, outputDir: File): Result<List<File>> = runCatching {
+        val currentInterpreter = interpreter ?: error("Interpreter has been closed.")
+
+        val outputFiles = outputStemNames.map { File(outputDir, "$it.wav") }
+        val outputStreams = outputFiles.map { FileOutputStream(it) }
+        val totalBytesWritten = LongArray(outputStreams.size)
+
+        outputStreams.forEach { it.write(WavHeader(0, 0, 44100, 16, 1).asByteArray()) }
+
+        val channels = 1
+        val samplesPerChunk = CHUNK_SIZE_IN_SAMPLES / channels
+        val inputShape = intArrayOf(1, samplesPerChunk, channels)
+        currentInterpreter.resizeInput(0, inputShape)
+        currentInterpreter.allocateTensors()
+
+        val inputBuffer = ByteBuffer.allocateDirect(CHUNK_SIZE_IN_SAMPLES * 4).order(ByteOrder.nativeOrder())
+        val outputBuffers = mutableMapOf<Int, Any>()
+        for (i in outputStemNames.indices) {
+            val outputArray = Array(inputShape[0]) { Array(inputShape[1]) { FloatArray(inputShape[2]) } }
+            outputBuffers[i] = outputArray
         }
-    }
+        val readBuffer = ByteArray(CHUNK_SIZE_IN_SAMPLES * 2)
 
-    private fun decodeAndSeparateInChunks(interpreter: Interpreter, inputUriString: String): Map<String, Uri> {
-        val extractor = MediaExtractor()
-        val pfd = context.contentResolver.openFileDescriptor(Uri.parse(inputUriString), "r")
-            ?: throw IOException("Could not open file descriptor for URI: $inputUriString")
+        FileInputStream(inputFile).use { inputStream ->
+            inputStream.skip(44)
 
-        try {
-            // CORRECCIÓN: Usar pfd.statSize para obtener la longitud del archivo.
-            extractor.setDataSource(pfd.fileDescriptor, 0, pfd.statSize)
-        } finally {
-            pfd.close()
-        }
+            var bytesRead: Int
+            var chunkCount = 0
+            while (inputStream.read(readBuffer).also { bytesRead = it } != -1) {
+                if (bytesRead == 0) continue
+                chunkCount++
+                Log.d("StemSeparator", "Processing chunk #$chunkCount")
 
-        val trackIndex = (0 until extractor.trackCount).firstOrNull { i ->
-            extractor.getTrackFormat(i).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true
-        } ?: throw IOException("No audio track found in the file.")
+                val floatChunk = bytesToFloatArray(readBuffer, bytesRead)
+                val finalChunk = if (floatChunk.size < CHUNK_SIZE_IN_SAMPLES) {
+                    floatChunk.copyOf(CHUNK_SIZE_IN_SAMPLES)
+                } else {
+                    floatChunk
+                }
 
-        extractor.selectTrack(trackIndex)
-        val inputFormat = extractor.getTrackFormat(trackIndex)
-        val mime = inputFormat.getString(MediaFormat.KEY_MIME)!!
-        val sampleRate = inputFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
-        val channelCount = inputFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+                inputBuffer.rewind()
+                inputBuffer.asFloatBuffer().put(finalChunk)
 
-        val decoder = MediaCodec.createDecoderByType(mime)
-        decoder.configure(inputFormat, null, null, 0)
-        decoder.start()
+                try {
+                    currentInterpreter.runForMultipleInputsOutputs(arrayOf(inputBuffer), outputBuffers)
+                } catch (e: Exception) {
+                    Log.e("StemSeparator", "TFLite Interpreter run failed", e)
+                    throw e
+                }
 
-        val stemIndexMap = mapOf(0 to "bass", 1 to "drums", 2 to "other", 3 to "vocals", 4 to "piano")
-        val outputFiles = stemIndexMap.values.associateWith { File(context.filesDir, "$it.pcm") }
-        val outputStreams = outputFiles.mapValues { FileOutputStream(it.value) }
-        val outputDataSizes = stemIndexMap.values.associateWith { 0L }.toMutableMap()
+                outputBuffers.forEach { (index, value) ->
+                    @Suppress("UNCHECKED_CAST")
+                    val outputArray = (value as Array<Array<FloatArray>>)[0].flatMap { it.asIterable() }.toFloatArray()
 
-        val inputTensor = interpreter.getInputTensor(0)
-        val requiredChunkSizeBytes = inputTensor.numBytes()
-        val pcmChunkBuffer = ByteBuffer.allocateDirect(requiredChunkSizeBytes).order(ByteOrder.nativeOrder())
-
-        val outputMap = HashMap<Int, Any>()
-        for (i in 0 until interpreter.outputTensorCount) {
-            val outputTensor = interpreter.getOutputTensor(i)
-            outputMap[i] = ByteBuffer.allocateDirect(outputTensor.numBytes()).order(ByteOrder.nativeOrder())
-        }
-
-        val bufferInfo = MediaCodec.BufferInfo()
-        var isInputEos = false
-        var isOutputEos = false
-        val timeoutUs = 10000L
-
-        while (!isOutputEos) {
-            if (!isInputEos) {
-                val inputBufferIndex = decoder.dequeueInputBuffer(timeoutUs)
-                if (inputBufferIndex >= 0) {
-                    val inputBuffer = decoder.getInputBuffer(inputBufferIndex)!!
-                    val sampleSize = extractor.readSampleData(inputBuffer, 0)
-                    if (sampleSize < 0) {
-                        decoder.queueInputBuffer(inputBufferIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-                        isInputEos = true
+                    val finalOutputData = if(outputArray.size > floatChunk.size) {
+                        outputArray.copyOf(floatChunk.size)
                     } else {
-                        decoder.queueInputBuffer(inputBufferIndex, 0, sampleSize, extractor.sampleTime, 0)
-                        extractor.advance()
+                        outputArray
                     }
-                }
-            }
 
-            val outputBufferIndex = decoder.dequeueOutputBuffer(bufferInfo, timeoutUs)
-            if (outputBufferIndex >= 0) {
-                if (bufferInfo.size > 0) {
-                    val outputBuffer = decoder.getOutputBuffer(outputBufferIndex)!!
-
-                    while (outputBuffer.hasRemaining()) {
-                        val amountToRead = min(outputBuffer.remaining(), pcmChunkBuffer.remaining())
-                        val limit = outputBuffer.limit()
-                        outputBuffer.limit(outputBuffer.position() + amountToRead)
-                        pcmChunkBuffer.put(outputBuffer)
-                        outputBuffer.limit(limit)
-
-                        if (!pcmChunkBuffer.hasRemaining()) {
-                            processChunk(interpreter, pcmChunkBuffer, outputMap, outputStreams, outputDataSizes)
-                            pcmChunkBuffer.clear()
-                        }
-                    }
-                }
-                decoder.releaseOutputBuffer(outputBufferIndex, false)
-                if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
-                    isOutputEos = true
-                    if (pcmChunkBuffer.position() > 0) {
-                        processChunk(interpreter, pcmChunkBuffer, outputMap, outputStreams, outputDataSizes, true)
-                    }
+                    val byteData = floatArrayToBytes(finalOutputData)
+                    outputStreams[index].write(byteData)
+                    totalBytesWritten[index] += byteData.size.toLong()
                 }
             }
         }
 
-        outputStreams.values.forEach { it.close() }
-        decoder.stop()
-        decoder.release()
-        extractor.release()
-
-        val stemUris = mutableMapOf<String, Uri>()
-        outputFiles.forEach { (name, pcmFile) ->
-            val wavFile = File(context.filesDir, "$name.wav")
-            val dataSize = outputDataSizes[name] ?: 0L
-            addWavHeader(pcmFile, wavFile, dataSize, sampleRate, channelCount)
-            stemUris[name] = Uri.fromFile(wavFile)
-            pcmFile.delete()
-        }
-        return stemUris
-    }
-
-    private fun processChunk(
-        interpreter: Interpreter,
-        pcmChunkBuffer: ByteBuffer,
-        outputMap: MutableMap<Int, Any>,
-        outputStreams: Map<String, FileOutputStream>,
-        outputDataSizes: MutableMap<String, Long>,
-        isLastChunk: Boolean = false
-    ) {
-        val actualBytesInChunk = pcmChunkBuffer.position()
-
-        if (isLastChunk) {
-            while (pcmChunkBuffer.hasRemaining()) {
-                pcmChunkBuffer.put(0.toByte())
-            }
+        outputStreams.forEach { it.close() }
+        outputFiles.forEachIndexed { index, file ->
+            val finalHeader = WavHeader(
+                fileSize = (totalBytesWritten[index] + 36).toInt(),
+                subchunk2Size = totalBytesWritten[index].toInt(),
+                sampleRate = 44100, bitsPerSample = 16, numChannels = 1
+            )
+            finalHeader.updateHeader(file)
         }
 
-        pcmChunkBuffer.flip()
+        outputFiles
+    }
 
-        val inputs = arrayOf<Any>(pcmChunkBuffer)
-
-        outputMap.values.forEach { (it as ByteBuffer).clear() }
-
-        interpreter.runForMultipleInputsOutputs(inputs, outputMap)
-
-        val stemIndexMap = mapOf(0 to "bass", 1 to "drums", 2 to "other", 3 to "vocals", 4 to "piano")
-        for ((index, data) in outputMap) {
-            val stemName = stemIndexMap[index] ?: continue
-            val outputByteBuffer = data as ByteBuffer
-
-            val bytesToWrite = if (isLastChunk) {
-                val ratio = actualBytesInChunk.toFloat() / pcmChunkBuffer.capacity().toFloat()
-                (outputByteBuffer.capacity() * ratio).toInt()
-            } else {
-                outputByteBuffer.capacity()
-            }
-
-            outputByteBuffer.limit(bytesToWrite)
-
-            val chunk = ByteArray(outputByteBuffer.remaining())
-            outputByteBuffer.get(chunk)
-            outputStreams[stemName]?.write(chunk)
-            outputDataSizes[stemName] = (outputDataSizes[stemName] ?: 0) + chunk.size
+    private fun bytesToFloatArray(bytes: ByteArray, count: Int): FloatArray {
+        val floatArray = FloatArray(count / 2)
+        val shortBuffer = ByteBuffer.wrap(bytes, 0, count).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+        for (i in floatArray.indices) {
+            floatArray[i] = shortBuffer.get().toFloat() / Short.MAX_VALUE
         }
+        return floatArray
     }
 
-    private fun addWavHeader(pcmFile: File, wavFile: File, dataSize: Long, sampleRate: Int, channels: Int) {
-        FileOutputStream(wavFile).use { out ->
-            val bitsPerSample = 32
-            val byteRate = (sampleRate * channels * bitsPerSample / 8).toLong()
-            writeWavHeader(out, dataSize, sampleRate.toLong(), channels, byteRate)
-            FileInputStream(pcmFile).use { fis ->
-                fis.copyTo(out)
-            }
+    private fun floatArrayToBytes(floats: FloatArray): ByteArray {
+        val byteBuffer = ByteBuffer.allocate(floats.size * 2).order(ByteOrder.LITTLE_ENDIAN)
+        val shortBuffer = byteBuffer.asShortBuffer()
+        for (f in floats) {
+            shortBuffer.put((f * Short.MAX_VALUE).toInt().toShort())
         }
+        return byteBuffer.array()
     }
 
-    @Throws(IOException::class)
-    private fun writeWavHeader(out: FileOutputStream, totalAudioLen: Long, longSampleRate: Long, channels: Int, byteRate: Long) {
-        val totalDataLen = totalAudioLen + 36
-        val header = ByteArray(44)
-        header[0] = 'R'.code.toByte(); header[1] = 'I'.code.toByte(); header[2] = 'F'.code.toByte(); header[3] = 'F'.code.toByte()
-        header[4] = (totalDataLen and 0xff).toByte(); header[5] = (totalDataLen shr 8 and 0xff).toByte(); header[6] = (totalDataLen shr 16 and 0xff).toByte(); header[7] = (totalDataLen shr 24 and 0xff).toByte()
-        header[8] = 'W'.code.toByte(); header[9] = 'A'.code.toByte(); header[10] = 'V'.code.toByte(); header[11] = 'E'.code.toByte()
-        header[12] = 'f'.code.toByte(); header[13] = 'm'.code.toByte(); header[14] = 't'.code.toByte(); header[15] = ' '.code.toByte()
-        header[16] = 16; header[17] = 0; header[18] = 0; header[19] = 0
-        header[20] = 3; header[21] = 0
-        header[22] = channels.toByte(); header[23] = 0
-        header[24] = (longSampleRate and 0xff).toByte(); header[25] = (longSampleRate shr 8 and 0xff).toByte(); header[26] = (longSampleRate shr 16 and 0xff).toByte(); header[27] = (longSampleRate shr 24 and 0xff).toByte()
-        header[28] = (byteRate and 0xff).toByte(); header[29] = (byteRate shr 8 and 0xff).toByte(); header[30] = (byteRate shr 16 and 0xff).toByte(); header[31] = (byteRate shr 24 and 0xff).toByte()
-        header[32] = (channels * 4).toByte(); header[33] = 0
-        header[34] = 32; header[35] = 0
-        header[36] = 'd'.code.toByte(); header[37] = 'a'.code.toByte(); header[38] = 't'.code.toByte(); header[39] = 'a'.code.toByte()
-        header[40] = (totalAudioLen and 0xff).toByte(); header[41] = (totalAudioLen shr 8 and 0xff).toByte(); header[42] = (totalAudioLen shr 16 and 0xff).toByte(); header[43] = (totalAudioLen shr 24 and 0xff).toByte()
-        out.write(header, 0, 44)
-    }
-
-    fun close() {
+    override fun close() {
         interpreter?.close()
+        interpreter = null
     }
 }
 
-//class StemSeparator(private val context: Context, private val modelName: String) {
+// only has FlexRFFT issue
+//class StemSeparator(context: Context, modelName: String = "5stems.tflite") : Closeable {
 //
-//    private var interpreter: Interpreter? = null
+//    private var interpreter: Interpreter?
+//    val outputStemNames = listOf("vocals", "drums", "bass", "piano", "other")
+//    // Un tamaño de fragmento fijo y seguro para la memoria (~0.37s de audio estéreo)
+//    private val CHUNK_SIZE_IN_SAMPLES = 32768
 //
-//    fun init() {
-//        try {
-//            val model = loadModelFile(modelName)
-//            val options = Interpreter.Options()
-//            options.setNumThreads(Runtime.getRuntime().availableProcessors())
-//            interpreter = Interpreter(model, options)
-//        } catch (e: IOException) {
-//            Log.e("StemSeparator", "Error loading TFLite model.", e)
-//            throw e
-//        }
+//    init {
+//        val model = loadModelFile(context, modelName)
+//        val options = Interpreter.Options()
+//        interpreter = Interpreter(model, options)
 //    }
 //
-//    @Throws(IOException::class)
-//    private fun loadModelFile(modelName: String): MappedByteBuffer {
-//        context.assets.openFd("$modelName.tflite").use { fileDescriptor ->
-//            FileInputStream(fileDescriptor.fileDescriptor).use { inputStream ->
-//                val fileChannel = inputStream.channel
-//                return fileChannel.map(
-//                    FileChannel.MapMode.READ_ONLY,
-//                    fileDescriptor.startOffset,
-//                    fileDescriptor.declaredLength
-//                )
+//    private fun loadModelFile(context: Context, modelName: String): ByteBuffer {
+//        return context.assets.openFd(modelName).use { fd ->
+//            FileInputStream(fd.fileDescriptor).use { fis ->
+//                fis.channel.map(FileChannel.MapMode.READ_ONLY, fd.startOffset, fd.declaredLength)
 //            }
 //        }
 //    }
 //
-//    suspend fun separate(inputAudioUriString: String): Map<String, Uri> {
-//        return withContext(Dispatchers.IO) {
-//            val interpreter = this@StemSeparator.interpreter ?: throw IllegalStateException("Interpreter not initialized. Call init() first.")
-//            decodeAndSeparateInChunks(interpreter, inputAudioUriString)
+//    fun separate(inputFile: File, outputDir: File): Result<List<File>> = runCatching {
+//        val currentInterpreter = interpreter ?: error("Interpreter has been closed.")
+//
+//        val outputFiles = outputStemNames.map { File(outputDir, "$it.wav") }
+//        val outputStreams = outputFiles.map { FileOutputStream(it) }
+//        val totalBytesWritten = LongArray(outputStreams.size)
+//
+//        // Escribimos cabeceras WAV temporales que actualizaremos al final
+//        outputStreams.forEach { it.write(WavHeader(0, 0, 44100, 16, 2).asByteArray()) }
+//
+//        // --- INICIO DE LA ARQUITECTURA EFICIENTE ---
+//
+//        // 1. Redimensionamos y asignamos tensores UNA SOLA VEZ para nuestro tamaño de fragmento fijo.
+//        val channels = 2
+//        val samplesPerChunk = CHUNK_SIZE_IN_SAMPLES / channels
+//        val inputShape = intArrayOf(1, samplesPerChunk, channels)
+//        currentInterpreter.resizeInput(0, inputShape)
+//        currentInterpreter.allocateTensors()
+//
+//        // 2. Creamos los buffers de entrada y salida UNA SOLA VEZ para reutilizarlos en el bucle.
+//        val inputBuffer = ByteBuffer.allocateDirect(CHUNK_SIZE_IN_SAMPLES * 4).order(ByteOrder.nativeOrder())
+//        val outputBuffers = mutableMapOf<Int, Any>()
+//        for (i in outputStemNames.indices) {
+//            val outputArray = Array(inputShape[0]) { Array(inputShape[1]) { FloatArray(inputShape[2]) } }
+//            outputBuffers[i] = outputArray
 //        }
-//    }
+//        val readBuffer = ByteArray(CHUNK_SIZE_IN_SAMPLES * 2) // 2 bytes por muestra (short)
 //
-//    @OptIn(UnstableApi::class)
-//    private fun decodeAndSeparateInChunks(interpreter: Interpreter, inputUriString: String): Map<String, Uri> {
-//        val extractor = MediaExtractor()
-//        val pfd = context.contentResolver.openFileDescriptor(Uri.parse(inputUriString), "r")
-//            ?: throw IOException("Could not open file descriptor for URI: $inputUriString")
+//        // 3. Procesamos el archivo en un bucle eficiente
+//        FileInputStream(inputFile).use { inputStream ->
+//            inputStream.skip(44) // Saltamos la cabecera del archivo de entrada
 //
-//        extractor.setDataSource(pfd.fileDescriptor)
-//        pfd.close()
+//            var bytesRead: Int
+//            var chunkCount = 0
+//            while (inputStream.read(readBuffer).also { bytesRead = it } != -1) {
+//                if (bytesRead == 0) continue
+//                chunkCount++
+//                Log.d("StemSeparator", "Processing chunk #$chunkCount")
 //
-//        val trackIndex = (0 until extractor.trackCount).firstOrNull { i ->
-//            extractor.getTrackFormat(i).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true
-//        } ?: throw IOException("No audio track found in the file.")
+//                val floatChunk = bytesToFloatArray(readBuffer, bytesRead)
 //
-//        extractor.selectTrack(trackIndex)
-//        val inputFormat = extractor.getTrackFormat(trackIndex)
-//        val mime = inputFormat.getString(MediaFormat.KEY_MIME)!!
-//        val sampleRate = inputFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
-//        val channelCount = inputFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+//                // Rellenamos con ceros si es el último fragmento y es más corto
+//                val finalChunk = if (floatChunk.size < CHUNK_SIZE_IN_SAMPLES) {
+//                    floatChunk.copyOf(CHUNK_SIZE_IN_SAMPLES)
+//                } else {
+//                    floatChunk
+//                }
 //
-//        val decoder = MediaCodec.createDecoderByType(mime)
-//        decoder.configure(inputFormat, null, null, 0)
-//        decoder.start()
+//                inputBuffer.rewind()
+//                inputBuffer.asFloatBuffer().put(finalChunk)
 //
-//        val stemIndexMap = mapOf(0 to "bass", 1 to "drums", 2 to "other", 3 to "vocals", 4 to "piano")
-//        val outputFiles = stemIndexMap.values.associateWith { File(context.filesDir, "$it.pcm") }
-//        val outputStreams = outputFiles.mapValues { FileOutputStream(it.value) }
-//        val outputDataSizes = stemIndexMap.values.associateWith { 0L }.toMutableMap()
+//                currentInterpreter.runForMultipleInputsOutputs(arrayOf(inputBuffer), outputBuffers)
 //
-//        val bufferInfo = MediaCodec.BufferInfo()
-//        var isInputEos = false
-//        var isOutputEos = false
-//        val timeoutUs = 10000L
+//                outputBuffers.forEach { (index, value) ->
+//                    @Suppress("UNCHECKED_CAST")
+//                    val outputArray = (value as Array<Array<FloatArray>>)[0].flatMap { it.asIterable() }.toFloatArray()
 //
-//        val chunkSizeBytes = sampleRate * channelCount * 4
-//        val pcmChunkBuffer = ByteBuffer.allocate(chunkSizeBytes).order(ByteOrder.nativeOrder())
-//
-//        // CORRECCIÓN: Pre-asignar los buffers de salida una sola vez con el tamaño máximo.
-//        val outputMap = HashMap<Int, Any>()
-//        for (i in 0 until interpreter.outputTensorCount) {
-//            outputMap[i] = ByteBuffer.allocateDirect(chunkSizeBytes).order(ByteOrder.nativeOrder())
-//        }
-//
-//        while (!isOutputEos) {
-//            if (!isInputEos) {
-//                val inputBufferIndex = decoder.dequeueInputBuffer(timeoutUs)
-//                if (inputBufferIndex >= 0) {
-//                    val inputBuffer = decoder.getInputBuffer(inputBufferIndex)!!
-//                    val sampleSize = extractor.readSampleData(inputBuffer, 0)
-//                    if (sampleSize < 0) {
-//                        decoder.queueInputBuffer(inputBufferIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-//                        isInputEos = true
+//                    // Asegurarnos de escribir solo la cantidad original de datos, sin el relleno
+//                    val finalOutputData = if(outputArray.size > floatChunk.size) {
+//                        outputArray.copyOf(floatChunk.size)
 //                    } else {
-//                        decoder.queueInputBuffer(inputBufferIndex, 0, sampleSize, extractor.sampleTime, 0)
-//                        extractor.advance()
+//                        outputArray
 //                    }
-//                }
-//            }
 //
-//            val outputBufferIndex = decoder.dequeueOutputBuffer(bufferInfo, timeoutUs)
-//            if (outputBufferIndex >= 0) {
-//                if (bufferInfo.size > 0) {
-//                    val outputBuffer = decoder.getOutputBuffer(outputBufferIndex)!!
-//
-//                    while (outputBuffer.hasRemaining()) {
-//                        val amountToRead = min(outputBuffer.remaining(), pcmChunkBuffer.remaining())
-//                        val limit = outputBuffer.limit()
-//                        outputBuffer.limit(outputBuffer.position() + amountToRead)
-//                        pcmChunkBuffer.put(outputBuffer)
-//                        outputBuffer.limit(limit)
-//
-//                        if (!pcmChunkBuffer.hasRemaining()) {
-//                            processChunk(interpreter, pcmChunkBuffer, outputMap, outputStreams, outputDataSizes)
-//                            pcmChunkBuffer.clear()
-//                        }
-//                    }
-//                }
-//                decoder.releaseOutputBuffer(outputBufferIndex, false)
-//                if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
-//                    isOutputEos = true
-//                    if (pcmChunkBuffer.position() > 0) {
-//                        processChunk(interpreter, pcmChunkBuffer, outputMap, outputStreams, outputDataSizes)
-//                    }
+//                    val byteData = floatArrayToBytes(finalOutputData)
+//                    outputStreams[index].write(byteData)
+//                    totalBytesWritten[index] += byteData.size.toLong()
 //                }
 //            }
 //        }
+//        // --- FIN DE LA ARQUITECTURA EFICIENTE ---
 //
-//        outputStreams.values.forEach { it.close() }
-//        decoder.stop()
-//        decoder.release()
-//        extractor.release()
-//
-//        val stemUris = mutableMapOf<String, Uri>()
-//        outputFiles.forEach { (name, pcmFile) ->
-//            val wavFile = File(context.filesDir, "$name.wav")
-//            val dataSize = outputDataSizes[name] ?: 0L
-//            addWavHeader(pcmFile, wavFile, dataSize, sampleRate, channelCount)
-//            stemUris[name] = Uri.fromFile(wavFile)
-//            pcmFile.delete()
+//        // Cerramos todos los streams y actualizamos las cabeceras WAV con los tamaños correctos
+//        outputStreams.forEach { it.close() }
+//        outputFiles.forEachIndexed { index, file ->
+//            val finalHeader = WavHeader(
+//                fileSize = (totalBytesWritten[index] + 36).toInt(),
+//                subchunk2Size = totalBytesWritten[index].toInt(),
+//                sampleRate = 44100, bitsPerSample = 16, numChannels = 2
+//            )
+//            finalHeader.updateHeader(file)
 //        }
-//        return stemUris
+//
+//        outputFiles
 //    }
 //
-//    private fun processChunk(
-//        interpreter: Interpreter,
-//        pcmChunkBuffer: ByteBuffer,
-//        outputMap: HashMap<Int, Any>,
-//        outputStreams: Map<String, FileOutputStream>,
-//        outputDataSizes: MutableMap<String, Long>
-//    ) {
-//        pcmChunkBuffer.flip()
-//        val numSamples = pcmChunkBuffer.remaining() / (4 * 2)
-//        if (numSamples == 0) return
-//
-//        val inputShape = intArrayOf(numSamples, 2)
-//        interpreter.resizeInput(0, inputShape)
-//        interpreter.allocateTensors()
-//
-//        // CORRECCIÓN: Rebobinar los buffers en lugar de re-asignarlos.
-//        outputMap.values.forEach { (it as ByteBuffer).rewind() }
-//
-//        interpreter.runForMultipleInputsOutputs(arrayOf(pcmChunkBuffer), outputMap)
-//
-//        val stemIndexMap = mapOf(0 to "bass", 1 to "drums", 2 to "other", 3 to "vocals", 4 to "piano")
-//        for ((index, data) in outputMap) {
-//            val stemName = stemIndexMap[index] ?: continue
-//            val outputByteBuffer = data as ByteBuffer
-//
-//            // CORRECCIÓN: Establecer el límite del buffer al tamaño real de los datos procesados
-//            val outputByteCount = numSamples * 2 * 4
-//            outputByteBuffer.limit(outputByteCount)
-//
-//            val chunk = ByteArray(outputByteBuffer.remaining())
-//            outputByteBuffer.get(chunk)
-//            outputStreams[stemName]?.write(chunk)
-//            outputDataSizes[stemName] = (outputDataSizes[stemName] ?: 0) + chunk.size
+//    private fun bytesToFloatArray(bytes: ByteArray, count: Int): FloatArray {
+//        val floatArray = FloatArray(count / 2)
+//        val shortBuffer = ByteBuffer.wrap(bytes, 0, count).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+//        for (i in floatArray.indices) {
+//            floatArray[i] = shortBuffer.get().toFloat() / Short.MAX_VALUE
 //        }
+//        return floatArray
 //    }
 //
-//    private fun addWavHeader(pcmFile: File, wavFile: File, dataSize: Long, sampleRate: Int, channels: Int) {
-//        FileOutputStream(wavFile).use { out ->
-//            val bitsPerSample = 32
-//            val byteRate = (sampleRate * channels * bitsPerSample / 8).toLong()
-//            writeWavHeader(out, dataSize, sampleRate.toLong(), channels, byteRate)
-//            FileInputStream(pcmFile).use { fis ->
-//                fis.copyTo(out)
-//            }
+//    private fun floatArrayToBytes(floats: FloatArray): ByteArray {
+//        val byteBuffer = ByteBuffer.allocate(floats.size * 2).order(ByteOrder.LITTLE_ENDIAN)
+//        val shortBuffer = byteBuffer.asShortBuffer()
+//        for (f in floats) {
+//            shortBuffer.put((f * Short.MAX_VALUE).toInt().toShort())
 //        }
+//        return byteBuffer.array()
 //    }
 //
-//    @Throws(IOException::class)
-//    private fun writeWavHeader(out: FileOutputStream, totalAudioLen: Long, longSampleRate: Long, channels: Int, byteRate: Long) {
-//        val totalDataLen = totalAudioLen + 36
-//        val header = ByteArray(44)
-//        header[0] = 'R'.code.toByte(); header[1] = 'I'.code.toByte(); header[2] = 'F'.code.toByte(); header[3] = 'F'.code.toByte()
-//        header[4] = (totalDataLen and 0xff).toByte(); header[5] = (totalDataLen shr 8 and 0xff).toByte(); header[6] = (totalDataLen shr 16 and 0xff).toByte(); header[7] = (totalDataLen shr 24 and 0xff).toByte()
-//        header[8] = 'W'.code.toByte(); header[9] = 'A'.code.toByte(); header[10] = 'V'.code.toByte(); header[11] = 'E'.code.toByte()
-//        header[12] = 'f'.code.toByte(); header[13] = 'm'.code.toByte(); header[14] = 't'.code.toByte(); header[15] = ' '.code.toByte()
-//        header[16] = 16; header[17] = 0; header[18] = 0; header[19] = 0
-//        header[20] = 3; header[21] = 0
-//        header[22] = channels.toByte(); header[23] = 0
-//        header[24] = (longSampleRate and 0xff).toByte(); header[25] = (longSampleRate shr 8 and 0xff).toByte(); header[26] = (longSampleRate shr 16 and 0xff).toByte(); header[27] = (longSampleRate shr 24 and 0xff).toByte()
-//        header[28] = (byteRate and 0xff).toByte(); header[29] = (byteRate shr 8 and 0xff).toByte(); header[30] = (byteRate shr 16 and 0xff).toByte(); header[31] = (byteRate shr 24 and 0xff).toByte()
-//        header[32] = (channels * 4).toByte(); header[33] = 0
-//        header[34] = 32; header[35] = 0
-//        header[36] = 'd'.code.toByte(); header[37] = 'a'.code.toByte(); header[38] = 't'.code.toByte(); header[39] = 'a'.code.toByte()
-//        header[40] = (totalAudioLen and 0xff).toByte(); header[41] = (totalAudioLen shr 8 and 0xff).toByte(); header[42] = (totalAudioLen shr 16 and 0xff).toByte(); header[43] = (totalAudioLen shr 24 and 0xff).toByte()
-//        out.write(header, 0, 44)
-//    }
-//
-//    fun close() {
+//    override fun close() {
 //        interpreter?.close()
+//        interpreter = null
+//    }
+//}
+
+
+//notworking but not crashing
+//class StemSeparator(context: Context, modelName: String = "5stems.tflite") {
+//
+//    private val interpreter: Interpreter
+//
+//    // Nombres de los stems de salida según el modelo Spleeter de 5 stems
+//    val outputStemNames = listOf("vocals", "drums", "bass", "piano", "other")
+//
+//    init {
+//        val model = loadModelFile(context, modelName)
+//        val options = Interpreter.Options()
+//        // Opcional: Usar delegados para aceleración por hardware (GPU/NNAPI)
+//        // options.addDelegate(GpuDelegate())
+//        interpreter = Interpreter(model, options)
+//    }
+//
+//    private fun loadModelFile(context: Context, modelName: String): ByteBuffer {
+//        val fileDescriptor = context.assets.openFd(modelName)
+//        val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
+//        val fileChannel = inputStream.channel
+//        val startOffset = fileDescriptor.startOffset
+//        val declaredLength = fileDescriptor.declaredLength
+//        return fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength)
+//    }
+//
+//    /**
+//     * Separa la forma de onda de audio en sus stems constituyentes.
+//     * @param waveform El audio de entrada como un FloatArray estéreo.
+//     * @return Un mapa que asocia el nombre de cada stem con su FloatArray de audio.
+//     */
+//    fun separate(waveform: FloatArray): Map<String, FloatArray> {
+//        // El modelo de Spleeter espera una forma específica: [1, num_samples, 2]
+//        // donde 1 es el batch size, num_samples la longitud, y 2 para estéreo.
+//        val inputShape = interpreter.getInputTensor(0).shape()
+//        val numSamples = inputShape[1]
+//
+//        // Preparamos el buffer de entrada con el tamaño esperado por el modelo
+//        val inputBuffer = ByteBuffer.allocateDirect(1 * numSamples * 2 * 4).order(ByteOrder.nativeOrder())
+//        inputBuffer.asFloatBuffer().put(waveform.copyOf(numSamples * 2))
+//
+//        // Preparamos los buffers de salida
+//        val outputBuffers = mutableMapOf<Int, Any>()
+//        for (i in outputStemNames.indices) {
+//            val outputShape = interpreter.getOutputTensor(i).shape()
+//            // La salida es [1, num_samples, 2]
+//            val outputArray = Array(1) { Array(outputShape[1]) { FloatArray(outputShape[2]) } }
+//            outputBuffers[i] = outputArray
+//        }
+//
+//        // Ejecutamos la inferencia
+//        interpreter.runForMultipleInputsOutputs(arrayOf(inputBuffer), outputBuffers)
+//
+//        // Procesamos los resultados
+//        val stems = mutableMapOf<String, FloatArray>()
+//        outputBuffers.forEach { (index, value) ->
+//            val stemName = outputStemNames[index]
+//            val outputArray = (value as Array<Array<FloatArray>>)[0] // Extraemos el batch
+//            // Aplanamos el array estéreo [num_samples, 2] a un FloatArray de una dimensión
+//            val flattenedStem = outputArray.flatMap { it.asIterable() }.toFloatArray()
+//            stems[stemName] = flattenedStem
+//        }
+//
+//        return stems
 //    }
 //}

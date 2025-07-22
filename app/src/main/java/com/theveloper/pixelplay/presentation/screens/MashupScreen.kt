@@ -1,53 +1,126 @@
 package com.theveloper.pixelplay.presentation.screens
 
+import android.content.Context
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Divider
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.linc.audiowaveform.AudioWaveform
 import com.linc.audiowaveform.model.WaveformAlignment
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
-import com.theveloper.pixelplay.presentation.components.OptimizedAlbumArt
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.viewmodel.DeckState
 import com.theveloper.pixelplay.presentation.viewmodel.MashupViewModel
-import com.theveloper.pixelplay.presentation.viewmodel.MashupUiState
-import com.theveloper.pixelplay.presentation.viewmodel.TrackStems
-import com.theveloper.pixelplay.utils.formatDuration
-import kotlin.random.Random
+import com.theveloper.pixelplay.presentation.viewmodel.StemsUiState
+import com.theveloper.pixelplay.presentation.viewmodel.StemsViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DJSpaceScreen(
-    viewModel: MashupViewModel = hiltViewModel()
+fun MashupScreen(
+    mashupViewModel: MashupViewModel = hiltViewModel(),
+    stemsViewModel: StemsViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val mashupUiState by mashupViewModel.uiState.collectAsState()
+    val stemsUiState by stemsViewModel.uiState
     val sheetState = rememberModalBottomSheetState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    var songBeingProcessed by remember { mutableStateOf<Song?>(null) }
+    var isSavingStems by remember { mutableStateOf(false) }
+
+    LaunchedEffect(stemsUiState, songBeingProcessed) {
+        val uiState = stemsUiState
+        val song = songBeingProcessed
+        if (uiState is StemsUiState.Success && song != null) {
+            val deck = mashupUiState.showSongPickerForDeck ?: return@LaunchedEffect
+
+            isSavingStems = true
+            // Convierte la lista de archivos a un mapa de nombre -> Uri
+            val stemUris = uiState.stemFiles.associate { file ->
+                val stemName = file.nameWithoutExtension
+                val authority = "${context.packageName}.provider"
+                stemName to FileProvider.getUriForFile(context, authority, file)
+            }
+            // Genera las formas de onda a partir de los archivos
+            val stemWaveforms = generateWaveformsFromFiles(uiState.stemFiles)
+
+            mashupViewModel.loadSongAndStems(
+                deck = deck,
+                song = song,
+                stems = stemUris,
+                waveforms = stemWaveforms
+            )
+
+            songBeingProcessed = null
+            isSavingStems = false
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -72,46 +145,62 @@ fun DJSpaceScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    val isLoading1 = (stemsUiState is StemsUiState.Loading && mashupUiState.showSongPickerForDeck == 1) || (isSavingStems && mashupUiState.showSongPickerForDeck == 1)
+                    val isLoading2 = (stemsUiState is StemsUiState.Loading && mashupUiState.showSongPickerForDeck == 2) || (isSavingStems && mashupUiState.showSongPickerForDeck == 2)
+
                     DeckUi(
                         deckNumber = 1,
-                        deckState = uiState.deck1,
-                        onPlayPause = { viewModel.playPause(1) },
-                        onVolumeChange = { viewModel.setVolume(1, it) },
-                        onSelectSong = { viewModel.openSongPicker(1) },
-                        onSeek = { progress -> viewModel.seek(1, progress) },
-                        onSpeedChange = { speed -> viewModel.setSpeed(1, speed) },
-                        onNudge = { amount -> viewModel.nudge(1, amount) },
-                        onToggleStem = { stem -> viewModel.toggleStem(1, stem) }
+                        deckState = mashupUiState.deck1,
+                        isLoading = isLoading1,
+                        loadingMessage = if (isSavingStems) "Processing stems..." else "Separating stems...",
+                        onPlayPause = { mashupViewModel.playPause(1) },
+                        onVolumeChange = { mashupViewModel.setVolume(1, it) },
+                        onSelectSong = { mashupViewModel.openSongPicker(1) },
+                        onSeek = { progress -> mashupViewModel.seek(1, progress) },
+                        onSpeedChange = { speed -> mashupViewModel.setSpeed(1, speed) },
+                        onNudge = { amount -> mashupViewModel.nudge(1, amount) },
+                        onToggleStem = { stem -> mashupViewModel.toggleStem(1, stem) }
                     )
                     DeckUi(
                         deckNumber = 2,
-                        deckState = uiState.deck2,
-                        onPlayPause = { viewModel.playPause(2) },
-                        onVolumeChange = { viewModel.setVolume(2, it) },
-                        onSelectSong = { viewModel.openSongPicker(2) },
-                        onSeek = { progress -> viewModel.seek(2, progress) },
-                        onSpeedChange = { speed -> viewModel.setSpeed(2, speed) },
-                        onNudge = { amount -> viewModel.nudge(2, amount) },
-                        onToggleStem = { stem -> viewModel.toggleStem(2, stem) }
+                        deckState = mashupUiState.deck2,
+                        isLoading = isLoading2,
+                        loadingMessage = if (isSavingStems) "Processing stems..." else "Separating stems...",
+                        onPlayPause = { mashupViewModel.playPause(2) },
+                        onVolumeChange = { mashupViewModel.setVolume(2, it) },
+                        onSelectSong = { mashupViewModel.openSongPicker(2) },
+                        onSeek = { progress -> mashupViewModel.seek(2, progress) },
+                        onSpeedChange = { speed -> mashupViewModel.setSpeed(2, speed) },
+                        onNudge = { amount -> mashupViewModel.nudge(2, amount) },
+                        onToggleStem = { stem -> mashupViewModel.toggleStem(2, stem) }
                     )
                 }
 
                 Crossfader(
-                    value = uiState.crossfaderValue,
-                    onValueChange = { viewModel.onCrossfaderChange(it) },
+                    value = mashupUiState.crossfaderValue,
+                    onValueChange = { mashupViewModel.onCrossfaderChange(it) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(8.dp))
             }
 
-            if (uiState.showSongPickerForDeck != null) {
+            if (mashupUiState.showSongPickerForDeck != null) {
                 ModalBottomSheet(
-                    onDismissRequest = { viewModel.closeSongPicker() },
+                    onDismissRequest = {
+                        if (!isSavingStems && stemsUiState !is StemsUiState.Loading) {
+                            mashupViewModel.closeSongPicker()
+                        }
+                    },
                     sheetState = sheetState
                 ) {
                     SongPickerSheet(
-                        songs = uiState.allSongs,
-                        onSongSelected = { song -> viewModel.selectSong(song, uiState.showSongPickerForDeck!!) }
+                        songs = mashupUiState.allSongs,
+                        onSongSelected = { song ->
+                            scope.launch {
+                                songBeingProcessed = song
+                                stemsViewModel.startSeparation(Uri.parse(song.contentUriString))
+                            }
+                        }
                     )
                 }
             }
@@ -119,11 +208,13 @@ fun DJSpaceScreen(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DeckUi(
     deckNumber: Int,
     deckState: DeckState,
+    isLoading: Boolean,
+    loadingMessage: String,
     onPlayPause: () -> Unit,
     onVolumeChange: (Float) -> Unit,
     onSelectSong: () -> Unit,
@@ -158,7 +249,7 @@ private fun DeckUi(
                             .size(100.dp)
                             .clip(MaterialTheme.shapes.medium)
                             .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .clickable(enabled = !deckState.isLoading) { onSelectSong() },
+                            .clickable(enabled = !isLoading) { onSelectSong() },
                         contentAlignment = Alignment.Center
                     ) {
                         if (deckState.song != null) {
@@ -183,13 +274,12 @@ private fun DeckUi(
                             progress = deckState.progress,
                             onProgressChange = { onSeek(it) },
                             waveformAlignment = WaveformAlignment.Center,
-                            //spikeColor = MaterialTheme.colorScheme.onSurfaceVariant,
                             progressBrush = SolidColor(MaterialTheme.colorScheme.primary)
                         )
                     }
                 }
 
-                AnimatedVisibility(deckState.song != null && !deckState.isLoading) {
+                AnimatedVisibility(deckState.song != null && !isLoading) {
                     Column {
                         Text("Stems", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
                         FlowRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -223,7 +313,7 @@ private fun DeckUi(
                 }
             }
 
-            if (deckState.isLoading) {
+            if (isLoading) {
                 Column(
                     modifier = Modifier
                         .matchParentSize()
@@ -233,7 +323,7 @@ private fun DeckUi(
                 ) {
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth(0.8f))
                     Spacer(Modifier.height(16.dp))
-                    Text(deckState.loadingMessage, style = MaterialTheme.typography.bodyMedium)
+                    Text(loadingMessage, style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }
@@ -259,7 +349,6 @@ private fun StemChip(text: String, selected: Boolean, waveform: List<Int>?, onCl
                                 .width(40.dp),
                             amplitudes = waveform,
                             onProgressChange = {},
-                            //spikeColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                             waveformAlignment = WaveformAlignment.Center
                         )
                     }
@@ -336,3 +425,75 @@ private fun SongPickerItem(song: Song, onClick: () -> Unit) {
         }
     }
 }
+
+// CORRECCIÓN: Funciones de ayuda añadidas para procesar formas de onda desde archivos.
+private suspend fun generateWaveformsFromFiles(files: List<File>): Map<String, List<Int>> = withContext(Dispatchers.IO) {
+    files.associate { file ->
+        file.nameWithoutExtension to generateWaveformFromFile(file)
+    }
+}
+
+private fun generateWaveformFromFile(file: File, samples: Int = 100): List<Int> {
+    val bytes = file.readBytes()
+    // La cabecera WAV tiene 44 bytes, nos aseguramos de que haya datos de audio.
+    if (bytes.size <= 44) return List(samples) { 0 }
+
+    val pcmData = bytes.copyOfRange(44, bytes.size)
+    val floatArray = bytesToFloatArray(pcmData, pcmData.size)
+
+    if (floatArray.isEmpty()) return List(samples) { 0 }
+
+    val waveform = mutableListOf<Int>()
+    val groupSize = floatArray.size / samples
+    if (groupSize <= 0) return List(samples) { 0 }
+
+    for (i in 0 until samples) {
+        val start = i * groupSize
+        val end = start + groupSize
+        var max = 0f
+        for (j in start until end) {
+            if (abs(floatArray[j]) > max) {
+                max = abs(floatArray[j])
+            }
+        }
+        waveform.add((max * 255).toInt())
+    }
+    return waveform
+}
+
+private fun bytesToFloatArray(bytes: ByteArray, count: Int): FloatArray {
+    val floatArray = FloatArray(count / 2)
+    val shortBuffer = ByteBuffer.wrap(bytes, 0, count).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+    for (i in floatArray.indices) {
+        floatArray[i] = shortBuffer.get().toFloat() / Short.MAX_VALUE
+    }
+    return floatArray
+}
+
+private fun floatArrayToWav(floatArray: FloatArray, sampleRate: Int = 44100, channels: Int = 1, bitDepth: Int = 16): ByteArray {
+    val byteBuffer = ByteBuffer.allocate(floatArray.size * 2).order(ByteOrder.LITTLE_ENDIAN)
+    for (value in floatArray) {
+        byteBuffer.putShort((value * Short.MAX_VALUE).toInt().toShort())
+    }
+    val pcmData = byteBuffer.array()
+
+    val header = ByteArrayOutputStream()
+    header.write("RIFF".toByteArray())
+    header.write(intToBytes(36 + pcmData.size))
+    header.write("WAVE".toByteArray())
+    header.write("fmt ".toByteArray())
+    header.write(intToBytes(16))
+    header.write(shortToBytes(1)) // Audio format 1=PCM
+    header.write(shortToBytes(channels.toShort()))
+    header.write(intToBytes(sampleRate))
+    header.write(intToBytes(sampleRate * channels * bitDepth / 8))
+    header.write(shortToBytes((channels * bitDepth / 8).toShort()))
+    header.write(shortToBytes(bitDepth.toShort()))
+    header.write("data".toByteArray())
+    header.write(intToBytes(pcmData.size))
+
+    return header.toByteArray() + pcmData
+}
+
+private fun intToBytes(value: Int): ByteArray = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(value).array()
+private fun shortToBytes(value: Short): ByteArray = ByteBuffer.allocate(2).order(ByteOrder.LITTLE_ENDIAN).putShort(value).array()

@@ -15,7 +15,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.theveloper.pixelplay.presentation.screens.AlbumDetailScreen
-import com.theveloper.pixelplay.presentation.screens.DJSpaceScreen
+import com.theveloper.pixelplay.presentation.screens.MashupScreen
 import com.theveloper.pixelplay.presentation.screens.DailyMixScreen
 import com.theveloper.pixelplay.presentation.screens.GenreDetailScreen
 import com.theveloper.pixelplay.presentation.screens.HomeScreen
@@ -77,7 +77,7 @@ fun AppNavigation(
                 }
             }
             composable(Screen.DJSpace.route) {
-                DJSpaceScreen()
+                MashupScreen()
             }
             composable(
                 route = Screen.GenreDetail.route,
