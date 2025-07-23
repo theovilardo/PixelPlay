@@ -15,6 +15,7 @@ import com.theveloper.pixelplay.data.database.PixelPlayDatabase
 import com.theveloper.pixelplay.data.database.SearchHistoryDao
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.preferences.dataStore
+import com.theveloper.pixelplay.data.media.SongMetadataEditor
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.data.repository.MusicRepositoryImpl
 import dagger.Module
@@ -122,5 +123,11 @@ object AppModule {
             )
             .setHandleAudioBecomingNoisy(true) // Pausa si se desconectan auriculares
             .build()
+    }
+
+    @Singleton
+    @Provides
+    fun provideSongMetadataEditor(@ApplicationContext context: Context): SongMetadataEditor {
+        return SongMetadataEditor(context)
     }
 }

@@ -71,6 +71,7 @@ import androidx.core.graphics.drawable.toBitmap
 import com.theveloper.pixelplay.data.model.SearchFilterType
 import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import com.theveloper.pixelplay.data.model.SearchResultItem
+import com.theveloper.pixelplay.data.media.SongMetadataEditor
 import com.theveloper.pixelplay.data.model.SortOption
 import com.theveloper.pixelplay.data.worker.SyncManager
 import kotlinx.collections.immutable.ImmutableList
@@ -144,7 +145,8 @@ class PlayerViewModel @Inject constructor(
     private val musicRepository: MusicRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val albumArtThemeDao: AlbumArtThemeDao,
-    private val syncManager: SyncManager // Inyectar SyncManager
+    private val syncManager: SyncManager, // Inyectar SyncManager
+    private val songMetadataEditor: SongMetadataEditor
 ) : ViewModel() {
 
     private val _playerUiState = MutableStateFlow(PlayerUiState())
@@ -1970,5 +1972,32 @@ class PlayerViewModel @Inject constructor(
             }
         }
         Trace.endSection() // End PlayerViewModel.onLibraryTabSelected
+    }
+
+    fun editSongMetadata(song: Song, newTitle: String, newArtist: String, newAlbum: String) {
+        viewModelScope.launch {
+            val success = withContext(Dispatchers.IO) {
+                songMetadataEditor.editSongMetadata(song.contentUriString, newTitle, newArtist, newAlbum)
+            }
+
+            if (success) {
+                val updatedSong = song.copy(
+                    title = newTitle,
+                    artist = newArtist,
+                    album = newAlbum
+                )
+
+                _playerUiState.update { currentState ->
+                    val newAllSongs = currentState.allSongs.map {
+                        if (it.id == song.id) updatedSong else it
+                    }.toImmutableList()
+                    currentState.copy(allSongs = newAllSongs)
+                }
+
+                if (_stablePlayerState.value.currentSong?.id == song.id) {
+                    _stablePlayerState.update { it.copy(currentSong = updatedSong) }
+                }
+            }
+        }
     }
 }

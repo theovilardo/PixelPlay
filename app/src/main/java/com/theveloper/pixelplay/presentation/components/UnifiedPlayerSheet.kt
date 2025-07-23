@@ -1226,6 +1226,28 @@ private fun PlayerProgressBarSection(
             )
         }
     }
+
+    if (showSongInfoBottomSheet) {
+        SongInfoBottomSheet(
+            song = song,
+            isFavorite = isFavorite,
+            onToggleFavorite = onFavoriteToggle,
+            onDismiss = { showSongInfoBottomSheet = false },
+            onPlaySong = {
+                onPlayPause()
+                showSongInfoBottomSheet = false
+            },
+            onAddToQueue = {
+                playerViewModel.addSongToQueue(song)
+                showSongInfoBottomSheet = false
+            },
+            onNavigateToAlbum = { /* TODO */ },
+            onNavigateToArtist = { /* TODO */ },
+            onEditSong = { newTitle, newArtist, newAlbum ->
+                playerViewModel.editSongMetadata(song, newTitle, newArtist, newAlbum)
+            }
+        )
+    }
 }
 
 @Composable
@@ -1405,6 +1427,7 @@ private fun FullPlayerContentInternal(
     playerViewModel: PlayerViewModel // Kept for stablePlayerState access for totalDuration, or could pass totalDuration too
 ) {
     val song = currentSong ?: return // Early exit if no song
+    var showSongInfoBottomSheet by remember { mutableStateOf(false) }
 
     // totalDurationValue is derived from stablePlayerState, so it's fine.
     val totalDurationValue by remember {
@@ -1461,9 +1484,9 @@ private fun FullPlayerContentInternal(
                 actions = {
                     IconButton(
                         modifier = Modifier.padding(end = 14.dp),
-                        onClick = onShowQueueClicked
+                        onClick = { showSongInfoBottomSheet = true }
                     ) {
-                        Icon(painterResource(R.drawable.rounded_queue_music_24), "Cola de reproducción")
+                        Icon(painterResource(R.drawable.rounded_more_vert_24), "Song options")
                     }
                 }
             )
