@@ -55,8 +55,8 @@ class MashupViewModel @Inject constructor(
     }
 
     private fun initializeDecks() {
-        deck1Controller = DeckController(application) { isPlaying -> _uiState.update { it.copy(deck1 = it.deck1.copy(isPlaying = isPlaying)) } }
-        deck2Controller = DeckController(application) { isPlaying -> _uiState.update { it.copy(deck2 = it.deck2.copy(isPlaying = isPlaying)) } }
+        deck1Controller = DeckController(application)
+        deck2Controller = DeckController(application)
     }
 
     private fun loadAllSongs() {
@@ -70,11 +70,13 @@ class MashupViewModel @Inject constructor(
     fun loadSong(deck: Int, song: Song) {
         updateDeckState(deck) { it.copy(song = song) }
         val songUri = Uri.parse(song.contentUriString)
-        if (deck == 1) {
-            deck1Controller.loadSong(songUri)
-        } else {
-            deck2Controller.loadSong(songUri)
-        }
+        val controller = if (deck == 1) deck1Controller else deck2Controller
+        controller.loadSong(songUri)
+        controller.player?.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                updateDeckState(deck) { it.copy(isPlaying = isPlaying) }
+            }
+        })
         closeSongPicker()
     }
 

@@ -8,21 +8,16 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 
 class DeckController(
-    private val context: Context,
-    private val onIsPlayingChanged: (Boolean) -> Unit
+    private val context: Context
 ) {
-    private var player: ExoPlayer? = null
+    var player: ExoPlayer? = null
+        private set
 
     fun loadSong(songUri: Uri) {
         release()
         player = ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(songUri))
             prepare()
-            addListener(object : Player.Listener {
-                override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    onIsPlayingChanged(isPlaying)
-                }
-            })
         }
     }
 
