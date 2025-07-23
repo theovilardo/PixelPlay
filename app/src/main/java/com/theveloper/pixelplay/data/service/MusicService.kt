@@ -92,8 +92,6 @@ class MusicService : MediaSessionService() {
     // SOLUCIÓN WIDGET: Re-introducimos onStartCommand para traducir las acciones del widget.
     // Esto asegura la compatibilidad con los intents que ya envía tu widget.
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // SOLUCIÓN ANR: Iniciar en primer plano inmediatamente.
-        startForeground(NOTIFICATION_ID, createBaseNotification())
         intent?.action?.let { action ->
             val player = mediaSession?.player ?: return@let
             when (action) {

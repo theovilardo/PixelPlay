@@ -132,7 +132,7 @@ class MainActivity : ComponentActivity() {
         if (permissionState.allPermissionsGranted) {
             LaunchedEffect(Unit) {
                 LogUtils.i(this, "Permissions granted")
-                startMusicServiceIfNeeded()
+                // startMusicServiceIfNeeded() // Eliminado: El servicio se iniciará cuando el MediaController se conecte.
                 Log.i("MainActivity", "Permissions granted. Calling mainViewModel.startSync()")
                 mainViewModel.startSync()
             }
@@ -305,16 +305,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    @androidx.annotation.OptIn(UnstableApi::class)
-    private fun startMusicServiceIfNeeded() {
-        LogUtils.d(this, "startMusicServiceIfNeeded")
-        val intent = Intent(this, MusicService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
-    }
 
     @androidx.annotation.OptIn(UnstableApi::class)
     override fun onStart() {
