@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.common.Player
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.presentation.viewmodel.exts.DeckController
@@ -17,20 +18,12 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class TrackStems(
-    val vocals: Boolean = true,
-    val instrumental: Boolean = true,
-    val bass: Boolean = true,
-    val drums: Boolean = true
-)
-
 data class DeckState(
     val song: Song? = null,
     val isPlaying: Boolean = false,
     val progress: Float = 0f,
     val volume: Float = 1f,
     val speed: Float = 1f,
-    val stems: TrackStems = TrackStems(),
     val stemWaveforms: Map<String, List<Int>> = emptyMap()
 )
 
@@ -63,8 +56,8 @@ class MashupViewModel @Inject constructor(
     }
 
     private fun initializeDecks() {
-        deck1Controller = DeckController(application) { isPlaying -> _uiState.update { it.copy(deck1 = it.deck1.copy(isPlaying = isPlaying)) } }
-        deck2Controller = DeckController(application) { isPlaying -> _uiState.update { it.copy(deck2 = it.deck2.copy(isPlaying = isPlaying)) } }
+        deck1Controller = DeckController(application)
+        deck2Controller = DeckController(application)
     }
 
     private fun loadAllSongs() {
@@ -75,18 +68,16 @@ class MashupViewModel @Inject constructor(
         }
     }
 
-    fun loadSongAndStems(deck: Int, song: Song, stems: Map<String, Uri>, waveforms: Map<String, List<Int>>) {
-        updateDeckState(deck) {
-            it.copy(
-                song = song,
-                stemWaveforms = waveforms
-            )
-        }
-        if (deck == 1) {
-            deck1Controller.loadStems(stems)
-        } else {
-            deck2Controller.loadStems(stems)
-        }
+    fun loadSong(deck: Int, song: Song) {
+        updateDeckState(deck) { it.copy(song = song) }
+        val songUri = Uri.parse(song.contentUriString)
+        val controller = if (deck == 1) deck1Controller else deck2Controller
+        controller.loadSong(songUri)
+        controller.player?.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                updateDeckState(deck) { it.copy(isPlaying = isPlaying) }
+            }
+        })
         closeSongPicker()
     }
 
@@ -115,28 +106,13 @@ class MashupViewModel @Inject constructor(
         updateDeckState(deck) { it.copy(speed = safeSpeed) }
     }
 
-    fun toggleStem(deck: Int, stem: String) {
-        val currentDeckState = if (deck == 1) uiState.value.deck1 else uiState.value.deck2
-        val newStems = with(currentDeckState.stems) {
-            when(stem) {
-                "vocals" -> copy(vocals = !vocals)
-                "other" -> copy(instrumental = !instrumental)
-                "bass" -> copy(bass = !bass)
-                "drums" -> copy(drums = !drums)
-                else -> this
-            }
-        }
-        updateDeckState(deck) { it.copy(stems = newStems) }
-        updateCrossfaderAndVolumes()
-    }
-
     private fun updateCrossfaderAndVolumes() {
         val state = _uiState.value
         val vol1Multiplier = (1f - ((state.crossfaderValue + 1f) / 2f)).coerceIn(0f, 1f)
         val vol2Multiplier = ((state.crossfaderValue + 1f) / 2f).coerceIn(0f, 1f)
 
-        deck1Controller.setDeckVolume(state.deck1.volume * vol1Multiplier, state.deck1.stems)
-        deck2Controller.setDeckVolume(state.deck2.volume * vol2Multiplier, state.deck2.stems)
+        deck1Controller.setDeckVolume(state.deck1.volume * vol1Multiplier)
+        deck2Controller.setDeckVolume(state.deck2.volume * vol2Multiplier)
     }
 
     private fun startProgressUpdater() {
