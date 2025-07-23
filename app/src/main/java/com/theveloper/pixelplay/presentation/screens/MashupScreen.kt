@@ -61,6 +61,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.media3.common.util.UnstableApi
 import com.linc.audiowaveform.AudioWaveform
 import com.linc.audiowaveform.model.WaveformAlignment
 import com.theveloper.pixelplay.R
@@ -79,6 +80,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.abs
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MashupScreen(
@@ -94,6 +96,7 @@ fun MashupScreen(
     var songBeingProcessed by remember { mutableStateOf<Song?>(null) }
     var isSavingStems by remember { mutableStateOf(false) }
 
+    // Efecto lanzado cuando el estado de los stems cambia a Success
     LaunchedEffect(stemsUiState, songBeingProcessed) {
         val uiState = stemsUiState
         val song = songBeingProcessed
@@ -101,15 +104,19 @@ fun MashupScreen(
             val deck = mashupUiState.showSongPickerForDeck ?: return@LaunchedEffect
 
             isSavingStems = true
-            // Convierte la lista de archivos a un mapa de nombre -> Uri
-            val stemUris = uiState.stemFiles.associate { file ->
-                val stemName = file.nameWithoutExtension
-                val authority = "${context.packageName}.provider"
-                stemName to FileProvider.getUriForFile(context, authority, file)
-            }
-            // Genera las formas de onda a partir de los archivos
-            val stemWaveforms = generateWaveformsFromFiles(uiState.stemFiles)
 
+            // Adaptado para trabajar con Map<String, String>
+            // 1. Convierte el mapa de rutas de archivo a un mapa de nombre de stem -> Uri
+            val stemUris = uiState.stemFiles.mapValues { (_, path) ->
+                val file = File(path)
+                FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+            }
+
+            // 2. Crea una lista de objetos File a partir de las rutas para generar las formas de onda
+            val stemFilesForWaveform = uiState.stemFiles.values.map { File(it) }
+            val stemWaveforms = generateWaveformsFromFiles(stemFilesForWaveform) // Asume que esta función existe
+
+            // 3. Carga la canción y los stems en el ViewModel principal
             mashupViewModel.loadSongAndStems(
                 deck = deck,
                 song = song,
@@ -148,6 +155,7 @@ fun MashupScreen(
                     val isLoading1 = (stemsUiState is StemsUiState.Loading && mashupUiState.showSongPickerForDeck == 1) || (isSavingStems && mashupUiState.showSongPickerForDeck == 1)
                     val isLoading2 = (stemsUiState is StemsUiState.Loading && mashupUiState.showSongPickerForDeck == 2) || (isSavingStems && mashupUiState.showSongPickerForDeck == 2)
 
+                    // El resto de la UI (DeckUi, Crossfader) permanece igual
                     DeckUi(
                         deckNumber = 1,
                         deckState = mashupUiState.deck1,
@@ -207,6 +215,134 @@ fun MashupScreen(
         }
     }
 }
+
+//@androidx.annotation.OptIn(UnstableApi::class)
+//@OptIn(ExperimentalMaterial3Api::class)
+//@Composable
+//fun MashupScreen(
+//    mashupViewModel: MashupViewModel = hiltViewModel(),
+//    stemsViewModel: StemsViewModel = hiltViewModel()
+//) {
+//    val mashupUiState by mashupViewModel.uiState.collectAsState()
+//    val stemsUiState by stemsViewModel.uiState
+//    val sheetState = rememberModalBottomSheetState()
+//    val context = LocalContext.current
+//    val scope = rememberCoroutineScope()
+//
+//    var songBeingProcessed by remember { mutableStateOf<Song?>(null) }
+//    var isSavingStems by remember { mutableStateOf(false) }
+//
+//    LaunchedEffect(stemsUiState, songBeingProcessed) {
+//        val uiState = stemsUiState
+//        val song = songBeingProcessed
+//        if (uiState is StemsUiState.Success && song != null) {
+//            val deck = mashupUiState.showSongPickerForDeck ?: return@LaunchedEffect
+//
+//            isSavingStems = true
+//            // Convierte los archivos de stems a un mapa de nombre -> Uri
+//            val stemUris = uiState.stemFiles.associate {
+//                it.nameWithoutExtension to FileProvider.getUriForFile(context, "${context.packageName}.provider", it)
+//            }
+//            // Genera las formas de onda desde los archivos
+//            val stemWaveforms = generateWaveformsFromFiles(uiState.stemFiles)
+//
+//            mashupViewModel.loadSongAndStems(
+//                deck = deck,
+//                song = song,
+//                stems = stemUris,
+//                waveforms = stemWaveforms
+//            )
+//
+//            songBeingProcessed = null
+//            isSavingStems = false
+//        }
+//    }
+//
+//    Scaffold(
+//        topBar = {
+//            TopAppBar(
+//                title = { Text("DJ Space") },
+//                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f))
+//            )
+//        }
+//    ) { paddingValues ->
+//        Box(modifier = Modifier.fillMaxSize()) {
+//            Column(
+//                modifier = Modifier
+//                    .fillMaxSize()
+//                    .padding(paddingValues)
+//                    .padding(horizontal = 16.dp)
+//                    .verticalScroll(rememberScrollState()),
+//                horizontalAlignment = Alignment.CenterHorizontally,
+//                verticalArrangement = Arrangement.spacedBy(16.dp)
+//            ) {
+//                Spacer(Modifier.height(8.dp))
+//                Column(
+//                    modifier = Modifier.fillMaxWidth(),
+//                    verticalArrangement = Arrangement.spacedBy(16.dp)
+//                ) {
+//                    val isLoading1 = (stemsUiState is StemsUiState.Loading && mashupUiState.showSongPickerForDeck == 1) || (isSavingStems && mashupUiState.showSongPickerForDeck == 1)
+//                    val isLoading2 = (stemsUiState is StemsUiState.Loading && mashupUiState.showSongPickerForDeck == 2) || (isSavingStems && mashupUiState.showSongPickerForDeck == 2)
+//
+//                    DeckUi(
+//                        deckNumber = 1,
+//                        deckState = mashupUiState.deck1,
+//                        isLoading = isLoading1,
+//                        loadingMessage = if (isSavingStems) "Processing stems..." else "Separating stems...",
+//                        onPlayPause = { mashupViewModel.playPause(1) },
+//                        onVolumeChange = { mashupViewModel.setVolume(1, it) },
+//                        onSelectSong = { mashupViewModel.openSongPicker(1) },
+//                        onSeek = { progress -> mashupViewModel.seek(1, progress) },
+//                        onSpeedChange = { speed -> mashupViewModel.setSpeed(1, speed) },
+//                        onNudge = { amount -> mashupViewModel.nudge(1, amount) },
+//                        onToggleStem = { stem -> mashupViewModel.toggleStem(1, stem) }
+//                    )
+//                    DeckUi(
+//                        deckNumber = 2,
+//                        deckState = mashupUiState.deck2,
+//                        isLoading = isLoading2,
+//                        loadingMessage = if (isSavingStems) "Processing stems..." else "Separating stems...",
+//                        onPlayPause = { mashupViewModel.playPause(2) },
+//                        onVolumeChange = { mashupViewModel.setVolume(2, it) },
+//                        onSelectSong = { mashupViewModel.openSongPicker(2) },
+//                        onSeek = { progress -> mashupViewModel.seek(2, progress) },
+//                        onSpeedChange = { speed -> mashupViewModel.setSpeed(2, speed) },
+//                        onNudge = { amount -> mashupViewModel.nudge(2, amount) },
+//                        onToggleStem = { stem -> mashupViewModel.toggleStem(2, stem) }
+//                    )
+//                }
+//
+//                Crossfader(
+//                    value = mashupUiState.crossfaderValue,
+//                    onValueChange = { mashupViewModel.onCrossfaderChange(it) },
+//                    modifier = Modifier.fillMaxWidth()
+//                )
+//                Spacer(Modifier.height(8.dp))
+//            }
+//
+//            if (mashupUiState.showSongPickerForDeck != null) {
+//                ModalBottomSheet(
+//                    onDismissRequest = {
+//                        if (!isSavingStems && stemsUiState !is StemsUiState.Loading) {
+//                            mashupViewModel.closeSongPicker()
+//                        }
+//                    },
+//                    sheetState = sheetState
+//                ) {
+//                    SongPickerSheet(
+//                        songs = mashupUiState.allSongs,
+//                        onSongSelected = { song ->
+//                            scope.launch {
+//                                songBeingProcessed = song
+//                                stemsViewModel.startSeparation(Uri.parse(song.contentUriString))
+//                            }
+//                        }
+//                    )
+//                }
+//            }
+//        }
+//    }
+//}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -468,6 +604,43 @@ private fun bytesToFloatArray(bytes: ByteArray, count: Int): FloatArray {
         floatArray[i] = shortBuffer.get().toFloat() / Short.MAX_VALUE
     }
     return floatArray
+}
+
+// Note: The following helper functions are added to bridge the incompatibility between
+// StemsViewModel (producing FloatArray) and MashupViewModel (consuming Uri).
+// This logic would ideally live in a repository or a dedicated service, not in a UI file.
+
+private suspend fun saveStemsToFiles(context: Context, stems: Map<String, FloatArray>): Map<String, Uri> = withContext(Dispatchers.IO) {
+    val stemUris = mutableMapOf<String, Uri>()
+    val authority = "${context.packageName}.provider"
+    stems.forEach { (name, floatArray) ->
+        val wavBytes = floatArrayToWav(floatArray)
+        val file = File(context.cacheDir, "$name.wav")
+        file.writeBytes(wavBytes)
+        stemUris[name] = FileProvider.getUriForFile(context, authority, file)
+    }
+    stemUris
+}
+
+private fun generateWaveform(floatArray: FloatArray, samples: Int = 100): List<Int> {
+    if (floatArray.isEmpty()) return List(samples) { 0 }
+
+    val waveform = mutableListOf<Int>()
+    val groupSize = floatArray.size / samples
+    if (groupSize <= 0) return List(samples) { 0 }
+
+    for (i in 0 until samples) {
+        val start = i * groupSize
+        val end = start + groupSize
+        var max = 0f
+        for (j in start until end) {
+            if (abs(floatArray[j]) > max) {
+                max = abs(floatArray[j])
+            }
+        }
+        waveform.add((max * 255).toInt())
+    }
+    return waveform
 }
 
 private fun floatArrayToWav(floatArray: FloatArray, sampleRate: Int = 44100, channels: Int = 1, bitDepth: Int = 16): ByteArray {

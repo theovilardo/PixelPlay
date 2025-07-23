@@ -108,15 +108,6 @@ fun TimerOptionsBottomSheet(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Predefined times replaced by Slider
-            Text(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.Start)
-                    .padding(start = 6.dp),
-                text = "Set Timer Duration",
-                textAlign = TextAlign.Start,
-                style = MaterialTheme.typography.titleMedium
-            )
             Spacer(modifier = Modifier.height(8.dp))
 
             Column(modifier = Modifier.fillMaxWidth()) {

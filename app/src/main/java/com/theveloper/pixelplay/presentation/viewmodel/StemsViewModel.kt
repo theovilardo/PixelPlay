@@ -9,7 +9,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.linc.amplituda.Amplituda
 import com.linc.amplituda.Cache
-import com.theveloper.pixelplay.data.StemSeparator
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.utils.AudioDecoder
 import dagger.hilt.android.internal.Contexts.getApplication
@@ -22,17 +21,30 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import androidx.compose.runtime.State
+import androidx.media3.common.util.UnstableApi
+import com.theveloper.pixelplay.data.StemSeparator
 import com.theveloper.pixelplay.utils.AudioFileProvider
 import java.io.File
 
+/**
+ * Define los posibles estados de la UI para la pantalla de separación de stems.
+ */
 sealed class StemsUiState {
     object Idle : StemsUiState()
     object Loading : StemsUiState()
-    // El estado de éxito ahora contiene una lista de archivos, no FloatArrays
-    data class Success(val stemFiles: List<File>) : StemsUiState()
+    /**
+     * Estado de éxito que contiene un mapa con los nombres de los stems y las rutas a sus archivos.
+     * @param stemFiles Un mapa donde la clave es el nombre del stem (ej: "vocals") y el valor es la ruta al archivo .wav.
+     */
+    data class Success(val stemFiles: Map<String, String>) : StemsUiState()
     data class Error(val message: String) : StemsUiState()
 }
 
+/**
+ * ViewModel para gestionar la lógica de separación de stems.
+ * Se integra con la clase StemSeparator para realizar la operación.
+ */
+@UnstableApi
 @HiltViewModel
 class StemsViewModel @Inject constructor(
     private val application: Application
@@ -41,88 +53,35 @@ class StemsViewModel @Inject constructor(
     private val _uiState = mutableStateOf<StemsUiState>(StemsUiState.Idle)
     val uiState: State<StemsUiState> = _uiState
 
-    // El StemSeparator es seguro crearlo una vez gracias a 'lazy'
+    // El StemSeparator se crea de forma perezosa y se reutiliza en la vida del ViewModel.
     private val stemSeparator by lazy { StemSeparator(application) }
 
-    override fun onCleared() {
-        super.onCleared()
-        stemSeparator.close()
-    }
-
-    fun startSeparation(uri: Uri) {
+    /**
+     * Inicia el proceso de separación de stems para un archivo de audio dado.
+     *
+     * @param uri El URI del archivo de audio que se va a procesar.
+     * @param modelName El nombre del modelo TFLite a utilizar (por ejemplo, "4stem").
+     */
+    fun startSeparation(uri: Uri, modelName: String = "4stem") {
         viewModelScope.launch {
             _uiState.value = StemsUiState.Loading
+            try {
+                // La función 'separate' ya se ejecuta en un hilo de fondo (Dispatchers.IO)
+                // y maneja toda la creación y limpieza de archivos.
+                val resultPaths = stemSeparator.separate(uri, modelName)
 
-            // Todo el trabajo pesado se mueve a un hilo de fondo (IO o Default)
-            val separationResult = withContext(Dispatchers.IO) {
-                runCatching {
-                    // 1. Crear directorio de salida temporal y limpiarlo
-                    val outputDir = File(application.cacheDir, "stems_output").apply { mkdirs() }
-                    outputDir.listFiles()?.forEach { it.delete() }
-
-                    // 2. Convertir el audio de entrada a un archivo WAV temporal
-                    val wavInputFile = AudioFileProvider.getWavFile(application, uri).getOrThrow()
-
-                    // 3. Procesar el archivo WAV por fragmentos y obtener los archivos de stems
-                    val stemFiles = stemSeparator.separate(wavInputFile, outputDir).getOrThrow()
-
-                    // 4. Limpiar el archivo WAV de entrada que ya no necesitamos
-                    wavInputFile.delete()
-
-                    stemFiles
+                // La separación se considera exitosa si el mapa de resultados no está vacío.
+                if (resultPaths.isNotEmpty()) {
+                    _uiState.value = StemsUiState.Success(resultPaths)
+                } else {
+                    // Si el mapa está vacío, significa que hubo un error manejado internamente en StemSeparator.
+                    _uiState.value = StemsUiState.Error("La separación falló. Revisa los logs para más detalles.")
                 }
-            }
-
-            // Actualizar la UI de vuelta en el hilo principal
-            separationResult.onSuccess { files ->
-                _uiState.value = StemsUiState.Success(files)
-            }.onFailure { e ->
-                e.printStackTrace()
-                _uiState.value = StemsUiState.Error("Separation failed: ${e.message}")
+            } catch (e: Exception) {
+                // Este bloque catch captura excepciones inesperadas, como problemas al cargar el modelo.
+                Log.e("StemsViewModel", "Ocurrió una excepción durante el proceso de separación", e)
+                _uiState.value = StemsUiState.Error("Ocurrió un error inesperado: ${e.message}")
             }
         }
     }
 }
-
-// Define los estados de la UI para la separación
-//sealed class StemsUiState {
-//    object Idle : StemsUiState()
-//    object Loading : StemsUiState()
-//    data class Success(val stems: Map<String, FloatArray>) : StemsUiState()
-//    data class Error(val message: String) : StemsUiState()
-//}
-//
-//@HiltViewModel
-//class StemsViewModel @Inject constructor(
-//    private val application: Application
-//) : ViewModel() {
-//
-//    private val _uiState = mutableStateOf<StemsUiState>(StemsUiState.Idle) // Declara como MutableState
-//    val uiState: State<StemsUiState> = _uiState // Expone como State (inmutable desde fuera)
-//
-//    private val stemSeparator by lazy {
-//        StemSeparator(getApplication(application))
-//    }
-//
-//    fun startSeparation(uri: Uri) {
-//        viewModelScope.launch {
-//            _uiState.value = StemsUiState.Loading // Actualiza usando .value
-//
-//            // 1. Decodificar el archivo de audio
-//            val decodeResult = AudioDecoder.decodeToFloatArray(getApplication(application), uri)
-//
-//            decodeResult.onSuccess { waveform ->
-//                // 2. Separar los stems usando el modelo
-//                try {
-//                    val stems = stemSeparator.separate(waveform)
-//                    _uiState.value = StemsUiState.Success(stems) // Actualiza usando .value
-//                } catch (e: Exception) {
-//                    e.printStackTrace()
-//                    _uiState.value = StemsUiState.Error("Failed to run model inference: ${e.message}") // Actualiza usando .value
-//                }
-//            }.onFailure {
-//                _uiState.value = StemsUiState.Error("Failed to decode audio: ${it.message}") // Actualiza usando .value
-//            }
-//        }
-//    }
-//}

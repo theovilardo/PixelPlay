@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -238,7 +239,8 @@ fun HomeGradientTopBar(
                     onClick = onMoreOptionsClick
                 ) {
                     Icon(
-                        painter = painterResource(R.drawable.rounded_more_vert_24),
+                        modifier = Modifier.size(18.dp),
+                        painter = painterResource(R.drawable.gemini_ai),
                         contentDescription = "Más opciones"
                     )
                 }
