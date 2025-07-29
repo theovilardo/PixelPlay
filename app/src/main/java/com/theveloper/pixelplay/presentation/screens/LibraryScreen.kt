@@ -78,6 +78,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -95,6 +96,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import coil.compose.AsyncImagePainter
 import coil.imageLoader
@@ -131,6 +133,7 @@ import kotlinx.coroutines.launch
 import okhttp3.internal.toImmutableList
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
 fun LibraryScreen(
@@ -526,39 +529,44 @@ fun LibraryScreen(
 
     if (showSongInfoBottomSheet && selectedSongForInfo != null) {
         val currentSong = selectedSongForInfo
-        val isFavorite = remember(currentSong.id, favoriteIds) { derivedStateOf { favoriteIds.contains(currentSong.id) } }.value
+        val isFavorite = remember(currentSong?.id, favoriteIds) { derivedStateOf { currentSong?.let {
+            favoriteIds.contains(
+                it.id)
+        } } }.value ?: false
 
-        SongInfoBottomSheet(
-            song = currentSong,
-            isFavorite = isFavorite,
-            onToggleFavorite = {
-                // Directly use PlayerViewModel's method to toggle, which should handle UserPreferencesRepository
-                playerViewModel.toggleFavoriteSpecificSong(currentSong) // Assumes such a method exists or will be added to PlayerViewModel
-            },
-            onDismiss = { showSongInfoBottomSheet = false },
-            onPlaySong = {
-                playerViewModel.showAndPlaySong(currentSong)
-                showSongInfoBottomSheet = false
-            },
-            onAddToQueue = {
-                playerViewModel.addSongToQueue(currentSong) // Assumes such a method exists or will be added
-                showSongInfoBottomSheet = false
-                // Optionally, show a Snackbar/Toast message
-            },
-            onNavigateToAlbum = {
-                // navController.navigate(Screen.AlbumDetail.createRoute(currentSong.albumId)) // Example
-                showSongInfoBottomSheet = false
-                // Actual navigation logic to be implemented if routes exist
-            },
-            onNavigateToArtist = {
-                // navController.navigate(Screen.ArtistDetail.createRoute(currentSong.artistId)) // Example
-                showSongInfoBottomSheet = false
-                // Actual navigation logic to be implemented if routes exist
-            },
-            onEditSong = { newTitle, newArtist, newAlbum ->
-                playerViewModel.editSongMetadata(currentSong, newTitle, newArtist, newAlbum)
-            }
-        )
+        if (currentSong != null) {
+            SongInfoBottomSheet(
+                song = currentSong,
+                isFavorite = isFavorite,
+                onToggleFavorite = {
+                    // Directly use PlayerViewModel's method to toggle, which should handle UserPreferencesRepository
+                    playerViewModel.toggleFavoriteSpecificSong(currentSong) // Assumes such a method exists or will be added to PlayerViewModel
+                },
+                onDismiss = { showSongInfoBottomSheet = false },
+                onPlaySong = {
+                    playerViewModel.showAndPlaySong(currentSong)
+                    showSongInfoBottomSheet = false
+                },
+                onAddToQueue = {
+                    playerViewModel.addSongToQueue(currentSong) // Assumes such a method exists or will be added
+                    showSongInfoBottomSheet = false
+                    // Optionally, show a Snackbar/Toast message
+                },
+                onNavigateToAlbum = {
+                    // navController.navigate(Screen.AlbumDetail.createRoute(currentSong.albumId)) // Example
+                    showSongInfoBottomSheet = false
+                    // Actual navigation logic to be implemented if routes exist
+                },
+                onNavigateToArtist = {
+                    // navController.navigate(Screen.ArtistDetail.createRoute(currentSong.artistId)) // Example
+                    showSongInfoBottomSheet = false
+                    // Actual navigation logic to be implemented if routes exist
+                },
+                onEditSong = { newTitle, newArtist, newAlbum ->
+                    playerViewModel.editSongMetadata(currentSong, newTitle, newArtist, newAlbum)
+                }
+            )
+        }
     }
 }
 
@@ -637,6 +645,7 @@ fun CreatePlaylistDialogRedesigned(
 }
 
 // NUEVA Pestaña para Favoritos
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun LibraryFavoritesTab(
     favoriteSongs: List<Song>, // This is already StateFlow<ImmutableList<Song>> from ViewModel
@@ -691,6 +700,7 @@ fun LibraryFavoritesTab(
     }
 }
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun LibrarySongsTab(
     songs: ImmutableList<Song>,
@@ -1043,6 +1053,7 @@ fun EnhancedSongListItem(
     }
 }
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun LibraryAlbumsTab(
     albums: ImmutableList<Album>,
@@ -1304,6 +1315,7 @@ fun AlbumGridItemRedesigned(
     }
 }
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun LibraryArtistsTab(
     artists: ImmutableList<Artist>,

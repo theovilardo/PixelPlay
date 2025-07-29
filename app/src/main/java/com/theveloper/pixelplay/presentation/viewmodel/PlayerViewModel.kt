@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.presentation.viewmodel
 
+import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Context
 import android.graphics.Bitmap
@@ -83,6 +84,7 @@ import java.util.concurrent.TimeUnit
 import androidx.lifecycle.asFlow
 import androidx.work.WorkInfo
 import androidx.core.net.toUri
+import androidx.media3.common.util.UnstableApi
 import kotlinx.coroutines.flow.flowOn
 
 // Nuevo enum para el estado del sheet
@@ -139,6 +141,8 @@ data class PlayerUiState(
     val undoBarVisibleDuration: Long = 4000L // 4 seconds
 )
 
+@UnstableApi
+@SuppressLint("LogNotTimber")
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
