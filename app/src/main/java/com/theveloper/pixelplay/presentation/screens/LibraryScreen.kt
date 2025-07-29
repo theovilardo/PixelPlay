@@ -525,10 +525,11 @@ fun LibraryScreen(
     }
 
     if (showSongInfoBottomSheet && selectedSongForInfo != null) {
-        val isFavorite = remember(selectedSongForInfo!!.id, favoriteIds) { derivedStateOf { favoriteIds.contains(selectedSongForInfo!!.id) } }.value
+        val currentSong = selectedSongForInfo
+        val isFavorite = remember(currentSong.id, favoriteIds) { derivedStateOf { favoriteIds.contains(currentSong.id) } }.value
 
         SongInfoBottomSheet(
-            song = selectedSongForInfo!!,
+            song = currentSong,
             isFavorite = isFavorite,
             onToggleFavorite = {
                 // Directly use PlayerViewModel's method to toggle, which should handle UserPreferencesRepository
