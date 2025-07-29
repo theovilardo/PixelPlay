@@ -163,6 +163,9 @@ class PlayerViewModel @Inject constructor(
     private val _predictiveBackCollapseFraction = MutableStateFlow(0f)
     val predictiveBackCollapseFraction: StateFlow<Float> = _predictiveBackCollapseFraction.asStateFlow()
 
+    private val _selectedSongForInfo = MutableStateFlow<Song?>(null)
+    val selectedSongForInfo: StateFlow<Song?> = _selectedSongForInfo.asStateFlow()
+
     private val _currentAlbumArtColorSchemePair = MutableStateFlow<ColorSchemePair?>(null)
     val currentAlbumArtColorSchemePair: StateFlow<ColorSchemePair?> = _currentAlbumArtColorSchemePair.asStateFlow()
     // Global and Player theme preferences are now managed by UserPreferencesRepository,
@@ -1974,6 +1977,10 @@ class PlayerViewModel @Inject constructor(
         Trace.endSection() // End PlayerViewModel.onLibraryTabSelected
     }
 
+    fun selectSongForInfo(song: Song) {
+        _selectedSongForInfo.value = song
+    }
+
     fun editSongMetadata(song: Song, newTitle: String, newArtist: String, newAlbum: String) {
         viewModelScope.launch {
             val success = withContext(Dispatchers.IO) {
@@ -1994,6 +2001,10 @@ class PlayerViewModel @Inject constructor(
 
                 if (_stablePlayerState.value.currentSong?.id == song.id) {
                     _stablePlayerState.update { it.copy(currentSong = updatedSong) }
+                }
+
+                if (_selectedSongForInfo.value?.id == song.id) {
+                    _selectedSongForInfo.value = updatedSong
                 }
 
                 _toastEvents.emit("Metadata updated successfully")

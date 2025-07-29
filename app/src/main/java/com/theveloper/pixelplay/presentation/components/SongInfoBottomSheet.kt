@@ -64,8 +64,7 @@ fun SongInfoBottomSheet(
     onPlaySong: () -> Unit,
     onAddToQueue: () -> Unit,
     onNavigateToAlbum: () -> Unit,
-    onNavigateToArtist: () -> Unit,
-    onEditSong: (String, String, String) -> Unit
+    onNavigateToArtist: () -> Unit
 ) {
     val context = LocalContext.current
     var showEditDialog by remember { mutableStateOf(false) }
@@ -303,8 +302,7 @@ fun SongInfoBottomSheet(
         EditSongMetadataDialog(
             song = song,
             onDismiss = { showEditDialog = false },
-            onSave = { newTitle, newArtist, newAlbum ->
-                onEditSong(newTitle, newArtist, newAlbum)
+            onSave = { _, _, _ ->
                 showEditDialog = false
             }
         )
