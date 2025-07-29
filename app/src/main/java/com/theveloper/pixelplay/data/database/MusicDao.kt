@@ -231,4 +231,7 @@ interface MusicDao {
         setFavoriteStatus(songId, newStatus)
         return newStatus
     }
+
+    @androidx.room.Update
+    suspend fun updateSong(song: SongEntity)
 }

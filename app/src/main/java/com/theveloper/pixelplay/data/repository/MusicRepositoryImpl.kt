@@ -414,10 +414,6 @@ class MusicRepositoryImpl @Inject constructor(
         }.flowOn(Dispatchers.IO)
     }
 
-    override suspend fun invalidateCachesDependentOnAllowedDirectories() {
-        Log.i("MusicRepo", "invalidateCachesDependentOnAllowedDirectories called. Reactive flows will update automatically.")
-    }
-
     suspend fun syncMusicFromContentResolver() {
         // Esta función ahora está en SyncWorker. Se deja el esqueleto por si se llama desde otro lugar.
         Log.w("MusicRepo", "syncMusicFromContentResolver was called directly on repository. This should be handled by SyncWorker.")
@@ -493,5 +489,11 @@ class MusicRepositoryImpl @Inject constructor(
                 }
             }
         }.flowOn(Dispatchers.IO)
+    }
+
+    override suspend fun updateSong(song: Song) {
+        withContext(Dispatchers.IO) {
+            musicDao.updateSong(song.toSongEntity())
+        }
     }
 }

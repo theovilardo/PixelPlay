@@ -2,6 +2,7 @@ package com.theveloper.pixelplay.data.model
 
 import android.net.Uri
 import androidx.compose.runtime.Immutable
+import com.theveloper.pixelplay.data.database.SongEntity
 
 @Immutable
 data class Song(
@@ -33,5 +34,23 @@ data class Song(
                 isFavorite = false
             )
         }
+    }
+
+    fun toSongEntity(): SongEntity {
+        return SongEntity(
+            id = this.id.toLong(),
+            title = this.title,
+            artistName = this.artist,
+            artistId = this.artistId,
+            albumName = this.album,
+            albumId = this.albumId,
+            contentUriString = this.contentUriString,
+            albumArtUriString = this.albumArtUriString,
+            duration = this.duration,
+            genre = this.genre,
+            isFavorite = this.isFavorite,
+            filePath = "", // These are not part of the domain model, so they are empty.
+            parentDirectoryPath = "" // These are not part of the domain model, so they are empty.
+        )
     }
 }

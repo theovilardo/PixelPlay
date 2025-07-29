@@ -1981,9 +1981,8 @@ class PlayerViewModel @Inject constructor(
             }
 
             if (success) {
-                // Forzar la actualización de la UI invalidando y recargando los datos
-                musicRepository.invalidateCachesDependentOnAllowedDirectories()
-                resetAndLoadInitialData("Metadata Edit")
+                val updatedSong = song.copy(title = newTitle, artist = newArtist, album = newAlbum)
+                musicRepository.updateSong(updatedSong)
                 _toastEvents.emit("Metadata updated successfully")
             } else {
                 _toastEvents.emit("Failed to update metadata")
