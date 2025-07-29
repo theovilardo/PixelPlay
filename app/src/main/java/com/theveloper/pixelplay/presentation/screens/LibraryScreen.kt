@@ -145,6 +145,7 @@ fun LibraryScreen(
 
     // Estados locales para dialogs/bottom sheets, etc.
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
+    var songInfoSheetKey by remember { mutableStateOf(0) }
     var selectedSongForInfo by remember { mutableStateOf<Song?>(null) }
     val tabTitles = listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "LIKED")
     val pagerState = rememberPagerState(initialPage = lastTabIndex) { tabTitles.size }
@@ -525,46 +526,49 @@ fun LibraryScreen(
     }
 
     if (showSongInfoBottomSheet && selectedSongForInfo != null) {
-        val currentSong = selectedSongForInfo!! // Safe due to the check
-        // val isFavorite by playerViewModel.favoriteSongs.collectAsState().value.any { it.id == currentSong.id } // This might be tricky for recomposition.
-        // A better way to get isFavorite and handle toggle:
-        // Collect favoriteSongIds directly from the viewModel or pass them down.
-        // For simplicity in this step, we can use favoriteSongs flow and derive the state.
-        // PlayerViewModel will need to expose favoriteSongIds or a way to check if a songId is a favorite.
+        key(songInfoSheetKey) {
+            val currentSong = selectedSongForInfo!! // Safe due to the check
+            // val isFavorite by playerViewModel.favoriteSongs.collectAsState().value.any { it.id == currentSong.id } // This might be tricky for recomposition.
+            // A better way to get isFavorite and handle toggle:
+            // Collect favoriteSongIds directly from the viewModel or pass them down.
+            // For simplicity in this step, we can use favoriteSongs flow and derive the state.
+            // PlayerViewModel will need to expose favoriteSongIds or a way to check if a songId is a favorite.
 
-        val isFavorite = remember(currentSong.id, favoriteIds) { derivedStateOf { favoriteIds.contains(currentSong.id) } }.value
+            val isFavorite = remember(currentSong.id, favoriteIds) { derivedStateOf { favoriteIds.contains(currentSong.id) } }.value
 
-        SongInfoBottomSheet(
-            song = currentSong,
-            isFavorite = isFavorite,
-            onToggleFavorite = {
-                // Directly use PlayerViewModel's method to toggle, which should handle UserPreferencesRepository
-                playerViewModel.toggleFavoriteSpecificSong(currentSong) // Assumes such a method exists or will be added to PlayerViewModel
-            },
-            onDismiss = { showSongInfoBottomSheet = false },
-            onPlaySong = {
-                playerViewModel.showAndPlaySong(currentSong)
-                showSongInfoBottomSheet = false
-            },
-            onAddToQueue = {
-                playerViewModel.addSongToQueue(currentSong) // Assumes such a method exists or will be added
-                showSongInfoBottomSheet = false
-                // Optionally, show a Snackbar/Toast message
-            },
-            onNavigateToAlbum = {
-                // navController.navigate(Screen.AlbumDetail.createRoute(currentSong.albumId)) // Example
-                showSongInfoBottomSheet = false
-                // Actual navigation logic to be implemented if routes exist
-            },
-            onNavigateToArtist = {
-                // navController.navigate(Screen.ArtistDetail.createRoute(currentSong.artistId)) // Example
-                showSongInfoBottomSheet = false
-                // Actual navigation logic to be implemented if routes exist
-            },
-            onEditSong = { newTitle, newArtist, newAlbum ->
-                playerViewModel.editSongMetadata(currentSong, newTitle, newArtist, newAlbum)
-            }
-        )
+            SongInfoBottomSheet(
+                song = currentSong,
+                isFavorite = isFavorite,
+                onToggleFavorite = {
+                    // Directly use PlayerViewModel's method to toggle, which should handle UserPreferencesRepository
+                    playerViewModel.toggleFavoriteSpecificSong(currentSong) // Assumes such a method exists or will be added to PlayerViewModel
+                },
+                onDismiss = { showSongInfoBottomSheet = false },
+                onPlaySong = {
+                    playerViewModel.showAndPlaySong(currentSong)
+                    showSongInfoBottomSheet = false
+                },
+                onAddToQueue = {
+                    playerViewModel.addSongToQueue(currentSong) // Assumes such a method exists or will be added
+                    showSongInfoBottomSheet = false
+                    // Optionally, show a Snackbar/Toast message
+                },
+                onNavigateToAlbum = {
+                    // navController.navigate(Screen.AlbumDetail.createRoute(currentSong.albumId)) // Example
+                    showSongInfoBottomSheet = false
+                    // Actual navigation logic to be implemented if routes exist
+                },
+                onNavigateToArtist = {
+                    // navController.navigate(Screen.ArtistDetail.createRoute(currentSong.artistId)) // Example
+                    showSongInfoBottomSheet = false
+                    // Actual navigation logic to be implemented if routes exist
+                },
+                onEditSong = { newTitle, newArtist, newAlbum ->
+                    playerViewModel.editSongMetadata(currentSong, newTitle, newArtist, newAlbum)
+                    songInfoSheetKey++
+                }
+            )
+        }
     }
 }
 

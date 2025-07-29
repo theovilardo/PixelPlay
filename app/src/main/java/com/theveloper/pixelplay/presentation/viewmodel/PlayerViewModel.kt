@@ -1981,6 +1981,24 @@ class PlayerViewModel @Inject constructor(
             }
 
             if (success) {
+                val updatedSong = song.copy(title = newTitle, artist = newArtist, album = newAlbum)
+
+                // Manually update the song in the UI state
+                val currentSongs = _playerUiState.value.allSongs.toMutableList()
+                val index = currentSongs.indexOfFirst { it.id == song.id }
+                if (index != -1) {
+                    currentSongs[index] = updatedSong
+                    _playerUiState.update { it.copy(allSongs = currentSongs.toImmutableList()) }
+                }
+
+                if (_stablePlayerState.value.currentSong?.id == song.id) {
+                    _stablePlayerState.update { it.copy(currentSong = updatedSong) }
+                }
+
+                if (_selectedSongForInfo.value?.id == song.id) {
+                    _selectedSongForInfo.value = updatedSong
+                }
+
                 syncManager.sync()
                 _toastEvents.emit("Metadata updated successfully")
             } else {
