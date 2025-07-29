@@ -42,6 +42,7 @@ roomKtx = "2.7.1"
 roomRuntime = "2.7.1"
 accompanist = "0.37.3"
 checkerframework = "3.49.5" # O la versión más reciente que encuentres
+jaudiotagger = "3.0.1"
 
 # DI
 dagger = "2.53.1"
@@ -127,6 +128,7 @@ tensorflow-lite-support = { module = "org.tensorflow:tensorflow-lite-support", v
 timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
 wavy-slider = { module = "ir.mahozad.multiplatform:wavy-slider", version.ref = "wavySlider" }
 checker-qual = { group = "org.checkerframework", name = "checker-qual", version.ref = "checkerframework" }
+jaudiotagger = { group = "net.jthink", name = "jaudiotagger", version.ref = "jaudiotagger" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.presentation.viewmodel
 
+import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Context
 import android.graphics.Bitmap
@@ -71,6 +72,7 @@ import androidx.core.graphics.drawable.toBitmap
 import com.theveloper.pixelplay.data.model.SearchFilterType
 import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import com.theveloper.pixelplay.data.model.SearchResultItem
+import com.theveloper.pixelplay.data.media.SongMetadataEditor
 import com.theveloper.pixelplay.data.model.SortOption
 import com.theveloper.pixelplay.data.worker.SyncManager
 import kotlinx.collections.immutable.ImmutableList
@@ -82,6 +84,7 @@ import java.util.concurrent.TimeUnit
 import androidx.lifecycle.asFlow
 import androidx.work.WorkInfo
 import androidx.core.net.toUri
+import androidx.media3.common.util.UnstableApi
 import kotlinx.coroutines.flow.flowOn
 
 // Nuevo enum para el estado del sheet
@@ -138,13 +141,16 @@ data class PlayerUiState(
     val undoBarVisibleDuration: Long = 4000L // 4 seconds
 )
 
+@UnstableApi
+@SuppressLint("LogNotTimber")
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val musicRepository: MusicRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val albumArtThemeDao: AlbumArtThemeDao,
-    private val syncManager: SyncManager // Inyectar SyncManager
+    private val syncManager: SyncManager, // Inyectar SyncManager
+    private val songMetadataEditor: SongMetadataEditor
 ) : ViewModel() {
 
     private val _playerUiState = MutableStateFlow(PlayerUiState())
@@ -160,6 +166,9 @@ class PlayerViewModel @Inject constructor(
     val bottomBarHeight: StateFlow<Int> = _bottomBarHeight.asStateFlow()
     private val _predictiveBackCollapseFraction = MutableStateFlow(0f)
     val predictiveBackCollapseFraction: StateFlow<Float> = _predictiveBackCollapseFraction.asStateFlow()
+
+    private val _selectedSongForInfo = MutableStateFlow<Song?>(null)
+    val selectedSongForInfo: StateFlow<Song?> = _selectedSongForInfo.asStateFlow()
 
     private val _currentAlbumArtColorSchemePair = MutableStateFlow<ColorSchemePair?>(null)
     val currentAlbumArtColorSchemePair: StateFlow<ColorSchemePair?> = _currentAlbumArtColorSchemePair.asStateFlow()
@@ -1970,5 +1979,42 @@ class PlayerViewModel @Inject constructor(
             }
         }
         Trace.endSection() // End PlayerViewModel.onLibraryTabSelected
+    }
+
+    fun selectSongForInfo(song: Song) {
+        _selectedSongForInfo.value = song
+    }
+
+    fun editSongMetadata(song: Song, newTitle: String, newArtist: String, newAlbum: String) {
+        viewModelScope.launch {
+            val success = withContext(Dispatchers.IO) {
+                songMetadataEditor.editSongMetadata(song.contentUriString, newTitle, newArtist, newAlbum)
+            }
+
+            if (success) {
+                val updatedSong = song.copy(title = newTitle, artist = newArtist, album = newAlbum)
+
+                // Manually update the song in the UI state
+                val currentSongs = _playerUiState.value.allSongs.toMutableList()
+                val index = currentSongs.indexOfFirst { it.id == song.id }
+                if (index != -1) {
+                    currentSongs[index] = updatedSong
+                    _playerUiState.update { it.copy(allSongs = currentSongs.toImmutableList()) }
+                }
+
+                if (_stablePlayerState.value.currentSong?.id == song.id) {
+                    _stablePlayerState.update { it.copy(currentSong = updatedSong) }
+                }
+
+                if (_selectedSongForInfo.value?.id == song.id) {
+                    _selectedSongForInfo.value = updatedSong
+                }
+
+                syncManager.sync()
+                _toastEvents.emit("Metadata updated successfully")
+            } else {
+                _toastEvents.emit("Failed to update metadata")
+            }
+        }
     }
 }

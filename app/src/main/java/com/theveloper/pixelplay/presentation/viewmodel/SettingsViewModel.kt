@@ -82,7 +82,7 @@ class SettingsViewModel @Inject constructor(
             }
             userPreferencesRepository.updateAllowedDirectories(currentAllowed)
 
-            musicRepository.invalidateCachesDependentOnAllowedDirectories()
+            //musicRepository.invalidateCachesDependentOnAllowedDirectories()
 
             // El flujo allowedDirectoriesFlow en loadDirectoryPreferences() se actualizará,
             // y también lo hará la lista de DirectoryItem en la UI de Ajustes.

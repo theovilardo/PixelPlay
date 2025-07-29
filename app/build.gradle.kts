@@ -208,6 +208,10 @@ dependencies {
 
     // Timber
     implementation(libs.timber)
+
+    // JAudioTagger for metadata editing
+    implementation("org.jflac:jflac-codec:1.5.2")
+    implementation(libs.jaudiotagger)
 }
 
 

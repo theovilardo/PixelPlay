@@ -28,9 +28,13 @@ import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,9 +64,11 @@ fun SongInfoBottomSheet(
     onPlaySong: () -> Unit,
     onAddToQueue: () -> Unit,
     onNavigateToAlbum: () -> Unit,
-    onNavigateToArtist: () -> Unit
+    onNavigateToArtist: () -> Unit,
+    onEditSong: (String, String, String) -> Unit
 ) {
     val context = LocalContext.current
+    var showEditDialog by remember { mutableStateOf(false) }
 
     val evenCornerRadiusElems = 26.dp
 
@@ -148,6 +154,22 @@ fun SongInfoBottomSheet(
                         fontFamily = FontFamily.Default,
                         fontWeight = FontWeight.Light,
                         text = song.title
+                    )
+                }
+                FilledTonalIconButton(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .padding(vertical = 6.dp),
+                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceBright,
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    onClick = { showEditDialog = true },
+                ) {
+                    Icon(
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                        imageVector = Icons.Rounded.Edit,
+                        contentDescription = "Edit song metadata"
                     )
                 }
             }
@@ -288,5 +310,16 @@ fun SongInfoBottomSheet(
                 )
             }
         }
+    }
+
+    if (showEditDialog) {
+        EditSongMetadataDialog(
+            song = song,
+            onDismiss = { showEditDialog = false },
+            onSave = { newTitle, newArtist, newAlbum ->
+                onEditSong(newTitle, newArtist, newAlbum)
+                showEditDialog = false
+            }
+        )
     }
 }
