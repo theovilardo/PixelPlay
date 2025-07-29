@@ -1981,22 +1981,12 @@ class PlayerViewModel @Inject constructor(
             }
 
             if (success) {
-                val updatedSong = song.copy(
-                    title = newTitle,
-                    artist = newArtist,
-                    album = newAlbum
-                )
-
-                _playerUiState.update { currentState ->
-                    val newAllSongs = currentState.allSongs.map {
-                        if (it.id == song.id) updatedSong else it
-                    }.toImmutableList()
-                    currentState.copy(allSongs = newAllSongs)
-                }
-
-                if (_stablePlayerState.value.currentSong?.id == song.id) {
-                    _stablePlayerState.update { it.copy(currentSong = updatedSong) }
-                }
+                // Forzar la actualización de la UI invalidando y recargando los datos
+                musicRepository.invalidateCachesDependentOnAllowedDirectories()
+                resetAndLoadInitialData("Metadata Edit")
+                _toastEvents.emit("Metadata updated successfully")
+            } else {
+                _toastEvents.emit("Failed to update metadata")
             }
         }
     }
