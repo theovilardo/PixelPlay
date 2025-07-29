@@ -1,4 +1,8 @@
 <resources>
     <string name="app_name">PixelPlay</string>
     <string name="glance_widget_description">Controla tu música desde la pantalla de inicio.</string>
+    <string name="all_files_access_title">Permiso Especial Requerido</string>
+    <string name="all_files_access_description">Para poder editar los metadatos de tus canciones (archivos .mp3), PixelPlay necesita un permiso especial de acceso a todos los archivos. Esto nos permitirá modificar las etiquetas de tus pistas directamente. Por favor, concede este permiso en la siguiente pantalla para habilitar la edición de metadatos.</string>
+    <string name="grant_permission_button">Conceder Permiso</string>
+    <string name="all_files_access_setting">All Files Access</string>
 </resources>

@@ -71,6 +71,7 @@ import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.NavBarPersistentHeight
 import com.theveloper.pixelplay.presentation.components.UnifiedPlayerSheet
 import com.theveloper.pixelplay.presentation.components.getNavigationBarHeight
+import com.theveloper.pixelplay.presentation.components.AllFilesAccessDialog
 import com.theveloper.pixelplay.presentation.navigation.AppNavigation
 import com.theveloper.pixelplay.presentation.navigation.BottomNavItem
 import com.theveloper.pixelplay.presentation.navigation.Screen
@@ -83,12 +84,18 @@ import com.theveloper.pixelplay.utils.LogUtils
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.delay
+import android.provider.Settings
+import androidx.compose.runtime.SideEffect
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     private val playerViewModel: PlayerViewModel by viewModels()
     private var mediaControllerFuture: ListenableFuture<MediaController>? = null
+
+    private val requestAllFilesAccessLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { _ ->
+        // Handle the result in onResume
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         LogUtils.d(this, "onCreate")
@@ -100,11 +107,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             val mainViewModel: MainViewModel = hiltViewModel()
             val useDarkTheme = isSystemInDarkTheme()
-            // val globalColorSchemePairForApp by playerViewModel.activeGlobalColorSchemePair.collectAsState() // Removed
 
             PixelPlayTheme(
                 darkTheme = useDarkTheme
-                // colorSchemePairOverride = globalColorSchemePairForApp // Removed
             ) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     HandlePermissions(mainViewModel)
@@ -123,6 +128,8 @@ class MainActivity : ComponentActivity() {
         }
         val permissionState = rememberMultiplePermissionsState(permissions = permissions)
 
+        var showAllFilesAccessDialog by remember { mutableStateOf(false) }
+
         LaunchedEffect(Unit) {
             if (!permissionState.allPermissionsGranted) {
                 permissionState.launchMultiplePermissionRequest()
@@ -132,15 +139,31 @@ class MainActivity : ComponentActivity() {
         if (permissionState.allPermissionsGranted) {
             LaunchedEffect(Unit) {
                 LogUtils.i(this, "Permissions granted")
-                // startMusicServiceIfNeeded() // Eliminado: El servicio se iniciará cuando el MediaController se conecte.
                 Log.i("MainActivity", "Permissions granted. Calling mainViewModel.startSync()")
                 mainViewModel.startSync()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !android.os.Environment.isExternalStorageManager()) {
+                    showAllFilesAccessDialog = true
+                }
             }
             MainAppContent(playerViewModel, mainViewModel)
         } else {
             PermissionsNotGrantedScreen {
                 permissionState.launchMultiplePermissionRequest()
             }
+        }
+
+        if (showAllFilesAccessDialog) {
+            AllFilesAccessDialog(
+                onDismiss = { showAllFilesAccessDialog = false },
+                onConfirm = {
+                    showAllFilesAccessDialog = false
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                        intent.data = android.net.Uri.parse("package:$packageName")
+                        requestAllFilesAccessLauncher.launch(intent)
+                    }
+                }
+            )
         }
     }
 

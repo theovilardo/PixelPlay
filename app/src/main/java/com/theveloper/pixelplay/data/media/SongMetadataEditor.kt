@@ -9,6 +9,8 @@ import org.jaudiotagger.tag.FieldKey
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import androidx.core.net.toUri
+import timber.log.Timber
 
 class SongMetadataEditor(private val context: Context) {
 
@@ -18,13 +20,13 @@ class SongMetadataEditor(private val context: Context) {
         newArtist: String,
         newAlbum: String
     ): Boolean {
-        val uri = Uri.parse(contentUri)
+        val uri = contentUri.toUri()
         var tempFile: File? = null
         try {
             // 1. Crear un archivo temporal a partir del URI de contenido
             tempFile = createTempFileFromUri(uri)
             if (tempFile == null) {
-                Log.e("SongMetadataEditor", "Failed to create temp file from URI.")
+                Timber.tag("SongMetadataEditor").e("Failed to create temp file from URI.")
                 return false
             }
 
@@ -44,15 +46,16 @@ class SongMetadataEditor(private val context: Context) {
                     }
                 }
             } ?: run {
-                Log.e("SongMetadataEditor", "Failed to open FileDescriptor for writing.")
+                Timber.tag("SongMetadataEditor").e("Failed to open FileDescriptor for writing.")
                 return false
             }
 
-            Log.d("SongMetadataEditor", "Successfully edited and saved metadata for URI: $contentUri")
+            Timber.tag("SongMetadataEditor")
+                .d("Successfully edited and saved metadata for URI: $contentUri")
             return true
 
         } catch (e: Exception) {
-            Log.e("SongMetadataEditor", "Error editing metadata for URI: $contentUri", e)
+            Timber.tag("SongMetadataEditor").e(e, "Error editing metadata for URI: $contentUri")
             return false
         } finally {
             // 4. Limpiar el archivo temporal
@@ -73,7 +76,7 @@ class SongMetadataEditor(private val context: Context) {
             }
             tempFile
         } catch (e: Exception) {
-            Log.e("SongMetadataEditor", "Error creating temp file from URI", e)
+            Timber.tag("SongMetadataEditor").e(e, "Error creating temp file from URI")
             null
         }
     }
