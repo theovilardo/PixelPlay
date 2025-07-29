@@ -156,8 +156,21 @@ fun SongInfoBottomSheet(
                         text = song.title
                     )
                 }
-                IconButton(onClick = { showEditDialog = true }) {
-                    Icon(Icons.Rounded.Edit, contentDescription = "Edit song metadata")
+                FilledTonalIconButton(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .padding(vertical = 6.dp),
+                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceBright,
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    onClick = { showEditDialog = true },
+                ) {
+                    Icon(
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                        imageVector = Icons.Rounded.Edit,
+                        contentDescription = "Edit song metadata"
+                    )
                 }
             }
 
