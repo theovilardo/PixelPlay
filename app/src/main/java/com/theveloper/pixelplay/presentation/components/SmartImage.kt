@@ -30,7 +30,7 @@ fun SmartImage(
     model: Any?,
     contentDescription: String?,
     modifier: Modifier = Modifier,
-    placeholderResId: Int = R.drawable.rounded_album_24, // Default placeholder
+    placeholderResId: Int = R.drawable.ic_music_placeholder, // Default placeholder
     errorResId: Int = R.drawable.rounded_broken_image_24,       // Default error
     shape: Shape = RectangleShape,
     contentScale: ContentScale = ContentScale.Crop,

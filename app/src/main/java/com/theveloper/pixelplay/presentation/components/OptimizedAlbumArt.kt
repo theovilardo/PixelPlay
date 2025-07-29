@@ -10,12 +10,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -48,7 +50,7 @@ fun OptimizedAlbumArt(
         model = ImageRequest.Builder(context)
             .data(uri)
             .crossfade(false)
-            .placeholder(R.drawable.rounded_album_24)
+            .placeholder(R.drawable.ic_music_placeholder)
             .error(R.drawable.rounded_broken_image_24)
             // .dispatcher(Dispatchers.IO) // Comentado temporalmente
             .size(targetSize) // Usar el parámetro targetSize
@@ -83,10 +85,11 @@ fun OptimizedAlbumArt(
             is AsyncImagePainter.State.Loading,
             is AsyncImagePainter.State.Empty -> { // Show static placeholder for Loading and Empty states
                 Image(
-                    painter = painterResource(id = R.drawable.rounded_album_24),
+                    painter = painterResource(id = R.drawable.ic_music_placeholder),
                     contentDescription = "$title placeholder", // Adjusted content description
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant)
                 )
             }
             is AsyncImagePainter.State.Error -> {
