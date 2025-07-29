@@ -119,6 +119,7 @@ import com.theveloper.pixelplay.utils.formatDuration
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.delay
 import android.os.Trace // Import Trace
+import androidx.media3.common.util.UnstableApi
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -153,6 +154,7 @@ data class AlbumColorPalette(
     val gradient: List<Color>
 )
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun UnifiedPlayerSheet(
     playerViewModel: PlayerViewModel,
@@ -1327,22 +1329,24 @@ private fun MiniPlayerContentInternal(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                song.title,
+                text = song.title,
                 style = MaterialTheme.typography.titleSmall.copy(
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = (-0.2).sp
                 ),
+                fontFamily = GoogleSansRounded,
                 color = LocalMaterialTheme.current.onPrimaryContainer,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                song.artist,
+                text = song.artist,
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontSize = 13.sp,
                     letterSpacing = 0.sp
                 ),
+                fontFamily = GoogleSansRounded,
                 color = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -1403,6 +1407,7 @@ private enum class ButtonType {
 }
 
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @SuppressLint("StateFlowValueCalledInComposition")
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable

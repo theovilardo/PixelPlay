@@ -68,8 +68,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import android.os.Trace // Import Trace
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
@@ -92,6 +95,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun DailyMixScreen(
     mainViewModel: MainViewModel = hiltViewModel(),
@@ -328,7 +332,6 @@ private fun ExpressiveDailyMixHeader(
 
     val parallaxOffset by remember { derivedStateOf { if (scrollState.firstVisibleItemIndex == 0) scrollState.firstVisibleItemScrollOffset * 0.5f else 0f } }
 
-    // Animación de Alpha para el fade-out
     val headerAlpha by remember {
         derivedStateOf {
             (1f - (scrollState.firstVisibleItemScrollOffset / 600f)).coerceIn(0f, 1f)
@@ -341,7 +344,7 @@ private fun ExpressiveDailyMixHeader(
             .height(340.dp)
             .graphicsLayer {
                 translationY = parallaxOffset
-                alpha = headerAlpha // Aplicar fade-out
+                alpha = headerAlpha
             }
     ) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -363,19 +366,59 @@ private fun ExpressiveDailyMixHeader(
                         else -> 0f
                     }
                     val shape = threeShapeSwitch(index, thirdShapeCornerRadius = 30.dp)
-                    Box(
-                        modifier = Modifier
-                            .size(size)
-                            .graphicsLayer { rotationZ = rotation }
-                            .clip(shape)
-                    ) {
-                        SmartImage(
-                            model = artUrl ?: R.drawable.rounded_album_24,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
+
+                    // --- INICIO DE LA CORRECCIÓN ---
+                    if (index == 2) {
+                        // Para la 3ra imagen, usamos Modifier.layout para controlar la medición y el posicionamiento.
+                        Box(
+                            modifier = Modifier.layout { measurable, constraints ->
+                                // 1. Medimos el contenido (la imagen) para que sea un cuadrado perfecto de `size` x `size`,
+                                // ignorando las restricciones de ancho que puedan venir del padre (el Row).
+                                val placeable = measurable.measure(
+                                    Constraints.fixed(width = size.roundToPx(), height = size.roundToPx())
+                                )
+
+                                // 2. Le decimos al Row que nuestro layout ocupará el ancho que él nos dio (`constraints.maxWidth`),
+                                // de esta forma no empujamos a los otros elementos. La altura será la de nuestro cuadrado.
+                                layout(constraints.maxWidth, placeable.height) {
+                                    // 3. Colocamos nuestro contenido cuadrado (`placeable`) dentro del espacio asignado.
+                                    // Lo centramos horizontalmente para que se desborde por ambos lados si es necesario.
+                                    val xOffset = (constraints.maxWidth - placeable.width) / 2
+                                    placeable.placeRelative(xOffset, 0)
+                                }
+                            }
+                        ) {
+                            // Este es el contenido que se mide y se dibuja.
+                            Box(
+                                modifier = Modifier
+                                    .graphicsLayer { rotationZ = rotation }
+                                    .clip(shape)
+                            ) {
+                                SmartImage(
+                                    model = artUrl ?: R.drawable.rounded_album_24,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize() // Llena el tamaño cuadrado que le dimos.
+                                )
+                            }
+                        }
+                    } else {
+                        // Lógica original para las otras dos imágenes
+                        Box(
+                            modifier = Modifier
+                                .size(size)
+                                .graphicsLayer { rotationZ = rotation }
+                                .clip(shape)
+                        ) {
+                            SmartImage(
+                                model = artUrl ?: R.drawable.rounded_album_24,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
                     }
+                    // --- FIN DE LA CORRECCIÓN ---
                 }
             }
         }
@@ -437,5 +480,128 @@ private fun ExpressiveDailyMixHeader(
             }
         }
     }
-    Trace.endSection() // End ExpressiveDailyMixHeader.Composition
+    Trace.endSection()
 }
+//@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+//@Composable
+//private fun ExpressiveDailyMixHeader(
+//    songs: List<Song>,
+//    scrollState: LazyListState
+//) {
+//    Trace.beginSection("ExpressiveDailyMixHeader.Composition")
+//    val albumArts = remember(songs) { songs.map { it.albumArtUriString }.distinct().take(3) }
+//    val totalDuration = remember(songs) { songs.sumOf { it.duration } }
+//
+//    val parallaxOffset by remember { derivedStateOf { if (scrollState.firstVisibleItemIndex == 0) scrollState.firstVisibleItemScrollOffset * 0.5f else 0f } }
+//
+//    // Animación de Alpha para el fade-out
+//    val headerAlpha by remember {
+//        derivedStateOf {
+//            (1f - (scrollState.firstVisibleItemScrollOffset / 600f)).coerceIn(0f, 1f)
+//        }
+//    }
+//
+//    Box(
+//        modifier = Modifier
+//            .fillMaxWidth()
+//            .height(340.dp)
+//            .graphicsLayer {
+//                translationY = parallaxOffset
+//                alpha = headerAlpha // Aplicar fade-out
+//            }
+//    ) {
+//        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+//            Row(
+//                horizontalArrangement = Arrangement.spacedBy((-80).dp),
+//                verticalAlignment = Alignment.CenterVertically
+//            ) {
+//                albumArts.forEachIndexed { index, artUrl ->
+//                    val size = when (index) {
+//                        0 -> 180.dp
+//                        1 -> 220.dp
+//                        2 -> 180.dp
+//                        else -> 150.dp
+//                    }
+//                    val rotation = when (index) {
+//                        0 -> -15f
+//                        1 -> 0f
+//                        2 -> 15f
+//                        else -> 0f
+//                    }
+//                    val shape = threeShapeSwitch(index, thirdShapeCornerRadius = 30.dp)
+//                    Box(
+//                        modifier = Modifier
+//                            .size(size)
+//                            .graphicsLayer { rotationZ = rotation }
+//                            .clip(shape)
+//                    ) {
+//                        SmartImage(
+//                            model = artUrl ?: R.drawable.rounded_album_24,
+//                            contentDescription = null,
+//                            contentScale = ContentScale.Crop,
+//                            modifier = Modifier.fillMaxSize()
+//                        )
+//                    }
+//                }
+//            }
+//        }
+//        Box(
+//            modifier = Modifier
+//                .fillMaxSize()
+//                .background(
+//                    Brush.verticalGradient(
+//                        colors = listOf(
+//                            MaterialTheme.colorScheme.surface.copy(alpha = 0.1f),
+//                            Color.Transparent,
+//                            MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+//                            MaterialTheme.colorScheme.surface
+//                        ),
+//                        startY = 0f,
+//                        endY = 900f
+//                    )
+//                )
+//        )
+//        Row(
+//            modifier = Modifier
+//                .align(Alignment.BottomCenter)
+//                .fillMaxWidth()
+//                .padding(horizontal = 22.dp),
+//            horizontalArrangement = Arrangement.Absolute.SpaceBetween,
+//            verticalAlignment = Alignment.CenterVertically
+//        ) {
+//            Column(
+//                modifier = Modifier
+//                    .padding(start = 6.dp),
+//                verticalArrangement = Arrangement.Bottom,
+//                horizontalAlignment = Alignment.Start
+//            ) {
+//                Text(
+//                    text = "Daily Mix", style = MaterialTheme.typography.headlineLarge,
+//                    fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface
+//                )
+//                Spacer(Modifier.height(4.dp))
+//                Text(
+//                    text = "${songs.size} Songs • ${formatDuration(totalDuration)}",
+//                    style = MaterialTheme.typography.bodyMedium,
+//                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+//                )
+//            }
+//            LargeFloatingActionButton(
+//                modifier = Modifier,
+//                onClick = {},
+//                shape = RoundedStarShape(
+//                    sides = 8,
+//                    curve = 0.05,
+//                    rotation = 0f
+//                )
+//            ) {
+//                Icon(
+//                    modifier = Modifier.size(20.dp),
+//                    painter = painterResource(R.drawable.gemini_ai),
+//                    contentDescription = "Play"
+//                )
+//            }
+//        }
+//    }
+//    Trace.endSection() // End ExpressiveDailyMixHeader.Composition
+//}
