@@ -145,7 +145,7 @@ fun LibraryScreen(
 
     // Estados locales para dialogs/bottom sheets, etc.
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
-    val selectedSongForInfo by playerViewModel.selectedSongForInfo.collectAsState()
+    var selectedSongForInfo by remember { mutableStateOf<Song?>(null) }
     val tabTitles = listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "LIKED")
     val pagerState = rememberPagerState(initialPage = lastTabIndex) { tabTitles.size }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
@@ -397,7 +397,7 @@ fun LibraryScreen(
 
                                     val stableOnMoreOptionsClickForSongs = remember<(Song) -> Unit> {
                                         { songClicked ->
-                                            playerViewModel.selectSongForInfo(songClicked)
+                                            selectedSongForInfo = songClicked
                                             showSongInfoBottomSheet = true
                                         }
                                     }
@@ -480,7 +480,7 @@ fun LibraryScreen(
                                         playerViewModel = playerViewModel,
                                         bottomBarHeight = bottomBarHeightDp
                                     ) { song ->
-                                        playerViewModel.selectSongForInfo(song)
+                                        selectedSongForInfo = song
                                         showSongInfoBottomSheet = true
                                     }
                                 }
@@ -525,7 +525,13 @@ fun LibraryScreen(
     }
 
     if (showSongInfoBottomSheet && selectedSongForInfo != null) {
-        val currentSong = selectedSongForInfo
+        val currentSong = selectedSongForInfo!! // Safe due to the check
+        // val isFavorite by playerViewModel.favoriteSongs.collectAsState().value.any { it.id == currentSong.id } // This might be tricky for recomposition.
+        // A better way to get isFavorite and handle toggle:
+        // Collect favoriteSongIds directly from the viewModel or pass them down.
+        // For simplicity in this step, we can use favoriteSongs flow and derive the state.
+        // PlayerViewModel will need to expose favoriteSongIds or a way to check if a songId is a favorite.
+
         val isFavorite = remember(currentSong.id, favoriteIds) { derivedStateOf { favoriteIds.contains(currentSong.id) } }.value
 
         SongInfoBottomSheet(
@@ -554,6 +560,9 @@ fun LibraryScreen(
                 // navController.navigate(Screen.ArtistDetail.createRoute(currentSong.artistId)) // Example
                 showSongInfoBottomSheet = false
                 // Actual navigation logic to be implemented if routes exist
+            },
+            onEditSong = { newTitle, newArtist, newAlbum ->
+                playerViewModel.editSongMetadata(currentSong, newTitle, newArtist, newAlbum)
             }
         )
     }

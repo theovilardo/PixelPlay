@@ -86,6 +86,8 @@ interface MusicRepository {
 
     fun getAllUniqueAlbumArtUris(): Flow<List<Uri>> // Nuevo para precarga de temas
 
+    suspend fun invalidateCachesDependentOnAllowedDirectories() // Nuevo para precarga de temas
+
     fun searchSongs(query: String): Flow<List<Song>>
     fun searchAlbums(query: String): Flow<List<Album>>
     fun searchArtists(query: String): Flow<List<Artist>>
@@ -118,10 +120,4 @@ interface MusicRepository {
      * @return Flow que emite el objeto Song o null si no se encuentra.
      */
     fun getSong(songId: String): Flow<Song?>
-
-    /**
-     * Actualiza los metadatos de una canción en la base de datos.
-     * @param song La canción con los metadatos actualizados.
-     */
-    suspend fun updateSong(song: Song)
 }
