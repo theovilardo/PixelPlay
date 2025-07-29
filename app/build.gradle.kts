@@ -211,7 +211,7 @@ dependencies {
 
     // JAudioTagger for metadata editing
     implementation("org.jflac:jflac-codec:1.5.2")
-    implementation("org.jaudiotagger:jaudiotagger:3.0.1")
+    implementation(libs.jaudiotagger)
 }
 
 

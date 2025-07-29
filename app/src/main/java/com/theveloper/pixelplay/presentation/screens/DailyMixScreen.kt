@@ -154,6 +154,9 @@ fun DailyMixScreen(
             onNavigateToArtist = {
                 // TODO: Implement navigation to artist screen. Might require finding artist by name.
                 showSongInfoSheet = false
+            },
+            onEditSong = { newTitle, newArtist, newAlbum ->
+                playerViewModel.editSongMetadata(song, newTitle, newArtist, newAlbum)
             }
         )
     }
