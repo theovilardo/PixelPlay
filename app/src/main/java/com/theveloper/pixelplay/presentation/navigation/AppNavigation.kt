@@ -105,7 +105,7 @@ fun AppNavigation(
             // CORRECCIÓN: La definición de la ruta DEBE incluir el placeholder para el argumento.
             // Se usa StringType para el ID para que coincida con la firma de la pantalla de destino.
             composable(
-                route = Screen.AlbumDetail.route + "/{albumId}",
+                route = Screen.AlbumDetail.route,
                 arguments = listOf(navArgument("albumId") { type = NavType.StringType })
             ) { backStackEntry ->
                 // El viewModel se inyectará automáticamente en AlbumDetailScreen.
@@ -121,7 +121,7 @@ fun AppNavigation(
             }
 
             composable(
-                route = Screen.ArtistDetail.route + "/{artistId}",
+                route = Screen.ArtistDetail.route,
                 arguments = listOf(navArgument("artistId") { type = NavType.StringType })
             ) { backStackEntry ->
                 val artistId = backStackEntry.arguments?.getString("artistId")
