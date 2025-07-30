@@ -2,9 +2,12 @@ package com.theveloper.pixelplay.presentation.screens
 
 import android.os.Trace
 import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -86,6 +89,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -123,6 +127,7 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerUiState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistUiState
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
+import com.theveloper.pixelplay.presentation.screens.TabAnimation
 import com.theveloper.pixelplay.utils.formatDuration
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -263,34 +268,9 @@ fun LibraryScreen(
                     divider = {}
                 ) {
                     tabTitles.forEachIndexed { index, title ->
-                        val isSelected = pagerState.currentPage == index
-                        val onClick = remember(
-                            index,
-                            pagerState,
-                            scope
-                        ) { { scope.launch { pagerState.animateScrollToPage(index) } } }
-                        Tab(
-                            modifier = Modifier
-                                .padding(
-                                    horizontal = 8.dp,
-                                    vertical = 12.dp
-                                ) // Adjusted padding for better touch target
-                                .background(
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-                                    shape = RoundedCornerShape(50) // Simpler shape for tabs
-                                ),
-                            selected = isSelected,
-                            onClick = { onClick() },
-                            text = {
-                                Text(
-                                    text = title,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                )
-                            },
-                            selectedContentColor = MaterialTheme.colorScheme.onPrimary,
-                            unselectedContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
-                        )
+                        TabAnimation(index, title, pagerState.currentPage) {
+                            scope.launch { pagerState.animateScrollToPage(index) }
+                        }
                     }
                 }
 
