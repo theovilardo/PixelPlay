@@ -141,6 +141,7 @@ dependencies {
 
     //Reorderable List/Drag and Drop
     implementation(libs.compose.dnd)
+    implementation(libs.reorderables)
 
     //CodeView
     implementation(libs.codeview)

@@ -37,6 +37,7 @@ protobufJavalite = "3.25.1"
 pytorch_android = "2.1.0"
 pytorch_android_torchvision = "2.1.0"
 reorderable = "0.9.6"
+reorderables = "2.5.1"
 roomCompiler = "2.7.1"
 roomKtx = "2.7.1"
 roomRuntime = "2.7.1"
@@ -129,6 +130,7 @@ timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
 wavy-slider = { module = "ir.mahozad.multiplatform:wavy-slider", version.ref = "wavySlider" }
 checker-qual = { group = "org.checkerframework", name = "checker-qual", version.ref = "checkerframework" }
 jaudiotagger = { group = "net.jthink", name = "jaudiotagger", version.ref = "jaudiotagger" }
+reorderables = { group = "sh.calvin.reorderable", name = "reorderable", version.ref = "reorderables" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

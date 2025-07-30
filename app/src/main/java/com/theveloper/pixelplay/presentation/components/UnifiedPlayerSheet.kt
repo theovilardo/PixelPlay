@@ -1228,28 +1228,6 @@ private fun PlayerProgressBarSection(
             )
         }
     }
-
-//    if (showSongInfoBottomSheet) {
-//        SongInfoBottomSheet(
-//            song = song,
-//            isFavorite = isFavorite,
-//            onToggleFavorite = onFavoriteToggle,
-//            onDismiss = { showSongInfoBottomSheet = false },
-//            onPlaySong = {
-//                onPlayPause()
-//                showSongInfoBottomSheet = false
-//            },
-//            onAddToQueue = {
-//                playerViewModel.addSongToQueue(song)
-//                showSongInfoBottomSheet = false
-//            },
-//            onNavigateToAlbum = { /* TODO */ },
-//            onNavigateToArtist = { /* TODO */ },
-//            onEditSong = { newTitle, newArtist, newAlbum ->
-//                playerViewModel.editSongMetadata(song, newTitle, newArtist, newAlbum)
-//            }
-//        )
-//    }
 }
 
 @Composable

@@ -215,7 +215,7 @@ fun DailyMixScreen(
                                 bottomEnd = 14.dp
                             )
                         ) {
-                            Icon(Icons.Filled.PlayArrow, contentDescription = "Play", modifier = Modifier.size(
+                            Icon(Icons.Rounded.PlayArrow, contentDescription = "Play", modifier = Modifier.size(
                                 ButtonDefaults.IconSize))
                             Spacer(Modifier.size(ButtonDefaults.IconSpacing))
                             Text("Play it")
@@ -238,7 +238,7 @@ fun DailyMixScreen(
                                 bottomEnd = 60.dp
                             )
                         ) {
-                            Icon(Icons.Filled.Shuffle, contentDescription = "Shuffle", modifier = Modifier.size(
+                            Icon(Icons.Rounded.Shuffle, contentDescription = "Shuffle", modifier = Modifier.size(
                                 ButtonDefaults.IconSize))
                             Spacer(Modifier.size(ButtonDefaults.IconSpacing))
                             Text("Shuffle")
