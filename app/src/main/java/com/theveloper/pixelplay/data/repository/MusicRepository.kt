@@ -120,4 +120,5 @@ interface MusicRepository {
      * @return Flow que emite el objeto Song o null si no se encuentra.
      */
     fun getSong(songId: String): Flow<Song?>
+    fun getArtistById(artistId: Long): Flow<Artist?>
 }

@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.DragIndicator
@@ -37,6 +38,7 @@ import androidx.compose.material.icons.filled.MusicOff
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.DragIndicator
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -101,6 +103,7 @@ import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
+import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import com.theveloper.pixelplay.utils.formatTotalDuration
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import sh.calvin.reorderable.ReorderableItem
@@ -424,14 +427,14 @@ fun SongPickerBottomSheet(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 30.dp, vertical = 8.dp),
+                                .padding(horizontal = 26.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Add Songs", style = MaterialTheme.typography.titleLarge)
-                            Button(onClick = { onConfirm(selectedSongIds.filterValues { it }.keys) }) {
-                                Text("Add")
-                            }
+                            Text("Add Songs", style = MaterialTheme.typography.displaySmall, fontFamily = GoogleSansRounded)
+//                            Button(onClick = { onConfirm(selectedSongIds.filterValues { it }.keys) }) {
+//                                Text("Add")
+//                            }
                         }
                         OutlinedTextField(
                             value = searchQuery,
@@ -455,6 +458,15 @@ fun SongPickerBottomSheet(
                             trailingIcon = { if(searchQuery.isNotEmpty()) IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Filled.Clear, null) } }
                         )
                     }
+                },
+                floatingActionButton = {
+                    ExtendedFloatingActionButton(
+                        modifier = Modifier.padding(bottom = 18.dp, end = 8.dp),
+                        shape = CircleShape,
+                        onClick = { onConfirm(selectedSongIds.filterValues { it }.keys) },
+                        icon = { Icon(Icons.Rounded.Check, "Añadir canciones") },
+                        text = { Text("Add") },
+                    )
                 }
             ) { innerPadding ->
                 if (isLoading) {
@@ -464,7 +476,7 @@ fun SongPickerBottomSheet(
                         modifier = Modifier
                             .padding(innerPadding)
                             .padding(horizontal = 14.dp),
-                        contentPadding = PaddingValues(bottom = 80.dp, top = 20.dp),
+                        contentPadding = PaddingValues(bottom = 100.dp, top = 20.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(filteredSongs, key = { it.id }) { song ->

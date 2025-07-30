@@ -1,6 +1,7 @@
 package com.theveloper.pixelplay.presentation.navigation
 
 import android.annotation.SuppressLint
+import androidx.annotation.OptIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
@@ -8,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -15,6 +17,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.theveloper.pixelplay.presentation.screens.AlbumDetailScreen
+import com.theveloper.pixelplay.presentation.screens.ArtistDetailScreen
 import com.theveloper.pixelplay.presentation.screens.MashupScreen
 import com.theveloper.pixelplay.presentation.screens.DailyMixScreen
 import com.theveloper.pixelplay.presentation.screens.GenreDetailScreen
@@ -26,6 +29,7 @@ import com.theveloper.pixelplay.presentation.screens.SettingsScreen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 
+@OptIn(UnstableApi::class)
 @SuppressLint("UnrememberedGetBackStackEntry")
 @Composable
 fun AppNavigation(
@@ -110,6 +114,20 @@ fun AppNavigation(
                 if (albumId != null) {
                     AlbumDetailScreen(
                         albumId = albumId,
+                        navController = navController,
+                        playerViewModel = playerViewModel
+                    )
+                }
+            }
+
+            composable(
+                route = Screen.ArtistDetail.route + "/{artistId}",
+                arguments = listOf(navArgument("artistId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val artistId = backStackEntry.arguments?.getString("artistId")
+                if (artistId != null) {
+                    ArtistDetailScreen(
+                        artistId = artistId,
                         navController = navController,
                         playerViewModel = playerViewModel
                     )

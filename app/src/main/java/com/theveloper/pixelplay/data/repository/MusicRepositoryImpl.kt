@@ -171,6 +171,31 @@ class MusicRepositoryImpl @Inject constructor(
         }.flowOn(Dispatchers.IO)
     }
 
+    override fun getArtistById(artistId: Long): Flow<Artist?> {
+        LogUtils.d(this, "getArtistById: $artistId")
+        return combine(
+            userPreferencesRepository.allowedDirectoriesFlow,
+            userPreferencesRepository.initialSetupDoneFlow
+        ) { allowedDirs, initialSetupDone ->
+            Pair(allowedDirs.toList(), initialSetupDone)
+        }.flatMapLatest { (allowedDirs, initialSetupDone) ->
+            musicDao.getSongsByArtistId(artistId)
+                .map { songEntities ->
+                    val permittedSongsInArtist = songEntities.filter { songEntity ->
+                        if (!initialSetupDone) true
+                        else allowedDirs.contains(songEntity.parentDirectoryPath)
+                    }
+                    if (initialSetupDone && allowedDirs.isEmpty() && songEntities.isNotEmpty()) {
+                        null
+                    } else if (permittedSongsInArtist.isNotEmpty() || !initialSetupDone) {
+                        musicDao.getArtistById(artistId).map { it?.toArtist() }
+                    } else {
+                        flowOf(null)
+                    }
+                }.flatMapLatest { it!! }
+        }.flowOn(Dispatchers.IO)
+    }
+
     override fun getSongsForArtist(artistId: Long): Flow<List<Song>> {
         LogUtils.d(this, "getSongsForArtist: $artistId")
         return combine(

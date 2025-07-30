@@ -227,6 +227,7 @@ class MainActivity : ComponentActivity() {
                 Screen.DailyMixScreen.route,
                 Screen.GenreDetail.route,
                 Screen.AlbumDetail.route,
+                Screen.ArtistDetail.route,
                 Screen.DJSpace.route
             )
         }

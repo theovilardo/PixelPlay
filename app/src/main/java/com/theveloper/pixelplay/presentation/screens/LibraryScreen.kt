@@ -459,7 +459,10 @@ fun LibraryScreen(
                                         artists = artists,
                                         isLoading = isLoading,
                                         playerViewModel = playerViewModel,
-                                        bottomBarHeight = bottomBarHeightDp
+                                        bottomBarHeight = bottomBarHeightDp,
+                                        onArtistClick = { artistId ->
+                                            navController.navigate(Screen.ArtistDetail.createRoute(artistId))
+                                        }
                                     )
                                 }
                                 3 -> {
@@ -865,12 +868,6 @@ fun LibrarySongsTab(
                             )
                         )
                 )
-                // InfiniteListHandler removed as all songs are loaded at once.
-                // InfiniteListHandler(listState = listState) {
-                //     if (canLoadMore && !isLoadingMore) {
-                //         playerViewModel.loadMoreSongs()
-                //     }
-                // }
             }
         }
     }
@@ -1193,7 +1190,7 @@ fun AlbumGridItemRedesigned(
 
     val gradientBaseColor = itemDesignColorScheme.primaryContainer
     val onGradientColor = itemDesignColorScheme.onPrimaryContainer
-    val cardCornerRadius = 26.dp
+    val cardCornerRadius = 20.dp
 
     if (isLoading) {
         Card(
@@ -1308,7 +1305,7 @@ fun AlbumGridItemRedesigned(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(album.artist, style = MaterialTheme.typography.bodySmall, color = onGradientColor.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("${album.songCount} canciones", style = MaterialTheme.typography.bodySmall, color = onGradientColor.copy(alpha = 0.7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("${album.songCount} Songs", style = MaterialTheme.typography.bodySmall, color = onGradientColor.copy(alpha = 0.7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -1322,7 +1319,8 @@ fun LibraryArtistsTab(
     isLoading: Boolean, // This now represents the loading state for all artists
     // canLoadMore: Boolean, // Removed
     playerViewModel: PlayerViewModel,
-    bottomBarHeight: Dp
+    bottomBarHeight: Dp,
+    onArtistClick: (Long) -> Unit
 ) {
     val listState = rememberLazyListState()
     if (isLoading && artists.isEmpty()) { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
@@ -1350,7 +1348,7 @@ fun LibraryArtistsTab(
                     Spacer(Modifier.height(4.dp))
                 }
                 items(artists, key = { "artist_${it.id}" }) { artist ->
-                    val rememberedOnClick = remember(artist) { { playerViewModel.playArtist(artist) } }
+                    val rememberedOnClick = remember(artist) { { onArtistClick(artist.id) } }
                     ArtistListItem(artist = artist, onClick = rememberedOnClick)
                 }
                 // "Load more" indicator removed as all artists are loaded at once
@@ -1383,14 +1381,27 @@ fun LibraryArtistsTab(
 
 @Composable
 fun ArtistListItem(artist: Artist, onClick: () -> Unit) {
-    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+    Card(
+        onClick = onClick, 
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(painter = painterResource(R.drawable.rounded_artist_24), contentDescription = "Artista", modifier = Modifier
-                .size(40.dp)
-                .padding(end = 12.dp))
+            Icon(
+                painter = painterResource(R.drawable.rounded_artist_24),
+                contentDescription = "Artista", 
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                    .padding(8.dp),
+                tint = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Spacer(modifier = Modifier.width(16.dp))
             Column {
-                Text(artist.name, style = MaterialTheme.typography.titleMedium)
-                Text("${artist.songCount} canciones", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(artist.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("${artist.songCount} Songs", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
