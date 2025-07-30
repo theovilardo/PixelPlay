@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.presentation.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -57,6 +58,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -78,6 +80,7 @@ import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 // Modern HomeScreen with collapsible top bar and staggered grid layout
+@androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -115,6 +118,7 @@ fun HomeScreen(
     var showOptionsBottomSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     Box(
         modifier = Modifier.fillMaxSize()
@@ -127,7 +131,8 @@ fun HomeScreen(
                         navController.navigate(Screen.Settings.route)
                     },
                     onMoreOptionsClick = {
-                        showOptionsBottomSheet = true
+                        //showOptionsBottomSheet = true
+                        Toast.makeText(context, "Coming Soon...", Toast.LENGTH_SHORT).show()
                     }
                 )
             }
@@ -242,7 +247,7 @@ fun YourMixHeader(
                 text = "Your\nMix",
                 style = MaterialTheme.typography.displayLarge.copy(
                     fontWeight = FontWeight.Bold,
-                    lineHeight = 56.sp,
+                    lineHeight = 60.sp,
                     letterSpacing = (1).sp
                 ),
                 color = MaterialTheme.colorScheme.onSurface,

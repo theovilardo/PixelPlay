@@ -184,7 +184,7 @@ fun PlaylistDetailScreen(
                 subtitle = {
                     Text(
                         modifier = Modifier.padding(start = 8.dp),
-                        text = "${songsInPlaylist.size} canciones • ${formatTotalDuration(songsInPlaylist)}",
+                        text = "${songsInPlaylist.size} songs • ${formatTotalDuration(songsInPlaylist)}",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -293,8 +293,8 @@ fun PlaylistDetailScreen(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Filled.MusicOff, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.height(8.dp))
-                            Text("Esta playlist está vacía.", style = MaterialTheme.typography.titleMedium)
-                            Text("Toca 'Añadir Canciones' para empezar.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("This playlist is empty.", style = MaterialTheme.typography.titleMedium)
+                            Text("Tap on 'Add Songs' to begin.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 } else {
@@ -521,12 +521,13 @@ fun RenamePlaylistDialog(currentName: String, onDismiss: () -> Unit, onRename: (
     var newName by remember { mutableStateOf(TextFieldValue(currentName)) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Renombrar Playlist") },
+        title = { Text("Renamer Playlist") },
         text = {
             OutlinedTextField(
                 value = newName,
                 onValueChange = { newName = it },
-                label = { Text("Nuevo nombre") },
+                label = { Text("New name") },
+                shape = CircleShape,
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )

@@ -593,7 +593,7 @@ fun CreatePlaylistDialogRedesigned(
                     .fillMaxWidth()
             ) {
                 Text(
-                    text = "Nueva Playlist",
+                    text = "New Playlist",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 16.dp)
@@ -602,7 +602,7 @@ fun CreatePlaylistDialogRedesigned(
                 OutlinedTextField(
                     value = playlistName,
                     onValueChange = { playlistName = it },
-                    label = { Text("Nombre de la playlist") },
+                    label = { Text("Playlist Name") },
                     placeholder = { Text("Mi playlist") },
                     shape = RoundedCornerShape(16.dp),
 //                    colors = TextFieldDefaults.t(
@@ -624,7 +624,7 @@ fun CreatePlaylistDialogRedesigned(
                         onClick = onDismiss,
                         modifier = Modifier.padding(end = 8.dp)
                     ) {
-                        Text("Cancelar")
+                        Text("Cancel")
                     }
 
                     Button(
@@ -636,7 +636,7 @@ fun CreatePlaylistDialogRedesigned(
                             contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     ) {
-                        Text("Crear")
+                        Text("Create")
                     }
                 }
             }
