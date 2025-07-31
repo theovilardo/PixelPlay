@@ -181,7 +181,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                         textColor = onBackgroundColor,
                         context = context,
                         backgroundColor = actualBackgroundColor,
-                        bgCornerRadius = 28.dp
+                        bgCornerRadius = 60.dp
                     )
                     else -> ThinWidgetLayout(
                         modifier = baseModifier,
@@ -278,9 +278,10 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 
                 AlbumArtImageGlance(
                     modifier = GlanceModifier
-                        .padding(end = 8.dp, top = 6.dp, bottom = 6.dp),
+                        .fillMaxHeight()
+                        .width(56.dp)
+                        .padding(end = 8.dp),
                     bitmapData = albumArtBitmapData,
-                    size = 58.dp,
                     context = context,
                     cornerRadius = bgCornerRadius
                 )
@@ -354,9 +355,9 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 AlbumArtImageGlance(
                     modifier = GlanceModifier
                         .fillMaxHeight()
-                        .padding(end = 8.dp, top = 6.dp, bottom = 6.dp),
+                        .width(56.dp)
+                        .padding(end = 8.dp),
                     bitmapData = albumArtBitmapData,
-                    //size = 68.dp,
                     context = context,
                     cornerRadius = bgCornerRadius
                 )
@@ -1040,7 +1041,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
             .d("Init. bitmapData is null: ${bitmapData == null}. Requested Dp size: $size")
         if (bitmapData != null) Timber.tag(TAG_AAIG).d("bitmapData size: ${bitmapData.size} bytes")
 
-        val sizingModifier = if (size != null) modifier.size(size) else modifier.fillMaxSize()
+        val sizingModifier = if (size != null) modifier.size(size) else modifier
 
         val imageProvider = bitmapData?.let { data ->
             val cacheKey = AlbumArtBitmapCache.getKey(data)
