@@ -254,18 +254,18 @@ private fun CustomCollapsingTopBar(
         ) {
             // Botón de volver
             FilledIconButton(
-                modifier = Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 4.dp),
+                modifier = Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 4.dp),
                 onClick = onBackPressed,
-                colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.8f))
+                colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
             ) {
                 Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
             }
 
             // Botón de búsqueda
             FilledIconButton(
-                modifier = Modifier.align(Alignment.TopEnd).padding(end = 8.dp, top = 4.dp),
+                modifier = Modifier.align(Alignment.TopEnd).padding(end = 12.dp, top = 4.dp),
                 onClick = { /* TODO */ },
-                colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.8f))
+                colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
             ) {
                 Icon(Icons.Rounded.Search, contentDescription = "Buscar en artista")
             }
