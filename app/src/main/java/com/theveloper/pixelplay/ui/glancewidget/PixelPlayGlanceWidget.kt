@@ -424,9 +424,11 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 AlbumArtImageGlance(
                     modifier = GlanceModifier
                         .defaultWeight()
-                        .padding(horizontal = 4.dp),
+                        .height(48.dp)
+                        //.padding(4.dp)
+                    ,
                     bitmapData = albumArtBitmapData,
-                    size = 48.dp,
+                    //size = 48.dp,
                     context = context,
                     cornerRadius = 64.dp
                 )
@@ -489,9 +491,9 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 AlbumArtImageGlance(
                     modifier = GlanceModifier
                         .defaultWeight()
-                        .padding(horizontal = 4.dp),
+                        .fillMaxWidth()
+                        .height(48.dp),
                     bitmapData = albumArtBitmapData,
-                    size = 48.dp,
                     context = context,
                     cornerRadius = 64.dp
                 )
@@ -590,7 +592,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 horizontalAlignment = Alignment.Horizontal.CenterHorizontally
             ) {
                 AlbumArtImageGlance(
-                    modifier = GlanceModifier.padding(6.dp),
+                    modifier = GlanceModifier.padding(vertical = 6.dp),
                     bitmapData = albumArtBitmapData,
                     size = 58.dp,
                     context = context,
@@ -1042,6 +1044,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         if (bitmapData != null) Timber.tag(TAG_AAIG).d("bitmapData size: ${bitmapData.size} bytes")
 
         val sizingModifier = if (size != null) modifier.size(size) else modifier
+        val widgetDpSize = LocalSize.current // Get the actual size of the composable
 
         val imageProvider = bitmapData?.let { data ->
             val cacheKey = AlbumArtBitmapCache.getKey(data)
@@ -1060,13 +1063,31 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                     val imageHeight = options.outHeight
                     val imageWidth = options.outWidth
                     var inSampleSize = 1
-                    val targetSizePx = with(context.resources.displayMetrics) { size!!.value * density }.toInt()
-                    Timber.tag(TAG_AAIG).d("Target Px size for Dp $size : $targetSizePx")
 
-                    if (imageHeight > targetSizePx || imageWidth > targetSizePx) {
+                    // Determine target size in pixels
+                    val targetWidthPx: Int
+                    val targetHeightPx: Int
+                    with(context.resources.displayMetrics) {
+                        if (size != null) {
+                            // If size is provided, use it for both width and height (maintains square logic)
+                            val targetSizePx = (size.value * density).toInt()
+                            targetWidthPx = targetSizePx
+                            targetHeightPx = targetSizePx
+                            Timber.tag(TAG_AAIG).d("Target Px size for Dp $size: $targetSizePx")
+                        } else {
+                            // If size is not provided, use the actual widget size
+                            targetWidthPx = (widgetDpSize.width.value * density).toInt()
+                            targetHeightPx = (widgetDpSize.height.value * density).toInt()
+                            Timber.tag(TAG_AAIG).d("Target Px size from widget DpSize ${widgetDpSize}: ${targetWidthPx}x${targetHeightPx}")
+                        }
+                    }
+
+                    if (imageHeight > targetHeightPx || imageWidth > targetWidthPx) {
                         val halfHeight: Int = imageHeight / 2
                         val halfWidth: Int = imageWidth / 2
-                        while (halfHeight / inSampleSize >= targetSizePx && halfWidth / inSampleSize >= targetSizePx) {
+                        // Calculate the largest inSampleSize value that is a power of 2 and keeps both
+                        // height and width larger than the requested height and width.
+                        while (halfHeight / inSampleSize >= targetHeightPx && halfWidth / inSampleSize >= targetWidthPx) {
                             inSampleSize *= 2
                         }
                     }
@@ -1084,10 +1105,11 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                     Timber.tag(TAG_AAIG)
                         .d("Sampled bitmap size: ${sampledBitmap.width}x${sampledBitmap.height}")
 
-                    if (sampledBitmap.width != targetSizePx || sampledBitmap.height != targetSizePx) {
+                    // Scale the bitmap to the exact target size if necessary
+                    if (sampledBitmap.width != targetWidthPx || sampledBitmap.height != targetHeightPx) {
                         Timber.tag(TAG_AAIG)
-                            .d("Scaling sampled bitmap from ${sampledBitmap.width}x${sampledBitmap.height} to ${targetSizePx}x${targetSizePx}")
-                        val scaledBitmap = sampledBitmap.scale(targetSizePx, targetSizePx)
+                            .d("Scaling sampled bitmap from ${sampledBitmap.width}x${sampledBitmap.height} to ${targetWidthPx}x${targetHeightPx}")
+                        val scaledBitmap = sampledBitmap.scale(targetWidthPx, targetHeightPx)
                         if (scaledBitmap != sampledBitmap) {
                             sampledBitmap.recycle()
                             Timber.tag(TAG_AAIG).d("Recycled intermediate sampledBitmap.")
