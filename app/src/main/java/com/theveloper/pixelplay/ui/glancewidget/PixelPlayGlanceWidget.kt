@@ -135,6 +135,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
             GlanceModifier.fillMaxSize()
         ) {
             val isOneColumn = size.width < SMALL_LAYOUT_SIZE.width
+            val isSmallHeight = size.height < SMALL_LAYOUT_SIZE.height
 
             if (isOneColumn) {
                 when {
@@ -161,19 +162,17 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                         context = context
                     )
                 }
-            } else {
+            } else if (isSmallHeight) {
                 when {
-                    size.height < SMALL_HORIZONTAL_LAYOUT_SIZE.height -> {
-                        SmallHorizontalWidgetLayout(
-                            modifier = baseModifier,
-                            backgroundColor = actualBackgroundColor,
-                            bgCornerRadius = 60.dp,
-                            albumArtBitmapData = albumArtBitmapData,
-                            isPlaying = isPlaying,
-                            context = context
-                        )
-                    }
-                    size.height < THIN_LAYOUT_SIZE.height -> VeryThinWidgetLayout(
+                    size.width < VERY_THIN_LAYOUT_SIZE.width -> SmallHorizontalWidgetLayout(
+                        modifier = baseModifier,
+                        backgroundColor = actualBackgroundColor,
+                        bgCornerRadius = 60.dp,
+                        albumArtBitmapData = albumArtBitmapData,
+                        isPlaying = isPlaying,
+                        context = context
+                    )
+                    size.width < THIN_LAYOUT_SIZE.width -> VeryThinWidgetLayout(
                         modifier = baseModifier,
                         title = title,
                         artist = artist,
@@ -184,7 +183,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                         backgroundColor = actualBackgroundColor,
                         bgCornerRadius = 28.dp
                     )
-                    size.height < SMALL_LAYOUT_SIZE.height -> ThinWidgetLayout(
+                    else -> ThinWidgetLayout(
                         modifier = baseModifier,
                         backgroundColor = actualBackgroundColor,
                         bgCornerRadius = 60.dp,
@@ -195,6 +194,9 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                         textColor = onBackgroundColor,
                         context = context
                     )
+                }
+            } else {
+                when {
                     size.width < MEDIUM_LAYOUT_SIZE.width || size.height < MEDIUM_LAYOUT_SIZE.height -> SmallWidgetLayout(
                         modifier = baseModifier,
                         backgroundColor = actualBackgroundColor,
@@ -351,16 +353,16 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 
                 AlbumArtImageGlance(
                     modifier = GlanceModifier
-                        //.fillMaxHeight()
+                        .fillMaxHeight()
                         .padding(end = 8.dp, top = 6.dp, bottom = 6.dp),
                     bitmapData = albumArtBitmapData,
-                    size = 68.dp,
+                    //size = 68.dp,
                     context = context,
                     cornerRadius = bgCornerRadius
                 )
                 Spacer(GlanceModifier.width(6.dp))
                 Column(modifier = GlanceModifier.defaultWeight()) {
-                    Text(text = title, style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textColor), maxLines = 2)
+                    Text(text = title, style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textColor), maxLines = 1)
                     if (artist.isNotEmpty() && artist != "Toca para abrir") {
                         Text(text = artist, style = TextStyle(fontSize = 14.sp, color = textColor), maxLines = 1)
                     }
