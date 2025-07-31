@@ -4,23 +4,28 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.util.Log
+import androidx.annotation.OptIn
 import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
+import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.data.service.MusicService
+import timber.log.Timber
 
 class PlayerControlActionCallback : ActionCallback {
     private val TAG = "PlayerControlCallback"
+
+    @OptIn(UnstableApi::class)
     override suspend fun onAction(
         context: Context,
         glanceId: GlanceId,
         parameters: ActionParameters
     ) {
         val action = parameters[PlayerActions.key]
-        Log.d(TAG, "onAction received: $action for glanceId: $glanceId")
+        Timber.tag(TAG).d("onAction received: $action for glanceId: $glanceId")
 
         if (action == null) {
-            Log.w(TAG, "Action key not found in parameters.")
+            Timber.tag(TAG).w("Action key not found in parameters.")
             return
         }
 
@@ -31,7 +36,7 @@ class PlayerControlActionCallback : ActionCallback {
                 if (songId != null) {
                     putExtra("song_id", songId)
                 } else {
-                    Log.w(TAG, "PLAY_FROM_QUEUE action received but no songId found.")
+                    Timber.tag(TAG).w("PLAY_FROM_QUEUE action received but no songId found.")
                     return // No hacer nada si no hay ID de canción
                 }
             }
@@ -43,9 +48,9 @@ class PlayerControlActionCallback : ActionCallback {
             } else {
                 context.startService(serviceIntent)
             }
-            Log.d(TAG, "Service intent sent for action: $action")
+            Timber.tag(TAG).d("Service intent sent for action: $action")
         } catch (e: Exception) {
-            Log.e(TAG, "Error starting service for action $action: ${e.message}", e)
+            Timber.tag(TAG).e(e, "Error starting service for action $action: ${e.message}")
         }
     }
 }

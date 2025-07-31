@@ -49,11 +49,7 @@ import java.io.ByteArrayOutputStream
 import javax.inject.Inject
 
 // Acciones personalizadas para compatibilidad con el widget existente
-object PlayerActions {
-    const val PLAY_PAUSE = "com.theveloper.pixelplay.PLAY_PAUSE"
-    const val NEXT = "com.theveloper.pixelplay.NEXT"
-    const val PREVIOUS = "com.theveloper.pixelplay.PREVIOUS"
-}
+
 
 @UnstableApi
 @AndroidEntryPoint
@@ -91,6 +87,18 @@ class MusicService : MediaSessionService() {
 
     // SOLUCIÓN WIDGET: Re-introducimos onStartCommand para traducir las acciones del widget.
     // Esto asegura la compatibilidad con los intents que ya envía tu widget.
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        intent?.action?.let { action ->
+            val player = mediaSession?.player ?: return@let
+            when (action) {
+                PlayerActions.PLAY_PAUSE -> player.playWhenReady = !player.playWhenReady
+                PlayerActions.NEXT -> player.seekToNext()
+                PlayerActions.PREVIOUS -> player.seekToPrevious()
+            }
+        }
+        return super.onStartCommand(intent, flags, startId)
+    }
+
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             requestWidgetFullUpdate()

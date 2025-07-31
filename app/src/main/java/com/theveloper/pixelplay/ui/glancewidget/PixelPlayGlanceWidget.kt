@@ -6,7 +6,6 @@ import android.graphics.BitmapFactory
 import android.util.Log
 import android.util.LruCache
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -24,10 +23,8 @@ import androidx.glance.action.actionParametersOf
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
-import androidx.glance.appwidget.LinearProgressIndicator
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionRunCallback
-import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -47,19 +44,15 @@ import androidx.glance.layout.size
 import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
-import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.theveloper.pixelplay.MainActivity
 import com.theveloper.pixelplay.data.model.PlayerInfo // Changed import
 import com.theveloper.pixelplay.R
-import com.theveloper.pixelplay.ui.glancewidget.subcomponents.WavyLinearProgressIndicator
 import androidx.core.graphics.scale
-import androidx.glance.layout.wrapContentSize
 import com.theveloper.pixelplay.data.model.QueueItem
-import com.theveloper.pixelplay.presentation.components.subcomps.AutoSizingTextGlance
 import com.theveloper.pixelplay.utils.createScalableBackgroundBitmap
-import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
+import timber.log.Timber
 
 class PixelPlayGlanceWidget : GlanceAppWidget() {
 
@@ -106,10 +99,11 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
-            val playerInfo = currentState<PlayerInfo>() ?: PlayerInfo()
+            val playerInfo = currentState<PlayerInfo>()
             val currentSize = LocalSize.current
 
-            Log.d("PixelPlayGlanceWidget", "Providing Glance. PlayerInfo: title='${playerInfo.songTitle}', artist='${playerInfo.artistName}', isPlaying=${playerInfo.isPlaying}, hasBitmap=${playerInfo.albumArtBitmapData != null}, progress=${playerInfo.currentPositionMs}/${playerInfo.totalDurationMs}")
+            Timber.tag("PixelPlayGlanceWidget")
+                .d("Providing Glance. PlayerInfo: title='${playerInfo.songTitle}', artist='${playerInfo.artistName}', isPlaying=${playerInfo.isPlaying}, hasBitmap=${playerInfo.albumArtBitmapData != null}, progress=${playerInfo.currentPositionMs}/${playerInfo.totalDurationMs}")
 
             GlanceTheme {
                 WidgetUi(playerInfo = playerInfo, size = currentSize, context = context)
@@ -128,15 +122,12 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         val isPlaying = playerInfo.isPlaying
         val isFavorite = playerInfo.isFavorite
         val albumArtBitmapData = playerInfo.albumArtBitmapData
-        val currentProgress = playerInfo.currentPositionMs
-        val totalDuration = playerInfo.totalDurationMs
 
-        Log.d("PixelPlayGlanceWidget", "WidgetUi: PlayerInfo received. Title: $title, Artist: $artist, HasBitmapData: ${albumArtBitmapData != null}, BitmapDataSize: ${albumArtBitmapData?.size ?: "N/A"}")
+        Timber.tag("PixelPlayGlanceWidget")
+            .d("WidgetUi: PlayerInfo received. Title: $title, Artist: $artist, HasBitmapData: ${albumArtBitmapData != null}, BitmapDataSize: ${albumArtBitmapData?.size ?: "N/A"}")
 
         val actualBackgroundColor = GlanceTheme.colors.surface
         val onBackgroundColor = GlanceTheme.colors.onSurface
-        val progressBgColor = ColorProvider(GlanceTheme.colors.onSurface.getColor(context).copy(alpha = 0.2f))
-        val primaryColor = GlanceTheme.colors.primary
 
         val baseModifier = GlanceModifier
             .fillMaxSize()
@@ -152,11 +143,8 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                             modifier = baseModifier,
                             backgroundColor = actualBackgroundColor,
                             bgCornerRadius = 360.dp,
-                            title = title,
-                            artist = artist,
                             albumArtBitmapData = albumArtBitmapData,
                             isPlaying = isPlaying,
-                            textColor = onBackgroundColor,
                             context = context
                         )
                     } else if (size.height >= GABE_TWO_HEIGHT_LAYOUT_SIZE.height) {
@@ -164,11 +152,8 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                             modifier = baseModifier,
                             backgroundColor = actualBackgroundColor,
                             bgCornerRadius = 60.dp,
-                            title = title,
-                            artist = artist,
                             albumArtBitmapData = albumArtBitmapData,
                             isPlaying = isPlaying,
-                            textColor = onBackgroundColor,
                             context = context
                         )
                     } else {
@@ -219,13 +204,11 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 size.width < MEDIUM_LAYOUT_SIZE.width || size.height < MEDIUM_LAYOUT_SIZE.height -> {
                     SmallWidgetLayout(
                         modifier = baseModifier,
-                        title = title,
+                        backgroundColor = actualBackgroundColor,
+                        bgCornerRadius = 28.dp,
                         albumArtBitmapData = albumArtBitmapData,
                         isPlaying = isPlaying,
-                        textColor = onBackgroundColor,
-                        context = context,
-                        backgroundColor = actualBackgroundColor,
-                        bgCornerRadius = 28.dp
+                        context = context
                     )
                 }
                 size.width < LARGE_LAYOUT_SIZE.width || size.height < LARGE_LAYOUT_SIZE.height -> {
@@ -244,18 +227,14 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 size.width < EXTRA_LARGE_LAYOUT_SIZE.width || size.height < EXTRA_LARGE_LAYOUT_SIZE.height -> {
                     LargeWidgetLayout(
                         modifier = baseModifier,
-                        backgroundColor = actualBackgroundColor,
-                        bgCornerRadius = 28.dp,
                         title = title,
                         artist = artist,
                         albumArtBitmapData = albumArtBitmapData,
+                        backgroundColor = actualBackgroundColor,
+                        bgCornerRadius = 28.dp,
                         isPlaying = isPlaying,
                         isFavorite = isFavorite,
-                        currentProgressMs = currentProgress,
-                        totalDurationMs = totalDuration,
                         textColor = onBackgroundColor,
-                        progressBgColor = progressBgColor,
-                        accentColor = primaryColor,
                         context = context
                     )
                 }
@@ -266,14 +245,10 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                         artist = artist,
                         albumArtBitmapData = albumArtBitmapData,
                         isPlaying = isPlaying,
-                        currentProgressMs = currentProgress,
-                        totalDurationMs = totalDuration,
                         backgroundColor = actualBackgroundColor,
-                        accentColor = primaryColor,
-                        context = context,
-                        progressBgColor = progressBgColor,
                         bgCornerRadius = 28.dp,
                         textColor = onBackgroundColor,
+                        context = context,
                         queue = playerInfo.queue
                     )
                 }
@@ -403,11 +378,8 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         modifier: GlanceModifier,
         backgroundColor: ColorProvider,
         bgCornerRadius: Dp,
-        title: String,
-        artist: String,
         albumArtBitmapData: ByteArray?,
         isPlaying: Boolean,
-        textColor: ColorProvider,
         context: Context
     ) {
         val secondaryColor = GlanceTheme.colors.secondaryContainer
@@ -472,11 +444,8 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         modifier: GlanceModifier,
         backgroundColor: ColorProvider,
         bgCornerRadius: Dp,
-        title: String,
-        artist: String,
         albumArtBitmapData: ByteArray?,
         isPlaying: Boolean,
-        textColor: ColorProvider,
         context: Context
     ) {
         val secondaryColor = GlanceTheme.colors.secondaryContainer
@@ -623,12 +592,10 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
     @Composable
     fun SmallWidgetLayout(
         modifier: GlanceModifier,
-        title: String,
         backgroundColor: ColorProvider,
         bgCornerRadius: Dp,
         albumArtBitmapData: ByteArray?,
         isPlaying: Boolean,
-        textColor: ColorProvider,
         context: Context
     ) {
         val secondaryColor = GlanceTheme.colors.secondaryContainer
@@ -813,12 +780,15 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 
     @Composable
     fun LargeWidgetLayout(
-        modifier: GlanceModifier, title: String, artist: String, albumArtBitmapData: ByteArray?,
+        modifier: GlanceModifier,
+        title: String,
+        artist: String,
+        albumArtBitmapData: ByteArray?,
         backgroundColor: ColorProvider,
         bgCornerRadius: Dp,
-        isPlaying: Boolean, isFavorite: Boolean, currentProgressMs: Long, totalDurationMs: Long,
-        textColor: ColorProvider, accentColor: ColorProvider,
-        progressBgColor: ColorProvider,
+        isPlaying: Boolean,
+        isFavorite: Boolean,
+        textColor: ColorProvider,
         context: Context
     ) {
         // *** FIX: Apply padding to the outer Box for consistency ***
@@ -902,11 +872,8 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
     @Composable
     fun ExtraLargeWidgetLayout(
         modifier: GlanceModifier, title: String, artist: String, albumArtBitmapData: ByteArray?,
-        isPlaying: Boolean, currentProgressMs: Long, totalDurationMs: Long,
-        backgroundColor: ColorProvider,
-        bgCornerRadius: Dp,
-        textColor: ColorProvider, accentColor: ColorProvider,
-        progressBgColor: ColorProvider,
+        isPlaying: Boolean, backgroundColor: ColorProvider, bgCornerRadius: Dp,
+        textColor: ColorProvider,
         context: Context,
         queue: List<QueueItem>
     ) {
@@ -1015,7 +982,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                                 .padding(horizontal = 2.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Log.d("AlbumArtImageGlanceQueue", "Processing item: $queueItem")
+                            Timber.tag("AlbumArtImageGlanceQueue").d("Processing item: $queueItem")
                             AlbumArtImageGlance(
                                 modifier = GlanceModifier
                                     .clickable(
@@ -1047,8 +1014,9 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         cornerRadius: Dp = 16.dp
     ) {
         val TAG_AAIG = "AlbumArtImageGlance"
-        Log.d(TAG_AAIG, "Init. bitmapData is null: ${bitmapData == null}. Requested Dp size: $size")
-        if (bitmapData != null) Log.d(TAG_AAIG, "bitmapData size: ${bitmapData.size} bytes")
+        Timber.tag(TAG_AAIG)
+            .d("Init. bitmapData is null: ${bitmapData == null}. Requested Dp size: $size")
+        if (bitmapData != null) Timber.tag(TAG_AAIG).d("bitmapData size: ${bitmapData.size} bytes")
 
         val sizingModifier = if (size != null) modifier.size(size) else modifier.fillMaxSize()
 
@@ -1057,19 +1025,20 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
             var bitmap = AlbumArtBitmapCache.getBitmap(cacheKey)
 
             if (bitmap != null) {
-                Log.d(TAG_AAIG, "Bitmap cache HIT for key: $cacheKey. Using cached bitmap.")
+                Timber.tag(TAG_AAIG).d("Bitmap cache HIT for key: $cacheKey. Using cached bitmap.")
             } else {
-                Log.d(TAG_AAIG, "Bitmap cache MISS for key: $cacheKey. Decoding new bitmap.")
+                Timber.tag(TAG_AAIG).d("Bitmap cache MISS for key: $cacheKey. Decoding new bitmap.")
                 try {
                     val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                     BitmapFactory.decodeByteArray(data, 0, data.size, options)
-                    Log.d(TAG_AAIG, "Initial bounds: ${options.outWidth}x${options.outHeight}")
+                    Timber.tag(TAG_AAIG)
+                        .d("Initial bounds: ${options.outWidth}x${options.outHeight}")
 
                     val imageHeight = options.outHeight
                     val imageWidth = options.outWidth
                     var inSampleSize = 1
                     val targetSizePx = with(context.resources.displayMetrics) { size!!.value * density }.toInt()
-                    Log.d(TAG_AAIG, "Target Px size for Dp $size : $targetSizePx")
+                    Timber.tag(TAG_AAIG).d("Target Px size for Dp $size : $targetSizePx")
 
                     if (imageHeight > targetSizePx || imageWidth > targetSizePx) {
                         val halfHeight: Int = imageHeight / 2
@@ -1078,42 +1047,48 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                             inSampleSize *= 2
                         }
                     }
-                    Log.d(TAG_AAIG, "Calculated inSampleSize: $inSampleSize")
+                    Timber.tag(TAG_AAIG).d("Calculated inSampleSize: $inSampleSize")
 
                     options.inSampleSize = inSampleSize
                     options.inJustDecodeBounds = false
                     val sampledBitmap = BitmapFactory.decodeByteArray(data, 0, data.size, options)
 
                     if (sampledBitmap == null) {
-                        Log.e(TAG_AAIG, "BitmapFactory.decodeByteArray returned null after sampling.")
+                        Timber.tag(TAG_AAIG)
+                            .e("BitmapFactory.decodeByteArray returned null after sampling.")
                         return@let null
                     }
-                    Log.d(TAG_AAIG, "Sampled bitmap size: ${sampledBitmap.width}x${sampledBitmap.height}")
+                    Timber.tag(TAG_AAIG)
+                        .d("Sampled bitmap size: ${sampledBitmap.width}x${sampledBitmap.height}")
 
                     if (sampledBitmap.width != targetSizePx || sampledBitmap.height != targetSizePx) {
-                        Log.d(TAG_AAIG, "Scaling sampled bitmap from ${sampledBitmap.width}x${sampledBitmap.height} to ${targetSizePx}x${targetSizePx}")
+                        Timber.tag(TAG_AAIG)
+                            .d("Scaling sampled bitmap from ${sampledBitmap.width}x${sampledBitmap.height} to ${targetSizePx}x${targetSizePx}")
                         val scaledBitmap = sampledBitmap.scale(targetSizePx, targetSizePx)
                         if (scaledBitmap != sampledBitmap) {
                             sampledBitmap.recycle()
-                            Log.d(TAG_AAIG, "Recycled intermediate sampledBitmap.")
+                            Timber.tag(TAG_AAIG).d("Recycled intermediate sampledBitmap.")
                         }
                         bitmap = scaledBitmap
                     } else {
                         bitmap = sampledBitmap
-                        Log.d(TAG_AAIG, "No final scaling needed. Using sampled bitmap directly.")
+                        Timber.tag(TAG_AAIG)
+                            .d("No final scaling needed. Using sampled bitmap directly.")
                     }
 
-                    Log.d(TAG_AAIG, "Final bitmap size: ${bitmap?.width}x${bitmap.height}. Putting into cache with key: $cacheKey")
+                    Timber.tag(TAG_AAIG)
+                        .d("Final bitmap size: ${bitmap.width}x${bitmap.height}. Putting into cache with key: $cacheKey")
                     bitmap.let { AlbumArtBitmapCache.putBitmap(cacheKey, it) }
 
                 } catch (e: Exception) {
-                    Log.e(TAG_AAIG, "Error decoding or scaling bitmap: ${e.message}", e)
+                    Timber.tag(TAG_AAIG).e(e, "Error decoding or scaling bitmap: ${e.message}")
                     bitmap = null
                 }
             }
             bitmap?.let { ImageProvider(it) }
         } ?: run {
-            Log.d(TAG_AAIG, "Using placeholder image because bitmapData was null or processing failed.")
+            Timber.tag(TAG_AAIG)
+                .d("Using placeholder image because bitmapData was null or processing failed.")
             ImageProvider(R.drawable.rounded_album_24)
         }
 
