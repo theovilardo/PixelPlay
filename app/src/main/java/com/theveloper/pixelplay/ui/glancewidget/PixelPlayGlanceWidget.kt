@@ -939,12 +939,13 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 }
 
                 // Middle Row: Progress Bar
-                Column(
-                    modifier = GlanceModifier.fillMaxWidth().padding(vertical = 12.dp, horizontal = 6.dp)
-                ) {
-                    Spacer(GlanceModifier.height(2.dp))
-                    // Progress bar commented out as in original code
-                }
+//                Column(
+//                    modifier = GlanceModifier.fillMaxWidth().padding(vertical = 12.dp, horizontal = 6.dp)
+//                ) {
+//                    Spacer(GlanceModifier.height(2.dp))
+//                    // Progress bar commented out as in original code
+//                }
+                Spacer(GlanceModifier.height(10.dp))
 
                 // Bottom Row: Controls
                 Row(
@@ -991,37 +992,35 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                     )
                 }
 
-                Spacer(GlanceModifier.defaultWeight())
-
-                // Queue Row
+                // Fila de la cola
                 Row(
                     modifier = GlanceModifier
                         .fillMaxWidth()
-                        .height(62.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .height(70.dp) // Dar espacio explícito a la fila
+                        .padding(bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    queue.take(5).forEach { queueItem ->
+                    // Itera a través de la cola, tomando un máximo de 4 elementos para evitar el desbordamiento
+                    queue.take(4).forEachIndexed { index, queueItem ->
                         Box(
                             modifier = GlanceModifier
-                                .defaultWeight()
-                                .padding(horizontal = 2.dp),
+                                .padding(horizontal = 4.dp), // Espaciado simétrico
                             contentAlignment = Alignment.Center
                         ) {
-                            Timber.tag("AlbumArtImageGlanceQueue").d("Processing item: $queueItem")
                             AlbumArtImageGlance(
-                                modifier = GlanceModifier
-                                    .clickable(
-                                        actionRunCallback<PlayerControlActionCallback>(
-                                            actionParametersOf(
-                                                PlayerActions.key to PlayerActions.PLAY_FROM_QUEUE,
-                                                PlayerActions.songIdKey to queueItem.id
-                                            )
+                                modifier = GlanceModifier.clickable(
+                                    actionRunCallback<PlayerControlActionCallback>(
+                                        actionParametersOf(
+                                            PlayerActions.key to PlayerActions.PLAY_FROM_QUEUE,
+                                            PlayerActions.songIdKey to queueItem.id
                                         )
-                                    ),
+                                    )
+                                ),
                                 bitmapData = queueItem.albumArtBitmapData,
-                                size = 62.dp,
+                                size = 56.dp,
                                 context = context,
-                                cornerRadius = 12.dp,
+                                cornerRadius = 14.dp,
                             )
                         }
                     }

@@ -18,6 +18,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
@@ -185,6 +186,28 @@ class MusicService : MediaSessionService() {
 //            //musicRepository.getFavoriteSongs().firstOrNull()?.any { song -> song.id.toString() == it }
 //        } ?: false
 
+        val queueItems = mutableListOf<com.theveloper.pixelplay.data.model.QueueItem>()
+        val timeline = withContext(Dispatchers.Main) { exoPlayer.currentTimeline }
+        if (!timeline.isEmpty) {
+            val window = androidx.media3.common.Timeline.Window()
+            val currentWindowIndex = withContext(Dispatchers.Main) { exoPlayer.currentMediaItemIndex }
+
+            // Empezar desde la siguiente canción en la cola
+            val startIndex = if (currentWindowIndex + 1 < timeline.windowCount) currentWindowIndex + 1 else 0
+
+            // Limitar el número de elementos de la cola a 4
+            val endIndex = (startIndex + 4).coerceAtMost(timeline.windowCount)
+            for (i in startIndex until endIndex) {
+                timeline.getWindow(i, window)
+                val mediaItem = window.mediaItem
+                val artworkData = mediaItem.mediaMetadata?.artworkData
+                val songId = mediaItem.mediaId.toLongOrNull()
+                if (songId != null) {
+                    queueItems.add(com.theveloper.pixelplay.data.model.QueueItem(id = songId, albumArtBitmapData = artworkData))
+                }
+            }
+        }
+
         return PlayerInfo(
             songTitle = title,
             artistName = artist,
@@ -194,7 +217,7 @@ class MusicService : MediaSessionService() {
             currentPositionMs = currentPosition,
             totalDurationMs = totalDuration,
             isFavorite = isFavorite,
-            queue = emptyList() // TODO: Implementar la lógica de la cola si es necesario
+            queue = queueItems
         )
     }
 
