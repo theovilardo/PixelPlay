@@ -323,32 +323,23 @@ private fun MusicIconPattern(modifier: Modifier = Modifier, collapseFraction: Fl
         Icon(
             imageVector = Icons.Rounded.MusicNote,
             contentDescription = null, tint = color1,
-            modifier = Modifier.align(Alignment.TopStart).offset(x = lerp(60.dp, 100.dp, collapseFraction), y = lerp(80.dp, 10.dp, collapseFraction)).size(60.dp).graphicsLayer { rotationZ = lerp(-15f, 30f, collapseFraction); scaleX = 1f - collapseFraction; scaleY = 1f - collapseFraction }
+            modifier = Modifier.align(Alignment.TopStart).offset(x = lerp(60.dp, 100.dp, collapseFraction), y = lerp(100.dp, 10.dp, collapseFraction)).size(60.dp).graphicsLayer { rotationZ = lerp(-15f, 30f, collapseFraction); scaleX = 1f - collapseFraction; scaleY = 1f - collapseFraction }
         )
-//        Icon(
-//            imageVector = Icons.Rounded.Headphones,
-//            contentDescription = null, tint = color2,
-//            modifier = Modifier.align(Alignment.TopEnd).offset(x = lerp(-20.dp, -80.dp, collapseFraction), y = lerp(120.dp, 150.dp, collapseFraction)).size(90.dp).graphicsLayer { rotationZ = lerp(10f, -20f, collapseFraction); scaleX = 1f - collapseFraction; scaleY = 1f - collapseFraction }
-//        )
         Icon(
             imageVector = Icons.Default.GraphicEq,
             contentDescription = null, tint = color1,
-            modifier = Modifier.align(Alignment.CenterStart).offset(x = lerp(20.dp, -40.dp, collapseFraction), y = lerp(50.dp, 90.dp, collapseFraction)).size(50.dp).graphicsLayer { rotationZ = lerp(5f, 45f, collapseFraction); scaleX = 1f - collapseFraction; scaleY = 1f - collapseFraction }
+            modifier = Modifier.align(Alignment.CenterStart).offset(x = lerp(20.dp,
+                (-40).dp, collapseFraction), y = lerp(50.dp, 90.dp, collapseFraction)).size(50.dp).graphicsLayer { rotationZ = lerp(5f, 45f, collapseFraction); scaleX = 1f - collapseFraction; scaleY = 1f - collapseFraction }
         )
         Icon(
             imageVector = Icons.Rounded.Album,
             contentDescription = null, tint = color2,
-            modifier = Modifier.align(Alignment.CenterEnd).offset(x = lerp(-40.dp, 20.dp, collapseFraction), y = lerp(-50.dp, -90.dp, collapseFraction)).size(70.dp).graphicsLayer { rotationZ = lerp(20f, -10f, collapseFraction); scaleX = 1f - collapseFraction; scaleY = 1f - collapseFraction }
-        )
-        Icon(
-            imageVector = Icons.Rounded.MusicNote,
-            contentDescription = null, tint = color2,
-            modifier = Modifier.align(Alignment.BottomStart).offset(x = lerp(40.dp, 80.dp, collapseFraction), y = lerp(-80.dp, -120.dp, collapseFraction)).size(40.dp).graphicsLayer { rotationZ = lerp(30f, -15f, collapseFraction); scaleX = 1f - collapseFraction; scaleY = 1f - collapseFraction }
+            modifier = Modifier.align(Alignment.CenterEnd).offset(x = lerp((-40).dp, 20.dp, collapseFraction), y = lerp(-50.dp, -90.dp, collapseFraction)).size(70.dp).graphicsLayer { rotationZ = lerp(20f, -10f, collapseFraction); scaleX = 1f - collapseFraction; scaleY = 1f - collapseFraction }
         )
         Icon(
             imageVector = Icons.Rounded.Mic,
             contentDescription = null, tint = color1,
-            modifier = Modifier.align(Alignment.BottomCenter).offset(y = lerp(-40.dp, 20.dp, collapseFraction)).size(60.dp).graphicsLayer { rotationZ = lerp(-5f, 35f, collapseFraction); scaleX = 1f - collapseFraction; scaleY = 1f - collapseFraction }
+            modifier = Modifier.align(Alignment.BottomCenter).offset(x = lerp(20.dp, 10.dp, collapseFraction),y = lerp((-40).dp, 20.dp, collapseFraction)).size(60.dp).graphicsLayer { rotationZ = lerp(-5f, 35f, collapseFraction); scaleX = 1f - collapseFraction; scaleY = 1f - collapseFraction }
         )
         Icon(
             imageVector = Icons.Rounded.SurroundSound,
@@ -358,259 +349,12 @@ private fun MusicIconPattern(modifier: Modifier = Modifier, collapseFraction: Fl
         Icon(
             imageVector = Icons.Rounded.MusicNote,
             contentDescription = null, tint = color1,
-            modifier = Modifier.align(Alignment.BottomEnd).offset(x = lerp(-50.dp, -10.dp, collapseFraction), y = lerp(-100.dp, -150.dp, collapseFraction)).size(55.dp).graphicsLayer { rotationZ = lerp(15f, -30f, collapseFraction); scaleX = 1f - collapseFraction; scaleY = 1f - collapseFraction }
+            modifier = Modifier.align(Alignment.BottomEnd).offset(x = lerp((-30).dp, (-10).dp, collapseFraction), y = lerp(-120.dp, -150.dp, collapseFraction)).size(45.dp).graphicsLayer { rotationZ = lerp(15f, -30f, collapseFraction); scaleX = 1f - collapseFraction; scaleY = 1f - collapseFraction }
         )
         Icon(
             imageVector = Icons.Rounded.Headphones,
             contentDescription = null, tint = color2,
-            modifier = Modifier.align(Alignment.Center).offset(x = lerp(30.dp, 80.dp, collapseFraction), y = lerp(20.dp, 60.dp, collapseFraction)).size(45.dp).graphicsLayer { rotationZ = lerp(-25f, 15f, collapseFraction); scaleX = 1f - collapseFraction; scaleY = 1f - collapseFraction }
+            modifier = Modifier.align(Alignment.Center).offset(x = lerp(60.dp, 80.dp, collapseFraction), y = lerp(20.dp, 60.dp, collapseFraction)).size(45.dp).graphicsLayer { rotationZ = lerp(-25f, 15f, collapseFraction); scaleX = 1f - collapseFraction; scaleY = 1f - collapseFraction }
         )
     }
 }
-
-//@androidx.annotation.OptIn(UnstableApi::class)
-//@OptIn(ExperimentalMaterial3Api::class)
-//@Composable
-//fun ArtistDetailScreen(
-//    artistId: String,
-//    navController: NavController,
-//    playerViewModel: PlayerViewModel,
-//    viewModel: ArtistDetailViewModel = hiltViewModel()
-//) {
-//    val uiState by viewModel.uiState.collectAsState()
-//    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
-//    val playerSheetState by playerViewModel.sheetState.collectAsState()
-//    val lazyListState = rememberLazyListState()
-//
-//    val density = LocalDensity.current
-//    val coroutineScope = rememberCoroutineScope()
-//
-//    // --- Lógica del Header Colapsable ---
-//    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-//    val minTopBarHeight = 64.dp + statusBarHeight
-//    val maxTopBarHeight = 300.dp
-//
-//    val minTopBarHeightPx = with(density) { minTopBarHeight.toPx() }
-//    val maxTopBarHeightPx = with(density) { maxTopBarHeight.toPx() }
-//
-//    val topBarHeight = remember { Animatable(maxTopBarHeightPx) }
-//    var collapseFraction by remember { mutableFloatStateOf(0f) }
-//
-//    LaunchedEffect(topBarHeight.value) {
-//        collapseFraction = 1f - ((topBarHeight.value - minTopBarHeightPx) / (maxTopBarHeightPx - minTopBarHeightPx)).coerceIn(0f, 1f)
-//    }
-//
-//    val nestedScrollConnection = remember {
-//        object : NestedScrollConnection {
-//            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-//                val previousHeight = topBarHeight.value
-//                val newHeight = (previousHeight + available.y).coerceIn(minTopBarHeightPx, maxTopBarHeightPx)
-//                val consumed = newHeight - previousHeight
-//                if (consumed.roundToInt() != 0) {
-//                    coroutineScope.launch { topBarHeight.snapTo(newHeight) }
-//                }
-//                return Offset(0f, consumed)
-//            }
-//
-//            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-//                val threshold = (maxTopBarHeightPx - minTopBarHeightPx) * 0.5f
-//                val targetValue = if (topBarHeight.value < threshold + minTopBarHeightPx) minTopBarHeightPx else maxTopBarHeightPx
-//                coroutineScope.launch {
-//                    topBarHeight.animateTo(targetValue, spring(stiffness = Spring.StiffnessLow))
-//                }
-//                return super.onPostFling(consumed, available)
-//            }
-//        }
-//    }
-//    // --- Fin de la lógica del Header ---
-//
-//    BackHandler(enabled = playerSheetState == PlayerSheetState.EXPANDED) {
-//        playerViewModel.collapsePlayerSheet()
-//    }
-//
-//    Surface(modifier = Modifier.fillMaxSize()) {
-//        Box(modifier = Modifier.nestedScroll(nestedScrollConnection)) {
-//            when {
-//                uiState.isLoading && uiState.artist == null -> {
-//                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-//                        CircularProgressIndicator()
-//                    }
-//                }
-//                uiState.error != null && uiState.artist == null -> {
-//                    Box(
-//                        modifier = Modifier.fillMaxSize().padding(16.dp),
-//                        contentAlignment = Alignment.Center
-//                    ) {
-//                        Text(
-//                            text = uiState.error!!,
-//                            color = MaterialTheme.colorScheme.error,
-//                            style = MaterialTheme.typography.bodyLarge
-//                        )
-//                    }
-//                }
-//                uiState.artist != null -> {
-//                    val artist = uiState.artist!!
-//                    val songs = uiState.songs
-//                    val currentTopBarHeightDp = with(density) { topBarHeight.value.toDp() }
-//
-//                    LazyColumn(
-//                        state = lazyListState,
-//                        contentPadding = PaddingValues(top = currentTopBarHeightDp),
-//                        verticalArrangement = Arrangement.spacedBy(8.dp),
-//                        modifier = Modifier.fillMaxSize()
-//                    ) {
-//                        items(songs, key = { song -> "artist_song_${song.id}" }) { song ->
-//                            EnhancedSongListItem(
-//                                song = song,
-//                                isPlaying = stablePlayerState.currentSong?.id == song.id,
-//                                onMoreOptionsClick = { /* TODO */ },
-//                                onClick = { playerViewModel.showAndPlaySong(song, songs) }
-//                            )
-//                        }
-//
-//                        item { Spacer(modifier = Modifier.height(MiniPlayerHeight + 16.dp)) }
-//                    }
-//
-//                    CustomCollapsingTopBar(
-//                        artist = artist,
-//                        collapseFraction = collapseFraction,
-//                        headerHeight = currentTopBarHeightDp,
-//                        onBackPressed = { navController.popBackStack() },
-//                        onPlayClick = { playerViewModel.playArtist(artist) }
-//                    )
-//                }
-//            }
-//        }
-//    }
-//}
-//
-//@Composable
-//private fun CustomCollapsingTopBar(
-//    artist: Artist,
-//    collapseFraction: Float, // 0.0 = expandido, 1.0 = colapsado
-//    headerHeight: Dp,
-//    onBackPressed: () -> Unit,
-//    onPlayClick: () -> Unit
-//) {
-//    val surfaceColor = MaterialTheme.colorScheme.surface
-//    val statusBarColor = if (isSystemInDarkTheme()) Color.Black.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.4f)
-//
-//    // --- Animation Values ---
-//    val fabScale = 1f - collapseFraction
-//    val backgroundAlpha = collapseFraction
-//    val headerContentAlpha = 1f - (collapseFraction * 2).coerceAtMost(1f)
-//
-//    // Title animation
-//    val titleScale = lerp(1f, 0.85f, collapseFraction)
-//    val titlePaddingStart = lerp(24.dp, 68.dp, collapseFraction)
-//    val titleMaxLines = if(collapseFraction < 0.5f) 2 else 1
-//
-//    // FIX: Animate alignment from Bottom to Top for correct positioning
-//    val titleVerticalBias = lerp(1f, -1f, collapseFraction)
-//    val animatedTitleAlignment = BiasAlignment(horizontalBias = -1f, verticalBias = titleVerticalBias)
-//
-//    // FIX: Animate container height to allow for 2 lines and correct collapsed alignment
-//    val titleContainerHeight = lerp(88.dp, 56.dp, collapseFraction)
-//
-//    // FIX: Corrective offset to align with FAB's center (64dp from bottom) when expanded
-//    val yOffsetCorrection = lerp( (titleContainerHeight / 2) - 64.dp, 0.dp, collapseFraction)
-//
-//
-//    Box(
-//        modifier = Modifier
-//            .fillMaxWidth()
-//            .height(headerHeight)
-//            .background(surfaceColor.copy(alpha = backgroundAlpha))
-//    ) {
-//        // --- Contenido del Header (visible cuando está expandido) ---
-//        Box(
-//            modifier = Modifier
-//                .fillMaxSize()
-//                .graphicsLayer { alpha = headerContentAlpha }
-//        ) {
-//            Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant))
-//            Box(
-//                modifier = Modifier
-//                    .fillMaxWidth()
-//                    .height(180.dp)
-//                    .background(Brush.verticalGradient(colors = listOf(Color.Transparent, MaterialTheme.colorScheme.surfaceVariant), startY = 0f, endY = 400f))
-//                    .align(Alignment.BottomCenter)
-//            )
-//        }
-//
-//        // Gradiente para la barra de estado (se dibuja debajo de los botones)
-//        Box(
-//            modifier = Modifier
-//                .fillMaxWidth()
-//                .height(80.dp)
-//                .background(Brush.verticalGradient(colors = listOf(statusBarColor, Color.Transparent)))
-//                .align(Alignment.TopCenter)
-//        )
-//
-//        // --- Contenido de la barra superior (botones, título, etc.) ---
-//        Box(
-//            modifier = Modifier
-//                .fillMaxSize()
-//                .statusBarsPadding()
-//        ) {
-//            // Botón de volver
-//            FilledIconButton(
-//                modifier = Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 4.dp),
-//                onClick = onBackPressed,
-//                colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.8f))
-//            ) {
-//                Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
-//            }
-//
-//            // Botón de búsqueda
-//            FilledIconButton(
-//                modifier = Modifier.align(Alignment.TopEnd).padding(end = 8.dp, top = 4.dp),
-//                onClick = { /* TODO */ },
-//                colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.8f))
-//            ) {
-//                Icon(Icons.Rounded.Search, contentDescription = "Buscar en artista")
-//            }
-//
-//            // Box contenedor para el título, para centrarlo verticalmente en el espacio restante
-//            Box(
-//                modifier = Modifier
-//                    .align(animatedTitleAlignment)
-//                    .height(titleContainerHeight) // Animated height
-//                    .fillMaxWidth()
-//                    .offset(y = yOffsetCorrection) // Apply the corrective offset
-//            ) {
-//                Text(
-//                    text = artist.name,
-//                    style = MaterialTheme.typography.headlineMedium,
-//                    fontWeight = FontWeight.Bold,
-//                    color = MaterialTheme.colorScheme.onSurface,
-//                    maxLines = titleMaxLines,
-//                    overflow = TextOverflow.Ellipsis,
-//                    modifier = Modifier
-//                        .align(Alignment.CenterStart) // Centrado verticalmente en el contenedor
-//                        .padding(start = titlePaddingStart, end = 120.dp)
-//                        .graphicsLayer {
-//                            scaleX = titleScale
-//                            scaleY = titleScale
-//                        }
-//                )
-//            }
-//
-//            // Botón de Play
-//            LargeFloatingActionButton(
-//                onClick = onPlayClick,
-//                shape = RoundedStarShape(sides = 8, curve = 0.05, rotation = 0f),
-//                modifier = Modifier
-//                    .align(Alignment.BottomEnd)
-//                    .padding(16.dp)
-//                    .graphicsLayer {
-//                        scaleX = fabScale
-//                        scaleY = fabScale
-//                        alpha = fabScale
-//                    }
-//            ) {
-//                Icon(Icons.Rounded.PlayArrow, contentDescription = "Reproducir artista")
-//            }
-//        }
-//    }
-//}

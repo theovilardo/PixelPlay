@@ -1349,12 +1349,6 @@ fun LibraryArtistsTab(
                     )
                     .align(Alignment.TopCenter)
             )
-            // InfiniteListHandler removed as all artists are loaded at once
-            // InfiniteListHandler(listState = listState) {
-            //     if (canLoadMore && !isLoading) {
-            //         playerViewModel.loadMoreArtists()
-            //     }
-            // }
         }
     }
 }
@@ -1456,19 +1450,49 @@ fun LibraryPlaylistsTab(
 
 @Composable
 fun PlaylistItem(playlist: Playlist, onClick: () -> Unit) {
-    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        // 1. Usa un color de contenedor específico de M3 para una apariencia menos elevada
+        // y más integrada con la superficie.
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
+        Row(
+            // 2. Ajusta el padding general para el nuevo diseño.
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 3. El ícono ahora tiene un fondo con color y forma para destacarlo,
+            // un patrón común en el estilo expresivo de M3.
             Icon(
-                Icons.AutoMirrored.Filled.QueueMusic,
+                imageVector = Icons.AutoMirrored.Filled.QueueMusic,
                 contentDescription = "Playlist",
                 modifier = Modifier
-                    .size(40.dp)
-                    .padding(end = 16.dp),
-                tint = MaterialTheme.colorScheme.secondary
+                    .size(48.dp)
+                    .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
+                    .padding(12.dp), // Padding interno para que el ícono no toque los bordes del círculo.
+                // 4. El tint del ícono debe ser el color "on" correspondiente al nuevo fondo.
+                tint = MaterialTheme.colorScheme.onSecondaryContainer
             )
+
+            // 5. Usa un Spacer para una separación horizontal consistente y predecible.
+            Spacer(modifier = Modifier.width(16.dp))
+
             Column {
-                Text(playlist.name, style = MaterialTheme.typography.titleMedium)
-                Text("${playlist.songIds.size} canciones", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                // 6. Añade un peso de fuente (FontWeight) al título para mejorar la
+                // jerarquía visual y darle más importancia.
+                Text(
+                    text = playlist.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "${playlist.songIds.size} Songs",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
