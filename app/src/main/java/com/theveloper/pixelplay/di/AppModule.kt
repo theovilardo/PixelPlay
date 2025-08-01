@@ -60,7 +60,7 @@ object AppModule {
             context.applicationContext,
             PixelPlayDatabase::class.java,
             "pixelplay_database"
-        ).addMigrations(PixelPlayDatabase.MIGRATION_3_4) // Add migration for parent_directory_path
+        ).addMigrations(PixelPlayDatabase.MIGRATION_3_4, PixelPlayDatabase.MIGRATION_4_5) // Add migration for parent_directory_path
             .fallbackToDestructiveMigration(false)
             .build()
     }
