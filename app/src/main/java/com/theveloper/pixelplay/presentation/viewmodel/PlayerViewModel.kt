@@ -30,7 +30,6 @@ import com.theveloper.pixelplay.data.EotStateHolder // Ensure this import is pre
 import com.theveloper.pixelplay.data.database.AlbumArtThemeDao
 import com.theveloper.pixelplay.data.database.AlbumArtThemeEntity
 import com.theveloper.pixelplay.data.database.toComposeColor
-import com.theveloper.pixelplay.data.database.toHexString
 import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.data.model.Song

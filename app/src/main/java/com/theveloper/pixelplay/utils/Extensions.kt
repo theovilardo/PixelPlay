@@ -3,9 +3,9 @@ package com.theveloper.pixelplay.utils
 import androidx.compose.ui.unit.Dp
 
 // Función utilitaria para usar en animaciones
-private fun lerp(start: Dp, end: Dp, fraction: Float): Dp {
-    return start + ((end - start) * fraction)
-}
+//private fun lerp(start: Dp, end: Dp, fraction: Float): Dp {
+//    return start + ((end - start) * fraction)
+//}
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb

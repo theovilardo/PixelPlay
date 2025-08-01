@@ -7,9 +7,9 @@ import androidx.core.graphics.toColorInt
 // No se necesitan TypeConverter ni ColorScheme aquí si no los usa Room.
 
 // Helper para convertir Color a String y viceversa (usado en ViewModel)
-fun Color.toHexString(): String {
-    return String.format("#%08X", this.toArgb())
-}
+//fun Color.toHexString(): String {
+//    return String.format("#%08X", this.toArgb())
+//}
 
 fun String.toComposeColor(): Color {
     // Añadir manejo de errores para parseo de color
