@@ -68,6 +68,8 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         private val MEDIUM_LAYOUT_SIZE = DpSize(width = 250.dp, height = 150.dp)
         private val LARGE_LAYOUT_SIZE = DpSize(width = 300.dp, height = 180.dp)
         private val EXTRA_LARGE_LAYOUT_SIZE = DpSize(width = 300.dp, height = 220.dp)
+        private val EXTRA_LARGE_PLUS_LAYOUT_SIZE = DpSize(width = 350.dp, height = 260.dp)
+        private val HUGE_LAYOUT_SIZE = DpSize(width = 400.dp, height = 300.dp)
 
         // LruCache for Bitmaps
         private object AlbumArtBitmapCache {
@@ -919,7 +921,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 ) {
                     AlbumArtImageGlance(
                         bitmapData = albumArtBitmapData,
-                        size = 80.dp,
+                        size = 68.dp,
                         context = context,
                         cornerRadius = 16.dp
                     )
@@ -938,14 +940,14 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                     }
                 }
 
-                Spacer(GlanceModifier.height(10.dp))
+                Spacer(GlanceModifier.height(14.dp))
 
                 // Bottom Row: Controls
                 Row(
                     modifier = GlanceModifier
                         .defaultWeight()
                         .fillMaxWidth()
-                        //.height(56.dp)
+                        .height(56.dp)
                     ,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -987,13 +989,13 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                     )
                 }
 
-//                Spacer(GlanceModifier.defaultWeight()) // Empuja el contenido hacia abajo
-                Spacer(GlanceModifier.height(16.dp))
+                Spacer(GlanceModifier.defaultWeight()) // Empuja el contenido hacia abajo
+                //Spacer(GlanceModifier.height(16.dp))
 
                 Text(
                     text = "Next Up",
                     style = TextStyle(
-                        fontSize = 18.sp,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = textColor
                     ),
@@ -1002,9 +1004,11 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 
                 Row(
                     modifier = GlanceModifier
+                        .defaultWeight()
                         .fillMaxWidth()
-                        .height(80.dp)
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                        .height(58.dp)
+                        //.padding(horizontal = 8.dp, vertical = 8.dp)
+                    ,
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -1149,7 +1153,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 provider = imageProvider,
                 contentDescription = "Album Art",
                 modifier = GlanceModifier.fillMaxSize().cornerRadius(cornerRadius),
-                contentScale = ContentScale.Fit
+                contentScale = ContentScale.Crop
             )
         }
     }
