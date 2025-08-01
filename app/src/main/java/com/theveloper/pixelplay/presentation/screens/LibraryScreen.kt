@@ -545,8 +545,8 @@ fun LibraryScreen(
                     showSongInfoBottomSheet = false
                     // Actual navigation logic to be implemented if routes exist
                 },
-                onEditSong = { newTitle, newArtist, newAlbum ->
-                    playerViewModel.editSongMetadata(currentSong, newTitle, newArtist, newAlbum)
+                onEditSong = { newTitle, newArtist, newAlbum, newGenre, newLyrics ->
+                    playerViewModel.editSongMetadata(currentSong, newTitle, newArtist, newAlbum, newGenre, newLyrics)
                 }
             )
         }

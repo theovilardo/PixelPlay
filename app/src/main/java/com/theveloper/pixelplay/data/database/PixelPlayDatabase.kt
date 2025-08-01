@@ -14,7 +14,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AlbumEntity::class,
         ArtistEntity::class
     ],
-    version = 4, // Incremented version for adding parentDirectoryPath
+    version = 5, // Incremented version for adding lyrics
     exportSchema = false
 )
 //@TypeConverters(ColorConverters::class) // Necesitaremos conversores para los ColorScheme
@@ -27,6 +27,12 @@ abstract class PixelPlayDatabase : RoomDatabase() {
         val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE songs ADD COLUMN parent_directory_path TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE songs ADD COLUMN lyrics TEXT")
             }
         }
 
