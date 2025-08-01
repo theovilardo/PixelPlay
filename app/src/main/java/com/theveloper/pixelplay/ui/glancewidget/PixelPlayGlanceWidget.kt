@@ -992,20 +992,18 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                     )
                 }
 
-                // Fila de la cola
                 Row(
                     modifier = GlanceModifier
                         .fillMaxWidth()
-                        .height(70.dp) // Dar espacio explícito a la fila
-                        .padding(bottom = 8.dp),
+                        .height(80.dp) // Aumentar la altura de la fila
+                        .padding(horizontal = 8.dp, vertical = 8.dp), // Padding simétrico
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Itera a través de la cola, tomando un máximo de 4 elementos para evitar el desbordamiento
                     queue.take(4).forEachIndexed { index, queueItem ->
                         Box(
                             modifier = GlanceModifier
-                                .padding(horizontal = 4.dp), // Espaciado simétrico
+                                .padding(horizontal = 8.dp), // Espaciado entre carátulas
                             contentAlignment = Alignment.Center
                         ) {
                             AlbumArtImageGlance(
@@ -1018,9 +1016,9 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                                     )
                                 ),
                                 bitmapData = queueItem.albumArtBitmapData,
-                                size = 56.dp,
+                                size = 68.dp, // Aumentar el tamaño de la carátula
                                 context = context,
-                                cornerRadius = 14.dp,
+                                cornerRadius = 16.dp, // Aumentar el radio de las esquinas
                             )
                         }
                     }

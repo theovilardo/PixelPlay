@@ -95,6 +95,23 @@ class MusicService : MediaSessionService() {
                 PlayerActions.PLAY_PAUSE -> player.playWhenReady = !player.playWhenReady
                 PlayerActions.NEXT -> player.seekToNext()
                 PlayerActions.PREVIOUS -> player.seekToPrevious()
+                PlayerActions.PLAY_FROM_QUEUE -> {
+                    val songId = intent.getLongExtra("song_id", -1L)
+                    if (songId != -1L) {
+                        val timeline = player.currentTimeline
+                        if (!timeline.isEmpty) {
+                            val window = androidx.media3.common.Timeline.Window()
+                            for (i in 0 until timeline.windowCount) {
+                                timeline.getWindow(i, window)
+                                if (window.mediaItem.mediaId.toLongOrNull() == songId) {
+                                    player.seekTo(i, C.TIME_UNSET)
+                                    player.play()
+                                    break
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
         return super.onStartCommand(intent, flags, startId)
