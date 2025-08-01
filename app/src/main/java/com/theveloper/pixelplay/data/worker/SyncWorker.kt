@@ -41,6 +41,7 @@ class SyncWorker @AssistedInject constructor(
             Log.i(TAG, "Fetched ${songs.size} songs from MediaStore.")
 
             if (songs.isNotEmpty()) {
+                musicDao.clearAllMusicData()
                 songs.chunked(1000).forEach { batch ->
                     val albums = batch.distinctBy { it.albumId }.map {
                         AlbumEntity(
@@ -61,12 +62,6 @@ class SyncWorker @AssistedInject constructor(
                     }
                     musicDao.insertMusicData(batch, albums, artists)
                 }
-
-                // Delete songs that are no longer present in MediaStore
-                val currentSongIds = songs.map { it.id }
-                musicDao.deleteMissingSongs(currentSongIds)
-                musicDao.deleteOrphanedAlbums()
-                musicDao.deleteOrphanedArtists()
                 Log.i(TAG, "Music data insertion call completed.")
             } else {
                 Log.w(TAG, "MediaStore fetch resulted in empty list for songs. No data will be inserted.")
@@ -97,7 +92,8 @@ class SyncWorker @AssistedInject constructor(
             MediaStore.Audio.Media.ALBUM,
             MediaStore.Audio.Media.ALBUM_ID,
             MediaStore.Audio.Media.DURATION,
-            MediaStore.Audio.Media.DATA
+            MediaStore.Audio.Media.DATA,
+            MediaStore.Audio.Media.GENRE
         )
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ?"
         val selectionArgs = arrayOf("10000")
@@ -118,6 +114,8 @@ class SyncWorker @AssistedInject constructor(
             val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
             val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
             val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+            val genreCol = cursor.getColumnIndex(MediaStore.Audio.Media.GENRE)
+
 
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
@@ -153,7 +151,7 @@ class SyncWorker @AssistedInject constructor(
                         contentUriString = contentUriString,
                         albumArtUriString = albumArtUriString,
                         duration = cursor.getLong(durationCol),
-                        genre = null,
+                        genre = if (genreCol != -1) cursor.getString(genreCol) else null,
                         filePath = filePath,
                         parentDirectoryPath = parentDir
                     )

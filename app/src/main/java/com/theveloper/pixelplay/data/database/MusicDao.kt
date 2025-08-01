@@ -22,13 +22,16 @@ interface MusicDao {
 
     @Transaction
     suspend fun insertMusicData(songs: List<SongEntity>, albums: List<AlbumEntity>, artists: List<ArtistEntity>) {
-        clearAllSongs()
-        clearAllAlbums()
-        clearAllArtists()
-
         insertArtists(artists)
         insertAlbums(albums)
         insertSongs(songs)
+    }
+
+    @Transaction
+    suspend fun clearAllMusicData() {
+        clearAllSongs()
+        clearAllAlbums()
+        clearAllArtists()
     }
 
     // --- Clear Operations ---

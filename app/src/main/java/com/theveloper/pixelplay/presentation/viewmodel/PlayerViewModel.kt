@@ -30,7 +30,6 @@ import com.theveloper.pixelplay.data.EotStateHolder // Ensure this import is pre
 import com.theveloper.pixelplay.data.database.AlbumArtThemeDao
 import com.theveloper.pixelplay.data.database.AlbumArtThemeEntity
 import com.theveloper.pixelplay.data.database.toComposeColor
-import com.theveloper.pixelplay.data.database.toHexString
 import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.data.model.Song
@@ -86,6 +85,8 @@ import androidx.work.WorkInfo
 import androidx.core.net.toUri
 import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.data.model.Genre
+import com.theveloper.pixelplay.ui.theme.GenreColors
+import com.theveloper.pixelplay.utils.toHexString
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
 
@@ -294,18 +295,22 @@ class PlayerViewModel @Inject constructor(
                 }
             }
 
-            genreMap.filterValues { it.isNotEmpty() } // Only include genres that have at least one song
-                .map { (genreName, _) ->
+            genreMap.toList().mapIndexed { index, (genreName, songs) ->
+                if (songs.isNotEmpty()) {
                     val id = if (genreName.equals(unknownGenreName, ignoreCase = true)) "unknown" else genreName.lowercase().replace(" ", "_")
+                    val color = GenreColors.colors[index % GenreColors.colors.size]
                     Genre(
                         id = id,
                         name = genreName,
-                        lightColorHex = "#9E9E9E", // Default grey
-                        onLightColorHex = "#000000", // Default black
-                        darkColorHex = "#616161", // Default dark grey
-                        onDarkColorHex = "#FFFFFF" // Default white
+                        lightColorHex = color.lightColor.toHexString(),
+                        onLightColorHex = color.onLightColor.toHexString(),
+                        darkColorHex = color.darkColor.toHexString(),
+                        onDarkColorHex = color.onDarkColor.toHexString()
                     )
+                } else {
+                    null
                 }
+            }.filterNotNull()
                 .sortedBy { it.name } // Sort genres alphabetically
                 .toImmutableList()
         }
