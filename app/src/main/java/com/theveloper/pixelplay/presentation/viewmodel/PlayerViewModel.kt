@@ -2022,14 +2022,20 @@ class PlayerViewModel @Inject constructor(
         _selectedSongForInfo.value = song
     }
 
-    fun editSongMetadata(song: Song, newTitle: String, newArtist: String, newAlbum: String) {
+    fun editSongMetadata(song: Song, newTitle: String, newArtist: String, newAlbum: String, newGenre: String, newLyrics: String) {
         viewModelScope.launch {
             val success = withContext(Dispatchers.IO) {
-                songMetadataEditor.editSongMetadata(song.contentUriString, newTitle, newArtist, newAlbum)
+                songMetadataEditor.editSongMetadata(song.contentUriString, newTitle, newArtist, newAlbum, newGenre, newLyrics)
             }
 
             if (success) {
-                val updatedSong = song.copy(title = newTitle, artist = newArtist, album = newAlbum)
+                val updatedSong = song.copy(
+                    title = newTitle,
+                    artist = newArtist,
+                    album = newAlbum,
+                    genre = newGenre,
+                    lyrics = newLyrics
+                )
 
                 // Manually update the song in the UI state
                 val currentSongs = _playerUiState.value.allSongs.toMutableList()

@@ -127,7 +127,7 @@ object AppModule {
 
     @Singleton
     @Provides
-    fun provideSongMetadataEditor(@ApplicationContext context: Context): SongMetadataEditor {
-        return SongMetadataEditor(context)
+    fun provideSongMetadataEditor(@ApplicationContext context: Context, musicDao: MusicDao): SongMetadataEditor {
+        return SongMetadataEditor(context, musicDao)
     }
 }

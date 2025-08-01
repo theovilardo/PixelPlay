@@ -47,7 +47,8 @@ data class SongEntity(
     @ColumnInfo(name = "genre") val genre: String?,
     @ColumnInfo(name = "file_path") val filePath: String, // Added filePath
     @ColumnInfo(name = "parent_directory_path") val parentDirectoryPath: String, // Added for directory filtering
-    @ColumnInfo(name = "is_favorite", defaultValue = "0") val isFavorite: Boolean = false
+    @ColumnInfo(name = "is_favorite", defaultValue = "0") val isFavorite: Boolean = false,
+    @ColumnInfo(name = "lyrics", defaultValue = "null") val lyrics: String? = null
 )
 
 fun SongEntity.toSong(): Song {
@@ -62,6 +63,7 @@ fun SongEntity.toSong(): Song {
         albumArtUriString = this.albumArtUriString,
         duration = this.duration,
         genre = this.genre,
+        lyrics = this.lyrics,
         isFavorite = this.isFavorite
         // filePath no está en el modelo Song, se usa internamente en el repo o SSoT
     )
@@ -86,6 +88,7 @@ fun Song.toEntity(filePathFromMediaStore: String, parentDirFromMediaStore: Strin
         albumArtUriString = this.albumArtUriString,
         duration = this.duration,
         genre = this.genre,
+        lyrics = this.lyrics,
         filePath = filePathFromMediaStore,
         parentDirectoryPath = parentDirFromMediaStore
     )
@@ -105,6 +108,7 @@ fun Song.toEntityWithoutPaths(): SongEntity {
         albumArtUriString = this.albumArtUriString,
         duration = this.duration,
         genre = this.genre,
+        lyrics = this.lyrics,
         filePath = "", // Default o manejar como no disponible
         parentDirectoryPath = "" // Default o manejar como no disponible
     )

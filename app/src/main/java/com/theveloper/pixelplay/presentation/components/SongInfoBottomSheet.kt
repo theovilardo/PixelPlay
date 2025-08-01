@@ -65,10 +65,10 @@ fun SongInfoBottomSheet(
     onAddToQueue: () -> Unit,
     onNavigateToAlbum: () -> Unit,
     onNavigateToArtist: () -> Unit,
-    onEditSong: (String, String, String) -> Unit
+    onEditSong: (title: String, artist: String, album: String, genre: String, lyrics: String) -> Unit
 ) {
     val context = LocalContext.current
-    var showEditDialog by remember { mutableStateOf(false) }
+    var showEditSheet by remember { mutableStateOf(false) }
 
     val evenCornerRadiusElems = 26.dp
 
@@ -164,7 +164,7 @@ fun SongInfoBottomSheet(
                         containerColor = MaterialTheme.colorScheme.surfaceBright,
                         contentColor = MaterialTheme.colorScheme.onSurface
                     ),
-                    onClick = { showEditDialog = true },
+                    onClick = { showEditSheet = true },
                 ) {
                     Icon(
                         modifier = Modifier.padding(horizontal = 8.dp),
@@ -312,13 +312,13 @@ fun SongInfoBottomSheet(
         }
     }
 
-    if (showEditDialog) {
-        EditSongMetadataDialog(
+    if (showEditSheet) {
+        EditSongSheet(
             song = song,
-            onDismiss = { showEditDialog = false },
-            onSave = { newTitle, newArtist, newAlbum ->
-                onEditSong(newTitle, newArtist, newAlbum)
-                showEditDialog = false
+            onDismiss = { showEditSheet = false },
+            onSave = { title, artist, album, genre, lyrics ->
+                onEditSong(title, artist, album, genre, lyrics)
+                showEditSheet = false
             }
         )
     }

@@ -10,15 +10,19 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import androidx.core.net.toUri
+import com.theveloper.pixelplay.data.database.MusicDao
+import kotlinx.coroutines.runBlocking
 import timber.log.Timber
 
-class SongMetadataEditor(private val context: Context) {
+class SongMetadataEditor(private val context: Context, private val musicDao: MusicDao) {
 
     fun editSongMetadata(
         contentUri: String,
         newTitle: String,
         newArtist: String,
-        newAlbum: String
+        newAlbum: String,
+        newGenre: String,
+        newLyrics: String
     ): Boolean {
         val uri = contentUri.toUri()
         var tempFile: File? = null
@@ -36,6 +40,8 @@ class SongMetadataEditor(private val context: Context) {
             tag.setField(FieldKey.TITLE, newTitle)
             tag.setField(FieldKey.ARTIST, newArtist)
             tag.setField(FieldKey.ALBUM, newAlbum)
+            tag.setField(FieldKey.GENRE, newGenre)
+            tag.setField(FieldKey.LYRICS, newLyrics)
             audioFile.commit() // Esto guarda los cambios en el archivo temporal
 
             // 3. Sobrescribir el archivo original con el archivo temporal modificado
@@ -48,6 +54,13 @@ class SongMetadataEditor(private val context: Context) {
             } ?: run {
                 Timber.tag("SongMetadataEditor").e("Failed to open FileDescriptor for writing.")
                 return false
+            }
+
+            val songId = uri.lastPathSegment?.toLongOrNull()
+            if (songId != null) {
+                runBlocking {
+                    musicDao.updateSongMetadata(songId, newGenre, newLyrics)
+                }
             }
 
             Timber.tag("SongMetadataEditor")

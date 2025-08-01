@@ -254,4 +254,7 @@ interface MusicDao {
         setFavoriteStatus(songId, newStatus)
         return newStatus
     }
+
+    @Query("UPDATE songs SET genre = :genre, lyrics = :lyrics WHERE id = :songId")
+    suspend fun updateSongMetadata(songId: Long, genre: String, lyrics: String)
 }
