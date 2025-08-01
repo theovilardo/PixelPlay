@@ -101,15 +101,16 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavHostController
 import com.theveloper.pixelplay.R
-import com.theveloper.pixelplay.data.datasource.GenreDataSource
 import com.theveloper.pixelplay.data.model.Genre // Added import for Genre
 import com.theveloper.pixelplay.presentation.navigation.Screen // Required for Screen.GenreDetail.createRoute
 import com.theveloper.pixelplay.presentation.screens.search.components.GenreCategoriesGrid
 import okhttp3.internal.toImmutableList
 
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SearchScreen(
@@ -123,40 +124,8 @@ fun SearchScreen(
     val uiState by playerViewModel.playerUiState.collectAsState()
     val currentFilter by remember { derivedStateOf { uiState.selectedSearchFilter } }
     val searchHistory = uiState.searchHistory
-    val allSongs by playerViewModel.allSongsFlow.collectAsState() // Collect allSongs
-
-    val dynamicGenres by remember(allSongs) {
-        derivedStateOf {
-            val songGenres = allSongs
-                .mapNotNull { it.genre?.trim() }
-                .filter { it.isNotBlank() }
-                .distinctBy { it.lowercase() } // Unique by lowercase name
-
-            val staticGenresMap = GenreDataSource.staticGenres.associateBy { it.name.lowercase() }
-
-            songGenres.map { genreName ->
-                staticGenresMap[genreName.lowercase()] ?: Genre(
-                    id = genreName, // Using name as ID
-                    name = genreName
-                    // Color fields will be null by default (as per Genre.kt)
-                )
-            }
-        }
-    }
-
-    val finalGenres by remember(dynamicGenres, GenreDataSource.staticGenres) {
-        derivedStateOf {
-            val dynamicGenreNames = dynamicGenres.map { it.name.lowercase() }.toSet()
-            val combinedGenres = dynamicGenres.toMutableList()
-
-            GenreDataSource.staticGenres.forEach { staticGenre ->
-                if (staticGenre.name.lowercase() !in dynamicGenreNames) {
-                    combinedGenres.add(staticGenre)
-                }
-            }
-            combinedGenres.toImmutableList() // Make it immutable for compose
-        }
-    }
+    val allSongs by playerViewModel.allSongsFlow.collectAsState()
+    val genres by playerViewModel.genres.collectAsState()
 
     // Perform search whenever searchQuery, active state, or filter changes
     LaunchedEffect(searchQuery, active, currentFilter) {
@@ -355,10 +324,11 @@ fun SearchScreen(
                 if (searchQuery.isBlank()) {
                     Box {
                         GenreCategoriesGrid(
-                            genres = finalGenres, // Use the new combined list
+                            genres = genres, // Use the new combined list
                             onGenreClick = { genre ->
                                 Log.d("SearchScreen", "Genre clicked: ${genre.name} (ID: ${genre.id})")
-                                navController.navigate(Screen.GenreDetail.createRoute(genre.id))
+                                val encodedGenreId = java.net.URLEncoder.encode(genre.id, "UTF-8")
+                                navController.navigate(Screen.GenreDetail.createRoute(encodedGenreId))
                             },
                             playerViewModel = playerViewModel,
                             modifier = Modifier.padding(top = 12.dp)
@@ -537,6 +507,7 @@ fun EmptySearchResults(searchQuery: String, colorScheme: ColorScheme) {
     }
 }
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun SearchResultsList(
     results: List<SearchResultItem>,
@@ -1042,6 +1013,7 @@ fun ExpressiveSongListItem(
     }
 }
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class) // FilterChip y sus defaults son experimentales
 @Composable
 fun SearchFilterChip(

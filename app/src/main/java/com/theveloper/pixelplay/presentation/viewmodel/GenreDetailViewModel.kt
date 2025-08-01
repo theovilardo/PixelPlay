@@ -6,7 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.theveloper.pixelplay.data.model.Genre
 import com.theveloper.pixelplay.data.model.Song
-import com.theveloper.pixelplay.data.datasource.GenreDataSource
+
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,7 +41,7 @@ class GenreDetailViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(GenreDetailUiState())
     val uiState: StateFlow<GenreDetailUiState> = _uiState.asStateFlow()
 
-    private val genreId: String? = savedStateHandle.get<String>("genreId")
+    private val genreId: String? = savedStateHandle.get<String>("genreId")?.let { java.net.URLDecoder.decode(it, "UTF-8") }
 
     init {
         if (genreId != null) {
@@ -63,23 +63,30 @@ class GenreDetailViewModel @Inject constructor(
                 return@launch
             }
 
-            val staticGenre = GenreDataSource.staticGenres.find { it.id.equals(id, ignoreCase = true) } // Case-insensitive find
+            try {
+                val genres = musicRepository.getGenres().first() // Get all genres from the repository
+                val foundGenre = genres.find { it.id.equals(id, ignoreCase = true) }
 
-            if (staticGenre != null) {
-                _uiState.value = _uiState.value.copy(genre = staticGenre, isLoadingGenreName = false)
-            } else {
-                // If not found in static genres, create a dynamic one.
-                // The ID itself is treated as the name for dynamic genres.
-                val dynamicGenre = Genre(
-                    id = id,
-                    name = id, // Use id as name
-                    iconResId = null, // No icon for dynamic genres by default
-                    lightColorHex = null, // Colors will be handled by fallback in UI
-                    onLightColorHex = null,
-                    darkColorHex = null,
-                    onDarkColorHex = null
+                if (foundGenre != null) {
+                    _uiState.value = _uiState.value.copy(genre = foundGenre, isLoadingGenreName = false)
+                } else {
+                    // If not found, it means there are no songs with this genre in the library.
+                    // We can still create a basic Genre object for display, but it will be empty.
+                    val dynamicGenre = Genre(
+                        id = id,
+                        name = id, // Use id as name
+                        lightColorHex = "#9E9E9E", // Default grey
+                        onLightColorHex = "#000000", // Default black
+                        darkColorHex = "#616161", // Default dark grey
+                        onDarkColorHex = "#FFFFFF"
+                    )
+                    _uiState.value = _uiState.value.copy(genre = dynamicGenre, isLoadingGenreName = false)
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    error = "Failed to load genre details: ${e.message}",
+                    isLoadingGenreName = false
                 )
-                _uiState.value = _uiState.value.copy(genre = dynamicGenre, isLoadingGenreName = false)
             }
         }
     }

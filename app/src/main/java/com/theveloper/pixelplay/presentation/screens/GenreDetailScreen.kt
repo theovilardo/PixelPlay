@@ -83,6 +83,7 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 fun GenreDetailScreen(
     navController: NavHostController,
     genreId: String,
+    decodedGenreId: String = java.net.URLDecoder.decode(genreId, "UTF-8"),
     playerViewModel: PlayerViewModel,
     viewModel: GenreDetailViewModel = hiltViewModel()
 ) {

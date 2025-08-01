@@ -16,7 +16,8 @@ import javax.inject.Inject
 data class SettingsUiState(
     val directoryItems: List<DirectoryItem> = emptyList(),
     val isLoadingDirectories: Boolean = true,
-    val playerThemePreference: String = ThemePreference.ALBUM_ART // Default to Album Art
+    val playerThemePreference: String = ThemePreference.ALBUM_ART, // Default to Album Art
+    val mockGenresEnabled: Boolean = false
 )
 
 @HiltViewModel
@@ -34,6 +35,12 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferencesRepository.playerThemePreferenceFlow.collect { preference ->
                 _uiState.update { it.copy(playerThemePreference = preference) }
+            }
+        }
+
+        viewModelScope.launch {
+            userPreferencesRepository.mockGenresEnabledFlow.collect { enabled ->
+                _uiState.update { it.copy(mockGenresEnabled = enabled) }
             }
         }
 
@@ -105,6 +112,12 @@ class SettingsViewModel @Inject constructor(
             // Llamamos al nuevo método específico para forzar el refresco.
             syncManager.forceRefresh()
             // Opcional: Podrías emitir un evento a la UI para mostrar un Toast "Refresco iniciado"
+        }
+    }
+
+    fun setMockGenresEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setMockGenresEnabled(enabled)
         }
     }
 }

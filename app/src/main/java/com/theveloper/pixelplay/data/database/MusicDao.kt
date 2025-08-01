@@ -89,6 +89,15 @@ interface MusicDao {
     @Query("SELECT COUNT(*) FROM songs")
     fun getSongCount(): Flow<Int>
 
+    @Query("""
+        SELECT * FROM songs
+        WHERE (:applyDirectoryFilter = 0 OR parent_directory_path IN (:allowedParentDirs))
+    """)
+    fun getAllSongs(
+        allowedParentDirs: List<String> = emptyList(),
+        applyDirectoryFilter: Boolean = false
+    ): Flow<List<SongEntity>>
+
     // --- Album Queries ---
     @Query("""
         SELECT DISTINCT albums.* FROM albums
@@ -194,6 +203,17 @@ interface MusicDao {
     """)
     fun getSongsByGenre(
         genreName: String,
+        allowedParentDirs: List<String>,
+        applyDirectoryFilter: Boolean
+    ): Flow<List<SongEntity>>
+
+    @Query("""
+        SELECT * FROM songs
+        WHERE (:applyDirectoryFilter = 0 OR parent_directory_path IN (:allowedParentDirs))
+        AND (genre IS NULL OR genre = '')
+        ORDER BY title ASC
+    """)
+    fun getSongsWithNullGenre(
         allowedParentDirs: List<String>,
         applyDirectoryFilter: Boolean
     ): Flow<List<SongEntity>>

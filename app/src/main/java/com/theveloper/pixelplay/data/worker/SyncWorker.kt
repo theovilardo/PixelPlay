@@ -17,7 +17,6 @@ import com.theveloper.pixelplay.data.database.AlbumEntity
 import com.theveloper.pixelplay.data.database.ArtistEntity
 import com.theveloper.pixelplay.data.database.MusicDao
 import com.theveloper.pixelplay.data.database.SongEntity
-import com.theveloper.pixelplay.data.datasource.GenreDataSource
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.Dispatchers
@@ -132,16 +131,16 @@ class SyncWorker @AssistedInject constructor(
                 ).toString()
                 val albumArtUriString = ContentUris.withAppendedId(
                     "content://media/external/audio/albumart".toUri(), albumId
-                )?.toString()
+                ).toString()
 
-                val genreName = run {
-                    val staticGenres = GenreDataSource.staticGenres
-                    if (staticGenres.isNotEmpty()) {
-                        staticGenres[(id % staticGenres.size).toInt()].name
-                    } else {
-                        "Unknown Genre"
-                    }
-                }
+//                val genreName = run {
+//                    val staticGenres = GenreDataSource.getStaticGenres()
+//                    if (staticGenres.isNotEmpty()) {
+//                        staticGenres[(id % staticGenres.size).toInt()].name
+//                    } else {
+//                        "Unknown Genre"
+//                    }
+//                }
 
                 songs.add(
                     SongEntity(
@@ -154,7 +153,7 @@ class SyncWorker @AssistedInject constructor(
                         contentUriString = contentUriString,
                         albumArtUriString = albumArtUriString,
                         duration = cursor.getLong(durationCol),
-                        genre = genreName,
+                        genre = null,
                         filePath = filePath,
                         parentDirectoryPath = parentDir
                     )

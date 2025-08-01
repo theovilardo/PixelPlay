@@ -54,6 +54,7 @@ class UserPreferencesRepository @Inject constructor(
 
         // UI State Keys
         val LAST_LIBRARY_TAB_INDEX = intPreferencesKey("last_library_tab_index") // Corrected: Add intPreferencesKey here
+        val MOCK_GENRES_ENABLED = booleanPreferencesKey("mock_genres_enabled")
     }
 
     val allowedDirectoriesFlow: Flow<Set<String>> = dataStore.data
@@ -282,6 +283,17 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun saveLastLibraryTabIndex(tabIndex: Int) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.LAST_LIBRARY_TAB_INDEX] = tabIndex
+        }
+    }
+
+    val mockGenresEnabledFlow: Flow<Boolean> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.MOCK_GENRES_ENABLED] ?: false // Default to false
+        }
+
+    suspend fun setMockGenresEnabled(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.MOCK_GENRES_ENABLED] = enabled
         }
     }
 }

@@ -30,7 +30,8 @@ import com.theveloper.pixelplay.data.model.SearchFilterType
 import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import com.theveloper.pixelplay.data.model.SearchResultItem
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
-import com.theveloper.pixelplay.data.datasource.GenreDataSource // To know the list of genres for placeholder logic
+
+import com.theveloper.pixelplay.data.model.Genre
 import com.theveloper.pixelplay.data.database.SongEntity
 import com.theveloper.pixelplay.data.database.toAlbum
 import com.theveloper.pixelplay.data.database.toArtist
@@ -387,25 +388,24 @@ class MusicRepositoryImpl @Inject constructor(
     }
 
     override fun getMusicByGenre(genreId: String): Flow<List<Song>> {
-        val staticGenre = GenreDataSource.staticGenres.find { it.id.equals(genreId, ignoreCase = true) }
-        val targetGenreName = staticGenre?.name ?: genreId
-        if (targetGenreName.isBlank()) {
-            return flowOf(emptyList())
-        }
-        return combine(
-            userPreferencesRepository.allowedDirectoriesFlow,
-            userPreferencesRepository.initialSetupDoneFlow
-        ) { allowedDirs, initialSetupDone ->
-            Pair(allowedDirs.toList(), initialSetupDone)
-        }.flatMapLatest { (allowedDirs, initialSetupDone) ->
-            if (initialSetupDone && allowedDirs.isEmpty()) {
-                flowOf(emptyList<Song>())
+        return userPreferencesRepository.mockGenresEnabledFlow.flatMapLatest { mockEnabled ->
+            if (mockEnabled) {
+                // Mock mode: Use the static genre name for filtering.
+                val genreName = "Mock"//GenreDataSource.getStaticGenres().find { it.id.equals(genreId, ignoreCase = true) }?.name ?: genreId
+                getAudioFiles().map { songs ->
+                    songs.filter { it.genre.equals(genreName, ignoreCase = true) }
+                }
             } else {
-                musicDao.getSongsByGenre(
-                    genreName = targetGenreName, // Use targetGenreName from above
-                    allowedParentDirs = allowedDirs,
-                    applyDirectoryFilter = initialSetupDone
-                ).map { entities -> entities.map { it.toSong() } }
+                // Real mode: Use the genreId directly, which corresponds to the actual genre name from metadata.
+                getAudioFiles().map { songs ->
+                    if (genreId.equals("unknown", ignoreCase = true)) {
+                        // Filter for songs with no genre or an empty genre string.
+                        songs.filter { it.genre.isNullOrBlank() }
+                    } else {
+                        // Filter for songs that match the given genre name.
+                        songs.filter { it.genre.equals(genreId, ignoreCase = true) }
+                    }
+                }
             }
         }.flowOn(Dispatchers.IO)
     }
@@ -516,6 +516,40 @@ class MusicRepositoryImpl @Inject constructor(
                         null
                     }
                 }
+            }
+        }.flowOn(Dispatchers.IO)
+    }
+
+    override fun getGenres(): Flow<List<Genre>> {
+        return getAudioFiles().map { songs ->
+            val genresMap = songs.groupBy { song ->
+                song.genre?.trim()?.takeIf { it.isNotBlank() } ?: "Unknown"
+            }
+
+            val dynamicGenres = genresMap.keys.mapNotNull { genreName ->
+                val id = if (genreName.equals("Unknown", ignoreCase = true)) "unknown" else genreName.lowercase().replace(" ", "_")
+                // Generate colors dynamically or use a default for "Unknown"
+                val colorInt = genreName.hashCode()
+                val lightColorHex = "#${(colorInt and 0x00FFFFFF).toString(16).padStart(6, '0').uppercase()}"
+                // Simple inversion for dark color, or use a predefined set
+                val darkColorHex = "#${((colorInt xor 0xFFFFFF) and 0x00FFFFFF).toString(16).padStart(6, '0').uppercase()}"
+
+                Genre(
+                    id = id,
+                    name = genreName,
+                    lightColorHex = lightColorHex,
+                    onLightColorHex = "#000000", // Default black for light theme text
+                    darkColorHex = darkColorHex,
+                    onDarkColorHex = "#FFFFFF"  // Default white for dark theme text
+                )
+            }.sortedBy { it.name }
+
+            // Ensure "Unknown" genre is last if it exists.
+            val unknownGenre = dynamicGenres.find { it.id == "unknown" }
+            if (unknownGenre != null) {
+                (dynamicGenres.filterNot { it.id == "unknown" } + unknownGenre)
+            } else {
+                dynamicGenres
             }
         }.flowOn(Dispatchers.IO)
     }

@@ -85,6 +85,8 @@ import androidx.lifecycle.asFlow
 import androidx.work.WorkInfo
 import androidx.core.net.toUri
 import androidx.media3.common.util.UnstableApi
+import com.theveloper.pixelplay.data.model.Genre
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
 
 // Nuevo enum para el estado del sheet
@@ -206,6 +208,8 @@ class PlayerViewModel @Inject constructor(
             initialValue = 0 // Default to Songs tab
         )
 
+    
+
     // CAMBIO 1: Añadir estado para rastrear las pestañas ya cargadas.
     private val _loadedTabs = MutableStateFlow(emptySet<Int>())
 
@@ -275,6 +279,41 @@ class PlayerViewModel @Inject constructor(
         _playerUiState
             .map { it.allSongs }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val genres: StateFlow<ImmutableList<Genre>> = allSongsFlow
+        .map { songs ->
+            val genreMap = mutableMapOf<String, MutableList<Song>>()
+            val unknownGenreName = "Unknown Genre"
+
+            songs.forEach { song ->
+                val genreName = song.genre?.trim()
+                if (genreName.isNullOrBlank()) {
+                    genreMap.getOrPut(unknownGenreName) { mutableListOf() }.add(song)
+                } else {
+                    genreMap.getOrPut(genreName) { mutableListOf() }.add(song)
+                }
+            }
+
+            genreMap.filterValues { it.isNotEmpty() } // Only include genres that have at least one song
+                .map { (genreName, _) ->
+                    val id = if (genreName.equals(unknownGenreName, ignoreCase = true)) "unknown" else genreName.lowercase().replace(" ", "_")
+                    Genre(
+                        id = id,
+                        name = genreName,
+                        lightColorHex = "#9E9E9E", // Default grey
+                        onLightColorHex = "#000000", // Default black
+                        darkColorHex = "#616161", // Default dark grey
+                        onDarkColorHex = "#FFFFFF" // Default white
+                    )
+                }
+                .sortedBy { it.name } // Sort genres alphabetically
+                .toImmutableList()
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = persistentListOf()
+        )
 
     // val activeGlobalColorSchemePair: StateFlow<ColorSchemePair?> = combine( // Removed
     //     globalThemePreference, _currentAlbumArtColorSchemePair
@@ -1922,17 +1961,10 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    fun getSongUrisForGenre(genreName: String): List<String> {
-        val currentSongs = _playerUiState.value.allSongs
-
-        if (currentSongs.isEmpty()) {
-            return emptyList()
+    fun getSongUrisForGenre(genreId: String): Flow<List<String>> {
+        return musicRepository.getMusicByGenre(genreId).map { songs ->
+            songs.take(4).mapNotNull { it.albumArtUriString }
         }
-
-        return currentSongs
-            .filter { song -> song.genre.equals(genreName, ignoreCase = true) }
-            .take(3)
-            .mapNotNull { song -> song.albumArtUriString?.ifEmpty { null } } // Ensure URI is not null and not empty
     }
 
     fun saveLastLibraryTabIndex(tabIndex: Int) {

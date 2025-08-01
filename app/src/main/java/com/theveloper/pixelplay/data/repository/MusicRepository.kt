@@ -121,4 +121,10 @@ interface MusicRepository {
      */
     fun getSong(songId: String): Flow<Song?>
     fun getArtistById(artistId: Long): Flow<Artist?>
+
+    /**
+     * Obtiene la lista de géneros, ya sea mockeados o leídos de los metadatos.
+     * @return Flow que emite una lista de objetos Genre.
+     */
+    fun getGenres(): Flow<List<com.theveloper.pixelplay.data.model.Genre>>
 }

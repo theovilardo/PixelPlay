@@ -276,6 +276,45 @@ fun SettingsScreen(
             }
 
             // Aquí podrías añadir más secciones de configuración
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Sección de Opciones de Desarrollador
+            SettingsSection(
+                title = "Developer Options",
+                icon = {
+                    Icon(
+                        imageVector = Icons.Outlined.Style,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            ) {
+                Column(
+                    Modifier
+                        .background(
+                            color = Color.Transparent,
+                            shape = RoundedCornerShape(24.dp)
+                        )
+                        .clip(
+                            shape = RoundedCornerShape(24.dp)
+                        )
+                ) {
+                    SettingsSwitchItem(
+                        title = "Mock Genres",
+                        subtitle = "Use hardcoded genres for testing purposes.",
+                        checked = uiState.mockGenresEnabled,
+                        onCheckedChange = { settingsViewModel.setMockGenresEnabled(it) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Rounded.MusicNote,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
@@ -762,6 +801,68 @@ fun DirectoryItemCard(
                     checkedColor = MaterialTheme.colorScheme.primary,
                     uncheckedColor = MaterialTheme.colorScheme.outline,
                     checkmarkColor = MaterialTheme.colorScheme.onPrimary
+                )
+            )
+        }
+    }
+}
+
+@Composable
+fun SettingsSwitchItem(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    leadingIcon: @Composable () -> Unit
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable { onCheckedChange(!checked) }
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth()
+        ) {
+            Box(
+                modifier = Modifier
+                    .padding(end = 16.dp)
+                    .size(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                leadingIcon()
+            }
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            androidx.compose.material3.Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                colors = androidx.compose.material3.SwitchDefaults.colors(
+                    checkedThumbColor = MaterialTheme.colorScheme.primary,
+                    checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                    uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
                 )
             )
         }
