@@ -84,6 +84,7 @@ import androidx.lifecycle.asFlow
 import androidx.work.WorkInfo
 import androidx.core.net.toUri
 import androidx.media3.common.util.UnstableApi
+import com.theveloper.pixelplay.data.DailyMixManager
 import com.theveloper.pixelplay.data.model.Genre
 import com.theveloper.pixelplay.ui.theme.GenreColors
 import com.theveloper.pixelplay.utils.toHexString
@@ -153,7 +154,8 @@ class PlayerViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val albumArtThemeDao: AlbumArtThemeDao,
     private val syncManager: SyncManager, // Inyectar SyncManager
-    private val songMetadataEditor: SongMetadataEditor
+    private val songMetadataEditor: SongMetadataEditor,
+    private val dailyMixManager: DailyMixManager
 ) : ViewModel() {
 
     private val _playerUiState = MutableStateFlow(PlayerUiState())
@@ -383,7 +385,22 @@ class PlayerViewModel @Inject constructor(
     .flowOn(Dispatchers.Default) // Execute combine and transformations on Default dispatcher
     .stateIn(viewModelScope, SharingStarted.Lazily, persistentListOf())
 
+    val dailyMixSongs: StateFlow<ImmutableList<Song>> = combine(
+        allSongsFlow,
+        favoriteSongs
+    ) { allSongs, favoriteSongs ->
+        dailyMixManager.generateDailyMix(allSongs, favoriteSongs).toImmutableList()
+    }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.Lazily, persistentListOf())
+
     private var progressJob: Job? = null
+
+    fun incrementSongScore(songId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dailyMixManager.incrementScore(songId)
+        }
+    }
 
     // *** NUEVA FUNCIÓN AÑADIDA PARA SOLUCIONAR EL ERROR ***
     /**
@@ -836,6 +853,7 @@ class PlayerViewModel @Inject constructor(
     // showAndPlaySong ahora usa playSongs con la lista de contexto proporcionada.
     fun showAndPlaySong(song: Song, contextSongs: List<Song>, queueName: String = "Current Context") {
         // Utiliza la lista de canciones del contexto actual (ej: canciones de un género específico) como la cola.
+        incrementSongScore(song.id)
         playSongs(contextSongs, song, queueName)
         _isSheetVisible.value = true
         _predictiveBackCollapseFraction.value = 0f

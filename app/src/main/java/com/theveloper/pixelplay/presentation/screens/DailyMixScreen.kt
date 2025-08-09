@@ -78,6 +78,7 @@ import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.AlbumArtCollage
 import com.theveloper.pixelplay.presentation.components.DailyMixHeader
+import com.theveloper.pixelplay.presentation.components.DailyMixMenu
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet
@@ -103,7 +104,7 @@ fun DailyMixScreen(
     navController: NavController
 ) {
     Trace.beginSection("DailyMixScreen.Composition")
-    val dailyMixSongs: ImmutableList<Song> by playerViewModel.favoriteSongs.collectAsState()
+    val dailyMixSongs: ImmutableList<Song> by playerViewModel.dailyMixSongs.collectAsState()
     // Granular state collection for stablePlayerState fields
     val currentSongId by remember { playerViewModel.stablePlayerState.map { it.currentSong?.id }.distinctUntilChanged() }.collectAsState(initial = null)
     val isPlaying by remember { playerViewModel.stablePlayerState.map { it.isPlaying }.distinctUntilChanged() }.collectAsState(initial = false)
@@ -115,7 +116,11 @@ fun DailyMixScreen(
 
     var showSongInfoSheet by remember { mutableStateOf(false) }
     var selectedSongForInfo by remember { mutableStateOf<Song?>(null) }
+    var showDailyMixMenu by remember { mutableStateOf(false) }
 
+    if (showDailyMixMenu) {
+        DailyMixMenu(onDismiss = { showDailyMixMenu = false })
+    }
 
     val surfaceContainer = MaterialTheme.colorScheme.surface
     val headerColor = MaterialTheme.colorScheme.primary
@@ -465,7 +470,7 @@ private fun ExpressiveDailyMixHeader(
             }
             LargeFloatingActionButton(
                 modifier = Modifier,
-                onClick = {},
+                onClick = { showDailyMixMenu = true },
                 shape = RoundedStarShape(
                     sides = 8,
                     curve = 0.05,
