@@ -1,5 +1,6 @@
 [versions]
 agp = "8.9.2"
+googleGenai = "1.11.0"
 amplituda = "2.3.0"
 animation = "1.8.1"
 appcompat = "1.7.0"
@@ -61,8 +62,10 @@ wavySlider = "2.0.0"
 workRuntimeKtx = "2.10.1"
 composeTesting = "1.0.0-alpha03"
 timber = "5.0.1"
+generativeai = "0.9.0"
 
 [libraries]
+google-genai = { group = "com.google.genai", name = "google-genai", version.ref = "googleGenai" }
 amplituda = { module = "com.github.lincollincol:amplituda", version.ref = "amplituda" }
 androidx-animation = { module = "androidx.compose.animation:animation", version.ref = "animation" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
@@ -131,6 +134,7 @@ wavy-slider = { module = "ir.mahozad.multiplatform:wavy-slider", version.ref = "
 checker-qual = { group = "org.checkerframework", name = "checker-qual", version.ref = "checkerframework" }
 jaudiotagger = { group = "net.jthink", name = "jaudiotagger", version.ref = "jaudiotagger" }
 reorderables = { group = "sh.calvin.reorderable", name = "reorderable", version.ref = "reorderables" }
+generativeai = { group = "com.google.ai.client.generativeai", name = "generativeai", version.ref = "generativeai" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

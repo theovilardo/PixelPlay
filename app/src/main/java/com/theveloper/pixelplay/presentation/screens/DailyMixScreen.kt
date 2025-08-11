@@ -76,8 +76,10 @@ import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
+import com.theveloper.pixelplay.presentation.components.AiPlaylistDialog
 import com.theveloper.pixelplay.presentation.components.AlbumArtCollage
 import com.theveloper.pixelplay.presentation.components.DailyMixHeader
+import com.theveloper.pixelplay.presentation.components.DailyMixMenu
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet
@@ -103,7 +105,7 @@ fun DailyMixScreen(
     navController: NavController
 ) {
     Trace.beginSection("DailyMixScreen.Composition")
-    val dailyMixSongs: ImmutableList<Song> by playerViewModel.favoriteSongs.collectAsState()
+    val dailyMixSongs: ImmutableList<Song> by playerViewModel.dailyMixSongs.collectAsState()
     // Granular state collection for stablePlayerState fields
     val currentSongId by remember { playerViewModel.stablePlayerState.map { it.currentSong?.id }.distinctUntilChanged() }.collectAsState(initial = null)
     val isPlaying by remember { playerViewModel.stablePlayerState.map { it.isPlaying }.distinctUntilChanged() }.collectAsState(initial = false)
@@ -111,11 +113,30 @@ fun DailyMixScreen(
 
     val playerSheetState by playerViewModel.sheetState.collectAsState() // This is a simple enum, less critical but fine
     val favoriteSongIds by playerViewModel.favoriteSongIds.collectAsState()
+
+    val showAiDialog by playerViewModel.showAiPlaylistDialog.collectAsState()
+    val isGeneratingAiPlaylist by playerViewModel.isGeneratingAiPlaylist.collectAsState()
+    val aiError by playerViewModel.aiError.collectAsState()
     val lazyListState = rememberLazyListState()
 
     var showSongInfoSheet by remember { mutableStateOf(false) }
     var selectedSongForInfo by remember { mutableStateOf<Song?>(null) }
+    var showDailyMixMenu by remember { mutableStateOf(false) }
 
+    if (showDailyMixMenu) {
+        DailyMixMenu(onDismiss = { showDailyMixMenu = false })
+    }
+
+    if (showAiDialog) {
+        AiPlaylistDialog(
+            onDismissRequest = { playerViewModel.dismissAiPlaylistDialog() },
+            onGenerateClick = { prompt, length ->
+                playerViewModel.generateAiPlaylist(prompt, length)
+            },
+            isGenerating = isGeneratingAiPlaylist,
+            error = aiError
+        )
+    }
 
     val surfaceContainer = MaterialTheme.colorScheme.surface
     val headerColor = MaterialTheme.colorScheme.primary
@@ -143,7 +164,7 @@ fun DailyMixScreen(
             onToggleFavorite = { playerViewModel.toggleFavoriteSpecificSong(song) },
             onDismiss = { showSongInfoSheet = false },
             onPlaySong = {
-                playerViewModel.showAndPlaySong(song, dailyMixSongs, "Daily Mix")
+                playerViewModel.showAndPlaySong(song, dailyMixSongs, "Daily Mix", isVoluntaryPlay = false)
                 showSongInfoSheet = false
             },
             onAddToQueue = {
@@ -186,7 +207,11 @@ fun DailyMixScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 item {
-                    ExpressiveDailyMixHeader(songs = dailyMixSongs, scrollState = lazyListState)
+                    ExpressiveDailyMixHeader(
+                        songs = dailyMixSongs,
+                        scrollState = lazyListState,
+                        onShowMenu = { playerViewModel.onGenerateAiPlaylistClick() }
+                    )
                 }
 
                 item {
@@ -249,10 +274,11 @@ fun DailyMixScreen(
                 items(dailyMixSongs, key = { it.id }) { song ->
                     EnhancedSongListItem(
                         modifier = Modifier
-                            .padding(horizontal = 16.dp),
+                            .padding(horizontal = 16.dp)
+                            .animateItemPlacement(),
                         song = song,
                         isPlaying = currentSongId == song.id && isPlaying,
-                        onClick = { playerViewModel.showAndPlaySong(song, dailyMixSongs, "Daily Mix") },
+                        onClick = { playerViewModel.showAndPlaySong(song, dailyMixSongs, "Daily Mix", isVoluntaryPlay = false) },
                         onMoreOptionsClick = {
                             selectedSongForInfo = it
                             showSongInfoSheet = true
@@ -324,7 +350,8 @@ fun DailyMixScreen(
 @Composable
 private fun ExpressiveDailyMixHeader(
     songs: List<Song>,
-    scrollState: LazyListState
+    scrollState: LazyListState,
+    onShowMenu: () -> Unit
 ) {
     Trace.beginSection("ExpressiveDailyMixHeader.Composition")
     val albumArts = remember(songs) { songs.map { it.albumArtUriString }.distinct().take(3) }
@@ -465,7 +492,7 @@ private fun ExpressiveDailyMixHeader(
             }
             LargeFloatingActionButton(
                 modifier = Modifier,
-                onClick = {},
+                onClick = onShowMenu,
                 shape = RoundedStarShape(
                     sides = 8,
                     curve = 0.05,

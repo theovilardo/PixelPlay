@@ -58,6 +58,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -105,6 +106,7 @@ fun SettingsScreen(
 ) {
     // Recopilar el estado de la UI del ViewModel
     val uiState by settingsViewModel.uiState.collectAsState()
+    val geminiApiKey by settingsViewModel.geminiApiKey.collectAsState()
     val playerSheetState by playerViewModel.sheetState.collectAsState()
     // Estado para controlar la visibilidad del diálogo de directorios
     var showDirectoryDialog by remember { mutableStateOf(false) }
@@ -272,10 +274,49 @@ fun SettingsScreen(
                             )
                         }
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    SettingsItem(
+                        title = "Force Daily Mix Regeneration",
+                        subtitle = "Re-creates the daily mix playlist immediately.",
+                        leadingIcon = {
+                            Icon(
+                                painter = painterResource(id = R.drawable.rounded_instant_mix_24),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
+                        },
+                        onClick = { playerViewModel.forceUpdateDailyMix() }
+                    )
                 }
             }
 
             // Aquí podrías añadir más secciones de configuración
+            Spacer(modifier = Modifier.height(16.dp))
+
+            SettingsSection(
+                title = "IA Integration",
+                icon = {
+                    Icon(
+                        painter = painterResource(id = R.drawable.gemini_ai),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            ) {
+                OutlinedTextField(
+                    value = geminiApiKey,
+                    onValueChange = { settingsViewModel.onGeminiApiKeyChange(it) },
+                    label = { Text("API Key de Gemini") },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    leadingIcon = {
+                        Icon(
+                            painter = painterResource(id = R.drawable.gemini_ai),
+                            contentDescription = null
+                        )
+                    }
+                )
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
 
             // Sección de Opciones de Desarrollador

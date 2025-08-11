@@ -84,6 +84,8 @@ import androidx.lifecycle.asFlow
 import androidx.work.WorkInfo
 import androidx.core.net.toUri
 import androidx.media3.common.util.UnstableApi
+import com.theveloper.pixelplay.data.DailyMixManager
+import com.theveloper.pixelplay.data.ai.AiPlaylistGenerator
 import com.theveloper.pixelplay.data.model.Genre
 import com.theveloper.pixelplay.ui.theme.GenreColors
 import com.theveloper.pixelplay.utils.toHexString
@@ -153,7 +155,9 @@ class PlayerViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val albumArtThemeDao: AlbumArtThemeDao,
     private val syncManager: SyncManager, // Inyectar SyncManager
-    private val songMetadataEditor: SongMetadataEditor
+    private val songMetadataEditor: SongMetadataEditor,
+    private val dailyMixManager: DailyMixManager,
+    private val aiPlaylistGenerator: AiPlaylistGenerator
 ) : ViewModel() {
 
     private val _playerUiState = MutableStateFlow(PlayerUiState())
@@ -169,6 +173,16 @@ class PlayerViewModel @Inject constructor(
     val bottomBarHeight: StateFlow<Int> = _bottomBarHeight.asStateFlow()
     private val _predictiveBackCollapseFraction = MutableStateFlow(0f)
     val predictiveBackCollapseFraction: StateFlow<Float> = _predictiveBackCollapseFraction.asStateFlow()
+
+    // AI Playlist Generation State
+    private val _showAiPlaylistDialog = MutableStateFlow(false)
+    val showAiPlaylistDialog: StateFlow<Boolean> = _showAiPlaylistDialog.asStateFlow()
+
+    private val _isGeneratingAiPlaylist = MutableStateFlow(false)
+    val isGeneratingAiPlaylist: StateFlow<Boolean> = _isGeneratingAiPlaylist.asStateFlow()
+
+    private val _aiError = MutableStateFlow<String?>(null)
+    val aiError: StateFlow<String?> = _aiError.asStateFlow()
 
     private val _selectedSongForInfo = MutableStateFlow<Song?>(null)
     val selectedSongForInfo: StateFlow<Song?> = _selectedSongForInfo.asStateFlow()
@@ -383,7 +397,38 @@ class PlayerViewModel @Inject constructor(
     .flowOn(Dispatchers.Default) // Execute combine and transformations on Default dispatcher
     .stateIn(viewModelScope, SharingStarted.Lazily, persistentListOf())
 
+    private val _dailyMixSongs = MutableStateFlow<ImmutableList<Song>>(persistentListOf())
+    val dailyMixSongs: StateFlow<ImmutableList<Song>> = _dailyMixSongs.asStateFlow()
+
+    private var dailyMixJob: Job? = null
+
+    private fun updateDailyMix() {
+        // Cancel any previous job to avoid multiple updates running
+        dailyMixJob?.cancel()
+        dailyMixJob = viewModelScope.launch(Dispatchers.IO) {
+            // We need all songs to generate the mix
+            val allSongs = allSongsFlow.first()
+            if (allSongs.isNotEmpty()) {
+                val mix = dailyMixManager.generateDailyMix(allSongs)
+                _dailyMixSongs.value = mix.toImmutableList()
+            }
+        }
+    }
+
+    fun forceUpdateDailyMix() {
+        viewModelScope.launch {
+            updateDailyMix()
+            userPreferencesRepository.saveLastDailyMixUpdateTimestamp(System.currentTimeMillis())
+        }
+    }
+
     private var progressJob: Job? = null
+
+    fun incrementSongScore(songId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dailyMixManager.incrementScore(songId)
+        }
+    }
 
     // *** NUEVA FUNCIÓN AÑADIDA PARA SOLUCIONAR EL ERROR ***
     /**
@@ -533,7 +578,21 @@ class PlayerViewModel @Inject constructor(
     fun onMainActivityStart() {
         Trace.beginSection("PlayerViewModel.onMainActivityStart")
         preloadThemesAndInitialData()
+        checkAndUpdateDailyMixIfNeeded()
         Trace.endSection()
+    }
+
+    private fun checkAndUpdateDailyMixIfNeeded() {
+        viewModelScope.launch {
+            val lastUpdate = userPreferencesRepository.lastDailyMixUpdateFlow.first()
+            val today = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_YEAR)
+            val lastUpdateDay = java.util.Calendar.getInstance().apply { timeInMillis = lastUpdate }.get(java.util.Calendar.DAY_OF_YEAR)
+
+            if (today != lastUpdateDay) {
+                updateDailyMix()
+                userPreferencesRepository.saveLastDailyMixUpdateTimestamp(System.currentTimeMillis())
+            }
+        }
     }
 
     private fun preloadThemesAndInitialData() {
@@ -653,6 +712,7 @@ class PlayerViewModel @Inject constructor(
         // by setting isLoading flags to true at its beginning.
 
         loadInitialLibraryDataParallel() // Call the new parallel loading function
+        updateDailyMix()
 
         // Initial load for albums and artists will be triggered by their respective tabs if needed.
         Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData END (dispatching parallel async work). Total function time: ${System.currentTimeMillis() - functionStartTime} ms")
@@ -834,8 +894,16 @@ class PlayerViewModel @Inject constructor(
     }
 
     // showAndPlaySong ahora usa playSongs con la lista de contexto proporcionada.
-    fun showAndPlaySong(song: Song, contextSongs: List<Song>, queueName: String = "Current Context") {
+    fun showAndPlaySong(
+        song: Song,
+        contextSongs: List<Song>,
+        queueName: String = "Current Context",
+        isVoluntaryPlay: Boolean = true
+    ) {
         // Utiliza la lista de canciones del contexto actual (ej: canciones de un género específico) como la cola.
+        if (isVoluntaryPlay) {
+            incrementSongScore(song.id)
+        }
         playSongs(contextSongs, song, queueName)
         _isSheetVisible.value = true
         _predictiveBackCollapseFraction.value = 0f
@@ -1748,6 +1816,49 @@ class PlayerViewModel @Inject constructor(
                 musicRepository.clearSearchHistory()
             }
             _playerUiState.update { it.copy(searchHistory = persistentListOf()) }
+        }
+    }
+
+    // --- AI Playlist Generation ---
+
+    fun onGenerateAiPlaylistClick() {
+        _showAiPlaylistDialog.value = true
+    }
+
+    fun dismissAiPlaylistDialog() {
+        _showAiPlaylistDialog.value = false
+        _aiError.value = null
+        _isGeneratingAiPlaylist.value = false
+    }
+
+    fun generateAiPlaylist(prompt: String, length: Int) {
+        viewModelScope.launch {
+            _isGeneratingAiPlaylist.value = true
+            _aiError.value = null
+
+            try {
+                val result = aiPlaylistGenerator.generate(prompt, allSongsFlow.value, length)
+
+                result.onSuccess { generatedSongs ->
+                    if (generatedSongs.isNotEmpty()) {
+                        // Update the daily mix with the AI generated playlist
+                        _dailyMixSongs.value = generatedSongs.toImmutableList()
+                        // Also start playing it
+                        playSongs(generatedSongs, generatedSongs.first(), "AI: $prompt")
+                        dismissAiPlaylistDialog()
+                    } else {
+                        _aiError.value = "The AI couldn't find any songs for your prompt."
+                    }
+                }.onFailure { error ->
+                    _aiError.value = if (error.message?.contains("API Key") == true) {
+                        "Please, configure your Gemini API Key in Settings."
+                    } else {
+                        "AI Error: ${error.message}"
+                    }
+                }
+            } finally {
+                _isGeneratingAiPlaylist.value = false
+            }
         }
     }
 
