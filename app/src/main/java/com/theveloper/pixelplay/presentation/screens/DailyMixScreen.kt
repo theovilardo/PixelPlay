@@ -164,7 +164,7 @@ fun DailyMixScreen(
             onToggleFavorite = { playerViewModel.toggleFavoriteSpecificSong(song) },
             onDismiss = { showSongInfoSheet = false },
             onPlaySong = {
-                playerViewModel.showAndPlaySong(song, dailyMixSongs, "Daily Mix")
+                playerViewModel.showAndPlaySong(song, dailyMixSongs, "Daily Mix", isVoluntaryPlay = false)
                 showSongInfoSheet = false
             },
             onAddToQueue = {
@@ -278,7 +278,7 @@ fun DailyMixScreen(
                             .animateItemPlacement(),
                         song = song,
                         isPlaying = currentSongId == song.id && isPlaying,
-                        onClick = { playerViewModel.showAndPlaySong(song, dailyMixSongs, "Daily Mix") },
+                        onClick = { playerViewModel.showAndPlaySong(song, dailyMixSongs, "Daily Mix", isVoluntaryPlay = false) },
                         onMoreOptionsClick = {
                             selectedSongForInfo = it
                             showSongInfoSheet = true

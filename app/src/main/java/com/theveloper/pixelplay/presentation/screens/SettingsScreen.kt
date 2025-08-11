@@ -274,6 +274,19 @@ fun SettingsScreen(
                             )
                         }
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    SettingsItem(
+                        title = "Force Daily Mix Regeneration",
+                        subtitle = "Re-creates the daily mix playlist immediately.",
+                        leadingIcon = {
+                            Icon(
+                                painter = painterResource(id = R.drawable.rounded_instant_mix_24),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
+                        },
+                        onClick = { playerViewModel.forceUpdateDailyMix() }
+                    )
                 }
             }
 

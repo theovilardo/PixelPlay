@@ -415,6 +415,13 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun forceUpdateDailyMix() {
+        viewModelScope.launch {
+            updateDailyMix()
+            userPreferencesRepository.saveLastDailyMixUpdateTimestamp(System.currentTimeMillis())
+        }
+    }
+
     private var progressJob: Job? = null
 
     fun incrementSongScore(songId: String) {
@@ -887,9 +894,16 @@ class PlayerViewModel @Inject constructor(
     }
 
     // showAndPlaySong ahora usa playSongs con la lista de contexto proporcionada.
-    fun showAndPlaySong(song: Song, contextSongs: List<Song>, queueName: String = "Current Context") {
+    fun showAndPlaySong(
+        song: Song,
+        contextSongs: List<Song>,
+        queueName: String = "Current Context",
+        isVoluntaryPlay: Boolean = true
+    ) {
         // Utiliza la lista de canciones del contexto actual (ej: canciones de un género específico) como la cola.
-        incrementSongScore(song.id)
+        if (isVoluntaryPlay) {
+            incrementSongScore(song.id)
+        }
         playSongs(contextSongs, song, queueName)
         _isSheetVisible.value = true
         _predictiveBackCollapseFraction.value = 0f
