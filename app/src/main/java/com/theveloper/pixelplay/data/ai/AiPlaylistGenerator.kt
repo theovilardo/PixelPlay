@@ -18,7 +18,8 @@ class AiPlaylistGenerator @Inject constructor(
     suspend fun generate(
         userPrompt: String,
         allSongs: List<Song>,
-        playlistLength: Int
+        minLength: Int,
+        maxLength: Int
     ): Result<List<Song>> {
         return try {
             val apiKey = userPreferencesRepository.geminiApiKey.first()
@@ -50,13 +51,13 @@ class AiPlaylistGenerator @Inject constructor(
 
             val systemPrompt = """
             You are a world-class DJ and music expert. Your task is to create a playlist for a user based on their prompt.
-            You will be given a user's request, a desired playlist length, and a list of available songs with their metadata, including a relevance score.
+            You will be given a user's request, a desired playlist length range, and a list of available songs with their metadata.
 
             Instructions:
-            1. Analyze the user's prompt to understand the desired mood, genre, or theme.
+            1. Analyze the user's prompt to understand the desired mood, genre, or theme. This is the MOST IMPORTANT factor.
             2. Select songs from the provided list that best match the user's request.
-            3. Prioritize songs with a higher relevance_score if they fit the prompt.
-            4. The final playlist should have exactly the number of songs specified by `playlist_length`.
+            3. The `relevance_score` is a secondary factor. Use it to break ties or to choose between songs that equally match the prompt. Do NOT prioritize it over the prompt match.
+            4. The final playlist should have a number of songs between `min_length` and `max_length`. It does not have to be the maximum.
             5. Your response MUST be ONLY a valid JSON array of song IDs. Do not include any other text, explanations, or markdown formatting.
 
             Example response for a playlist of 3 songs:
@@ -67,7 +68,8 @@ class AiPlaylistGenerator @Inject constructor(
             $systemPrompt
 
             User's request: "$userPrompt"
-            Desired playlist length: $playlistLength
+            Minimum playlist length: $minLength
+            Maximum playlist length: $maxLength
             Available songs:
             [
             $availableSongsJson

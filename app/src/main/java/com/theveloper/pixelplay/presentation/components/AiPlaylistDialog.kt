@@ -32,12 +32,13 @@ import androidx.compose.ui.window.Dialog
 @Composable
 fun AiPlaylistDialog(
     onDismissRequest: () -> Unit,
-    onGenerateClick: (prompt: String, length: Int) -> Unit,
+    onGenerateClick: (prompt: String, minLength: Int, maxLength: Int) -> Unit,
     isGenerating: Boolean,
     error: String?
 ) {
     var prompt by remember { mutableStateOf("") }
-    var length by remember { mutableStateOf("15") }
+    var minLength by remember { mutableStateOf("5") }
+    var maxLength by remember { mutableStateOf("15") }
 
     Dialog(onDismissRequest = onDismissRequest) {
         Card(
@@ -72,14 +73,28 @@ fun AiPlaylistDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                OutlinedTextField(
-                    value = length,
-                    onValueChange = { length = it.filter { char -> char.isDigit() } },
-                    label = { Text("Number of songs") },
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true
-                )
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = minLength,
+                        onValueChange = { minLength = it.filter { char -> char.isDigit() } },
+                        label = { Text("Min songs") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = maxLength,
+                        onValueChange = { maxLength = it.filter { char -> char.isDigit() } },
+                        label = { Text("Max songs") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true
+                    )
+                }
+
 
                 if (error != null) {
                     Text(
@@ -105,8 +120,9 @@ fun AiPlaylistDialog(
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = {
-                                val lengthInt = length.toIntOrNull() ?: 15
-                                onGenerateClick(prompt, lengthInt)
+                                val minLengthInt = minLength.toIntOrNull() ?: 5
+                                val maxLengthInt = maxLength.toIntOrNull() ?: 15
+                                onGenerateClick(prompt, minLengthInt, maxLengthInt)
                             },
                             enabled = prompt.isNotBlank()
                         ) {

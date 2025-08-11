@@ -1855,13 +1855,13 @@ class PlayerViewModel @Inject constructor(
         _isGeneratingAiPlaylist.value = false
     }
 
-    fun generateAiPlaylist(prompt: String, length: Int) {
+    fun generateAiPlaylist(prompt: String, minLength: Int, maxLength: Int) {
         viewModelScope.launch {
             _isGeneratingAiPlaylist.value = true
             _aiError.value = null
 
             try {
-                val result = aiPlaylistGenerator.generate(prompt, allSongsFlow.value, length)
+                val result = aiPlaylistGenerator.generate(prompt, allSongsFlow.value, minLength, maxLength)
 
                 result.onSuccess { generatedSongs ->
                     if (generatedSongs.isNotEmpty()) {

@@ -130,8 +130,8 @@ fun DailyMixScreen(
     if (showAiDialog) {
         AiPlaylistDialog(
             onDismissRequest = { playerViewModel.dismissAiPlaylistDialog() },
-            onGenerateClick = { prompt, length ->
-                playerViewModel.generateAiPlaylist(prompt, length)
+            onGenerateClick = { prompt, minLength, maxLength ->
+                playerViewModel.generateAiPlaylist(prompt, minLength, maxLength)
             },
             isGenerating = isGeneratingAiPlaylist,
             error = aiError
