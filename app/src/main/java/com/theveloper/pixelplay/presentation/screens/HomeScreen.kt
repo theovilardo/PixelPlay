@@ -96,7 +96,7 @@ fun HomeScreen(
         if (dailyMixSongs.isNotEmpty()) {
             dailyMixSongs
         } else {
-            allSongs.shuffled().toImmutableList()
+            allSongs.toImmutableList()
         }
     }
 
@@ -175,7 +175,7 @@ fun HomeScreen(
                 if (allSongs.isNotEmpty()) {
                     item {
                         DailyMixSection(
-                            songs = yourMixSongs.take(10).toImmutableList(),
+                            songs = dailyMixSongs.take(4).toImmutableList(),
                             onClickOpen = {
                                 navController.navigate(Screen.DailyMixScreen.route)
                             },
