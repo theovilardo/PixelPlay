@@ -1,5 +1,3 @@
-import com.android.build.api.dsl.AaptOptions
-
 plugins {
     alias(libs.plugins.android.application)
     id("com.google.devtools.ksp") version "2.1.0-1.0.29"
@@ -16,6 +14,13 @@ android {
 
     androidResources {
         noCompress.add("tflite")
+    }
+
+    packaging {
+        resources {
+            excludes += "META-INF/INDEX.LIST"
+            excludes += "META-INF/DEPENDENCIES"
+        }
     }
 
     defaultConfig {
@@ -74,6 +79,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.generativeai)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
