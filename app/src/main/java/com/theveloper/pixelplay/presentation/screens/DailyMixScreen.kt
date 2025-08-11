@@ -76,6 +76,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
+import com.theveloper.pixelplay.presentation.components.AiPlaylistDialog
 import com.theveloper.pixelplay.presentation.components.AlbumArtCollage
 import com.theveloper.pixelplay.presentation.components.DailyMixHeader
 import com.theveloper.pixelplay.presentation.components.DailyMixMenu
@@ -112,6 +113,10 @@ fun DailyMixScreen(
 
     val playerSheetState by playerViewModel.sheetState.collectAsState() // This is a simple enum, less critical but fine
     val favoriteSongIds by playerViewModel.favoriteSongIds.collectAsState()
+
+    val showAiDialog by playerViewModel.showAiPlaylistDialog.collectAsState()
+    val isGeneratingAiPlaylist by playerViewModel.isGeneratingAiPlaylist.collectAsState()
+    val aiError by playerViewModel.aiError.collectAsState()
     val lazyListState = rememberLazyListState()
 
     var showSongInfoSheet by remember { mutableStateOf(false) }
@@ -120,6 +125,17 @@ fun DailyMixScreen(
 
     if (showDailyMixMenu) {
         DailyMixMenu(onDismiss = { showDailyMixMenu = false })
+    }
+
+    if (showAiDialog) {
+        AiPlaylistDialog(
+            onDismissRequest = { playerViewModel.dismissAiPlaylistDialog() },
+            onGenerateClick = { prompt, length ->
+                playerViewModel.generateAiPlaylist(prompt, length)
+            },
+            isGenerating = isGeneratingAiPlaylist,
+            error = aiError
+        )
     }
 
     val surfaceContainer = MaterialTheme.colorScheme.surface
@@ -194,7 +210,7 @@ fun DailyMixScreen(
                     ExpressiveDailyMixHeader(
                         songs = dailyMixSongs,
                         scrollState = lazyListState,
-                        onShowMenu = { showDailyMixMenu = true }
+                        onShowMenu = { playerViewModel.onGenerateAiPlaylistClick() }
                     )
                 }
 

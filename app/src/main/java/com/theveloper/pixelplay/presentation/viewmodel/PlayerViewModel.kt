@@ -85,6 +85,7 @@ import androidx.work.WorkInfo
 import androidx.core.net.toUri
 import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.data.DailyMixManager
+import com.theveloper.pixelplay.data.ai.AiPlaylistGenerator
 import com.theveloper.pixelplay.data.model.Genre
 import com.theveloper.pixelplay.ui.theme.GenreColors
 import com.theveloper.pixelplay.utils.toHexString
@@ -155,7 +156,8 @@ class PlayerViewModel @Inject constructor(
     private val albumArtThemeDao: AlbumArtThemeDao,
     private val syncManager: SyncManager, // Inyectar SyncManager
     private val songMetadataEditor: SongMetadataEditor,
-    private val dailyMixManager: DailyMixManager
+    private val dailyMixManager: DailyMixManager,
+    private val aiPlaylistGenerator: AiPlaylistGenerator
 ) : ViewModel() {
 
     private val _playerUiState = MutableStateFlow(PlayerUiState())
@@ -171,6 +173,16 @@ class PlayerViewModel @Inject constructor(
     val bottomBarHeight: StateFlow<Int> = _bottomBarHeight.asStateFlow()
     private val _predictiveBackCollapseFraction = MutableStateFlow(0f)
     val predictiveBackCollapseFraction: StateFlow<Float> = _predictiveBackCollapseFraction.asStateFlow()
+
+    // AI Playlist Generation State
+    private val _showAiPlaylistDialog = MutableStateFlow(false)
+    val showAiPlaylistDialog: StateFlow<Boolean> = _showAiPlaylistDialog.asStateFlow()
+
+    private val _isGeneratingAiPlaylist = MutableStateFlow(false)
+    val isGeneratingAiPlaylist: StateFlow<Boolean> = _isGeneratingAiPlaylist.asStateFlow()
+
+    private val _aiError = MutableStateFlow<String?>(null)
+    val aiError: StateFlow<String?> = _aiError.asStateFlow()
 
     private val _selectedSongForInfo = MutableStateFlow<Song?>(null)
     val selectedSongForInfo: StateFlow<Song?> = _selectedSongForInfo.asStateFlow()
@@ -1766,6 +1778,46 @@ class PlayerViewModel @Inject constructor(
                 musicRepository.clearSearchHistory()
             }
             _playerUiState.update { it.copy(searchHistory = persistentListOf()) }
+        }
+    }
+
+    // --- AI Playlist Generation ---
+
+    fun onGenerateAiPlaylistClick() {
+        _showAiPlaylistDialog.value = true
+    }
+
+    fun dismissAiPlaylistDialog() {
+        _showAiPlaylistDialog.value = false
+        _aiError.value = null
+        _isGeneratingAiPlaylist.value = false
+    }
+
+    fun generateAiPlaylist(prompt: String, length: Int) {
+        viewModelScope.launch {
+            _isGeneratingAiPlaylist.value = true
+            _aiError.value = null
+
+            try {
+                val result = aiPlaylistGenerator.generate(prompt, allSongsFlow.value, length)
+
+                result.onSuccess { generatedSongs ->
+                    if (generatedSongs.isNotEmpty()) {
+                        playSongs(generatedSongs, generatedSongs.first(), "AI: $prompt")
+                        dismissAiPlaylistDialog()
+                    } else {
+                        _aiError.value = "The AI couldn't find any songs for your prompt."
+                    }
+                }.onFailure { error ->
+                    _aiError.value = if (error.message?.contains("API Key") == true) {
+                        "Please, configure your Gemini API Key in Settings."
+                    } else {
+                        "AI Error: ${error.message}"
+                    }
+                }
+            } finally {
+                _isGeneratingAiPlaylist.value = false
+            }
         }
     }
 

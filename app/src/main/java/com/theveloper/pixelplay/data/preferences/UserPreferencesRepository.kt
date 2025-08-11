@@ -38,6 +38,7 @@ class UserPreferencesRepository @Inject constructor(
 ) {
 
     private object PreferencesKeys {
+        val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
         val ALLOWED_DIRECTORIES = stringSetPreferencesKey("allowed_directories")
         val INITIAL_SETUP_DONE = stringSetPreferencesKey("initial_setup_done_directories")
         // val GLOBAL_THEME_PREFERENCE = stringPreferencesKey("global_theme_preference_v2") // Removed
@@ -294,6 +295,16 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setMockGenresEnabled(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.MOCK_GENRES_ENABLED] = enabled
+        }
+    }
+
+    val geminiApiKey: Flow<String> = dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.GEMINI_API_KEY] ?: ""
+    }
+
+    suspend fun setGeminiApiKey(apiKey: String) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.GEMINI_API_KEY] = apiKey
         }
     }
 }

@@ -36,6 +36,11 @@ class DailyMixManager @Inject constructor(
         saveScores(scores)
     }
 
+    fun getScore(songId: String): Int {
+        val scores = getScores()
+        return scores.getOrDefault(songId, 0)
+    }
+
     fun generateDailyMix(
         allSongs: List<Song>,
         favoriteSongs: List<Song>,

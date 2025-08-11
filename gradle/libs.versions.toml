@@ -1,5 +1,6 @@
 [versions]
 agp = "8.9.2"
+googleGenai = "1.0.0"
 amplituda = "2.3.0"
 animation = "1.8.1"
 appcompat = "1.7.0"
@@ -63,6 +64,7 @@ composeTesting = "1.0.0-alpha03"
 timber = "5.0.1"
 
 [libraries]
+google-genai = { group = "com.google.genai", name = "google-genai", version.ref = "googleGenai" }
 amplituda = { module = "com.github.lincollincol:amplituda", version.ref = "amplituda" }
 androidx-animation = { module = "androidx.compose.animation:animation", version.ref = "animation" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }

@@ -30,6 +30,9 @@ class SettingsViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
+    val geminiApiKey: StateFlow<String> = userPreferencesRepository.geminiApiKey
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+
     // Observar las preferencias de tema directamente
     init {
         viewModelScope.launch {
@@ -118,6 +121,12 @@ class SettingsViewModel @Inject constructor(
     fun setMockGenresEnabled(enabled: Boolean) {
         viewModelScope.launch {
             userPreferencesRepository.setMockGenresEnabled(enabled)
+        }
+    }
+
+    fun onGeminiApiKeyChange(apiKey: String) {
+        viewModelScope.launch {
+            userPreferencesRepository.setGeminiApiKey(apiKey)
         }
     }
 }

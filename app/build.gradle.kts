@@ -185,7 +185,10 @@ dependencies {
     // Kotlin Collections
     implementation(libs.kotlinx.collections.immutable) // Verifica la última versión
 
-        //permisisons
+    // Gemini
+    implementation(libs.google.genai)
+
+    //permisisons
     implementation(libs.accompanist.permissions)
 
     //Audio editing
