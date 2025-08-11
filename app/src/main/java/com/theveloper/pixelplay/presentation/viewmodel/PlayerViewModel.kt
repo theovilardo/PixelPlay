@@ -1845,6 +1845,7 @@ class PlayerViewModel @Inject constructor(
                         _dailyMixSongs.value = generatedSongs.toImmutableList()
                         // Also start playing it
                         playSongs(generatedSongs, generatedSongs.first(), "AI: $prompt")
+                        _isSheetVisible.value = true
                         dismissAiPlaylistDialog()
                     } else {
                         _aiError.value = "The AI couldn't find any songs for your prompt."
