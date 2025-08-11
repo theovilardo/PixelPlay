@@ -90,12 +90,7 @@ fun HomeScreen(
 ) {
     // 1) Observar sólo la lista de canciones, que cambia con poca frecuencia
     val allSongs by playerViewModel.allSongsFlow.collectAsState(initial = emptyList())
-
-    val dailyMixSongs = remember(allSongs) {
-        val list: List<Song> = allSongs.take(10)
-        val immutable: ImmutableList<Song> = list.toImmutableList() // Now this should work
-        immutable
-    }
+    val dailyMixSongs by playerViewModel.dailyMixSongs.collectAsState()
 
     val yourMixSong: String = "Today's Mix for you"
 
@@ -103,14 +98,6 @@ fun HomeScreen(
     val currentSong by remember(playerViewModel.stablePlayerState) {
         playerViewModel.stablePlayerState.map { it.currentSong }
     }.collectAsState(initial = null)
-
-    // 3) Calcular y recordar los URIs para el header
-    val recentUrisForHeader: ImmutableList<String?> = remember(allSongs) {
-        allSongs
-            .take(6)
-            .map { it.albumArtUriString }
-            .toImmutableList() // Convierte la List resultante a ImmutableList
-    }
 
     // Padding inferior si hay canción en reproducción
     val bottomPadding = if (currentSong != null) MiniPlayerHeight else 0.dp
@@ -153,18 +140,25 @@ fun HomeScreen(
                 item {
                     YourMixHeader(
                         song = yourMixSong,
-                        onPlayRandomSong = { playerViewModel.playPause() }
+                        onPlayRandomSong = {
+                            if (dailyMixSongs.isNotEmpty()) {
+                                playerViewModel.showAndPlaySong(dailyMixSongs.first(), dailyMixSongs, "Your Mix")
+                            }
+                        }
                     )
                 }
 
                 // Collage
-                if (recentUrisForHeader.isNotEmpty()) {
+                if (dailyMixSongs.isNotEmpty()) {
                     item {
                         AlbumArtCollage(
                             modifier = Modifier.fillMaxWidth(),
-                            albumArts = recentUrisForHeader,
+                            songs = dailyMixSongs,
                             padding = 14.dp,
-                            height = 400.dp
+                            height = 400.dp,
+                            onSongClick = { song ->
+                                playerViewModel.showAndPlaySong(song, dailyMixSongs, "Your Mix")
+                            }
                         )
                     }
                 }
@@ -173,7 +167,7 @@ fun HomeScreen(
                 if (allSongs.isNotEmpty()) {
                     item {
                         DailyMixSection(
-                            songs = dailyMixSongs,
+                            songs = dailyMixSongs.take(10).toImmutableList(),
                             onClickOpen = {
                                 navController.navigate(Screen.DailyMixScreen.route)
                             },
