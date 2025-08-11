@@ -92,6 +92,14 @@ fun HomeScreen(
     val allSongs by playerViewModel.allSongsFlow.collectAsState(initial = emptyList())
     val dailyMixSongs by playerViewModel.dailyMixSongs.collectAsState()
 
+    val yourMixSongs = remember(dailyMixSongs, allSongs) {
+        if (dailyMixSongs.isNotEmpty()) {
+            dailyMixSongs
+        } else {
+            allSongs.shuffled().toImmutableList()
+        }
+    }
+
     val yourMixSong: String = "Today's Mix for you"
 
     // 2) Observar sólo el currentSong (o null) para saber si mostrar padding
@@ -141,23 +149,23 @@ fun HomeScreen(
                     YourMixHeader(
                         song = yourMixSong,
                         onPlayRandomSong = {
-                            if (dailyMixSongs.isNotEmpty()) {
-                                playerViewModel.showAndPlaySong(dailyMixSongs.first(), dailyMixSongs, "Your Mix")
+                            if (yourMixSongs.isNotEmpty()) {
+                                playerViewModel.showAndPlaySong(yourMixSongs.first(), yourMixSongs, "Your Mix")
                             }
                         }
                     )
                 }
 
                 // Collage
-                if (dailyMixSongs.isNotEmpty()) {
+                if (yourMixSongs.isNotEmpty()) {
                     item {
                         AlbumArtCollage(
                             modifier = Modifier.fillMaxWidth(),
-                            songs = dailyMixSongs,
+                            songs = yourMixSongs,
                             padding = 14.dp,
                             height = 400.dp,
                             onSongClick = { song ->
-                                playerViewModel.showAndPlaySong(song, dailyMixSongs, "Your Mix")
+                                playerViewModel.showAndPlaySong(song, yourMixSongs, "Your Mix")
                             }
                         )
                     }
@@ -167,7 +175,7 @@ fun HomeScreen(
                 if (allSongs.isNotEmpty()) {
                     item {
                         DailyMixSection(
-                            songs = dailyMixSongs.take(10).toImmutableList(),
+                            songs = yourMixSongs.take(10).toImmutableList(),
                             onClickOpen = {
                                 navController.navigate(Screen.DailyMixScreen.route)
                             },
