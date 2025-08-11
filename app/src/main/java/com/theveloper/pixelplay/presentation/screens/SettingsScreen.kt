@@ -93,6 +93,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
 import androidx.media3.common.util.UnstableApi
+import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 
@@ -274,19 +275,6 @@ fun SettingsScreen(
                             )
                         }
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    SettingsItem(
-                        title = "Force Daily Mix Regeneration",
-                        subtitle = "Re-creates the daily mix playlist immediately.",
-                        leadingIcon = {
-                            Icon(
-                                painter = painterResource(id = R.drawable.rounded_instant_mix_24),
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary
-                            )
-                        },
-                        onClick = { playerViewModel.forceUpdateDailyMix() }
-                    )
                 }
             }
 
@@ -353,10 +341,23 @@ fun SettingsScreen(
                             )
                         }
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    SettingsItem(
+                        title = "Force Daily Mix Regeneration",
+                        subtitle = "Re-creates the daily mix playlist immediately.",
+                        leadingIcon = {
+                            Icon(
+                                painter = painterResource(id = R.drawable.rounded_instant_mix_24),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
+                        },
+                        onClick = { playerViewModel.forceUpdateDailyMix() }
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(MiniPlayerHeight + 16.dp))
         }
     }
 
