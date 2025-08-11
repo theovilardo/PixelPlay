@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -107,7 +108,10 @@ fun AlbumArtCollage(
                                     .align(cfg.align)
                                     .offset(cfg.offsetX, cfg.offsetY)
                                     .graphicsLayer { rotationZ = cfg.rot }
-                                    .clickable { onSongClick(song) }
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) { onSongClick(song) }
                                     .clip(cfg.shape)
                             )
                         }
@@ -125,7 +129,10 @@ fun AlbumArtCollage(
                                     .align(cfg.align)
                                     .offset(cfg.offsetX, cfg.offsetY)
                                     .graphicsLayer { rotationZ = cfg.rot }
-                                    .clickable { onSongClick(song) }
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) { onSongClick(song) }
                                     .clip(cfg.shape)
                             )
                         }

@@ -172,7 +172,7 @@ fun HomeScreen(
                 }
 
                 // Daily Mix
-                if (allSongs.isNotEmpty()) {
+                if (dailyMixSongs.isNotEmpty()) {
                     item {
                         DailyMixSection(
                             songs = dailyMixSongs.take(4).toImmutableList(),
