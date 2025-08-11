@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.rounded.Send
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -42,8 +44,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.LinearGradient
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
@@ -98,8 +102,8 @@ fun AiPlaylistSheet(
     ModalBottomSheet(
         sheetState = sheetState,
         onDismissRequest = onDismiss,
-        containerColor = Color.Transparent,
-        modifier = Modifier.background(brush)
+        //containerColor = Color.Transparent,
+        modifier = Modifier //.background(brush)
     ) {
         Column(
             modifier = Modifier
@@ -118,32 +122,11 @@ fun AiPlaylistSheet(
                 Text(
                     text = "Generate with AI",
                     fontFamily = GoogleSansRounded,
-                    style = MaterialTheme.typography.displaySmall
+                    style = MaterialTheme.typography.headlineMedium
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = prompt,
-                shape = textFieldShape,
-                colors = textFieldColors,
-                onValueChange = { prompt = it },
-                placeholder = { Text("Describe the playlist you want...") },
-                modifier = Modifier.fillMaxWidth(),
-                isError = error != null,
-                singleLine = false,
-                maxLines = 3,
-                trailingIcon = {
-                    IconButton(onClick = {
-                        val minLengthInt = minLength.toIntOrNull() ?: 5
-                        val maxLengthInt = maxLength.toIntOrNull() ?: 15
-                        onGenerateClick(prompt, minLengthInt, maxLengthInt)
-                    }) {
-                        Icon(Icons.Rounded.Send, contentDescription = "Generate Playlist")
-                    }
-                }
-            )
+            Spacer(modifier = Modifier.height(6.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -171,13 +154,45 @@ fun AiPlaylistSheet(
                 )
             }
 
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = prompt,
+                shape = CircleShape,
+                colors = textFieldColors,
+                onValueChange = { prompt = it },
+                placeholder = { Text("Describe the playlist you want...") },
+                modifier = Modifier.fillMaxWidth(),
+                isError = error != null,
+                singleLine = false,
+                maxLines = 3,
+                trailingIcon = {
+                    FilledTonalIconButton(
+                        modifier = Modifier.padding(end = 4.dp),
+                        onClick = {
+                            val minLengthInt = minLength.toIntOrNull() ?: 5
+                            val maxLengthInt = maxLength.toIntOrNull() ?: 15
+                            onGenerateClick(prompt, minLengthInt, maxLengthInt)
+                        }
+                    ) {
+                        Icon(
+                            modifier = Modifier.padding(start = 2.dp),
+                            painter = painterResource(R.drawable.rounded_send_24),
+                            contentDescription = "Generate Playlist"
+                        )
+                    }
+                }
+            )
+
 
             if (error != null) {
                 Text(
                     text = error,
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 8.dp).fillMaxWidth()
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .fillMaxWidth()
                 )
             }
 
@@ -190,20 +205,20 @@ fun AiPlaylistSheet(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    TextButton(onClick = onDismiss) {
+                    FilledTonalButton(onClick = onDismiss) {
                         Text("Cancel")
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            val minLengthInt = minLength.toIntOrNull() ?: 5
-                            val maxLengthInt = maxLength.toIntOrNull() ?: 15
-                            onGenerateClick(prompt, minLengthInt, maxLengthInt)
-                        },
-                        enabled = prompt.isNotBlank()
-                    ) {
-                        Text("Generate")
-                    }
+//                    Button(
+//                        onClick = {
+//                            val minLengthInt = minLength.toIntOrNull() ?: 5
+//                            val maxLengthInt = maxLength.toIntOrNull() ?: 15
+//                            onGenerateClick(prompt, minLengthInt, maxLengthInt)
+//                        },
+//                        enabled = prompt.isNotBlank()
+//                    ) {
+//                        Text("Generate")
+//                    }
                 }
             }
         }
