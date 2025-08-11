@@ -76,7 +76,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
-import com.theveloper.pixelplay.presentation.components.AiPlaylistDialog
+import com.theveloper.pixelplay.presentation.components.AiPlaylistSheet
 import com.theveloper.pixelplay.presentation.components.AlbumArtCollage
 import com.theveloper.pixelplay.presentation.components.DailyMixHeader
 import com.theveloper.pixelplay.presentation.components.DailyMixMenu
@@ -114,7 +114,7 @@ fun DailyMixScreen(
     val playerSheetState by playerViewModel.sheetState.collectAsState() // This is a simple enum, less critical but fine
     val favoriteSongIds by playerViewModel.favoriteSongIds.collectAsState()
 
-    val showAiDialog by playerViewModel.showAiPlaylistDialog.collectAsState()
+    val showAiSheet by playerViewModel.showAiPlaylistSheet.collectAsState()
     val isGeneratingAiPlaylist by playerViewModel.isGeneratingAiPlaylist.collectAsState()
     val aiError by playerViewModel.aiError.collectAsState()
     val lazyListState = rememberLazyListState()
@@ -127,9 +127,9 @@ fun DailyMixScreen(
         DailyMixMenu(onDismiss = { showDailyMixMenu = false })
     }
 
-    if (showAiDialog) {
-        AiPlaylistDialog(
-            onDismissRequest = { playerViewModel.dismissAiPlaylistDialog() },
+    if (showAiSheet) {
+        AiPlaylistSheet(
+            onDismiss = { playerViewModel.dismissAiPlaylistSheet() },
             onGenerateClick = { prompt, minLength, maxLength ->
                 playerViewModel.generateAiPlaylist(prompt, minLength, maxLength)
             },
@@ -210,7 +210,7 @@ fun DailyMixScreen(
                     ExpressiveDailyMixHeader(
                         songs = dailyMixSongs,
                         scrollState = lazyListState,
-                        onShowMenu = { playerViewModel.onGenerateAiPlaylistClick() }
+                        onShowMenu = { playerViewModel.showAiPlaylistSheet() }
                     )
                 }
 

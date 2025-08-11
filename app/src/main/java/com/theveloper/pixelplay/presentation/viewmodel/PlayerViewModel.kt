@@ -175,8 +175,8 @@ class PlayerViewModel @Inject constructor(
     val predictiveBackCollapseFraction: StateFlow<Float> = _predictiveBackCollapseFraction.asStateFlow()
 
     // AI Playlist Generation State
-    private val _showAiPlaylistDialog = MutableStateFlow(false)
-    val showAiPlaylistDialog: StateFlow<Boolean> = _showAiPlaylistDialog.asStateFlow()
+    private val _showAiPlaylistSheet = MutableStateFlow(false)
+    val showAiPlaylistSheet: StateFlow<Boolean> = _showAiPlaylistSheet.asStateFlow()
 
     private val _isGeneratingAiPlaylist = MutableStateFlow(false)
     val isGeneratingAiPlaylist: StateFlow<Boolean> = _isGeneratingAiPlaylist.asStateFlow()
@@ -1845,12 +1845,12 @@ class PlayerViewModel @Inject constructor(
 
     // --- AI Playlist Generation ---
 
-    fun onGenerateAiPlaylistClick() {
-        _showAiPlaylistDialog.value = true
+    fun showAiPlaylistSheet() {
+        _showAiPlaylistSheet.value = true
     }
 
-    fun dismissAiPlaylistDialog() {
-        _showAiPlaylistDialog.value = false
+    fun dismissAiPlaylistSheet() {
+        _showAiPlaylistSheet.value = false
         _aiError.value = null
         _isGeneratingAiPlaylist.value = false
     }
@@ -1874,7 +1874,7 @@ class PlayerViewModel @Inject constructor(
                         // Also start playing it
                         playSongs(generatedSongs, generatedSongs.first(), "AI: $prompt")
                         _isSheetVisible.value = true
-                        dismissAiPlaylistDialog()
+                        dismissAiPlaylistSheet()
                     } else {
                         _aiError.value = "The AI couldn't find any songs for your prompt."
                     }
