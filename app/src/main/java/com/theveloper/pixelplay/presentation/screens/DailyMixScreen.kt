@@ -191,7 +191,11 @@ fun DailyMixScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 item {
-                    ExpressiveDailyMixHeader(songs = dailyMixSongs, scrollState = lazyListState)
+                    ExpressiveDailyMixHeader(
+                        songs = dailyMixSongs,
+                        scrollState = lazyListState,
+                        onShowMenu = { showDailyMixMenu = true }
+                    )
                 }
 
                 item {
@@ -329,7 +333,8 @@ fun DailyMixScreen(
 @Composable
 private fun ExpressiveDailyMixHeader(
     songs: List<Song>,
-    scrollState: LazyListState
+    scrollState: LazyListState,
+    onShowMenu: () -> Unit
 ) {
     Trace.beginSection("ExpressiveDailyMixHeader.Composition")
     val albumArts = remember(songs) { songs.map { it.albumArtUriString }.distinct().take(3) }
@@ -470,7 +475,7 @@ private fun ExpressiveDailyMixHeader(
             }
             LargeFloatingActionButton(
                 modifier = Modifier,
-                onClick = { showDailyMixMenu = true },
+                onClick = onShowMenu,
                 shape = RoundedStarShape(
                     sides = 8,
                     curve = 0.05,
