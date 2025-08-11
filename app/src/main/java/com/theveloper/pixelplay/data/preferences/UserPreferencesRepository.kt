@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey // Added import
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -56,6 +57,18 @@ class UserPreferencesRepository @Inject constructor(
         // UI State Keys
         val LAST_LIBRARY_TAB_INDEX = intPreferencesKey("last_library_tab_index") // Corrected: Add intPreferencesKey here
         val MOCK_GENRES_ENABLED = booleanPreferencesKey("mock_genres_enabled")
+        val LAST_DAILY_MIX_UPDATE = longPreferencesKey("last_daily_mix_update")
+    }
+
+    val lastDailyMixUpdateFlow: Flow<Long> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.LAST_DAILY_MIX_UPDATE] ?: 0L
+        }
+
+    suspend fun saveLastDailyMixUpdateTimestamp(timestamp: Long) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.LAST_DAILY_MIX_UPDATE] = timestamp
+        }
     }
 
     val allowedDirectoriesFlow: Flow<Set<String>> = dataStore.data

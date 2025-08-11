@@ -397,14 +397,23 @@ class PlayerViewModel @Inject constructor(
     .flowOn(Dispatchers.Default) // Execute combine and transformations on Default dispatcher
     .stateIn(viewModelScope, SharingStarted.Lazily, persistentListOf())
 
-    val dailyMixSongs: StateFlow<ImmutableList<Song>> = combine(
-        allSongsFlow,
-        favoriteSongs
-    ) { allSongs, favoriteSongs ->
-        dailyMixManager.generateDailyMix(allSongs, favoriteSongs).toImmutableList()
+    private val _dailyMixSongs = MutableStateFlow<ImmutableList<Song>>(persistentListOf())
+    val dailyMixSongs: StateFlow<ImmutableList<Song>> = _dailyMixSongs.asStateFlow()
+
+    private var dailyMixJob: Job? = null
+
+    private fun updateDailyMix() {
+        // Cancel any previous job to avoid multiple updates running
+        dailyMixJob?.cancel()
+        dailyMixJob = viewModelScope.launch(Dispatchers.IO) {
+            // We need all songs to generate the mix
+            val allSongs = allSongsFlow.first()
+            if (allSongs.isNotEmpty()) {
+                val mix = dailyMixManager.generateDailyMix(allSongs)
+                _dailyMixSongs.value = mix.toImmutableList()
+            }
+        }
     }
-        .flowOn(Dispatchers.Default)
-        .stateIn(viewModelScope, SharingStarted.Lazily, persistentListOf())
 
     private var progressJob: Job? = null
 
@@ -562,7 +571,21 @@ class PlayerViewModel @Inject constructor(
     fun onMainActivityStart() {
         Trace.beginSection("PlayerViewModel.onMainActivityStart")
         preloadThemesAndInitialData()
+        checkAndUpdateDailyMixIfNeeded()
         Trace.endSection()
+    }
+
+    private fun checkAndUpdateDailyMixIfNeeded() {
+        viewModelScope.launch {
+            val lastUpdate = userPreferencesRepository.lastDailyMixUpdateFlow.first()
+            val today = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_YEAR)
+            val lastUpdateDay = java.util.Calendar.getInstance().apply { timeInMillis = lastUpdate }.get(java.util.Calendar.DAY_OF_YEAR)
+
+            if (today != lastUpdateDay) {
+                updateDailyMix()
+                userPreferencesRepository.saveLastDailyMixUpdateTimestamp(System.currentTimeMillis())
+            }
+        }
     }
 
     private fun preloadThemesAndInitialData() {
@@ -682,6 +705,7 @@ class PlayerViewModel @Inject constructor(
         // by setting isLoading flags to true at its beginning.
 
         loadInitialLibraryDataParallel() // Call the new parallel loading function
+        updateDailyMix()
 
         // Initial load for albums and artists will be triggered by their respective tabs if needed.
         Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData END (dispatching parallel async work). Total function time: ${System.currentTimeMillis() - functionStartTime} ms")
@@ -1803,6 +1827,9 @@ class PlayerViewModel @Inject constructor(
 
                 result.onSuccess { generatedSongs ->
                     if (generatedSongs.isNotEmpty()) {
+                        // Update the daily mix with the AI generated playlist
+                        _dailyMixSongs.value = generatedSongs.toImmutableList()
+                        // Also start playing it
                         playSongs(generatedSongs, generatedSongs.first(), "AI: $prompt")
                         dismissAiPlaylistDialog()
                     } else {

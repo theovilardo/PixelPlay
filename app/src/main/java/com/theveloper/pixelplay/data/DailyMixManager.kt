@@ -43,7 +43,6 @@ class DailyMixManager @Inject constructor(
 
     fun generateDailyMix(
         allSongs: List<Song>,
-        favoriteSongs: List<Song>,
         limit: Int = 30
     ): List<Song> {
         if (allSongs.isEmpty()) {
@@ -51,34 +50,30 @@ class DailyMixManager @Inject constructor(
         }
 
         val scores = getScores()
-        val dailyMix = mutableListOf<Song>()
-
-        // Add favorite songs to the mix
-        dailyMix.addAll(favoriteSongs)
-
-        // Get 5 most played songs
-        val mostPlayedSongs = scores.entries
-            .sortedByDescending { it.value }
-            .take(5)
-            .mapNotNull { entry -> allSongs.find { it.id == entry.key } }
-        dailyMix.addAll(mostPlayedSongs)
-
-
-        // Add songs from the same artists as the favorites
-        val favoriteArtists = favoriteSongs.map { it.artist }.toSet()
-        val artistSongs = allSongs.filter { it.artist in favoriteArtists }
-        dailyMix.addAll(artistSongs)
-
-        // Add songs from the same genres as the favorites
-        val favoriteGenres = favoriteSongs.mapNotNull { it.genre }.toSet()
-        val genreSongs = allSongs.filter { it.genre in favoriteGenres }
-        dailyMix.addAll(genreSongs)
-
-        // Get a seed based on the current date
         val calendar = Calendar.getInstance()
         val seed = calendar.get(Calendar.YEAR) * 1000 + calendar.get(Calendar.DAY_OF_YEAR)
+        val random = java.util.Random(seed.toLong())
 
-        // Shuffle and take the limit
-        return dailyMix.distinctBy { it.id }.shuffled(java.util.Random(seed.toLong())).take(limit)
+        // If there are no scores (e.g., first-time user), return a random playlist of 15 songs.
+        if (scores.isEmpty()) {
+            return allSongs.shuffled(random).take(15)
+        }
+
+        // Create a list of songs with their scores, filtering out songs not in the library.
+        val scoredSongs = scores.entries
+            .mapNotNull { entry ->
+                val song = allSongs.find { it.id == entry.key }
+                song?.let { Pair(it, entry.value) }
+            }
+            .sortedByDescending { it.second } // Sort by score
+            .map { it.first } // Get the Song object
+
+        // If for some reason no scored songs are found in the library, fallback to random.
+        if (scoredSongs.isEmpty()) {
+            return allSongs.shuffled(random).take(15)
+        }
+
+        // Take the top 'limit' songs based on score.
+        return scoredSongs.take(limit)
     }
 }

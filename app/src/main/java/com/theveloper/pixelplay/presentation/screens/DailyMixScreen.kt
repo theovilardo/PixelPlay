@@ -274,7 +274,8 @@ fun DailyMixScreen(
                 items(dailyMixSongs, key = { it.id }) { song ->
                     EnhancedSongListItem(
                         modifier = Modifier
-                            .padding(horizontal = 16.dp),
+                            .padding(horizontal = 16.dp)
+                            .animateItemPlacement(),
                         song = song,
                         isPlaying = currentSongId == song.id && isPlaying,
                         onClick = { playerViewModel.showAndPlaySong(song, dailyMixSongs, "Daily Mix") },
