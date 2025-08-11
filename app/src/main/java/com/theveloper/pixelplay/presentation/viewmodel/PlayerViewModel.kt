@@ -411,6 +411,29 @@ class PlayerViewModel @Inject constructor(
             if (allSongs.isNotEmpty()) {
                 val mix = dailyMixManager.generateDailyMix(allSongs)
                 _dailyMixSongs.value = mix.toImmutableList()
+                // Save the new mix
+                userPreferencesRepository.saveDailyMixSongIds(mix.map { it.id })
+            }
+        }
+    }
+
+    private fun loadPersistedDailyMix() {
+        viewModelScope.launch {
+            // Combine the flow of persisted IDs with the flow of all songs
+            userPreferencesRepository.dailyMixSongIdsFlow.combine(allSongsFlow) { ids, allSongs ->
+                if (ids.isNotEmpty() && allSongs.isNotEmpty()) {
+                    // Create a map for quick lookups
+                    val songMap = allSongs.associateBy { it.id }
+                    // Reconstruct the playlist in the correct order
+                    ids.mapNotNull { songMap[it] }.toImmutableList()
+                } else {
+                    persistentListOf()
+                }
+            }.collect { persistedMix ->
+                // Only update if the current mix is empty, to avoid overwriting a newly generated one
+                if (_dailyMixSongs.value.isEmpty() && persistedMix.isNotEmpty()) {
+                    _dailyMixSongs.value = persistedMix
+                }
             }
         }
     }
@@ -493,6 +516,7 @@ class PlayerViewModel @Inject constructor(
         
 
         launchColorSchemeProcessor()
+        loadPersistedDailyMix()
 
         viewModelScope.launch {
             userPreferencesRepository.songsSortOptionFlow.collect { optionName ->
@@ -1831,20 +1855,25 @@ class PlayerViewModel @Inject constructor(
         _isGeneratingAiPlaylist.value = false
     }
 
-    fun generateAiPlaylist(prompt: String, length: Int) {
+    fun generateAiPlaylist(prompt: String, minLength: Int, maxLength: Int) {
         viewModelScope.launch {
             _isGeneratingAiPlaylist.value = true
             _aiError.value = null
 
             try {
-                val result = aiPlaylistGenerator.generate(prompt, allSongsFlow.value, length)
+                val result = aiPlaylistGenerator.generate(prompt, allSongsFlow.value, minLength, maxLength)
 
                 result.onSuccess { generatedSongs ->
                     if (generatedSongs.isNotEmpty()) {
                         // Update the daily mix with the AI generated playlist
                         _dailyMixSongs.value = generatedSongs.toImmutableList()
+                        // Save the new AI-generated mix
+                        viewModelScope.launch {
+                            userPreferencesRepository.saveDailyMixSongIds(generatedSongs.map { it.id })
+                        }
                         // Also start playing it
                         playSongs(generatedSongs, generatedSongs.first(), "AI: $prompt")
+                        _isSheetVisible.value = true
                         dismissAiPlaylistDialog()
                     } else {
                         _aiError.value = "The AI couldn't find any songs for your prompt."
