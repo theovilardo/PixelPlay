@@ -25,6 +25,10 @@ class AiMetadataGenerator @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val json: Json
 ) {
+    private fun cleanJson(jsonString: String): String {
+        return jsonString.replace("```json", "").replace("```", "").trim()
+    }
+
     suspend fun generate(
         song: Song,
         fieldsToComplete: List<String>
@@ -45,10 +49,9 @@ class AiMetadataGenerator @Inject constructor(
             val systemPrompt = """
             You are a music metadata expert. Your task is to find and complete missing metadata for a given song.
             You will be given the song's title and artist, and a list of fields to complete.
-            Your response MUST be ONLY a valid JSON object with the requested fields.
+            Your response MUST be a raw JSON object, without any markdown, backticks or other formatting.
             The lyrics must be in LRC format with timestamps like [mm:ss.xx].
             If you cannot find a specific piece of information, you should return an empty string for that field.
-            Do not include any other text, explanations, or markdown formatting.
 
             Example response for a request to complete "album" and "lyrics":
             {
@@ -73,7 +76,8 @@ class AiMetadataGenerator @Inject constructor(
             }
 
             Timber.d("AI Response: $responseText")
-            val metadata = json.decodeFromString<SongMetadata>(responseText)
+            val cleanedJson = cleanJson(responseText)
+            val metadata = json.decodeFromString<SongMetadata>(cleanedJson)
 
             Result.success(metadata)
         } catch (e: SerializationException) {
