@@ -1,12 +1,11 @@
 package com.theveloper.pixelplay.presentation.components
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -16,7 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -24,11 +22,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import com.theveloper.pixelplay.R
-import com.theveloper.pixelplay.data.model.PlayerInfo
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerUiState
 import com.theveloper.pixelplay.presentation.viewmodel.StablePlayerState
 import com.theveloper.pixelplay.utils.BubblesLine
-import com.theveloper.pixelplay.utils.LyricsTypeSwitch
 import com.theveloper.pixelplay.utils.ProviderText
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -81,40 +77,43 @@ fun LyricsSheet(
             LazyColumnWithCollapsibleTopBar(
                 topBarContent = {
                     CompositionLocalProvider(LocalContentColor provides contentColor) {
-                        IconButton(
-                            onClick = onBackClick,
-                            modifier = Modifier
-                                //.align(Alignment.BottomStart)
-                                .padding(horizontal = 12.dp, vertical = 4.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = null//context.resources.getString(R.string.close_lyrics_sheet)
-                            )
-                        }
-
-                        Text(
-                            text = context.resources.getString(R.string.lyrics),
-                            fontSize = lerp(
-                                MaterialTheme.typography.titleLarge.fontSize,
-                                MaterialTheme.typography.displaySmall.fontSize,
-                                collapseFraction
-                            ),
-                            fontWeight = FontWeight.Bold,
-                            //modifier = Modifier.align(Alignment.Center)
-                        )
-
-                        if (lyrics?.synced != null && lyrics?.plain != null && showSyncedLyrics != null) {
-                            LyricsTypeSwitch(
-                                isSynced = showSyncedLyrics!!,
-                                accentColor = accentColor,
-                                onIsSyncedSwitch = { showSyncedLyrics = it },
-                                enabled = collapseFraction == 0f,
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            IconButton(
+                                onClick = onBackClick,
                                 modifier = Modifier
-                                    //.align(Alignment.BottomCenter)
-                                    .padding(bottom = 6.dp)
-                                    .alpha((1 - collapseFraction) * 2f)
+                                    .align(Alignment.TopStart)
+                                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = null//context.resources.getString(R.string.close_lyrics_sheet)
+                                )
+                            }
+
+                            Text(
+                                text = context.resources.getString(R.string.lyrics),
+                                fontSize = lerp(
+                                    MaterialTheme.typography.titleLarge.fontSize,
+                                    MaterialTheme.typography.displaySmall.fontSize,
+                                    collapseFraction
+                                ),
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.align(Alignment.Center)
                             )
+
+                            if (lyrics?.synced != null && lyrics?.plain != null && showSyncedLyrics != null) {
+                                CustomLyricsTypeSwitch(
+                                    selectedIndex = if (showSyncedLyrics == true) 0 else 1,
+                                    onSelectedIndexChange = { index ->
+                                        showSyncedLyrics = index == 0
+                                    },
+                                    accentColor = accentColor,
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .padding(bottom = 6.dp)
+                                        .alpha((1 - collapseFraction) * 2f)
+                                )
+                            }
                         }
                     }
                 },
@@ -124,7 +123,7 @@ fun LyricsSheet(
                 modifier = modifier
                     .fillMaxSize()
                     .clickable(enabled = false, onClick = {})
-                    .safeDrawingPadding()
+                    .windowInsetsPadding(WindowInsets.statusBars) // Correct status bar padding
             ) {
                 when (showSyncedLyrics) {
                     null -> {
@@ -226,6 +225,49 @@ fun LyricsSheet(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun CustomLyricsTypeSwitch(
+    selectedIndex: Int,
+    onSelectedIndexChange: (Int) -> Unit,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val items = listOf("Synced", "Static")
+    SecondaryTabRow(
+        selectedTabIndex = selectedIndex,
+        containerColor = Color.Transparent,
+        indicator = {
+            if (selectedIndex < items.size) {
+                TabRowDefaults.PrimaryIndicator(
+                    modifier = Modifier
+                        .tabIndicatorOffset(selectedIndex)
+                        .clip(RoundedCornerShape(100)),
+                    height = 3.dp,
+                    color = accentColor
+                )
+            }
+        },
+        divider = {},
+        modifier = modifier
+    ) {
+        items.forEachIndexed { index, title ->
+            Tab(
+                selected = selectedIndex == index,
+                onClick = { onSelectedIndexChange(index) },
+                text = {
+                    Text(
+                        text = title,
+                        fontWeight = if (selectedIndex == index) FontWeight.Bold else FontWeight.Medium,
+                        color = if (selectedIndex == index) accentColor else LocalContentColor.current.copy(alpha = 0.7f)
+                    )
+                },
+                selectedContentColor = accentColor,
+                unselectedContentColor = LocalContentColor.current.copy(alpha = 0.7f)
+            )
         }
     }
 }
