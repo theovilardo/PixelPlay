@@ -35,8 +35,7 @@ fun EditSongSheet(
     song: Song,
     onDismiss: () -> Unit,
     onSave: (title: String, artist: String, album: String, genre: String, lyrics: String) -> Unit,
-    onAiClick: (List<String>) -> Unit,
-    isGenerating: Boolean
+    generateAiMetadata: suspend (List<String>) -> Result<com.theveloper.pixelplay.data.ai.SongMetadata>
 ) {
     var title by remember { mutableStateOf(song.title) }
     var artist by remember { mutableStateOf(song.artist) }
@@ -46,6 +45,8 @@ fun EditSongSheet(
 
     var showInfoDialog by remember { mutableStateOf(false) }
     var showAiDialog by remember { mutableStateOf(false) }
+    var isGenerating by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(song) {
         title = song.title
@@ -72,8 +73,19 @@ fun EditSongSheet(
         AiMetadataDialog(
             song = song,
             onDismiss = { showAiDialog = false },
-            onGenerate = {
-                onAiClick(it)
+            onGenerate = { fields ->
+                scope.launch {
+                    isGenerating = true
+                    val result = generateAiMetadata(fields)
+                    result.onSuccess { metadata ->
+                        title = metadata.title ?: title
+                        artist = metadata.artist ?: artist
+                        album = metadata.album ?: album
+                        genre = metadata.genre ?: genre
+                        lyrics = metadata.lyrics ?: lyrics
+                    }
+                    isGenerating = false
+                }
                 showAiDialog = false
             }
         )

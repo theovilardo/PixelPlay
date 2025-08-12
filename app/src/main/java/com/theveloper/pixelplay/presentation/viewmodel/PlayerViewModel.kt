@@ -87,6 +87,7 @@ import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.data.DailyMixManager
 import com.theveloper.pixelplay.data.ai.AiMetadataGenerator
 import com.theveloper.pixelplay.data.ai.AiPlaylistGenerator
+import com.theveloper.pixelplay.data.ai.SongMetadata
 import com.theveloper.pixelplay.data.model.Genre
 import com.theveloper.pixelplay.data.model.Lyrics
 import timber.log.Timber
@@ -141,7 +142,6 @@ data class PlayerUiState(
     val selectedSearchFilter: SearchFilterType = SearchFilterType.ALL,
     val searchHistory: ImmutableList<SearchHistoryItem> = persistentListOf(),
     val isSyncingLibrary: Boolean = false, // Nuevo estado para la sincronización
-    val isGeneratingAiMetadata: Boolean = false,
 
     // State for dismiss/undo functionality
     val showDismissUndoBar: Boolean = false,
@@ -2231,25 +2231,9 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    fun generateAiMetadata(song: Song, fields: List<String>) {
-        viewModelScope.launch {
-            _playerUiState.update { it.copy(isGeneratingAiMetadata = true) }
-            try {
-                val result = aiMetadataGenerator.generate(song, fields)
-                result.onSuccess { metadata ->
-                    val newTitle = metadata.title ?: song.title
-                    val newArtist = metadata.artist ?: song.artist
-                    val newAlbum = metadata.album ?: song.album
-                    val newGenre = metadata.genre ?: song.genre ?: ""
-                    val newLyrics = metadata.lyrics ?: song.lyrics ?: ""
-                    editSongMetadata(song, newTitle, newArtist, newAlbum, newGenre, newLyrics)
-                }.onFailure { error ->
-                    Timber.e(error, "Error generating AI metadata")
-                    _toastEvents.emit("AI Error: ${error.message}")
-                }
-            } finally {
-                _playerUiState.update { it.copy(isGeneratingAiMetadata = false) }
-            }
-        }
+}
+
+    suspend fun generateAiMetadata(song: Song, fields: List<String>): Result<SongMetadata> {
+        return aiMetadataGenerator.generate(song, fields)
     }
 }
