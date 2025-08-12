@@ -61,11 +61,14 @@ class AiMetadataGenerator @Inject constructor(
             }
             """.trimIndent()
 
+            val albumInfo = if (song.album.isNotBlank()) "Album: \"${song.album}\"" else ""
+
             val fullPrompt = """
             $systemPrompt
 
             Song title: "${song.title}"
             Song artist: "${song.artist}"
+            $albumInfo
             Fields to complete: [$fieldsJson]
             """.trimIndent()
 

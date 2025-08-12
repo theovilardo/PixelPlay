@@ -24,6 +24,7 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
         newGenre: String,
         newLyrics: String
     ): Boolean {
+        Timber.d("Editing metadata for URI: $contentUri")
         val uri = contentUri.toUri()
         var tempFile: File? = null
         try {
@@ -42,9 +43,11 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
             tag.setField(FieldKey.ALBUM, newAlbum)
             tag.setField(FieldKey.GENRE, newGenre)
             tag.setField(FieldKey.LYRICS, newLyrics)
+            Timber.d("Committing changes to temp file.")
             audioFile.commit() // Esto guarda los cambios en el archivo temporal
 
             // 3. Sobrescribir el archivo original con el archivo temporal modificado
+            Timber.d("Overwriting original file.")
             context.contentResolver.openFileDescriptor(uri, "w")?.use { pfd ->
                 FileOutputStream(pfd.fileDescriptor).use { outputStream ->
                     FileInputStream(tempFile).use { inputStream ->
@@ -58,6 +61,7 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
 
             val songId = uri.lastPathSegment?.toLongOrNull()
             if (songId != null) {
+                Timber.d("Updating database for songId: $songId")
                 runBlocking {
                     musicDao.updateSongMetadata(songId, newGenre, newLyrics)
                 }

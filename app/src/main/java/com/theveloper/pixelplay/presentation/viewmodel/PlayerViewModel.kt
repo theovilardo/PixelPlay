@@ -2194,6 +2194,8 @@ class PlayerViewModel @Inject constructor(
 
     fun editSongMetadata(song: Song, newTitle: String, newArtist: String, newAlbum: String, newGenre: String, newLyrics: String) {
         viewModelScope.launch {
+            Timber.d("Editing metadata for song: ${song.title} with URI: ${song.contentUriString}")
+            Timber.d("New metadata: title=$newTitle, artist=$newArtist, album=$newAlbum, genre=$newGenre, lyrics=$newLyrics")
             val success = withContext(Dispatchers.IO) {
                 songMetadataEditor.editSongMetadata(song.contentUriString, newTitle, newArtist, newAlbum, newGenre, newLyrics)
             }
