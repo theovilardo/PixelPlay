@@ -1488,7 +1488,9 @@ private fun FullPlayerContentInternal(
                 },
                 actions = {
                     Row(
-                        modifier = Modifier.padding(end = 14.dp),
+                        modifier = Modifier
+                            .padding(end = 14.dp)
+                            .width(104.dp),
                         // Ahora puedes controlar el espaciado exacto entre los elementos.
                         // Prueba a cambiar 0.dp por el valor que necesites, por ejemplo: 2.dp
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -1496,7 +1498,7 @@ private fun FullPlayerContentInternal(
                         // Primer botón (Lyrics)
                         Box(
                             modifier = Modifier
-                                .size(42.dp) // Define un tamaño fijo para el área de clic
+                                .size(height = 42.dp, width = 50.dp) // Define un tamaño fijo para el área de clic
                                 .clip(
                                     RoundedCornerShape(
                                         topStart = 50.dp,
@@ -1526,7 +1528,7 @@ private fun FullPlayerContentInternal(
                         // Segundo botón (Queue)
                         Box(
                             modifier = Modifier
-                                .size(42.dp) // Usa el mismo tamaño para mantener la consistencia
+                                .size(height = 42.dp, width = 50.dp) // Usa el mismo tamaño para mantener la consistencia
                                 .clip(
                                     RoundedCornerShape(
                                         topStart = 6.dp,
