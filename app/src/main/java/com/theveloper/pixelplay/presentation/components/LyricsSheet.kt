@@ -108,7 +108,7 @@ fun LyricsSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .align(Alignment.TopCenter)
-                        .wrapContentHeight()
+                        .height(218.dp)
                         .background(
                             brush = Brush.verticalGradient(
                                 colors = listOf(
@@ -116,80 +116,81 @@ fun LyricsSheet(
                                     containerColor,
                                     containerColor,
                                     containerColor,
-                                    containerColor.copy(alpha = 0.7f),
+                                    //tst
+                                    containerColor,
+                                    containerColor,
+                                    containerColor,
+                                    //fin tst
+                                    //containerColor.copy(alpha = 0.95f),
+                                    //containerColor.copy(alpha = 0.4f),
                                     Color.Transparent
                                 )
                             )
                         )
                 ) {
-                    Column {
-                        CenterAlignedTopAppBar(
-                            title = { Text(text = "Lyrics", fontWeight = FontWeight.Bold) },
-                            navigationIcon = {
-                                IconButton(onClick = onBackClick) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.ArrowBack,
-                                        contentDescription = context.resources.getString(R.string.close_lyrics_sheet)
+
+                }
+                Column(
+                    Modifier.align(Alignment.TopCenter)
+                ) {
+                    CenterAlignedTopAppBar(
+                        title = { Text(text = "Lyrics", fontWeight = FontWeight.Bold) },
+                        navigationIcon = {
+                            IconButton(onClick = onBackClick) {
+                                Icon(
+                                    imageVector = Icons.Rounded.ArrowBack,
+                                    contentDescription = context.resources.getString(R.string.close_lyrics_sheet)
+                                )
+                            }
+                        },
+                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                            containerColor = Color.Transparent
+                        )
+                    )
+                    if (lyrics?.synced != null && lyrics?.plain != null) {
+                        val selectedTabIndex = if (showSyncedLyrics == true) 0 else 1
+
+                        TabRow(
+                            modifier = Modifier
+                                .fillMaxWidth(),
+                            selectedTabIndex = selectedTabIndex,
+                            containerColor = Color.Transparent,
+                            indicator = { tabPositions ->
+                                // FIX: Ensure the indicator uses the correct selectedTabIndex.
+                                if (selectedTabIndex < tabPositions.size) {
+                                    TabRowDefaults.PrimaryIndicator(
+                                        modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
+                                        height = 3.dp,
+                                        color = Color.Transparent//MaterialTheme.colorScheme.primary
                                     )
                                 }
                             },
-                            colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                                containerColor = Color.Transparent
-                            )
-                        )
-                        if (lyrics?.synced != null && lyrics?.plain != null) {
-                            val selectedTabIndex = if (showSyncedLyrics == true) 0 else 1
-
-                            TabRow(
-                                modifier = Modifier
-                                    .fillMaxWidth(),
-                                selectedTabIndex = selectedTabIndex,
-                                containerColor = Color.Transparent,
-                                indicator = { tabPositions ->
-                                    // FIX: Ensure the indicator uses the correct selectedTabIndex.
-                                    if (selectedTabIndex < tabPositions.size) {
-                                        TabRowDefaults.PrimaryIndicator(
-                                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
-                                            height = 3.dp,
-                                            color = Color.Transparent//MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                },
-                                divider = {}
+                            divider = {}
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceEvenly
                             ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceEvenly
-                                ) {
-                                    Spacer(modifier = Modifier.width(14.dp))
-                                    tabTitles.forEachIndexed { index, title ->
-                                        // FIX: Update the state when a tab is clicked.
-                                        TabAnimation(
-                                            modifier = Modifier.weight(1f),
-                                            selectedColor = accentColor,
-                                            onSelectedColor = onAccentColor,
-                                            unselectedColor = contentColor.copy(alpha = 0.15f),
-                                            onUnselectedColor = contentColor,
-                                            index = index,
-                                            title = title,
-                                            selectedIndex = selectedTabIndex,
-                                            onClick = {
-                                                showSyncedLyrics = (index == 0)
-                                            }
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(14.dp))
+                                Spacer(modifier = Modifier.width(14.dp))
+                                tabTitles.forEachIndexed { index, title ->
+                                    // FIX: Update the state when a tab is clicked.
+                                    TabAnimation(
+                                        modifier = Modifier.weight(1f),
+                                        selectedColor = accentColor,
+                                        onSelectedColor = onAccentColor,
+                                        unselectedColor = contentColor.copy(alpha = 0.15f),
+                                        onUnselectedColor = contentColor,
+                                        index = index,
+                                        title = title,
+                                        selectedIndex = selectedTabIndex,
+                                        onClick = {
+                                            showSyncedLyrics = (index == 0)
+                                        }
+                                    )
                                 }
+                                Spacer(modifier = Modifier.width(14.dp))
                             }
-//                            ExpressiveLyricsTypeSwitch(
-//                                selectedIndex = if (showSyncedLyrics == true) 0 else 1,
-//                                onSelectedIndexChange = { index ->
-//                                    showSyncedLyrics = index == 0
-//                                },
-//                                accentColor = accentColor,
-//                                modifier = Modifier.fillMaxWidth()
-//                            )
                         }
                     }
                 }
@@ -240,7 +241,7 @@ fun LyricsSheet(
                 contentPadding = PaddingValues(
                     start = 24.dp,
                     end = 24.dp,
-                    top = paddingValues.calculateTopPadding() + 26.dp,
+                    top = paddingValues.calculateTopPadding(),
                     bottom = paddingValues.calculateBottomPadding() + 80.dp // Padding for FAB
                 ),
                 modifier = Modifier.fillMaxSize()
