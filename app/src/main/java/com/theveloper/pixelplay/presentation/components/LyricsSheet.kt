@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.*
@@ -47,6 +48,8 @@ fun LyricsSheet(
     containerColor: Color,
     contentColor: Color,
     accentColor: Color,
+    tertiaryColor: Color,
+    onTertiaryColor: Color,
     onBackClick: () -> Unit,
     onSeekTo: (Long) -> Unit,
     onPlayPause: () -> Unit, // New parameter
@@ -76,30 +79,53 @@ fun LyricsSheet(
         containerColor = containerColor,
         contentColor = contentColor,
         topBar = {
-            Column {
-                CenterAlignedTopAppBar(
-                    title = { Text(text = "Lyrics", fontWeight = FontWeight.Bold) },
-                    navigationIcon = {
-                        IconButton(onClick = onBackClick) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = context.resources.getString(R.string.close_lyrics_sheet)
+            Box(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                        .wrapContentHeight()
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    containerColor,
+                                    containerColor,
+                                    containerColor,
+                                    containerColor,
+                                    containerColor.copy(alpha = 0.7f),
+                                    Color.Transparent
+                                )
+                            )
+                        )
+                ) {
+                    Column {
+                        CenterAlignedTopAppBar(
+                            title = { Text(text = "Lyrics", fontWeight = FontWeight.Bold) },
+                            navigationIcon = {
+                                IconButton(onClick = onBackClick) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.ArrowBack,
+                                        contentDescription = context.resources.getString(R.string.close_lyrics_sheet)
+                                    )
+                                }
+                            },
+                            colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                                containerColor = Color.Transparent
+                            )
+                        )
+                        if (lyrics?.synced != null && lyrics?.plain != null) {
+                            ExpressiveLyricsTypeSwitch(
+                                selectedIndex = if (showSyncedLyrics == true) 0 else 1,
+                                onSelectedIndexChange = { index ->
+                                    showSyncedLyrics = index == 0
+                                },
+                                accentColor = accentColor,
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
-                    },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = Color.Transparent
-                    )
-                )
-                if (lyrics?.synced != null && lyrics?.plain != null) {
-                    ExpressiveLyricsTypeSwitch(
-                        selectedIndex = if (showSyncedLyrics == true) 0 else 1,
-                        onSelectedIndexChange = { index ->
-                            showSyncedLyrics = index == 0
-                        },
-                        accentColor = accentColor,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    }
                 }
             }
         },
@@ -112,8 +138,8 @@ fun LyricsSheet(
             LargeFloatingActionButton(
                 onClick = onPlayPause,
                 shape = RoundedCornerShape(fabShapeCornerRadius),
-                containerColor = accentColor,
-                contentColor = contentColor
+                containerColor = tertiaryColor,
+                contentColor = onTertiaryColor
             ) {
                 AnimatedContent(
                     targetState = isPlaying,
@@ -121,14 +147,16 @@ fun LyricsSheet(
                 ) { playing ->
                     if (playing) {
                         Icon(
+                            modifier = Modifier.size(28.dp),
                             imageVector = Icons.Rounded.Pause,
-                            tint = containerColor.copy(alpha = 0.45f),
+                            //tint = containerColor.copy(alpha = 0.45f),
                             contentDescription = "Pause"
                         )
                     } else {
                         Icon(
+                            modifier = Modifier.size(28.dp),
                             imageVector = Icons.Rounded.PlayArrow,
-                            tint = containerColor.copy(alpha = 0.45f),
+                            //tint = containerColor.copy(alpha = 0.45f),
                             contentDescription = "Play"
                         )
                     }
@@ -145,6 +173,7 @@ fun LyricsSheet(
         Box(
             modifier = Modifier.fillMaxSize()
         ) {
+
             LazyColumn(
                 state = listState,
                 contentPadding = PaddingValues(
@@ -217,6 +246,7 @@ fun LyricsSheet(
                                     BubblesLine(
                                         positionFlow = playerUiStateFlow.map { it.currentPosition },
                                         time = time,
+                                        color = contentColor,
                                         nextTime = nextTime,
                                         modifier = Modifier.padding(vertical = 8.dp)
                                     )
@@ -260,7 +290,7 @@ fun LyricsSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
-                    .height(80.dp)
+                    .height(96.dp)
                     .background(
                         brush = Brush.verticalGradient(
                             colors = listOf(

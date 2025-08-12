@@ -113,6 +113,7 @@ fun LyricsTypeSwitch(
 fun BubblesLine(
     positionFlow: Flow<Long>,
     time: Int,
+    color: Color,
     nextTime: Int,
     modifier: Modifier = Modifier,
 ) {
@@ -136,7 +137,7 @@ fun BubblesLine(
 
     if (show) {
         Canvas(modifier = modifier.size(48.dp, 24.dp)) {
-            val bubbleColor = Color.Gray.copy(alpha = 0.5f)
+            val bubbleColor = color.copy(alpha = 0.5f)
             val bubbleCount = 3
             val bubbleRadius = 4.dp.toPx()
 
