@@ -25,6 +25,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.R
+import timber.log.Timber
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
@@ -78,11 +79,14 @@ fun EditSongSheet(
                     isGenerating = true
                     val result = generateAiMetadata(fields)
                     result.onSuccess { metadata ->
+                        Timber.d("AI metadata generated successfully: $metadata")
                         title = metadata.title ?: title
                         artist = metadata.artist ?: artist
                         album = metadata.album ?: album
                         genre = metadata.genre ?: genre
                         lyrics = metadata.lyrics ?: lyrics
+                    }.onFailure { error ->
+                        Timber.e(error, "Failed to generate AI metadata")
                     }
                     isGenerating = false
                 }
