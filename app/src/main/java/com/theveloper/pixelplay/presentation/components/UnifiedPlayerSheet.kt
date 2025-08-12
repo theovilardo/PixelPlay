@@ -121,6 +121,7 @@ import kotlinx.coroutines.delay
 import android.os.Trace // Import Trace
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.TopAppBar
 import androidx.media3.common.util.UnstableApi
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
@@ -1443,7 +1444,7 @@ private fun FullPlayerContentInternal(
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
-            CenterAlignedTopAppBar(
+            TopAppBar(
                 modifier = Modifier.alpha(expansionFraction.coerceIn(0f, 1f)),
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent,
@@ -1453,6 +1454,7 @@ private fun FullPlayerContentInternal(
                 ),
                 title = {
                     Text(
+                        modifier = Modifier.padding(start = 18.dp),
                         text = "Now Playing",
                         style = MaterialTheme.typography.labelLargeEmphasized,
                         fontWeight = FontWeight.SemiBold
@@ -1486,7 +1488,9 @@ private fun FullPlayerContentInternal(
                 },
                 actions = {
                     Row(
-                        modifier = Modifier.padding(end = 14.dp),
+                        modifier = Modifier
+                            .padding(end = 14.dp)
+                            .width(104.dp),
                         // Ahora puedes controlar el espaciado exacto entre los elementos.
                         // Prueba a cambiar 0.dp por el valor que necesites, por ejemplo: 2.dp
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -1494,7 +1498,7 @@ private fun FullPlayerContentInternal(
                         // Primer botón (Lyrics)
                         Box(
                             modifier = Modifier
-                                .size(42.dp) // Define un tamaño fijo para el área de clic
+                                .size(height = 42.dp, width = 50.dp) // Define un tamaño fijo para el área de clic
                                 .clip(
                                     RoundedCornerShape(
                                         topStart = 50.dp,
@@ -1524,7 +1528,7 @@ private fun FullPlayerContentInternal(
                         // Segundo botón (Queue)
                         Box(
                             modifier = Modifier
-                                .size(42.dp) // Usa el mismo tamaño para mantener la consistencia
+                                .size(height = 42.dp, width = 50.dp) // Usa el mismo tamaño para mantener la consistencia
                                 .clip(
                                     RoundedCornerShape(
                                         topStart = 6.dp,
@@ -1640,6 +1644,8 @@ private fun FullPlayerContentInternal(
             stablePlayerStateFlow = playerViewModel.stablePlayerState,
             playerUiStateFlow = playerViewModel.playerUiState,
             lyricsTextStyle = MaterialTheme.typography.titleLarge,
+            backgroundColor = LocalMaterialTheme.current.background,
+            onBackgroundColor = LocalMaterialTheme.current.onBackground,
             containerColor = LocalMaterialTheme.current.primaryContainer,
             contentColor = LocalMaterialTheme.current.onPrimaryContainer,
             accentColor = LocalMaterialTheme.current.primary,
