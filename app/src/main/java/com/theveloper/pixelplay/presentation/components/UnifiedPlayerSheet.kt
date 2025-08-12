@@ -121,6 +121,7 @@ import kotlinx.coroutines.delay
 import android.os.Trace // Import Trace
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.TopAppBar
 import androidx.media3.common.util.UnstableApi
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
@@ -1443,7 +1444,7 @@ private fun FullPlayerContentInternal(
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
-            CenterAlignedTopAppBar(
+            TopAppBar(
                 modifier = Modifier.alpha(expansionFraction.coerceIn(0f, 1f)),
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent,
@@ -1453,6 +1454,7 @@ private fun FullPlayerContentInternal(
                 ),
                 title = {
                     Text(
+                        modifier = Modifier.padding(start = 18.dp),
                         text = "Now Playing",
                         style = MaterialTheme.typography.labelLargeEmphasized,
                         fontWeight = FontWeight.SemiBold
