@@ -3,12 +3,16 @@ package com.theveloper.pixelplay.data.ai
 import com.google.ai.client.generativeai.GenerativeModel
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
+import com.google.ai.client.generativeai.type.SerializationException
 import kotlinx.coroutines.flow.first
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import timber.log.Timber
 import javax.inject.Inject
 import kotlin.Result
 
+@Serializable
 data class SongMetadata(
     val title: String,
     val artist: String,
@@ -62,13 +66,21 @@ class AiMetadataGenerator @Inject constructor(
             """.trimIndent()
 
             val response = generativeModel.generateContent(fullPrompt)
-            val responseText = response.text ?: return Result.failure(Exception("AI returned an empty response."))
+            val responseText = response.text
+            if (responseText.isNullOrBlank()) {
+                Timber.e("AI returned an empty or null response.")
+                return Result.failure(Exception("AI returned an empty response."))
+            }
 
+            Timber.d("AI Response: $responseText")
             val metadata = json.decodeFromString<SongMetadata>(responseText)
 
             Result.success(metadata)
-
+        } catch (e: SerializationException) {
+            Timber.e(e, "Error deserializing AI response.")
+            Result.failure(Exception("Failed to parse AI response: ${e.message}"))
         } catch (e: Exception) {
+            Timber.e(e, "Generic error in AiMetadataGenerator.")
             Result.failure(Exception("AI Error: ${e.message}"))
         }
     }

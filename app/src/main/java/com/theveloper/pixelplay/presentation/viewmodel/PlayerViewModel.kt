@@ -89,6 +89,7 @@ import com.theveloper.pixelplay.data.ai.AiMetadataGenerator
 import com.theveloper.pixelplay.data.ai.AiPlaylistGenerator
 import com.theveloper.pixelplay.data.model.Genre
 import com.theveloper.pixelplay.data.model.Lyrics
+import timber.log.Timber
 import com.theveloper.pixelplay.ui.theme.GenreColors
 import com.theveloper.pixelplay.utils.toHexString
 import kotlinx.coroutines.flow.Flow
@@ -2243,6 +2244,7 @@ class PlayerViewModel @Inject constructor(
                     val newLyrics = if (fields.contains("Lyrics")) metadata.lyrics else song.lyrics ?: ""
                     editSongMetadata(song, newTitle, newArtist, newAlbum, newGenre, newLyrics)
                 }.onFailure { error ->
+                    Timber.e(error, "Error generating AI metadata")
                     _toastEvents.emit("AI Error: ${error.message}")
                 }
             } finally {
