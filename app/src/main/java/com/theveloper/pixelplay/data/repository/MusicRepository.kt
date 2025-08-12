@@ -3,6 +3,7 @@ package com.theveloper.pixelplay.data.repository
 import android.net.Uri
 import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Artist
+import com.theveloper.pixelplay.data.model.Lyrics
 import com.theveloper.pixelplay.data.model.Playlist
 import com.theveloper.pixelplay.data.model.SearchFilterType
 import com.theveloper.pixelplay.data.model.SearchHistoryItem
@@ -127,4 +128,6 @@ interface MusicRepository {
      * @return Flow que emite una lista de objetos Genre.
      */
     fun getGenres(): Flow<List<com.theveloper.pixelplay.data.model.Genre>>
+
+    suspend fun getLyrics(song: Song): Lyrics?
 }

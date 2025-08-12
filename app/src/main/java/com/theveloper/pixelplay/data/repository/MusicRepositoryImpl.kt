@@ -36,8 +36,11 @@ import com.theveloper.pixelplay.data.database.SongEntity
 import com.theveloper.pixelplay.data.database.toAlbum
 import com.theveloper.pixelplay.data.database.toArtist
 import com.theveloper.pixelplay.data.database.toSong
+import com.theveloper.pixelplay.data.model.Lyrics
+import com.theveloper.pixelplay.data.model.SyncedLine
 import com.theveloper.pixelplay.utils.LogUtils
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first // Still needed for initialSetupDoneFlow.first() if used that way
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -49,6 +52,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 // import kotlinx.coroutines.sync.withLock // May not be needed if directoryScanMutex logic changes
 import java.io.File
+import org.jaudiotagger.audio.AudioFileIO
+import org.jaudiotagger.tag.FieldKey
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @Singleton
@@ -552,5 +557,67 @@ class MusicRepositoryImpl @Inject constructor(
                 dynamicGenres
             }
         }.flowOn(Dispatchers.IO)
+    }
+
+    override suspend fun getLyrics(song: Song): Lyrics? {
+        // 1. Check if lyrics are already in the song object (from DB)
+        if (!song.lyrics.isNullOrBlank()) {
+            val lines = song.lyrics.lines()
+            val isLrc = lines.any { it.matches(Regex("\\[\\d{2}:\\d{2}\\.\\d{2,3}].*")) }
+            if (isLrc) {
+                val syncedLines = lines.mapNotNull { line ->
+                    val match = Regex("\\[(\\d{2}):(\\d{2})\\.(\\d{2,3})](.*)").find(line)
+                    if (match != null) {
+                        val (min, sec, ms, text) = match.destructured
+                        val time = min.toInt() * 60000 + sec.toInt() * 1000 + ms.toInt()
+                        SyncedLine(time, text.trim())
+                    } else {
+                        null
+                    }
+                }
+                return Lyrics(plain = lines, synced = syncedLines, areFromRemote = false)
+            } else {
+                return Lyrics(plain = lines, synced = null, areFromRemote = false)
+            }
+        }
+
+        // 2. If not in DB, try to read from the file's metadata
+        return try {
+            val file = File(song.contentUriString)
+            if (!file.exists()) return null
+
+            val audioFile = AudioFileIO.read(file)
+            val tag = audioFile.tag
+            val lyricsFromFile = tag?.getFirst(FieldKey.LYRICS)
+
+            if (!lyricsFromFile.isNullOrBlank()) {
+                // 3. If found, update DB for caching
+                musicDao.updateLyrics(song.id.toLong(), lyricsFromFile)
+
+                // 4. Parse and return lyrics
+                val lines = lyricsFromFile.lines()
+                val isLrc = lines.any { it.matches(Regex("\\[\\d{2}:\\d{2}\\.\\d{2,3}].*")) }
+                 if (isLrc) {
+                    val syncedLines = lines.mapNotNull { line ->
+                        val match = Regex("\\[(\\d{2}):(\\d{2})\\.(\\d{2,3})](.*)").find(line)
+                        if (match != null) {
+                            val (min, sec, ms, text) = match.destructured
+                            val time = min.toInt() * 60000 + sec.toInt() * 1000 + ms.toInt()
+                            SyncedLine(time, text.trim())
+                        } else {
+                            null
+                        }
+                    }
+                    Lyrics(plain = lines, synced = syncedLines, areFromRemote = false)
+                } else {
+                    Lyrics(plain = lines, synced = null, areFromRemote = false)
+                }
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e("MusicRepositoryImpl", "Error reading lyrics from file for song: ${song.title}", e)
+            null
+        }
     }
 }

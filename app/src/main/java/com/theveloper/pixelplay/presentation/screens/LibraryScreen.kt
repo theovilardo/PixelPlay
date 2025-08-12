@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
@@ -121,6 +122,7 @@ import com.theveloper.pixelplay.presentation.components.PlayerSheetCollapsedCorn
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet
 import com.theveloper.pixelplay.presentation.components.subcomps.LibraryActionRow
+import com.theveloper.pixelplay.presentation.components.subcomps.SineWaveLine
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.ColorSchemePair
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerUiState
@@ -268,7 +270,7 @@ fun LibraryScreen(
                     divider = {}
                 ) {
                     tabTitles.forEachIndexed { index, title ->
-                        TabAnimation(index, title, pagerState.currentPage) {
+                        TabAnimation(index = index, title = title, selectedIndex = pagerState.currentPage) {
                             scope.launch { pagerState.animateScrollToPage(index) }
                         }
                     }
@@ -588,10 +590,6 @@ fun CreatePlaylistDialogRedesigned(
                     label = { Text("Playlist Name") },
                     placeholder = { Text("Mi playlist") },
                     shape = RoundedCornerShape(16.dp),
-//                    colors = TextFieldDefaults.t(
-//                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-//                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
-//                    ),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 24.dp),
@@ -654,30 +652,36 @@ fun LibraryFavoritesTab(
             }
         }
     } else {
-        LazyColumn(
-            modifier = Modifier
-                .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
-                .clip(
-                    RoundedCornerShape(
-                        topStart = 26.dp,
-                        topEnd = 26.dp,
-                        bottomStart = PlayerSheetCollapsedCornerRadius,
-                        bottomEnd = PlayerSheetCollapsedCornerRadius
-                    )
-                ),
-            state = listState,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 10.dp)
+        Box(modifier = Modifier
+            .fillMaxSize(),
+            contentAlignment = Alignment.Center
         ) {
-            items(favoriteSongs, key = { "fav_${it.id}" }) { song ->
-                val isPlayingThisSong = song.id == stablePlayerState.currentSong?.id && stablePlayerState.isPlaying
-                // Using EnhancedSongListItem for consistency, though it has more details than SongListItemFavs
-                EnhancedSongListItem(
-                    song = song,
-                    isPlaying = isPlayingThisSong,
-                    onMoreOptionsClick = { onMoreOptionsClick(song) },
-                    onClick = { playerViewModel.showAndPlaySong(song) }
-                )
+            LazyColumn(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
+                    .clip(
+                        RoundedCornerShape(
+                            topStart = 26.dp,
+                            topEnd = 26.dp,
+                            bottomStart = PlayerSheetCollapsedCornerRadius,
+                            bottomEnd = PlayerSheetCollapsedCornerRadius
+                        )
+                    ),
+                state = listState,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 10.dp)
+            ) {
+                items(favoriteSongs, key = { "fav_${it.id}" }) { song ->
+                    val isPlayingThisSong = song.id == stablePlayerState.currentSong?.id && stablePlayerState.isPlaying
+                    // Using EnhancedSongListItem for consistency, though it has more details than SongListItemFavs
+                    EnhancedSongListItem(
+                        song = song,
+                        isPlaying = isPlayingThisSong,
+                        onMoreOptionsClick = { onMoreOptionsClick(song) },
+                        onClick = { playerViewModel.showAndPlaySong(song) }
+                    )
+                }
             }
         }
     }
@@ -764,7 +768,9 @@ fun LibrarySongsTab(
             }
             songs.isEmpty() && !isLoadingInitial -> { // canLoadMore removed from condition
                 Box(
-                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -844,7 +850,10 @@ fun LibrarySongsTab(
                         .height(10.dp)
                         .background(
                             brush = Brush.verticalGradient(
-                                colors = listOf(MaterialTheme.colorScheme.surface, Color.Transparent)
+                                colors = listOf(
+                                    MaterialTheme.colorScheme.surface,
+                                    Color.Transparent
+                                )
                             )
                         )
                 )
@@ -1118,14 +1127,6 @@ fun LibraryAlbumsTab(
                         isLoading = isLoading && albums.isEmpty() // Shimmer solo si está cargando Y la lista está vacía
                     )
                 }
-                // "Load more" indicator removed as all albums are loaded at once
-                // if (isLoading && albums.isNotEmpty()) {
-                //     item(span = { GridItemSpan(maxLineSpan) }) {
-                //         Box(Modifier
-                //             .fillMaxWidth()
-                //             .padding(16.dp), Alignment.Center) { CircularProgressIndicator() }
-                //     }
-                // }
             }
             Box(
                 modifier = Modifier
@@ -1138,12 +1139,6 @@ fun LibraryAlbumsTab(
                     )
                     .align(Alignment.TopCenter)
             )
-            // InfiniteGridHandler removed as all albums are loaded at once
-            // InfiniteGridHandler(gridState = gridState) {
-            //     if (canLoadMore && !isLoading) {
-            //         playerViewModel.loadMoreAlbums()
-            //     }
-            // }
         }
     }
 }
@@ -1393,12 +1388,29 @@ fun LibraryPlaylistsTab(
     } else if (playlistUiState.playlists.isEmpty()) {
         Box(modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Filled.PlaylistAdd, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            .padding(16.dp), contentAlignment = Alignment.TopCenter) {
+            Column(
+                modifier = Modifier.padding(top = 28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                SineWaveLine(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(32.dp)
+                        .padding(horizontal = 8.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f),
+                    alpha = 0.95f,
+                    strokeWidth = 3.dp,
+                    amplitude = 4.dp,
+                    waves = 7.6f,
+                    phase = 0f//phase
+                )
+                Spacer(Modifier.height(16.dp))
+                Icon(Icons.Rounded.PlaylistPlay, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(8.dp))
-                Text("No has creado ninguna playlist.", style = MaterialTheme.typography.titleMedium)
-                Text("Toca el botón '+' para empezar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("No playlist has been created.", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(6.dp))
+                Text("Touch the 'New Playlist' button to start.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     } else {

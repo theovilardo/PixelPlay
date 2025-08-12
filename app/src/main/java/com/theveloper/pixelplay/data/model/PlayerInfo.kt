@@ -40,6 +40,8 @@ data class PlayerInfo(
     val currentPositionMs: Long = 0L,
     val totalDurationMs: Long = 0L,
     val isFavorite: Boolean = false,
+    val lyrics: Lyrics? = null,
+    val isLoadingLyrics: Boolean = false,
     val queue: List<QueueItem> = emptyList()
 ) {
     // equals y hashCode para ByteArray, ya que el por defecto no es comparando contenido
@@ -60,6 +62,8 @@ data class PlayerInfo(
         if (currentPositionMs != other.currentPositionMs) return false
         if (totalDurationMs != other.totalDurationMs) return false
         if (queue != other.queue) return false
+        if (lyrics != other.lyrics) return false
+        if (isLoadingLyrics != other.isLoadingLyrics) return false
 
         return true
     }
@@ -73,6 +77,8 @@ data class PlayerInfo(
         result = 31 * result + currentPositionMs.hashCode()
         result = 31 * result + totalDurationMs.hashCode()
         result = 31 * result + queue.hashCode()
+        result = 31 * result + (lyrics?.hashCode() ?: 0)
+        result = 31 * result + isLoadingLyrics.hashCode()
         return result
     }
 }

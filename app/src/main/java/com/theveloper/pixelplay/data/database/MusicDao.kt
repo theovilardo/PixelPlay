@@ -257,4 +257,10 @@ interface MusicDao {
 
     @Query("UPDATE songs SET genre = :genre, lyrics = :lyrics WHERE id = :songId")
     suspend fun updateSongMetadata(songId: Long, genre: String, lyrics: String)
+
+    @Query("UPDATE songs SET lyrics = :lyrics WHERE id = :songId")
+    suspend fun updateLyrics(songId: Long, lyrics: String)
+
+    @Query("SELECT * FROM songs")
+    suspend fun getAllSongsList(): List<SongEntity>
 }
