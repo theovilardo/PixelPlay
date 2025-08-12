@@ -41,8 +41,18 @@ class SyncWorker @AssistedInject constructor(
             Log.i(TAG, "Fetched ${songs.size} songs from MediaStore.")
 
             if (songs.isNotEmpty()) {
+                val existingLyricsMap = musicDao.getAllSongsList().associate { it.id to it.lyrics }
+                val songsWithPreservedLyrics = songs.map { songEntity ->
+                    val existingLyrics = existingLyricsMap[songEntity.id]
+                    if (!existingLyrics.isNullOrBlank()) {
+                        songEntity.copy(lyrics = existingLyrics)
+                    } else {
+                        songEntity
+                    }
+                }
+
                 musicDao.clearAllMusicData()
-                songs.chunked(1000).forEach { batch ->
+                songsWithPreservedLyrics.chunked(1000).forEach { batch ->
                     val albums = batch.distinctBy { it.albumId }.map {
                         AlbumEntity(
                             id = it.albumId,

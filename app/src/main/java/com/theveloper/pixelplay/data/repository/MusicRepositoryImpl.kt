@@ -52,6 +52,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 // import kotlinx.coroutines.sync.withLock // May not be needed if directoryScanMutex logic changes
 import java.io.File
+import org.jaudiotagger.audio.AudioFileIO
+import org.jaudiotagger.tag.FieldKey
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @Singleton
@@ -558,29 +560,63 @@ class MusicRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getLyrics(song: Song): Lyrics? {
-        delay(1500) // Simula una llamada de red
+        // 1. Check if lyrics are already in the song object (from DB)
+        if (!song.lyrics.isNullOrBlank()) {
+            val lines = song.lyrics.lines()
+            val isLrc = lines.any { it.matches(Regex("\\[\\d{2}:\\d{2}\\.\\d{2,3}].*")) }
+            if (isLrc) {
+                val syncedLines = lines.mapNotNull { line ->
+                    val match = Regex("\\[(\\d{2}):(\\d{2})\\.(\\d{2,3})](.*)").find(line)
+                    if (match != null) {
+                        val (min, sec, ms, text) = match.destructured
+                        val time = min.toInt() * 60000 + sec.toInt() * 1000 + ms.toInt()
+                        SyncedLine(time, text.trim())
+                    } else {
+                        null
+                    }
+                }
+                return Lyrics(plain = lines, synced = syncedLines, areFromRemote = false)
+            } else {
+                return Lyrics(plain = lines, synced = null, areFromRemote = false)
+            }
+        }
 
-        return if (song.title.contains("Demo", ignoreCase = true)) {
-            Lyrics(
-                plain = listOf(
-                    "Esta es la primera línea.",
-                    "Luego viene la segunda.",
-                    "Y esta es la tercera.",
-                    "[Instrumental]",
-                    "La música continúa.",
-                    "Y la letra termina aquí."
-                ),
-                synced = listOf(
-                    SyncedLine(5000, "Esta es la primera línea."),
-                    SyncedLine(10000, "Luego viene la segunda."),
-                    SyncedLine(15000, "Y esta es la tercera."),
-                    SyncedLine(20000, ""), // Línea vacía para instrumental
-                    SyncedLine(25000, "La música continúa."),
-                    SyncedLine(30000, "Y la letra termina aquí.")
-                ),
-                areFromRemote = true
-            )
-        } else {
+        // 2. If not in DB, try to read from the file's metadata
+        return try {
+            val file = File(song.filePath)
+            if (!file.exists()) return null
+
+            val audioFile = AudioFileIO.read(file)
+            val tag = audioFile.tag
+            val lyricsFromFile = tag?.getFirst(FieldKey.LYRICS)
+
+            if (!lyricsFromFile.isNullOrBlank()) {
+                // 3. If found, update DB for caching
+                musicDao.updateLyrics(song.id.toLong(), lyricsFromFile)
+
+                // 4. Parse and return lyrics
+                val lines = lyricsFromFile.lines()
+                val isLrc = lines.any { it.matches(Regex("\\[\\d{2}:\\d{2}\\.\\d{2,3}].*")) }
+                 if (isLrc) {
+                    val syncedLines = lines.mapNotNull { line ->
+                        val match = Regex("\\[(\\d{2}):(\\d{2})\\.(\\d{2,3})](.*)").find(line)
+                        if (match != null) {
+                            val (min, sec, ms, text) = match.destructured
+                            val time = min.toInt() * 60000 + sec.toInt() * 1000 + ms.toInt()
+                            SyncedLine(time, text.trim())
+                        } else {
+                            null
+                        }
+                    }
+                    Lyrics(plain = lines, synced = syncedLines, areFromRemote = false)
+                } else {
+                    Lyrics(plain = lines, synced = null, areFromRemote = false)
+                }
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e("MusicRepositoryImpl", "Error reading lyrics from file for song: ${song.title}", e)
             null
         }
     }
