@@ -529,6 +529,8 @@ fun LibraryScreen(
         )
     }
 
+    val playerUiState by playerViewModel.playerUiState.collectAsState()
+
     if (showSongInfoBottomSheet && selectedSongForInfo != null) {
         val currentSong = selectedSongForInfo
         val isFavorite = remember(currentSong?.id, favoriteIds) { derivedStateOf { currentSong?.let {
@@ -569,7 +571,8 @@ fun LibraryScreen(
                 },
                 onAiClick = { fields ->
                     playerViewModel.generateAiMetadata(currentSong, fields)
-                }
+                },
+                isGenerating = playerUiState.isGeneratingAiMetadata
             )
         }
     }

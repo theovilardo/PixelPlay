@@ -155,6 +155,8 @@ fun DailyMixScreen(
         playerViewModel.collapsePlayerSheet()
     }
 
+    val playerUiState by playerViewModel.playerUiState.collectAsState()
+
     // CORRECTION: Correctly implemented BottomSheet call with all parameters
     if (showSongInfoSheet && selectedSongForInfo != null) {
         val song = selectedSongForInfo!!
@@ -185,7 +187,8 @@ fun DailyMixScreen(
             },
             onAiClick = { fields ->
                 playerViewModel.generateAiMetadata(song, fields)
-            }
+            },
+            isGenerating = playerUiState.isGeneratingAiMetadata
         )
     }
 

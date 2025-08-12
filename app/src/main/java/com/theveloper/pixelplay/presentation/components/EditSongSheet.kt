@@ -35,7 +35,8 @@ fun EditSongSheet(
     song: Song,
     onDismiss: () -> Unit,
     onSave: (title: String, artist: String, album: String, genre: String, lyrics: String) -> Unit,
-    onAiClick: (List<String>) -> Unit
+    onAiClick: (List<String>) -> Unit,
+    isGenerating: Boolean
 ) {
     var title by remember { mutableStateOf(song.title) }
     var artist by remember { mutableStateOf(song.artist) }
@@ -45,6 +46,27 @@ fun EditSongSheet(
 
     var showInfoDialog by remember { mutableStateOf(false) }
     var showAiDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(song) {
+        title = song.title
+        artist = song.artist
+        album = song.album
+        genre = song.genre ?: ""
+        lyrics = song.lyrics ?: ""
+    }
+
+    if (isGenerating) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text("Generating Metadata") },
+            text = {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
+                    CircularProgressIndicator()
+                }
+            },
+            confirmButton = {}
+        )
+    }
 
     if (showAiDialog) {
         AiMetadataDialog(

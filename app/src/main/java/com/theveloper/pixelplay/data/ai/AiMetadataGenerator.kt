@@ -50,6 +50,7 @@ class AiMetadataGenerator @Inject constructor(
             You are a music metadata expert. Your task is to find and complete missing metadata for a given song.
             You will be given the song's title and artist, and a list of fields to complete.
             Your response MUST be a raw JSON object, without any markdown, backticks or other formatting.
+            For the lyrics, you must search on Google for the lyrics of the song and get them from a reliable source.
             The lyrics must be in LRC format with timestamps like [mm:ss.xx].
             If you cannot find a specific piece of information, you should return an empty string for that field.
 

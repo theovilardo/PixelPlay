@@ -66,7 +66,8 @@ fun SongInfoBottomSheet(
     onNavigateToAlbum: () -> Unit,
     onNavigateToArtist: () -> Unit,
     onEditSong: (title: String, artist: String, album: String, genre: String, lyrics: String) -> Unit,
-    onAiClick: (List<String>) -> Unit
+    onAiClick: (List<String>) -> Unit,
+    isGenerating: Boolean
 ) {
     val context = LocalContext.current
     var showEditSheet by remember { mutableStateOf(false) }
@@ -321,7 +322,8 @@ fun SongInfoBottomSheet(
                 onEditSong(title, artist, album, genre, lyrics)
                 showEditSheet = false
             },
-            onAiClick = onAiClick
+            onAiClick = onAiClick,
+            isGenerating = isGenerating
         )
     }
 }
