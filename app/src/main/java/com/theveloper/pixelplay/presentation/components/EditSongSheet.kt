@@ -19,9 +19,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
@@ -31,7 +34,8 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 fun EditSongSheet(
     song: Song,
     onDismiss: () -> Unit,
-    onSave: (title: String, artist: String, album: String, genre: String, lyrics: String) -> Unit
+    onSave: (title: String, artist: String, album: String, genre: String, lyrics: String) -> Unit,
+    onAiClick: (List<String>) -> Unit
 ) {
     var title by remember { mutableStateOf(song.title) }
     var artist by remember { mutableStateOf(song.artist) }
@@ -40,6 +44,18 @@ fun EditSongSheet(
     var lyrics by remember { mutableStateOf(song.lyrics ?: "") }
 
     var showInfoDialog by remember { mutableStateOf(false) }
+    var showAiDialog by remember { mutableStateOf(false) }
+
+    if (showAiDialog) {
+        AiMetadataDialog(
+            song = song,
+            onDismiss = { showAiDialog = false },
+            onGenerate = {
+                onAiClick(it)
+                showAiDialog = false
+            }
+        )
+    }
 
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
@@ -108,11 +124,37 @@ fun EditSongSheet(
                     fontFamily = GoogleSansRounded,
                     style = MaterialTheme.typography.displaySmall
                 )
-                FilledTonalIconButton(
-                    onClick = { showInfoDialog = true },
-                    shape = CircleShape
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(Icons.Rounded.Info, contentDescription = "Show info dialog")
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(
+                                brush = Brush.horizontalGradient(
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.primary,
+                                        MaterialTheme.colorScheme.secondary
+                                    )
+                                )
+                            )
+                    ) {
+                        IconButton(onClick = { showAiDialog = true }) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.gemini_ai),
+                                contentDescription = "Use Gemini AI",
+                                tint = MaterialTheme.colorScheme.onPrimary
+                            )
+                        }
+                    }
+                    FilledTonalIconButton(
+                        onClick = { showInfoDialog = true },
+                        shape = CircleShape
+                    ) {
+                        Icon(Icons.Rounded.Info, contentDescription = "Show info dialog")
+                    }
                 }
             }
 

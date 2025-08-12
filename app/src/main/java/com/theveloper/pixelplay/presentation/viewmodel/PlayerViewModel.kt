@@ -85,6 +85,7 @@ import androidx.work.WorkInfo
 import androidx.core.net.toUri
 import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.data.DailyMixManager
+import com.theveloper.pixelplay.data.ai.AiMetadataGenerator
 import com.theveloper.pixelplay.data.ai.AiPlaylistGenerator
 import com.theveloper.pixelplay.data.model.Genre
 import com.theveloper.pixelplay.data.model.Lyrics
@@ -139,6 +140,7 @@ data class PlayerUiState(
     val selectedSearchFilter: SearchFilterType = SearchFilterType.ALL,
     val searchHistory: ImmutableList<SearchHistoryItem> = persistentListOf(),
     val isSyncingLibrary: Boolean = false, // Nuevo estado para la sincronización
+    val isGeneratingAiMetadata: Boolean = false,
 
     // State for dismiss/undo functionality
     val showDismissUndoBar: Boolean = false,
@@ -160,7 +162,8 @@ class PlayerViewModel @Inject constructor(
     private val syncManager: SyncManager, // Inyectar SyncManager
     private val songMetadataEditor: SongMetadataEditor,
     private val dailyMixManager: DailyMixManager,
-    private val aiPlaylistGenerator: AiPlaylistGenerator
+    private val aiPlaylistGenerator: AiPlaylistGenerator,
+    private val aiMetadataGenerator: AiMetadataGenerator
 ) : ViewModel() {
 
     private val _playerUiState = MutableStateFlow(PlayerUiState())
@@ -2223,6 +2226,27 @@ class PlayerViewModel @Inject constructor(
                 _toastEvents.emit("Metadata updated successfully")
             } else {
                 _toastEvents.emit("Failed to update metadata")
+            }
+        }
+    }
+
+    fun generateAiMetadata(song: Song, fields: List<String>) {
+        viewModelScope.launch {
+            _playerUiState.update { it.copy(isGeneratingAiMetadata = true) }
+            try {
+                val result = aiMetadataGenerator.generate(song, fields)
+                result.onSuccess { metadata ->
+                    val newTitle = if (fields.contains("Title")) metadata.title else song.title
+                    val newArtist = if (fields.contains("Artist")) metadata.artist else song.artist
+                    val newAlbum = if (fields.contains("Album")) metadata.album else song.album
+                    val newGenre = if (fields.contains("Genre")) metadata.genre ?: ""
+                    val newLyrics = if (fields.contains("Lyrics")) metadata.lyrics else song.lyrics ?: ""
+                    editSongMetadata(song, newTitle, newArtist, newAlbum, newGenre, newLyrics)
+                }.onFailure { error ->
+                    _toastEvents.emit("AI Error: ${error.message}")
+                }
+            } finally {
+                _playerUiState.update { it.copy(isGeneratingAiMetadata = false) }
             }
         }
     }

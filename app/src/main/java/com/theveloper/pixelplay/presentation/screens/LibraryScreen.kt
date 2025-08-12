@@ -480,7 +480,24 @@ fun LibraryScreen(
                 // El indicador de carga global puede permanecer, ya que es una superposición.
                 // Recolectar playerUiState aquí solo para el indicador de carga global.
                 val globalLoadingState by playerViewModel.playerUiState.collectAsState()
-                if (globalLoadingState.isSyncingLibrary || ((globalLoadingState.isLoadingInitialSongs || globalLoadingState.isLoadingLibraryCategories) && (globalLoadingState.allSongs.isEmpty() && globalLoadingState.albums.isEmpty() && globalLoadingState.artists.isEmpty()))) {
+                if (globalLoadingState.isGeneratingAiMetadata) {
+                    Surface( // Fondo semitransparente para el indicador
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator(modifier = Modifier.size(64.dp))
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "Generating metadata with AI...",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                } else if (globalLoadingState.isSyncingLibrary || ((globalLoadingState.isLoadingInitialSongs || globalLoadingState.isLoadingLibraryCategories) && (globalLoadingState.allSongs.isEmpty() && globalLoadingState.albums.isEmpty() && globalLoadingState.artists.isEmpty()))) {
                     Surface( // Fondo semitransparente para el indicador
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f)
@@ -549,6 +566,9 @@ fun LibraryScreen(
                 },
                 onEditSong = { newTitle, newArtist, newAlbum, newGenre, newLyrics ->
                     playerViewModel.editSongMetadata(currentSong, newTitle, newArtist, newAlbum, newGenre, newLyrics)
+                },
+                onAiClick = { fields ->
+                    playerViewModel.generateAiMetadata(currentSong, fields)
                 }
             )
         }

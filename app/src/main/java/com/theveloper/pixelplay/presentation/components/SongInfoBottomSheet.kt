@@ -65,7 +65,8 @@ fun SongInfoBottomSheet(
     onAddToQueue: () -> Unit,
     onNavigateToAlbum: () -> Unit,
     onNavigateToArtist: () -> Unit,
-    onEditSong: (title: String, artist: String, album: String, genre: String, lyrics: String) -> Unit
+    onEditSong: (title: String, artist: String, album: String, genre: String, lyrics: String) -> Unit,
+    onAiClick: (List<String>) -> Unit
 ) {
     val context = LocalContext.current
     var showEditSheet by remember { mutableStateOf(false) }
@@ -319,7 +320,8 @@ fun SongInfoBottomSheet(
             onSave = { title, artist, album, genre, lyrics ->
                 onEditSong(title, artist, album, genre, lyrics)
                 showEditSheet = false
-            }
+            },
+            onAiClick = onAiClick
         )
     }
 }
