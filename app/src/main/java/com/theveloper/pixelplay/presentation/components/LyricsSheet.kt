@@ -99,7 +99,9 @@ fun LyricsSheet(
     val tabTitles = listOf("Synced", "Static")
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .clip(RoundedCornerShape(32.dp)),
         containerColor = containerColor,
         contentColor = contentColor,
         topBar = {
@@ -139,7 +141,7 @@ fun LyricsSheet(
                         title = { Text(text = "Lyrics", fontWeight = FontWeight.Bold) },
                         navigationIcon = {
                             FilledIconButton(
-                                modifier = Modifier.padding(start = 14.dp),
+                                modifier = Modifier.padding(start = 12.dp),
                                 colors = IconButtonDefaults.iconButtonColors(
                                     containerColor = backgroundColor,
                                     contentColor = onBackgroundColor
