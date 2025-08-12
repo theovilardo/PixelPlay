@@ -1478,7 +1478,7 @@ private fun FullPlayerContentInternal(
                             }
                         }
                     ) {
-                        Icon(painterResource(R.drawable.round_lyrics_24), "Lyrics")
+                        Icon(painterResource(R.drawable.rounded_lyrics_24), "Lyrics")
                     }
                     IconButton(
                         modifier = Modifier.padding(end = 14.dp),
@@ -1493,17 +1493,6 @@ private fun FullPlayerContentInternal(
             )
         }
     ) { paddingValues ->
-        if (showLyricsSheet) {
-            LyricsSheet(
-                stablePlayerStateFlow = playerViewModel.stablePlayerState,
-                playerUiStateFlow = playerViewModel.playerUiState,
-                lyricsTextStyle = MaterialTheme.typography.titleLarge,
-                containerColor = LocalMaterialTheme.current.primaryContainer,
-                contentColor = LocalMaterialTheme.current.onPrimaryContainer,
-                onBackClick = { showLyricsSheet = false },
-                onSeekTo = { playerViewModel.seekTo(it) }
-            )
-        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -1587,6 +1576,18 @@ private fun FullPlayerContentInternal(
                 onFavoriteToggle = onFavoriteToggle
             )
         }
+    }
+    if (showLyricsSheet) {
+        LyricsSheet(
+            stablePlayerStateFlow = playerViewModel.stablePlayerState,
+            playerUiStateFlow = playerViewModel.playerUiState,
+            lyricsTextStyle = MaterialTheme.typography.titleLarge,
+            containerColor = LocalMaterialTheme.current.primaryContainer,
+            contentColor = LocalMaterialTheme.current.onPrimaryContainer,
+            accentColor = LocalMaterialTheme.current.primary,
+            onBackClick = { showLyricsSheet = false },
+            onSeekTo = { playerViewModel.seekTo(it) }
+        )
     }
 }
 

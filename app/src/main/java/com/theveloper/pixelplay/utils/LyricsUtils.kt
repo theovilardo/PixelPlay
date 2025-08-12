@@ -9,12 +9,16 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.ClickableText
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.ShapeDefaults
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -77,6 +81,7 @@ fun LyricsTypeSwitch(
     isSynced: Boolean,
     onIsSyncedSwitch: (Boolean) -> Unit,
     enabled: Boolean,
+    accentColor: Color,
     modifier: Modifier = Modifier
 ) {
     val tabs = listOf("Synced", "Plain")
@@ -97,7 +102,7 @@ fun LyricsTypeSwitch(
                     }
                 },
                 text = { Text(text = title, fontWeight = FontWeight.Medium) },
-                selectedContentColor = MaterialTheme.colorScheme.primary,
+                selectedContentColor = accentColor,
                 unselectedContentColor = LocalContentColor.current.copy(alpha = 0.7f)
             )
         }

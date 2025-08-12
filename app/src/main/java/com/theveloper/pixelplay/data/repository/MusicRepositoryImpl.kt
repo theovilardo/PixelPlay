@@ -583,7 +583,7 @@ class MusicRepositoryImpl @Inject constructor(
 
         // 2. If not in DB, try to read from the file's metadata
         return try {
-            val file = File(song.filePath)
+            val file = File(song.contentUriString)
             if (!file.exists()) return null
 
             val audioFile = AudioFileIO.read(file)
