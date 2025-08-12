@@ -218,6 +218,12 @@ class PlayerViewModel @Inject constructor(
     private val _toastEvents = MutableSharedFlow<String>()
     val toastEvents = _toastEvents.asSharedFlow()
 
+    fun sendToast(message: String) {
+        viewModelScope.launch {
+            _toastEvents.emit(message)
+        }
+    }
+
     // Last Library Tab Index
     val lastLibraryTabIndexFlow: StateFlow<Int> =
         userPreferencesRepository.lastLibraryTabIndexFlow.stateIn(

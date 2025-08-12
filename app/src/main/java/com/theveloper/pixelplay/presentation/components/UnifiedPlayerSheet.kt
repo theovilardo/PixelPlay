@@ -1411,6 +1411,9 @@ private fun FullPlayerContentInternal(
 ) {
     val song = currentSong ?: return // Early exit if no song
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
+    var showLyricsSheet by remember { mutableStateOf(false) }
+    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
+
 
     // totalDurationValue is derived from stablePlayerState, so it's fine.
     val totalDurationValue by remember {
@@ -1466,6 +1469,18 @@ private fun FullPlayerContentInternal(
                 },
                 actions = {
                     IconButton(
+                        onClick = {
+                            val lyrics = stablePlayerState.lyrics
+                            if (lyrics?.synced == null && lyrics?.plain == null) {
+                                playerViewModel.sendToast("No lyrics for this song")
+                            } else {
+                                showLyricsSheet = true
+                            }
+                        }
+                    ) {
+                        Icon(painterResource(R.drawable.round_lyrics_24), "Lyrics")
+                    }
+                    IconButton(
                         modifier = Modifier.padding(end = 14.dp),
                         onClick = {
                             showSongInfoBottomSheet = true
@@ -1478,6 +1493,17 @@ private fun FullPlayerContentInternal(
             )
         }
     ) { paddingValues ->
+        if (showLyricsSheet) {
+            LyricsSheet(
+                stablePlayerStateFlow = playerViewModel.stablePlayerState,
+                playerUiStateFlow = playerViewModel.playerUiState,
+                lyricsTextStyle = MaterialTheme.typography.titleLarge,
+                containerColor = LocalMaterialTheme.current.primaryContainer,
+                contentColor = LocalMaterialTheme.current.onPrimaryContainer,
+                onBackClick = { showLyricsSheet = false },
+                onSeekTo = { playerViewModel.seekTo(it) }
+            )
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
