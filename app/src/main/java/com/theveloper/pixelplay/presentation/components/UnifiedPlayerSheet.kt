@@ -1644,6 +1644,8 @@ private fun FullPlayerContentInternal(
             stablePlayerStateFlow = playerViewModel.stablePlayerState,
             playerUiStateFlow = playerViewModel.playerUiState,
             lyricsTextStyle = MaterialTheme.typography.titleLarge,
+            backgroundColor = LocalMaterialTheme.current.background,
+            onBackgroundColor = LocalMaterialTheme.current.onBackground,
             containerColor = LocalMaterialTheme.current.primaryContainer,
             contentColor = LocalMaterialTheme.current.onPrimaryContainer,
             accentColor = LocalMaterialTheme.current.primary,

@@ -48,6 +48,8 @@ fun LyricsSheet(
     stablePlayerStateFlow: StateFlow<StablePlayerState>,
     playerUiStateFlow: StateFlow<PlayerUiState>,
     lyricsTextStyle: TextStyle,
+    backgroundColor: Color,
+    onBackgroundColor: Color,
     containerColor: Color,
     contentColor: Color,
     accentColor: Color,
@@ -136,7 +138,14 @@ fun LyricsSheet(
                     CenterAlignedTopAppBar(
                         title = { Text(text = "Lyrics", fontWeight = FontWeight.Bold) },
                         navigationIcon = {
-                            IconButton(onClick = onBackClick) {
+                            FilledIconButton(
+                                modifier = Modifier.padding(start = 14.dp),
+                                colors = IconButtonDefaults.iconButtonColors(
+                                    containerColor = backgroundColor,
+                                    contentColor = onBackgroundColor
+                                ),
+                                onClick = onBackClick
+                            ) {
                                 Icon(
                                     imageVector = Icons.Rounded.ArrowBack,
                                     contentDescription = context.resources.getString(R.string.close_lyrics_sheet)
@@ -242,7 +251,7 @@ fun LyricsSheet(
                     start = 24.dp,
                     end = 24.dp,
                     top = paddingValues.calculateTopPadding(),
-                    bottom = paddingValues.calculateBottomPadding() + 80.dp // Padding for FAB
+                    bottom = paddingValues.calculateBottomPadding() + 90.dp // Padding for FAB
                 ),
                 modifier = Modifier.fillMaxSize()
             ) {
