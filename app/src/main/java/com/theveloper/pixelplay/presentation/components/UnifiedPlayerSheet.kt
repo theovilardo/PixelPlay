@@ -119,6 +119,8 @@ import com.theveloper.pixelplay.utils.formatDuration
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.delay
 import android.os.Trace // Import Trace
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.media3.common.util.UnstableApi
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
@@ -1457,37 +1459,93 @@ private fun FullPlayerContentInternal(
                     )
                 },
                 navigationIcon = {
-                    IconButton(
-                        modifier = Modifier.padding(start = 14.dp),
-                        onClick = onCollapse
+                    Box(
+                        modifier = Modifier
+                            // Ancho total = 14dp de padding + 42dp del botón
+                            .width(56.dp)
+                            .height(42.dp),
+                        // 2. Alinea el contenido (el botón) al final (derecha) y centrado verticalmente
+                        contentAlignment = Alignment.CenterEnd
                     ) {
-                        Icon(
-                            painter = painterResource(R.drawable.rounded_keyboard_arrow_down_24),
-                            contentDescription = "Colapsar"
-                        )
+                        // 3. Tu botón circular original, sin cambios
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(LocalMaterialTheme.current.onPrimary)
+                                .clickable(onClick = onCollapse),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.rounded_keyboard_arrow_down_24),
+                                contentDescription = "Colapsar",
+                                tint = LocalMaterialTheme.current.primary
+                            )
+                        }
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = {
-                            val lyrics = stablePlayerState.lyrics
-                            if (lyrics?.synced == null && lyrics?.plain == null) {
-                                playerViewModel.sendToast("No lyrics for this song")
-                            } else {
-                                showLyricsSheet = true
-                            }
-                        }
-                    ) {
-                        Icon(painterResource(R.drawable.rounded_lyrics_24), "Lyrics")
-                    }
-                    IconButton(
+                    Row(
                         modifier = Modifier.padding(end = 14.dp),
-                        onClick = {
-                            showSongInfoBottomSheet = true
-                            onShowQueueClicked()
-                        }
+                        // Ahora puedes controlar el espaciado exacto entre los elementos.
+                        // Prueba a cambiar 0.dp por el valor que necesites, por ejemplo: 2.dp
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Icon(painterResource(R.drawable.rounded_queue_music_24), "Song options")
+                        // Primer botón (Lyrics)
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp) // Define un tamaño fijo para el área de clic
+                                .clip(
+                                    RoundedCornerShape(
+                                        topStart = 50.dp,
+                                        topEnd = 6.dp,
+                                        bottomStart = 50.dp,
+                                        bottomEnd = 6.dp
+                                    )
+                                )
+                                .background(LocalMaterialTheme.current.onPrimary)
+                                .clickable {
+                                    val lyrics = stablePlayerState.lyrics
+                                    if (lyrics?.synced == null && lyrics?.plain == null) {
+                                        playerViewModel.sendToast("No lyrics for this song")
+                                    } else {
+                                        showLyricsSheet = true
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.rounded_lyrics_24),
+                                contentDescription = "Lyrics",
+                                tint = LocalMaterialTheme.current.primary
+                            )
+                        }
+
+                        // Segundo botón (Queue)
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp) // Usa el mismo tamaño para mantener la consistencia
+                                .clip(
+                                    RoundedCornerShape(
+                                        topStart = 6.dp,
+                                        topEnd = 50.dp,
+                                        bottomStart = 6.dp,
+                                        bottomEnd = 50.dp
+                                    )
+                                )
+                                .background(LocalMaterialTheme.current.onPrimary)
+                                .clickable {
+                                    showSongInfoBottomSheet = true
+                                    onShowQueueClicked()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.rounded_queue_music_24),
+                                contentDescription = "Song options",
+                                tint = LocalMaterialTheme.current.primary
+                            )
+                        }
                     }
                 }
             )
