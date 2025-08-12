@@ -17,6 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -25,7 +26,12 @@ import kotlin.math.abs
 
 @Composable
 fun TabAnimation(
+    modifier: Modifier = Modifier,
     index: Int,
+    selectedColor: Color = MaterialTheme.colorScheme.primary,
+    onSelectedColor: Color = MaterialTheme.colorScheme.onPrimary,
+    unselectedColor: Color = MaterialTheme.colorScheme.surface,
+    onUnselectedColor: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
     title: String,
     selectedIndex: Int,
     onClick: () -> Unit
@@ -37,12 +43,12 @@ fun TabAnimation(
     val animationSpec = tween<Float>(durationMillis = 250, easing = FastOutSlowInEasing)
 
     val backgroundColor by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+        targetValue = if (isSelected) selectedColor else unselectedColor,
         animationSpec = tween(durationMillis = 200),
         label = "Tab Background Color"
     )
     val contentColor by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
+        targetValue = if (isSelected) onSelectedColor else onUnselectedColor,
         animationSpec = tween(durationMillis = 200),
         label = "Tab Content Color"
     )
@@ -83,7 +89,7 @@ fun TabAnimation(
     }
 
     Tab(
-        modifier = Modifier
+        modifier = modifier
             .padding(
                 horizontal = 8.dp,
                 vertical = 12.dp

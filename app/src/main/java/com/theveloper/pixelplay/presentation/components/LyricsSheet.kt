@@ -18,6 +18,7 @@ import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.R
+import com.theveloper.pixelplay.presentation.screens.TabAnimation
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerUiState
 import com.theveloper.pixelplay.presentation.viewmodel.StablePlayerState
 import com.theveloper.pixelplay.utils.BubblesLine
@@ -38,6 +40,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,6 +51,7 @@ fun LyricsSheet(
     containerColor: Color,
     contentColor: Color,
     accentColor: Color,
+    onAccentColor: Color,
     tertiaryColor: Color,
     onTertiaryColor: Color,
     onBackClick: () -> Unit,
@@ -73,6 +77,24 @@ fun LyricsSheet(
             }
         )
     }
+
+    val fabShapeCornerRadius by animateDpAsState(
+        targetValue = if (isPlaying) 24.dp else 50.dp,
+        label = "fabShapeAnimation"
+    )
+
+    var fabShape = AbsoluteSmoothCornerShape(
+        cornerRadiusTL = fabShapeCornerRadius,
+        smoothnessAsPercentBL = 60,
+        cornerRadiusTR = fabShapeCornerRadius,
+        smoothnessAsPercentBR = 60,
+        cornerRadiusBL = fabShapeCornerRadius,
+        smoothnessAsPercentTL = 60,
+        cornerRadiusBR = fabShapeCornerRadius,
+        smoothnessAsPercentTR = 60
+    )
+
+    val tabTitles = listOf("Synced", "Static")
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -116,28 +138,67 @@ fun LyricsSheet(
                             )
                         )
                         if (lyrics?.synced != null && lyrics?.plain != null) {
-                            ExpressiveLyricsTypeSwitch(
-                                selectedIndex = if (showSyncedLyrics == true) 0 else 1,
-                                onSelectedIndexChange = { index ->
-                                    showSyncedLyrics = index == 0
+                            val selectedTabIndex = if (showSyncedLyrics == true) 0 else 1
+
+                            TabRow(
+                                modifier = Modifier
+                                    .fillMaxWidth(),
+                                selectedTabIndex = selectedTabIndex,
+                                containerColor = Color.Transparent,
+                                indicator = { tabPositions ->
+                                    // FIX: Ensure the indicator uses the correct selectedTabIndex.
+                                    if (selectedTabIndex < tabPositions.size) {
+                                        TabRowDefaults.PrimaryIndicator(
+                                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
+                                            height = 3.dp,
+                                            color = Color.Transparent//MaterialTheme.colorScheme.primary
+                                        )
+                                    }
                                 },
-                                accentColor = accentColor,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                                divider = {}
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceEvenly
+                                ) {
+                                    Spacer(modifier = Modifier.width(14.dp))
+                                    tabTitles.forEachIndexed { index, title ->
+                                        // FIX: Update the state when a tab is clicked.
+                                        TabAnimation(
+                                            modifier = Modifier.weight(1f),
+                                            selectedColor = accentColor,
+                                            onSelectedColor = onAccentColor,
+                                            unselectedColor = contentColor.copy(alpha = 0.15f),
+                                            onUnselectedColor = contentColor,
+                                            index = index,
+                                            title = title,
+                                            selectedIndex = selectedTabIndex,
+                                            onClick = {
+                                                showSyncedLyrics = (index == 0)
+                                            }
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(14.dp))
+                                }
+                            }
+//                            ExpressiveLyricsTypeSwitch(
+//                                selectedIndex = if (showSyncedLyrics == true) 0 else 1,
+//                                onSelectedIndexChange = { index ->
+//                                    showSyncedLyrics = index == 0
+//                                },
+//                                accentColor = accentColor,
+//                                modifier = Modifier.fillMaxWidth()
+//                            )
                         }
                     }
                 }
             }
         },
         floatingActionButton = {
-            val fabShapeCornerRadius by animateDpAsState(
-                targetValue = if (isPlaying) 24.dp else 50.dp,
-                label = "fabShapeAnimation"
-            )
-
             LargeFloatingActionButton(
                 onClick = onPlayPause,
-                shape = RoundedCornerShape(fabShapeCornerRadius),
+                shape = fabShape,
                 containerColor = tertiaryColor,
                 contentColor = onTertiaryColor
             ) {
@@ -147,14 +208,14 @@ fun LyricsSheet(
                 ) { playing ->
                     if (playing) {
                         Icon(
-                            modifier = Modifier.size(28.dp),
+                            modifier = Modifier.size(36.dp),
                             imageVector = Icons.Rounded.Pause,
                             //tint = containerColor.copy(alpha = 0.45f),
                             contentDescription = "Pause"
                         )
                     } else {
                         Icon(
-                            modifier = Modifier.size(28.dp),
+                            modifier = Modifier.size(36.dp),
                             imageVector = Icons.Rounded.PlayArrow,
                             //tint = containerColor.copy(alpha = 0.45f),
                             contentDescription = "Play"
@@ -179,7 +240,7 @@ fun LyricsSheet(
                 contentPadding = PaddingValues(
                     start = 24.dp,
                     end = 24.dp,
-                    top = paddingValues.calculateTopPadding() + 16.dp,
+                    top = paddingValues.calculateTopPadding() + 26.dp,
                     bottom = paddingValues.calculateBottomPadding() + 80.dp // Padding for FAB
                 ),
                 modifier = Modifier.fillMaxSize()

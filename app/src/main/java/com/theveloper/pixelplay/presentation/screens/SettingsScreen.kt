@@ -174,7 +174,7 @@ fun SettingsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(top = innerPadding.calculateTopPadding())
                 .graphicsLayer {
                     alpha = contentAlpha
                     translationY = contentOffset.toPx()
@@ -282,7 +282,7 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             SettingsSection(
-                title = "IA Integration",
+                title = "AI Integration",
                 icon = {
                     Icon(
                         painter = painterResource(id = R.drawable.gemini_ai),
@@ -291,17 +291,11 @@ fun SettingsScreen(
                     )
                 }
             ) {
-                OutlinedTextField(
-                    value = geminiApiKey,
-                    onValueChange = { settingsViewModel.onGeminiApiKeyChange(it) },
-                    label = { Text("API Key de Gemini") },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    leadingIcon = {
-                        Icon(
-                            painter = painterResource(id = R.drawable.gemini_ai),
-                            contentDescription = null
-                        )
-                    }
+                GeminiApiKeyItem(
+                    apiKey = geminiApiKey,
+                    onApiKeyChange = { settingsViewModel.onGeminiApiKeyChange(it) },
+                    title = "Gemini API Key",
+                    subtitle = "Needed for AI-powered features."
                 )
             }
 
@@ -906,6 +900,82 @@ fun SettingsSwitchItem(
                     uncheckedThumbColor = MaterialTheme.colorScheme.outline,
                     uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
                 )
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GeminiApiKeyItem(
+    apiKey: String,
+    onApiKeyChange: (String) -> Unit,
+    title: String,
+    subtitle: String
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(26.dp))
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth()
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .padding(end = 16.dp)
+                        .size(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.gemini_ai),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary
+                    )
+                }
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = apiKey,
+                onValueChange = onApiKeyChange,
+                label = { Text("API Key") },
+                modifier = Modifier.fillMaxWidth(),
+                leadingIcon = {
+                    Icon(
+                        painter = painterResource(id = R.drawable.rounded_key_vertical_24),
+                        contentDescription = null,
+                        //modifier = Modifier.size(24.dp) // Adjusted size
+                    )
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(10.dp)
             )
         }
     }
