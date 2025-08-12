@@ -14,11 +14,11 @@ import kotlin.Result
 
 @Serializable
 data class SongMetadata(
-    val title: String,
-    val artist: String,
-    val album: String,
-    val genre: String,
-    val lyrics: String
+    val title: String? = null,
+    val artist: String? = null,
+    val album: String? = null,
+    val genre: String? = null,
+    val lyrics: String? = null
 )
 
 class AiMetadataGenerator @Inject constructor(

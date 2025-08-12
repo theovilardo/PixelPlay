@@ -2237,11 +2237,11 @@ class PlayerViewModel @Inject constructor(
             try {
                 val result = aiMetadataGenerator.generate(song, fields)
                 result.onSuccess { metadata ->
-                    val newTitle = if (fields.contains("Title")) metadata.title else song.title
-                    val newArtist = if (fields.contains("Artist")) metadata.artist else song.artist
-                    val newAlbum = if (fields.contains("Album")) metadata.album else song.album
-                    val newGenre = if (fields.contains("Genre")) metadata.genre ?: ""
-                    val newLyrics = if (fields.contains("Lyrics")) metadata.lyrics else song.lyrics ?: ""
+                    val newTitle = metadata.title ?: song.title
+                    val newArtist = metadata.artist ?: song.artist
+                    val newAlbum = metadata.album ?: song.album
+                    val newGenre = metadata.genre ?: song.genre ?: ""
+                    val newLyrics = metadata.lyrics ?: song.lyrics ?: ""
                     editSongMetadata(song, newTitle, newArtist, newAlbum, newGenre, newLyrics)
                 }.onFailure { error ->
                     Timber.e(error, "Error generating AI metadata")
