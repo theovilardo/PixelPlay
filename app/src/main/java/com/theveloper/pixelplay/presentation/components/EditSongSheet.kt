@@ -83,7 +83,7 @@ fun EditSongSheet(
                         title = metadata.title ?: title
                         artist = metadata.artist ?: artist
                         album = metadata.album ?: album
-                        genre = metadata.genre ?: genre
+                        genre = metadata.genre?.split(",")?.firstOrNull()?.trim() ?: genre
                         lyrics = metadata.lyrics ?: lyrics
                     }.onFailure { error ->
                         Timber.e(error, "Failed to generate AI metadata")

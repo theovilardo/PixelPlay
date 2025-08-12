@@ -52,6 +52,7 @@ class AiMetadataGenerator @Inject constructor(
             Your response MUST be a raw JSON object, without any markdown, backticks or other formatting.
             For the lyrics, you must search on Google for the lyrics of the song and get them from a reliable source.
             The lyrics must be in LRC format with timestamps like [mm:ss.xx].
+            For the genre, you must provide only one, the most accurate, genre for the song.
             If you cannot find a specific piece of information, you should return an empty string for that field.
 
             Example response for a request to complete "album" and "lyrics":
