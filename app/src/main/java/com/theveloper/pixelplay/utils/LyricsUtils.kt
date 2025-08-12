@@ -71,6 +71,7 @@ fun ProviderText(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LyricsTypeSwitch(
     isSynced: Boolean,
@@ -78,29 +79,28 @@ fun LyricsTypeSwitch(
     enabled: Boolean,
     modifier: Modifier = Modifier
 ) {
-    Row(modifier = modifier) {
-        Text(
-            text = "Synced",
-            color = if (isSynced) MaterialTheme.colorScheme.primary else LocalContentColor.current,
-            fontWeight = if (isSynced) FontWeight.Bold else FontWeight.Medium,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .weight(1f)
-                .clip(ShapeDefaults.ExtraLarge)
-                .clickable(enabled = !isSynced && enabled) { onIsSyncedSwitch(true) }
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-        )
-        Text(
-            text = "Plain",
-            color = if (!isSynced) MaterialTheme.colorScheme.primary else LocalContentColor.current,
-            fontWeight = if (!isSynced) FontWeight.Bold else FontWeight.Medium,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .weight(1f)
-                .clip(ShapeDefaults.ExtraLarge)
-                .clickable(enabled = isSynced && enabled) { onIsSyncedSwitch(false) }
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-        )
+    val tabs = listOf("Synced", "Plain")
+    val selectedTabIndex = if (isSynced) 0 else 1
+
+    PrimaryTabRow(
+        selectedTabIndex = selectedTabIndex,
+        modifier = modifier.height(48.dp),
+        containerColor = Color.Transparent,
+        divider = {}
+    ) {
+        tabs.forEachIndexed { index, title ->
+            Tab(
+                selected = selectedTabIndex == index,
+                onClick = {
+                    if (enabled) {
+                        onIsSyncedSwitch(index == 0)
+                    }
+                },
+                text = { Text(text = title, fontWeight = FontWeight.Medium) },
+                selectedContentColor = MaterialTheme.colorScheme.primary,
+                unselectedContentColor = LocalContentColor.current.copy(alpha = 0.7f)
+            )
+        }
     }
 }
 

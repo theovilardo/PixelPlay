@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LyricsSheet(
     stablePlayerStateFlow: StateFlow<StablePlayerState>,
@@ -64,62 +65,67 @@ fun LyricsSheet(
             }
         )
     }
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = containerColor,
+        contentColor = contentColor,
+        tonalElevation = 2.dp
+    ) {
+        CompositionLocalProvider(LocalContentColor provides contentColor) {
+            val listState = rememberLazyListState()
+            val coroutineScope = rememberCoroutineScope()
 
-    CompositionLocalProvider(LocalContentColor provides contentColor) {
-        val listState = rememberLazyListState()
-        val coroutineScope = rememberCoroutineScope()
+            LaunchedEffect(lyrics) { listState.scrollToItem(0) }
 
-        LaunchedEffect(lyrics) { listState.scrollToItem(0) }
-
-        LazyColumnWithCollapsibleTopBar(
-            topBarContent = {
-                CompositionLocalProvider(LocalContentColor provides contentColor) {
-                    IconButton(
-                        onClick = onBackClick,
-                        modifier = Modifier
-                            //.align(Alignment.BottomStart)
-                            .padding(horizontal = 12.dp, vertical = 4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = null //context.resources.getString(R.string.close_lyrics_sheet)
-                        )
-                    }
-
-                    Text(
-                        text = context.resources.getString(R.string.lyrics),
-                        fontSize = lerp(
-                            MaterialTheme.typography.titleLarge.fontSize,
-                            MaterialTheme.typography.displaySmall.fontSize,
-                            collapseFraction
-                        ),
-                        fontWeight = FontWeight.Bold,
-                        //modifier = Modifier.align(Alignment.Center)
-                    )
-
-                    if (lyrics?.synced != null && lyrics?.plain != null && showSyncedLyrics != null) {
-                        LyricsTypeSwitch(
-                            isSynced = showSyncedLyrics!!,
-                            onIsSyncedSwitch = { showSyncedLyrics = it },
-                            enabled = collapseFraction == 0f,
+            LazyColumnWithCollapsibleTopBar(
+                topBarContent = {
+                    CompositionLocalProvider(LocalContentColor provides contentColor) {
+                        IconButton(
+                            onClick = onBackClick,
                             modifier = Modifier
-                                //.align(Alignment.BottomCenter)
-                                .padding(bottom = 6.dp)
-                                .alpha((1 - collapseFraction) * 2f)
+                                .align(Alignment.BottomStart)
+                                .padding(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = context.resources.getString(R.string.close_lyrics_sheet)
+                            )
+                        }
+
+                        Text(
+                            text = context.resources.getString(R.string.lyrics),
+                            fontSize = lerp(
+                                MaterialTheme.typography.titleLarge.fontSize,
+                                MaterialTheme.typography.displaySmall.fontSize,
+                                collapseFraction
+                            ),
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.align(Alignment.Center)
                         )
+
+                        if (lyrics?.synced != null && lyrics?.plain != null && showSyncedLyrics != null) {
+                            LyricsTypeSwitch(
+                                isSynced = showSyncedLyrics!!,
+                                onIsSyncedSwitch = { showSyncedLyrics = it },
+                                enabled = collapseFraction == 0f,
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .padding(bottom = 6.dp)
+                                    .alpha((1 - collapseFraction) * 2f)
+                            )
+                        }
                     }
-                }
-            },
-            collapseFraction = { collapseFraction = it },
-            listState = listState,
-            contentPadding = PaddingValues(horizontal = 24.dp),
-            modifier = modifier
-                .background(color = containerColor)
-                .clickable(enabled = false, onClick = {})
-                .safeDrawingPadding()
-        ) {
-            when (showSyncedLyrics) {
-                null -> {
+                },
+                collapseFraction = { collapseFraction = it },
+                listState = listState,
+                contentPadding = PaddingValues(horizontal = 24.dp),
+                modifier = modifier
+                    .fillMaxSize()
+                    .clickable(enabled = false, onClick = {})
+                    .safeDrawingPadding()
+            ) {
+                when (showSyncedLyrics) {
+                    null -> {
                     item(key = "loader_or_empty") {
                         Box(
                             modifier = Modifier

@@ -19,6 +19,9 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
+
 private val MinTopBarHeight = 64.dp
 private val MaxTopBarHeight = 160.dp
 
@@ -34,39 +37,44 @@ fun LazyColumnWithCollapsibleTopBar(
     val firstVisibleItemIndex by remember { derivedStateOf { listState.firstVisibleItemIndex } }
     val firstVisibleItemScrollOffset by remember { derivedStateOf { listState.firstVisibleItemScrollOffset } }
 
-    val topBarHeight: Dp = (MaxTopBarHeight.value - (firstVisibleItemScrollOffset * 0.5f).coerceIn(0f, (MaxTopBarHeight - MinTopBarHeight).value)).dp
-
-    val fraction = remember(topBarHeight) {
-        ((topBarHeight - MinTopBarHeight) / (MaxTopBarHeight - MinTopBarHeight)).coerceIn(0f, 1f)
+    val topBarHeightRange = (MaxTopBarHeight - MinTopBarHeight).value
+    val scrollOffset = when {
+        firstVisibleItemIndex > 0 -> topBarHeightRange
+        else -> firstVisibleItemScrollOffset.toFloat()
     }
+
+    val topBarHeight = (MaxTopBarHeight.value - scrollOffset).coerceIn(MinTopBarHeight.value, MaxTopBarHeight.value).dp
+
+    val fraction = (1 - (scrollOffset / topBarHeightRange)).coerceIn(0f, 1f)
     collapseFraction(fraction)
 
-    val layoutDirection = LocalLayoutDirection.current // Obtén el LayoutDirection actual
+    val layoutDirection = LocalLayoutDirection.current
 
     Box(modifier = modifier.fillMaxSize()) {
         LazyColumn(
             state = listState,
             contentPadding = PaddingValues(
-                top = MaxTopBarHeight + contentPadding.calculateTopPadding(),
+                top = topBarHeight + contentPadding.calculateTopPadding(),
                 bottom = contentPadding.calculateBottomPadding(),
-                start = contentPadding.calculateRightPadding(
-                    layoutDirection = layoutDirection
-                ),
-                end = contentPadding.calculateRightPadding(
-                    layoutDirection = layoutDirection
-                )
+                start = contentPadding.calculateLeftPadding(layoutDirection),
+                end = contentPadding.calculateRightPadding(layoutDirection)
             ),
             modifier = Modifier.fillMaxSize()
         ) {
             content()
         }
+        val translationOffset = if (firstVisibleItemIndex == 0) {
+            -firstVisibleItemScrollOffset.toFloat()
+        } else {
+            -topBarHeightRange
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(topBarHeight)
                 .graphicsLayer {
-                    translationY =
-                        if (firstVisibleItemIndex == 0) 0f else -firstVisibleItemScrollOffset.toFloat()
+                    translationY = translationOffset
                 }
         ) {
             topBarContent()
