@@ -87,6 +87,7 @@ import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.data.DailyMixManager
 import com.theveloper.pixelplay.data.ai.AiPlaylistGenerator
 import com.theveloper.pixelplay.data.model.Genre
+import com.theveloper.pixelplay.data.model.Lyrics
 import com.theveloper.pixelplay.ui.theme.GenreColors
 import com.theveloper.pixelplay.utils.toHexString
 import kotlinx.coroutines.flow.Flow
@@ -110,7 +111,9 @@ data class StablePlayerState(
     val totalDuration: Long = 0L,
     val isShuffleEnabled: Boolean = false,
     @Player.RepeatMode val repeatMode: Int = Player.REPEAT_MODE_OFF,
-    val isCurrentSongFavorite: Boolean = false
+    val isCurrentSongFavorite: Boolean = false,
+    val lyrics: Lyrics? = null,
+    val isLoadingLyrics: Boolean = false
 )
 
 data class PlayerUiState(
@@ -1141,6 +1144,8 @@ class PlayerViewModel @Inject constructor(
                             }
                         }
                         updateFavoriteStatusForCurrentSong() // Depends on currentSong being set in _stablePlayerState
+
+                        loadLyricsForCurrentSong()
                     }
                 } ?: _stablePlayerState.update {
                     // Handles case where mediaItem is null (e.g., end of playlist, queue cleared)
@@ -2160,6 +2165,21 @@ class PlayerViewModel @Inject constructor(
 
     fun selectSongForInfo(song: Song) {
         _selectedSongForInfo.value = song
+    }
+
+    private fun loadLyricsForCurrentSong() {
+        val currentSong = _stablePlayerState.value.currentSong ?: return
+
+        viewModelScope.launch {
+            // 1. Indicar que estamos cargando
+            _stablePlayerState.update { it.copy(isLoadingLyrics = true, lyrics = null) }
+
+            // 2. Obtener las letras desde el repositorio
+            val fetchedLyrics = musicRepository.getLyrics(currentSong)
+
+            // 3. Actualizar el estado con el resultado
+            _stablePlayerState.update { it.copy(isLoadingLyrics = false, lyrics = fetchedLyrics) }
+        }
     }
 
     fun editSongMetadata(song: Song, newTitle: String, newArtist: String, newAlbum: String, newGenre: String, newLyrics: String) {

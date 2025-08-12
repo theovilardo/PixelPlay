@@ -36,8 +36,11 @@ import com.theveloper.pixelplay.data.database.SongEntity
 import com.theveloper.pixelplay.data.database.toAlbum
 import com.theveloper.pixelplay.data.database.toArtist
 import com.theveloper.pixelplay.data.database.toSong
+import com.theveloper.pixelplay.data.model.Lyrics
+import com.theveloper.pixelplay.data.model.SyncedLine
 import com.theveloper.pixelplay.utils.LogUtils
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first // Still needed for initialSetupDoneFlow.first() if used that way
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -552,5 +555,33 @@ class MusicRepositoryImpl @Inject constructor(
                 dynamicGenres
             }
         }.flowOn(Dispatchers.IO)
+    }
+
+    override suspend fun getLyrics(song: Song): Lyrics? {
+        delay(1500) // Simula una llamada de red
+
+        return if (song.title.contains("Demo", ignoreCase = true)) {
+            Lyrics(
+                plain = listOf(
+                    "Esta es la primera línea.",
+                    "Luego viene la segunda.",
+                    "Y esta es la tercera.",
+                    "[Instrumental]",
+                    "La música continúa.",
+                    "Y la letra termina aquí."
+                ),
+                synced = listOf(
+                    SyncedLine(5000, "Esta es la primera línea."),
+                    SyncedLine(10000, "Luego viene la segunda."),
+                    SyncedLine(15000, "Y esta es la tercera."),
+                    SyncedLine(20000, ""), // Línea vacía para instrumental
+                    SyncedLine(25000, "La música continúa."),
+                    SyncedLine(30000, "Y la letra termina aquí.")
+                ),
+                areFromRemote = true
+            )
+        } else {
+            null
+        }
     }
 }

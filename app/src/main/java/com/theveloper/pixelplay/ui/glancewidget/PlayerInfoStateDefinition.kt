@@ -15,24 +15,6 @@ import kotlinx.serialization.json.Json
 import okio.IOException
 import java.io.File
 
-// La definición del mensaje PlayerInfoProto se encuentra en:
-// app/src/main/proto/player_info.proto
-//
-// Su contenido es:
-// syntax = "proto3";
-// option java_package = "com.theveloper.pixelplay";
-// option java_multiple_files = true;
-//
-// message PlayerInfoProto {
-//   string song_title = 1;
-//   string artist_name = 2;
-//   bool is_playing = 3;
-//   string album_art_uri = 4;
-//   bytes album_art_bitmap_data = 5;
-//   int64 current_position_ms = 6;
-//   int64 total_duration_ms = 7;
-// }
-
 object PlayerInfoStateDefinition : GlanceStateDefinition<PlayerInfo> { // Changed to PlayerInfo
     private const val DATASTORE_FILE_NAME = "pixelPlayPlayerInfo_v1_json" // Changed filename suffix
 
