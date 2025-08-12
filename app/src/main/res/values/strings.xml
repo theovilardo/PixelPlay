@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">PixelPlay</string>
     <string name="lyrics">Lyrics</string>
+    <string name="close_lyrics_sheet">Close Lyrics Sheet</string>
     <string name="loading_lyrics">Loading lyrics…</string>
     <string name="cant_find_lyrics">Couldn\'t find lyrics for this song.</string>
     <string name="lyrics_provided_by">Lyrics provided by LRCLIB</string>

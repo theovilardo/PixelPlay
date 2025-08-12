@@ -1,26 +1,33 @@
 package com.theveloper.pixelplay.presentation.components
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.lerp
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerUiState
 import com.theveloper.pixelplay.presentation.viewmodel.StablePlayerState
@@ -42,6 +49,7 @@ fun LyricsSheet(
     accentColor: Color,
     onBackClick: () -> Unit,
     onSeekTo: (Long) -> Unit,
+    onPlayPause: () -> Unit, // New parameter
     modifier: Modifier = Modifier
 ) {
     BackHandler { onBackClick() }
@@ -49,8 +57,8 @@ fun LyricsSheet(
 
     val isLoadingLyrics by remember { derivedStateOf { stablePlayerState.isLoadingLyrics } }
     val lyrics by remember { derivedStateOf { stablePlayerState.lyrics } }
+    val isPlaying by remember { derivedStateOf { stablePlayerState.isPlaying } }
 
-    var collapseFraction by remember { mutableFloatStateOf(0f) }
     val context = LocalContext.current
 
     var showSyncedLyrics by remember(lyrics) {
@@ -62,68 +70,90 @@ fun LyricsSheet(
             }
         )
     }
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = containerColor,
+
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = containerColor,
         contentColor = contentColor,
-        tonalElevation = 2.dp
-    ) {
-        CompositionLocalProvider(LocalContentColor provides contentColor) {
-            val listState = rememberLazyListState()
-            val coroutineScope = rememberCoroutineScope()
-
-            LaunchedEffect(lyrics) { listState.scrollToItem(0) }
-
-            LazyColumnWithCollapsibleTopBar(
-                topBarContent = {
-                    CompositionLocalProvider(LocalContentColor provides contentColor) {
-                        Box(modifier = Modifier.fillMaxSize()) {
-                            IconButton(
-                                onClick = onBackClick,
-                                modifier = Modifier
-                                    .align(Alignment.TopStart)
-                                    .padding(horizontal = 12.dp, vertical = 4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = null//context.resources.getString(R.string.close_lyrics_sheet)
-                                )
-                            }
-
-                            Text(
-                                text = context.resources.getString(R.string.lyrics),
-                                fontSize = lerp(
-                                    MaterialTheme.typography.titleLarge.fontSize,
-                                    MaterialTheme.typography.displaySmall.fontSize,
-                                    collapseFraction
-                                ),
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.align(Alignment.Center)
+        topBar = {
+            Column {
+                CenterAlignedTopAppBar(
+                    title = { Text(text = "Lyrics", fontWeight = FontWeight.Bold) },
+                    navigationIcon = {
+                        IconButton(onClick = onBackClick) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = context.resources.getString(R.string.close_lyrics_sheet)
                             )
-
-                            if (lyrics?.synced != null && lyrics?.plain != null && showSyncedLyrics != null) {
-                                CustomLyricsTypeSwitch(
-                                    selectedIndex = if (showSyncedLyrics == true) 0 else 1,
-                                    onSelectedIndexChange = { index ->
-                                        showSyncedLyrics = index == 0
-                                    },
-                                    accentColor = accentColor,
-                                    modifier = Modifier
-                                        .align(Alignment.BottomCenter)
-                                        .padding(bottom = 6.dp)
-                                        .alpha((1 - collapseFraction) * 2f)
-                                )
-                            }
                         }
+                    },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = Color.Transparent
+                    )
+                )
+                if (lyrics?.synced != null && lyrics?.plain != null) {
+                    ExpressiveLyricsTypeSwitch(
+                        selectedIndex = if (showSyncedLyrics == true) 0 else 1,
+                        onSelectedIndexChange = { index ->
+                            showSyncedLyrics = index == 0
+                        },
+                        accentColor = accentColor,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        },
+        floatingActionButton = {
+            val fabShapeCornerRadius by animateDpAsState(
+                targetValue = if (isPlaying) 24.dp else 50.dp,
+                label = "fabShapeAnimation"
+            )
+
+            LargeFloatingActionButton(
+                onClick = onPlayPause,
+                shape = RoundedCornerShape(fabShapeCornerRadius),
+                containerColor = accentColor,
+                contentColor = contentColor
+            ) {
+                AnimatedContent(
+                    targetState = isPlaying,
+                    label = "playPauseIconAnimation"
+                ) { playing ->
+                    if (playing) {
+                        Icon(
+                            imageVector = Icons.Rounded.Pause,
+                            tint = containerColor.copy(alpha = 0.45f),
+                            contentDescription = "Pause"
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Rounded.PlayArrow,
+                            tint = containerColor.copy(alpha = 0.45f),
+                            contentDescription = "Play"
+                        )
                     }
-                },
-                collapseFraction = { collapseFraction = it },
-                listState = listState,
-                contentPadding = PaddingValues(horizontal = 24.dp),
-                modifier = modifier
-                    .fillMaxSize()
-                    .clickable(enabled = false, onClick = {})
-                    .windowInsetsPadding(WindowInsets.statusBars) // Correct status bar padding
+                }
+            }
+        },
+        floatingActionButtonPosition = FabPosition.Center
+    ) { paddingValues ->
+        val listState = rememberLazyListState()
+        val coroutineScope = rememberCoroutineScope()
+
+        LaunchedEffect(lyrics) { listState.scrollToItem(0) }
+
+        Box(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(
+                    start = 24.dp,
+                    end = 24.dp,
+                    top = paddingValues.calculateTopPadding() + 16.dp,
+                    bottom = paddingValues.calculateBottomPadding() + 80.dp // Padding for FAB
+                ),
+                modifier = Modifier.fillMaxSize()
             ) {
                 when (showSyncedLyrics) {
                     null -> {
@@ -225,31 +255,47 @@ fun LyricsSheet(
                     }
                 }
             }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .height(80.dp)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                containerColor.copy(0.5f),
+                                containerColor
+                            )
+                        )
+                    )
+            ) {
+
+            }
         }
     }
 }
 
 @Composable
-fun CustomLyricsTypeSwitch(
+fun ExpressiveLyricsTypeSwitch(
     selectedIndex: Int,
     onSelectedIndexChange: (Int) -> Unit,
     accentColor: Color,
     modifier: Modifier = Modifier
 ) {
     val items = listOf("Synced", "Static")
-    SecondaryTabRow(
+    PrimaryTabRow(
         selectedTabIndex = selectedIndex,
         containerColor = Color.Transparent,
         indicator = {
-            if (selectedIndex < items.size) {
-                TabRowDefaults.PrimaryIndicator(
-                    modifier = Modifier
-                        .tabIndicatorOffset(selectedIndex)
-                        .clip(RoundedCornerShape(100)),
-                    height = 3.dp,
-                    color = accentColor
-                )
-            }
+            TabRowDefaults.PrimaryIndicator(
+                modifier = Modifier
+                    .tabIndicatorOffset(selectedIndex)
+                    .clip(RoundedCornerShape(100)),
+                height = 4.dp,
+                color = accentColor
+            )
         },
         divider = {},
         modifier = modifier
@@ -262,7 +308,6 @@ fun CustomLyricsTypeSwitch(
                     Text(
                         text = title,
                         fontWeight = if (selectedIndex == index) FontWeight.Bold else FontWeight.Medium,
-                        color = if (selectedIndex == index) accentColor else LocalContentColor.current.copy(alpha = 0.7f)
                     )
                 },
                 selectedContentColor = accentColor,

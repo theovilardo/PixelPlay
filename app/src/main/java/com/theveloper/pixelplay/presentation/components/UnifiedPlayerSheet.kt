@@ -1586,7 +1586,10 @@ private fun FullPlayerContentInternal(
             contentColor = LocalMaterialTheme.current.onPrimaryContainer,
             accentColor = LocalMaterialTheme.current.primary,
             onBackClick = { showLyricsSheet = false },
-            onSeekTo = { playerViewModel.seekTo(it) }
+            onSeekTo = { playerViewModel.seekTo(it) },
+            onPlayPause = {
+                playerViewModel.playPause()
+            }
         )
     }
 }
