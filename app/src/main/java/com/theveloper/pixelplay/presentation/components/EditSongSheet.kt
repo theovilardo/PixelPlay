@@ -272,7 +272,7 @@ fun EditSongSheet(
                     onClick = {
                         val encodedTitle = URLEncoder.encode(title, "UTF-8")
                         val encodedArtist = URLEncoder.encode(artist, "UTF-8")
-                        val url = "https://lrclib.net/search?q=$encodedTitle%20$encodedArtist"
+                        val url = "https://lrclib.net/search/$encodedTitle%20$encodedArtist"
                         val intent = Intent(Intent.ACTION_VIEW).setData(Uri.parse(url))
                         context.startActivity(intent)
                     },
