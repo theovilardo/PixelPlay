@@ -32,6 +32,7 @@ import java.net.URLEncoder
 import timber.log.Timber
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
+import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -171,27 +172,30 @@ fun EditSongSheet(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(
-                                        MaterialTheme.colorScheme.primary,
-                                        MaterialTheme.colorScheme.secondary
-                                    )
-                                )
-                            )
-                    ) {
-                        IconButton(onClick = { showAiDialog = true }) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.gemini_ai),
-                                contentDescription = "Use Gemini AI",
-                                tint = MaterialTheme.colorScheme.onPrimary
-                            )
-                        }
-                    }
+//                    Box(
+//                        modifier = Modifier
+//                            .size(40.dp)
+//                            .clip(CircleShape)
+//                            .background(
+//                                brush = Brush.horizontalGradient(
+//                                    colors = listOf(
+//                                        MaterialTheme.colorScheme.primary,
+//                                        MaterialTheme.colorScheme.secondary,
+//                                        MaterialTheme.colorScheme.tertiary
+//                                    )
+//                                )
+//                            )
+//                    ) {
+//                        IconButton(onClick = { showAiDialog = true }) {
+//                            Icon(
+//                                modifier = Modifier
+//                                    .size(20.dp),
+//                                painter = painterResource(id = R.drawable.gemini_ai),
+//                                contentDescription = "Use Gemini AI",
+//                                tint = MaterialTheme.colorScheme.onPrimary
+//                            )
+//                        }
+//                    }
                     FilledTonalIconButton(
                         onClick = { showInfoDialog = true },
                         shape = CircleShape

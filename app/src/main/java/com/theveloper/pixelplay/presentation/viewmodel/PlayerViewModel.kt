@@ -123,6 +123,7 @@ data class PlayerUiState(
     // currentSong, isPlaying, totalDuration, shuffle, repeat, favorite se mueven a StablePlayerState
     val currentPosition: Long = 0L, // Este se actualiza frecuentemente
     val isLoadingInitialSongs: Boolean = true,
+    val isGeneratingAiMetadata: Boolean = false,
     // val isLoadingMoreSongs: Boolean = false, // Removed
     val allSongs: ImmutableList<Song> = persistentListOf(),
     // val canLoadMoreSongs: Boolean = true, // Removed
@@ -2232,8 +2233,6 @@ class PlayerViewModel @Inject constructor(
             }
         }
     }
-
-}
 
     suspend fun generateAiMetadata(song: Song, fields: List<String>): Result<SongMetadata> {
         return aiMetadataGenerator.generate(song, fields)
