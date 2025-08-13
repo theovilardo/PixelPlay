@@ -182,6 +182,9 @@ fun DailyMixScreen(
             },
             onEditSong = { newTitle, newArtist, newAlbum, newGenre, newLyrics ->
                 playerViewModel.editSongMetadata(song, newTitle, newArtist, newAlbum, newGenre, newLyrics)
+            },
+            generateAiMetadata = { fields ->
+                playerViewModel.generateAiMetadata(song, fields)
             }
         )
     }

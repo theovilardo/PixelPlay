@@ -19,11 +19,20 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.theveloper.pixelplay.R
+import java.net.URLEncoder
+import timber.log.Timber
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
+import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,7 +40,8 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 fun EditSongSheet(
     song: Song,
     onDismiss: () -> Unit,
-    onSave: (title: String, artist: String, album: String, genre: String, lyrics: String) -> Unit
+    onSave: (title: String, artist: String, album: String, genre: String, lyrics: String) -> Unit,
+    generateAiMetadata: suspend (List<String>) -> Result<com.theveloper.pixelplay.data.ai.SongMetadata>
 ) {
     var title by remember { mutableStateOf(song.title) }
     var artist by remember { mutableStateOf(song.artist) }
@@ -40,6 +50,56 @@ fun EditSongSheet(
     var lyrics by remember { mutableStateOf(song.lyrics ?: "") }
 
     var showInfoDialog by remember { mutableStateOf(false) }
+    var showAiDialog by remember { mutableStateOf(false) }
+    var isGenerating by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    LaunchedEffect(song) {
+        title = song.title
+        artist = song.artist
+        album = song.album
+        genre = song.genre ?: ""
+        lyrics = song.lyrics ?: ""
+    }
+
+    if (isGenerating) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text("Generating Metadata") },
+            text = {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
+                    CircularProgressIndicator()
+                }
+            },
+            confirmButton = {}
+        )
+    }
+
+    if (showAiDialog) {
+        AiMetadataDialog(
+            song = song,
+            onDismiss = { showAiDialog = false },
+            onGenerate = { fields ->
+                scope.launch {
+                    isGenerating = true
+                    val result = generateAiMetadata(fields)
+                    result.onSuccess { metadata ->
+                        Timber.d("AI metadata generated successfully: $metadata")
+                        title = metadata.title ?: title
+                        artist = metadata.artist ?: artist
+                        album = metadata.album ?: album
+                        genre = metadata.genre?.split(",")?.firstOrNull()?.trim() ?: genre
+                        lyrics = metadata.lyrics ?: lyrics
+                    }.onFailure { error ->
+                        Timber.e(error, "Failed to generate AI metadata")
+                    }
+                    isGenerating = false
+                }
+                showAiDialog = false
+            }
+        )
+    }
 
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
@@ -108,11 +168,40 @@ fun EditSongSheet(
                     fontFamily = GoogleSansRounded,
                     style = MaterialTheme.typography.displaySmall
                 )
-                FilledTonalIconButton(
-                    onClick = { showInfoDialog = true },
-                    shape = CircleShape
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(Icons.Rounded.Info, contentDescription = "Show info dialog")
+//                    Box(
+//                        modifier = Modifier
+//                            .size(40.dp)
+//                            .clip(CircleShape)
+//                            .background(
+//                                brush = Brush.horizontalGradient(
+//                                    colors = listOf(
+//                                        MaterialTheme.colorScheme.primary,
+//                                        MaterialTheme.colorScheme.secondary,
+//                                        MaterialTheme.colorScheme.tertiary
+//                                    )
+//                                )
+//                            )
+//                    ) {
+//                        IconButton(onClick = { showAiDialog = true }) {
+//                            Icon(
+//                                modifier = Modifier
+//                                    .size(20.dp),
+//                                painter = painterResource(id = R.drawable.gemini_ai),
+//                                contentDescription = "Use Gemini AI",
+//                                tint = MaterialTheme.colorScheme.onPrimary
+//                            )
+//                        }
+//                    }
+                    FilledTonalIconButton(
+                        onClick = { showInfoDialog = true },
+                        shape = CircleShape
+                    ) {
+                        Icon(Icons.Rounded.Info, contentDescription = "Show info dialog")
+                    }
                 }
             }
 
@@ -167,17 +256,37 @@ fun EditSongSheet(
             )
 
             // --- Campo de Letra ---
-            OutlinedTextField(
-                value = lyrics,
-                colors = textFieldColors,
-                shape = textFieldShape,
-                onValueChange = { lyrics = it },
-                placeholder = { Text("Lyrics") },
-                leadingIcon = { Icon(Icons.Rounded.Notes, contentDescription = "Lyrics Icon") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(150.dp)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = lyrics,
+                    colors = textFieldColors,
+                    shape = textFieldShape,
+                    onValueChange = { lyrics = it },
+                    placeholder = { Text("Lyrics") },
+                    leadingIcon = { Icon(Icons.Rounded.Notes, contentDescription = "Lyrics Icon") },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(150.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                FilledTonalIconButton(
+                    onClick = {
+                        val encodedTitle = URLEncoder.encode(title, "UTF-8")
+                        val encodedArtist = URLEncoder.encode(artist, "UTF-8")
+                        val url = "https://lrclib.net/search/$encodedTitle%20$encodedArtist"
+                        val intent = Intent(Intent.ACTION_VIEW).setData(Uri.parse(url))
+                        context.startActivity(intent)
+                    },
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.rounded_search_24),
+                        contentDescription = "Search lyrics on lrclib.net"
+                    )
+                }
+            }
 
             // --- Botones de acción ---
             Row(

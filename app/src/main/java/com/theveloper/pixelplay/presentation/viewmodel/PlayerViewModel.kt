@@ -85,9 +85,12 @@ import androidx.work.WorkInfo
 import androidx.core.net.toUri
 import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.data.DailyMixManager
+import com.theveloper.pixelplay.data.ai.AiMetadataGenerator
 import com.theveloper.pixelplay.data.ai.AiPlaylistGenerator
+import com.theveloper.pixelplay.data.ai.SongMetadata
 import com.theveloper.pixelplay.data.model.Genre
 import com.theveloper.pixelplay.data.model.Lyrics
+import timber.log.Timber
 import com.theveloper.pixelplay.ui.theme.GenreColors
 import com.theveloper.pixelplay.utils.toHexString
 import kotlinx.coroutines.flow.Flow
@@ -120,6 +123,7 @@ data class PlayerUiState(
     // currentSong, isPlaying, totalDuration, shuffle, repeat, favorite se mueven a StablePlayerState
     val currentPosition: Long = 0L, // Este se actualiza frecuentemente
     val isLoadingInitialSongs: Boolean = true,
+    val isGeneratingAiMetadata: Boolean = false,
     // val isLoadingMoreSongs: Boolean = false, // Removed
     val allSongs: ImmutableList<Song> = persistentListOf(),
     // val canLoadMoreSongs: Boolean = true, // Removed
@@ -160,7 +164,8 @@ class PlayerViewModel @Inject constructor(
     private val syncManager: SyncManager, // Inyectar SyncManager
     private val songMetadataEditor: SongMetadataEditor,
     private val dailyMixManager: DailyMixManager,
-    private val aiPlaylistGenerator: AiPlaylistGenerator
+    private val aiPlaylistGenerator: AiPlaylistGenerator,
+    private val aiMetadataGenerator: AiMetadataGenerator
 ) : ViewModel() {
 
     private val _playerUiState = MutableStateFlow(PlayerUiState())
@@ -2190,6 +2195,8 @@ class PlayerViewModel @Inject constructor(
 
     fun editSongMetadata(song: Song, newTitle: String, newArtist: String, newAlbum: String, newGenre: String, newLyrics: String) {
         viewModelScope.launch {
+            Timber.d("Editing metadata for song: ${song.title} with URI: ${song.contentUriString}")
+            Timber.d("New metadata: title=$newTitle, artist=$newArtist, album=$newAlbum, genre=$newGenre, lyrics=$newLyrics")
             val success = withContext(Dispatchers.IO) {
                 songMetadataEditor.editSongMetadata(song.contentUriString, newTitle, newArtist, newAlbum, newGenre, newLyrics)
             }
@@ -2225,5 +2232,9 @@ class PlayerViewModel @Inject constructor(
                 _toastEvents.emit("Failed to update metadata")
             }
         }
+    }
+
+    suspend fun generateAiMetadata(song: Song, fields: List<String>): Result<SongMetadata> {
+        return aiMetadataGenerator.generate(song, fields)
     }
 }
