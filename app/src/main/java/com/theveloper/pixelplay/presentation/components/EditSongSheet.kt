@@ -21,10 +21,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.R
+import java.net.URLEncoder
 import timber.log.Timber
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
@@ -48,6 +52,7 @@ fun EditSongSheet(
     var showAiDialog by remember { mutableStateOf(false) }
     var isGenerating by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     LaunchedEffect(song) {
         title = song.title
@@ -247,17 +252,37 @@ fun EditSongSheet(
             )
 
             // --- Campo de Letra ---
-            OutlinedTextField(
-                value = lyrics,
-                colors = textFieldColors,
-                shape = textFieldShape,
-                onValueChange = { lyrics = it },
-                placeholder = { Text("Lyrics") },
-                leadingIcon = { Icon(Icons.Rounded.Notes, contentDescription = "Lyrics Icon") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(150.dp)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = lyrics,
+                    colors = textFieldColors,
+                    shape = textFieldShape,
+                    onValueChange = { lyrics = it },
+                    placeholder = { Text("Lyrics") },
+                    leadingIcon = { Icon(Icons.Rounded.Notes, contentDescription = "Lyrics Icon") },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(150.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                FilledTonalIconButton(
+                    onClick = {
+                        val encodedTitle = URLEncoder.encode(title, "UTF-8")
+                        val encodedArtist = URLEncoder.encode(artist, "UTF-8")
+                        val url = "https://lrclib.net/search?q=$encodedTitle%20$encodedArtist"
+                        val intent = Intent(Intent.ACTION_VIEW).setData(Uri.parse(url))
+                        context.startActivity(intent)
+                    },
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.rounded_search_24),
+                        contentDescription = "Search lyrics on lrclib.net"
+                    )
+                }
+            }
 
             // --- Botones de acción ---
             Row(
