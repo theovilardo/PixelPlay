@@ -23,9 +23,13 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import androidx.media3.session.SessionResult
 import coil.imageLoader
 import coil.request.ImageRequest
 import coil.size.Size
+import android.os.Bundle
+import androidx.media3.session.SessionCommand
+import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.theveloper.pixelplay.MainActivity
 import com.theveloper.pixelplay.PixelPlayApplication
@@ -47,6 +51,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.ByteArrayOutputStream
+import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import javax.inject.Inject
 
 // Acciones personalizadas para compatibilidad con el widget existente
@@ -60,7 +65,10 @@ class MusicService : MediaSessionService() {
     lateinit var exoPlayer: ExoPlayer
     @Inject
     lateinit var musicRepository: MusicRepository
+    @Inject
+    lateinit var userPreferencesRepository: UserPreferencesRepository
 
+    private var favoriteSongIds = emptySet<String>()
     private var mediaSession: MediaSession? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -81,9 +89,61 @@ class MusicService : MediaSessionService() {
         exoPlayer.setHandleAudioBecomingNoisy(true)
         exoPlayer.addListener(playerListener)
 
+        val callback = object : MediaSession.Callback {
+            override fun onCustomCommand(
+                session: MediaSession,
+                controller: MediaSession.ControllerInfo,
+                customCommand: SessionCommand,
+                args: Bundle
+            ): ListenableFuture<SessionResult> {
+                when (customCommand.customAction) {
+                    MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_ON -> {
+                        session.player.shuffleModeEnabled = true
+                    }
+                    MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_OFF -> {
+                        session.player.shuffleModeEnabled = false
+                    }
+                    MusicNotificationProvider.CUSTOM_COMMAND_CYCLE_REPEAT_MODE -> {
+                        val currentMode = session.player.repeatMode
+                        val newMode = when (currentMode) {
+                            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ONE
+                            Player.REPEAT_MODE_ONE -> Player.REPEAT_MODE_ALL
+                            else -> Player.REPEAT_MODE_OFF
+                        }
+                        session.player.repeatMode = newMode
+                    }
+                    MusicNotificationProvider.CUSTOM_COMMAND_LIKE -> {
+                        val songId = session.player.currentMediaItem?.mediaId ?: return@onCustomCommand Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_UNKNOWN))
+                        serviceScope.launch {
+                            userPreferencesRepository.toggleFavoriteSong(songId)
+                        }
+                    }
+                }
+                return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+            }
+        }
+
         mediaSession = MediaSession.Builder(this, exoPlayer)
             .setSessionActivity(getOpenAppPendingIntent())
+            .setCallback(callback)
             .build()
+
+        setMediaNotificationProvider(MusicNotificationProvider(this, this))
+
+        serviceScope.launch {
+            userPreferencesRepository.favoriteSongIdsFlow.collect { ids ->
+                val oldIds = favoriteSongIds
+                favoriteSongIds = ids
+                val currentSongId = mediaSession?.player?.currentMediaItem?.mediaId
+                if (currentSongId != null) {
+                    val wasFavorite = oldIds.contains(currentSongId)
+                    val isFavorite = ids.contains(currentSongId)
+                    if (wasFavorite != isFavorite) {
+                        mediaSession?.let { onUpdateNotification(it) }
+                    }
+                }
+            }
+        }
     }
 
     // SOLUCIÓN WIDGET: Re-introducimos onStartCommand para traducir las acciones del widget.
@@ -120,10 +180,20 @@ class MusicService : MediaSessionService() {
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             requestWidgetFullUpdate()
+            mediaSession?.let { onUpdateNotification(it) }
         }
 
         override fun onMediaItemTransition(item: MediaItem?, reason: Int) {
             requestWidgetFullUpdate(force = true)
+            mediaSession?.let { onUpdateNotification(it) }
+        }
+
+        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+            mediaSession?.let { onUpdateNotification(it) }
+        }
+
+        override fun onRepeatModeChanged(repeatMode: Int) {
+            mediaSession?.let { onUpdateNotification(it) }
         }
 
         override fun onPlayerError(error: PlaybackException) {
@@ -293,6 +363,10 @@ class MusicService : MediaSessionService() {
             Log.e(TAG, "Fallo al cargar bitmap desde URI: $uri", e)
             null
         }
+    }
+
+    fun isSongFavorite(songId: String?): Boolean {
+        return songId != null && favoriteSongIds.contains(songId)
     }
 }
 

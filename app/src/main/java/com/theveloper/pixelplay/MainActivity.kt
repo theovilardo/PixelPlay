@@ -68,7 +68,7 @@ import com.google.common.util.concurrent.MoreExecutors
 import com.theveloper.pixelplay.data.service.MusicService
 import com.theveloper.pixelplay.presentation.components.CollapsedPlayerContentSpacerHeight
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
-import com.theveloper.pixelplay.presentation.components.NavBarPersistentHeight
+import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
 import com.theveloper.pixelplay.presentation.components.UnifiedPlayerSheet
 import com.theveloper.pixelplay.presentation.components.getNavigationBarHeight
 import com.theveloper.pixelplay.presentation.components.AllFilesAccessDialog
@@ -252,7 +252,7 @@ class MainActivity : ComponentActivity() {
             val configuration = LocalConfiguration.current
             val screenHeightPx = remember(configuration) { with(density) { configuration.screenHeightDp.dp.toPx() } }
             val collapsedStateBottomMargin = getNavigationBarHeight()
-            val navBarH = with(density) { MiniPlayerHeight.toPx() } // Using MiniPlayerHeight as NavBarPersistentHeight is not defined
+            val navBarH = with(density) { (NavBarContentHeight + collapsedStateBottomMargin).toPx() }
             val collapsedMarginPx = with(density) { collapsedStateBottomMargin.toPx() }
             val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
             val showPlayerContentInitially = stablePlayerState.currentSong != null

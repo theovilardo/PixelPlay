@@ -48,7 +48,7 @@ import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Genre
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
-import com.theveloper.pixelplay.presentation.components.NavBarPersistentHeight
+import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.components.getNavigationBarHeight
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
@@ -91,7 +91,7 @@ fun GenreCategoriesGrid(
             )),
         contentPadding = PaddingValues(
             top = 8.dp,
-            bottom = 28.dp + NavBarPersistentHeight + MiniPlayerHeight + systemNavBarHeight
+            bottom = 28.dp + NavBarContentHeight + MiniPlayerHeight + systemNavBarHeight
         ),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp)

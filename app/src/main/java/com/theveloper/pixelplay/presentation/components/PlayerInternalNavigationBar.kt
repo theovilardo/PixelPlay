@@ -4,12 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBarDefaults
@@ -29,11 +26,8 @@ import androidx.navigation.NavHostController
 import com.theveloper.pixelplay.presentation.components.scoped.CustomNavigationBarItem
 import com.theveloper.pixelplay.presentation.navigation.BottomNavItem
 import kotlinx.collections.immutable.ImmutableList
-import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
-val NavBarPersistentHeight = 84.dp // Altura estimada o fija para la PlayerInternalNavigationBar
-
-// --- NUEVO: Barra de Navegación Interna del Player ---
+val NavBarContentHeight = 64.dp // Altura del contenido de la barra de navegación
 
 @Composable
 private fun PlayerInternalNavigationItemsRow(
@@ -42,24 +36,19 @@ private fun PlayerInternalNavigationItemsRow(
     currentRoute: String?,
     modifier: Modifier = Modifier
 ) {
-    //Log.d("Recomposition", "PlayerInternalNavigationItemsRow - currentRoute: $currentRoute, navItemsHash: ${navItems.hashCode()}")
-
     Row(
         modifier = modifier
-            .fillMaxSize()
+            .fillMaxWidth()
             .padding(horizontal = 12.dp),
         horizontalArrangement = Arrangement.SpaceAround,
         verticalAlignment = Alignment.CenterVertically
     ) {
         navItems.forEach { item ->
             val isSelected = currentRoute == item.screen.route
-
-            // Obtener colores del tema una vez
             val selectedColor = MaterialTheme.colorScheme.primary
             val unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
             val indicatorColorFromTheme = MaterialTheme.colorScheme.secondaryContainer
 
-            // Las lambdas de icono y etiqueta ya están bien recordadas
             val iconPainterResId = if (isSelected && item.selectedIconResId != null && item.selectedIconResId != 0) {
                 item.selectedIconResId!!
             } else {
@@ -108,21 +97,22 @@ fun PlayerInternalNavigationBar(
     navItems: ImmutableList<BottomNavItem>,
     containerShape: Shape,
     navBarElevation: Dp,
-    isPlayerVisible: Boolean = false,
+    isPlayerVisible: Boolean,
     currentRoute: String?,
-    modifier: Modifier = Modifier,      // For external adjustments
-    topCornersRadiusDp: Dp = 12.dp,
-    bottomCornersRadiusDp: Dp = 12.dp,
+    modifier: Modifier = Modifier,
+    topCornersRadiusDp: Dp,
+    bottomCornersRadiusDp: Dp,
     navBarHideFraction: Float,
-    navBarHeightPx: Float
+    navBarHeightPx: Float,
+    navBarInset: Dp
 ) {
     remember(navBarHideFraction) { derivedStateOf { 1f - navBarHideFraction } }
     val animatedTranslationY = remember(navBarHideFraction, navBarHeightPx) { derivedStateOf { navBarHeightPx * navBarHideFraction } }
 
     Box(
-        modifier = modifier // Internal base modifier for the component's structure
+        modifier = modifier
             .fillMaxWidth()
-            .height(NavBarPersistentHeight) // RESTORED: Use the Dp constant
+            .height(NavBarContentHeight + navBarInset) // Explicit total height
             .graphicsLayer {
                 translationY = animatedTranslationY.value
                 alpha = 1f
@@ -130,17 +120,19 @@ fun PlayerInternalNavigationBar(
             .shadow(
                 elevation = navBarElevation,
                 shape = containerShape,
-                clip = false // No recortar la sombra
+                clip = false
             )
             .background(
                 color = NavigationBarDefaults.containerColor,
-                shape = containerShape //conditionalShape
-            )
+                shape = containerShape
+            ),
+        contentAlignment = Alignment.Center // Center the content within this Box
     ) {
         PlayerInternalNavigationItemsRow(
             navController = navController,
             navItems = navItems,
-            currentRoute = currentRoute
+            currentRoute = currentRoute,
+            modifier = Modifier.height(NavBarContentHeight) // Content has fixed height
         )
     }
 }
