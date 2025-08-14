@@ -1,12 +1,14 @@
 package com.theveloper.pixelplay.data.service
 
-import android.app.PendingIntent
 import android.content.Context
-import androidx.core.app.NotificationCompat
+import android.os.Bundle
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaSession
+import androidx.media3.session.SessionCommand
 import androidx.media3.ui.DefaultMediaNotificationProvider
+import com.google.common.collect.ImmutableList
 import com.theveloper.pixelplay.R
 
 @UnstableApi
@@ -15,65 +17,57 @@ class MusicNotificationProvider(
     private val musicService: MusicService
 ) : DefaultMediaNotificationProvider(context) {
 
-    override fun getActions(
-        mediaSession: MediaSession,
-        actionFactory: DefaultMediaNotificationProvider.ActionFactory,
-        onActionClicked: (String) -> PendingIntent
-    ): List<NotificationCompat.Action> {
-        val player = mediaSession.player
+    override fun getMediaButtons(
+        session: MediaSession,
+        playerCommands: Player.Commands,
+        mediaButtonPreferences: ImmutableList<CommandButton>,
+        showPauseButton: Boolean
+    ): ImmutableList<CommandButton> {
+        // Get the standard buttons (Prev, Play/Pause, Next) from the base implementation
+        val standardButtons = super.getMediaButtons(session, playerCommands, mediaButtonPreferences, showPauseButton)
+        val finalButtons = mutableListOf<CommandButton>()
 
-        // Standard actions from the default provider
-        val standardActions = super.getActions(mediaSession, actionFactory, onActionClicked)
+        // 1. Create custom "Like" button
+        val isFavorite = musicService.isSongFavorite(session.player.currentMediaItem?.mediaId)
+        val likeIcon = if (isFavorite) R.drawable.round_favorite_24 else R.drawable.round_favorite_border_24
+        val likeButton = CommandButton.Builder()
+            .setDisplayName("Like")
+            .setIconResId(likeIcon)
+            .setSessionCommand(SessionCommand(CUSTOM_COMMAND_LIKE, Bundle.EMPTY))
+            .build()
 
-        // Custom actions
-        val shuffleAction = createShuffleAction(player, onActionClicked)
-        val repeatAction = createRepeatAction(player, onActionClicked)
-        val likeAction = createLikeAction(mediaSession, onActionClicked)
+        // 2. Create custom "Shuffle" button
+        val shuffleOn = session.player.shuffleModeEnabled
+        val shuffleCommandAction = if (shuffleOn) CUSTOM_COMMAND_SHUFFLE_OFF else CUSTOM_COMMAND_SHUFFLE_ON
+        val shuffleIcon = if (shuffleOn) R.drawable.rounded_shuffle_on_24 else R.drawable.rounded_shuffle_24
+        val shuffleButton = CommandButton.Builder()
+            .setDisplayName("Shuffle")
+            .setIconResId(shuffleIcon)
+            .setSessionCommand(SessionCommand(shuffleCommandAction, Bundle.EMPTY))
+            .build()
 
-        // Build the final list of actions
-        val finalActions = mutableListOf<NotificationCompat.Action>()
-        finalActions.add(shuffleAction)
-        finalActions.addAll(standardActions) // Adds Previous, Play/Pause, Next
-        finalActions.add(repeatAction)
-        finalActions.add(likeAction)
-
-        return finalActions
-    }
-
-    private fun createShuffleAction(
-        player: Player,
-        onActionClicked: (String) -> PendingIntent
-    ): NotificationCompat.Action {
-        val shuffleOn = player.shuffleModeEnabled
-        val command = if (shuffleOn) CUSTOM_COMMAND_SHUFFLE_OFF else CUSTOM_COMMAND_SHUFFLE_ON
-        val icon = if (shuffleOn) R.drawable.rounded_shuffle_on_24 else R.drawable.rounded_shuffle_24
-        val title = if (shuffleOn) "Shuffle Off" else "Shuffle On"
-        return NotificationCompat.Action(icon, title, onActionClicked(command))
-    }
-
-    private fun createRepeatAction(
-        player: Player,
-        onActionClicked: (String) -> PendingIntent
-    ): NotificationCompat.Action {
-        val command = CUSTOM_COMMAND_CYCLE_REPEAT_MODE
-        val title = "Repeat"
-        val icon = when (player.repeatMode) {
+        // 3. Create custom "Repeat" button
+        val repeatIcon = when (session.player.repeatMode) {
             Player.REPEAT_MODE_ONE -> R.drawable.rounded_repeat_one_on_24
             Player.REPEAT_MODE_ALL -> R.drawable.rounded_repeat_on_24
             else -> R.drawable.rounded_repeat_24
         }
-        return NotificationCompat.Action(icon, title, onActionClicked(command))
-    }
+        val repeatButton = CommandButton.Builder()
+            .setDisplayName("Repeat")
+            .setIconResId(repeatIcon)
+            .setSessionCommand(SessionCommand(CUSTOM_COMMAND_CYCLE_REPEAT_MODE, Bundle.EMPTY))
+            .build()
 
-    private fun createLikeAction(
-        mediaSession: MediaSession,
-        onActionClicked: (String) -> PendingIntent
-    ): NotificationCompat.Action {
-        val isFavorite = musicService.isSongFavorite(mediaSession.player.currentMediaItem?.mediaId)
-        val command = CUSTOM_COMMAND_LIKE
-        val icon = if (isFavorite) R.drawable.round_favorite_24 else R.drawable.round_favorite_border_24
-        val title = if (isFavorite) "Unlike" else "Like"
-        return NotificationCompat.Action(icon, title, onActionClicked(command))
+        // 4. Assemble the final list of buttons
+        // Order: Shuffle, Previous, Play/Pause, Next, Repeat
+        finalButtons.add(shuffleButton)
+        finalButtons.addAll(standardButtons)
+        finalButtons.add(repeatButton)
+
+        // Let's add the like button at the beginning of the list, before shuffle
+        finalButtons.add(0, likeButton)
+
+        return ImmutableList.copyOf(finalButtons)
     }
 
     companion object {
