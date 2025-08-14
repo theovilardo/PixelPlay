@@ -99,9 +99,11 @@ class MusicService : MediaSessionService() {
                 when (customCommand.customAction) {
                     MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_ON -> {
                         session.player.shuffleModeEnabled = true
+                        onUpdateNotification(session)
                     }
                     MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_OFF -> {
                         session.player.shuffleModeEnabled = false
+                        onUpdateNotification(session)
                     }
                     MusicNotificationProvider.CUSTOM_COMMAND_CYCLE_REPEAT_MODE -> {
                         val currentMode = session.player.repeatMode
@@ -111,11 +113,15 @@ class MusicService : MediaSessionService() {
                             else -> Player.REPEAT_MODE_OFF
                         }
                         session.player.repeatMode = newMode
+                        onUpdateNotification(session)
                     }
                     MusicNotificationProvider.CUSTOM_COMMAND_LIKE -> {
                         val songId = session.player.currentMediaItem?.mediaId ?: return@onCustomCommand Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_UNKNOWN))
                         serviceScope.launch {
                             userPreferencesRepository.toggleFavoriteSong(songId)
+                            // The flow collector will handle the notification update,
+                            // but for instant feedback, we trigger it here too.
+                            onUpdateNotification(session)
                         }
                     }
                 }

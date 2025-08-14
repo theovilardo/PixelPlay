@@ -1643,7 +1643,11 @@ private fun FullPlayerContentInternal(
             )
         }
     }
-    if (showLyricsSheet) {
+    AnimatedVisibility(
+        visible = showLyricsSheet,
+        enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
+        exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut()
+    ) {
         LyricsSheet(
             stablePlayerStateFlow = playerViewModel.stablePlayerState,
             playerUiStateFlow = playerViewModel.playerUiState,
