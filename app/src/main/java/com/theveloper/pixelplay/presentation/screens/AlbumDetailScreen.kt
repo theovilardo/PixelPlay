@@ -61,6 +61,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.navigation.NavController
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Album
@@ -91,19 +94,11 @@ fun AlbumDetailScreen(
     val surfaceColor = MaterialTheme.colorScheme.surface
     val statusBarColor = if (isSystemInDarkTheme()) Color.Black.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.4f)
 
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(
-        snapAnimationSpec = tween(
-            durationMillis = 300,
-            easing = FastOutSlowInEasing
-        )
-    )
-
     BackHandler(enabled = playerSheetState == PlayerSheetState.EXPANDED) {
         playerViewModel.collapsePlayerSheet()
     }
 
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         content = { innerPadding ->
             when {
                 uiState.isLoading && uiState.album == null -> {
@@ -130,6 +125,7 @@ fun AlbumDetailScreen(
                     val album = uiState.album!!
                     val songs = uiState.songs
                     val lazyListState = rememberLazyListState()
+                    val navBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
                     val headerHeightPx = with(LocalDensity.current) { 300.dp.toPx() }
                     val collapsedState = remember {
@@ -158,7 +154,7 @@ fun AlbumDetailScreen(
                         LazyColumn(
                             state = lazyListState,
                             contentPadding = PaddingValues(
-                                bottom = MiniPlayerHeight + 16.dp,
+                                bottom = MiniPlayerHeight + 16.dp + navBarInset,
                                 end = 16.dp,
                                 start = 16.dp
                             ),

@@ -117,9 +117,12 @@ import com.theveloper.pixelplay.data.model.SortOption
 // import com.theveloper.pixelplay.presentation.components.InfiniteGridHandler // Removed
 // import com.theveloper.pixelplay.presentation.components.InfiniteListHandler // Removed
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
-import com.theveloper.pixelplay.presentation.components.NavBarPersistentHeight
+import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
 import com.theveloper.pixelplay.presentation.components.PlayerSheetCollapsedCornerRadius
 import com.theveloper.pixelplay.presentation.components.SmartImage
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.asPaddingValues
 import com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet
 import com.theveloper.pixelplay.presentation.components.subcomps.LibraryActionRow
 import com.theveloper.pixelplay.presentation.components.subcomps.SineWaveLine
@@ -176,7 +179,8 @@ fun LibraryScreen(
     val fabState by remember { derivedStateOf { pagerState.currentPage } } // UI sin cambios
     val transition = updateTransition(targetState = fabState, label = "Action Button Icon Transition") // UI sin cambios
 
-    val bottomBarHeightDp = NavBarPersistentHeight
+    val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val bottomBarHeightDp = NavBarContentHeight + systemNavBarInset
 
     val dm = isSystemInDarkTheme()
 

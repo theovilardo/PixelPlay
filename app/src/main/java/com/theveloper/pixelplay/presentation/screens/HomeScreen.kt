@@ -69,7 +69,7 @@ import com.theveloper.pixelplay.presentation.components.DailyMixSection
 import com.theveloper.pixelplay.presentation.components.HomeGradientTopBar
 import com.theveloper.pixelplay.presentation.components.HomeOptionsBottomSheet
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
-import com.theveloper.pixelplay.presentation.components.NavBarPersistentHeight
+import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
@@ -140,7 +140,7 @@ fun HomeScreen(
                 contentPadding = PaddingValues(
                     top = innerPadding.calculateTopPadding(),
                     bottom = paddingValuesParent.calculateBottomPadding()
-                            + 18.dp + NavBarPersistentHeight + bottomPadding
+                            + 18.dp + NavBarContentHeight + bottomPadding
                 ),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {

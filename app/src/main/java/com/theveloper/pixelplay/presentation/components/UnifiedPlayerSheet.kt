@@ -98,6 +98,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
+import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
 import com.theveloper.pixelplay.presentation.navigation.BottomNavItem
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
@@ -228,7 +229,8 @@ fun UnifiedPlayerSheet(
 
     val screenHeightPx = remember(configuration) { with(density) { configuration.screenHeightDp.dp.toPx() } }
     val miniPlayerContentHeightPx = remember { with(density) { MiniPlayerHeight.toPx() } }
-    val navBarHeightPx = remember(density, NavBarPersistentHeight) { with(density) { NavBarPersistentHeight.toPx() } }
+    val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val navBarHeightPx = remember(density, systemNavBarInset) { with(density) { (NavBarContentHeight + systemNavBarInset).toPx() } }
     val miniPlayerAndSpacerHeightPx = remember(density, MiniPlayerHeight, CollapsedPlayerContentSpacerHeight) { with(density) { (MiniPlayerHeight + CollapsedPlayerContentSpacerHeight).toPx() } }
     remember { with(density) { CollapsedPlayerContentSpacerHeight.toPx() } }
 

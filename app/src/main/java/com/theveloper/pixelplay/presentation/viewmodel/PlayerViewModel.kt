@@ -582,11 +582,9 @@ class PlayerViewModel @Inject constructor(
                 val oldSyncingLibraryState = _playerUiState.value.isSyncingLibrary
                 _playerUiState.update { it.copy(isSyncingLibrary = isSyncing) }
 
-                if (oldSyncingLibraryState && !isSyncing && !_isInitialDataLoaded.value) {
-                    Log.i("PlayerViewModel", "Sync completed and initial data not loaded. Calling resetAndLoadInitialData from isSyncingStateFlow observer.")
+        if (oldSyncingLibraryState && !isSyncing) {
+            Log.i("PlayerViewModel", "Sync completed. Calling resetAndLoadInitialData from isSyncingStateFlow observer.")
                     resetAndLoadInitialData("isSyncingStateFlow observer")
-                } else if (oldSyncingLibraryState && !isSyncing && _isInitialDataLoaded.value) {
-                    Log.i("PlayerViewModel", "Sync completed but initial data already loaded. Skipping resetAndLoadInitialData from isSyncingStateFlow observer.")
                 }
             }
         }
@@ -737,11 +735,6 @@ class PlayerViewModel @Inject constructor(
 
     private fun resetAndLoadInitialData(caller: String = "Unknown") {
         Trace.beginSection("PlayerViewModel.resetAndLoadInitialData")
-        if (_isInitialDataLoaded.value && _playerUiState.value.allSongs.isNotEmpty()) {
-            Log.i("PlayerViewModel", "resetAndLoadInitialData called from: $caller, but initial data already loaded. Skipping.")
-            Trace.endSection() // End PlayerViewModel.resetAndLoadInitialData (early exit)
-            return
-        }
         val functionStartTime = System.currentTimeMillis()
         Log.i("PlayerViewModel", "resetAndLoadInitialData called from: $caller. Proceeding with load.")
         Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData START - Called by: $caller")
@@ -1211,22 +1204,14 @@ class PlayerViewModel @Inject constructor(
                 Log.d("PlayerViewModel_MediaItem", "Creating MediaItem for Song ID: ${song.id}, Title: ${song.title}")
                 Log.d("PlayerViewModel_MediaItem", "Song's albumArtUriString: ${song.albumArtUriString}")
 
-                val artworkBytes = loadArtworkData(song.albumArtUriString)
                 val metadataBuilder = MediaMetadata.Builder()
                     .setTitle(song.title)
                     .setArtist(song.artist)
-                    // .setAlbumTitle(song.album) // Opcional
+                // .setAlbumTitle(song.album) // Opcional
 
-                var finalArtworkUriSet: Uri? = null
-                if (artworkBytes != null) {
-                    metadataBuilder.setArtworkData(artworkBytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
-                    Log.d("PlayerViewModel_MediaItem", "Set artworkData for ${song.title} (length: ${artworkBytes.size})")
-                } else {
-                    song.albumArtUriString?.toUri()?.let { uri ->
-                        metadataBuilder.setArtworkUri(uri)
-                        finalArtworkUriSet = uri
-                    }
-                    Log.d("PlayerViewModel_MediaItem", "Set artworkUri for ${song.title}: $finalArtworkUriSet (original string: ${song.albumArtUriString})")
+                // Set artwork URI without pre-loading byte data
+                song.albumArtUriString?.toUri()?.let { uri ->
+                    metadataBuilder.setArtworkUri(uri)
                 }
 
                 val metadata = metadataBuilder.build()

@@ -30,10 +30,11 @@ import com.theveloper.pixelplay.presentation.components.scoped.CustomNavigationB
 import com.theveloper.pixelplay.presentation.navigation.BottomNavItem
 import kotlinx.collections.immutable.ImmutableList
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 
-val NavBarPersistentHeight = 84.dp // Altura estimada o fija para la PlayerInternalNavigationBar
-
-// --- NUEVO: Barra de Navegación Interna del Player ---
+val NavBarContentHeight = 64.dp // Altura del contenido de la barra de navegación
 
 @Composable
 private fun PlayerInternalNavigationItemsRow(
@@ -122,7 +123,6 @@ fun PlayerInternalNavigationBar(
     Box(
         modifier = modifier // Internal base modifier for the component's structure
             .fillMaxWidth()
-            .height(NavBarPersistentHeight) // RESTORED: Use the Dp constant
             .graphicsLayer {
                 translationY = animatedTranslationY.value
                 alpha = 1f
@@ -136,11 +136,13 @@ fun PlayerInternalNavigationBar(
                 color = NavigationBarDefaults.containerColor,
                 shape = containerShape //conditionalShape
             )
+            .windowInsetsPadding(WindowInsets.navigationBars)
     ) {
         PlayerInternalNavigationItemsRow(
             navController = navController,
             navItems = navItems,
-            currentRoute = currentRoute
+            currentRoute = currentRoute,
+            modifier = Modifier.height(NavBarContentHeight)
         )
     }
 }
