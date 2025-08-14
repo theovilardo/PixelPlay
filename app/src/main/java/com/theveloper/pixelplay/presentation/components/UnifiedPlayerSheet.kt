@@ -1089,6 +1089,7 @@ fun UnifiedPlayerSheet(
                         topCornersRadiusDp = playerContentActualBottomRadius,
                         bottomCornersRadiusDp = PlayerSheetCollapsedCornerRadius,
                         navBarHeightPx = navBarHeightPx,
+                        navBarInset = systemNavBarInset,
                         modifier = playerInternalNavBarModifier
                     )
                 }

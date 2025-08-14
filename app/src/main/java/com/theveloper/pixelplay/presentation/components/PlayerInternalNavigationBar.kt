@@ -97,10 +97,14 @@ fun PlayerInternalNavigationBar(
     navItems: ImmutableList<BottomNavItem>,
     containerShape: Shape,
     navBarElevation: Dp,
+    isPlayerVisible: Boolean,
     currentRoute: String?,
+    modifier: Modifier = Modifier,
+    topCornersRadiusDp: Dp,
+    bottomCornersRadiusDp: Dp,
     navBarHideFraction: Float,
     navBarHeightPx: Float,
-    modifier: Modifier = Modifier
+    navBarInset: Dp
 ) {
     remember(navBarHideFraction) { derivedStateOf { 1f - navBarHideFraction } }
     val animatedTranslationY = remember(navBarHideFraction, navBarHeightPx) { derivedStateOf { navBarHeightPx * navBarHideFraction } }
@@ -108,6 +112,7 @@ fun PlayerInternalNavigationBar(
     Box(
         modifier = modifier
             .fillMaxWidth()
+            .height(NavBarContentHeight + navBarInset) // Explicit total height
             .graphicsLayer {
                 translationY = animatedTranslationY.value
                 alpha = 1f
@@ -121,13 +126,13 @@ fun PlayerInternalNavigationBar(
                 color = NavigationBarDefaults.containerColor,
                 shape = containerShape
             ),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center // Center the content within this Box
     ) {
         PlayerInternalNavigationItemsRow(
             navController = navController,
             navItems = navItems,
             currentRoute = currentRoute,
-            modifier = Modifier.height(NavBarContentHeight)
+            modifier = Modifier.height(NavBarContentHeight) // Content has fixed height
         )
     }
 }
