@@ -96,12 +96,19 @@ class MusicService : MediaSessionService() {
                 customCommand: SessionCommand,
                 args: Bundle
             ): ListenableFuture<SessionResult> {
+                android.util.Log.d("MusicService", "onCustomCommand received: ${customCommand.customAction}")
                 when (customCommand.customAction) {
                     MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_ON -> {
+                        android.util.Log.d("MusicService", "Executing SHUFFLE_ON. Current shuffleMode: ${session.player.shuffleModeEnabled}")
                         session.player.shuffleModeEnabled = true
+                        android.util.Log.d("MusicService", "Executed SHUFFLE_ON. New shuffleMode: ${session.player.shuffleModeEnabled}")
+                        onUpdateNotification(session)
                     }
                     MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_OFF -> {
+                        android.util.Log.d("MusicService", "Executing SHUFFLE_OFF. Current shuffleMode: ${session.player.shuffleModeEnabled}")
                         session.player.shuffleModeEnabled = false
+                        android.util.Log.d("MusicService", "Executed SHUFFLE_OFF. New shuffleMode: ${session.player.shuffleModeEnabled}")
+                        onUpdateNotification(session)
                     }
                     MusicNotificationProvider.CUSTOM_COMMAND_CYCLE_REPEAT_MODE -> {
                         val currentMode = session.player.repeatMode
@@ -111,11 +118,18 @@ class MusicService : MediaSessionService() {
                             else -> Player.REPEAT_MODE_OFF
                         }
                         session.player.repeatMode = newMode
+                        onUpdateNotification(session)
                     }
                     MusicNotificationProvider.CUSTOM_COMMAND_LIKE -> {
                         val songId = session.player.currentMediaItem?.mediaId ?: return@onCustomCommand Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_UNKNOWN))
+                        android.util.Log.d("MusicService", "Executing LIKE for songId: $songId")
                         serviceScope.launch {
+                            android.util.Log.d("MusicService", "Toggling favorite status for $songId")
                             userPreferencesRepository.toggleFavoriteSong(songId)
+                            android.util.Log.d("MusicService", "Toggled favorite status. Updating notification.")
+                            // The flow collector will handle the notification update,
+                            // but for instant feedback, we trigger it here too.
+                            onUpdateNotification(session)
                         }
                     }
                 }
@@ -132,6 +146,7 @@ class MusicService : MediaSessionService() {
 
         serviceScope.launch {
             userPreferencesRepository.favoriteSongIdsFlow.collect { ids ->
+                android.util.Log.d("MusicService", "favoriteSongIdsFlow collected. New ids size: ${ids.size}")
                 val oldIds = favoriteSongIds
                 favoriteSongIds = ids
                 val currentSongId = mediaSession?.player?.currentMediaItem?.mediaId
@@ -139,6 +154,7 @@ class MusicService : MediaSessionService() {
                     val wasFavorite = oldIds.contains(currentSongId)
                     val isFavorite = ids.contains(currentSongId)
                     if (wasFavorite != isFavorite) {
+                        android.util.Log.d("MusicService", "Favorite status changed for current song. Updating notification.")
                         mediaSession?.let { onUpdateNotification(it) }
                     }
                 }
@@ -189,6 +205,7 @@ class MusicService : MediaSessionService() {
         }
 
         override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+            android.util.Log.d("MusicService", "playerListener.onShuffleModeEnabledChanged: $shuffleModeEnabled")
             mediaSession?.let { onUpdateNotification(it) }
         }
 

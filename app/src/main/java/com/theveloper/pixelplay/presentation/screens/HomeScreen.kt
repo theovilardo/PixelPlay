@@ -140,7 +140,7 @@ fun HomeScreen(
                 contentPadding = PaddingValues(
                     top = innerPadding.calculateTopPadding(),
                     bottom = paddingValuesParent.calculateBottomPadding()
-                            + 18.dp + NavBarContentHeight + bottomPadding
+                            + 28.dp + NavBarContentHeight + bottomPadding
                 ),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
@@ -538,6 +538,7 @@ fun SongCardCarouselItem(
 }
 
 // Wrapper Composable for SongListItemFavs to isolate state observation
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun SongListItemFavsWrapper(
     song: Song,
