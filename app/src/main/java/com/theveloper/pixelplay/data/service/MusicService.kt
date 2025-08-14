@@ -28,6 +28,7 @@ import coil.imageLoader
 import coil.request.ImageRequest
 import coil.size.Size
 import android.os.Bundle
+import androidx.media3.session.SessionCommand
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.theveloper.pixelplay.MainActivity
@@ -112,7 +113,7 @@ class MusicService : MediaSessionService() {
                         session.player.repeatMode = newMode
                     }
                     MusicNotificationProvider.CUSTOM_COMMAND_LIKE -> {
-                        val songId = session.player.currentMediaItem?.mediaId ?: return@onCustomCommand Futures.immediateFuture(SessionResult(SessionResult.RESULT_CANCELED))
+                        val songId = session.player.currentMediaItem?.mediaId ?: return@onCustomCommand Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_UNKNOWN))
                         serviceScope.launch {
                             userPreferencesRepository.toggleFavoriteSong(songId)
                         }

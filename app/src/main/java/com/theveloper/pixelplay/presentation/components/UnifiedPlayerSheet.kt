@@ -120,6 +120,7 @@ import com.theveloper.pixelplay.utils.formatDuration
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.delay
 import android.os.Trace // Import Trace
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.TopAppBar
@@ -229,7 +230,7 @@ fun UnifiedPlayerSheet(
 
     val screenHeightPx = remember(configuration) { with(density) { configuration.screenHeightDp.dp.toPx() } }
     val miniPlayerContentHeightPx = remember { with(density) { MiniPlayerHeight.toPx() } }
-    val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val systemNavBarInset = WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
     val navBarHeightPx = remember(density, systemNavBarInset) { with(density) { (NavBarContentHeight + systemNavBarInset).toPx() } }
     val miniPlayerAndSpacerHeightPx = remember(density, MiniPlayerHeight, CollapsedPlayerContentSpacerHeight) { with(density) { (MiniPlayerHeight + CollapsedPlayerContentSpacerHeight).toPx() } }
     remember { with(density) { CollapsedPlayerContentSpacerHeight.toPx() } }
