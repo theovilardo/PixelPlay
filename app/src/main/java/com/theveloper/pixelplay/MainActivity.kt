@@ -277,7 +277,7 @@ class MainActivity : ComponentActivity() {
                 playerViewModel = playerViewModel, navController = navController,
                     navItems = commonNavItems,
                     initialTargetTranslationY = initialY,
-                    collapsedStateHorizontalPadding = 22.dp,
+                    collapsedStateHorizontalPadding = collapsedStateBottomMargin,
                     collapsedStateBottomMargin = collapsedStateBottomMargin,
                     hideNavBar = shouldHideNavBar
             )
