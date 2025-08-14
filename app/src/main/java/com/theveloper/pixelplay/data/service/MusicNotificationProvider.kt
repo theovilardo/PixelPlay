@@ -30,6 +30,7 @@ class MusicNotificationProvider(
         // 1. Create custom "Like" button
         val isFavorite = musicService.isSongFavorite(session.player.currentMediaItem?.mediaId)
         val likeIcon = if (isFavorite) R.drawable.round_favorite_24 else R.drawable.round_favorite_border_24
+        android.util.Log.d("MusicNotificationProvider", "Creating like button. isFavorite: $isFavorite")
         val likeButton = CommandButton.Builder()
             .setDisplayName("Like")
             .setIconResId(likeIcon)
@@ -39,6 +40,7 @@ class MusicNotificationProvider(
         // 2. Create custom "Shuffle" button
         val shuffleOn = session.player.shuffleModeEnabled
         val shuffleCommandAction = if (shuffleOn) CUSTOM_COMMAND_SHUFFLE_OFF else CUSTOM_COMMAND_SHUFFLE_ON
+        android.util.Log.d("MusicNotificationProvider", "Creating shuffle button. shuffleOn: $shuffleOn, command: $shuffleCommandAction")
         val shuffleIcon = if (shuffleOn) R.drawable.rounded_shuffle_on_24 else R.drawable.rounded_shuffle_24
         val shuffleButton = CommandButton.Builder()
             .setDisplayName("Shuffle")
