@@ -1296,8 +1296,7 @@ private fun MiniPlayerContentInternal(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(MiniPlayerHeight)
-            .padding(start = 11.dp, end = 14.dp),
+            .height(MiniPlayerHeight),
         verticalAlignment = Alignment.CenterVertically
     ) {
         SmartImage(
