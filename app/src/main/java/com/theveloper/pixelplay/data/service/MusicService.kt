@@ -179,10 +179,20 @@ class MusicService : MediaSessionService() {
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             requestWidgetFullUpdate()
+            mediaSession?.let { onUpdateNotification(it) }
         }
 
         override fun onMediaItemTransition(item: MediaItem?, reason: Int) {
             requestWidgetFullUpdate(force = true)
+            mediaSession?.let { onUpdateNotification(it) }
+        }
+
+        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+            mediaSession?.let { onUpdateNotification(it) }
+        }
+
+        override fun onRepeatModeChanged(repeatMode: Int) {
+            mediaSession?.let { onUpdateNotification(it) }
         }
 
         override fun onPlayerError(error: PlaybackException) {

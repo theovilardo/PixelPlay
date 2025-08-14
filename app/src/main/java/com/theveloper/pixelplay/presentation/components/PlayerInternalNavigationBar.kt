@@ -136,7 +136,8 @@ fun PlayerInternalNavigationBar(
                 color = NavigationBarDefaults.containerColor,
                 shape = containerShape //conditionalShape
             )
-            .windowInsetsPadding(WindowInsets.navigationBars)
+            .windowInsetsPadding(WindowInsets.navigationBars),
+        contentAlignment = Alignment.Center
     ) {
         PlayerInternalNavigationItemsRow(
             navController = navController,
