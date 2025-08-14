@@ -87,6 +87,7 @@ import kotlinx.coroutines.delay
 import android.provider.Settings
 import androidx.compose.runtime.SideEffect
 
+@UnstableApi
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
@@ -167,6 +168,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @androidx.annotation.OptIn(UnstableApi::class)
     @Composable
     private fun MainAppContent(playerViewModel: PlayerViewModel, mainViewModel: MainViewModel) {
         Trace.beginSection("MainActivity.MainAppContent")
@@ -206,6 +208,7 @@ class MainActivity : ComponentActivity() {
         Trace.endSection() // End MainActivity.MainAppContent
     }
 
+    @androidx.annotation.OptIn(UnstableApi::class)
     @Composable
     private fun MainUI(playerViewModel: PlayerViewModel, navController: NavHostController) {
         Trace.beginSection("MainActivity.MainUI")
@@ -252,6 +255,7 @@ class MainActivity : ComponentActivity() {
             val configuration = LocalConfiguration.current
             val screenHeightPx = remember(configuration) { with(density) { configuration.screenHeightDp.dp.toPx() } }
             val collapsedStateBottomMargin = getNavigationBarHeight()
+            val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
             val navBarH = with(density) { (NavBarContentHeight + collapsedStateBottomMargin).toPx() }
             val collapsedMarginPx = with(density) { collapsedStateBottomMargin.toPx() }
             val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
@@ -262,6 +266,7 @@ class MainActivity : ComponentActivity() {
             val initialNavBarHeightPx = if (shouldHideNavBar) 0f else navBarH
             val initialTotalSheetHeightPx = initialContentHeightPx + initialNavBarHeightPx
             val initialY = screenHeightPx - initialTotalSheetHeightPx - collapsedMarginPx
+            val horizontalMargin = systemNavBarInset
 
             // The PixelPlayTheme wrapping UnifiedPlayerSheet is removed as UnifiedPlayerSheet
             // now handles its own theming internally based on playerViewModel's activePlayerColorSchemePair
