@@ -92,10 +92,10 @@ class MusicService : MediaSessionService() {
             override fun onCustomCommand(
                 session: MediaSession,
                 controller: MediaSession.ControllerInfo,
-                customCommand: String,
+                customCommand: SessionCommand,
                 args: Bundle
             ): ListenableFuture<SessionResult> {
-                when (customCommand) {
+                when (customCommand.customAction) {
                     MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_ON -> {
                         session.player.shuffleModeEnabled = true
                     }
@@ -111,7 +111,7 @@ class MusicService : MediaSessionService() {
                         }
                         session.player.repeatMode = newMode
                     }
-                    CUSTOM_COMMAND_LIKE -> {
+                    MusicNotificationProvider.CUSTOM_COMMAND_LIKE -> {
                         val songId = session.player.currentMediaItem?.mediaId ?: return@onCustomCommand Futures.immediateFuture(SessionResult(SessionResult.RESULT_CANCELED))
                         serviceScope.launch {
                             userPreferencesRepository.toggleFavoriteSong(songId)
