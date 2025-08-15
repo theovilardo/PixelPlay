@@ -1070,10 +1070,10 @@ fun UnifiedPlayerSheet(
                         CircleShape
                     }
 
-                    val playerInternalNavBarModifier = remember {
+                    val playerInternalNavBarModifier = remember(collapsedStateHorizontalPadding) {
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = currentHorizontalPadding)
+                            .padding(horizontal = collapsedStateHorizontalPadding)
                             .pointerInput(Unit) {
                                 detectTapGestures { /* Permitir taps normales en nav items */ }
                             }

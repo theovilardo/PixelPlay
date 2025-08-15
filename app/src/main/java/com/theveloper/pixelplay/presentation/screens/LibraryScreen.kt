@@ -143,6 +143,8 @@ import kotlinx.coroutines.launch
 import okhttp3.internal.toImmutableList
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
+val ListExtraBottomGap = 30.dp
+
 @androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
@@ -249,7 +251,7 @@ fun LibraryScreen(
     ) { innerScaffoldPadding ->
         Box( // Box para permitir superposición del indicador de carga
             modifier = Modifier
-                .padding(innerScaffoldPadding)
+                .padding(top = innerScaffoldPadding.calculateTopPadding())
                 .fillMaxSize()
         ) {
             Column(
@@ -283,13 +285,17 @@ fun LibraryScreen(
                 Surface(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 14.dp, vertical = 8.dp), // Added vertical padding
+                        .padding(horizontal = 8.dp, vertical = 0.dp), // Added vertical padding
                     color = MaterialTheme.colorScheme.surface,
-                    shape = RoundedCornerShape(
-                        topStart = 34.dp,
-                        topEnd = 34.dp,
-                        bottomStart = 0.dp,
-                        bottomEnd = 0.dp
+                    shape = AbsoluteSmoothCornerShape(
+                        cornerRadiusTL = 34.dp,
+                        smoothnessAsPercentBL = 60,
+                        cornerRadiusBL = 0.dp,
+                        smoothnessAsPercentBR = 60,
+                        cornerRadiusBR = 0.dp,
+                        smoothnessAsPercentTR = 60,
+                        cornerRadiusTR = 34.dp,
+                        smoothnessAsPercentTL = 60
                     )
                     // shape = AbsoluteSmoothCornerShape(cornerRadiusTL = 24.dp, smoothnessAsPercentTR = 60, /*...*/) // Your custom shape
                 ) {
@@ -520,6 +526,25 @@ fun LibraryScreen(
                     }
                 }
             }
+            //Grad box
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .height(170.dp)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.0f to Color.Transparent,                                           // Todo arriba transparente
+                                0.2f to Color.Transparent,                                           // Mantener transparencia hasta 60%
+                                0.8f to MaterialTheme.colorScheme.surfaceContainerLowest,            // Arranque repentino del color
+                                1.0f to MaterialTheme.colorScheme.surfaceContainerLowest             // Sólido hasta abajo
+                            )
+                        )
+                    )
+            ) {
+
+            }
         }
     }
 
@@ -668,11 +693,14 @@ fun LibraryFavoritesTab(
         Box(modifier = Modifier
             .fillMaxSize()
             .padding(16.dp), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                modifier = Modifier.align(Alignment.TopCenter),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 Icon(Icons.Filled.FavoriteBorder, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(8.dp))
-                Text("No tienes canciones favoritas.", style = MaterialTheme.typography.titleMedium)
-                Text("Toca el corazón en el reproductor para añadir.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                Text("No liked songs yet.", style = MaterialTheme.typography.titleMedium)
+                Text("Touch the heart icon in the player to add songs.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
             }
         }
     } else {
@@ -780,7 +808,7 @@ fun LibrarySongsTab(
                         .fillMaxSize(),
                     state = listState,
                     verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 10.dp)
+                    contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + ListExtraBottomGap)
                 ) {
                     items(15) {
                         EnhancedSongListItem(
@@ -1010,39 +1038,6 @@ fun EnhancedSongListItem(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-//                    Row(verticalAlignment = Alignment.CenterVertically) {
-//                        Icon(
-//                            imageVector = Icons.Rounded.Person,
-//                            contentDescription = null,
-//                            modifier = Modifier.size(14.dp),
-//                            tint = contentColor.copy(alpha = 0.7f)
-//                        )
-//                        Spacer(modifier = Modifier.width(4.dp))
-//                        Text(
-//                            text = song.artist,
-//                            style = MaterialTheme.typography.bodyMedium,
-//                            color = contentColor.copy(alpha = 0.7f),
-//                            maxLines = 1,
-//                            overflow = TextOverflow.Ellipsis
-//                        )
-//                    }
-//                    if (song.duration > 0) {
-//                        Spacer(modifier = Modifier.height(2.dp))
-//                        Row(verticalAlignment = Alignment.CenterVertically) {
-//                            Icon(
-//                                imageVector = Icons.Rounded.Schedule,
-//                                contentDescription = null,
-//                                modifier = Modifier.size(14.dp),
-//                                tint = contentColor.copy(alpha = 0.5f)
-//                            )
-//                            Spacer(modifier = Modifier.width(4.dp))
-//                            Text(
-//                                text = formatDuration(song.duration),
-//                                style = MaterialTheme.typography.bodySmall,
-//                                color = contentColor.copy(alpha = 0.5f)
-//                            )
-//                        }
-//                    }
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 IconButton(
@@ -1067,8 +1062,7 @@ fun EnhancedSongListItem(
 @Composable
 fun LibraryAlbumsTab(
     albums: ImmutableList<Album>,
-    isLoading: Boolean, // This now represents the loading state for all albums
-    // canLoadMore: Boolean, // Removed
+    isLoading: Boolean,
     playerViewModel: PlayerViewModel,
     bottomBarHeight: Dp,
     onAlbumClick: (Long) -> Unit
@@ -1134,7 +1128,7 @@ fun LibraryAlbumsTab(
                     ),
                 state = gridState,
                 columns = GridCells.Fixed(2),
-                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 14.dp),
+                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + ListExtraBottomGap + 4.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
@@ -1341,7 +1335,7 @@ fun LibraryArtistsTab(
                     ),
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 10.dp)
+                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + ListExtraBottomGap)
             ) {
                 item {
                     Spacer(Modifier.height(4.dp))
@@ -1454,7 +1448,7 @@ fun LibraryPlaylistsTab(
                     ),
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 10.dp)
+                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 30.dp)
             ) {
                 item {
                     Spacer(Modifier.height(4.dp))

@@ -351,7 +351,7 @@ fun SettingsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(MiniPlayerHeight + 26.dp))
+            Spacer(modifier = Modifier.height(MiniPlayerHeight + 36.dp))
         }
     }
 
