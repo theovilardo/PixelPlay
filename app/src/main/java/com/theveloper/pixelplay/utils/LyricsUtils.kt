@@ -46,11 +46,57 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.theveloper.pixelplay.data.model.Lyrics
+import com.theveloper.pixelplay.data.model.SyncedLine
 import kotlinx.coroutines.flow.Flow
+import java.util.regex.Pattern
 import kotlin.io.path.Path
 import kotlin.math.PI
 import kotlin.math.max
 import kotlin.math.sin
+
+object LyricsUtils {
+
+    private val LRC_LINE_REGEX = Pattern.compile("^\\[(\\d{2}):(\\d{2})\\.(\\d{2,3})](.*)$")
+
+    /**
+     * Parsea un String que contiene una letra en formato LRC o texto plano.
+     * @param lyricsText El texto de la letra a procesar.
+     * @return Un objeto Lyrics con las listas 'plain' o 'synced' pobladas.
+     */
+    fun parseLyrics(lyricsText: String?): Lyrics {
+        if (lyricsText.isNullOrEmpty()) {
+            return Lyrics(plain = emptyList(), synced = emptyList())
+        }
+
+        val syncedLines = mutableListOf<SyncedLine>()
+        val plainLines = mutableListOf<String>()
+        var isSynced = false
+
+        lyricsText.lines().forEach { line ->
+            val matcher = LRC_LINE_REGEX.matcher(line)
+            if (matcher.matches()) {
+                isSynced = true
+                val minutes = matcher.group(1)?.toLong() ?: 0
+                val seconds = matcher.group(2)?.toLong() ?: 0
+                val millis = matcher.group(3)?.toLong() ?: 0
+                val text = matcher.group(4)?.trim() ?: ""
+                val timestamp = minutes * 60 * 1000 + seconds * 1000 + millis
+                if (text.isNotEmpty()) {
+                    syncedLines.add(SyncedLine(timestamp.toInt(), text))
+                }
+            } else {
+                plainLines.add(line)
+            }
+        }
+
+        return if (isSynced && syncedLines.isNotEmpty()) {
+            Lyrics(synced = syncedLines.sortedBy { it.time })
+        } else {
+            Lyrics(plain = plainLines)
+        }
+    }
+}
 
 @Composable
 fun ProviderText(

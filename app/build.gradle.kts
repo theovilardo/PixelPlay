@@ -222,6 +222,12 @@ dependencies {
     // JAudioTagger for metadata editing
     implementation("org.jflac:jflac-codec:1.5.2")
     implementation(libs.jaudiotagger)
+
+    // Retrofit & OkHttp
+    implementation(libs.retrofit)
+    implementation(libs.converter.gson)
+    implementation(libs.okhttp)
+    implementation(libs.logging.interceptor)
 }
 
 

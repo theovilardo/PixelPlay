@@ -130,4 +130,6 @@ interface MusicRepository {
     fun getGenres(): Flow<List<com.theveloper.pixelplay.data.model.Genre>>
 
     suspend fun getLyrics(song: Song): Lyrics?
+
+    suspend fun getLyricsFromRemote(song: Song): Result<Lyrics>
 }

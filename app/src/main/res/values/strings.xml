@@ -11,4 +11,11 @@
     <string name="all_files_access_description">Para poder editar los metadatos de tus canciones (archivos .mp3), PixelPlay necesita un permiso especial de acceso a todos los archivos. Esto nos permitirá modificar las etiquetas de tus pistas directamente. Por favor, concede este permiso en la siguiente pantalla para habilitar la edición de metadatos.</string>
     <string name="grant_permission_button">Conceder Permiso</string>
     <string name="all_files_access_setting">All Files Access</string>
+    <string name="lyrics_not_found">Lyrics not found</string>
+    <string name="search_lyrics_online_prompt">Would you like to search for lyrics online?</string>
+    <string name="search">Search</string>
+    <string name="searching_lyrics">Searching for lyrics…</string>
+    <string name="error">Error</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
 </resources>

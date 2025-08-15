@@ -64,6 +64,9 @@ composeTesting = "1.0.0-alpha03"
 timber = "5.0.1"
 generativeai = "0.9.0"
 
+retrofit = "3.0.0"
+okhttp = "5.1.0"
+
 [libraries]
 google-genai = { group = "com.google.genai", name = "google-genai", version.ref = "googleGenai" }
 amplituda = { module = "com.github.lincollincol:amplituda", version.ref = "amplituda" }
@@ -135,6 +138,10 @@ checker-qual = { group = "org.checkerframework", name = "checker-qual", version.
 jaudiotagger = { group = "net.jthink", name = "jaudiotagger", version.ref = "jaudiotagger" }
 reorderables = { group = "sh.calvin.reorderable", name = "reorderable", version.ref = "reorderables" }
 generativeai = { group = "com.google.ai.client.generativeai", name = "generativeai", version.ref = "generativeai" }
+retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
+converter-gson = { group = "com.squareup.retrofit2", name = "converter-gson", version.ref = "retrofit" }
+okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+logging-interceptor = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

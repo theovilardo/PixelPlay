@@ -107,7 +107,7 @@ import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Genre // Added import for Genre
 import com.theveloper.pixelplay.presentation.navigation.Screen // Required for Screen.GenreDetail.createRoute
 import com.theveloper.pixelplay.presentation.screens.search.components.GenreCategoriesGrid
-import okhttp3.internal.toImmutableList
+import kotlinx.collections.immutable.toImmutableList
 
 
 @androidx.annotation.OptIn(UnstableApi::class)
