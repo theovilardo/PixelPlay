@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,7 +22,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -34,7 +32,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -45,14 +42,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -60,8 +55,6 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.AlbumArtCollage
@@ -73,7 +66,6 @@ import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
-import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -140,7 +132,7 @@ fun HomeScreen(
                 contentPadding = PaddingValues(
                     top = innerPadding.calculateTopPadding(),
                     bottom = paddingValuesParent.calculateBottomPadding()
-                            + 28.dp + NavBarContentHeight + bottomPadding
+                            + 38.dp + NavBarContentHeight + bottomPadding
                 ),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
@@ -189,13 +181,14 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .height(80.dp)
+                .height(170.dp)
                 .background(
                     brush = Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            MaterialTheme.colorScheme.surfaceContainerLowest.copy(0.5f),
-                            MaterialTheme.colorScheme.surfaceContainerLowest
+                        colorStops = arrayOf(
+                            0.0f to Color.Transparent,                                           // Todo arriba transparente
+                            0.2f to Color.Transparent,                                           // Mantener transparencia hasta 60%
+                            0.8f to MaterialTheme.colorScheme.surfaceContainerLowest,            // Arranque repentino del color
+                            1.0f to MaterialTheme.colorScheme.surfaceContainerLowest             // Sólido hasta abajo
                         )
                     )
                 )
@@ -292,87 +285,6 @@ fun YourMixHeader(
     }
 }
 
-@Composable
-private fun EmptyMusicView(paddingValues: PaddingValues) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(paddingValues),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                painter = painterResource(R.drawable.rounded_music_off_24),
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                "No se encontraron canciones.\nAsegúrate de otorgar el permiso de almacenamiento.",
-                textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Button(
-                onClick = { /* Request permission */ },
-                shape = RoundedCornerShape(24.dp)
-            ) {
-                Text("Otorgar Permisos")
-            }
-        }
-    }
-}
-
-// Updated section header with better design
-@Composable
-fun SectionHeader(
-    title: String,
-    showViewAll: Boolean = true,
-    onViewAllClick: () -> Unit = {}
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 4.dp)
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = (-0.5).sp
-        )
-
-        if (showViewAll) {
-            TextButton(
-                onClick = onViewAllClick,
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    "See more",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Icon(
-                    painter = painterResource(R.drawable.rounded_chevron_right_24),
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            }
-        }
-    }
-}
-
 
 // SongListItem (modificado para aceptar parámetros individuales)
 @Composable
@@ -437,100 +349,6 @@ fun SongListItemFavs(
                     Icons.Filled.PlayArrow,
                     contentDescription = "Reproducir",
                     tint = Color.Transparent//contentColor.copy(alpha = 0.7f)
-                )
-            }
-        }
-    }
-}
-
-/**
- * Composable presentacional para un ítem de canción en el carrusel, diseñado como una tarjeta vertical.
- */
-@Composable
-fun SongCardCarouselItem(
-    modifier: Modifier = Modifier,
-    title: String,
-    artist: String,
-    albumArtUrl: String?,
-    isPlaying: Boolean,
-    onClick: () -> Unit,
-    itemWidth: Dp // Ancho esperado para el ítem, usualmente el preferredItemWidth del carrusel
-) {
-    Card(
-        onClick = onClick,
-        modifier = modifier.width(itemWidth), // La tarjeta toma el ancho especificado
-        shape = RoundedCornerShape(12.dp), // Esquinas redondeadas
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 2.dp,
-            pressedElevation = 4.dp // Elevación sutil
-        )
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth() // La columna interna llena el ancho de la tarjeta
-        ) {
-            // Sección de la carátula del álbum con indicador de reproducción superpuesto
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f) // Mantiene la carátula cuadrada (ej: 90dp x 90dp)
-            ) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(albumArtUrl)
-                        .crossfade(true) // Animación suave al cargar la imagen
-                        .build(),
-                    contentDescription = "Carátula de $title", // Descripción para accesibilidad
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)), // Redondea solo las esquinas superiores de la imagen
-                    contentScale = ContentScale.Crop, // Escala la imagen para llenar el espacio cortando si es necesario
-                    // Reemplaza con tu propio placeholder:
-                    placeholder = painterResource(id = android.R.drawable.ic_menu_gallery), // Placeholder genérico de Android
-                    error = painterResource(id = android.R.drawable.ic_menu_report_image) // Error placeholder genérico
-                )
-                if (isPlaying) {
-                    // Superposición semi-transparente para indicar reproducción
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                // Usa el color scrim del tema para la superposición
-                                MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f),
-                                // Aplica la misma forma que la imagen para que la superposición también esté redondeada
-                                shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
-                            )
-                    )
-                    Icon(
-                        imageVector = Icons.Filled.GraphicEq, // Ícono de ecualizador
-                        contentDescription = "Reproduciendo",
-                        tint = Color.White, // Ícono blanco sobre la superposición oscura
-                        modifier = Modifier
-                            .align(Alignment.Center) // Centra el ícono
-                            .size(32.dp) // Tamaño del ícono
-                    )
-                }
-            }
-
-            // Sección de texto (título y artista)
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 10.dp) // Padding para el texto
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.labelLarge, // Estilo de Material 3 para títulos en tarjetas
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1, // Limita a una línea para mantener la UI compacta
-                    overflow = TextOverflow.Ellipsis // Añade "..." si el texto es muy largo
-                )
-                Spacer(modifier = Modifier.height(2.dp)) // Pequeño espacio entre título y artista
-                Text(
-                    text = artist,
-                    style = MaterialTheme.typography.labelMedium, // Estilo para texto secundario
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant // Color más sutil para el artista
                 )
             }
         }

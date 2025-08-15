@@ -59,7 +59,7 @@ fun LibraryActionRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = 6.dp), // Adjusted bottom padding
+            .padding(start = 4.dp), // Adjusted bottom padding
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
