@@ -158,6 +158,7 @@ fun ArtistDetailScreen(
                         items(songs, key = { song -> "artist_song_${song.id}" }) { song ->
                             EnhancedSongListItem(
                                 song = song,
+                                isCurrentSong = songs.isNotEmpty() && stablePlayerState.currentSong == song,
                                 isPlaying = stablePlayerState.currentSong?.id == song.id,
                                 onMoreOptionsClick = { /* TODO */ },
                                 onClick = { playerViewModel.showAndPlaySong(song, songs) }

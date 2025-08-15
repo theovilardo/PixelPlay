@@ -64,6 +64,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
+import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Album
@@ -79,6 +80,7 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlbumDetailScreen(
@@ -166,6 +168,7 @@ fun AlbumDetailScreen(
                             items(songs, key = { song -> "album_song_${song.id}" }) { song ->
                                 EnhancedSongListItem(
                                     song = song,
+                                    isCurrentSong = songs.isNotEmpty() && stablePlayerState.currentSong == song,
                                     isPlaying = stablePlayerState.currentSong?.id == song.id,
                                     onMoreOptionsClick = { /* TODO */ },
                                     onClick = { playerViewModel.showAndPlaySong(song, songs) }
