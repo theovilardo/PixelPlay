@@ -70,7 +70,7 @@ fun OptimizedAlbumArt(
         .fillMaxWidth(lerp(0.5f, 0.8f, expansionFraction))
         .aspectRatio(1f)
         .clip(RoundedCornerShape(lerp(16.dp, 24.dp, expansionFraction)))
-        .shadow(elevation = 16.dp * expansionFraction)
+        //.shadow(elevation = 16.dp * expansionFraction)
         .graphicsLayer {
             alpha = expansionFraction
         }
