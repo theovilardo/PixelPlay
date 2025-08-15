@@ -38,7 +38,9 @@ import com.theveloper.pixelplay.data.database.toArtist
 import com.theveloper.pixelplay.data.database.toSong
 import com.theveloper.pixelplay.data.model.Lyrics
 import com.theveloper.pixelplay.data.model.SyncedLine
+import com.theveloper.pixelplay.data.network.lyrics.LrcLibApiService
 import com.theveloper.pixelplay.utils.LogUtils
+import com.theveloper.pixelplay.utils.LyricsUtils
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first // Still needed for initialSetupDoneFlow.first() if used that way
@@ -61,7 +63,8 @@ class MusicRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val searchHistoryDao: SearchHistoryDao,
-    private val musicDao: MusicDao
+    private val musicDao: MusicDao,
+    private val lrcLibApiService: LrcLibApiService
 ) : MusicRepository {
 
     private val directoryScanMutex = Mutex()
@@ -618,6 +621,51 @@ class MusicRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             Log.e("MusicRepositoryImpl", "Error reading lyrics from file for song: ${song.title}", e)
             null
+        }
+    }
+
+    /**
+     * Obtiene la letra de una canción desde la API de LRCLIB, la persiste en la base de datos
+     * y la devuelve como un objeto Lyrics parseado.
+     *
+     * @param song La canción para la cual se buscará la letra.
+     * @return Un objeto Result que contiene el objeto Lyrics si se encontró, o un error.
+     */
+    override suspend fun getLyricsFromRemote(song: Song): Result<Pair<Lyrics, String>> = withContext(Dispatchers.IO) {
+        try {
+            val response = lrcLibApiService.getLyrics(
+                trackName = song.title,
+                artistName = song.artist,
+                albumName = song.album,
+                duration = (song.duration / 1000).toInt()
+            )
+
+            if (response != null && (!response.syncedLyrics.isNullOrEmpty() || !response.plainLyrics.isNullOrEmpty())) {
+                // Prioritize synced for saving, but parse both for returning
+                val rawLyricsToSave = response.syncedLyrics ?: response.plainLyrics!!
+                musicDao.updateLyrics(song.id.toLong(), rawLyricsToSave)
+
+                val synced = response.syncedLyrics?.let { LyricsUtils.parseLyrics(it).synced }
+                // If we have plain lyrics from the API, use them. Otherwise, create plain lyrics from the synced ones.
+                val plain = response.plainLyrics?.lines() ?: synced?.map { it.line }
+
+                if (synced.isNullOrEmpty() && plain.isNullOrEmpty()) {
+                     return@withContext Result.failure(Exception("No lyrics found for this song."))
+                }
+
+                val parsedLyrics = Lyrics(
+                    plain = plain,
+                    synced = synced,
+                    areFromRemote = true
+                )
+
+                Result.success(Pair(parsedLyrics, rawLyricsToSave))
+            } else {
+                Result.failure(Exception("No lyrics found for this song."))
+            }
+        } catch (e: Exception) {
+            Log.e("MusicRepositoryImpl", "Error fetching lyrics from remote", e)
+            Result.failure(e)
         }
     }
 }

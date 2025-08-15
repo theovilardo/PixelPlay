@@ -16,6 +16,7 @@ import com.theveloper.pixelplay.data.database.SearchHistoryDao
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.preferences.dataStore
 import com.theveloper.pixelplay.data.media.SongMetadataEditor
+import com.theveloper.pixelplay.data.network.lyrics.LrcLibApiService
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.data.repository.MusicRepositoryImpl
 import dagger.Module
@@ -26,6 +27,10 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -100,13 +105,15 @@ object AppModule {
         @ApplicationContext context: Context,
         userPreferencesRepository: UserPreferencesRepository,
         searchHistoryDao: SearchHistoryDao,
-        musicDao: MusicDao // Añadir MusicDao como parámetro
+        musicDao: MusicDao, // Añadir MusicDao como parámetro
+        lrcLibApiService: LrcLibApiService
     ): MusicRepository {
         return MusicRepositoryImpl(
             context = context,
             userPreferencesRepository = userPreferencesRepository,
             searchHistoryDao = searchHistoryDao,
-            musicDao = musicDao // Pasar MusicDao
+            musicDao = musicDao,
+            lrcLibApiService = lrcLibApiService // Pasar MusicDao
         )
     }
 
@@ -129,5 +136,40 @@ object AppModule {
     @Provides
     fun provideSongMetadataEditor(@ApplicationContext context: Context, musicDao: MusicDao): SongMetadataEditor {
         return SongMetadataEditor(context, musicDao)
+    }
+
+    /**
+     * Provee una instancia singleton de OkHttpClient con un interceptor de logging.
+     */
+    @Provides
+    @Singleton
+    fun provideOkHttpClient(): OkHttpClient {
+        val loggingInterceptor = HttpLoggingInterceptor()
+        loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY)
+        return OkHttpClient.Builder()
+            .addInterceptor(loggingInterceptor)
+            .build()
+    }
+
+    /**
+     * Provee una instancia singleton de Retrofit para la API de LRCLIB.
+     */
+    @Provides
+    @Singleton
+    fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl("https://lrclib.net/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
+
+    /**
+     * Provee una instancia singleton del servicio de la API de LRCLIB.
+     */
+    @Provides
+    @Singleton
+    fun provideLrcLibApiService(retrofit: Retrofit): LrcLibApiService {
+        return retrofit.create(LrcLibApiService::class.java)
     }
 }

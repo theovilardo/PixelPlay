@@ -125,6 +125,8 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.media3.common.util.UnstableApi
+import com.theveloper.pixelplay.presentation.components.subcomps.FetchLyricsDialog
+import com.theveloper.pixelplay.presentation.viewmodel.LyricsSearchUiState
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -1433,6 +1435,9 @@ private fun FullPlayerContentInternal(
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     var showLyricsSheet by remember { mutableStateOf(false) }
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
+    val lyricsSearchUiState by playerViewModel.lyricsSearchUiState.collectAsState()
+
+    var showFetchLyricsDialog by remember { mutableStateOf(false) }
 
 
     // totalDurationValue is derived from stablePlayerState, so it's fine.
@@ -1457,6 +1462,52 @@ private fun FullPlayerContentInternal(
     val controlPlayPauseColor = LocalMaterialTheme.current.primary
     val controlTintPlayPauseIcon = LocalMaterialTheme.current.onPrimary
     val controlTintOtherIcons = LocalMaterialTheme.current.primary
+
+    // Lógica para el botón de Lyrics en el reproductor expandido
+    val onLyricsClick = {
+        val lyrics = stablePlayerState.lyrics
+        if (lyrics?.synced.isNullOrEmpty() && lyrics?.plain.isNullOrEmpty()) {
+            // Si no hay letra, mostramos el diálogo para buscar
+            showFetchLyricsDialog = true
+        } else {
+            // Si hay letra, mostramos el sheet directamente
+            showLyricsSheet = true
+        }
+    }
+
+    if (showFetchLyricsDialog) {
+        FetchLyricsDialog(
+            uiState = lyricsSearchUiState,
+            onConfirm = {
+                // El usuario confirma, iniciamos la búsqueda
+                playerViewModel.fetchLyricsForCurrentSong()
+            },
+            onDismiss = {
+                // El usuario cancela o cierra el diálogo
+                showFetchLyricsDialog = false
+                playerViewModel.resetLyricsSearchState()
+            }
+        )
+    }
+
+    // Observador para reaccionar al resultado de la búsqueda de letras
+    LaunchedEffect(lyricsSearchUiState) {
+        when (val state = lyricsSearchUiState) {
+            is LyricsSearchUiState.Success -> {
+                if (showFetchLyricsDialog) {
+                    showFetchLyricsDialog = false // Cierra el diálogo de búsqueda
+                    showLyricsSheet = true       // Muestra la letra encontrada
+                    playerViewModel.resetLyricsSearchState()
+                }
+            }
+            is LyricsSearchUiState.Error -> {
+                // El diálogo ya muestra el error. Si falla, el usuario
+                // puede cerrar el diálogo de error con el botón "OK".
+                // El toast que mencionas se reemplaza por este diálogo de error.
+            }
+            else -> Unit
+        }
+    }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -1526,12 +1577,13 @@ private fun FullPlayerContentInternal(
                                 )
                                 .background(LocalMaterialTheme.current.onPrimary)
                                 .clickable {
-                                    val lyrics = stablePlayerState.lyrics
-                                    if (lyrics?.synced == null && lyrics?.plain == null) {
-                                        playerViewModel.sendToast("No lyrics for this song")
-                                    } else {
-                                        showLyricsSheet = true
-                                    }
+                                    onLyricsClick()
+//                                    val lyrics = stablePlayerState.lyrics
+//                                    if (lyrics?.synced == null && lyrics?.plain == null) {
+//                                        playerViewModel.sendToast("No lyrics for this song")
+//                                    } else {
+//                                        showLyricsSheet = true
+//                                    }
                                 },
                             contentAlignment = Alignment.Center
                         ) {

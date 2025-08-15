@@ -153,6 +153,14 @@ data class PlayerUiState(
     val undoBarVisibleDuration: Long = 4000L // 4 seconds
 )
 
+// Estado para la UI de búsqueda de letras
+sealed interface LyricsSearchUiState {
+    object Idle : LyricsSearchUiState
+    object Loading : LyricsSearchUiState
+    data class Success(val lyrics: Lyrics) : LyricsSearchUiState
+    data class Error(val message: String) : LyricsSearchUiState
+}
+
 @UnstableApi
 @SuppressLint("LogNotTimber")
 @HiltViewModel
@@ -216,6 +224,9 @@ class PlayerViewModel @Inject constructor(
 
     private val _activeTimerValueDisplay = MutableStateFlow<String?>(null)
     val activeTimerValueDisplay: StateFlow<String?> = _activeTimerValueDisplay.asStateFlow()
+
+    private val _lyricsSearchUiState = MutableStateFlow<LyricsSearchUiState>(LyricsSearchUiState.Idle)
+    val lyricsSearchUiState = _lyricsSearchUiState.asStateFlow()
 
     private var sleepTimerJob: Job? = null
     // private val _endOfTrackSongId = MutableStateFlow<String?>(null) // Removed, EotStateHolder is the source of truth
@@ -2223,5 +2234,39 @@ class PlayerViewModel @Inject constructor(
 
     suspend fun generateAiMetadata(song: Song, fields: List<String>): Result<SongMetadata> {
         return aiMetadataGenerator.generate(song, fields)
+    }
+
+    /**
+     * Busca la letra de la canción actual en el servicio remoto.
+     */
+    fun fetchLyricsForCurrentSong() {
+        val currentSong = stablePlayerState.value.currentSong
+        viewModelScope.launch {
+            _lyricsSearchUiState.value = LyricsSearchUiState.Loading
+            if (currentSong != null) {
+                musicRepository.getLyricsFromRemote(currentSong)
+                    .onSuccess { (lyrics, rawLyrics) -> // Deconstruct the pair
+                        _lyricsSearchUiState.value = LyricsSearchUiState.Success(lyrics)
+                        // Actualizamos la letra en el estado del reproductor
+                        // Y TAMBIÉN en la instancia de la canción actual para mantener la consistencia
+                        _stablePlayerState.update { state ->
+                            state.copy(
+                                lyrics = lyrics,
+                                currentSong = state.currentSong?.copy(lyrics = rawLyrics)
+                            )
+                        }
+                    }
+                    .onFailure { error ->
+                        _lyricsSearchUiState.value = LyricsSearchUiState.Error(error.message ?: "Unknown error")
+                    }
+            }
+        }
+    }
+
+    /**
+     * Resetea el estado de la búsqueda de letras a Idle.
+     */
+    fun resetLyricsSearchState() {
+        _lyricsSearchUiState.value = LyricsSearchUiState.Idle
     }
 }
