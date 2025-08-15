@@ -2245,11 +2245,15 @@ class PlayerViewModel @Inject constructor(
             _lyricsSearchUiState.value = LyricsSearchUiState.Loading
             if (currentSong != null) {
                 musicRepository.getLyricsFromRemote(currentSong)
-                    .onSuccess { lyrics ->
+                    .onSuccess { (lyrics, rawLyrics) -> // Deconstruct the pair
                         _lyricsSearchUiState.value = LyricsSearchUiState.Success(lyrics)
                         // Actualizamos la letra en el estado del reproductor
-                        _stablePlayerState.update {
-                            it.copy(lyrics = lyrics)
+                        // Y TAMBIÉN en la instancia de la canción actual para mantener la consistencia
+                        _stablePlayerState.update { state ->
+                            state.copy(
+                                lyrics = lyrics,
+                                currentSong = state.currentSong?.copy(lyrics = rawLyrics)
+                            )
                         }
                     }
                     .onFailure { error ->

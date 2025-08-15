@@ -631,7 +631,7 @@ class MusicRepositoryImpl @Inject constructor(
      * @param song La canción para la cual se buscará la letra.
      * @return Un objeto Result que contiene el objeto Lyrics si se encontró, o un error.
      */
-    override suspend fun getLyricsFromRemote(song: Song): Result<Lyrics> = withContext(Dispatchers.IO) {
+    override suspend fun getLyricsFromRemote(song: Song): Result<Pair<Lyrics, String>> = withContext(Dispatchers.IO) {
         try {
             val response = lrcLibApiService.getLyrics(
                 trackName = song.title,
@@ -640,19 +640,26 @@ class MusicRepositoryImpl @Inject constructor(
                 duration = (song.duration / 1000).toInt()
             )
 
-            // Comprobar si la respuesta tiene alguna letra (sincronizada o plana)
             if (response != null && (!response.syncedLyrics.isNullOrEmpty() || !response.plainLyrics.isNullOrEmpty())) {
-                // Dar prioridad a las letras sincronizadas si existen
-                val rawLyrics = response.syncedLyrics ?: response.plainLyrics!!
+                // Prioritize synced for saving, but parse both for returning
+                val rawLyricsToSave = response.syncedLyrics ?: response.plainLyrics!!
+                musicDao.updateLyrics(song.id.toLong(), rawLyricsToSave)
 
-                // 1. Persistir la letra en formato String en la base de datos local.
-                //    Esto utiliza el mismo mecanismo que tu EditSongSheet.
-                //    Usamos song.path como identificador único.
-                musicDao.updateLyrics(song.id.toLong(), rawLyrics)
+                val synced = response.syncedLyrics?.let { LyricsUtils.parseLyrics(it).synced }
+                // If we have plain lyrics from the API, use them. Otherwise, create plain lyrics from the synced ones.
+                val plain = response.plainLyrics?.lines() ?: synced?.map { it.line }
 
-                // 2. Parsear el string crudo para devolver el objeto Lyrics estructurado a la UI.
-                val parsedLyrics = LyricsUtils.parseLyrics(rawLyrics)
-                Result.success(parsedLyrics)
+                if (synced.isNullOrEmpty() && plain.isNullOrEmpty()) {
+                     return@withContext Result.failure(Exception("No lyrics found for this song."))
+                }
+
+                val parsedLyrics = Lyrics(
+                    plain = plain,
+                    synced = synced,
+                    areFromRemote = true
+                )
+
+                Result.success(Pair(parsedLyrics, rawLyricsToSave))
             } else {
                 Result.failure(Exception("No lyrics found for this song."))
             }
