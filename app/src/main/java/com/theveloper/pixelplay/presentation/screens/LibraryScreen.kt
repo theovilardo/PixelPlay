@@ -722,7 +722,7 @@ fun LibraryFavoritesTab(
                     ),
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 10.dp)
+                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 30.dp)
             ) {
                 items(favoriteSongs, key = { "fav_${it.id}" }) { song ->
                     val isPlayingThisSong = song.id == stablePlayerState.currentSong?.id && stablePlayerState.isPlaying
@@ -858,7 +858,7 @@ fun LibrarySongsTab(
                             ),
                         state = listState,
                         verticalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 10.dp)
+                        contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 30.dp)
                     ) {
                         item { Spacer(Modifier.height(0.dp)) }
                         items(songs, key = { "song_${it.id}" }) { song ->
