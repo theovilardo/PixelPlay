@@ -24,6 +24,7 @@ import com.theveloper.pixelplay.presentation.screens.GenreDetailScreen
 import com.theveloper.pixelplay.presentation.screens.HomeScreen
 import com.theveloper.pixelplay.presentation.screens.LibraryScreen
 import com.theveloper.pixelplay.presentation.screens.PlaylistDetailScreen
+import com.theveloper.pixelplay.presentation.screens.NavBarCornerRadiusScreen
 import com.theveloper.pixelplay.presentation.screens.SearchScreen
 import com.theveloper.pixelplay.presentation.screens.SettingsScreen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
@@ -49,6 +50,7 @@ fun AppNavigation(
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(
+                    navController = navController,
                     playerViewModel = playerViewModel,
                     onNavigationIconClick = {
                         navController.popBackStack()
@@ -132,6 +134,9 @@ fun AppNavigation(
                         playerViewModel = playerViewModel
                     )
                 }
+            }
+            composable("nav_bar_corner_radius") {
+                NavBarCornerRadiusScreen(navController)
             }
         }
     }

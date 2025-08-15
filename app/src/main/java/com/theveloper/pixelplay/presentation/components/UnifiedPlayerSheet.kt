@@ -140,7 +140,7 @@ private val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error("
 
 val MiniPlayerHeight = 64.dp
 val PlayerSheetExpandedCornerRadius = 32.dp
-val PlayerSheetCollapsedCornerRadius = 32.dp
+//val PlayerSheetCollapsedCornerRadius = 32.dp
 val CollapsedPlayerContentSpacerHeight = 6.dp
 const val ANIMATION_DURATION_MS = 255
 
@@ -211,6 +211,8 @@ fun UnifiedPlayerSheet(
 
     val currentSheetContentState by playerViewModel.sheetState.collectAsState()
     val predictiveBackCollapseProgress by playerViewModel.predictiveBackCollapseFraction.collectAsState()
+
+    val navBarCornerRadius by playerViewModel.navBarCornerRadius.collectAsState()
 
     val density = LocalDensity.current
     val configuration = LocalConfiguration.current
@@ -425,16 +427,16 @@ fun UnifiedPlayerSheet(
             if (showPlayerContentArea) {
                 if (predictiveBackCollapseProgress > 0f && currentSheetContentState == PlayerSheetState.EXPANDED) {
                     val expandedCorner = 0.dp
-                    val collapsedCornerTarget = if (hideNavBar) 32.dp else PlayerSheetCollapsedCornerRadius
+                    val collapsedCornerTarget = if (hideNavBar) 32.dp else navBarCornerRadius.dp
                     lerp(expandedCorner, collapsedCornerTarget, predictiveBackCollapseProgress)
                 } else {
                     val fraction = playerContentExpansionFraction.value
                     val expandedTarget = 0.dp
-                    val collapsedTarget = if (hideNavBar) 32.dp else PlayerSheetCollapsedCornerRadius
+                    val collapsedTarget = if (hideNavBar) 32.dp else navBarCornerRadius.dp
                     lerp(collapsedTarget, expandedTarget, fraction)
                 }
             } else {
-                if (hideNavBar) 32.dp else PlayerSheetCollapsedCornerRadius
+                if (hideNavBar) 32.dp else navBarCornerRadius.dp
             }
         }
     }
@@ -451,8 +453,8 @@ fun UnifiedPlayerSheet(
     val sheetShape = RoundedCornerShape(
         topStart = overallSheetTopCornerRadius,
         topEnd = overallSheetTopCornerRadius,
-        bottomStart = PlayerSheetCollapsedCornerRadius,
-        bottomEnd = PlayerSheetCollapsedCornerRadius
+        bottomStart = navBarCornerRadius.dp,
+        bottomEnd = navBarCornerRadius.dp
     )
 
     val playerContentActualBottomRadiusTargetValue by remember(
@@ -483,7 +485,7 @@ fun UnifiedPlayerSheet(
                     }
                 } else {
                     if (!stablePlayerState.isPlaying || stablePlayerState.currentSong == null) {
-                        PlayerSheetCollapsedCornerRadius
+                        navBarCornerRadius.dp
                     } else {
                         12.dp
                     }
@@ -497,7 +499,7 @@ fun UnifiedPlayerSheet(
                 playerContentExpansionFraction.value < 0.01f
             ) {
                 val baseCollapsedRadius = 12.dp
-                lerp(baseCollapsedRadius, PlayerSheetCollapsedCornerRadius, swipeDismissProgress.value)
+                lerp(baseCollapsedRadius, navBarCornerRadius.dp, swipeDismissProgress.value)
             } else {
                 calculatedNormally
             }
@@ -537,7 +539,7 @@ fun UnifiedPlayerSheet(
                 playerContentExpansionFraction.value < 0.01f
             ) {
                 val baseCollapsedRadius = 12.dp
-                lerp(baseCollapsedRadius, PlayerSheetCollapsedCornerRadius, swipeDismissProgress.value)
+                lerp(baseCollapsedRadius, navBarCornerRadius.dp, swipeDismissProgress.value)
             } else {
                 calculatedNormally
             }
@@ -827,8 +829,7 @@ fun UnifiedPlayerSheet(
                                 clip = false
                             )
                             .background(
-                                color = albumColorScheme?.primaryContainer
-                                    ?: MaterialTheme.colorScheme.primaryContainer,
+                                color = albumColorScheme.primaryContainer,
                                 shape = AbsoluteSmoothCornerShape(
                                     cornerRadiusTL = overallSheetTopCornerRadius,
                                     smoothnessAsPercentBL = 60,
@@ -973,6 +974,7 @@ fun UnifiedPlayerSheet(
                                         ) {
                                             MiniPlayerContentInternal(
                                                 song = currentSongNonNull, // Use non-null version
+                                                cornerRadiusAlb = (overallSheetTopCornerRadius.value * 0.5).dp,
                                                 isPlaying = stablePlayerState.isPlaying, // from top-level stablePlayerState
                                                 onPlayPause = { playerViewModel.playPause() },
                                                 onNext = { playerViewModel.nextSong() },
@@ -1057,9 +1059,9 @@ fun UnifiedPlayerSheet(
                             smoothnessAsPercentBR = 60,
                             cornerRadiusTR = playerContentActualBottomRadius,
                             smoothnessAsPercentTL = 60,
-                            cornerRadiusBL = PlayerSheetCollapsedCornerRadius,
+                            cornerRadiusBL = navBarCornerRadius.dp,
                             smoothnessAsPercentTR = 60,
-                            cornerRadiusBR = PlayerSheetCollapsedCornerRadius,
+                            cornerRadiusBR = navBarCornerRadius.dp,
                             smoothnessAsPercentBL = 60
                         )
                     }
@@ -1088,7 +1090,7 @@ fun UnifiedPlayerSheet(
                         currentRoute = rememberedCurrentRoute,
                         navBarHideFraction = navBarHideFraction,
                         topCornersRadiusDp = playerContentActualBottomRadius,
-                        bottomCornersRadiusDp = PlayerSheetCollapsedCornerRadius,
+                        bottomCornersRadiusDp = navBarCornerRadius.dp,
                         navBarHeightPx = navBarHeightPx,
                         navBarInset = systemNavBarInset,
                         modifier = playerInternalNavBarModifier
@@ -1290,14 +1292,25 @@ private fun MiniPlayerContentInternal(
     song: Song,
     isPlaying: Boolean,
     onPlayPause: () -> Unit,
+    cornerRadiusAlb: Dp,
     onNext: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val albumShape = AbsoluteSmoothCornerShape(
+        cornerRadiusTL = cornerRadiusAlb,
+        smoothnessAsPercentBL = 60,
+        cornerRadiusTR = cornerRadiusAlb,
+        smoothnessAsPercentBR = 60,
+        cornerRadiusBR = cornerRadiusAlb,
+        smoothnessAsPercentTL = 60,
+        cornerRadiusBL = cornerRadiusAlb,
+        smoothnessAsPercentTR = 60
+    )
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(MiniPlayerHeight)
-            .padding(start = 11.dp, end = 14.dp),
+            .padding(start = 10.dp, end = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         SmartImage(
@@ -1575,7 +1588,7 @@ private fun FullPlayerContentInternal(
                 .fillMaxWidth(lerp(0.5f, 0.8f, expansionFraction))
                 .aspectRatio(1f)
                 .clip(RoundedCornerShape(lerp(16.dp, 24.dp, expansionFraction)))
-                .shadow(elevation = 16.dp * expansionFraction)
+                //.shadow(elevation = 16.dp * expansionFraction)
                 .graphicsLayer { alpha = expansionFraction }
 
             // Album Cover section - uses new Composable
@@ -1686,7 +1699,7 @@ fun AnimatedPlaybackControls(
     compressionWeight: Float = 0.65f,
     pressAnimationSpec: AnimationSpec<Float>,
     releaseDelay: Long = 220L,
-    playPauseCornerPlaying: Dp = 70.dp,
+    playPauseCornerPlaying: Dp = 60.dp,
     playPauseCornerPaused: Dp = 26.dp,
     colorOtherButtons: Color = LocalMaterialTheme.current.primary.copy(alpha = 0.15f),
     colorPlayPause: Color = LocalMaterialTheme.current.primary,
@@ -1756,7 +1769,16 @@ fun AnimatedPlaybackControls(
                 ),
                 label = "PlayCornerRadiusAnim"
             )
-            val playShape = RoundedCornerShape(playCorner)
+            val playShape = AbsoluteSmoothCornerShape(
+                cornerRadiusTL = playCorner,
+                smoothnessAsPercentTR = 60,
+                cornerRadiusBL = playCorner,
+                smoothnessAsPercentTL = 60,
+                cornerRadiusTR = playCorner,
+                smoothnessAsPercentBL = 60,
+                cornerRadiusBR = playCorner,
+                smoothnessAsPercentBR = 60
+            )
             Box(
                 modifier = Modifier
                     .weight(playWeight)

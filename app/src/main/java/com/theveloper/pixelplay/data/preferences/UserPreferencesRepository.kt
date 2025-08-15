@@ -59,6 +59,7 @@ class UserPreferencesRepository @Inject constructor(
         val MOCK_GENRES_ENABLED = booleanPreferencesKey("mock_genres_enabled")
         val LAST_DAILY_MIX_UPDATE = longPreferencesKey("last_daily_mix_update")
         val DAILY_MIX_SONG_IDS = stringPreferencesKey("daily_mix_song_ids")
+        val NAV_BAR_CORNER_RADIUS = intPreferencesKey("nav_bar_corner_radius")
     }
 
     val dailyMixSongIdsFlow: Flow<List<String>> = dataStore.data
@@ -339,6 +340,17 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setGeminiApiKey(apiKey: String) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.GEMINI_API_KEY] = apiKey
+        }
+    }
+
+    val navBarCornerRadiusFlow: Flow<Int> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.NAV_BAR_CORNER_RADIUS] ?: 32
+        }
+
+    suspend fun setNavBarCornerRadius(radius: Int) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.NAV_BAR_CORNER_RADIUS] = radius
         }
     }
 }

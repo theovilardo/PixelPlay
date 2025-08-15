@@ -118,7 +118,6 @@ import com.theveloper.pixelplay.data.model.SortOption
 // import com.theveloper.pixelplay.presentation.components.InfiniteListHandler // Removed
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
-import com.theveloper.pixelplay.presentation.components.PlayerSheetCollapsedCornerRadius
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
@@ -144,6 +143,7 @@ import okhttp3.internal.toImmutableList
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 val ListExtraBottomGap = 30.dp
+val PlayerSheetCollapsedCornerRadius = 32.dp
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
