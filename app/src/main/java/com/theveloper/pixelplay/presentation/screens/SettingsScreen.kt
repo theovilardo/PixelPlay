@@ -101,6 +101,7 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
+    navController: NavController,
     playerViewModel: PlayerViewModel,
     onNavigationIconClick: () -> Unit,
     settingsViewModel: SettingsViewModel = hiltViewModel()
@@ -274,6 +275,26 @@ fun SettingsScreen(
                                 tint = MaterialTheme.colorScheme.secondary
                             )
                         }
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    SettingsItem(
+                        title = "NavBar Corner Radius",
+                        subtitle = "Adjust the corner radius of the navigation bar.",
+                        leadingIcon = {
+                            Icon(
+                                painter = painterResource(id = R.drawable.rounded_all_inclusive_24),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
+                        },
+                        trailingIcon = {
+                            Icon(
+                                imageVector = Icons.Rounded.ChevronRight,
+                                contentDescription = "Adjust radius",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
+                        onClick = { navController.navigate("nav_bar_corner_radius") }
                     )
                 }
             }

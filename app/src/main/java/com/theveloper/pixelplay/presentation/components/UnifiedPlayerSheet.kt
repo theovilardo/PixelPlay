@@ -140,7 +140,7 @@ private val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error("
 
 val MiniPlayerHeight = 64.dp
 val PlayerSheetExpandedCornerRadius = 32.dp
-val PlayerSheetCollapsedCornerRadius = 32.dp
+//val PlayerSheetCollapsedCornerRadius = 32.dp
 val CollapsedPlayerContentSpacerHeight = 6.dp
 const val ANIMATION_DURATION_MS = 255
 
@@ -211,6 +211,8 @@ fun UnifiedPlayerSheet(
 
     val currentSheetContentState by playerViewModel.sheetState.collectAsState()
     val predictiveBackCollapseProgress by playerViewModel.predictiveBackCollapseFraction.collectAsState()
+
+    val navBarCornerRadius by playerViewModel.navBarCornerRadius.collectAsState()
 
     val density = LocalDensity.current
     val configuration = LocalConfiguration.current
@@ -425,16 +427,16 @@ fun UnifiedPlayerSheet(
             if (showPlayerContentArea) {
                 if (predictiveBackCollapseProgress > 0f && currentSheetContentState == PlayerSheetState.EXPANDED) {
                     val expandedCorner = 0.dp
-                    val collapsedCornerTarget = if (hideNavBar) 32.dp else PlayerSheetCollapsedCornerRadius
+                    val collapsedCornerTarget = if (hideNavBar) 32.dp else navBarCornerRadius.dp
                     lerp(expandedCorner, collapsedCornerTarget, predictiveBackCollapseProgress)
                 } else {
                     val fraction = playerContentExpansionFraction.value
                     val expandedTarget = 0.dp
-                    val collapsedTarget = if (hideNavBar) 32.dp else PlayerSheetCollapsedCornerRadius
+                    val collapsedTarget = if (hideNavBar) 32.dp else navBarCornerRadius.dp
                     lerp(collapsedTarget, expandedTarget, fraction)
                 }
             } else {
-                if (hideNavBar) 32.dp else PlayerSheetCollapsedCornerRadius
+                if (hideNavBar) 32.dp else navBarCornerRadius.dp
             }
         }
     }
@@ -451,8 +453,8 @@ fun UnifiedPlayerSheet(
     val sheetShape = RoundedCornerShape(
         topStart = overallSheetTopCornerRadius,
         topEnd = overallSheetTopCornerRadius,
-        bottomStart = PlayerSheetCollapsedCornerRadius,
-        bottomEnd = PlayerSheetCollapsedCornerRadius
+        bottomStart = navBarCornerRadius.dp,
+        bottomEnd = navBarCornerRadius.dp
     )
 
     val playerContentActualBottomRadiusTargetValue by remember(
@@ -483,7 +485,7 @@ fun UnifiedPlayerSheet(
                     }
                 } else {
                     if (!stablePlayerState.isPlaying || stablePlayerState.currentSong == null) {
-                        PlayerSheetCollapsedCornerRadius
+                        navBarCornerRadius.dp
                     } else {
                         12.dp
                     }
@@ -497,7 +499,7 @@ fun UnifiedPlayerSheet(
                 playerContentExpansionFraction.value < 0.01f
             ) {
                 val baseCollapsedRadius = 12.dp
-                lerp(baseCollapsedRadius, PlayerSheetCollapsedCornerRadius, swipeDismissProgress.value)
+                lerp(baseCollapsedRadius, navBarCornerRadius.dp, swipeDismissProgress.value)
             } else {
                 calculatedNormally
             }
@@ -537,7 +539,7 @@ fun UnifiedPlayerSheet(
                 playerContentExpansionFraction.value < 0.01f
             ) {
                 val baseCollapsedRadius = 12.dp
-                lerp(baseCollapsedRadius, PlayerSheetCollapsedCornerRadius, swipeDismissProgress.value)
+                lerp(baseCollapsedRadius, navBarCornerRadius.dp, swipeDismissProgress.value)
             } else {
                 calculatedNormally
             }
@@ -1057,9 +1059,9 @@ fun UnifiedPlayerSheet(
                             smoothnessAsPercentBR = 60,
                             cornerRadiusTR = playerContentActualBottomRadius,
                             smoothnessAsPercentTL = 60,
-                            cornerRadiusBL = PlayerSheetCollapsedCornerRadius,
+                            cornerRadiusBL = navBarCornerRadius.dp,
                             smoothnessAsPercentTR = 60,
-                            cornerRadiusBR = PlayerSheetCollapsedCornerRadius,
+                            cornerRadiusBR = navBarCornerRadius.dp,
                             smoothnessAsPercentBL = 60
                         )
                     }
@@ -1088,7 +1090,7 @@ fun UnifiedPlayerSheet(
                         currentRoute = rememberedCurrentRoute,
                         navBarHideFraction = navBarHideFraction,
                         topCornersRadiusDp = playerContentActualBottomRadius,
-                        bottomCornersRadiusDp = PlayerSheetCollapsedCornerRadius,
+                        bottomCornersRadiusDp = navBarCornerRadius.dp,
                         navBarHeightPx = navBarHeightPx,
                         navBarInset = systemNavBarInset,
                         modifier = playerInternalNavBarModifier

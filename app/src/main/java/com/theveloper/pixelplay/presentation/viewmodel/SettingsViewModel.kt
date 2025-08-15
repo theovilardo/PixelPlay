@@ -17,7 +17,8 @@ data class SettingsUiState(
     val directoryItems: List<DirectoryItem> = emptyList(),
     val isLoadingDirectories: Boolean = true,
     val playerThemePreference: String = ThemePreference.ALBUM_ART, // Default to Album Art
-    val mockGenresEnabled: Boolean = false
+    val mockGenresEnabled: Boolean = false,
+    val navBarCornerRadius: Int = 32
 )
 
 @HiltViewModel
@@ -44,6 +45,12 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferencesRepository.mockGenresEnabledFlow.collect { enabled ->
                 _uiState.update { it.copy(mockGenresEnabled = enabled) }
+            }
+        }
+
+        viewModelScope.launch {
+            userPreferencesRepository.navBarCornerRadiusFlow.collect { radius ->
+                _uiState.update { it.copy(navBarCornerRadius = radius) }
             }
         }
 
@@ -127,6 +134,12 @@ class SettingsViewModel @Inject constructor(
     fun onGeminiApiKeyChange(apiKey: String) {
         viewModelScope.launch {
             userPreferencesRepository.setGeminiApiKey(apiKey)
+        }
+    }
+
+    fun setNavBarCornerRadius(radius: Int) {
+        viewModelScope.launch {
+            userPreferencesRepository.setNavBarCornerRadius(radius)
         }
     }
 }
