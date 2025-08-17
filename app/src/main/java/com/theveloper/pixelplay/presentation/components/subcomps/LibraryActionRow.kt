@@ -134,7 +134,7 @@ fun LibraryActionRow(
                     ) // Custom background for dropdown
                 ) {
                     currentSortOptionsForTab.forEach { option: SortOption ->
-                        val enabled = option::class == selectedSortOption::class
+                        val enabled = option == selectedSortOption
                         DropdownMenuItem(
                             modifier = Modifier
                                 .padding(4.dp)

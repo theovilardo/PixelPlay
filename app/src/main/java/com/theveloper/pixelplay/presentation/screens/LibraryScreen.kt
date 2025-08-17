@@ -686,6 +686,13 @@ fun LibraryFavoritesTab(
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
     val listState = rememberLazyListState()
 
+    // Scroll to top when the list changes due to sorting
+    LaunchedEffect(favoriteSongs) {
+        if (favoriteSongs.isNotEmpty()) {
+            listState.scrollToItem(0)
+        }
+    }
+
     // No need to collect favoriteSongs again if it's passed directly as a list
     // However, if you need to react to its changes, ensure it's collected or passed as StateFlow's value
 
