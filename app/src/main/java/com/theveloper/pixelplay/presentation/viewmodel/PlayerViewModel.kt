@@ -1716,11 +1716,6 @@ class PlayerViewModel @Inject constructor(
 
     //Sorting
     fun sortSongs(sortOption: SortOption) {
-        // It's important that currentSongSortOption in uiState is updated BEFORE this function
-        // is called if triggered by the preference flow, or that this function updates it first.
-        // For user-initiated sort, this function is the source of truth for the new option.
-        _playerUiState.update { it.copy(currentSongSortOption = sortOption) } // Ensure state is set
-
         val sortedSongs = when (sortOption) {
             SortOption.SongTitleAZ -> _playerUiState.value.allSongs.sortedBy { it.title }
             SortOption.SongTitleZA -> _playerUiState.value.allSongs.sortedByDescending { it.title }
@@ -1730,7 +1725,12 @@ class PlayerViewModel @Inject constructor(
             SortOption.SongDuration -> _playerUiState.value.allSongs.sortedBy { it.duration }
             else -> _playerUiState.value.allSongs
         }.toImmutableList()
-        _playerUiState.update { it.copy(allSongs = sortedSongs) } // Update the list
+        _playerUiState.update {
+            it.copy(
+                allSongs = sortedSongs,
+                currentSongSortOption = sortOption
+            )
+        }
 
         viewModelScope.launch {
             userPreferencesRepository.setSongsSortOption(sortOption.displayName)
@@ -1738,8 +1738,6 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun sortAlbums(sortOption: SortOption) {
-        _playerUiState.update { it.copy(currentAlbumSortOption = sortOption) }
-
         val sortedAlbums = when (sortOption) {
             SortOption.AlbumTitleAZ -> _playerUiState.value.albums.sortedBy { it.title }
             SortOption.AlbumTitleZA -> _playerUiState.value.albums.sortedByDescending { it.title }
@@ -1747,7 +1745,12 @@ class PlayerViewModel @Inject constructor(
             SortOption.AlbumReleaseYear -> _playerUiState.value.albums.sortedByDescending { it.id } //need to implement album release date
             else -> _playerUiState.value.albums
         }.toImmutableList()
-        _playerUiState.update { it.copy(albums = sortedAlbums) }
+        _playerUiState.update {
+            it.copy(
+                albums = sortedAlbums,
+                currentAlbumSortOption = sortOption
+            )
+        }
 
         viewModelScope.launch {
             userPreferencesRepository.setAlbumsSortOption(sortOption.displayName)
@@ -1755,14 +1758,17 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun sortArtists(sortOption: SortOption) {
-        _playerUiState.update { it.copy(currentArtistSortOption = sortOption) }
-
         val sortedArtists = when (sortOption) {
             SortOption.ArtistNameAZ -> _playerUiState.value.artists.sortedBy { it.name }
             SortOption.ArtistNameZA -> _playerUiState.value.artists.sortedByDescending { it.name }
             else -> _playerUiState.value.artists
         }.toImmutableList()
-        _playerUiState.update { it.copy(artists = sortedArtists) }
+        _playerUiState.update {
+            it.copy(
+                artists = sortedArtists,
+                currentArtistSortOption = sortOption
+            )
+        }
 
         viewModelScope.launch {
             userPreferencesRepository.setArtistsSortOption(sortOption.displayName)
@@ -1770,7 +1776,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun sortFavoriteSongs(sortOption: SortOption) {
-        // _playerUiState.update { it.copy(currentFavoriteSortOption = sortOption) } // Ya no se actualiza aquí
+        _playerUiState.update { it.copy(currentFavoriteSortOption = sortOption) }
         _currentFavoriteSortOptionStateFlow.value = sortOption // Actualizar el StateFlow dedicado
         // The actual sorting is handled by the 'favoriteSongs' StateFlow reacting to 'currentFavoriteSortOptionStateFlow'.
         viewModelScope.launch {
