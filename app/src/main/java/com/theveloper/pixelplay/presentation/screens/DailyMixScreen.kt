@@ -112,6 +112,7 @@ fun DailyMixScreen(
     val isShuffleEnabled by remember { playerViewModel.stablePlayerState.map { it.isShuffleEnabled }.distinctUntilChanged() }.collectAsState(initial = false)
 
     val playerSheetState by playerViewModel.sheetState.collectAsState() // This is a simple enum, less critical but fine
+    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
     val favoriteSongIds by playerViewModel.favoriteSongIds.collectAsState()
 
     val showAiSheet by playerViewModel.showAiPlaylistSheet.collectAsState()
@@ -279,6 +280,7 @@ fun DailyMixScreen(
                         modifier = Modifier
                             .padding(horizontal = 16.dp),
                         song = song,
+                        isCurrentSong = dailyMixSongs.isNotEmpty() && stablePlayerState.currentSong == song,
                         isPlaying = currentSongId == song.id && isPlaying,
                         onClick = { playerViewModel.showAndPlaySong(song, dailyMixSongs, "Daily Mix", isVoluntaryPlay = false) },
                         onMoreOptionsClick = {
@@ -459,6 +461,7 @@ private fun ExpressiveDailyMixHeader(
                         colors = listOf(
                             MaterialTheme.colorScheme.surface.copy(alpha = 0.1f),
                             Color.Transparent,
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
                             MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
                             MaterialTheme.colorScheme.surface
                         ),

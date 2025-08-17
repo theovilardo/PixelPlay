@@ -722,13 +722,14 @@ fun LibraryFavoritesTab(
                     ),
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 10.dp)
+                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 30.dp)
             ) {
                 items(favoriteSongs, key = { "fav_${it.id}" }) { song ->
                     val isPlayingThisSong = song.id == stablePlayerState.currentSong?.id && stablePlayerState.isPlaying
                     // Using EnhancedSongListItem for consistency, though it has more details than SongListItemFavs
                     EnhancedSongListItem(
                         song = song,
+                        isCurrentSong = favoriteSongs.isNotEmpty() && stablePlayerState.currentSong == song,
                         isPlaying = isPlayingThisSong,
                         onMoreOptionsClick = { onMoreOptionsClick(song) },
                         onClick = { playerViewModel.showAndPlaySong(song) }
@@ -813,6 +814,7 @@ fun LibrarySongsTab(
                     items(15) {
                         EnhancedSongListItem(
                             song = Song.emptySong(), isPlaying = false, isLoading = true,
+                            isCurrentSong = songs.isNotEmpty() && stablePlayerState.currentSong == Song.emptySong(),
                             onMoreOptionsClick = {}, onClick = {}
                         )
                     }
@@ -858,7 +860,7 @@ fun LibrarySongsTab(
                             ),
                         state = listState,
                         verticalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 10.dp)
+                        contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 30.dp)
                     ) {
                         item { Spacer(Modifier.height(0.dp)) }
                         items(songs, key = { "song_${it.id}" }) { song ->
@@ -880,6 +882,7 @@ fun LibrarySongsTab(
                             EnhancedSongListItem(
                                 song = song,
                                 isPlaying = isPlayingThisSong,
+                                isCurrentSong = songs.isNotEmpty() && stablePlayerState.currentSong == song,
                                 isLoading = false,
                                 onMoreOptionsClick = rememberedOnMoreOptionsClick,
                                 onClick = rememberedOnClick
@@ -920,6 +923,7 @@ fun EnhancedSongListItem(
     modifier: Modifier = Modifier,
     song: Song,
     isPlaying: Boolean,
+    isCurrentSong: Boolean = false,
     isLoading: Boolean = false, // New parameter for shimmer state
     onMoreOptionsClick: (Song) -> Unit,
     onClick: () -> Unit
@@ -927,8 +931,8 @@ fun EnhancedSongListItem(
     val itemCornerRadius = 26.dp // Fixed for performance testing
 
     val colors = MaterialTheme.colorScheme
-    val containerColor = if (isPlaying && !isLoading) colors.primaryContainer.copy(alpha = 0.34f) else colors.surfaceContainerLow
-    val contentColor = if (isPlaying && !isLoading) colors.primary else colors.onSurface
+    val containerColor = if ((isCurrentSong) && !isLoading) colors.primaryContainer.copy(alpha = 0.34f) else colors.surfaceContainerLow
+    val contentColor = if ((isCurrentSong) && !isLoading) colors.primary else colors.onSurface
 
     val surfaceShape = remember { RoundedCornerShape(itemCornerRadius) }
 
