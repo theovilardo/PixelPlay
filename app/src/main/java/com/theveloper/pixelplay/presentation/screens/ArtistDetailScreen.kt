@@ -52,6 +52,8 @@ import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
+import com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet
+import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.ArtistDetailViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
@@ -72,6 +74,9 @@ fun ArtistDetailScreen(
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
     val playerSheetState by playerViewModel.sheetState.collectAsState()
     val lazyListState = rememberLazyListState()
+    val favoriteIds by playerViewModel.favoriteSongIds.collectAsState()
+    var showSongInfoBottomSheet by remember { mutableStateOf(false) }
+    val selectedSongForInfo by playerViewModel.selectedSongForInfo.collectAsState()
 
     val density = LocalDensity.current
     val coroutineScope = rememberCoroutineScope()
@@ -160,7 +165,10 @@ fun ArtistDetailScreen(
                                 song = song,
                                 isCurrentSong = songs.isNotEmpty() && stablePlayerState.currentSong == song,
                                 isPlaying = stablePlayerState.currentSong?.id == song.id,
-                                onMoreOptionsClick = { /* TODO */ },
+                                onMoreOptionsClick = {
+                                    playerViewModel.selectSongForInfo(song)
+                                    showSongInfoBottomSheet = true
+                                },
                                 onClick = { playerViewModel.showAndPlaySong(song, songs) }
                             )
                         }
@@ -177,6 +185,45 @@ fun ArtistDetailScreen(
                     )
                 }
             }
+        }
+    }
+    if (showSongInfoBottomSheet && selectedSongForInfo != null) {
+        val currentSong = selectedSongForInfo
+        val isFavorite = remember(currentSong?.id, favoriteIds) {
+            derivedStateOf { currentSong?.let { favoriteIds.contains(it.id) } }
+        }.value ?: false
+
+        if (currentSong != null) {
+            SongInfoBottomSheet(
+                song = currentSong,
+                isFavorite = isFavorite,
+                onToggleFavorite = {
+                    playerViewModel.toggleFavoriteSpecificSong(currentSong)
+                },
+                onDismiss = { showSongInfoBottomSheet = false },
+                onPlaySong = {
+                    playerViewModel.showAndPlaySong(currentSong)
+                    showSongInfoBottomSheet = false
+                },
+                onAddToQueue = {
+                    playerViewModel.addSongToQueue(currentSong)
+                    showSongInfoBottomSheet = false
+                },
+                onNavigateToAlbum = {
+                    navController.navigate(Screen.AlbumDetail.createRoute(currentSong.albumId))
+                    showSongInfoBottomSheet = false
+                },
+                onNavigateToArtist = {
+                    navController.navigate(Screen.ArtistDetail.createRoute(currentSong.artistId))
+                    showSongInfoBottomSheet = false
+                },
+                onEditSong = { newTitle, newArtist, newAlbum, newGenre, newLyrics ->
+                    playerViewModel.editSongMetadata(currentSong, newTitle, newArtist, newAlbum, newGenre, newLyrics)
+                },
+                generateAiMetadata = { fields ->
+                    playerViewModel.generateAiMetadata(currentSong, fields)
+                }
+            )
         }
     }
 }

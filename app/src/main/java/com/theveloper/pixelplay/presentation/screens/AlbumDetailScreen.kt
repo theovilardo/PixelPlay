@@ -44,7 +44,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -72,6 +74,8 @@ import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
 // Importando EnhancedSongListItem de LibraryScreen
+import com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet
+import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.screens.EnhancedSongListItem
 // import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel // Se añadirá
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
@@ -92,6 +96,9 @@ fun AlbumDetailScreen(
     val uiState by viewModel.uiState.collectAsState()
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
     val playerSheetState by playerViewModel.sheetState.collectAsState()
+    val favoriteIds by playerViewModel.favoriteSongIds.collectAsState()
+    var showSongInfoBottomSheet by remember { mutableStateOf(false) }
+    val selectedSongForInfo by playerViewModel.selectedSongForInfo.collectAsState()
 
     val surfaceColor = MaterialTheme.colorScheme.surface
     val statusBarColor = if (isSystemInDarkTheme()) Color.Black.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.4f)
@@ -170,7 +177,10 @@ fun AlbumDetailScreen(
                                     song = song,
                                     isCurrentSong = songs.isNotEmpty() && stablePlayerState.currentSong == song,
                                     isPlaying = stablePlayerState.currentSong?.id == song.id,
-                                    onMoreOptionsClick = { /* TODO */ },
+                                    onMoreOptionsClick = {
+                                        playerViewModel.selectSongForInfo(song)
+                                        showSongInfoBottomSheet = true
+                                    },
                                     onClick = { playerViewModel.showAndPlaySong(song, songs) }
                                 )
                             }
@@ -187,6 +197,45 @@ fun AlbumDetailScreen(
             }
         }
     )
+    if (showSongInfoBottomSheet && selectedSongForInfo != null) {
+        val currentSong = selectedSongForInfo
+        val isFavorite = remember(currentSong?.id, favoriteIds) {
+            derivedStateOf { currentSong?.let { favoriteIds.contains(it.id) } }
+        }.value ?: false
+
+        if (currentSong != null) {
+            SongInfoBottomSheet(
+                song = currentSong,
+                isFavorite = isFavorite,
+                onToggleFavorite = {
+                    playerViewModel.toggleFavoriteSpecificSong(currentSong)
+                },
+                onDismiss = { showSongInfoBottomSheet = false },
+                onPlaySong = {
+                    playerViewModel.showAndPlaySong(currentSong)
+                    showSongInfoBottomSheet = false
+                },
+                onAddToQueue = {
+                    playerViewModel.addSongToQueue(currentSong)
+                    showSongInfoBottomSheet = false
+                },
+                onNavigateToAlbum = {
+                    navController.navigate(Screen.AlbumDetail.createRoute(currentSong.albumId))
+                    showSongInfoBottomSheet = false
+                },
+                onNavigateToArtist = {
+                    navController.navigate(Screen.ArtistDetail.createRoute(currentSong.artistId))
+                    showSongInfoBottomSheet = false
+                },
+                onEditSong = { newTitle, newArtist, newAlbum, newGenre, newLyrics ->
+                    playerViewModel.editSongMetadata(currentSong, newTitle, newArtist, newAlbum, newGenre, newLyrics)
+                },
+                generateAiMetadata = { fields ->
+                    playerViewModel.generateAiMetadata(currentSong, fields)
+                }
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
