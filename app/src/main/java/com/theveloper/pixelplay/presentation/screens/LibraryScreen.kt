@@ -1200,7 +1200,6 @@ fun AlbumGridItemRedesigned(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(cardCornerRadius),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
         ) {
             Column(
