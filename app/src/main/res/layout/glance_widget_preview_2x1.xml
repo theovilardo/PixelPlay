@@ -4,7 +4,8 @@
     android:layout_width="120dp"
     android:layout_height="60dp"
     android:orientation="horizontal"
-    android:background="?attr/colorSurface"
+    android:theme="@style/Theme.Material3.DynamicColors.DayNight"
+    android:background="?attr/colorSurfaceContainer"
     android:gravity="center_vertical"
     android:padding="8dp">
 
@@ -13,7 +14,7 @@
         android:layout_width="44dp"
         android:layout_height="44dp"
         android:src="@drawable/rounded_album_24"
-        app:tint="?attr/colorOnSurface" />
+        app:tint="?attr/colorOnSurfaceVariant" />
 
     <!-- Title and artist placeholder -->
     <LinearLayout
@@ -35,7 +36,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Artist"
-            android:textColor="?attr/colorOnSurface"
+            android:textColor="?attr/colorOnSurfaceVariant"
             android:textSize="10sp" />
     </LinearLayout>
 
@@ -45,6 +46,8 @@
         android:layout_height="24dp"
         android:src="@drawable/rounded_play_arrow_24"
         android:layout_marginStart="4dp"
-        app:tint="?attr/colorOnSurface" />
+        app:tint="?attr/colorOnPrimaryContainer"
+        android:background="?attr/colorPrimaryContainer"
+        />
 
 </LinearLayout>
