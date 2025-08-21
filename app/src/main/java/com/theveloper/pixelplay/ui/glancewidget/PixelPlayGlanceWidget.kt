@@ -263,6 +263,8 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         val onSecondaryColor = GlanceTheme.colors.onSecondaryContainer
         val primaryContainerColor = GlanceTheme.colors.primaryContainer
         val onPrimaryContainerColor = GlanceTheme.colors.onPrimaryContainer
+        val size = LocalSize.current
+        val albumArtSize = size.height - 32.dp
 
         Box(
             modifier = modifier
@@ -280,8 +282,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 
                 AlbumArtImageGlance(
                     modifier = GlanceModifier
-                        .fillMaxHeight()
-                        .width(56.dp)
+                        .size(albumArtSize)
                         .padding(end = 8.dp),
                     bitmapData = albumArtBitmapData,
                     context = context,
@@ -338,6 +339,8 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         val onSecondaryColor = GlanceTheme.colors.onSecondaryContainer
         val primaryContainerColor = GlanceTheme.colors.primaryContainer
         val onPrimaryContainerColor = GlanceTheme.colors.onPrimaryContainer
+        val size = LocalSize.current
+        val albumArtSize = size.height - 32.dp
 
         Box(
             modifier = modifier
@@ -356,8 +359,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 
                 AlbumArtImageGlance(
                     modifier = GlanceModifier
-                        .fillMaxHeight()
-                        .width(56.dp)
+                        .size(albumArtSize)
                         .padding(end = 8.dp),
                     bitmapData = albumArtBitmapData,
                     context = context,
