@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.PlaylistAdd
+import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -85,11 +87,12 @@ fun LibraryActionRow(
             .animateContentSize()
             .fillMaxWidth()
             .padding(start = 4.dp), // Adjusted bottom padding
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.Absolute.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
-            modifier = Modifier.animateContentSize(),
+            modifier = Modifier
+                .animateContentSize(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             FilledTonalButton(
@@ -111,7 +114,7 @@ fun LibraryActionRow(
                 ),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp) // Standard button padding
             ) {
-                val icon = if (currentPage == 3) Icons.Filled.PlaylistAdd else Icons.Filled.Shuffle
+                val icon = if (currentPage == 3) Icons.Rounded.PlaylistAdd else Icons.Rounded.Shuffle
                 val text = if (currentPage == 3) "New" else "Shuffle"
                 val contentDesc = if (currentPage == 3) "Create New Playlist" else "Shuffle Play"
 
@@ -139,6 +142,7 @@ fun LibraryActionRow(
                 visible = isPlaylistTab,
                 enter = fadeIn() + expandHorizontally(
                     expandFrom = Alignment.Start,
+                    clip = false, // <— evita el “corte” durante la expansión
                     animationSpec = spring(
                         dampingRatio = Spring.DampingRatioMediumBouncy,
                         stiffness = Spring.StiffnessLow
@@ -146,6 +150,7 @@ fun LibraryActionRow(
                 ),
                 exit = fadeOut() + shrinkHorizontally(
                     shrinkTowards = Alignment.Start,
+                    clip = false, // <— evita el “corte” durante la expansión
                     animationSpec = spring(
                         dampingRatio = Spring.DampingRatioNoBouncy,
                         stiffness = Spring.StiffnessMedium
