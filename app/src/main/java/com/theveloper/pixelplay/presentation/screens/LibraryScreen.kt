@@ -122,6 +122,7 @@ import com.theveloper.pixelplay.presentation.components.SmartImage
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.asPaddingValues
+import com.theveloper.pixelplay.presentation.components.AiPlaylistSheet
 import com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet
 import com.theveloper.pixelplay.presentation.components.subcomps.LibraryActionRow
 import com.theveloper.pixelplay.presentation.components.subcomps.SineWaveLine
@@ -466,7 +467,8 @@ fun LibraryScreen(
                                     LibraryPlaylistsTab(
                                         playlistUiState = currentPlaylistUiState,
                                         navController = navController,
-                                        bottomBarHeight = bottomBarHeightDp
+                                        bottomBarHeight = bottomBarHeightDp,
+                                        onGenerateWithAiClick = { playerViewModel.showAiPlaylistSheet() }
                                     )
                                 }
 
@@ -555,6 +557,26 @@ fun LibraryScreen(
                 playlistViewModel.createPlaylist(name) // Pass the actual name
                 showCreatePlaylistDialog = false
             }
+        )
+    }
+
+    val showAiSheet by playerViewModel.showAiPlaylistSheet.collectAsState()
+    val isGeneratingAiPlaylist by playerViewModel.isGeneratingAiPlaylist.collectAsState()
+    val aiError by playerViewModel.aiError.collectAsState()
+
+    if (showAiSheet) {
+        AiPlaylistSheet(
+            onDismiss = { playerViewModel.dismissAiPlaylistSheet() },
+            onGenerateClick = { prompt, minLength, maxLength ->
+                playerViewModel.generateAiPlaylist(
+                    prompt = prompt,
+                    minLength = minLength,
+                    maxLength = maxLength,
+                    saveAsPlaylist = true
+                )
+            },
+            isGenerating = isGeneratingAiPlaylist,
+            error = aiError
         )
     }
 
@@ -1404,47 +1426,89 @@ fun ArtistListItem(artist: Artist, onClick: () -> Unit) {
     }
 }
 
+import com.theveloper.pixelplay.R
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
+
 @Composable
 fun LibraryPlaylistsTab(
-    playlistUiState: PlaylistUiState, // Usar el estado de PlaylistViewModel
+    playlistUiState: PlaylistUiState,
     navController: NavController,
-    bottomBarHeight: Dp
+    bottomBarHeight: Dp,
+    onGenerateWithAiClick: () -> Unit
 ) {
     val listState = rememberLazyListState()
-    if (playlistUiState.isLoading && playlistUiState.playlists.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-    } else if (playlistUiState.playlists.isEmpty()) {
-        Box(modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp), contentAlignment = Alignment.TopCenter) {
-            Column(
-                modifier = Modifier.padding(top = 28.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (playlistUiState.isLoading && playlistUiState.playlists.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        } else {
+            // Fila de acción para generar con IA
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                SineWaveLine(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(32.dp)
-                        .padding(horizontal = 8.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f),
-                    alpha = 0.95f,
-                    strokeWidth = 3.dp,
-                    amplitude = 4.dp,
-                    waves = 7.6f,
-                    phase = 0f//phase
-                )
-                Spacer(Modifier.height(16.dp))
-                Icon(Icons.Rounded.PlaylistPlay, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(8.dp))
-                Text("No playlist has been created.", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(6.dp))
-                Text("Touch the 'New Playlist' button to start.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                FilledTonalButton(
+                    onClick = onGenerateWithAiClick,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = "Generate with AI",
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Generate with AI")
+                }
             }
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
         }
-    } else {
-        Box(
-            modifier = Modifier.fillMaxSize()
-        ) {
+
+        if (playlistUiState.playlists.isEmpty() && !playlistUiState.isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                Column(
+                    modifier = Modifier.padding(top = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    SineWaveLine(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(32.dp)
+                            .padding(horizontal = 8.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f),
+                        alpha = 0.95f,
+                        strokeWidth = 3.dp,
+                        amplitude = 4.dp,
+                        waves = 7.6f,
+                        phase = 0f
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Icon(
+                        Icons.Rounded.PlaylistPlay,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text("No playlist has been created.", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Touch the 'New Playlist' button to start.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else {
             LazyColumn(
                 modifier = Modifier
                     .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
@@ -1460,9 +1524,6 @@ fun LibraryPlaylistsTab(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 30.dp)
             ) {
-                item {
-                    Spacer(Modifier.height(4.dp))
-                }
                 items(playlistUiState.playlists, key = { it.id }) { playlist ->
                     val rememberedOnClick = remember(playlist.id) {
                         { navController.navigate(Screen.PlaylistDetail.createRoute(playlist.id)) }
@@ -1520,14 +1581,26 @@ fun PlaylistItem(playlist: Playlist, onClick: () -> Unit) {
             // 5. Usa un Spacer para una separación horizontal consistente y predecible.
             Spacer(modifier = Modifier.width(16.dp))
 
-            Column {
-                // 6. Añade un peso de fuente (FontWeight) al título para mejorar la
-                // jerarquía visual y darle más importancia.
-                Text(
-                    text = playlist.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = playlist.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    if (playlist.isAiGenerated) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = "AI Generated",
+                            tint = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
                 Text(
                     text = "${playlist.songIds.size} Songs",
                     style = MaterialTheme.typography.bodySmall,

@@ -1862,7 +1862,7 @@ class PlayerViewModel @Inject constructor(
         _isGeneratingAiPlaylist.value = false
     }
 
-    fun generateAiPlaylist(prompt: String, minLength: Int, maxLength: Int) {
+    fun generateAiPlaylist(prompt: String, minLength: Int, maxLength: Int, saveAsPlaylist: Boolean = false) {
         viewModelScope.launch {
             _isGeneratingAiPlaylist.value = true
             _aiError.value = null
@@ -1872,16 +1872,26 @@ class PlayerViewModel @Inject constructor(
 
                 result.onSuccess { generatedSongs ->
                     if (generatedSongs.isNotEmpty()) {
-                        // Update the daily mix with the AI generated playlist
-                        _dailyMixSongs.value = generatedSongs.toImmutableList()
-                        // Save the new AI-generated mix
-                        viewModelScope.launch {
-                            userPreferencesRepository.saveDailyMixSongIds(generatedSongs.map { it.id })
+                        if (saveAsPlaylist) {
+                            val playlistName = "AI: ${prompt.take(25)}${if (prompt.length > 25) "..." else ""}"
+                            val songIds = generatedSongs.map { it.id }
+                            userPreferencesRepository.createPlaylist(
+                                name = playlistName,
+                                songIds = songIds,
+                                isAiGenerated = true
+                            )
+                            sendToast("AI Playlist '$playlistName' created!")
+                            dismissAiPlaylistSheet()
+                        } else {
+                            // Original Daily Mix logic
+                            _dailyMixSongs.value = generatedSongs.toImmutableList()
+                            viewModelScope.launch {
+                                userPreferencesRepository.saveDailyMixSongIds(generatedSongs.map { it.id })
+                            }
+                            playSongs(generatedSongs, generatedSongs.first(), "AI: $prompt")
+                            _isSheetVisible.value = true
+                            dismissAiPlaylistSheet()
                         }
-                        // Also start playing it
-                        playSongs(generatedSongs, generatedSongs.first(), "AI: $prompt")
-                        _isSheetVisible.value = true
-                        dismissAiPlaylistSheet()
                     } else {
                         _aiError.value = "The AI couldn't find any songs for your prompt."
                     }
