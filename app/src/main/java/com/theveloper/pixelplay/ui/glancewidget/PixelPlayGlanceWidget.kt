@@ -1153,7 +1153,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 provider = imageProvider,
                 contentDescription = "Album Art",
                 modifier = GlanceModifier.fillMaxSize().cornerRadius(cornerRadius),
-                contentScale = ContentScale.Crop
+                contentScale = ContentScale.FillBounds
             )
         }
     }
