@@ -89,8 +89,7 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:background="@drawable/widget_preview_circular_button"
-            app:backgroundTint="?attr/colorPrimaryContainer"
+            android:background="@drawable/widget_preview_play_button_background"
             android:src="@drawable/ic_play_arrow_widget_preview"
             app:tint="?attr/colorOnPrimaryContainer"
             android:padding="12dp"/>
