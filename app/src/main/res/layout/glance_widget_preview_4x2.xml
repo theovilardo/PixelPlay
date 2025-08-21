@@ -21,7 +21,7 @@
             android:layout_width="80dp"
             android:layout_height="80dp"
             android:background="@drawable/widget_preview_album_art_background"
-            android:src="@drawable/tinted_music_note_widget_preview"
+            android:src="@drawable/ic_music_note_widget_preview"
             android:padding="20dp" />
 
         <Space
@@ -76,7 +76,7 @@
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:background="@drawable/widget_preview_circular_button"
-            android:src="@drawable/tinted_skip_previous_widget_preview"
+            android:src="@drawable/ic_skip_previous_widget_preview"
             android:padding="12dp"/>
 
         <Space
@@ -88,7 +88,7 @@
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:background="@drawable/widget_preview_play_button_background"
-            android:src="@drawable/tinted_play_arrow_widget_preview"
+            android:src="@drawable/ic_play_arrow_widget_preview"
             android:padding="12dp"/>
 
         <Space
@@ -100,7 +100,7 @@
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:background="@drawable/widget_preview_circular_button"
-            android:src="@drawable/tinted_skip_next_widget_preview"
+            android:src="@drawable/ic_skip_next_widget_preview"
             android:padding="12dp"/>
     </LinearLayout>
 </LinearLayout>
