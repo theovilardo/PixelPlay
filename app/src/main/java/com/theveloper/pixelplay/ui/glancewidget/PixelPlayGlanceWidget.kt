@@ -282,13 +282,12 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 
                 AlbumArtImageGlance(
                     modifier = GlanceModifier
-                        .size(albumArtSize)
-                        .padding(end = 8.dp),
+                        .size(albumArtSize),
                     bitmapData = albumArtBitmapData,
                     context = context,
                     cornerRadius = bgCornerRadius
                 )
-                Spacer(GlanceModifier.width(2.dp))
+                Spacer(GlanceModifier.width(10.dp))
                 Column(modifier = GlanceModifier.defaultWeight()) {
                     Text(text = title, style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textColor), maxLines = 1)
                     if (artist.isNotEmpty() && artist != "Toca para abrir") {
@@ -359,13 +358,12 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 
                 AlbumArtImageGlance(
                     modifier = GlanceModifier
-                        .size(albumArtSize)
-                        .padding(end = 8.dp),
+                        .size(albumArtSize),
                     bitmapData = albumArtBitmapData,
                     context = context,
                     cornerRadius = bgCornerRadius
                 )
-                Spacer(GlanceModifier.width(6.dp))
+                Spacer(GlanceModifier.width(14.dp))
                 Column(modifier = GlanceModifier.defaultWeight()) {
                     Text(text = title, style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textColor), maxLines = 1)
                     if (artist.isNotEmpty() && artist != "Toca para abrir") {
