@@ -992,22 +992,22 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 Spacer(GlanceModifier.defaultWeight()) // Empuja el contenido hacia abajo
                 //Spacer(GlanceModifier.height(16.dp))
 
-                Text(
-                    text = "Next Up",
-                    style = TextStyle(
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = textColor
-                    ),
-                    modifier = GlanceModifier.padding(bottom = 8.dp)
-                )
+//                Text(
+//                    text = "Next Up",
+//                    style = TextStyle(
+//                        fontSize = 16.sp,
+//                        fontWeight = FontWeight.Bold,
+//                        color = textColor
+//                    ),
+//                    modifier = GlanceModifier.padding(bottom = 8.dp)
+//                )
 
                 Row(
                     modifier = GlanceModifier
                         .defaultWeight()
                         .fillMaxWidth()
                         .height(58.dp)
-                        .padding(horizontal = 8.dp),
+                        .padding(horizontal = 0.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -1029,7 +1029,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                                 ).fillMaxSize(), // Asegura que la imagen llene el Box
                                 bitmapData = queueItem.albumArtBitmapData,
                                 context = context,
-                                cornerRadius = 16.dp, // Aumentar el radio de las esquinas
+                                cornerRadius = 14.dp, // Aumentar el radio de las esquinas
                             )
                         }
                         if (index < items.size - 1) {
