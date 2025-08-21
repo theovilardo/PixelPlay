@@ -366,7 +366,9 @@ fun LibraryScreen(
                             onSortOptionSelected = { option ->
                                 onSortOptionChanged(option)
                                 showSortMenu = false // Dismiss menu on selection
-                            }
+                            },
+                            isPlaylistTab = pagerState.currentPage == 3,
+                            onGenerateWithAiClick = { playerViewModel.showAiPlaylistSheet() }
                         )
 
                         HorizontalPager(
@@ -1441,30 +1443,6 @@ fun LibraryPlaylistsTab(
     Column(modifier = Modifier.fillMaxSize()) {
         if (playlistUiState.isLoading && playlistUiState.playlists.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-        } else {
-            // Fila de acción para generar con IA
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                FilledTonalButton(
-                    onClick = onGenerateWithAiClick,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = "Generate with AI",
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Generate with AI")
-                }
-            }
-            //HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
         }
 
         if (playlistUiState.playlists.isEmpty() && !playlistUiState.isLoading) {

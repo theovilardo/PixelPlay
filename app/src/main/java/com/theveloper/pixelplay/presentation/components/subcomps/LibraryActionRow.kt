@@ -1,18 +1,26 @@
 package com.theveloper.pixelplay.presentation.components.subcomps
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Sort
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Shuffle
@@ -55,6 +63,8 @@ fun LibraryActionRow(
     currentSortOptionsForTab: List<SortOption>,
     selectedSortOption: SortOption,
     onSortOptionSelected: (SortOption) -> Unit,
+    isPlaylistTab: Boolean,
+    onGenerateWithAiClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -65,43 +75,85 @@ fun LibraryActionRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Main Action Button (replaces FAB)
-        FilledTonalButton(
+        Row(
             modifier = Modifier.animateContentSize(),
-            onClick = onMainActionClick,
-            shape = defaultShape, // Using fallback shape, replace with your AbsoluteSmoothCornerShape if available
-            // shape = AbsoluteSmoothCornerShape(cornerRadiusTL = 26.dp, ...), // Your custom shape
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.tertiary,
-                contentColor = MaterialTheme.colorScheme.onTertiary
-            ),
-            elevation = ButtonDefaults.buttonElevation(
-                defaultElevation = 4.dp, // Slightly reduced elevation for a normal button
-                pressedElevation = 6.dp
-            ),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp) // Standard button padding
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            val icon = if (currentPage == 3) Icons.Filled.PlaylistAdd else Icons.Filled.Shuffle
-            val text = if (currentPage == 3) "New" else "Shuffle"
-            val contentDesc = if (currentPage == 3) "Create New Playlist" else "Shuffle Play"
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            FilledTonalButton(
+                onClick = onMainActionClick,
+                shape = defaultShape, // Using fallback shape, replace with your AbsoluteSmoothCornerShape if available
+                // shape = AbsoluteSmoothCornerShape(cornerRadiusTL = 26.dp, ...), // Your custom shape
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.tertiary,
+                    contentColor = MaterialTheme.colorScheme.onTertiary
+                ),
+                elevation = ButtonDefaults.buttonElevation(
+                    defaultElevation = 4.dp, // Slightly reduced elevation for a normal button
+                    pressedElevation = 6.dp
+                ),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp) // Standard button padding
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = contentDesc,
-                    modifier = Modifier
-                        .size(20.dp)
-                        .then(Modifier.rotate(iconRotation)) // Only rotate shuffle
-                )
-                Text(
-                    modifier = Modifier.animateContentSize(),
-                    text = text,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Medium
-                )
+                val icon = if (currentPage == 3) Icons.Filled.PlaylistAdd else Icons.Filled.Shuffle
+                val text = if (currentPage == 3) "New" else "Shuffle"
+                val contentDesc = if (currentPage == 3) "Create New Playlist" else "Shuffle Play"
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = contentDesc,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .then(Modifier.rotate(iconRotation)) // Only rotate shuffle
+                    )
+                    Text(
+                        modifier = Modifier.animateContentSize(),
+                        text = text,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            AnimatedVisibility(
+                visible = isPlaylistTab,
+                enter = fadeIn() + expandHorizontally(expandFrom = Alignment.Start),
+                exit = fadeOut() + shrinkHorizontally(shrinkTowards = Alignment.Start)
+            ) {
+                Row {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    FilledTonalButton(
+                        onClick = onGenerateWithAiClick,
+                        shape = defaultShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(
+                            defaultElevation = 4.dp,
+                            pressedElevation = 6.dp
+                        ),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = "Generate with AI",
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "Generate",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
             }
         }
 
