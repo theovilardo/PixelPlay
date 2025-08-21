@@ -1007,16 +1007,15 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                         .defaultWeight()
                         .fillMaxWidth()
                         .height(58.dp)
-                        //.padding(horizontal = 8.dp, vertical = 8.dp)
-                    ,
+                        .padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    queue.take(4).forEachIndexed { index, queueItem ->
+                    val items = queue.take(4)
+                    items.forEachIndexed { index, queueItem ->
                         Box(
                             modifier = GlanceModifier
-                                .defaultWeight() // Asegura que cada carátula ocupe el mismo espacio
-                                .padding(horizontal = 4.dp), // Espaciado entre carátulas
+                                .defaultWeight(),
                             contentAlignment = Alignment.Center
                         ) {
                             AlbumArtImageGlance(
@@ -1032,6 +1031,9 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                                 context = context,
                                 cornerRadius = 16.dp, // Aumentar el radio de las esquinas
                             )
+                        }
+                        if (index < items.size - 1) {
+                            Spacer(GlanceModifier.width(8.dp))
                         }
                     }
                 }
