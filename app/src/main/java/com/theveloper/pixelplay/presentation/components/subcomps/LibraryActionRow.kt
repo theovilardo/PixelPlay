@@ -2,6 +2,9 @@ package com.theveloper.pixelplay.presentation.components.subcomps
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -37,6 +40,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuItemColors
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,6 +71,15 @@ fun LibraryActionRow(
     onGenerateWithAiClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val newButtonEndCorner by animateDpAsState(
+        targetValue = if (isPlaylistTab) 6.dp else 26.dp,
+        label = "NewButtonEndCorner"
+    )
+
+    val generateButtonStartCorner by animateDpAsState(
+        targetValue = if (isPlaylistTab) 6.dp else 26.dp,
+        label = "GenerateButtonStartCorner"
+    )
     Row(
         modifier = modifier
             .animateContentSize()
@@ -81,7 +94,12 @@ fun LibraryActionRow(
         ) {
             FilledTonalButton(
                 onClick = onMainActionClick,
-                shape = defaultShape, // Using fallback shape, replace with your AbsoluteSmoothCornerShape if available
+                shape = RoundedCornerShape(
+                    topStart = 26.dp,
+                    bottomStart = 26.dp,
+                    topEnd = newButtonEndCorner,
+                    bottomEnd = newButtonEndCorner
+                ),
                 // shape = AbsoluteSmoothCornerShape(cornerRadiusTL = 26.dp, ...), // Your custom shape
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.tertiary,
@@ -119,14 +137,31 @@ fun LibraryActionRow(
 
             AnimatedVisibility(
                 visible = isPlaylistTab,
-                enter = fadeIn() + expandHorizontally(expandFrom = Alignment.Start),
-                exit = fadeOut() + shrinkHorizontally(shrinkTowards = Alignment.Start)
+                enter = fadeIn() + expandHorizontally(
+                    expandFrom = Alignment.Start,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessLow
+                    )
+                ),
+                exit = fadeOut() + shrinkHorizontally(
+                    shrinkTowards = Alignment.Start,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMedium
+                    )
+                )
             ) {
                 Row {
                     Spacer(modifier = Modifier.width(8.dp))
                     FilledTonalButton(
                         onClick = onGenerateWithAiClick,
-                        shape = defaultShape,
+                        shape = RoundedCornerShape(
+                            topStart = generateButtonStartCorner,
+                            bottomStart = generateButtonStartCorner,
+                            topEnd = 26.dp,
+                            bottomEnd = 26.dp
+                        ),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.secondaryContainer,
                             contentColor = MaterialTheme.colorScheme.onSecondaryContainer
