@@ -1140,21 +1140,28 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 }
             }
             bitmap?.let { ImageProvider(it) }
-        } ?: run {
-            Timber.tag(TAG_AAIG)
-                .d("Using placeholder image because bitmapData was null or processing failed.")
-            ImageProvider(R.drawable.rounded_album_24)
         }
 
         Box(
             modifier = sizingModifier
         ) {
-            Image(
-                provider = imageProvider,
-                contentDescription = "Album Art",
-                modifier = GlanceModifier.fillMaxSize().cornerRadius(cornerRadius),
-                contentScale = ContentScale.FillBounds
-            )
+            if (imageProvider != null) {
+                Image(
+                    provider = imageProvider,
+                    contentDescription = "Album Art",
+                    modifier = GlanceModifier.fillMaxSize().cornerRadius(cornerRadius),
+                    contentScale = ContentScale.FillBounds
+                )
+            } else {
+                // Placeholder with tint
+                Image(
+                    provider = ImageProvider(R.drawable.rounded_album_24),
+                    contentDescription = "Album Art Placeholder",
+                    modifier = GlanceModifier.fillMaxSize().cornerRadius(cornerRadius),
+                    contentScale = ContentScale.FillBounds,
+                    colorFilter = ColorFilter.tint(GlanceTheme.colors.onSurface)
+                )
+            }
         }
     }
 
