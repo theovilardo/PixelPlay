@@ -21,7 +21,7 @@
             android:layout_width="80dp"
             android:layout_height="80dp"
             android:background="@drawable/widget_preview_album_art_background"
-            android:src="@drawable/rounded_music_note_24"
+            android:src="@drawable/ic_music_note_widget_preview"
             android:padding="20dp"
             app:tint="?attr/colorOnSecondaryContainer" />
 
@@ -77,7 +77,7 @@
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:background="@drawable/widget_preview_circular_button"
-            android:src="@drawable/rounded_skip_previous_24"
+            android:src="@drawable/ic_skip_previous_widget_preview"
             app:tint="?attr/colorOnSecondaryContainer"
             android:padding="12dp"/>
 
@@ -91,7 +91,7 @@
             android:layout_weight="1"
             android:background="@drawable/widget_preview_circular_button"
             app:backgroundTint="?attr/colorPrimaryContainer"
-            android:src="@drawable/rounded_play_arrow_24"
+            android:src="@drawable/ic_play_arrow_widget_preview"
             app:tint="?attr/colorOnPrimaryContainer"
             android:padding="12dp"/>
 
@@ -104,7 +104,7 @@
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:background="@drawable/widget_preview_circular_button"
-            android:src="@drawable/rounded_skip_next_24"
+            android:src="@drawable/ic_skip_next_widget_preview"
             app:tint="?attr/colorOnSecondaryContainer"
             android:padding="12dp"/>
     </LinearLayout>
