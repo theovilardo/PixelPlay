@@ -142,6 +142,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 
 val ListExtraBottomGap = 30.dp
 val PlayerSheetCollapsedCornerRadius = 32.dp
@@ -1426,11 +1429,6 @@ fun ArtistListItem(artist: Artist, onClick: () -> Unit) {
     }
 }
 
-import com.theveloper.pixelplay.R
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
-
 @Composable
 fun LibraryPlaylistsTab(
     playlistUiState: PlaylistUiState,
@@ -1448,13 +1446,14 @@ fun LibraryPlaylistsTab(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 FilledTonalButton(
                     onClick = onGenerateWithAiClick,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
                 ) {
                     Icon(
                         imageVector = Icons.Default.AutoAwesome,
@@ -1465,7 +1464,7 @@ fun LibraryPlaylistsTab(
                     Text("Generate with AI")
                 }
             }
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            //HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
         }
 
         if (playlistUiState.playlists.isEmpty() && !playlistUiState.isLoading) {
@@ -1543,7 +1542,7 @@ fun LibraryPlaylistsTab(
                             )
                         )
                     )
-                    .align(Alignment.TopCenter)
+                    //.align(Alignment.TopCenter)
             )
         }
     }
