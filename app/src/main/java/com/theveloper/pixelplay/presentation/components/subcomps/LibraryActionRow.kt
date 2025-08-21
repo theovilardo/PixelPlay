@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.presentation.components.subcomps
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -58,6 +59,7 @@ fun LibraryActionRow(
 ) {
     Row(
         modifier = modifier
+            .animateContentSize()
             .fillMaxWidth()
             .padding(start = 4.dp), // Adjusted bottom padding
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -65,6 +67,7 @@ fun LibraryActionRow(
     ) {
         // Main Action Button (replaces FAB)
         FilledTonalButton(
+            modifier = Modifier.animateContentSize(),
             onClick = onMainActionClick,
             shape = defaultShape, // Using fallback shape, replace with your AbsoluteSmoothCornerShape if available
             // shape = AbsoluteSmoothCornerShape(cornerRadiusTL = 26.dp, ...), // Your custom shape
@@ -79,7 +82,7 @@ fun LibraryActionRow(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp) // Standard button padding
         ) {
             val icon = if (currentPage == 3) Icons.Filled.PlaylistAdd else Icons.Filled.Shuffle
-            val text = if (currentPage == 3) "New Playlist" else "Shuffle"
+            val text = if (currentPage == 3) "New" else "Shuffle"
             val contentDesc = if (currentPage == 3) "Create New Playlist" else "Shuffle Play"
 
             Row(
@@ -94,6 +97,7 @@ fun LibraryActionRow(
                         .then(Modifier.rotate(iconRotation)) // Only rotate shuffle
                 )
                 Text(
+                    modifier = Modifier.animateContentSize(),
                     text = text,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Medium

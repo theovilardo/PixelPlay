@@ -1581,7 +1581,10 @@ fun PlaylistItem(playlist: Playlist, onClick: () -> Unit) {
             Spacer(modifier = Modifier.width(16.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.padding(end = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
                         text = playlist.name,
                         style = MaterialTheme.typography.titleMedium,
@@ -1593,10 +1596,10 @@ fun PlaylistItem(playlist: Playlist, onClick: () -> Unit) {
                     if (playlist.isAiGenerated) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Icon(
-                            imageVector = Icons.Default.AutoAwesome,
+                            painter = painterResource(R.drawable.gemini_ai),
                             contentDescription = "AI Generated",
                             tint = MaterialTheme.colorScheme.tertiary,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
