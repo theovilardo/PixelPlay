@@ -215,9 +215,13 @@ class PlaylistViewModel @Inject constructor(
         }
     }
 
-    fun createPlaylist(name: String) {
+    fun createPlaylist(
+        name: String,
+        songIds: List<String> = emptyList(),
+        isAiGenerated: Boolean = false
+    ) {
         viewModelScope.launch {
-            userPreferencesRepository.createPlaylist(name)
+            userPreferencesRepository.createPlaylist(name, songIds, isAiGenerated)
         }
     }
 

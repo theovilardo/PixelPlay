@@ -142,12 +142,17 @@ class UserPreferencesRepository @Inject constructor(
         }
     }
 
-    suspend fun createPlaylist(name: String): Playlist {
+    suspend fun createPlaylist(
+        name: String,
+        songIds: List<String> = emptyList(),
+        isAiGenerated: Boolean = false
+    ): Playlist {
         val currentPlaylists = userPlaylistsFlow.first().toMutableList()
         val newPlaylist = Playlist(
             id = UUID.randomUUID().toString(),
             name = name,
-            songIds = emptyList()
+            songIds = songIds,
+            isAiGenerated = isAiGenerated
         )
         currentPlaylists.add(newPlaylist)
         savePlaylists(currentPlaylists)

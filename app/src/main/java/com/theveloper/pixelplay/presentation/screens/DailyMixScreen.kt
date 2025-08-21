@@ -132,7 +132,7 @@ fun DailyMixScreen(
         AiPlaylistSheet(
             onDismiss = { playerViewModel.dismissAiPlaylistSheet() },
             onGenerateClick = { prompt, minLength, maxLength ->
-                playerViewModel.generateAiPlaylist(prompt, minLength, maxLength)
+                playerViewModel.generateAiPlaylist(prompt, minLength, maxLength, saveAsPlaylist = false)
             },
             isGenerating = isGeneratingAiPlaylist,
             error = aiError
