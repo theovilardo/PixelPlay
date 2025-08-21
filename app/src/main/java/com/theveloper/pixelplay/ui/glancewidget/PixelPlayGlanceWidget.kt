@@ -655,7 +655,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                         context = context,
                         cornerRadius = 64.dp
                     )
-                    Spacer(GlanceModifier.width(10.dp))
+                    //Spacer(GlanceModifier.width(10.dp))
                 }
                 Spacer(GlanceModifier.height(8.dp))
                 PlayPauseButtonGlance(
