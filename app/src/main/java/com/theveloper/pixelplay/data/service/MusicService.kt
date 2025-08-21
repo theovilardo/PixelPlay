@@ -304,10 +304,18 @@ class MusicService : MediaSessionService() {
             for (i in startIndex until endIndex) {
                 timeline.getWindow(i, window)
                 val mediaItem = window.mediaItem
-                val artworkData = mediaItem.mediaMetadata?.artworkData
                 val songId = mediaItem.mediaId.toLongOrNull()
                 if (songId != null) {
-                    queueItems.add(com.theveloper.pixelplay.data.model.QueueItem(id = songId, albumArtBitmapData = artworkData))
+                    val (artBytes, _) = getAlbumArtForWidget(
+                        embeddedArt = mediaItem.mediaMetadata?.artworkData,
+                        artUri = mediaItem.mediaMetadata?.artworkUri
+                    )
+                    queueItems.add(
+                        com.theveloper.pixelplay.data.model.QueueItem(
+                            id = songId,
+                            albumArtBitmapData = artBytes
+                        )
+                    )
                 }
             }
         }

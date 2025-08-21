@@ -93,8 +93,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
 // import androidx.compose.runtime.derivedStateOf // Already imported
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.material.icons.rounded.Done
 import androidx.compose.material3.FilterChip
@@ -105,6 +107,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavHostController
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Genre // Added import for Genre
+import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.navigation.Screen // Required for Screen.GenreDetail.createRoute
 import com.theveloper.pixelplay.presentation.screens.search.components.GenreCategoriesGrid
 import kotlinx.collections.immutable.toImmutableList
@@ -230,6 +233,7 @@ fun SearchScreen(
                                 onClick = { searchQuery = "" },
                                 modifier = Modifier
                                     .size(48.dp)
+                                    .padding(end = 10.dp)
                                     .clip(CircleShape)
                                     .background(
                                         MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
@@ -258,7 +262,7 @@ fun SearchScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                                .padding(horizontal = 16.dp)
                         ) {
                             // Filter chips
                             FlowRow(
@@ -546,13 +550,16 @@ fun SearchResultsList(
         // unless your SearchResultItem has a more generic fallback type.
     )
 
+    var imePadding = WindowInsets.ime.getBottom(localDensity).dp
+    val systemBarPaddingBottom = WindowInsets.systemBars.asPaddingValues().calculateBottomPadding() + 94.dp
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         // Remove global verticalArrangement.spacedBy if headers manage their own spacing or if spacing between items of different types is not desired.
         // verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(
             top = 8.dp,
-            bottom = 8.dp + WindowInsets.ime.getBottom(localDensity).dp // Direct IME padding
+            bottom = if (imePadding <= 8.dp) (MiniPlayerHeight + systemBarPaddingBottom) else imePadding // Direct IME padding
         )
     ) {
         sectionOrder.forEach { filterType ->
@@ -656,7 +663,7 @@ fun AlbumListItem(album: Album, onClick: () -> Unit) {
     )
     val backgroundColor by animateColorAsState(
         targetValue = if (isPressed) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
-        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f),
+        else MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.9f),
         label = "album_background"
     )
 
@@ -664,18 +671,18 @@ fun AlbumListItem(album: Album, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale)
-            .shadow(
-                elevation = 3.dp, // Slightly less elevation than song item
-                shape = RoundedCornerShape(20.dp),
-                spotColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.25f) // Using secondary color
-            )
+//            .shadow(
+//                elevation = 3.dp, // Slightly less elevation than song item
+//                shape = RoundedCornerShape(20.dp),
+//                spotColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.25f) // Using secondary color
+//            )
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = { isPressed = true; tryAwaitRelease(); isPressed = false },
                     onTap = { onClick() }
                 )
             },
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp) // Elevation handled by shadow modifier
     ) {
@@ -727,18 +734,18 @@ fun ArtistSearchListItem(artist: Artist, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale)
-            .shadow(
-                elevation = 3.dp,
-                shape = RoundedCornerShape(20.dp),
-                spotColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.25f) // Using tertiary color
-            )
+//            .shadow(
+//                elevation = 3.dp,
+//                shape = RoundedCornerShape(20.dp),
+//                spotColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.25f) // Using tertiary color
+//            )
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = { isPressed = true; tryAwaitRelease(); isPressed = false },
                     onTap = { onClick() }
                 )
             },
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp) // Elevation handled by shadow modifier
     ) {
@@ -867,7 +874,7 @@ fun ExpressiveSongListItem(
         targetValue = if (isPressed)
             MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
         else
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f),
+            MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.9f),
         label = "song_item_background_color"
     )
 
@@ -878,11 +885,11 @@ fun ExpressiveSongListItem(
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale)
-            .shadow(
-                elevation = elevation,
-                shape = RoundedCornerShape(24.dp),
-                spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-            )
+//            .shadow(
+//                elevation = elevation,
+//                shape = RoundedCornerShape(24.dp),
+//                spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+//            )
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = {
@@ -893,7 +900,7 @@ fun ExpressiveSongListItem(
                     onTap = { onClick() }
                 )
             },
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(26.dp),
         colors = CardDefaults.cardColors(
             containerColor = backgroundColor
         ),
@@ -909,8 +916,8 @@ fun ExpressiveSongListItem(
             Box(
                 modifier = Modifier
                     .size(64.dp)
-                    .clip(RoundedCornerShape(18.dp))
-                    .shadow(4.dp, RoundedCornerShape(18.dp))
+                    .clip(RoundedCornerShape(10.dp))
+                    //.shadow(4.dp, RoundedCornerShape(18.dp))
                     .background(
                         Brush.radialGradient(
                             colors = listOf(
@@ -924,7 +931,7 @@ fun ExpressiveSongListItem(
                     model = song.albumArtUriString,
                     contentDescription = "Album Art",
                     contentScale = ContentScale.Crop,
-                    shape = RoundedCornerShape(18.dp),
+                    shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -992,6 +999,8 @@ fun ExpressiveSongListItem(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.width(8.dp))
 
             // Botón de play más expresivo
             FilledIconButton(

@@ -1578,12 +1578,6 @@ private fun FullPlayerContentInternal(
                                 .background(LocalMaterialTheme.current.onPrimary)
                                 .clickable {
                                     onLyricsClick()
-//                                    val lyrics = stablePlayerState.lyrics
-//                                    if (lyrics?.synced == null && lyrics?.plain == null) {
-//                                        playerViewModel.sendToast("No lyrics for this song")
-//                                    } else {
-//                                        showLyricsSheet = true
-//                                    }
                                 },
                             contentAlignment = Alignment.Center
                         ) {

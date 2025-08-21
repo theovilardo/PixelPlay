@@ -992,31 +992,30 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 Spacer(GlanceModifier.defaultWeight()) // Empuja el contenido hacia abajo
                 //Spacer(GlanceModifier.height(16.dp))
 
-                Text(
-                    text = "Next Up",
-                    style = TextStyle(
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = textColor
-                    ),
-                    modifier = GlanceModifier.padding(bottom = 8.dp)
-                )
+//                Text(
+//                    text = "Next Up",
+//                    style = TextStyle(
+//                        fontSize = 16.sp,
+//                        fontWeight = FontWeight.Bold,
+//                        color = textColor
+//                    ),
+//                    modifier = GlanceModifier.padding(bottom = 8.dp)
+//                )
 
                 Row(
                     modifier = GlanceModifier
                         .defaultWeight()
                         .fillMaxWidth()
                         .height(58.dp)
-                        //.padding(horizontal = 8.dp, vertical = 8.dp)
-                    ,
+                        .padding(horizontal = 0.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    queue.take(4).forEachIndexed { index, queueItem ->
+                    val items = queue.take(4)
+                    items.forEachIndexed { index, queueItem ->
                         Box(
                             modifier = GlanceModifier
-                                .defaultWeight() // Asegura que cada carátula ocupe el mismo espacio
-                                .padding(horizontal = 4.dp), // Espaciado entre carátulas
+                                .defaultWeight(),
                             contentAlignment = Alignment.Center
                         ) {
                             AlbumArtImageGlance(
@@ -1030,8 +1029,11 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                                 ).fillMaxSize(), // Asegura que la imagen llene el Box
                                 bitmapData = queueItem.albumArtBitmapData,
                                 context = context,
-                                cornerRadius = 16.dp, // Aumentar el radio de las esquinas
+                                cornerRadius = 14.dp, // Aumentar el radio de las esquinas
                             )
+                        }
+                        if (index < items.size - 1) {
+                            Spacer(GlanceModifier.width(8.dp))
                         }
                     }
                 }
@@ -1140,21 +1142,28 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 }
             }
             bitmap?.let { ImageProvider(it) }
-        } ?: run {
-            Timber.tag(TAG_AAIG)
-                .d("Using placeholder image because bitmapData was null or processing failed.")
-            ImageProvider(R.drawable.rounded_album_24)
         }
 
         Box(
             modifier = sizingModifier
         ) {
-            Image(
-                provider = imageProvider,
-                contentDescription = "Album Art",
-                modifier = GlanceModifier.fillMaxSize().cornerRadius(cornerRadius),
-                contentScale = ContentScale.FillBounds
-            )
+            if (imageProvider != null) {
+                Image(
+                    provider = imageProvider,
+                    contentDescription = "Album Art",
+                    modifier = GlanceModifier.fillMaxSize().cornerRadius(cornerRadius),
+                    contentScale = ContentScale.FillBounds
+                )
+            } else {
+                // Placeholder with tint
+                Image(
+                    provider = ImageProvider(R.drawable.rounded_album_24),
+                    contentDescription = "Album Art Placeholder",
+                    modifier = GlanceModifier.fillMaxSize().cornerRadius(cornerRadius),
+                    contentScale = ContentScale.FillBounds,
+                    colorFilter = ColorFilter.tint(GlanceTheme.colors.onSurface)
+                )
+            }
         }
     }
 
