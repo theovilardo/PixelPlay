@@ -100,14 +100,25 @@ class DualPlayerEngine @Inject constructor(
             playerB.volume = 1f
 
             // --- The Handover ---
-            // Player A takes over the media item and state from Player B.
-            val nextMediaItem = playerB.currentMediaItem!!
-            val nextPosition = playerB.currentPosition
+            // Preserve the original queue from Player A.
+            val originalQueue = List(playerA.mediaItemCount) { i -> playerA.getMediaItemAt(i) }
+            val nextIndex = playerA.nextMediaItemIndex
 
-            playerA.setMediaItem(nextMediaItem, nextPosition)
-            playerA.volume = 1f // Restore master player volume.
-            playerA.prepare()
-            playerA.play()
+            // Ensure we have a valid next item to switch to.
+            if (nextIndex != C.INDEX_UNSET && nextIndex < originalQueue.size) {
+                val nextPosition = playerB.currentPosition
+
+                // Set the entire queue back to Player A, starting at the new song.
+                playerA.setMediaItems(originalQueue, nextIndex, nextPosition)
+                playerA.volume = 1f // Restore master player volume.
+                playerA.prepare()
+                playerA.play()
+            } else {
+                // This case handles when the song was the last in the queue.
+                // We can just stop Player A as its role is finished.
+                playerA.stop()
+                playerA.clearMediaItems()
+            }
 
             // Reset Player B to be ready for the next cycle.
             playerB.stop()
