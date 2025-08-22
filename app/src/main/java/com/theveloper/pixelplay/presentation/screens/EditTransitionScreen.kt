@@ -38,6 +38,10 @@ fun EditTransitionScreen(
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
+    // Derive the settings to display. If a playlist-specific rule exists, use it.
+    // Otherwise, use the global settings as the base.
+    val displayedSettings = uiState.rule?.settings ?: uiState.globalSettings
+
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) {
             snackbarHostState.showSnackbar(message = "Settings saved!")
@@ -75,7 +79,7 @@ fun EditTransitionScreen(
                 ) {
                     TransitionMode.values().forEach { mode ->
                         FilterChip(
-                            selected = uiState.settings.mode == mode,
+                            selected = displayedSettings.mode == mode,
                             onClick = { viewModel.updateMode(mode) },
                             label = { Text(mode.name.replace('_', ' ').lowercase().capitalize()) }
                         )
@@ -85,10 +89,10 @@ fun EditTransitionScreen(
                 Spacer(Modifier.height(24.dp))
 
                 // Duration Slider
-                val durationInSeconds = TimeUnit.MILLISECONDS.toSeconds(uiState.settings.durationMs.toLong())
+                val durationInSeconds = TimeUnit.MILLISECONDS.toSeconds(displayedSettings.durationMs.toLong())
                 Text("Duration: ${durationInSeconds}s", style = MaterialTheme.typography.titleMedium)
                 Slider(
-                    value = uiState.settings.durationMs.toFloat(),
+                    value = displayedSettings.durationMs.toFloat(),
                     onValueChange = { viewModel.updateDuration(it.toInt()) },
                     valueRange = 0f..12000f, // 0 to 12 seconds
                     steps = 11 // 12 steps for each second

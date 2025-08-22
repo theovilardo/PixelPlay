@@ -29,10 +29,10 @@ interface TransitionRepository {
     fun getAllRulesForPlaylist(playlistId: String): Flow<List<TransitionRule>>
 
     /**
-     * Gets the default settings for a playlist, falling back to global settings if no
-     * playlist-specific default is set.
+     * Gets the default rule for a playlist. Does not fall back to global settings.
+     * Returns a flow that may emit null if no specific default rule exists for the playlist.
      */
-    fun getPlaylistOrDefaultSettings(playlistId: String): Flow<TransitionSettings>
+    fun getPlaylistDefaultRule(playlistId: String): Flow<TransitionRule?>
 
     /**
      * Saves a transition rule. If a rule for the given context

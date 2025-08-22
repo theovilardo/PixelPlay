@@ -46,13 +46,9 @@ class TransitionRepositoryImpl @Inject constructor(
         }
     }
 
-    override fun getPlaylistOrDefaultSettings(playlistId: String): Flow<TransitionSettings> {
-        return transitionDao.getPlaylistDefaultRule(playlistId).flatMapLatest { playlistRule ->
-            if (playlistRule != null) {
-                flowOf(playlistRule.settings)
-            } else {
-                userPreferences.globalTransitionSettingsFlow
-            }
+    override fun getPlaylistDefaultRule(playlistId: String): Flow<TransitionRule?> {
+        return transitionDao.getPlaylistDefaultRule(playlistId).map { entity ->
+            entity?.toModel()
         }
     }
 
