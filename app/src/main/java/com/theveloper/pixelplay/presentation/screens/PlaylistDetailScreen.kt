@@ -2,6 +2,7 @@ package com.theveloper.pixelplay.presentation.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -265,11 +266,17 @@ fun PlaylistDetailScreen(
         }
     ) { innerPadding ->
         if (uiState.isLoading && currentPlaylist == null) {
-            Box(Modifier.fillMaxSize().padding(top = innerPadding.calculateTopPadding()), Alignment.Center) { CircularProgressIndicator() }
+            Box(Modifier
+                .fillMaxSize()
+                .padding(top = innerPadding.calculateTopPadding()), Alignment.Center) { CircularProgressIndicator() }
         } else if (currentPlaylist == null) {
-            Box(Modifier.fillMaxSize().padding(top = innerPadding.calculateTopPadding()), Alignment.Center) { Text("Playlist no encontrada.") }
+            Box(Modifier
+                .fillMaxSize()
+                .padding(top = innerPadding.calculateTopPadding()), Alignment.Center) { Text("Playlist no encontrada.") }
         } else {
-            Column(modifier = Modifier.fillMaxSize().padding(top = innerPadding.calculateTopPadding())) {
+            Column(modifier = Modifier
+                .fillMaxSize()
+                .padding(top = innerPadding.calculateTopPadding())) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -284,7 +291,9 @@ fun PlaylistDetailScreen(
                                 if (playerStableState.isShuffleEnabled) playerViewModel.toggleShuffle()
                             }
                         },
-                        modifier = Modifier.weight(1f).height(76.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(76.dp),
                         enabled = localReorderableSongs.isNotEmpty(),
                         shape = AbsoluteSmoothCornerShape(cornerRadiusTL = 60.dp, smoothnessAsPercentTR = 60, cornerRadiusTR = 14.dp, smoothnessAsPercentTL = 60, cornerRadiusBL = 60.dp, smoothnessAsPercentBR = 60, cornerRadiusBR = 14.dp, smoothnessAsPercentBL = 60)
                     ) {
@@ -299,7 +308,9 @@ fun PlaylistDetailScreen(
                                 playerViewModel.playSongs(localReorderableSongs, localReorderableSongs.random(), currentPlaylist.name, currentPlaylist.id)
                             }
                         },
-                        modifier = Modifier.weight(1f).height(76.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(76.dp),
                         enabled = localReorderableSongs.isNotEmpty(),
                         shape = AbsoluteSmoothCornerShape(cornerRadiusTL = 14.dp, smoothnessAsPercentTR = 60, cornerRadiusTR = 60.dp, smoothnessAsPercentTL = 60, cornerRadiusBL = 14.dp, smoothnessAsPercentBR = 60, cornerRadiusBR = 60.dp, smoothnessAsPercentBL = 60)
                     ) {
@@ -312,7 +323,7 @@ fun PlaylistDetailScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 8.dp),
+                        .padding(horizontal = 20.dp, vertical = 0.dp),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -321,32 +332,51 @@ fun PlaylistDetailScreen(
                         label = "cornerRadius"
                     )
                     val buttonColor by animateColorAsState(
-                        targetValue = if (isReorderModeEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
+                        targetValue = if (isReorderModeEnabled) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.surfaceContainerHigh,
                         label = "buttonColor"
                     )
                     val iconColor by animateColorAsState(
-                        targetValue = if (isReorderModeEnabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                        targetValue = if (isReorderModeEnabled) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onSurface,
                         label = "iconColor"
                     )
 
-                    IconButton(
+                    Button(
                         onClick = { isReorderModeEnabled = !isReorderModeEnabled },
                         shape = RoundedCornerShape(cornerRadius),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = buttonColor,
+                            contentColor = iconColor
+                        ),
                         modifier = Modifier
+                            .align(Alignment.CenterVertically)
+                            .animateContentSize()
+                            .padding(bottom = 8.dp)
                             .clip(RoundedCornerShape(cornerRadius))
-                            .size(42.dp)
-                            .background(buttonColor)
+                            //.size(42.dp)
                     ) {
                         Icon(
                             painter = painterResource(R.drawable.rounded_format_list_bulleted_24),
                             contentDescription = "Reorder songs",
                             tint = iconColor
                         )
+                        Spacer(
+                            modifier = Modifier
+                                .width(6.dp)
+                        )
+                        Text(
+                            modifier = Modifier.padding(end = 4.dp),
+                            text = "Reorder", // if (isReorderModeEnabled) "Done" else "Reorder",
+                            color = iconColor,
+                            style = MaterialTheme.typography.labelMedium
+                        )
                     }
                 }
 
                 if (localReorderableSongs.isEmpty()) {
-                    Box(Modifier.fillMaxSize().weight(1f), Alignment.Center) {
+                    Box(Modifier
+                        .fillMaxSize()
+                        .weight(1f), Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Filled.MusicOff, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.height(8.dp))
@@ -360,10 +390,18 @@ fun PlaylistDetailScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .weight(1f)
-                            .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)),
+                            .clip(
+                                AbsoluteSmoothCornerShape(
+                                    cornerRadiusTR = 30.dp,
+                                    smoothnessAsPercentTR = 60,
+                                    cornerRadiusTL = 30.dp,
+                                    smoothnessAsPercentTL = 60,
+                                )
+                            )
+                            .background(color = MaterialTheme.colorScheme.surfaceContainerHigh),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(
-                            top = 8.dp,
+                            top = 14.dp,
                             bottom = if (playerStableState.isPlaying || playerStableState.currentSong != null) MiniPlayerHeight + 32.dp + 104.dp else 10.dp + 104.dp
                         )
                     ) {
@@ -377,14 +415,31 @@ fun PlaylistDetailScreen(
                                 QueuePlaylistSongItem(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 16.dp)
+                                        .padding(horizontal = 12.dp)
                                         .graphicsLayer {
                                             scaleX = scale
                                             scaleY = scale
                                         }
+                                        .clip(
+                                            AbsoluteSmoothCornerShape(
+                                                cornerRadiusTR = 22.dp,
+                                                smoothnessAsPercentTL = 60,
+                                                cornerRadiusTL = 22.dp,
+                                                smoothnessAsPercentTR = 60,
+                                                cornerRadiusBR = 22.dp,
+                                                smoothnessAsPercentBL = 60,
+                                                cornerRadiusBL = 22.dp,
+                                                smoothnessAsPercentBR = 60
+                                            )
+                                        )
                                         .clickable {
-                                            playerViewModel.playSongs(localReorderableSongs, song, currentPlaylist.name, currentPlaylist.id)
-                                         },
+                                            playerViewModel.playSongs(
+                                                localReorderableSongs,
+                                                song,
+                                                currentPlaylist.name,
+                                                currentPlaylist.id
+                                            )
+                                        },
                                     song = song,
                                     isPlaying = playerStableState.currentSong?.id == song.id && playerStableState.isPlaying,
                                     isDragging = isDragging,
@@ -401,10 +456,16 @@ fun PlaylistDetailScreen(
                                             modifier = Modifier
                                                 .draggableHandle(
                                                     onDragStarted = {
-                                                        ViewCompat.performHapticFeedback(view, HapticFeedbackConstantsCompat.GESTURE_START)
+                                                        ViewCompat.performHapticFeedback(
+                                                            view,
+                                                            HapticFeedbackConstantsCompat.GESTURE_START
+                                                        )
                                                     },
                                                     onDragStopped = {
-                                                        ViewCompat.performHapticFeedback(view, HapticFeedbackConstantsCompat.GESTURE_END)
+                                                        ViewCompat.performHapticFeedback(
+                                                            view,
+                                                            HapticFeedbackConstantsCompat.GESTURE_END
+                                                        )
                                                     }
                                                 )
                                                 .size(40.dp)
@@ -526,7 +587,9 @@ fun SongPickerBottomSheet(
                 }
             ) { innerPadding ->
                 if (isLoading) {
-                    Box(Modifier.fillMaxSize().padding(innerPadding), Alignment.Center) { CircularProgressIndicator() }
+                    Box(Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding), Alignment.Center) { CircularProgressIndicator() }
                 } else {
                     LazyColumn(
                         modifier = Modifier
