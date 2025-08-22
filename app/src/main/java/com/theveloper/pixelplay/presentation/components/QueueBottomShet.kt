@@ -89,6 +89,7 @@ import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import androidx.media3.common.Player
+import com.theveloper.pixelplay.presentation.components.subcomps.PlayingEqIcon
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
@@ -248,6 +249,7 @@ fun QueueBottomSheet(
                                         .clickable { onPlaySong(song) },
                                     song = song,
                                     isCurrentSong = song.id == currentSongId,
+                                    isPlaying = null,
                                     isDragging = isDragging,
                                     onRemoveClick = { onRemoveSong(song.id) },
                                     dragHandle = {
@@ -367,12 +369,22 @@ fun QueuePlaylistSongItem(
     modifier: Modifier = Modifier,
     song: Song,
     isCurrentSong: Boolean,
+    isPlaying: Boolean? = null,
     isDragging: Boolean,
     onRemoveClick: () -> Unit,
     dragHandle: @Composable () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
-    val itemShape = RoundedCornerShape(16.dp)
+    val itemShape = AbsoluteSmoothCornerShape(
+        cornerRadiusTR = 18.dp,
+        smoothnessAsPercentTL = 60,
+        cornerRadiusTL = 18.dp,
+        smoothnessAsPercentTR = 60,
+        cornerRadiusBR = 18.dp,
+        smoothnessAsPercentBL = 60,
+        cornerRadiusBL = 18.dp,
+        smoothnessAsPercentBR = 60
+    )
 
     val elevation by animateDpAsState(
         targetValue = if (isDragging) 4.dp else 1.dp,
@@ -385,7 +397,7 @@ fun QueuePlaylistSongItem(
     )
 
     Surface(
-        modifier = modifier,
+        modifier = modifier.clip(itemShape),
         shape = itemShape,
         color = backgroundColor,
         tonalElevation = elevation,
@@ -424,20 +436,24 @@ fun QueuePlaylistSongItem(
             }
 
             if (isCurrentSong) {
-                Icon(
-                    imageVector = Icons.Default.GraphicEq,
-                    contentDescription = "Reproduciendo",
-                    tint = colors.primary,
-                    modifier = Modifier.padding(start = 8.dp)
-                )
+                if (isPlaying != null) {
+                    PlayingEqIcon(
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .size(width = 18.dp, height = 16.dp), // similar al tamaño del ícono
+                        color = colors.primary,
+                        isPlaying = isPlaying  // o conectalo a tu estado real de reproducción
+                    )
+                }
             }
+
 
             IconButton(
                 onClick = onRemoveClick,
                 modifier = Modifier.padding(start = 4.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.RemoveCircleOutline,
+                    imageVector = Icons.Rounded.Close,
                     contentDescription = "Quitar de la playlist",
                     tint = colors.onSurfaceVariant
                 )

@@ -329,11 +329,24 @@ fun PlaylistDetailScreen(
                                             scaleX = scale
                                             scaleY = scale
                                         }
+                                        .clip(
+                                            AbsoluteSmoothCornerShape(
+                                                cornerRadiusTR = 18.dp,
+                                                smoothnessAsPercentTL = 60,
+                                                cornerRadiusTL = 18.dp,
+                                                smoothnessAsPercentTR = 60,
+                                                cornerRadiusBR = 18.dp,
+                                                smoothnessAsPercentBL = 60,
+                                                cornerRadiusBL = 18.dp,
+                                                smoothnessAsPercentBR = 60
+                                            )
+                                        )
                                         .clickable {
                                             playerViewModel.showAndPlaySong(song, localReorderableSongs, currentPlaylist.name)
                                         },
                                     song = song,
                                     isCurrentSong = playerStableState.currentSong?.id == song.id,
+                                    isPlaying = playerStableState.isPlaying,
                                     isDragging = isDragging,
                                     onRemoveClick = {
                                         currentPlaylist.let {
