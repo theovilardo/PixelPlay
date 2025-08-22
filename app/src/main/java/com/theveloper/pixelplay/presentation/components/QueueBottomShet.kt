@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.presentation.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -254,6 +255,8 @@ fun QueueBottomSheet(
                                     isPlaying = song.id == currentSongId,
                                     isDragging = isDragging,
                                     onRemoveClick = { onRemoveSong(song.id) },
+                                    isReorderModeEnabled = false,
+                                    isDragHandleVisible = true,
                                     dragHandle = {
                                         IconButton(
                                             onClick = {},
@@ -373,7 +376,9 @@ fun QueuePlaylistSongItem(
     isPlaying: Boolean,
     isDragging: Boolean,
     onRemoveClick: () -> Unit,
-    dragHandle: @Composable () -> Unit
+    dragHandle: @Composable () -> Unit,
+    isReorderModeEnabled: Boolean,
+    isDragHandleVisible: Boolean
 ) {
     val colors = MaterialTheme.colorScheme
     val itemShape = RoundedCornerShape(16.dp)
@@ -399,9 +404,15 @@ fun QueuePlaylistSongItem(
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            dragHandle()
+            AnimatedVisibility(visible = isDragHandleVisible) {
+                dragHandle()
+            }
 
-            Spacer(Modifier.width(8.dp))
+            val albumArtPadding by animateDpAsState(
+                targetValue = if (isDragHandleVisible) 8.dp else 0.dp,
+                label = "albumArtPadding"
+            )
+            Spacer(Modifier.width(albumArtPadding))
 
             SmartImage(
                 model = song.albumArtUriString,

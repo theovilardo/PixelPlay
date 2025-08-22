@@ -1,6 +1,7 @@
 package com.theveloper.pixelplay.presentation.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -141,6 +142,7 @@ fun PlaylistDetailScreen(
 
     var showAddSongsSheet by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
+    var isReorderModeEnabled by remember { mutableStateOf(false) }
 
     var localReorderableSongs by remember(songsInPlaylist) { mutableStateOf(songsInPlaylist) }
 
@@ -303,6 +305,41 @@ fun PlaylistDetailScreen(
                     }
                 }
 
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val cornerRadius by animateDpAsState(
+                        targetValue = if (isReorderModeEnabled) 24.dp else 12.dp,
+                        label = "cornerRadius"
+                    )
+                    val buttonColor by animateColorAsState(
+                        targetValue = if (isReorderModeEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
+                        label = "buttonColor"
+                    )
+                    val iconColor by animateColorAsState(
+                        targetValue = if (isReorderModeEnabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                        label = "iconColor"
+                    )
+
+                    IconButton(
+                        onClick = { isReorderModeEnabled = !isReorderModeEnabled },
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(cornerRadius))
+                            .background(buttonColor)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.DragHandle,
+                            contentDescription = "Reorder songs",
+                            tint = iconColor
+                        )
+                    }
+                }
+
                 if (localReorderableSongs.isEmpty()) {
                     Box(Modifier.fillMaxSize().weight(1f), Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -351,6 +388,8 @@ fun PlaylistDetailScreen(
                                             playlistViewModel.removeSongFromPlaylist(it.id, song.id)
                                         }
                                     },
+                                    isReorderModeEnabled = isReorderModeEnabled,
+                                    isDragHandleVisible = isReorderModeEnabled,
                                     dragHandle = {
                                         IconButton(
                                             onClick = {},
