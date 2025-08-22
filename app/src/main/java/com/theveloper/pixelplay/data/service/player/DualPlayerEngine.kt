@@ -84,6 +84,7 @@ class DualPlayerEngine @Inject constructor(
     }
 
     private suspend fun performFadeInOutTransition(settings: TransitionSettings) {
+        if (playerB.mediaItemCount == 0) return
         val halfDuration = settings.durationMs.toLong() / 2
         if (halfDuration <= 0) return
 
@@ -98,25 +99,33 @@ class DualPlayerEngine @Inject constructor(
         playerA.volume = 0f
         playerA.stop()
 
-        // 2. Handover to next song on Player A
+        // 2. Start Player B (already prepared) and fade it in.
+        playerB.volume = 0f
+        playerB.play()
+        elapsed = 0L
+        while (elapsed < halfDuration) {
+            val progress = elapsed.toFloat() / halfDuration
+            playerB.volume = envelope(progress, settings.curveIn)
+            delay(50L)
+            elapsed += 50L
+        }
+        playerB.volume = 1f
+
+        // 3. Perform handover to make Player B the new Player A
+        // This is the same handover logic as the overlap transition.
         val originalQueue = List(playerA.mediaItemCount) { i -> playerA.getMediaItemAt(i) }
         val nextIndex = playerA.nextMediaItemIndex
         if (nextIndex != C.INDEX_UNSET && nextIndex < originalQueue.size) {
-            playerA.setMediaItems(originalQueue, nextIndex, 0L)
-            playerA.prepare()
-            playerA.volume = 0f
-            playerA.play()
-
-            // 3. Fade In Player A
-            elapsed = 0L
-            while (elapsed < halfDuration) {
-                val progress = elapsed.toFloat() / halfDuration
-                playerA.volume = envelope(progress, settings.curveIn)
-                delay(50L)
-                elapsed += 50L
-            }
+            val nextPosition = playerB.currentPosition
+            playerA.setMediaItems(originalQueue, nextIndex, nextPosition)
             playerA.volume = 1f
+            playerA.prepare()
+            playerA.play()
         }
+
+        // 4. Clean up Player B
+        playerB.stop()
+        playerB.clearMediaItems()
     }
 
     private suspend fun performOverlapTransition(settings: TransitionSettings) {

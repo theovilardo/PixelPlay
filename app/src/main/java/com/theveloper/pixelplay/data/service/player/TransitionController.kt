@@ -12,8 +12,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -83,34 +84,35 @@ class TransitionController @Inject constructor(
             // If no playlist context, we can't resolve rules.
             if (playlistId == null) return@launch
 
-            val settings = transitionRepository.resolveTransitionSettings(playlistId, fromTrackId, toTrackId).first()
+            // Use collectLatest to automatically cancel and restart the logic if settings change.
+            transitionRepository.resolveTransitionSettings(playlistId, fromTrackId, toTrackId).collectLatest { settings ->
+                // If transition is disabled or has no duration, do nothing.
+                if (settings.mode == TransitionMode.NONE || settings.durationMs <= 0) {
+                    return@collectLatest
+                }
 
-            // If transition is disabled or has no duration, do nothing.
-            if (settings.mode == TransitionMode.NONE || settings.durationMs <= 0) {
-                return@launch
-            }
+                // Wait for the player to report a valid duration.
+                var duration = player.duration
+                while (duration == C.TIME_UNSET && isActive) {
+                    delay(100)
+                    duration = player.duration
+                }
 
-            // Wait for the player to report a valid duration.
-            var duration = player.duration
-            while (duration == C.TIME_UNSET && isActive) {
-                delay(100)
-                duration = player.duration
-            }
+                val transitionPoint = duration - settings.durationMs
+                if (transitionPoint <= player.currentPosition) {
+                    // Already past the transition point, so don't attempt transition.
+                    return@collectLatest
+                }
 
-            val transitionPoint = duration - settings.durationMs
-            if (transitionPoint <= player.currentPosition) {
-                // Already past the transition point, so don't attempt transition.
-                return@launch
-            }
+                // Wait until the playback position reaches the transition point.
+                while (player.currentPosition < transitionPoint && isActive) {
+                    delay(250) // Check periodically.
+                }
 
-            // Wait until the playback position reaches the transition point.
-            while (player.currentPosition < transitionPoint && isActive) {
-                delay(250) // Check periodically.
-            }
-
-            // Final check to ensure the job wasn't cancelled while waiting.
-            if (isActive) {
-                engine.performTransition(settings)
+                // Final check to ensure the job wasn't cancelled while waiting.
+                if (isActive) {
+                    engine.performTransition(settings)
+                }
             }
         }
     }
