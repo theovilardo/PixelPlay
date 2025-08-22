@@ -38,13 +38,6 @@ abstract class PixelPlayDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATION_5_6 = object : Migration(5, 6) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                // Room will create the new transition_rules table automatically.
-                // No further action needed for this migration.
-            }
-        }
-
         // Example of a simple migration if needed.
         // For adding a new table, Room often handles it if schema validation passes.
         // However, explicit migrations are best practice for production.

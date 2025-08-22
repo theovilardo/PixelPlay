@@ -70,10 +70,9 @@ object AppModule {
             "pixelplay_database"
         ).addMigrations(
             PixelPlayDatabase.MIGRATION_3_4,
-            PixelPlayDatabase.MIGRATION_4_5,
-            PixelPlayDatabase.MIGRATION_5_6
+            PixelPlayDatabase.MIGRATION_4_5
         )
-            .fallbackToDestructiveMigration(false)
+            .fallbackToDestructiveMigration()
             .build()
     }
 
