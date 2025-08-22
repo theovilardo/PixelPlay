@@ -123,6 +123,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.asPaddingValues
 import com.theveloper.pixelplay.presentation.components.AiPlaylistSheet
+import com.theveloper.pixelplay.presentation.components.PlaylistArtCollage
 import com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet
 import com.theveloper.pixelplay.presentation.components.subcomps.LibraryActionRow
 import com.theveloper.pixelplay.presentation.components.subcomps.SineWaveLine
@@ -473,6 +474,7 @@ fun LibraryScreen(
                                     LibraryPlaylistsTab(
                                         playlistUiState = currentPlaylistUiState,
                                         navController = navController,
+                                        playerViewModel = playerViewModel,
                                         bottomBarHeight = bottomBarHeightDp,
                                         onGenerateWithAiClick = { playerViewModel.showAiPlaylistSheet() }
                                     )
@@ -1445,6 +1447,7 @@ fun ArtistListItem(artist: Artist, onClick: () -> Unit) {
 fun LibraryPlaylistsTab(
     playlistUiState: PlaylistUiState,
     navController: NavController,
+    playerViewModel: PlayerViewModel,
     bottomBarHeight: Dp,
     onGenerateWithAiClick: () -> Unit
 ) {
@@ -1515,7 +1518,11 @@ fun LibraryPlaylistsTab(
                     val rememberedOnClick = remember(playlist.id) {
                         { navController.navigate(Screen.PlaylistDetail.createRoute(playlist.id)) }
                     }
-                    PlaylistItem(playlist = playlist, onClick = rememberedOnClick)
+                    PlaylistItem(
+                        playlist = playlist,
+                        playerViewModel = playerViewModel,
+                        onClick = rememberedOnClick
+                    )
                 }
             }
             Box(
@@ -1537,35 +1544,32 @@ fun LibraryPlaylistsTab(
 }
 
 @Composable
-fun PlaylistItem(playlist: Playlist, onClick: () -> Unit) {
+fun PlaylistItem(
+    playlist: Playlist,
+    playerViewModel: PlayerViewModel,
+    onClick: () -> Unit
+) {
+    val allSongs by playerViewModel.allSongsFlow.collectAsState()
+    val playlistSongs = remember(playlist.songIds, allSongs) {
+        allSongs.filter { it.id in playlist.songIds }
+    }
+
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        // 1. Usa un color de contenedor específico de M3 para una apariencia menos elevada
-        // y más integrada con la superficie.
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
     ) {
         Row(
-            // 2. Ajusta el padding general para el nuevo diseño.
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 3. El ícono ahora tiene un fondo con color y forma para destacarlo,
-            // un patrón común en el estilo expresivo de M3.
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                contentDescription = "Playlist",
-                modifier = Modifier
-                    .size(48.dp)
-                    .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
-                    .padding(12.dp), // Padding interno para que el ícono no toque los bordes del círculo.
-                // 4. El tint del ícono debe ser el color "on" correspondiente al nuevo fondo.
-                tint = MaterialTheme.colorScheme.onSecondaryContainer
+            PlaylistArtCollage(
+                songs = playlistSongs,
+                modifier = Modifier.size(48.dp)
             )
 
-            // 5. Usa un Spacer para una separación horizontal consistente y predecible.
             Spacer(modifier = Modifier.width(16.dp))
 
             Column(modifier = Modifier.weight(1f)) {
