@@ -52,6 +52,8 @@ import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.ByteArrayOutputStream
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
+import com.theveloper.pixelplay.data.service.player.DualPlayerEngine
+import com.theveloper.pixelplay.data.service.player.TransitionController
 import javax.inject.Inject
 
 // Acciones personalizadas para compatibilidad con el widget existente
@@ -62,7 +64,9 @@ import javax.inject.Inject
 class MusicService : MediaSessionService() {
 
     @Inject
-    lateinit var exoPlayer: ExoPlayer
+    lateinit var engine: DualPlayerEngine
+    @Inject
+    lateinit var controller: TransitionController
     @Inject
     lateinit var musicRepository: MusicRepository
     @Inject
@@ -80,14 +84,8 @@ class MusicService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
 
-        val audioAttributes = AudioAttributes.Builder()
-            .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-            .setUsage(C.USAGE_MEDIA)
-            .build()
-
-        exoPlayer.setAudioAttributes(audioAttributes, true)
-        exoPlayer.setHandleAudioBecomingNoisy(true)
-        exoPlayer.addListener(playerListener)
+        engine.masterPlayer.addListener(playerListener)
+        controller.initialize()
 
         val callback = object : MediaSession.Callback {
             override fun onCustomCommand(
@@ -137,7 +135,7 @@ class MusicService : MediaSessionService() {
             }
         }
 
-        mediaSession = MediaSession.Builder(this, exoPlayer)
+        mediaSession = MediaSession.Builder(this, engine.masterPlayer)
             .setSessionActivity(getOpenAppPendingIntent())
             .setCallback(callback)
             .build()
@@ -230,11 +228,11 @@ class MusicService : MediaSessionService() {
 
     override fun onDestroy() {
         mediaSession?.run {
-            player.removeListener(playerListener)
-            player.release()
             release()
             mediaSession = null
         }
+        engine.release()
+        controller.release()
         serviceScope.cancel()
         super.onDestroy()
     }
@@ -271,10 +269,11 @@ class MusicService : MediaSessionService() {
     }
 
     private suspend fun buildPlayerInfo(): PlayerInfo {
-        val currentItem = withContext(Dispatchers.Main) { exoPlayer.currentMediaItem }
-        val isPlaying = withContext(Dispatchers.Main) { exoPlayer.isPlaying }
-        val currentPosition = withContext(Dispatchers.Main) { exoPlayer.currentPosition }
-        val totalDuration = withContext(Dispatchers.Main) { exoPlayer.duration.coerceAtLeast(0) }
+        val player = engine.masterPlayer
+        val currentItem = withContext(Dispatchers.Main) { player.currentMediaItem }
+        val isPlaying = withContext(Dispatchers.Main) { player.isPlaying }
+        val currentPosition = withContext(Dispatchers.Main) { player.currentPosition }
+        val totalDuration = withContext(Dispatchers.Main) { player.duration.coerceAtLeast(0) }
 
         val title = currentItem?.mediaMetadata?.title?.toString().orEmpty()
         val artist = currentItem?.mediaMetadata?.artist?.toString().orEmpty()
@@ -291,10 +290,10 @@ class MusicService : MediaSessionService() {
 //        } ?: false
 
         val queueItems = mutableListOf<com.theveloper.pixelplay.data.model.QueueItem>()
-        val timeline = withContext(Dispatchers.Main) { exoPlayer.currentTimeline }
+        val timeline = withContext(Dispatchers.Main) { player.currentTimeline }
         if (!timeline.isEmpty) {
             val window = androidx.media3.common.Timeline.Window()
-            val currentWindowIndex = withContext(Dispatchers.Main) { exoPlayer.currentMediaItemIndex }
+            val currentWindowIndex = withContext(Dispatchers.Main) { player.currentMediaItemIndex }
 
             // Empezar desde la siguiente canción en la cola
             val startIndex = if (currentWindowIndex + 1 < timeline.windowCount) currentWindowIndex + 1 else 0

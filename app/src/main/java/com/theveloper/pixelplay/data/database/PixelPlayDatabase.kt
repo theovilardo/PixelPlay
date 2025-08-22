@@ -12,9 +12,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SearchHistoryEntity::class,
         SongEntity::class,
         AlbumEntity::class,
-        ArtistEntity::class
+        ArtistEntity::class,
+        TransitionRuleEntity::class
     ],
-    version = 5, // Incremented version for adding lyrics
+    version = 6, // Incremented version for transition rules
     exportSchema = false
 )
 //@TypeConverters(ColorConverters::class) // Necesitaremos conversores para los ColorScheme
@@ -22,6 +23,7 @@ abstract class PixelPlayDatabase : RoomDatabase() {
     abstract fun albumArtThemeDao(): AlbumArtThemeDao
     abstract fun searchHistoryDao(): SearchHistoryDao
     abstract fun musicDao(): MusicDao // Added MusicDao
+    abstract fun transitionDao(): TransitionDao
 
     companion object {
         val MIGRATION_3_4 = object : Migration(3, 4) {
@@ -33,6 +35,13 @@ abstract class PixelPlayDatabase : RoomDatabase() {
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE songs ADD COLUMN lyrics TEXT")
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Room will create the new transition_rules table automatically.
+                // No further action needed for this migration.
             }
         }
 

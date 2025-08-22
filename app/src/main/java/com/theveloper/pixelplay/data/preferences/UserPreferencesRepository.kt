@@ -13,6 +13,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.theveloper.pixelplay.data.model.Playlist
 import com.theveloper.pixelplay.data.model.SortOption // Added import
 import com.theveloper.pixelplay.data.model.Song
+import com.theveloper.pixelplay.data.model.TransitionSettings
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -60,6 +61,27 @@ class UserPreferencesRepository @Inject constructor(
         val LAST_DAILY_MIX_UPDATE = longPreferencesKey("last_daily_mix_update")
         val DAILY_MIX_SONG_IDS = stringPreferencesKey("daily_mix_song_ids")
         val NAV_BAR_CORNER_RADIUS = intPreferencesKey("nav_bar_corner_radius")
+
+        // Transition Settings
+        val GLOBAL_TRANSITION_SETTINGS = stringPreferencesKey("global_transition_settings_json")
+    }
+
+    val globalTransitionSettingsFlow: Flow<TransitionSettings> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.GLOBAL_TRANSITION_SETTINGS]?.let { jsonString ->
+                try {
+                    json.decodeFromString<TransitionSettings>(jsonString)
+                } catch (e: Exception) {
+                    TransitionSettings() // Return default on error
+                }
+            } ?: TransitionSettings() // Return default if not set
+        }
+
+    suspend fun saveGlobalTransitionSettings(settings: TransitionSettings) {
+        dataStore.edit { preferences ->
+            val jsonString = json.encodeToString(settings)
+            preferences[PreferencesKeys.GLOBAL_TRANSITION_SETTINGS] = jsonString
+        }
     }
 
     val dailyMixSongIdsFlow: Flow<List<String>> = dataStore.data

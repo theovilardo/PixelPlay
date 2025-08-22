@@ -935,7 +935,7 @@ class PlayerViewModel @Inject constructor(
         if (isVoluntaryPlay) {
             incrementSongScore(song.id)
         }
-        playSongs(contextSongs, song, queueName)
+        playSongs(contextSongs, song, queueName, null)
         _isSheetVisible.value = true
         _predictiveBackCollapseFraction.value = 0f
     }
@@ -962,7 +962,7 @@ class PlayerViewModel @Inject constructor(
                 if (songsList.isNotEmpty()) {
                     // Ahora songsList es una List<Song>, y songsList.first() es una Song
                     // UI updates and calls to playSongs (which might interact with MediaController) should be on Main
-                    playSongs(songsList, songsList.first(), album.title)
+                    playSongs(songsList, songsList.first(), album.title, null)
                     _isSheetVisible.value = true // Mostrar reproductor
                 } else {
                     // Opcional: manejar el caso donde el álbum no tiene canciones (o no permitidas)
@@ -987,7 +987,7 @@ class PlayerViewModel @Inject constructor(
                 if (songsList.isNotEmpty()) {
                     // Ahora songsList es una List<Song>, y songsList.first() es una Song
                     // UI updates and calls to playSongs should be on Main
-                    playSongs(songsList, songsList.first(), artist.name)
+                    playSongs(songsList, songsList.first(), artist.name, null)
                     _isSheetVisible.value = true
                 } else {
                     Log.w("PlayerViewModel", "Artist '${artist.name}' has no playable songs.")
@@ -1183,13 +1183,13 @@ class PlayerViewModel @Inject constructor(
 
     // Modificado para establecer una lista de reproducción
     // Modificar playSongs para que la cola sea la lista completa de allSongs si se inicia desde ahí
-    fun playSongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None") {
+    fun playSongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None", playlistId: String? = null) {
         viewModelScope.launch {
-            internalPlaySongs(songsToPlay, startSong, queueName)
+            internalPlaySongs(songsToPlay, startSong, queueName, playlistId)
         }
     }
 
-    private suspend fun internalPlaySongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None") {
+    private suspend fun internalPlaySongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None", playlistId: String? = null) {
         Log.d("PlayerViewModel_MediaItem", "internalPlaySongs called. Songs count: ${songsToPlay.size}, StartSong: ${startSong.title}, QueueName: $queueName")
         Log.d("PlayerViewModel_MediaItem", "internalPlaySongs: mediaController is null: ${mediaController == null}")
 
@@ -1208,6 +1208,12 @@ class PlayerViewModel @Inject constructor(
                     .setTitle(song.title)
                     .setArtist(song.artist)
                 // .setAlbumTitle(song.album) // Opcional
+
+                playlistId?.let {
+                    val extras = android.os.Bundle()
+                    extras.putString("playlistId", it)
+                    metadataBuilder.setExtras(extras)
+                }
 
                 // Set artwork URI without pre-loading byte data
                 song.albumArtUriString?.toUri()?.let { uri ->
