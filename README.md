@@ -1,125 +1,102 @@
----
+# PixelPlay 🎵
 
-<!-- PROJECT SHIELDS -->
-<p align="center">
-  <img src="https://img.shields.io/badge/Jetpack_Compose-1.5.12-4285F4?logo=jetpackcompose" alt="Compose"/>
-  <img src="https://img.shields.io/badge/Kotlin-7F52FF?style=for-the-badge&logo=Kotlin&logoColor=white" alt="KOTLIN"/>
-  <img src="https://img.shields.io/badge/Room-Optional-red?style=flat" alt="Room (Optional)"/>
-  <img src="https://img.shields.io/badge/DI-Hilt-2.44-green?style=flat" alt="Hilt"/>
-  <img src="https://img.shields.io/badge/Material3-Expressive-✨-purple?style=flat" alt="Material3 Expressive"/>
-  <img src="https://img.shields.io/badge/Storage-DataStore-1.1.0-orange?style=flat" alt="DataStore"/>
-</p>
+*Reproductor de música **local** para Android construido con **Kotlin** y **Jetpack Compose**.*
+
+> Este README fue reescrito y modernizado en **agosto de 2025**. Ajusta cualquier punto que no refleje el estado real del repo.
 
 ---
 
-# 🎵 PixelPlay AI Music Player
+## ✨ Resumen
 
-> “Listen like a boss, powered by AI & Material 3 Expressive!”  
-
-PixelPlay is a **Jetpack Compose**-based Android music app, architected with **Hilt** DI, **DataStore** (and soon **Room**), featuring a slick **Material 3 Expressive** interface and AI-driven features in the works.  
+**PixelPlay** es una app de música **offline** que escanea tu biblioteca local y ofrece una experiencia fluida con una interfaz moderna basada en **Material 3**. Soporta controles del sistema, notificación persistente, cola de reproducción, y navegación por artistas, álbumes, canciones y carpetas.
 
 ---
 
-## 🚀 Key Features
+## 🔎 Características (principales)
 
-- **🖼️ Dynamic Themes**: Auto-adapt colors from album art with Material 3 Expressive  
-- **⚙️ Hilt + KSP**: Seamless dependency injection for ViewModels, repositories & more
-- **💾 Data Persistence**: User prefs and playback queue with Jetpack DataStore
-- **🎨 Modern UI**: Fully built in Jetpack Compose for smooth, declarative layouts
-- **🎵 Expandable Player**: Drag, swipe & predictive-back gestures for immersive controls  
-- **🤖 AI-Ready**: Hooks in place for future AI-powered recommendations & lyrics  
+* 🔊 **Reproducción local** con soporte para formatos comunes (MP3/AAC/FLAC/OGG, etc.)
+* 🎚️ **Controles**: play/pause, siguiente/anterior, repetir/aleatorio, seek
+* 🧭 **Biblioteca**: Canciones · Álbumes · Artistas · Carpetas · Listas
+* 📦 **Cola de reproducción** (añadir/quitar, reordenar)
+* 🪄 **Búsqueda** rápida por texto
+* 🎨 **Material 3 / Dynamic Color** (modo claro/oscuro)
+* 🔔 **Notificación** y **MediaSession** (controles desde lockscreen/auriculares)
+* 📱 **Compact/Expanded** player (miniplayer y pantalla “Now Playing”)
+* 🗂️ Lectura de **MediaStore** y carátulas embebidas/externas
+* 🌐 **Idiomas**: ES/EN (si aplica)
 
----
-
-## 📦 Tech Stack
-
-| Layer               | Tech                       |
-|---------------------|----------------------------|
-| UI                  | Jetpack Compose 1.5.0-alpha|
-| Design System       | Material 3 Expressive      |
-| DI                  | Hilt 2.44 + KSP            |
-| Persistence         | DataStore 1.1.0 (Room now) |
-| Navigation          | Jetpack Navigation Compose |
-| Coroutines & Flow   | Kotlin Coroutines & Flow   |
-| Testing             | JUnit5, MockK, UI tests    |
+> Marca con ✅ lo que ya esté implementado y mueve lo restante a *Roadmap*.
 
 ---
 
-## 📐 Architecture
+## 🧰 Pila técnica
 
-┌───────────────────┐       ┌───────────────────┐
-│    Compose UI     │  ←→   │  ViewModels (MVVM)│
-└───────────────────┘       └───────────────────┘
-▲                           ▲
-│                           │
-▼                           ▼
-┌───────────────────┐       ┌───────────────────┐
-│  Repositories     │  ←→   │   DataStore/Room  │
-└───────────────────┘       └───────────────────┘
-▲
-│
-▼
-AI Services (TBD)
-
-
-- **Modular**: UI, domain & data layers decoupled  
-- **Scalable**: Easy to plug-in Room or Retrofit modules  
-- **Testable**: ViewModels & Repos injected via Hilt  
+* **Lenguaje**: Kotlin
+* **UI**: Jetpack Compose (BOM), Material 3
+* **Media**: AndroidX **Media3** (ExoPlayer, Session, UI)
+* **Arquitectura**: MVVM + Flows/Coroutines
+* **DI**: Hilt/Koin (si aplica)
+* **Data**: MediaStore · Room (si aplica)
+* **Testing**: JUnit/MockK/Compose UI Test (si aplica)
 
 ---
 
-## 🎨 Screenshots & GIFs
+## 🏗️ Estructura (sugerida)
 
-<p align="center">
-  <img src="docs/ui/mini_player.gif" width="200" alt="Mini Player"/>
-  <img src="docs/ui/full_player.gif" width="200" alt="Full Player"/>
-  <img src="docs/ui/queue.gif" width="200" alt="Queue Sheet"/>
-</p>
+```
+app/
+  ├─ data/            # Repositorios, fuentes de datos (MediaStore, Room)
+  ├─ domain/          # Casos de uso y modelos de dominio
+  ├─ ui/              # Pantallas Compose, theming, navegación
+  ├─ playback/        # ExoPlayer, MediaSession, notificación
+  └─ core/            # Utilidades comunes, ext, result wrappers
+```
 
----
-
-## 💻 Getting Started
-
-1. **Clone** the repo  
-   ```bash
-   git clone https://github.com/your-org/pixel-play.git
-
-
-2. **Open** in Android Studio (Arctic Fox+)
-3. **Build** & **Run** on a device/emulator (min API 21)
-4. **Enjoy** and rock on! 🤘
+> Adapta a la estructura real del proyecto si difiere.
 
 ---
 
-## 🛠️ Roadmap
+## 🚀 Empezar
 
-* [x] Material 3 Expressive theming
-* [x] Expandable bottom sheet player
-* [x] DataStore preferences
-* [ ] Room database for offline playlists
-* [ ] AI-powered song recommendations
-* [ ] Lyrics generation with ML
+### Requisitos
 
----
+* **Android Studio** reciente (Koala/Ladybug o superior)
+* **Android Gradle Plugin** y **Gradle** acordes a la versión del proyecto
+* **Min SDK**: el del repo (ej.: 24+)
 
-## 🤝 Contribute
+### Clonar y ejecutar
 
-1. Fork & create a feature branch
-2. Commit & PR
-3. Code review & merge
-4. 🚀 Celebrate your contribution with 🎉!
+```bash
+git clone https://github.com/<tu-usuario>/PixelPlay.git
+cd PixelPlay
+# Abre en Android Studio y sincroniza Gradle
+```
 
----
-
-## 📜 License
-
-This project is **Apache 2.0** licensed. See [LICENSE](LICENSE) for details.
+Selecciona un dispositivo/emulador y ejecuta **Run** ▶️.
 
 ---
 
-#### Made with ❤️ by \[Your Name]
+## 📦 Dependencias clave (build.gradle.kts)
 
----
+> Usa **BOM de Compose** y **Media3**. Ajusta versiones si ya estás en otras.
 
-Feel free to tweak badges, versions and screenshots paths. Rock on! \m/
+```kotlin
+dependencies {
+    // BOM de Compose (bloquea versiones compatibles)
+    implementation(platform("androidx.compose:compose-bom:2025.08.00"))
+
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    debugImplementation("androidx.compose.ui:ui-tooling")
+    implementation("androidx.compose.material3:material3")
+
+    // Media3 (ExoPlayer/Session/UI)
+    val media3 = "1.8.0"
+    implementation("androidx.media3:media3-exoplayer:$media3")
+    implementation("androidx.media3:media3-session:$media3")
+    implementation("androidx.media3:media3-ui:$media3")
+
+    // Kotlin Coroutines, Lifecycle, etc. (opcional)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:<ver>")
+    implementation("androidx.lifecycle:lifecy
 ```
