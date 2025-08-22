@@ -236,10 +236,6 @@ fun QueueBottomSheet(
                                     targetValue = if (isDragging) 1.05f else 1f,
                                     label = "scaleAnimation"
                                 )
-                                val backgroundColor by animateColorAsState(
-                                    targetValue = if (isDragging) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent,
-                                    label = "backgroundColorAnimation"
-                                )
 
                                 QueuePlaylistSongItem(
                                     modifier = Modifier
@@ -251,7 +247,7 @@ fun QueueBottomSheet(
                                         }
                                         .clickable { onPlaySong(song) },
                                     song = song,
-                                    isPlaying = song.id == currentSongId,
+                                    isCurrentSong = song.id == currentSongId,
                                     isDragging = isDragging,
                                     onRemoveClick = { onRemoveSong(song.id) },
                                     dragHandle = {
@@ -370,7 +366,7 @@ fun QueueBottomSheet(
 fun QueuePlaylistSongItem(
     modifier: Modifier = Modifier,
     song: Song,
-    isPlaying: Boolean,
+    isCurrentSong: Boolean,
     isDragging: Boolean,
     onRemoveClick: () -> Unit,
     dragHandle: @Composable () -> Unit
@@ -384,7 +380,7 @@ fun QueuePlaylistSongItem(
     )
 
     val backgroundColor by animateColorAsState(
-        targetValue = if (isPlaying) colors.surfaceContainerLowest else colors.surfaceContainerLowest,
+        targetValue = if (isCurrentSong) colors.surfaceContainerLowest else colors.surfaceContainerLowest,
         label = "backgroundColorAnimation"
     )
 
@@ -416,18 +412,18 @@ fun QueuePlaylistSongItem(
             Column(Modifier.weight(1f)) {
                 Text(
                     song.title, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    color = if (isPlaying) colors.primary else colors.onSurface,
-                    fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isCurrentSong) colors.primary else colors.onSurface,
+                    fontWeight = if (isCurrentSong) FontWeight.Bold else FontWeight.Normal,
                     style = MaterialTheme.typography.bodyLarge
                 )
                 Text(
                     song.artist, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (isPlaying) colors.primary.copy(alpha = 0.8f) else colors.onSurfaceVariant
+                    color = if (isCurrentSong) colors.primary.copy(alpha = 0.8f) else colors.onSurfaceVariant
                 )
             }
 
-            if (isPlaying) {
+            if (isCurrentSong) {
                 Icon(
                     imageVector = Icons.Default.GraphicEq,
                     contentDescription = "Reproduciendo",

@@ -333,7 +333,7 @@ fun PlaylistDetailScreen(
                                             playerViewModel.showAndPlaySong(song, localReorderableSongs, currentPlaylist.name)
                                         },
                                     song = song,
-                                    isPlaying = playerStableState.currentSong?.id == song.id && playerStableState.isPlaying,
+                                    isCurrentSong = playerStableState.currentSong?.id == song.id,
                                     isDragging = isDragging,
                                     onRemoveClick = {
                                         currentPlaylist.let {
