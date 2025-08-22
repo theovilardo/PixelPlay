@@ -34,26 +34,26 @@ class TransitionViewModel @Inject constructor(
     val uiState = _uiState.asStateFlow()
 
     init {
-        loadSettings()
+        viewModelScope.launch {
+            loadSettingsSuspend()
+        }
     }
 
-    private fun loadSettings() {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
-            val settingsFlow = if (playlistId != null) {
-                transitionRepository.getPlaylistOrDefaultSettings(playlistId)
-            } else {
-                transitionRepository.getGlobalSettings()
-            }
-            // Use .first() to get the value once and stop collecting, preventing race conditions.
-            val initialSettings = settingsFlow.first()
-            _uiState.update {
-                it.copy(
-                    settings = initialSettings,
-                    isPlaylistRule = playlistId != null,
-                    isLoading = false
-                )
-            }
+    private suspend fun loadSettingsSuspend() {
+        _uiState.update { it.copy(isLoading = true) }
+        val settingsFlow = if (playlistId != null) {
+            transitionRepository.getPlaylistOrDefaultSettings(playlistId)
+        } else {
+            transitionRepository.getGlobalSettings()
+        }
+        // Use .first() to get the value once and stop collecting, preventing race conditions.
+        val initialSettings = settingsFlow.first()
+        _uiState.update {
+            it.copy(
+                settings = initialSettings,
+                isPlaylistRule = playlistId != null,
+                isLoading = false
+            )
         }
     }
 
@@ -96,7 +96,7 @@ class TransitionViewModel @Inject constructor(
             }
             // After saving or deleting, we must reload the state from the single source of truth
             // to ensure the UI reflects the change (e.g., falling back to the global setting).
-            loadSettings()
+            loadSettingsSuspend()
             _uiState.update { it.copy(isSaved = true) }
         }
     }
