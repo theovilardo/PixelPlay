@@ -263,7 +263,7 @@ fun PlaylistDetailScreen(
                     Button(
                         onClick = {
                             if (localReorderableSongs.isNotEmpty()) {
-                                playerViewModel.playSongs(localReorderableSongs, localReorderableSongs.first(), currentPlaylist.name)
+                                playerViewModel.showAndPlaySong(localReorderableSongs.first(), localReorderableSongs, currentPlaylist.name)
                                 if (playerStableState.isShuffleEnabled) playerViewModel.toggleShuffle()
                             }
                         },
@@ -279,7 +279,7 @@ fun PlaylistDetailScreen(
                         onClick = {
                             if (localReorderableSongs.isNotEmpty()) {
                                 if (!playerStableState.isShuffleEnabled) playerViewModel.toggleShuffle()
-                                playerViewModel.playSongs(localReorderableSongs, localReorderableSongs.random(), currentPlaylist.name)
+                                playerViewModel.showAndPlaySong(localReorderableSongs.random(), localReorderableSongs, currentPlaylist.name)
                             }
                         },
                         modifier = Modifier.weight(1f).height(76.dp),
@@ -330,7 +330,7 @@ fun PlaylistDetailScreen(
                                             scaleY = scale
                                         }
                                         .clickable {
-                                            playerViewModel.playSongs(localReorderableSongs, song, currentPlaylist.name)
+                                            playerViewModel.showAndPlaySong(song, localReorderableSongs, currentPlaylist.name)
                                         },
                                     song = song,
                                     isPlaying = playerStableState.currentSong?.id == song.id && playerStableState.isPlaying,
