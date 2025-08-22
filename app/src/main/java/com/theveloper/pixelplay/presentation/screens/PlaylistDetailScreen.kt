@@ -90,6 +90,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
@@ -99,10 +100,13 @@ import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.core.view.ViewCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
+import androidx.navigation.NavController
+import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.QueuePlaylistSongItem
 import com.theveloper.pixelplay.presentation.components.SmartImage
+import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
@@ -210,15 +214,15 @@ fun PlaylistDetailScreen(
                     }
                 },
                 actions = {
-                    FilledTonalIconButton(
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            contentColor = MaterialTheme.colorScheme.onSurface
-                        ),
-                        onClick = {
-                            navController.navigate(Screen.EditTransition.createRoute(playlistId))
-                        }
-                    ) { Icon(Icons.Filled.Tune, "Edit Transitions") }
+//                    FilledTonalIconButton(
+//                        colors = IconButtonDefaults.filledIconButtonColors(
+//                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+//                            contentColor = MaterialTheme.colorScheme.onSurface
+//                        ),
+//                        onClick = {
+//                            navController.navigate(Screen.EditTransition.createRoute(playlistId))
+//                        }
+//                    ) { Icon(Icons.Filled.Tune, "Edit Transitions") }
                     FilledTonalIconButton(
                         colors = IconButtonDefaults.filledIconButtonColors(
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -327,13 +331,14 @@ fun PlaylistDetailScreen(
 
                     IconButton(
                         onClick = { isReorderModeEnabled = !isReorderModeEnabled },
+                        shape = RoundedCornerShape(cornerRadius),
                         modifier = Modifier
-                            .size(48.dp)
                             .clip(RoundedCornerShape(cornerRadius))
+                            .size(42.dp)
                             .background(buttonColor)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.DragHandle,
+                            painter = painterResource(R.drawable.rounded_format_list_bulleted_24),
                             contentDescription = "Reorder songs",
                             tint = iconColor
                         )

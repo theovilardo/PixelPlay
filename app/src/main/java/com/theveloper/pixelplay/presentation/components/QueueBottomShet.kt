@@ -381,7 +381,16 @@ fun QueuePlaylistSongItem(
     isDragHandleVisible: Boolean
 ) {
     val colors = MaterialTheme.colorScheme
-    val itemShape = RoundedCornerShape(16.dp)
+    val itemShape = AbsoluteSmoothCornerShape(
+        cornerRadiusTR = 22.dp,
+        smoothnessAsPercentTL = 60,
+        cornerRadiusTL = 22.dp,
+        smoothnessAsPercentTR = 60,
+        cornerRadiusBR = 22.dp,
+        smoothnessAsPercentBL = 60,
+        cornerRadiusBL = 22.dp,
+        smoothnessAsPercentBR = 60
+    )
 
     val elevation by animateDpAsState(
         targetValue = if (isDragging) 4.dp else 1.dp,
@@ -408,8 +417,10 @@ fun QueuePlaylistSongItem(
                 dragHandle()
             }
 
+            //val albumArtPadding = 12.dp
+
             val albumArtPadding by animateDpAsState(
-                targetValue = if (isDragHandleVisible) 8.dp else 0.dp,
+                targetValue = if (isDragHandleVisible) 6.dp else 12.dp,
                 label = "albumArtPadding"
             )
             Spacer(Modifier.width(albumArtPadding))
