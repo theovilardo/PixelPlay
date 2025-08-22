@@ -39,21 +39,19 @@ class TransitionViewModel @Inject constructor(
 
     private fun loadSettings() {
         viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
             val settingsFlow = if (playlistId != null) {
                 transitionRepository.getPlaylistOrDefaultSettings(playlistId)
             } else {
-                // For this ViewModel, null playlistId means we edit global settings
                 transitionRepository.getGlobalSettings()
             }
-
-            settingsFlow.collect { settings ->
-                _uiState.update {
-                    it.copy(
-                        settings = settings,
-                        isPlaylistRule = playlistId != null,
-                        isLoading = false
-                    )
-                }
+            val initialSettings = settingsFlow.first()
+            _uiState.update {
+                it.copy(
+                    settings = initialSettings,
+                    isPlaylistRule = playlistId != null,
+                    isLoading = false
+                )
             }
         }
     }
@@ -80,15 +78,22 @@ class TransitionViewModel @Inject constructor(
         viewModelScope.launch {
             val currentSettings = _uiState.value.settings
             if (playlistId != null) {
-                // This creates/updates the default rule for the playlist.
-                val rule = TransitionRule(
-                    playlistId = playlistId,
-                    settings = currentSettings
-                )
-                transitionRepository.saveRule(rule)
+                // If the user selects NONE for a playlist, we delete the specific rule
+                // so it correctly falls back to the global setting.
+                if (currentSettings.mode == TransitionMode.NONE) {
+                    transitionRepository.deletePlaylistDefaultRule(playlistId)
+                } else {
+                    val rule = TransitionRule(
+                        playlistId = playlistId,
+                        settings = currentSettings
+                    )
+                    transitionRepository.saveRule(rule)
+                }
             } else {
                 transitionRepository.saveGlobalSettings(currentSettings)
             }
+            // After saving, reload the settings from the source of truth to ensure UI consistency.
+            loadSettings()
             _uiState.update { it.copy(isSaved = true) }
         }
     }

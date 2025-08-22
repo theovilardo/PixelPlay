@@ -1,6 +1,9 @@
 package com.theveloper.pixelplay.presentation.screens
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,7 +29,7 @@ import com.theveloper.pixelplay.data.model.TransitionMode
 import com.theveloper.pixelplay.presentation.viewmodel.TransitionViewModel
 import java.util.concurrent.TimeUnit
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun EditTransitionScreen(
     navController: NavController,
@@ -66,13 +69,15 @@ fun EditTransitionScreen(
                 // Mode Selector
                 Text("Mode", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth()) {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     TransitionMode.values().forEach { mode ->
                         FilterChip(
                             selected = uiState.settings.mode == mode,
                             onClick = { viewModel.updateMode(mode) },
-                            label = { Text(mode.name.replace('_', ' ').lowercase().capitalize()) },
-                            modifier = Modifier.padding(horizontal = 4.dp)
+                            label = { Text(mode.name.replace('_', ' ').lowercase().capitalize()) }
                         )
                     }
                 }
