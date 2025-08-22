@@ -1022,23 +1022,21 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun togglePlayerSheetState() {
-        if (_isSheetVisible.value) {
-            _sheetState.value = if (_sheetState.value == PlayerSheetState.COLLAPSED) {
-                PlayerSheetState.EXPANDED
-            } else {
-                PlayerSheetState.COLLAPSED
-            }
-            _predictiveBackCollapseFraction.value = 0f
+        _sheetState.value = if (_sheetState.value == PlayerSheetState.COLLAPSED) {
+            PlayerSheetState.EXPANDED
+        } else {
+            PlayerSheetState.COLLAPSED
         }
+        _predictiveBackCollapseFraction.value = 0f
     }
 
     fun expandPlayerSheet() {
-        if (_isSheetVisible.value) _sheetState.value = PlayerSheetState.EXPANDED
+        _sheetState.value = PlayerSheetState.EXPANDED
         _predictiveBackCollapseFraction.value = 0f
     }
 
     fun collapsePlayerSheet() {
-        if (_isSheetVisible.value) _sheetState.value = PlayerSheetState.COLLAPSED
+        _sheetState.value = PlayerSheetState.COLLAPSED
         _predictiveBackCollapseFraction.value = 0f
     }
 
