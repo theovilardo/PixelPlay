@@ -13,12 +13,15 @@ import com.theveloper.pixelplay.data.database.AlbumArtThemeDao
 import com.theveloper.pixelplay.data.database.MusicDao
 import com.theveloper.pixelplay.data.database.PixelPlayDatabase
 import com.theveloper.pixelplay.data.database.SearchHistoryDao
+import com.theveloper.pixelplay.data.database.TransitionDao
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.preferences.dataStore
 import com.theveloper.pixelplay.data.media.SongMetadataEditor
 import com.theveloper.pixelplay.data.network.lyrics.LrcLibApiService
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.data.repository.MusicRepositoryImpl
+import com.theveloper.pixelplay.data.repository.TransitionRepository
+import com.theveloper.pixelplay.data.repository.TransitionRepositoryImpl
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -65,8 +68,11 @@ object AppModule {
             context.applicationContext,
             PixelPlayDatabase::class.java,
             "pixelplay_database"
-        ).addMigrations(PixelPlayDatabase.MIGRATION_3_4, PixelPlayDatabase.MIGRATION_4_5) // Add migration for parent_directory_path
-            .fallbackToDestructiveMigration(false)
+        ).addMigrations(
+            PixelPlayDatabase.MIGRATION_3_4,
+            PixelPlayDatabase.MIGRATION_4_5
+        )
+            .fallbackToDestructiveMigration()
             .build()
     }
 
@@ -86,6 +92,12 @@ object AppModule {
     @Provides
     fun provideMusicDao(database: PixelPlayDatabase): MusicDao { // Proveer MusicDao
         return database.musicDao()
+    }
+
+    @Singleton
+    @Provides
+    fun provideTransitionDao(database: PixelPlayDatabase): TransitionDao {
+        return database.transitionDao()
     }
 
     @Provides
@@ -117,19 +129,12 @@ object AppModule {
         )
     }
 
-    @Singleton
     @Provides
-    fun provideExoPlayer(@ApplicationContext context: Context): ExoPlayer {
-        return ExoPlayer.Builder(context)
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-                    .setUsage(C.USAGE_MEDIA)
-                    .build(),
-                true // handleAudioFocus
-            )
-            .setHandleAudioBecomingNoisy(true) // Pausa si se desconectan auriculares
-            .build()
+    @Singleton
+    fun provideTransitionRepository(
+        transitionRepositoryImpl: TransitionRepositoryImpl
+    ): TransitionRepository {
+        return transitionRepositoryImpl
     }
 
     @Singleton

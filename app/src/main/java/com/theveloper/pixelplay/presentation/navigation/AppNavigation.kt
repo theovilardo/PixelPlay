@@ -25,6 +25,7 @@ import com.theveloper.pixelplay.presentation.screens.HomeScreen
 import com.theveloper.pixelplay.presentation.screens.LibraryScreen
 import com.theveloper.pixelplay.presentation.screens.PlaylistDetailScreen
 import com.theveloper.pixelplay.presentation.screens.NavBarCornerRadiusScreen
+import com.theveloper.pixelplay.presentation.screens.EditTransitionScreen
 import com.theveloper.pixelplay.presentation.screens.SearchScreen
 import com.theveloper.pixelplay.presentation.screens.SettingsScreen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
@@ -78,7 +79,8 @@ fun AppNavigation(
                         playerViewModel = playerViewModel,
                         playlistViewModel = playlistViewModel,
                         onBackClick = { navController.popBackStack() },
-                        onDeletePlayListClick = { navController.popBackStack() }
+                        onDeletePlayListClick = { navController.popBackStack() },
+                        navController = navController
                     )
                 }
             }
@@ -137,6 +139,15 @@ fun AppNavigation(
             }
             composable("nav_bar_corner_radius") {
                 NavBarCornerRadiusScreen(navController)
+            }
+            composable(
+                route = Screen.EditTransition.route,
+                arguments = listOf(navArgument("playlistId") {
+                    type = NavType.StringType
+                    nullable = true
+                })
+            ) {
+                EditTransitionScreen(navController = navController)
             }
         }
     }

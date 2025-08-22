@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.MusicOff
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DragHandle
@@ -121,7 +122,8 @@ fun PlaylistDetailScreen(
     onBackClick: () -> Unit,
     onDeletePlayListClick: () -> Unit,
     playerViewModel: PlayerViewModel,
-    playlistViewModel: PlaylistViewModel = hiltViewModel()
+    playlistViewModel: PlaylistViewModel = hiltViewModel(),
+    navController: NavController
 ) {
     val uiState by playlistViewModel.uiState.collectAsState()
     val playerStableState by playerViewModel.stablePlayerState.collectAsState()
@@ -211,6 +213,15 @@ fun PlaylistDetailScreen(
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                             contentColor = MaterialTheme.colorScheme.onSurface
                         ),
+                        onClick = {
+                            navController.navigate(Screen.EditTransition.createRoute(playlistId))
+                        }
+                    ) { Icon(Icons.Filled.Tune, "Edit Transitions") }
+                    FilledTonalIconButton(
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        ),
                         onClick = { showRenameDialog = true }
                     ) { Icon(Icons.Filled.Edit, "Renombrar") }
                     FilledTonalIconButton(
@@ -263,7 +274,7 @@ fun PlaylistDetailScreen(
                     Button(
                         onClick = {
                             if (localReorderableSongs.isNotEmpty()) {
-                                playerViewModel.playSongs(localReorderableSongs, localReorderableSongs.first(), currentPlaylist.name)
+                                playerViewModel.playSongs(localReorderableSongs, localReorderableSongs.first(), currentPlaylist.name, currentPlaylist.id)
                                 if (playerStableState.isShuffleEnabled) playerViewModel.toggleShuffle()
                             }
                         },
@@ -279,7 +290,7 @@ fun PlaylistDetailScreen(
                         onClick = {
                             if (localReorderableSongs.isNotEmpty()) {
                                 if (!playerStableState.isShuffleEnabled) playerViewModel.toggleShuffle()
-                                playerViewModel.playSongs(localReorderableSongs, localReorderableSongs.random(), currentPlaylist.name)
+                                playerViewModel.playSongs(localReorderableSongs, localReorderableSongs.random(), currentPlaylist.name, currentPlaylist.id)
                             }
                         },
                         modifier = Modifier.weight(1f).height(76.dp),
@@ -330,8 +341,8 @@ fun PlaylistDetailScreen(
                                             scaleY = scale
                                         }
                                         .clickable {
-                                            playerViewModel.playSongs(localReorderableSongs, song, currentPlaylist.name)
-                                        },
+                                            playerViewModel.playSongs(localReorderableSongs, song, currentPlaylist.name, currentPlaylist.id)
+                                         },
                                     song = song,
                                     isPlaying = playerStableState.currentSong?.id == song.id && playerStableState.isPlaying,
                                     isDragging = isDragging,
