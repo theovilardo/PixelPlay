@@ -22,7 +22,6 @@ import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.data.repository.MusicRepositoryImpl
 import com.theveloper.pixelplay.data.repository.TransitionRepository
 import com.theveloper.pixelplay.data.repository.TransitionRepositoryImpl
-import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -131,11 +130,13 @@ object AppModule {
         )
     }
 
-    @Binds
+    @Provides
     @Singleton
-    abstract fun bindTransitionRepository(
+    fun provideTransitionRepository(
         transitionRepositoryImpl: TransitionRepositoryImpl
-    ): TransitionRepository
+    ): TransitionRepository {
+        return transitionRepositoryImpl
+    }
 
     @Singleton
     @Provides
