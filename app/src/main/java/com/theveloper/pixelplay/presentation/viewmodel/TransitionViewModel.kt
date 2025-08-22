@@ -79,17 +79,24 @@ class TransitionViewModel @Inject constructor(
         viewModelScope.launch {
             val currentSettings = _uiState.value.settings
             if (playlistId != null) {
-                // This creates/updates the default rule for the playlist.
-                // Saving a "NONE" rule is valid; the controller will see it and skip transitions.
-                val rule = TransitionRule(
-                    playlistId = playlistId,
-                    settings = currentSettings
-                )
-                transitionRepository.saveRule(rule)
+                // If the user selects NONE for a playlist, we delete the specific rule
+                // so it correctly falls back to the global setting.
+                if (currentSettings.mode == TransitionMode.NONE) {
+                    transitionRepository.deletePlaylistDefaultRule(playlistId)
+                } else {
+                    val rule = TransitionRule(
+                        playlistId = playlistId,
+                        settings = currentSettings
+                    )
+                    transitionRepository.saveRule(rule)
+                }
             } else {
+                // For global settings, "None" is a valid value to save.
                 transitionRepository.saveGlobalSettings(currentSettings)
             }
-            // Notify the UI that save is complete to show a snackbar.
+            // After saving or deleting, we must reload the state from the single source of truth
+            // to ensure the UI reflects the change (e.g., falling back to the global setting).
+            loadSettings()
             _uiState.update { it.copy(isSaved = true) }
         }
     }

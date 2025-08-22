@@ -42,4 +42,10 @@ interface TransitionDao {
      */
     @Query("DELETE FROM transition_rules WHERE id = :ruleId")
     suspend fun deleteRule(ruleId: Long)
+
+    /**
+     * Deletes the default rule for a given playlist.
+     */
+    @Query("DELETE FROM transition_rules WHERE playlistId = :playlistId AND fromTrackId IS NULL AND toTrackId IS NULL")
+    suspend fun deletePlaylistDefaultRule(playlistId: String)
 }

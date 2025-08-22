@@ -47,6 +47,11 @@ interface TransitionRepository {
     suspend fun deleteRule(ruleId: Long)
 
     /**
+     * Deletes the default transition rule for a given playlist.
+     */
+    suspend fun deletePlaylistDefaultRule(playlistId: String)
+
+    /**
      * Gets the flow of global transition settings.
      */
     fun getGlobalSettings(): Flow<TransitionSettings>

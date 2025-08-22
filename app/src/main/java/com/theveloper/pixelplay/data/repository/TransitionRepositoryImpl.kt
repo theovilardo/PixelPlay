@@ -64,6 +64,10 @@ class TransitionRepositoryImpl @Inject constructor(
         transitionDao.deleteRule(ruleId)
     }
 
+    override suspend fun deletePlaylistDefaultRule(playlistId: String) {
+        transitionDao.deletePlaylistDefaultRule(playlistId)
+    }
+
     override fun getGlobalSettings(): Flow<TransitionSettings> {
         return userPreferences.globalTransitionSettingsFlow
     }
