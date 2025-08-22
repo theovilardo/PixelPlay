@@ -145,6 +145,7 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
+import com.theveloper.pixelplay.presentation.components.subcomps.PlayingEqIcon
 
 val ListExtraBottomGap = 30.dp
 val PlayerSheetCollapsedCornerRadius = 32.dp
@@ -1075,6 +1076,15 @@ fun EnhancedSongListItem(
                         color = contentColor.copy(alpha = 0.7f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (isCurrentSong) {
+                    PlayingEqIcon(
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .size(width = 18.dp, height = 16.dp), // similar al tamaño del ícono
+                        color = colors.primary,
+                        isPlaying = isPlaying  // o conectalo a tu estado real de reproducción
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))

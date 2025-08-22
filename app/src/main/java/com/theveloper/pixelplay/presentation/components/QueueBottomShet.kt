@@ -90,6 +90,7 @@ import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import androidx.media3.common.Player
+import com.theveloper.pixelplay.presentation.components.subcomps.PlayingEqIcon
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 

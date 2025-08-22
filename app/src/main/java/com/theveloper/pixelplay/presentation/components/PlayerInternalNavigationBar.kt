@@ -50,11 +50,19 @@ private fun PlayerInternalNavigationItemsRow(
             val indicatorColorFromTheme = MaterialTheme.colorScheme.secondaryContainer
 
             val iconPainterResId = if (isSelected && item.selectedIconResId != null && item.selectedIconResId != 0) {
-                item.selectedIconResId!!
+                item.selectedIconResId
             } else {
                 item.iconResId
             }
             val iconLambda: @Composable () -> Unit = remember(iconPainterResId, item.label) {
+                {
+                    Icon(
+                        painter = painterResource(id = iconPainterResId),
+                        contentDescription = item.label
+                    )
+                }
+            }
+            val selectedIconLambda: @Composable () -> Unit = remember(iconPainterResId, item.label) {
                 {
                     Icon(
                         painter = painterResource(id = iconPainterResId),
@@ -79,6 +87,7 @@ private fun PlayerInternalNavigationItemsRow(
                 selected = isSelected,
                 onClick = onClickLambda,
                 icon = iconLambda,
+                selectedIcon = selectedIconLambda,
                 label = labelLambda,
                 alwaysShowLabel = true,
                 selectedIconColor = selectedColor,
