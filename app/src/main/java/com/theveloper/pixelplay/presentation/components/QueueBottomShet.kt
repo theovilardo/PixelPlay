@@ -262,7 +262,8 @@ fun QueueBottomSheet(
                                         ))
                                         .clickable { onPlaySong(song) },
                                     song = song,
-                                    isPlaying = song.id == currentSongId,
+                                    isCurrentSong = song.id == currentSongId,
+                                    isPlaying = null,
                                     isDragging = isDragging,
                                     onRemoveClick = { onRemoveSong(song.id) },
                                     isReorderModeEnabled = false,
@@ -383,7 +384,8 @@ fun QueueBottomSheet(
 fun QueuePlaylistSongItem(
     modifier: Modifier = Modifier,
     song: Song,
-    isPlaying: Boolean,
+    isCurrentSong: Boolean,
+    isPlaying: Boolean? = null,
     isDragging: Boolean,
     onRemoveClick: () -> Unit,
     dragHandle: @Composable () -> Unit,
@@ -408,12 +410,12 @@ fun QueuePlaylistSongItem(
     )
 
     val backgroundColor by animateColorAsState(
-        targetValue = if (isPlaying) colors.surfaceContainerLowest else colors.surfaceContainerLowest,
+        targetValue = if (isCurrentSong) colors.surfaceContainerLowest else colors.surfaceContainerLowest,
         label = "backgroundColorAnimation"
     )
 
     Surface(
-        modifier = modifier,
+        modifier = modifier.clip(itemShape),
         shape = itemShape,
         color = backgroundColor,
         tonalElevation = elevation,
@@ -448,24 +450,27 @@ fun QueuePlaylistSongItem(
             Column(Modifier.weight(1f)) {
                 Text(
                     song.title, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    color = if (isPlaying) colors.primary else colors.onSurface,
-                    fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isCurrentSong) colors.primary else colors.onSurface,
+                    fontWeight = if (isCurrentSong) FontWeight.Bold else FontWeight.Normal,
                     style = MaterialTheme.typography.bodyLarge
                 )
                 Text(
                     song.artist, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (isPlaying) colors.primary.copy(alpha = 0.8f) else colors.onSurfaceVariant
+                    color = if (isCurrentSong) colors.primary.copy(alpha = 0.8f) else colors.onSurfaceVariant
                 )
             }
 
-            if (isPlaying) {
-                Icon(
-                    imageVector = Icons.Default.GraphicEq,
-                    contentDescription = "Reproduciendo",
-                    tint = colors.primary,
-                    modifier = Modifier.padding(start = 8.dp)
-                )
+            if (isCurrentSong) {
+                if (isPlaying != null) {
+                    PlayingEqIcon(
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .size(width = 18.dp, height = 16.dp), // similar al tamaño del ícono
+                        color = colors.primary,
+                        isPlaying = isPlaying  // o conectalo a tu estado real de reproducción
+                    )
+                }
             }
 
             IconButton(
@@ -473,7 +478,7 @@ fun QueuePlaylistSongItem(
                 modifier = Modifier.padding(start = 4.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.RemoveCircleOutline,
+                    imageVector = Icons.Rounded.Close,
                     contentDescription = "Quitar de la playlist",
                     tint = colors.onSurfaceVariant
                 )

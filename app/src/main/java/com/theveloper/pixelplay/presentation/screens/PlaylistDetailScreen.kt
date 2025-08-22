@@ -40,7 +40,6 @@ import androidx.compose.material.icons.filled.MusicOff
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DragHandle
@@ -215,15 +214,6 @@ fun PlaylistDetailScreen(
                     }
                 },
                 actions = {
-//                    FilledTonalIconButton(
-//                        colors = IconButtonDefaults.filledIconButtonColors(
-//                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-//                            contentColor = MaterialTheme.colorScheme.onSurface
-//                        ),
-//                        onClick = {
-//                            navController.navigate(Screen.EditTransition.createRoute(playlistId))
-//                        }
-//                    ) { Icon(Icons.Filled.Tune, "Edit Transitions") }
                     FilledTonalIconButton(
                         colors = IconButtonDefaults.filledIconButtonColors(
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -287,7 +277,7 @@ fun PlaylistDetailScreen(
                     Button(
                         onClick = {
                             if (localReorderableSongs.isNotEmpty()) {
-                                playerViewModel.playSongs(localReorderableSongs, localReorderableSongs.first(), currentPlaylist.name, currentPlaylist.id)
+                                playerViewModel.playSongs(localReorderableSongs, localReorderableSongs.first(), currentPlaylist.name)
                                 if (playerStableState.isShuffleEnabled) playerViewModel.toggleShuffle()
                             }
                         },
@@ -305,7 +295,7 @@ fun PlaylistDetailScreen(
                         onClick = {
                             if (localReorderableSongs.isNotEmpty()) {
                                 if (!playerStableState.isShuffleEnabled) playerViewModel.toggleShuffle()
-                                playerViewModel.playSongs(localReorderableSongs, localReorderableSongs.random(), currentPlaylist.name, currentPlaylist.id)
+                                playerViewModel.playSongs(localReorderableSongs, localReorderableSongs.random(), currentPlaylist.name)
                             }
                         },
                         modifier = Modifier
@@ -441,7 +431,8 @@ fun PlaylistDetailScreen(
                                             )
                                         },
                                     song = song,
-                                    isPlaying = playerStableState.currentSong?.id == song.id && playerStableState.isPlaying,
+                                    isCurrentSong = playerStableState.currentSong?.id == song.id,
+                                    isPlaying = playerStableState.isPlaying,
                                     isDragging = isDragging,
                                     onRemoveClick = {
                                         currentPlaylist.let {

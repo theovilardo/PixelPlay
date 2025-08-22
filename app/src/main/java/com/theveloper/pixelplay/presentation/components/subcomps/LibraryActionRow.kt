@@ -49,9 +49,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
+import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.SortOption
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
@@ -182,7 +184,7 @@ fun LibraryActionRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.AutoAwesome,
+                                painter = painterResource(R.drawable.generate_playlist_ai),
                                 contentDescription = "Generate with AI",
                                 modifier = Modifier.size(20.dp)
                             )
