@@ -68,62 +68,93 @@ class DualPlayerEngine @Inject constructor(
     }
 
     /**
-     * Executes a transition from Player A to Player B based on the provided settings.
+     * Executes a transition based on the provided settings.
      */
     fun performTransition(settings: TransitionSettings) {
-        // Cancel any ongoing transition to start the new one.
         transitionJob?.cancel()
+        transitionJob = scope.launch {
+            when (settings.mode) {
+                com.theveloper.pixelplay.data.model.TransitionMode.FADE_IN_OUT -> performFadeInOutTransition(settings)
+                com.theveloper.pixelplay.data.model.TransitionMode.OVERLAP, com.theveloper.pixelplay.data.model.TransitionMode.SMOOTH -> performOverlapTransition(settings)
+                com.theveloper.pixelplay.data.model.TransitionMode.NONE -> {
+                    // No transition logic needed, the default player behavior should suffice.
+                }
+            }
+        }
+    }
 
-        // Ensure Player B has a media item ready to play.
+    private suspend fun performFadeInOutTransition(settings: TransitionSettings) {
+        val halfDuration = settings.durationMs.toLong() / 2
+        if (halfDuration <= 0) return
+
+        // 1. Fade Out Player A
+        var elapsed = 0L
+        while (elapsed < halfDuration) {
+            val progress = elapsed.toFloat() / halfDuration
+            playerA.volume = 1f - envelope(progress, settings.curveOut)
+            delay(50L)
+            elapsed += 50L
+        }
+        playerA.volume = 0f
+        playerA.stop()
+
+        // 2. Handover to next song on Player A
+        val originalQueue = List(playerA.mediaItemCount) { i -> playerA.getMediaItemAt(i) }
+        val nextIndex = playerA.nextMediaItemIndex
+        if (nextIndex != C.INDEX_UNSET && nextIndex < originalQueue.size) {
+            playerA.setMediaItems(originalQueue, nextIndex, 0L)
+            playerA.prepare()
+            playerA.volume = 0f
+            playerA.play()
+
+            // 3. Fade In Player A
+            elapsed = 0L
+            while (elapsed < halfDuration) {
+                val progress = elapsed.toFloat() / halfDuration
+                playerA.volume = envelope(progress, settings.curveIn)
+                delay(50L)
+                elapsed += 50L
+            }
+            playerA.volume = 1f
+        }
+    }
+
+    private suspend fun performOverlapTransition(settings: TransitionSettings) {
         if (playerB.mediaItemCount == 0) return
 
-        transitionJob = scope.launch {
-            // Start Player B muted and playing in the background.
-            playerB.volume = 0f
-            playerB.play()
+        // 1. Start Player B and ramp volumes
+        playerB.volume = 0f
+        playerB.play()
 
-            val duration = settings.durationMs.toLong()
-            val interval = 50L // Update volume every 50ms for a smooth ramp.
-            var elapsed = 0L
-
-            // Animate volume levels over the transition duration.
-            while (elapsed < duration) {
-                val progress = elapsed.toFloat() / duration
-                playerA.volume = 1f - envelope(progress, settings.curveOut)
-                playerB.volume = envelope(progress, settings.curveIn)
-                delay(interval)
-                elapsed += interval
-            }
-
-            // Ensure the final volume levels are set correctly.
-            playerA.volume = 0f
-            playerB.volume = 1f
-
-            // --- The Handover ---
-            // Preserve the original queue from Player A.
-            val originalQueue = List(playerA.mediaItemCount) { i -> playerA.getMediaItemAt(i) }
-            val nextIndex = playerA.nextMediaItemIndex
-
-            // Ensure we have a valid next item to switch to.
-            if (nextIndex != C.INDEX_UNSET && nextIndex < originalQueue.size) {
-                val nextPosition = playerB.currentPosition
-
-                // Set the entire queue back to Player A, starting at the new song.
-                playerA.setMediaItems(originalQueue, nextIndex, nextPosition)
-                playerA.volume = 1f // Restore master player volume.
-                playerA.prepare()
-                playerA.play()
-            } else {
-                // This case handles when the song was the last in the queue.
-                // We can just stop Player A as its role is finished.
-                playerA.stop()
-                playerA.clearMediaItems()
-            }
-
-            // Reset Player B to be ready for the next cycle.
-            playerB.stop()
-            playerB.clearMediaItems()
+        val duration = settings.durationMs.toLong()
+        var elapsed = 0L
+        while (elapsed < duration) {
+            val progress = elapsed.toFloat() / duration
+            playerA.volume = 1f - envelope(progress, settings.curveOut)
+            playerB.volume = envelope(progress, settings.curveIn)
+            delay(50L)
+            elapsed += 50L
         }
+        playerA.volume = 0f
+        playerB.volume = 1f
+
+        // 2. Stop Player A after fade-out is complete
+        playerA.stop()
+
+        // 3. Handover to Player A
+        val originalQueue = List(playerA.mediaItemCount) { i -> playerA.getMediaItemAt(i) }
+        val nextIndex = playerA.nextMediaItemIndex
+        if (nextIndex != C.INDEX_UNSET && nextIndex < originalQueue.size) {
+            val nextPosition = playerB.currentPosition
+            playerA.setMediaItems(originalQueue, nextIndex, nextPosition)
+            playerA.volume = 1f
+            playerA.prepare()
+            playerA.play()
+        }
+
+        // 4. Clean up Player B
+        playerB.stop()
+        playerB.clearMediaItems()
     }
 
     /**
