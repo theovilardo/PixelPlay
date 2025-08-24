@@ -51,6 +51,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import com.theveloper.pixelplay.R
@@ -107,8 +108,8 @@ fun LibraryActionRow(
                 ),
                 // shape = AbsoluteSmoothCornerShape(cornerRadiusTL = 26.dp, ...), // Your custom shape
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.tertiary,
-                    contentColor = MaterialTheme.colorScheme.onTertiary
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
                 ),
                 elevation = ButtonDefaults.buttonElevation(
                     defaultElevation = 4.dp, // Slightly reduced elevation for a normal button
@@ -134,6 +135,7 @@ fun LibraryActionRow(
                     Text(
                         modifier = Modifier.animateContentSize(),
                         text = text,
+                        overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Medium
                     )

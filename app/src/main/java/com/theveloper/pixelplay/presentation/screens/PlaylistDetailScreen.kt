@@ -193,6 +193,10 @@ fun PlaylistDetailScreen(
                         overflow = TextOverflow.Ellipsis
                     )
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    scrolledContainerColor = Color.Transparent,
+                    containerColor = Color.Transparent
+                ),
                 subtitle = {
                     Text(
                         modifier = Modifier.padding(start = 8.dp),
@@ -540,9 +544,6 @@ fun SongPickerBottomSheet(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text("Add Songs", style = MaterialTheme.typography.displaySmall, fontFamily = GoogleSansRounded)
-//                            Button(onClick = { onConfirm(selectedSongIds.filterValues { it }.keys) }) {
-//                                Text("Add")
-//                            }
                         }
                         OutlinedTextField(
                             value = searchQuery,

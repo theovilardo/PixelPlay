@@ -955,18 +955,26 @@ fun LibrarySongsTab(
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EnhancedSongListItem(
     modifier: Modifier = Modifier,
     song: Song,
     isPlaying: Boolean,
     isCurrentSong: Boolean = false,
-    isLoading: Boolean = false, // New parameter for shimmer state
+    isLoading: Boolean = false,
     onMoreOptionsClick: (Song) -> Unit,
     onClick: () -> Unit
 ) {
-    val itemCornerRadius = 26.dp // Fixed for performance testing
+    // Animamos el radio de las esquinas basándonos en si la canción es la actual.
+    val animatedCornerRadius by animateDpAsState(
+        targetValue = if (isCurrentSong && !isLoading) 50.dp else 16.dp,
+        animationSpec = tween(durationMillis = 400),
+        label = "cornerRadiusAnimation"
+    )
+
+    // Creamos la forma con el radio animado.
+    val surfaceShape = remember(animatedCornerRadius) { RoundedCornerShape(animatedCornerRadius) }
 
     val colors = MaterialTheme.colorScheme
     val containerColor = if ((isCurrentSong) && !isLoading) colors.primaryContainer.copy(alpha = 0.34f) else colors.surfaceContainerLow
@@ -974,8 +982,6 @@ fun EnhancedSongListItem(
 
     val mvContainerColor = if ((isCurrentSong) && !isLoading) colors.primaryContainer.copy(alpha = 0.44f) else colors.surfaceContainerHigh
     val mvContentColor = if ((isCurrentSong) && !isLoading) colors.primary else colors.onSurface
-
-    val surfaceShape = remember { RoundedCornerShape(itemCornerRadius) }
 
     if (isLoading) {
         // Shimmer Placeholder Layout
@@ -1005,21 +1011,21 @@ fun EnhancedSongListItem(
                     ShimmerBox(
                         modifier = Modifier
                             .fillMaxWidth(0.7f)
-                            .height(20.dp) // Approx height of title
+                            .height(20.dp)
                             .clip(RoundedCornerShape(4.dp))
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     ShimmerBox(
                         modifier = Modifier
                             .fillMaxWidth(0.5f)
-                            .height(16.dp) // Approx height of artist
+                            .height(16.dp)
                             .clip(RoundedCornerShape(4.dp))
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     ShimmerBox(
                         modifier = Modifier
                             .fillMaxWidth(0.3f)
-                            .height(16.dp) // Approx height of duration
+                            .height(16.dp)
                             .clip(RoundedCornerShape(4.dp))
                     )
                 }
@@ -1027,7 +1033,7 @@ fun EnhancedSongListItem(
                 ShimmerBox(
                     modifier = Modifier
                         .size(36.dp)
-                        .clip(CircleShape) // MoreVert button placeholder
+                        .clip(CircleShape)
                 )
             }
         }
@@ -1050,14 +1056,14 @@ fun EnhancedSongListItem(
                 Box(
                     modifier = Modifier
                         .size(56.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
                 ) {
+                    // Usando tu composable SmartImage
                     SmartImage(
-                        model = song.albumArtUriString ?: R.drawable.rounded_album_24,
+                        model = song.albumArtUriString,
                         contentDescription = song.title,
-                        contentScale = ContentScale.Crop,
-                        targetSize = Size(100, 100), // 56dp * 3 (densidad asumida) approx
+                        shape = CircleShape,
+                        targetSize = Size(168, 168), // 56dp * 3 (para densidad xxhdpi)
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -1085,13 +1091,13 @@ fun EnhancedSongListItem(
                     )
                 }
                 if (isCurrentSong) {
-                    PlayingEqIcon(
-                        modifier = Modifier
-                            .padding(start = 8.dp)
-                            .size(width = 18.dp, height = 16.dp), // similar al tamaño del ícono
-                        color = colors.primary,
-                        isPlaying = isPlaying  // o conectalo a tu estado real de reproducción
-                    )
+                     PlayingEqIcon(
+                         modifier = Modifier
+                             .padding(start = 8.dp)
+                             .size(width = 18.dp, height = 16.dp),
+                         color = colors.primary,
+                         isPlaying = isPlaying
+                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 FilledIconButton(
@@ -1114,6 +1120,166 @@ fun EnhancedSongListItem(
         }
     }
 }
+
+//@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+//@Composable
+//fun EnhancedSongListItem(
+//    modifier: Modifier = Modifier,
+//    song: Song,
+//    isPlaying: Boolean,
+//    isCurrentSong: Boolean = false,
+//    isLoading: Boolean = false, // New parameter for shimmer state
+//    onMoreOptionsClick: (Song) -> Unit,
+//    onClick: () -> Unit
+//) {
+//    val itemCornerRadius = 26.dp // Fixed for performance testing
+//
+//    val colors = MaterialTheme.colorScheme
+//    val containerColor = if ((isCurrentSong) && !isLoading) colors.primaryContainer.copy(alpha = 0.34f) else colors.surfaceContainerLow
+//    val contentColor = if ((isCurrentSong) && !isLoading) colors.primary else colors.onSurface
+//
+//    val mvContainerColor = if ((isCurrentSong) && !isLoading) colors.primaryContainer.copy(alpha = 0.44f) else colors.surfaceContainerHigh
+//    val mvContentColor = if ((isCurrentSong) && !isLoading) colors.primary else colors.onSurface
+//
+//    val surfaceShape = remember { RoundedCornerShape(itemCornerRadius) }
+//
+//    if (isLoading) {
+//        // Shimmer Placeholder Layout
+//        Surface(
+//            modifier = modifier
+//                .fillMaxWidth()
+//                .clip(surfaceShape),
+//            shape = surfaceShape,
+//            color = colors.surfaceContainerLow,
+//        ) {
+//            Row(
+//                modifier = Modifier
+//                    .fillMaxWidth()
+//                    .padding(horizontal = 13.dp, vertical = 12.dp),
+//                verticalAlignment = Alignment.CenterVertically
+//            ) {
+//                ShimmerBox(
+//                    modifier = Modifier
+//                        .size(56.dp)
+//                        .clip(CircleShape)
+//                )
+//                Column(
+//                    modifier = Modifier
+//                        .weight(1f)
+//                        .padding(start = 12.dp)
+//                ) {
+//                    ShimmerBox(
+//                        modifier = Modifier
+//                            .fillMaxWidth(0.7f)
+//                            .height(20.dp) // Approx height of title
+//                            .clip(RoundedCornerShape(4.dp))
+//                    )
+//                    Spacer(modifier = Modifier.height(4.dp))
+//                    ShimmerBox(
+//                        modifier = Modifier
+//                            .fillMaxWidth(0.5f)
+//                            .height(16.dp) // Approx height of artist
+//                            .clip(RoundedCornerShape(4.dp))
+//                    )
+//                    Spacer(modifier = Modifier.height(2.dp))
+//                    ShimmerBox(
+//                        modifier = Modifier
+//                            .fillMaxWidth(0.3f)
+//                            .height(16.dp) // Approx height of duration
+//                            .clip(RoundedCornerShape(4.dp))
+//                    )
+//                }
+//                Spacer(modifier = Modifier.width(12.dp))
+//                ShimmerBox(
+//                    modifier = Modifier
+//                        .size(36.dp)
+//                        .clip(CircleShape) // MoreVert button placeholder
+//                )
+//            }
+//        }
+//    } else {
+//        // Actual Song Item Layout
+//        Surface(
+//            modifier = modifier
+//                .fillMaxWidth()
+//                .clip(surfaceShape)
+//                .clickable { onClick() },
+//            shape = surfaceShape,
+//            color = containerColor,
+//        ) {
+//            Row(
+//                modifier = Modifier
+//                    .fillMaxWidth()
+//                    .padding(horizontal = 13.dp, vertical = 12.dp),
+//                verticalAlignment = Alignment.CenterVertically
+//            ) {
+//                Box(
+//                    modifier = Modifier
+//                        .size(56.dp)
+//                        .clip(CircleShape)
+//                        .background(MaterialTheme.colorScheme.surfaceVariant)
+//                ) {
+//                    SmartImage(
+//                        model = song.albumArtUriString ?: R.drawable.rounded_album_24,
+//                        contentDescription = song.title,
+//                        contentScale = ContentScale.Crop,
+//                        targetSize = Size(100, 100), // 56dp * 3 (densidad asumida) approx
+//                        modifier = Modifier.fillMaxSize()
+//                    )
+//                }
+//
+//                Column(
+//                    modifier = Modifier
+//                        .weight(1f)
+//                        .padding(start = 14.dp)
+//                ) {
+//                    Text(
+//                        text = song.title,
+//                        style = MaterialTheme.typography.bodyLarge,
+//                        fontWeight = FontWeight.SemiBold,
+//                        maxLines = 1,
+//                        color = contentColor,
+//                        overflow = TextOverflow.Ellipsis
+//                    )
+//                    Spacer(modifier = Modifier.height(4.dp))
+//                    Text(
+//                        text = song.artist,
+//                        style = MaterialTheme.typography.bodyMedium,
+//                        color = contentColor.copy(alpha = 0.7f),
+//                        maxLines = 1,
+//                        overflow = TextOverflow.Ellipsis
+//                    )
+//                }
+//                if (isCurrentSong) {
+//                    PlayingEqIcon(
+//                        modifier = Modifier
+//                            .padding(start = 8.dp)
+//                            .size(width = 18.dp, height = 16.dp), // similar al tamaño del ícono
+//                        color = colors.primary,
+//                        isPlaying = isPlaying  // o conectalo a tu estado real de reproducción
+//                    )
+//                }
+//                Spacer(modifier = Modifier.width(12.dp))
+//                FilledIconButton(
+//                    onClick = { onMoreOptionsClick(song) },
+//                    colors = IconButtonDefaults.filledIconButtonColors(
+//                        containerColor = mvContainerColor,
+//                        contentColor = mvContentColor.copy(alpha = 0.7f)
+//                    ),
+//                    modifier = Modifier
+//                        .size(36.dp)
+//                        .padding(end = 4.dp)
+//                ) {
+//                    Icon(
+//                        imageVector = Icons.Rounded.MoreVert,
+//                        contentDescription = "More options for ${song.title}",
+//                        modifier = Modifier.size(24.dp)
+//                    )
+//                }
+//            }
+//        }
+//    }
+//}
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
@@ -1551,6 +1717,7 @@ fun LibraryPlaylistsTab(
     }
 }
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun PlaylistItem(
     playlist: Playlist,
