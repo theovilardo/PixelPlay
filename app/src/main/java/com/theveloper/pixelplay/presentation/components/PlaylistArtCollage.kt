@@ -111,7 +111,7 @@ fun PlaylistArtCollage(
                             modifier = imageModifier
                                 .size(22.dp)
                                 .align(Alignment.TopCenter)
-                                .offset(y = 2.dp)
+                                .offset(y = 1.dp)
                                 .clip(CircleShape)
                         )
                         SmartImage(
@@ -122,7 +122,7 @@ fun PlaylistArtCollage(
                             modifier = imageModifier
                                 .size(22.dp)
                                 .align(Alignment.BottomStart)
-                                .offset(x = 3.dp, y = (-2).dp)
+                                .offset(x = 1.dp, y = (-1).dp)
                                 .clip(CircleShape)
                         )
                         SmartImage(
@@ -133,7 +133,7 @@ fun PlaylistArtCollage(
                             modifier = imageModifier
                                 .size(22.dp)
                                 .align(Alignment.BottomEnd)
-                                .offset(x = (-3).dp, y = (-2).dp)
+                                .offset(x = (-1).dp, y = (-1).dp)
                                 .clip(CircleShape)
                         )
                     }
