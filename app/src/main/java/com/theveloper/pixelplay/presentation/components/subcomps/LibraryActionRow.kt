@@ -86,18 +86,18 @@ fun LibraryActionRow(
     )
     Row(
         modifier = modifier
-            .animateContentSize()
+            //.animateContentSize()
             .fillMaxWidth()
             .padding(start = 4.dp), // Adjusted bottom padding
         horizontalArrangement = Arrangement.Absolute.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
-            modifier = Modifier
-                .animateContentSize(),
+            modifier = Modifier,
             verticalAlignment = Alignment.CenterVertically
         ) {
             FilledTonalButton(
+                //modifier = Modifier.animateContentSize(),
                 onClick = onMainActionClick,
                 shape = RoundedCornerShape(
                     topStart = 26.dp,

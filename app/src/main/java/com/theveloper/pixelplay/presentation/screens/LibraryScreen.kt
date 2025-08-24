@@ -144,6 +144,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import com.theveloper.pixelplay.presentation.components.subcomps.PlayingEqIcon
@@ -971,6 +972,9 @@ fun EnhancedSongListItem(
     val containerColor = if ((isCurrentSong) && !isLoading) colors.primaryContainer.copy(alpha = 0.34f) else colors.surfaceContainerLow
     val contentColor = if ((isCurrentSong) && !isLoading) colors.primary else colors.onSurface
 
+    val mvContainerColor = if ((isCurrentSong) && !isLoading) colors.primaryContainer.copy(alpha = 0.44f) else colors.surfaceContainerHigh
+    val mvContentColor = if ((isCurrentSong) && !isLoading) colors.primary else colors.onSurface
+
     val surfaceShape = remember { RoundedCornerShape(itemCornerRadius) }
 
     if (isLoading) {
@@ -1090,8 +1094,12 @@ fun EnhancedSongListItem(
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
-                IconButton(
+                FilledIconButton(
                     onClick = { onMoreOptionsClick(song) },
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = mvContainerColor,
+                        contentColor = mvContentColor.copy(alpha = 0.7f)
+                    ),
                     modifier = Modifier
                         .size(36.dp)
                         .padding(end = 4.dp)
@@ -1099,8 +1107,7 @@ fun EnhancedSongListItem(
                     Icon(
                         imageVector = Icons.Rounded.MoreVert,
                         contentDescription = "More options for ${song.title}",
-                        modifier = Modifier.size(24.dp),
-                        tint = contentColor.copy(alpha = 0.7f)
+                        modifier = Modifier.size(24.dp)
                     )
                 }
             }
@@ -1443,6 +1450,7 @@ fun ArtistListItem(artist: Artist, onClick: () -> Unit) {
     }
 }
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun LibraryPlaylistsTab(
     playlistUiState: PlaylistUiState,
