@@ -58,8 +58,6 @@ fun PlaylistArtCollage(
             color = MaterialTheme.colorScheme.surfaceContainerLowest
         ) {
             val imageModifier = Modifier
-                .clip(CircleShape)
-                .background(Color.Gray)
 
             when (songs.size) {
                 1 -> {
@@ -68,7 +66,7 @@ fun PlaylistArtCollage(
                         contentDescription = songs[0].title,
                         contentScale = ContentScale.Crop,
                         targetSize = Size(256, 256),
-                        modifier = Modifier.fillMaxSize()
+                        modifier = imageModifier.fillMaxSize()
                     )
                 }
                 2 -> {
@@ -85,6 +83,7 @@ fun PlaylistArtCollage(
                             modifier = imageModifier
                                 .weight(1f)
                                 .aspectRatio(1f)
+                                .clip(CircleShape)
                         )
                         SmartImage(
                             model = songs[1].albumArtUriString ?: R.drawable.rounded_album_24,
@@ -94,6 +93,7 @@ fun PlaylistArtCollage(
                             modifier = imageModifier
                                 .weight(1f)
                                 .aspectRatio(1f)
+                                .clip(CircleShape)
                         )
                     }
                 }
@@ -101,7 +101,7 @@ fun PlaylistArtCollage(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(2.dp)
+                            .padding(4.dp)
                     ) {
                         SmartImage(
                             model = songs[0].albumArtUriString ?: R.drawable.rounded_album_24,
@@ -109,8 +109,10 @@ fun PlaylistArtCollage(
                             contentScale = ContentScale.Crop,
                             targetSize = Size(128, 128),
                             modifier = imageModifier
-                                .size(30.dp)
+                                .size(28.dp)
                                 .align(Alignment.TopCenter)
+                                .offset(y = 2.dp)
+                                .clip(CircleShape)
                         )
                         SmartImage(
                             model = songs[1].albumArtUriString ?: R.drawable.rounded_album_24,
@@ -118,9 +120,10 @@ fun PlaylistArtCollage(
                             contentScale = ContentScale.Crop,
                             targetSize = Size(128, 128),
                             modifier = imageModifier
-                                .size(30.dp)
+                                .size(28.dp)
                                 .align(Alignment.BottomStart)
-                                .offset(x = 4.dp, y = (-4).dp)
+                                .offset(x = 8.dp, y = (-6).dp)
+                                .clip(CircleShape)
                         )
                         SmartImage(
                             model = songs[2].albumArtUriString ?: R.drawable.rounded_album_24,
@@ -128,9 +131,10 @@ fun PlaylistArtCollage(
                             contentScale = ContentScale.Crop,
                             targetSize = Size(128, 128),
                             modifier = imageModifier
-                                .size(30.dp)
+                                .size(28.dp)
                                 .align(Alignment.BottomEnd)
-                                .offset(x = (-4).dp, y = (-4).dp)
+                                .offset(x = (-8).dp, y = (-6).dp)
+                                .clip(CircleShape)
                         )
                     }
                 }
@@ -152,6 +156,7 @@ fun PlaylistArtCollage(
                                 modifier = imageModifier
                                     .weight(1f)
                                     .aspectRatio(1f)
+                                    .clip(CircleShape)
                             )
                             SmartImage(
                                 model = songs[1].albumArtUriString
@@ -162,6 +167,7 @@ fun PlaylistArtCollage(
                                 modifier = imageModifier
                                     .weight(1f)
                                     .aspectRatio(1f)
+                                    .clip(CircleShape)
                             )
                         }
                         Row(
@@ -177,6 +183,7 @@ fun PlaylistArtCollage(
                                 modifier = imageModifier
                                     .weight(1f)
                                     .aspectRatio(1f)
+                                    .clip(CircleShape)
                             )
                             SmartImage(
                                 model = songs[3].albumArtUriString
@@ -187,6 +194,7 @@ fun PlaylistArtCollage(
                                 modifier = imageModifier
                                     .weight(1f)
                                     .aspectRatio(1f)
+                                    .clip(CircleShape)
                             )
                         }
                     }
