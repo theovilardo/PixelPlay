@@ -109,7 +109,7 @@ fun PlaylistArtCollage(
                             contentScale = ContentScale.Crop,
                             targetSize = Size(128, 128),
                             modifier = imageModifier
-                                .size(28.dp)
+                                .size(22.dp)
                                 .align(Alignment.TopCenter)
                                 .offset(y = 2.dp)
                                 .clip(CircleShape)
@@ -120,9 +120,9 @@ fun PlaylistArtCollage(
                             contentScale = ContentScale.Crop,
                             targetSize = Size(128, 128),
                             modifier = imageModifier
-                                .size(28.dp)
+                                .size(22.dp)
                                 .align(Alignment.BottomStart)
-                                .offset(x = 8.dp, y = (-6).dp)
+                                .offset(x = 3.dp, y = (-2).dp)
                                 .clip(CircleShape)
                         )
                         SmartImage(
@@ -131,9 +131,9 @@ fun PlaylistArtCollage(
                             contentScale = ContentScale.Crop,
                             targetSize = Size(128, 128),
                             modifier = imageModifier
-                                .size(28.dp)
+                                .size(22.dp)
                                 .align(Alignment.BottomEnd)
-                                .offset(x = (-8).dp, y = (-6).dp)
+                                .offset(x = (-3).dp, y = (-2).dp)
                                 .clip(CircleShape)
                         )
                     }
