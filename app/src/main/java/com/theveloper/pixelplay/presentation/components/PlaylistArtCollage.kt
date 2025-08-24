@@ -19,6 +19,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.dp
 import coil.size.Size
@@ -53,8 +55,8 @@ fun PlaylistArtCollage(
         Surface(
             modifier = modifier
                 .aspectRatio(1f),
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerLowest
+            shape = RoundedCornerShape(0.dp),
+            color = Color.Transparent//MaterialTheme.colorScheme.surfaceContainerLowest
         ) {
             val imageModifier = Modifier
 
