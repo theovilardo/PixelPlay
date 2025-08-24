@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import coil.size.Size
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
+import kotlin.math.floor
 import kotlin.math.sqrt
 
 @Composable
@@ -113,30 +114,47 @@ fun PlaylistArtCollage(
                         modifier = Modifier.fillMaxSize()
                     ) { measurables, constraints ->
                         val separation = 2.dp.toPx()
-                        val itemSize = (constraints.maxWidth / 2) - separation.toInt()
+                        // Recalculate itemSize based on the total width required for the triangle base
+                        val itemSize = floor((constraints.maxWidth * 2f / (2f + sqrt(3f))) - separation).toInt()
+
+
                         val placeables = measurables.map {
                             it.measure(
                                 constraints.copy(
-                                    minWidth = itemSize,
-                                    maxWidth = itemSize,
-                                    minHeight = itemSize,
-                                    maxHeight = itemSize,
+                                    minWidth = itemSize, maxWidth = itemSize,
+                                    minHeight = itemSize, maxHeight = itemSize
                                 )
                             )
                         }
 
+                        // The side length of the triangle formed by the centers
+                        val L = itemSize + separation
+                        // The height of the triangle formed by the centers
+                        val h = L * sqrt(3f) / 2f
+
+                        val collageHeight = h + itemSize
+                        val collageWidth = L + itemSize
+
+                        val offsetX = ((constraints.maxWidth - collageWidth) / 2f).toInt()
+                        val offsetY = ((constraints.maxHeight - collageHeight) / 2f).toInt()
+
+
                         layout(constraints.maxWidth, constraints.maxHeight) {
-                            val h = (sqrt(3.0) / 2 * itemSize).toInt()
-                            val topY = (constraints.maxHeight - h - itemSize / 2) / 2
-                            val topX = (constraints.maxWidth - itemSize) / 2
-                            placeables[0].placeRelative(topX, topY)
-
-                            val bottomY = topY + h
-                            val bottomLeftX = (constraints.maxWidth / 2) - itemSize - (separation / 2).toInt()
-                            placeables[1].placeRelative(bottomLeftX, bottomY)
-
-                            val bottomRightX = (constraints.maxWidth / 2) + (separation / 2).toInt()
-                            placeables[2].placeRelative(bottomRightX, bottomY)
+                            // Place top circle
+                            placeables[0].placeRelative(
+                                x = (offsetX + (collageWidth - itemSize) / 2f).toInt(),
+                                y = offsetY
+                            )
+                            // Place bottom-left circle
+                            placeables[1].placeRelative(
+                                x = offsetX,
+                                y = (offsetY + h).toInt()
+                            )
+                            // Place bottom-right circle
+                            placeables[2].placeRelative(
+                                x = (offsetX + L).toInt(),
+                                y = (offsetY + h).toInt()
+                            )
                         }
                     }
                 }
