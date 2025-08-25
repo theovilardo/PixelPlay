@@ -49,6 +49,15 @@ val ExpTitleTypography = Typography(
         letterSpacing = (-0.02).em,
         lineHeight = 0.95.em,
         platformStyle = PlatformTextStyle(includeFontPadding = false)
+    ),
+    titleMedium = TextStyle(
+        fontFamily = MontserratFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 32.sp,
+        textGeometricTransform = TextGeometricTransform(scaleX = 1.3f),
+        letterSpacing = (-0.02).em,
+        lineHeight = 0.95.em,
+        platformStyle = PlatformTextStyle(includeFontPadding = false)
     )
 )
 
