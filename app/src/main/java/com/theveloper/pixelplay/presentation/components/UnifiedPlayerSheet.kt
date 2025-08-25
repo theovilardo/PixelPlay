@@ -1126,6 +1126,7 @@ fun UnifiedPlayerSheet(
                 isShuffleOn = stablePlayerState.isShuffleEnabled,
                 onToggleRepeat = { playerViewModel.cycleRepeatMode() },
                 onToggleShuffle = { playerViewModel.toggleShuffle() },
+                onClearQueue = { playerViewModel.clearQueueExceptCurrent() },
                 activeTimerValueDisplay = playerViewModel.activeTimerValueDisplay.collectAsState().value,
                 isEndOfTrackTimerActive = playerViewModel.isEndOfTrackTimerActive.collectAsState().value,
                 onSetPredefinedTimer = { minutes -> playerViewModel.setSleepTimer(minutes) },

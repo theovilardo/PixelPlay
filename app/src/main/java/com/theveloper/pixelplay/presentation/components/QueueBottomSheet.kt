@@ -31,7 +31,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.RemoveCircleOutline
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.DragIndicator
 import androidx.compose.material.icons.rounded.RemoveCircleOutline
@@ -39,6 +38,7 @@ import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -60,6 +60,7 @@ import androidx.compose.material3.MediumFloatingActionButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
@@ -112,6 +113,7 @@ fun QueueBottomSheet(
     onReorder: (from: Int, to: Int) -> Unit,
     onToggleRepeat: () -> Unit,
     onToggleShuffle: () -> Unit,
+    onClearQueue: () -> Unit,
     activeTimerValueDisplay: String?,
     isEndOfTrackTimerActive: Boolean,
     onSetPredefinedTimer: (minutes: Int) -> Unit,
@@ -122,6 +124,7 @@ fun QueueBottomSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val colors = MaterialTheme.colorScheme
     var showTimerOptions by rememberSaveable { mutableStateOf(false) }
+    var showClearQueueDialog by remember { mutableStateOf(false) }
 
     var items by remember(queue) { mutableStateOf(queue) }
 
@@ -313,12 +316,12 @@ fun QueueBottomSheet(
                 scrollBehavior = scrollBehavior,
                 floatingActionButton = {
                     LargeFloatingActionButton(
-                        onClick = onDismiss,
+                        onClick = { showClearQueueDialog = true },
                         elevation = FloatingActionButtonDefaults.elevation(0.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Close,
-                            contentDescription = "Close"
+                            painter = painterResource(id = R.drawable.rounded_clear_all_24),
+                            contentDescription = "Clear Queue"
                         )
                     }
                 },
@@ -379,6 +382,31 @@ fun QueueBottomSheet(
                 onSetEndOfTrackTimer = onSetEndOfTrackTimer,
                 onOpenCustomTimePicker = onOpenCustomTimePicker,
                 onCancelTimer = onCancelTimer
+            )
+        }
+
+        if (showClearQueueDialog) {
+            AlertDialog(
+                onDismissRequest = { showClearQueueDialog = false },
+                title = { Text("Clear Queue") },
+                text = { Text("Are you sure you want to clear all songs from the queue except the current one?") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            onClearQueue()
+                            showClearQueueDialog = false
+                        }
+                    ) {
+                        Text("Clear")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { showClearQueueDialog = false }
+                    ) {
+                        Text("Cancel")
+                    }
+                }
             )
         }
     }
