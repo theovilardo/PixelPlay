@@ -22,7 +22,6 @@ fun AiMetadataDialog(
         if (song.artist.isBlank()) fields.add("Artist")
         if (song.album.isBlank()) fields.add("Album")
         if (song.genre.isNullOrBlank()) fields.add("Genre")
-        if (song.lyrics.isNullOrBlank()) fields.add("Lyrics")
         fields
     }
 

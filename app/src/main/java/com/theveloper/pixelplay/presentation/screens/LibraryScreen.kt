@@ -991,8 +991,8 @@ fun EnhancedSongListItem(
     val containerColor = if ((isCurrentSong) && !isLoading) colors.primaryContainer.copy(alpha = 0.34f) else colors.surfaceContainerLow
     val contentColor = if ((isCurrentSong) && !isLoading) colors.primary else colors.onSurface
 
-    val mvContainerColor = if ((isCurrentSong) && !isLoading) colors.primaryContainer.copy(alpha = 0.44f) else colors.surfaceContainerHigh
-    val mvContentColor = if ((isCurrentSong) && !isLoading) colors.primary else colors.onSurface
+    val mvContainerColor = if ((isCurrentSong) && !isLoading) colors.secondaryContainer.copy(alpha = 0.44f) else colors.surfaceContainerHigh
+    val mvContentColor = if ((isCurrentSong) && !isLoading) colors.secondary else colors.onSurface
 
     if (isLoading) {
         // Shimmer Placeholder Layout

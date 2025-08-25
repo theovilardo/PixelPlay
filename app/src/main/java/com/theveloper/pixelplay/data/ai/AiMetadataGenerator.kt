@@ -17,8 +17,7 @@ data class SongMetadata(
     val title: String? = null,
     val artist: String? = null,
     val album: String? = null,
-    val genre: String? = null,
-    val lyrics: String? = null
+    val genre: String? = null
 )
 
 class AiMetadataGenerator @Inject constructor(
@@ -50,15 +49,14 @@ class AiMetadataGenerator @Inject constructor(
             You are a music metadata expert. Your task is to find and complete missing metadata for a given song.
             You will be given the song's title and artist, and a list of fields to complete.
             Your response MUST be a raw JSON object, without any markdown, backticks or other formatting.
-            For the lyrics, you must search on Google for the lyrics of the song and get them from a reliable source.
-            The lyrics must be in LRC format with timestamps like [mm:ss.xx].
-            For the genre, you must provide only one, the most accurate, genre for the song.
+            The JSON keys MUST be lowercase and match the requested fields (e.g., "title", "artist", "album", "genre").
+            For the genre, you must provide only one, the most accurate, single genre for the song.
             If you cannot find a specific piece of information, you should return an empty string for that field.
 
-            Example response for a request to complete "album" and "lyrics":
+            Example response for a request to complete "album" and "genre":
             {
                 "album": "Some Album",
-                "lyrics": "[00:12.34] Some lyrics\n[00:15.67] More lyrics"
+                "genre": "Indie Pop"
             }
             """.trimIndent()
 

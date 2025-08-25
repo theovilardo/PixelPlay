@@ -228,7 +228,7 @@ fun HomeGradientTopBar(
         actions = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier.padding(end = 14.dp)
             ) {
                 FilledIconButton(
@@ -240,7 +240,7 @@ fun HomeGradientTopBar(
                 ) {
                     Icon(
                         modifier = Modifier.size(18.dp),
-                        painter = painterResource(R.drawable.gemini_ai),
+                        painter = painterResource(R.drawable.round_newspaper_24),
                         contentDescription = "Más opciones"
                     )
                 }

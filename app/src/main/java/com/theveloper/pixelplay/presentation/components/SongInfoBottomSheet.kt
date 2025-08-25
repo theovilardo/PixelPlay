@@ -153,8 +153,8 @@ fun SongInfoBottomSheet(
                 ) {
                     AutoSizingTextToFill(
                         modifier = Modifier.padding(end = 4.dp),
-                        fontFamily = MontserratFamily,
-                        fontWeight = FontWeight.Normal,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Light,
                         text = song.title
                     )
                 }
