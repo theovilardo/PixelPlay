@@ -973,7 +973,12 @@ fun EnhancedSongListItem(
         label = "cornerRadiusAnimation"
     )
 
-    // Creamos la forma con el radio animado.
+    val animatedAlbumCornerRadius by animateDpAsState(
+        targetValue = if (isCurrentSong && !isLoading) 50.dp else 12.dp,
+        animationSpec = tween(durationMillis = 400),
+        label = "cornerRadiusAnimation"
+    )
+
     val surfaceShape = remember(animatedCornerRadius) {
         AbsoluteSmoothCornerShape(
             cornerRadiusTL = animatedCornerRadius,
@@ -983,6 +988,19 @@ fun EnhancedSongListItem(
             cornerRadiusBL = animatedCornerRadius,
             smoothnessAsPercentBL = 60,
             cornerRadiusBR = animatedCornerRadius,
+            smoothnessAsPercentTL = 60
+        )
+    }
+
+    val albumShape = remember(animatedCornerRadius) {
+        AbsoluteSmoothCornerShape(
+            cornerRadiusTL = animatedAlbumCornerRadius,
+            smoothnessAsPercentTR = 60,
+            cornerRadiusTR = animatedAlbumCornerRadius,
+            smoothnessAsPercentBR = 60,
+            cornerRadiusBL = animatedAlbumCornerRadius,
+            smoothnessAsPercentBL = 60,
+            cornerRadiusBR = animatedAlbumCornerRadius,
             smoothnessAsPercentTL = 60
         )
     }
@@ -1073,7 +1091,7 @@ fun EnhancedSongListItem(
                     SmartImage(
                         model = song.albumArtUriString,
                         contentDescription = song.title,
-                        shape = CircleShape,
+                        shape = albumShape,
                         targetSize = Size(168, 168), // 56dp * 3 (para densidad xxhdpi)
                         modifier = Modifier.fillMaxSize()
                     )
