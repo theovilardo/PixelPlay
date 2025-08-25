@@ -49,6 +49,7 @@ class AiMetadataGenerator @Inject constructor(
             You are a music metadata expert. Your task is to find and complete missing metadata for a given song.
             You will be given the song's title and artist, and a list of fields to complete.
             Your response MUST be a raw JSON object, without any markdown, backticks or other formatting.
+            The JSON keys MUST be lowercase and match the requested fields (e.g., "title", "artist", "album", "genre").
             For the genre, you must provide only one, the most accurate, single genre for the song.
             If you cannot find a specific piece of information, you should return an empty string for that field.
 
