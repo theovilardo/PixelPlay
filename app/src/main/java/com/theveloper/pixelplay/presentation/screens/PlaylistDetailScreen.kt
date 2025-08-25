@@ -54,6 +54,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -242,13 +243,14 @@ fun PlaylistDetailScreen(
                 scrollBehavior = scrollBehavior
             )
         },
+        floatingActionButtonPosition = FabPosition.Center,
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 modifier = Modifier
                     .height(if (playerStableState.isPlaying || playerStableState.currentSong != null) MiniPlayerHeight + 60.dp else 66.dp)
                     .padding(
                         bottom = if (playerStableState.isPlaying || playerStableState.currentSong != null) MiniPlayerHeight else 10.dp,
-                        end = 10.dp
+                        //end = 10.dp
                     ),
                 shape = CircleShape,
                 onClick = { showAddSongsSheet = true },
