@@ -40,14 +40,13 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 fun EditSongSheet(
     song: Song,
     onDismiss: () -> Unit,
-    onSave: (title: String, artist: String, album: String, genre: String, lyrics: String) -> Unit,
+    onSave: (title: String, artist: String, album: String, genre: String) -> Unit,
     generateAiMetadata: suspend (List<String>) -> Result<com.theveloper.pixelplay.data.ai.SongMetadata>
 ) {
     var title by remember { mutableStateOf(song.title) }
     var artist by remember { mutableStateOf(song.artist) }
     var album by remember { mutableStateOf(song.album) }
     var genre by remember { mutableStateOf(song.genre ?: "") }
-    var lyrics by remember { mutableStateOf(song.lyrics ?: "") }
 
     var showInfoDialog by remember { mutableStateOf(false) }
     var showAiDialog by remember { mutableStateOf(false) }
@@ -60,7 +59,6 @@ fun EditSongSheet(
         artist = song.artist
         album = song.album
         genre = song.genre ?: ""
-        lyrics = song.lyrics ?: ""
     }
 
     if (isGenerating) {
@@ -89,8 +87,7 @@ fun EditSongSheet(
                         title = metadata.title ?: title
                         artist = metadata.artist ?: artist
                         album = metadata.album ?: album
-                        genre = metadata.genre?.split(",")?.firstOrNull()?.trim() ?: genre
-                        lyrics = metadata.lyrics ?: lyrics
+                        genre = metadata.genre ?: genre
                     }.onFailure { error ->
                         Timber.e(error, "Failed to generate AI metadata")
                     }
@@ -255,39 +252,6 @@ fun EditSongSheet(
                 singleLine = true
             )
 
-            // --- Campo de Letra ---
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = lyrics,
-                    colors = textFieldColors,
-                    shape = textFieldShape,
-                    onValueChange = { lyrics = it },
-                    placeholder = { Text("Lyrics") },
-                    leadingIcon = { Icon(Icons.Rounded.Notes, contentDescription = "Lyrics Icon") },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(150.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                FilledTonalIconButton(
-                    onClick = {
-                        val encodedTitle = URLEncoder.encode(title, "UTF-8")
-                        val encodedArtist = URLEncoder.encode(artist, "UTF-8")
-                        val url = "https://lrclib.net/search/$encodedTitle%20$encodedArtist"
-                        val intent = Intent(Intent.ACTION_VIEW).setData(Uri.parse(url))
-                        context.startActivity(intent)
-                    },
-                ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.rounded_search_24),
-                        contentDescription = "Search lyrics on lrclib.net"
-                    )
-                }
-            }
-
             // --- Botones de acción ---
             Row(
                 modifier = Modifier
@@ -307,7 +271,7 @@ fun EditSongSheet(
                     Text("Cancel")
                 }
                 Button(
-                    onClick = { onSave(title, artist, album, genre, lyrics) },
+                    onClick = { onSave(title, artist, album, genre) },
                     modifier = Modifier.height(48.dp)
                 ) {
                     Text("Save")
