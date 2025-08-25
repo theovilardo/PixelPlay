@@ -277,7 +277,7 @@ fun SearchScreen(
                                     .fillMaxWidth()
                                     .padding(bottom = 8.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                //verticalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
                                 SearchFilterChip(SearchFilterType.ALL, currentFilter, playerViewModel)
                                 SearchFilterChip(SearchFilterType.SONGS, currentFilter, playerViewModel)

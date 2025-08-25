@@ -282,7 +282,7 @@ fun SettingsScreen(
                         subtitle = "Adjust the corner radius of the navigation bar.",
                         leadingIcon = {
                             Icon(
-                                painter = painterResource(id = R.drawable.rounded_all_inclusive_24),
+                                painter = painterResource(id = R.drawable.rounded_rounded_corner_24),
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.secondary
                             )
@@ -343,20 +343,20 @@ fun SettingsScreen(
                             shape = RoundedCornerShape(24.dp)
                         )
                 ) {
-                    SettingsSwitchItem(
-                        title = "Mock Genres",
-                        subtitle = "Use hardcoded genres for testing purposes.",
-                        checked = uiState.mockGenresEnabled,
-                        onCheckedChange = { settingsViewModel.setMockGenresEnabled(it) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Rounded.MusicNote,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary
-                            )
-                        }
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
+//                    SettingsSwitchItem(
+//                        title = "Mock Genres",
+//                        subtitle = "Use hardcoded genres for testing purposes.",
+//                        checked = uiState.mockGenresEnabled,
+//                        onCheckedChange = { settingsViewModel.setMockGenresEnabled(it) },
+//                        leadingIcon = {
+//                            Icon(
+//                                imageVector = Icons.Rounded.MusicNote,
+//                                contentDescription = null,
+//                                tint = MaterialTheme.colorScheme.secondary
+//                            )
+//                        }
+//                    )
+                    //Spacer(modifier = Modifier.height(4.dp))
                     SettingsItem(
                         title = "Force Daily Mix Regeneration",
                         subtitle = "Re-creates the daily mix playlist immediately.",

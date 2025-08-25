@@ -148,6 +148,8 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import com.theveloper.pixelplay.presentation.components.subcomps.PlayingEqIcon
+import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
+import com.theveloper.pixelplay.ui.theme.MontserratFamily
 
 val ListExtraBottomGap = 30.dp
 val PlayerSheetCollapsedCornerRadius = 32.dp
@@ -229,7 +231,7 @@ fun LibraryScreen(
                     Text(
                         modifier = Modifier.padding(start = 8.dp),
                         text = "Library",
-                        style = MaterialTheme.typography.headlineLarge,
+                        style = ExpTitleTypography.titleMedium,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.primary,
                         letterSpacing = 1.sp
