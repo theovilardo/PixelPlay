@@ -678,11 +678,6 @@ fun AlbumListItem(album: Album, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale)
-//            .shadow(
-//                elevation = 3.dp, // Slightly less elevation than song item
-//                shape = RoundedCornerShape(20.dp),
-//                spotColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.25f) // Using secondary color
-//            )
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = { isPressed = true; tryAwaitRelease(); isPressed = false },
@@ -691,7 +686,7 @@ fun AlbumListItem(album: Album, onClick: () -> Unit) {
             },
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp) // Elevation handled by shadow modifier
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -700,13 +695,27 @@ fun AlbumListItem(album: Album, onClick: () -> Unit) {
             SmartImage(
                 model = album.albumArtUriString,
                 contentDescription = "Album Art: ${album.title}",
-                modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)),
-                //defaultIcon = { Icon(Icons.Rounded.Album, null, modifier = Modifier.fillMaxSize())}
+                modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp))
             )
             Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(album.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(album.artist, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    album.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    album.artist,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
             FilledIconButton(
                 onClick = onClick,
@@ -741,11 +750,6 @@ fun ArtistSearchListItem(artist: Artist, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale)
-//            .shadow(
-//                elevation = 3.dp,
-//                shape = RoundedCornerShape(20.dp),
-//                spotColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.25f) // Using tertiary color
-//            )
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = { isPressed = true; tryAwaitRelease(); isPressed = false },
@@ -754,7 +758,7 @@ fun ArtistSearchListItem(artist: Artist, onClick: () -> Unit) {
             },
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp) // Elevation handled by shadow modifier
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -764,15 +768,32 @@ fun ArtistSearchListItem(artist: Artist, onClick: () -> Unit) {
             Icon(
                 imageVector = Icons.Rounded.Person,
                 contentDescription = "Artist Icon",
-                modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f)).padding(8.dp),
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f))
+                    .padding(8.dp),
                 tint = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
             )
             Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(artist.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${artist.songCount} songs", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    artist.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    "${artist.songCount} songs",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-             FilledIconButton(
+            FilledIconButton(
                 onClick = onClick,
                 modifier = Modifier.size(40.dp),
                 shape = CircleShape,
@@ -892,11 +913,6 @@ fun ExpressiveSongListItem(
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale)
-//            .shadow(
-//                elevation = elevation,
-//                shape = RoundedCornerShape(24.dp),
-//                spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-//            )
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = {
@@ -907,7 +923,7 @@ fun ExpressiveSongListItem(
                     onTap = { onClick() }
                 )
             },
-        shape = RoundedCornerShape(26.dp),
+        shape = RoundedCornerShape(24.dp), // Consistent corner rounding
         colors = CardDefaults.cardColors(
             containerColor = backgroundColor
         ),
@@ -916,103 +932,50 @@ fun ExpressiveSongListItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(12.dp), // Consistent padding
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Imagen del álbum con bordes muy redondeados y efecto
-            Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    //.shadow(4.dp, RoundedCornerShape(18.dp))
-                    .background(
-                        Brush.radialGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                                MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)
-                            )
-                        )
-                    )
-            ) {
-                SmartImage(
-                    model = song.albumArtUriString,
-                    contentDescription = "Album Art",
-                    contentScale = ContentScale.Crop,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
+            // Album art
+            SmartImage(
+                model = song.albumArtUriString,
+                contentDescription = "Album Art",
+                contentScale = ContentScale.Crop,
+                shape = RoundedCornerShape(12.dp), // Consistent corner rounding
+                modifier = Modifier.size(56.dp) // Consistent size
+            )
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(12.dp)) // Consistent spacing
 
-            // Información de la canción
+            // Song info
             Column(
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center // Center content vertically
             ) {
                 Text(
                     text = song.title,
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.Bold
-                    ),
+                    style = MaterialTheme.typography.titleMedium, // Adjusted for balance
+                    fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp)) // Reduced spacer
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Person,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                    )
-
-                    Spacer(modifier = Modifier.width(4.dp))
-
-                    Text(
-                        text = song.artist,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontWeight = FontWeight.Medium
-                        ),
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    Text(
-                        text = " • ",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                    )
-
-                    Icon(
-                        imageVector = Icons.Rounded.Album,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f)
-                    )
-
-                    Spacer(modifier = Modifier.width(4.dp))
-
-                    Text(
-                        text = song.album,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+                Text(
+                    text = "${song.artist} • ${song.album}",
+                    style = MaterialTheme.typography.bodySmall, // Adjusted for balance
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(12.dp)) // Consistent spacing
 
-            // Botón de play más expresivo
+            // Play button
             FilledIconButton(
                 onClick = onClick,
-                modifier = Modifier.size(48.dp),
+                modifier = Modifier.size(40.dp), // Consistent size
                 shape = CircleShape,
                 colors = IconButtonDefaults.filledIconButtonColors(
                     containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
@@ -1021,8 +984,8 @@ fun ExpressiveSongListItem(
             ) {
                 Icon(
                     imageVector = Icons.Rounded.PlayArrow,
-                    contentDescription = "Reproducir",
-                    modifier = Modifier.size(28.dp)
+                    contentDescription = "Play Song",
+                    modifier = Modifier.size(24.dp) // Consistent icon size
                 )
             }
         }
