@@ -177,7 +177,7 @@ fun AlbumDetailScreen(
                                 EnhancedSongListItem(
                                     song = song,
                                     isCurrentSong = songs.isNotEmpty() && stablePlayerState.currentSong == song,
-                                    isPlaying = stablePlayerState.currentSong?.id == song.id,
+                                    isPlaying = stablePlayerState.isPlaying,
                                     onMoreOptionsClick = {
                                         playerViewModel.selectSongForInfo(song)
                                         showSongInfoBottomSheet = true
@@ -358,7 +358,7 @@ private fun CollapsingTopAppBar(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .alpha(titleAlpha.coerceIn(0f, 1f))
-                    //.padding(start = 12.dp)
+                    .padding(start = 6.dp)
             )
         },
         actions = {
