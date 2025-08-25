@@ -148,6 +148,7 @@ fun PlaylistDetailScreen(
     var showAddSongsSheet by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var isReorderModeEnabled by remember { mutableStateOf(false) }
+    var isRemoveModeEnabled by remember { mutableStateOf(false) }
 
     var localReorderableSongs by remember(songsInPlaylist) { mutableStateOf(songsInPlaylist) }
 
@@ -323,48 +324,88 @@ fun PlaylistDetailScreen(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val cornerRadius by animateDpAsState(
+                    val reorderCornerRadius by animateDpAsState(
                         targetValue = if (isReorderModeEnabled) 24.dp else 12.dp,
-                        label = "cornerRadius"
+                        label = "reorderCornerRadius"
                     )
-                    val buttonColor by animateColorAsState(
+                    val reorderButtonColor by animateColorAsState(
                         targetValue = if (isReorderModeEnabled) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.surfaceContainerHigh,
-                        label = "buttonColor"
+                        label = "reorderButtonColor"
                     )
-                    val iconColor by animateColorAsState(
+                    val reorderIconColor by animateColorAsState(
                         targetValue = if (isReorderModeEnabled) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onSurface,
-                        label = "iconColor"
+                        label = "reorderIconColor"
+                    )
+
+                    val removeCornerRadius by animateDpAsState(
+                        targetValue = if (isRemoveModeEnabled) 24.dp else 12.dp,
+                        label = "removeCornerRadius"
+                    )
+                    val removeButtonColor by animateColorAsState(
+                        targetValue = if (isRemoveModeEnabled) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.surfaceContainerHigh,
+                        label = "removeButtonColor"
+                    )
+                    val removeIconColor by animateColorAsState(
+                        targetValue = if (isRemoveModeEnabled) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onSurface,
+                        label = "removeIconColor"
                     )
 
                     Button(
-                        onClick = { isReorderModeEnabled = !isReorderModeEnabled },
-                        shape = RoundedCornerShape(cornerRadius),
+                        onClick = { isRemoveModeEnabled = !isRemoveModeEnabled },
+                        shape = RoundedCornerShape(removeCornerRadius),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = buttonColor,
-                            contentColor = iconColor
+                            containerColor = removeButtonColor,
+                            contentColor = removeIconColor
                         ),
                         modifier = Modifier
                             .align(Alignment.CenterVertically)
                             .animateContentSize()
                             .padding(bottom = 8.dp)
-                            .clip(RoundedCornerShape(cornerRadius))
-                            //.size(42.dp)
+                            .clip(RoundedCornerShape(removeCornerRadius))
+                    ) {
+                        Icon(
+                            modifier = Modifier.size(22.dp),
+                            imageVector = Icons.Default.RemoveCircleOutline,
+                            contentDescription = "Remove songs",
+                            tint = removeIconColor
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            modifier = Modifier.padding(end = 4.dp),
+                            text = "Remove",
+                            color = removeIconColor,
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
+
+                    Spacer(Modifier.width(8.dp))
+
+                    Button(
+                        onClick = { isReorderModeEnabled = !isReorderModeEnabled },
+                        shape = RoundedCornerShape(reorderCornerRadius),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = reorderButtonColor,
+                            contentColor = reorderIconColor
+                        ),
+                        modifier = Modifier
+                            .align(Alignment.CenterVertically)
+                            .animateContentSize()
+                            .padding(bottom = 8.dp)
+                            .clip(RoundedCornerShape(reorderCornerRadius))
                     ) {
                         Icon(
                             modifier = Modifier.size(22.dp),
                             painter = painterResource(R.drawable.drag_order_icon),
                             contentDescription = "Reorder songs",
-                            tint = iconColor
+                            tint = reorderIconColor
                         )
-                        Spacer(
-                            modifier = Modifier
-                                .width(6.dp)
-                        )
+                        Spacer(Modifier.width(6.dp))
                         Text(
                             modifier = Modifier.padding(end = 4.dp),
                             text = "Reorder",
-                            color = iconColor,
+                            color = reorderIconColor,
                             style = MaterialTheme.typography.labelMedium
                         )
                     }
@@ -449,6 +490,7 @@ fun PlaylistDetailScreen(
                                     },
                                     isReorderModeEnabled = isReorderModeEnabled,
                                     isDragHandleVisible = isReorderModeEnabled,
+                                    isRemoveButtonVisible = isRemoveModeEnabled,
                                     dragHandle = {
                                         IconButton(
                                             onClick = {},

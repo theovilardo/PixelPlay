@@ -271,6 +271,7 @@ fun QueueBottomSheet(
                                     onRemoveClick = { onRemoveSong(song.id) },
                                     isReorderModeEnabled = false,
                                     isDragHandleVisible = true,
+                                    isRemoveButtonVisible = true,
                                     dragHandle = {
                                         IconButton(
                                             onClick = {},
@@ -393,7 +394,8 @@ fun QueuePlaylistSongItem(
     onRemoveClick: () -> Unit,
     dragHandle: @Composable () -> Unit,
     isReorderModeEnabled: Boolean,
-    isDragHandleVisible: Boolean
+    isDragHandleVisible: Boolean,
+    isRemoveButtonVisible: Boolean
 ) {
     val colors = MaterialTheme.colorScheme
     val itemShape = AbsoluteSmoothCornerShape(
@@ -479,22 +481,24 @@ fun QueuePlaylistSongItem(
                 Spacer(Modifier.width(8.dp))
             }
 
-            FilledIconButton(
-                onClick = onRemoveClick,
-                colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = colors.surfaceContainer,
-                    contentColor = colors.onSurface
-                ),
-                modifier = Modifier
-                    .width(40.dp)
-                    .padding(start = 4.dp, end = 8.dp)
-            ) {
-                Icon(
-                    modifier = Modifier.size(18.dp),
-                    imageVector = Icons.Rounded.Close,
-                    contentDescription = "Quitar de la playlist",
-                    //tint = colors.onSurfaceVariant
-                )
+            AnimatedVisibility(visible = isRemoveButtonVisible) {
+                FilledIconButton(
+                    onClick = onRemoveClick,
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = colors.surfaceContainer,
+                        contentColor = colors.onSurface
+                    ),
+                    modifier = Modifier
+                        .width(40.dp)
+                        .padding(start = 4.dp, end = 8.dp)
+                ) {
+                    Icon(
+                        modifier = Modifier.size(18.dp),
+                        imageVector = Icons.Rounded.Close,
+                        contentDescription = "Quitar de la playlist",
+                        //tint = colors.onSurfaceVariant
+                    )
+                }
             }
         }
     }
