@@ -121,6 +121,8 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.delay
 import android.os.Trace // Import Trace
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.TopAppBar
@@ -2007,6 +2009,7 @@ fun ToggleSegmentButton(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun DismissUndoBar(
     modifier: Modifier = Modifier,
@@ -2029,8 +2032,8 @@ fun DismissUndoBar(
             .fillMaxWidth()
             .height(MiniPlayerHeight),
         shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        tonalElevation = 4.dp
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shadowElevation = 4.dp
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Row(
@@ -2041,11 +2044,18 @@ fun DismissUndoBar(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    "Playlist Dismissed",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    modifier = Modifier.padding(start = 10.dp),
+                    text = "Playlist Dismissed",
+                    style = MaterialTheme.typography.titleMediumEmphasized,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
-                TextButton(onClick = onUndo) {
+                Button(
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    onClick = onUndo
+                ) {
                     Text("Undo", color = MaterialTheme.colorScheme.primary)
                 }
             }
@@ -2053,8 +2063,20 @@ fun DismissUndoBar(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .fillMaxWidth(fraction = progress.coerceIn(0f,1f))
-                    .height(2.dp)
-                    .background(MaterialTheme.colorScheme.primary)
+                    .fillMaxHeight()
+                    .background(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
+                        shape = AbsoluteSmoothCornerShape(
+                            cornerRadiusTR = 12.dp,
+                            smoothnessAsPercentTL = 60,
+                            cornerRadiusTL = 12.dp,
+                            smoothnessAsPercentTR = 60,
+                            cornerRadiusBR = 12.dp,
+                            smoothnessAsPercentBL = 60,
+                            cornerRadiusBL = 12.dp,
+                            smoothnessAsPercentBR = 60
+                        )
+                    )
             )
         }
     }

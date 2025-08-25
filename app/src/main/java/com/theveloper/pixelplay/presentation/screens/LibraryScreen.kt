@@ -123,6 +123,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.asPaddingValues
 import com.theveloper.pixelplay.presentation.components.AiPlaylistSheet
+import com.theveloper.pixelplay.presentation.components.PlaylistArtCollage
 import com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet
 import com.theveloper.pixelplay.presentation.components.subcomps.LibraryActionRow
 import com.theveloper.pixelplay.presentation.components.subcomps.SineWaveLine
@@ -143,6 +144,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import com.theveloper.pixelplay.presentation.components.subcomps.PlayingEqIcon
@@ -473,6 +475,7 @@ fun LibraryScreen(
                                     LibraryPlaylistsTab(
                                         playlistUiState = currentPlaylistUiState,
                                         navController = navController,
+                                        playerViewModel = playerViewModel,
                                         bottomBarHeight = bottomBarHeightDp,
                                         onGenerateWithAiClick = { playerViewModel.showAiPlaylistSheet() }
                                     )
@@ -952,24 +955,44 @@ fun LibrarySongsTab(
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EnhancedSongListItem(
     modifier: Modifier = Modifier,
     song: Song,
     isPlaying: Boolean,
     isCurrentSong: Boolean = false,
-    isLoading: Boolean = false, // New parameter for shimmer state
+    isLoading: Boolean = false,
     onMoreOptionsClick: (Song) -> Unit,
     onClick: () -> Unit
 ) {
-    val itemCornerRadius = 26.dp // Fixed for performance testing
+    // Animamos el radio de las esquinas basándonos en si la canción es la actual.
+    val animatedCornerRadius by animateDpAsState(
+        targetValue = if (isCurrentSong && !isLoading) 50.dp else 22.dp,
+        animationSpec = tween(durationMillis = 400),
+        label = "cornerRadiusAnimation"
+    )
+
+    // Creamos la forma con el radio animado.
+    val surfaceShape = remember(animatedCornerRadius) {
+        AbsoluteSmoothCornerShape(
+            cornerRadiusTL = animatedCornerRadius,
+            smoothnessAsPercentTR = 60,
+            cornerRadiusTR = animatedCornerRadius,
+            smoothnessAsPercentBR = 60,
+            cornerRadiusBL = animatedCornerRadius,
+            smoothnessAsPercentBL = 60,
+            cornerRadiusBR = animatedCornerRadius,
+            smoothnessAsPercentTL = 60
+        )
+    }
 
     val colors = MaterialTheme.colorScheme
     val containerColor = if ((isCurrentSong) && !isLoading) colors.primaryContainer.copy(alpha = 0.34f) else colors.surfaceContainerLow
     val contentColor = if ((isCurrentSong) && !isLoading) colors.primary else colors.onSurface
 
-    val surfaceShape = remember { RoundedCornerShape(itemCornerRadius) }
+    val mvContainerColor = if ((isCurrentSong) && !isLoading) colors.primaryContainer.copy(alpha = 0.44f) else colors.surfaceContainerHigh
+    val mvContentColor = if ((isCurrentSong) && !isLoading) colors.primary else colors.onSurface
 
     if (isLoading) {
         // Shimmer Placeholder Layout
@@ -999,21 +1022,21 @@ fun EnhancedSongListItem(
                     ShimmerBox(
                         modifier = Modifier
                             .fillMaxWidth(0.7f)
-                            .height(20.dp) // Approx height of title
+                            .height(20.dp)
                             .clip(RoundedCornerShape(4.dp))
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     ShimmerBox(
                         modifier = Modifier
                             .fillMaxWidth(0.5f)
-                            .height(16.dp) // Approx height of artist
+                            .height(16.dp)
                             .clip(RoundedCornerShape(4.dp))
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     ShimmerBox(
                         modifier = Modifier
                             .fillMaxWidth(0.3f)
-                            .height(16.dp) // Approx height of duration
+                            .height(16.dp)
                             .clip(RoundedCornerShape(4.dp))
                     )
                 }
@@ -1021,7 +1044,7 @@ fun EnhancedSongListItem(
                 ShimmerBox(
                     modifier = Modifier
                         .size(36.dp)
-                        .clip(CircleShape) // MoreVert button placeholder
+                        .clip(CircleShape)
                 )
             }
         }
@@ -1044,14 +1067,14 @@ fun EnhancedSongListItem(
                 Box(
                     modifier = Modifier
                         .size(56.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
                 ) {
+                    // Usando tu composable SmartImage
                     SmartImage(
-                        model = song.albumArtUriString ?: R.drawable.rounded_album_24,
+                        model = song.albumArtUriString,
                         contentDescription = song.title,
-                        contentScale = ContentScale.Crop,
-                        targetSize = Size(100, 100), // 56dp * 3 (densidad asumida) approx
+                        shape = CircleShape,
+                        targetSize = Size(168, 168), // 56dp * 3 (para densidad xxhdpi)
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -1079,17 +1102,21 @@ fun EnhancedSongListItem(
                     )
                 }
                 if (isCurrentSong) {
-                    PlayingEqIcon(
-                        modifier = Modifier
-                            .padding(start = 8.dp)
-                            .size(width = 18.dp, height = 16.dp), // similar al tamaño del ícono
-                        color = colors.primary,
-                        isPlaying = isPlaying  // o conectalo a tu estado real de reproducción
-                    )
+                     PlayingEqIcon(
+                         modifier = Modifier
+                             .padding(start = 8.dp)
+                             .size(width = 18.dp, height = 16.dp),
+                         color = colors.primary,
+                         isPlaying = isPlaying
+                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
-                IconButton(
+                FilledIconButton(
                     onClick = { onMoreOptionsClick(song) },
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = mvContainerColor,
+                        contentColor = mvContentColor.copy(alpha = 0.7f)
+                    ),
                     modifier = Modifier
                         .size(36.dp)
                         .padding(end = 4.dp)
@@ -1097,8 +1124,7 @@ fun EnhancedSongListItem(
                     Icon(
                         imageVector = Icons.Rounded.MoreVert,
                         contentDescription = "More options for ${song.title}",
-                        modifier = Modifier.size(24.dp),
-                        tint = contentColor.copy(alpha = 0.7f)
+                        modifier = Modifier.size(24.dp)
                     )
                 }
             }
@@ -1441,10 +1467,12 @@ fun ArtistListItem(artist: Artist, onClick: () -> Unit) {
     }
 }
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun LibraryPlaylistsTab(
     playlistUiState: PlaylistUiState,
     navController: NavController,
+    playerViewModel: PlayerViewModel,
     bottomBarHeight: Dp,
     onGenerateWithAiClick: () -> Unit
 ) {
@@ -1515,7 +1543,11 @@ fun LibraryPlaylistsTab(
                     val rememberedOnClick = remember(playlist.id) {
                         { navController.navigate(Screen.PlaylistDetail.createRoute(playlist.id)) }
                     }
-                    PlaylistItem(playlist = playlist, onClick = rememberedOnClick)
+                    PlaylistItem(
+                        playlist = playlist,
+                        playerViewModel = playerViewModel,
+                        onClick = rememberedOnClick
+                    )
                 }
             }
             Box(
@@ -1536,36 +1568,34 @@ fun LibraryPlaylistsTab(
     }
 }
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
-fun PlaylistItem(playlist: Playlist, onClick: () -> Unit) {
+fun PlaylistItem(
+    playlist: Playlist,
+    playerViewModel: PlayerViewModel,
+    onClick: () -> Unit
+) {
+    val allSongs by playerViewModel.allSongsFlow.collectAsState()
+    val playlistSongs = remember(playlist.songIds, allSongs) {
+        allSongs.filter { it.id in playlist.songIds }
+    }
+
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        // 1. Usa un color de contenedor específico de M3 para una apariencia menos elevada
-        // y más integrada con la superficie.
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
     ) {
         Row(
-            // 2. Ajusta el padding general para el nuevo diseño.
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 3. El ícono ahora tiene un fondo con color y forma para destacarlo,
-            // un patrón común en el estilo expresivo de M3.
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                contentDescription = "Playlist",
-                modifier = Modifier
-                    .size(48.dp)
-                    .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
-                    .padding(12.dp), // Padding interno para que el ícono no toque los bordes del círculo.
-                // 4. El tint del ícono debe ser el color "on" correspondiente al nuevo fondo.
-                tint = MaterialTheme.colorScheme.onSecondaryContainer
+            PlaylistArtCollage(
+                songs = playlistSongs,
+                modifier = Modifier.size(48.dp)
             )
 
-            // 5. Usa un Spacer para una separación horizontal consistente y predecible.
             Spacer(modifier = Modifier.width(16.dp))
 
             Column(modifier = Modifier.weight(1f)) {
