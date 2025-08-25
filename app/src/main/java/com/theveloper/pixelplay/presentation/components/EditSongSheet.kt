@@ -172,30 +172,30 @@ fun EditSongSheet(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-//                    Box(
-//                        modifier = Modifier
-//                            .size(40.dp)
-//                            .clip(CircleShape)
-//                            .background(
-//                                brush = Brush.horizontalGradient(
-//                                    colors = listOf(
-//                                        MaterialTheme.colorScheme.primary,
-//                                        MaterialTheme.colorScheme.secondary,
-//                                        MaterialTheme.colorScheme.tertiary
-//                                    )
-//                                )
-//                            )
-//                    ) {
-//                        IconButton(onClick = { showAiDialog = true }) {
-//                            Icon(
-//                                modifier = Modifier
-//                                    .size(20.dp),
-//                                painter = painterResource(id = R.drawable.gemini_ai),
-//                                contentDescription = "Use Gemini AI",
-//                                tint = MaterialTheme.colorScheme.onPrimary
-//                            )
-//                        }
-//                    }
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(
+                                brush = Brush.horizontalGradient(
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.primary,
+                                        MaterialTheme.colorScheme.secondary,
+                                        MaterialTheme.colorScheme.tertiary
+                                    )
+                                )
+                            )
+                    ) {
+                        IconButton(onClick = { showAiDialog = true }) {
+                            Icon(
+                                modifier = Modifier
+                                    .size(20.dp),
+                                painter = painterResource(id = R.drawable.gemini_ai),
+                                contentDescription = "Use Gemini AI",
+                                tint = MaterialTheme.colorScheme.onPrimary
+                            )
+                        }
+                    }
                     FilledTonalIconButton(
                         onClick = { showInfoDialog = true },
                         shape = CircleShape
