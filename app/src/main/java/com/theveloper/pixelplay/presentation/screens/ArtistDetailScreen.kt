@@ -164,7 +164,7 @@ fun ArtistDetailScreen(
                             EnhancedSongListItem(
                                 song = song,
                                 isCurrentSong = songs.isNotEmpty() && stablePlayerState.currentSong == song,
-                                isPlaying = stablePlayerState.currentSong?.id == song.id,
+                                isPlaying = stablePlayerState.isPlaying,
                                 onMoreOptionsClick = {
                                     playerViewModel.selectSongForInfo(song)
                                     showSongInfoBottomSheet = true
