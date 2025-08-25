@@ -53,6 +53,7 @@ import com.theveloper.pixelplay.utils.formatDuration
 import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import androidx.core.net.toUri
+import com.theveloper.pixelplay.ui.theme.MontserratFamily
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -152,8 +153,8 @@ fun SongInfoBottomSheet(
                 ) {
                     AutoSizingTextToFill(
                         modifier = Modifier.padding(end = 4.dp),
-                        fontFamily = FontFamily.Default,
-                        fontWeight = FontWeight.Light,
+                        fontFamily = MontserratFamily,
+                        fontWeight = FontWeight.Normal,
                         text = song.title
                     )
                 }
