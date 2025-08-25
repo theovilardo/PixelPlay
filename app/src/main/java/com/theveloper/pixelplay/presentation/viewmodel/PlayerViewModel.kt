@@ -1912,6 +1912,23 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun clearQueueExceptCurrent() {
+        mediaController?.let { controller ->
+            val currentSongIndex = controller.currentMediaItemIndex
+            if (currentSongIndex == C.INDEX_UNSET) return@let
+
+            // We must copy the indices to a separate list before removing them,
+            // because removing items shifts the indices of subsequent items.
+            val indicesToRemove = (0 until controller.mediaItemCount)
+                .filter { it != currentSongIndex }
+                .sortedDescending() // Important: remove from the end to avoid index shifting issues
+
+            for (index in indicesToRemove) {
+                controller.removeMediaItem(index)
+            }
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         stopProgressUpdates()
