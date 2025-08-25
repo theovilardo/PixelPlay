@@ -523,7 +523,7 @@ fun QueuePlaylistSongItem(
                 ) {
                     Icon(
                         modifier = Modifier.size(18.dp),
-                        painter = painterResource(R.drawable.rounded_clear_all_24),
+                        painter = painterResource(R.drawable.rounded_close_24),
                         contentDescription = "Quitar de la playlist",
                         //tint = colors.onSurfaceVariant
                     )
