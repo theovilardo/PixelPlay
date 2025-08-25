@@ -51,6 +51,8 @@ import androidx.compose.material3.FloatingToolbarExitDirection
 import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonColors
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LargeExtendedFloatingActionButton
 import androidx.compose.material3.LargeFloatingActionButton
 import androidx.compose.material3.MaterialTheme
@@ -471,17 +473,27 @@ fun QueuePlaylistSongItem(
                         color = colors.primary,
                         isPlaying = isPlaying  // o conectalo a tu estado real de reproducción
                     )
+                    Spacer(Modifier.width(4.dp))
                 }
+            } else {
+                Spacer(Modifier.width(8.dp))
             }
 
-            IconButton(
+            FilledIconButton(
                 onClick = onRemoveClick,
-                modifier = Modifier.padding(start = 4.dp)
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = colors.surfaceContainer,
+                    contentColor = colors.onSurface
+                ),
+                modifier = Modifier
+                    .width(40.dp)
+                    .padding(start = 4.dp, end = 8.dp)
             ) {
                 Icon(
+                    modifier = Modifier.size(18.dp),
                     imageVector = Icons.Rounded.Close,
                     contentDescription = "Quitar de la playlist",
-                    tint = colors.onSurfaceVariant
+                    //tint = colors.onSurfaceVariant
                 )
             }
         }

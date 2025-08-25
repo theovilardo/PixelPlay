@@ -350,7 +350,8 @@ fun PlaylistDetailScreen(
                             //.size(42.dp)
                     ) {
                         Icon(
-                            painter = painterResource(R.drawable.rounded_format_list_bulleted_24),
+                            modifier = Modifier.size(22.dp),
+                            painter = painterResource(R.drawable.drag_order_icon),
                             contentDescription = "Reorder songs",
                             tint = iconColor
                         )
@@ -360,7 +361,7 @@ fun PlaylistDetailScreen(
                         )
                         Text(
                             modifier = Modifier.padding(end = 4.dp),
-                            text = "Reorder", // if (isReorderModeEnabled) "Done" else "Reorder",
+                            text = "Reorder",
                             color = iconColor,
                             style = MaterialTheme.typography.labelMedium
                         )
@@ -384,18 +385,19 @@ fun PlaylistDetailScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .weight(1f)
+                            .padding(horizontal = 10.dp)
                             .clip(
                                 AbsoluteSmoothCornerShape(
-                                    cornerRadiusTR = 30.dp,
+                                    cornerRadiusTR = 32.dp,
                                     smoothnessAsPercentTR = 60,
-                                    cornerRadiusTL = 30.dp,
+                                    cornerRadiusTL = 32.dp,
                                     smoothnessAsPercentTL = 60,
                                 )
                             )
                             .background(color = MaterialTheme.colorScheme.surfaceContainerHigh),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(
-                            top = 14.dp,
+                            top = 12.dp,
                             bottom = if (playerStableState.isPlaying || playerStableState.currentSong != null) MiniPlayerHeight + 32.dp + 104.dp else 10.dp + 104.dp
                         )
                     ) {
