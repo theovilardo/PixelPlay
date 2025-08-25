@@ -41,94 +41,67 @@ class GenreDetailViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(GenreDetailUiState())
     val uiState: StateFlow<GenreDetailUiState> = _uiState.asStateFlow()
 
-    private val genreId: String? = savedStateHandle.get<String>("genreId")?.let { java.net.URLDecoder.decode(it, "UTF-8") }
-
     init {
-        if (genreId != null) {
-            loadGenreName(genreId) // Load genre name first
-            fetchSongsForGenre(genreId) // Then load songs
-        } else {
+        savedStateHandle.get<String>("genreId")?.let { genreId ->
+            val decodedGenreId = java.net.URLDecoder.decode(genreId, "UTF-8")
+            loadGenreDetails(decodedGenreId)
+        } ?: run {
             _uiState.value = _uiState.value.copy(error = "Genre ID not found", isLoadingGenreName = false, isLoadingSongs = false)
         }
     }
 
-    private fun loadGenreName(id: String) {
+    private fun loadGenreDetails(genreId: String) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoadingGenreName = true, error = null) // Clear previous error
-            if (id.isBlank()) {
-                _uiState.value = _uiState.value.copy(
-                    error = "Genre ID is blank.",
-                    isLoadingGenreName = false
-                )
-                return@launch
-            }
+            _uiState.value = _uiState.value.copy(isLoadingGenreName = true, error = null)
 
             try {
-                val genres = musicRepository.getGenres().first() // Get all genres from the repository
-                val foundGenre = genres.find { it.id.equals(id, ignoreCase = true) }
-
-                if (foundGenre != null) {
-                    _uiState.value = _uiState.value.copy(genre = foundGenre, isLoadingGenreName = false)
-                } else {
-                    // If not found, it means there are no songs with this genre in the library.
-                    // We can still create a basic Genre object for display, but it will be empty.
-                    val dynamicGenre = Genre(
-                        id = id,
-                        name = id, // Use id as name
-                        lightColorHex = "#9E9E9E", // Default grey
-                        onLightColorHex = "#000000", // Default black
-                        darkColorHex = "#616161", // Default dark grey
-                        onDarkColorHex = "#FFFFFF"
+                // Step 1: Find the genre object by its ID.
+                val genres = musicRepository.getGenres().first()
+                val foundGenre = genres.find { it.id.equals(genreId, ignoreCase = true) }
+                    ?: Genre(
+                        id = genreId,
+                        name = genreId.replace("_", " ").replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }, // Fallback name from ID
+                        lightColorHex = "#9E9E9E", onLightColorHex = "#000000",
+                        darkColorHex = "#616161", onDarkColorHex = "#FFFFFF"
                     )
-                    _uiState.value = _uiState.value.copy(genre = dynamicGenre, isLoadingGenreName = false)
-                }
+
+                _uiState.value = _uiState.value.copy(genre = foundGenre, isLoadingGenreName = false, isLoadingSongs = true)
+
+                // Step 2: Fetch songs using the genre's NAME.
+                val listOfSongs = musicRepository.getMusicByGenre(foundGenre.name).first()
+
+                // Step 3: Group the songs for display.
+                val groupedSongs = groupSongs(listOfSongs)
+
+                _uiState.value = _uiState.value.copy(
+                    songs = listOfSongs,
+                    groupedSongs = groupedSongs,
+                    isLoadingSongs = false
+                )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     error = "Failed to load genre details: ${e.message}",
-                    isLoadingGenreName = false
+                    isLoadingGenreName = false,
+                    isLoadingSongs = false
                 )
             }
         }
     }
 
-    // Updated function
-    private fun fetchSongsForGenre(id: String) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoadingSongs = true, error = null)
-            try {
-                // Colecta la lista del Flow.
-                // Si getMusicByGenre siempre emite una sola lista actualizada, 'first()' es apropiado.
-                // Si pudiera emitir múltiples listas a lo largo del tiempo y quieres reaccionar a cada una,
-                // necesitarías una estructura diferente o usar .collect { listOfSongs -> ... }
-                val listOfSongs = musicRepository.getMusicByGenre(id).first() // Obtiene la List<Song>
-
-                val newGroupedList = mutableListOf<GroupedSongListItem>()
-
-                // Ahora 'listOfSongs' es una List<Song>, y groupBy funcionará.
-                listOfSongs.groupBy { it.artist }
-                    .forEach { (artistName, artistSongs) ->
-                        newGroupedList.add(GroupedSongListItem.ArtistHeader(artistName))
-                        artistSongs.groupBy { it.album } // Esto también opera sobre una List<Song> (artistSongs)
-                            .forEach { (albumName, albumSongs) ->
-                                val albumArtUri = albumSongs.firstOrNull()?.albumArtUriString // albumArtUriString es String?
-                                newGroupedList.add(GroupedSongListItem.AlbumHeader(albumName, artistName, albumArtUri))
-                                albumSongs.forEach { song ->
-                                    newGroupedList.add(GroupedSongListItem.SongItem(song))
-                                }
-                            }
+    private fun groupSongs(songs: List<Song>): List<GroupedSongListItem> {
+        val newGroupedList = mutableListOf<GroupedSongListItem>()
+        songs.groupBy { it.artist }
+            .forEach { (artistName, artistSongs) ->
+                newGroupedList.add(GroupedSongListItem.ArtistHeader(artistName))
+                artistSongs.groupBy { it.album }
+                    .forEach { (albumName, albumSongs) ->
+                        val albumArtUri = albumSongs.firstOrNull()?.albumArtUriString
+                        newGroupedList.add(GroupedSongListItem.AlbumHeader(albumName, artistName, albumArtUri))
+                        albumSongs.forEach { song ->
+                            newGroupedList.add(GroupedSongListItem.SongItem(song))
+                        }
                     }
-
-                _uiState.value = _uiState.value.copy(
-                    songs = listOfSongs, // Ahora 'listOfSongs' es la lista real, no el Flow
-                    groupedSongs = newGroupedList,
-                    isLoadingSongs = false
-                )
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    error = (_uiState.value.error ?: "") + " Failed to load songs: ${e.message}",
-                    isLoadingSongs = false
-                )
             }
-        }
+        return newGroupedList
     }
 }
