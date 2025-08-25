@@ -11,7 +11,7 @@ data class LrcLibResponse(
     val name: String,
     val artistName: String,
     val albumName: String,
-    val duration: Int,
+    val duration: Double,
     @SerializedName("plainLyrics")
     val plainLyrics: String?,
     @SerializedName("syncedLyrics")
