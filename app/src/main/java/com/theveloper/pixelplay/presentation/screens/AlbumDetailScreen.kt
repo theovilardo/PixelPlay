@@ -167,6 +167,7 @@ fun AlbumDetailScreen(
                                 end = 16.dp,
                                 start = 16.dp
                             ),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxSize()
                         ) {
                             // Spacer para empujar el contenido debajo del header
