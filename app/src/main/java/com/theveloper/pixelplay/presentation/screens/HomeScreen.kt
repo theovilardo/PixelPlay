@@ -66,6 +66,7 @@ import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -229,22 +230,18 @@ fun YourMixHeader(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(216.dp)
+            .height(256.dp)
             .padding(16.dp)
     ) {
         Column(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(top = 48.dp, start = 16.dp)
+                .padding(top = 48.dp, start = 12.dp)
         ) {
             // Your Mix Title
             Text(
                 text = "Your\nMix",
-                style = MaterialTheme.typography.displayLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    lineHeight = 60.sp,
-                    letterSpacing = (1).sp
-                ),
+                style = ExpTitleTypography.displayLarge,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier
             )
@@ -254,7 +251,7 @@ fun YourMixHeader(
                 text = song,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                modifier = Modifier
+                modifier = Modifier.padding(start = 8.dp)
             )
         }
         // Play Button

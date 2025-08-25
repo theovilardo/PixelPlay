@@ -68,6 +68,7 @@ retrofit = "3.0.0"
 okhttp = "5.1.0"
 
 [libraries]
+androidx-ui-text-google-fonts = { module = "androidx.compose.ui:ui-text-google-fonts" }
 google-genai = { group = "com.google.genai", name = "google-genai", version.ref = "googleGenai" }
 amplituda = { module = "com.github.lincollincol:amplituda", version.ref = "amplituda" }
 androidx-animation = { module = "androidx.compose.animation:animation", version.ref = "animation" }
