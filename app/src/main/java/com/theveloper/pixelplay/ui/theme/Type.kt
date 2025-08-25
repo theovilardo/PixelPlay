@@ -44,8 +44,8 @@ val ExpTitleTypography = Typography(
     displayMedium = TextStyle(
         fontFamily = MontserratFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 60.sp,
-        textGeometricTransform = TextGeometricTransform(scaleX = 1.02f),
+        fontSize = 50.sp,
+        //textGeometricTransform = TextGeometricTransform(scaleX = 1f),
         letterSpacing = (-0.02).em,
         lineHeight = 0.95.em,
         platformStyle = PlatformTextStyle(includeFontPadding = false)
