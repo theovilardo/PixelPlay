@@ -273,12 +273,14 @@ fun PlaylistDetailScreen(
         } else {
             Column(modifier = Modifier
                 .fillMaxSize()
-                .padding(top = innerPadding.calculateTopPadding())) {
+                .padding(top = innerPadding.calculateTopPadding())
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(76.dp)
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                        .height(62.dp)
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
@@ -365,7 +367,7 @@ fun PlaylistDetailScreen(
                             .clip(RoundedCornerShape(removeCornerRadius))
                     ) {
                         Icon(
-                            modifier = Modifier.size(22.dp),
+                            modifier = Modifier.size(18.dp),
                             imageVector = Icons.Default.RemoveCircleOutline,
                             contentDescription = "Remove songs",
                             tint = removeIconColor
