@@ -563,6 +563,7 @@ class PlayerViewModel @Inject constructor(
 
         launchColorSchemeProcessor()
         loadPersistedDailyMix()
+        loadSearchHistory()
 
         viewModelScope.launch {
             isSyncingStateFlow.collect { isSyncing ->
@@ -1795,28 +1796,27 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun onSearchQuerySubmitted(query: String) {
+        viewModelScope.launch {
+            if (query.isNotBlank()) {
+                withContext(Dispatchers.IO) {
+                    musicRepository.addSearchHistoryItem(query)
+                }
+                loadSearchHistory()
+            }
+        }
+    }
+
     fun performSearch(query: String) {
         viewModelScope.launch {
             try {
-                if (query.isNotBlank()) {
-                    withContext(Dispatchers.IO) {
-                        musicRepository.addSearchHistoryItem(query)
-                    }
-                    loadSearchHistory() // Refresh history after adding new item (loadSearchHistory also needs to be checked)
-                }
-
                 if (query.isBlank()) {
                     _playerUiState.update { it.copy(searchResults = persistentListOf()) }
-                    // Opcionalmente, puedes decidir si quieres cargar el historial de búsqueda aquí también
-                    // loadSearchHistory()
                     return@launch
                 }
 
                 val currentFilter = _playerUiState.value.selectedSearchFilter
 
-                // Colecta la lista de resultados del Flow.
-                // Asumimos que musicRepository.searchAll devuelve Flow<List<SearchResultItem>>
-                // y que _playerUiState.value.searchResults espera ImmutableList<SearchResultItem>
                 val resultsList: List<SearchResultItem> = withContext(Dispatchers.IO) {
                     musicRepository.searchAll(query, currentFilter).first()
                 }
@@ -1828,8 +1828,6 @@ class PlayerViewModel @Inject constructor(
                 _playerUiState.update {
                     it.copy(
                         searchResults = persistentListOf(), // Limpiar resultados en caso de error
-                        // Opcional: añadir un campo de error específico para la búsqueda en el UiState
-                        // errorSearch = "Search failed: ${e.localizedMessage ?: "Unknown error"}"
                     )
                 }
             }

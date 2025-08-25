@@ -199,13 +199,20 @@ fun SearchScreen(
                 SearchBar(
                     query = searchQuery,
                     onQueryChange = { searchQuery = it },
-                    onSearch = { active = false },
+                    onSearch = {
+                        if (searchQuery.isNotBlank()) {
+                            playerViewModel.onSearchQuerySubmitted(searchQuery)
+                        }
+                        active = false
+                    },
                     active = active,
                     onActiveChange = {
-                        active = it
-                        if (!active && searchQuery.isNotBlank()) {
-                            playerViewModel.performSearch(searchQuery)
+                        if (!it) {
+                            if (searchQuery.isNotBlank()) {
+                                playerViewModel.onSearchQuerySubmitted(searchQuery)
+                            }
                         }
+                        active = it
                     },
                     modifier = Modifier
                         .fillMaxWidth()
