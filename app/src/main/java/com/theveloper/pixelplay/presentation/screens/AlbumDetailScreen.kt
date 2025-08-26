@@ -49,6 +49,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
@@ -243,7 +244,12 @@ fun AlbumDetailScreen(
                     collapseFraction = collapseFraction,
                     headerHeight = currentTopBarHeightDp,
                     onBackPressed = { navController.popBackStack() },
-                    onPlayClick = { playerViewModel.playAlbum(album) }
+                    onPlayClick = {
+                        if (songs.isNotEmpty()) {
+                            val randomSong = songs.random()
+                            playerViewModel.showAndPlaySong(randomSong, songs)
+                        }
+                    }
                 )
             }
         }
@@ -426,7 +432,7 @@ private fun CollapsingAlbumTopBar(
                         alpha = fabScale
                     }
             ) {
-                Icon(Icons.Rounded.PlayArrow, contentDescription = "Play album")
+                Icon(Icons.Rounded.Shuffle, contentDescription = "Shuffle play album")
             }
         }
     }
