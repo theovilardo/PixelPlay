@@ -1006,35 +1006,39 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                     modifier = GlanceModifier
                         .fillMaxWidth()
                         .height(58.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     val items = queue.take(4)
                     val itemSize = 58.dp
                     val cornerRadius = 14.dp
 
                     for (i in 0 until 4) {
-                        if (i < items.size) {
-                            val queueItem = items[i]
-                            AlbumArtImageGlance(
-                                modifier = GlanceModifier.clickable(
-                                    actionRunCallback<PlayerControlActionCallback>(
-                                        actionParametersOf(
-                                            PlayerActions.key to PlayerActions.PLAY_FROM_QUEUE,
-                                            PlayerActions.songIdKey to queueItem.id
+                        Box(
+                            modifier = GlanceModifier.defaultWeight(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (i < items.size) {
+                                val queueItem = items[i]
+                                AlbumArtImageGlance(
+                                    modifier = GlanceModifier.clickable(
+                                        actionRunCallback<PlayerControlActionCallback>(
+                                            actionParametersOf(
+                                                PlayerActions.key to PlayerActions.PLAY_FROM_QUEUE,
+                                                PlayerActions.songIdKey to queueItem.id
+                                            )
                                         )
-                                    )
-                                ),
-                                bitmapData = queueItem.albumArtBitmapData,
-                                size = itemSize,
-                                context = context,
-                                cornerRadius = cornerRadius
-                            )
-                        } else {
-                            EndOfQueuePlaceholder(
-                                size = itemSize,
-                                cornerRadius = cornerRadius
-                            )
+                                    ),
+                                    bitmapData = queueItem.albumArtBitmapData,
+                                    size = itemSize,
+                                    context = context,
+                                    cornerRadius = cornerRadius
+                                )
+                            } else {
+                                EndOfQueuePlaceholder(
+                                    size = itemSize,
+                                    cornerRadius = cornerRadius
+                                )
+                            }
                         }
 
                         if (i < 3) {
@@ -1311,19 +1315,8 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
             modifier = modifier
                 .size(size)
                 .background(GlanceTheme.colors.surfaceVariant)
-                .cornerRadius(cornerRadius),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "End of queue",
-                style = TextStyle(
-                    color = GlanceTheme.colors.onSurfaceVariant,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold
-                ),
-                maxLines = 2
-            )
-        }
+                .cornerRadius(cornerRadius)
+        )
     }
 }
 
