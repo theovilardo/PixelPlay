@@ -368,17 +368,13 @@ private fun CustomCollapsingTopBar(
                             }
                     )
 
-                    val subtitleAlpha = (collapseFraction - 0.5f).coerceIn(0f, 1f) * 2
-                    if (subtitleAlpha > 0) {
-                        Text(
-                            text = "$songsCount canciones",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.alpha(subtitleAlpha)
-                        )
-                    }
+                    Text(
+                        text = "$songsCount canciones",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
 
