@@ -103,7 +103,8 @@ class SyncWorker @AssistedInject constructor(
             MediaStore.Audio.Media.ALBUM_ID,
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.DATA,
-            MediaStore.Audio.Media.GENRE
+            MediaStore.Audio.Media.GENRE,
+            MediaStore.Audio.Media.TRACK
         )
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ?"
         val selectionArgs = arrayOf("10000")
@@ -125,6 +126,7 @@ class SyncWorker @AssistedInject constructor(
             val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
             val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
             val genreCol = cursor.getColumnIndex(MediaStore.Audio.Media.GENRE)
+            val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
 
 
             while (cursor.moveToNext()) {
@@ -163,7 +165,8 @@ class SyncWorker @AssistedInject constructor(
                         duration = cursor.getLong(durationCol),
                         genre = if (genreCol != -1) cursor.getString(genreCol) else null,
                         filePath = filePath,
-                        parentDirectoryPath = parentDir
+                        parentDirectoryPath = parentDir,
+                        trackNumber = cursor.getInt(trackCol)
                     )
                 )
             }

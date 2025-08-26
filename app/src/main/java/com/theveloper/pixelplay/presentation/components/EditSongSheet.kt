@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.Category
+import androidx.compose.material.icons.rounded.FormatListNumbered
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Notes
@@ -23,8 +24,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.R
@@ -40,7 +43,7 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 fun EditSongSheet(
     song: Song,
     onDismiss: () -> Unit,
-    onSave: (title: String, artist: String, album: String, genre: String, lyrics: String) -> Unit,
+    onSave: (title: String, artist: String, album: String, genre: String, lyrics: String, trackNumber: Int) -> Unit,
     generateAiMetadata: suspend (List<String>) -> Result<com.theveloper.pixelplay.data.ai.SongMetadata>
 ) {
     var title by remember { mutableStateOf(song.title) }
@@ -48,6 +51,7 @@ fun EditSongSheet(
     var album by remember { mutableStateOf(song.album) }
     var genre by remember { mutableStateOf(song.genre ?: "") }
     var lyrics by remember { mutableStateOf(song.lyrics ?: "") }
+    var trackNumber by remember { mutableStateOf(song.trackNumber.toString()) }
 
     var showInfoDialog by remember { mutableStateOf(false) }
     var showAiDialog by remember { mutableStateOf(false) }
@@ -61,6 +65,7 @@ fun EditSongSheet(
         album = song.album
         genre = song.genre ?: ""
         lyrics = song.lyrics ?: ""
+        trackNumber = song.trackNumber.toString()
     }
 
     if (isGenerating) {
@@ -218,6 +223,18 @@ fun EditSongSheet(
                 singleLine = true
             )
 
+            OutlinedTextField(
+                value = trackNumber,
+                shape = textFieldShape,
+                colors = textFieldColors,
+                onValueChange = { trackNumber = it },
+                placeholder = { Text("Track Number") },
+                leadingIcon = { Icon(Icons.Rounded.FormatListNumbered, contentDescription = "Track Number Icon") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+
             // --- Campo de Artista ---
             OutlinedTextField(
                 value = artist,
@@ -306,7 +323,7 @@ fun EditSongSheet(
                     Text("Cancel")
                 }
                 Button(
-                    onClick = { onSave(title, artist, album, genre, lyrics) },
+                    onClick = { onSave(title, artist, album, genre, lyrics, trackNumber.toIntOrNull() ?: 0) },
                     modifier = Modifier.height(48.dp)
                 ) {
                     Text("Save")

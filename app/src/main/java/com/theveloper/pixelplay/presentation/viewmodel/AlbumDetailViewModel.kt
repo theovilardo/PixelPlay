@@ -59,7 +59,7 @@ class AlbumDetailViewModel @Inject constructor(
                     if (album != null) {
                         AlbumDetailUiState(
                             album = album,
-                            songs = songs,
+                            songs = songs.sortedBy { it.trackNumber },
                             isLoading = false
                         )
                     } else {

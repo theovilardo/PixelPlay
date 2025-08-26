@@ -22,7 +22,8 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
         newArtist: String,
         newAlbum: String,
         newGenre: String,
-        newLyrics: String
+        newLyrics: String,
+        newTrackNumber: Int
     ): Boolean {
         Timber.d("Editing metadata for URI: $contentUri")
         val uri = contentUri.toUri()
@@ -43,6 +44,7 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
             tag.setField(FieldKey.ALBUM, newAlbum)
             tag.setField(FieldKey.GENRE, newGenre)
             tag.setField(FieldKey.LYRICS, newLyrics)
+            tag.setField(FieldKey.TRACK, newTrackNumber.toString())
             Timber.d("Committing changes to temp file.")
             audioFile.commit() // Esto guarda los cambios en el archivo temporal
 
@@ -63,7 +65,7 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
             if (songId != null) {
                 Timber.d("Updating database for songId: $songId")
                 runBlocking {
-                    musicDao.updateSongMetadata(songId, newGenre, newLyrics)
+                    musicDao.updateSongMetadata(songId, newTitle, newArtist, newAlbum, newGenre, newLyrics, newTrackNumber)
                 }
             }
 

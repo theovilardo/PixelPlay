@@ -66,7 +66,7 @@ fun SongInfoBottomSheet(
     onAddToQueue: () -> Unit,
     onNavigateToAlbum: () -> Unit,
     onNavigateToArtist: () -> Unit,
-    onEditSong: (title: String, artist: String, album: String, genre: String, lyrics: String) -> Unit,
+    onEditSong: (title: String, artist: String, album: String, genre: String, lyrics: String, trackNumber: Int) -> Unit,
     generateAiMetadata: suspend (List<String>) -> Result<com.theveloper.pixelplay.data.ai.SongMetadata>
 ) {
     val context = LocalContext.current
@@ -318,8 +318,8 @@ fun SongInfoBottomSheet(
         EditSongSheet(
             song = song,
             onDismiss = { showEditSheet = false },
-            onSave = { title, artist, album, genre, lyrics ->
-                onEditSong(title, artist, album, genre, lyrics)
+            onSave = { title, artist, album, genre, lyrics, trackNumber ->
+                onEditSong(title, artist, album, genre, lyrics, trackNumber)
                 showEditSheet = false
             },
             generateAiMetadata = generateAiMetadata
