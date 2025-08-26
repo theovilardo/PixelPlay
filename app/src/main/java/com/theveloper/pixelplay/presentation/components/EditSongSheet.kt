@@ -225,6 +225,8 @@ fun EditSongSheet(
 
             OutlinedTextField(
                 value = trackNumber,
+                shape = textFieldShape,
+                colors = textFieldColors,
                 onValueChange = { trackNumber = it },
                 placeholder = { Text("Track Number") },
                 leadingIcon = { Icon(Icons.Rounded.FormatListNumbered, contentDescription = "Track Number Icon") },
