@@ -2213,12 +2213,12 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    fun editSongMetadata(song: Song, newTitle: String, newArtist: String, newAlbum: String, newGenre: String, newLyrics: String) {
+    fun editSongMetadata(song: Song, newTitle: String, newArtist: String, newAlbum: String, newGenre: String, newLyrics: String, newTrackNumber: Int) {
         viewModelScope.launch {
             Timber.d("Editing metadata for song: ${song.title} with URI: ${song.contentUriString}")
-            Timber.d("New metadata: title=$newTitle, artist=$newArtist, album=$newAlbum, genre=$newGenre, lyrics=$newLyrics")
+            Timber.d("New metadata: title=$newTitle, artist=$newArtist, album=$newAlbum, genre=$newGenre, lyrics=$newLyrics, trackNumber=$newTrackNumber")
             val success = withContext(Dispatchers.IO) {
-                songMetadataEditor.editSongMetadata(song.contentUriString, newTitle, newArtist, newAlbum, newGenre, newLyrics)
+                songMetadataEditor.editSongMetadata(song.contentUriString, newTitle, newArtist, newAlbum, newGenre, newLyrics, newTrackNumber)
             }
 
             if (success) {
@@ -2227,7 +2227,8 @@ class PlayerViewModel @Inject constructor(
                     artist = newArtist,
                     album = newAlbum,
                     genre = newGenre,
-                    lyrics = newLyrics
+                    lyrics = newLyrics,
+                    trackNumber = newTrackNumber
                 )
 
                 // Manually update the song in the UI state
