@@ -99,20 +99,40 @@ fun ArtistDetailScreen(
     val nestedScrollConnection = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                val previousHeight = topBarHeight.value
-                val newHeight = (previousHeight + available.y).coerceIn(minTopBarHeightPx, maxTopBarHeightPx)
-                val consumed = newHeight - previousHeight
-                if (consumed.roundToInt() != 0) {
-                    coroutineScope.launch { topBarHeight.snapTo(newHeight) }
+                val delta = available.y
+                val isScrollingDown = delta < 0
+
+                // Si estamos scrolleando hacia arriba y no estamos en el tope de la lista,
+                // el scroll es para la lista, no para la TopBar.
+                if (!isScrollingDown && (lazyListState.firstVisibleItemIndex > 0 || lazyListState.firstVisibleItemScrollOffset > 0)) {
+                    return Offset.Zero
                 }
-                return Offset(0f, consumed)
+
+                val previousHeight = topBarHeight.value
+                val newHeight = (previousHeight + delta).coerceIn(minTopBarHeightPx, maxTopBarHeightPx)
+                val consumed = newHeight - previousHeight
+
+                if (consumed.roundToInt() != 0) {
+                    coroutineScope.launch {
+                        topBarHeight.snapTo(newHeight)
+                    }
+                }
+
+                // Si estamos en el tope y scrolleamos hacia arriba, la lista no debe moverse.
+                val canConsumeScroll = !(isScrollingDown && newHeight == minTopBarHeightPx)
+                return if (canConsumeScroll) Offset(0f, consumed) else Offset.Zero
             }
 
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                val threshold = (maxTopBarHeightPx - minTopBarHeightPx) * 0.5f
-                val targetValue = if (topBarHeight.value < threshold + minTopBarHeightPx) minTopBarHeightPx else maxTopBarHeightPx
-                coroutineScope.launch {
-                    topBarHeight.animateTo(targetValue, spring(stiffness = Spring.StiffnessLow))
+                // Solo animar si no hay velocidad disponible para la lista (evita doble animación)
+                if (available.y == 0f) {
+                    val threshold = (maxTopBarHeightPx - minTopBarHeightPx) * 0.5f
+                    val shouldCollapse = topBarHeight.value < threshold + minTopBarHeightPx
+                    val targetValue = if (shouldCollapse) minTopBarHeightPx else maxTopBarHeightPx
+
+                    coroutineScope.launch {
+                        topBarHeight.animateTo(targetValue, spring(stiffness = Spring.StiffnessMedium))
+                    }
                 }
                 return super.onPostFling(consumed, available)
             }
@@ -178,6 +198,7 @@ fun ArtistDetailScreen(
 
                     CustomCollapsingTopBar(
                         artist = artist,
+                        songsCount = songs.size,
                         collapseFraction = collapseFraction,
                         headerHeight = currentTopBarHeightDp,
                         onBackPressed = { navController.popBackStack() },
@@ -231,6 +252,7 @@ fun ArtistDetailScreen(
 @Composable
 private fun CustomCollapsingTopBar(
     artist: Artist,
+    songsCount: Int,
     collapseFraction: Float, // 0.0 = expandido, 1.0 = colapsado
     headerHeight: Dp,
     onBackPressed: () -> Unit,
@@ -326,21 +348,38 @@ private fun CustomCollapsingTopBar(
                     .fillMaxWidth()
                     .offset(y = yOffsetCorrection)
             ) {
-                Text(
-                    text = artist.name,
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = titleMaxLines,
-                    overflow = TextOverflow.Ellipsis,
+                Column(
                     modifier = Modifier
                         .align(Alignment.CenterStart)
-                        .padding(start = titlePaddingStart, end = 120.dp)
-                        .graphicsLayer {
-                            scaleX = titleScale
-                            scaleY = titleScale
-                        }
-                )
+                        .padding(start = titlePaddingStart, end = 120.dp),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = artist.name,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = titleMaxLines,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .graphicsLayer {
+                                scaleX = titleScale
+                                scaleY = titleScale
+                            }
+                    )
+
+                    val subtitleAlpha = (collapseFraction - 0.5f).coerceIn(0f, 1f) * 2
+                    if (subtitleAlpha > 0) {
+                        Text(
+                            text = "$songsCount canciones",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.alpha(subtitleAlpha)
+                        )
+                    }
+                }
             }
 
             // Botón de Play
