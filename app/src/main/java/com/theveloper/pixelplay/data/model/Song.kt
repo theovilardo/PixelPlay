@@ -16,7 +16,8 @@ data class Song(
     val duration: Long, // en milisegundos
     val genre: String? = null, // Added genre field
     val lyrics: String? = null,
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val trackNumber: Int = 0
 ) {
     companion object {
         fun emptySong(): Song {
@@ -32,7 +33,8 @@ data class Song(
                 duration = 0L,
                 genre = null,
                 lyrics = null,
-                isFavorite = false
+                isFavorite = false,
+                trackNumber = 0
             )
         }
     }

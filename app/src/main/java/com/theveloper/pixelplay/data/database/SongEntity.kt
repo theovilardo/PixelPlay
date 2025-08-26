@@ -48,7 +48,8 @@ data class SongEntity(
     @ColumnInfo(name = "file_path") val filePath: String, // Added filePath
     @ColumnInfo(name = "parent_directory_path") val parentDirectoryPath: String, // Added for directory filtering
     @ColumnInfo(name = "is_favorite", defaultValue = "0") val isFavorite: Boolean = false,
-    @ColumnInfo(name = "lyrics", defaultValue = "null") val lyrics: String? = null
+    @ColumnInfo(name = "lyrics", defaultValue = "null") val lyrics: String? = null,
+    @ColumnInfo(name = "track_number", defaultValue = "0") val trackNumber: Int = 0
 )
 
 fun SongEntity.toSong(): Song {
@@ -64,7 +65,8 @@ fun SongEntity.toSong(): Song {
         duration = this.duration,
         genre = this.genre,
         lyrics = this.lyrics,
-        isFavorite = this.isFavorite
+        isFavorite = this.isFavorite,
+        trackNumber = this.trackNumber
         // filePath no está en el modelo Song, se usa internamente en el repo o SSoT
     )
 }
