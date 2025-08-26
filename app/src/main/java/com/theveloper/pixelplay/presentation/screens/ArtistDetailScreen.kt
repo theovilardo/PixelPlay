@@ -99,22 +99,51 @@ fun ArtistDetailScreen(
     val nestedScrollConnection = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                val previousHeight = topBarHeight.value
-                val newHeight = (previousHeight + available.y).coerceIn(minTopBarHeightPx, maxTopBarHeightPx)
-                val consumed = newHeight - previousHeight
-                if (consumed.roundToInt() != 0) {
-                    coroutineScope.launch { topBarHeight.snapTo(newHeight) }
+                val delta = available.y
+                val isScrollingDown = delta < 0
+
+                // Si estamos scrolleando hacia arriba y no estamos en el tope de la lista,
+                // el scroll es para la lista, no para la TopBar.
+                if (!isScrollingDown && (lazyListState.firstVisibleItemIndex > 0 || lazyListState.firstVisibleItemScrollOffset > 0)) {
+                    return Offset.Zero
                 }
-                return Offset(0f, consumed)
+
+                val previousHeight = topBarHeight.value
+                val newHeight = (previousHeight + delta).coerceIn(minTopBarHeightPx, maxTopBarHeightPx)
+                val consumed = newHeight - previousHeight
+
+                if (consumed.roundToInt() != 0) {
+                    coroutineScope.launch {
+                        topBarHeight.snapTo(newHeight)
+                    }
+                }
+
+                // Si estamos en el tope y scrolleamos hacia arriba, la lista no debe moverse.
+                val canConsumeScroll = !(isScrollingDown && newHeight == minTopBarHeightPx)
+                return if (canConsumeScroll) Offset(0f, consumed) else Offset.Zero
             }
 
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                val threshold = (maxTopBarHeightPx - minTopBarHeightPx) * 0.5f
-                val targetValue = if (topBarHeight.value < threshold + minTopBarHeightPx) minTopBarHeightPx else maxTopBarHeightPx
-                coroutineScope.launch {
-                    topBarHeight.animateTo(targetValue, spring(stiffness = Spring.StiffnessLow))
-                }
                 return super.onPostFling(consumed, available)
+            }
+        }
+    }
+
+    LaunchedEffect(lazyListState.isScrollInProgress) {
+        if (!lazyListState.isScrollInProgress) {
+            val shouldExpand = topBarHeight.value > (minTopBarHeightPx + maxTopBarHeightPx) / 2
+            val canExpand = lazyListState.firstVisibleItemIndex == 0 && lazyListState.firstVisibleItemScrollOffset == 0
+
+            val targetValue = if (shouldExpand && canExpand) {
+                maxTopBarHeightPx
+            } else {
+                minTopBarHeightPx
+            }
+
+            if (topBarHeight.value != targetValue) {
+                coroutineScope.launch {
+                    topBarHeight.animateTo(targetValue, spring(stiffness = Spring.StiffnessMedium))
+                }
             }
         }
     }
@@ -154,7 +183,7 @@ fun ArtistDetailScreen(
 
                     LazyColumn(
                         state = lazyListState,
-                        contentPadding = PaddingValues(top = currentTopBarHeightDp),
+                        contentPadding = PaddingValues(top = currentTopBarHeightDp, bottom = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier
                             .fillMaxSize()
@@ -178,6 +207,7 @@ fun ArtistDetailScreen(
 
                     CustomCollapsingTopBar(
                         artist = artist,
+                        songsCount = songs.size,
                         collapseFraction = collapseFraction,
                         headerHeight = currentTopBarHeightDp,
                         onBackPressed = { navController.popBackStack() },
@@ -231,6 +261,7 @@ fun ArtistDetailScreen(
 @Composable
 private fun CustomCollapsingTopBar(
     artist: Artist,
+    songsCount: Int,
     collapseFraction: Float, // 0.0 = expandido, 1.0 = colapsado
     headerHeight: Dp,
     onBackPressed: () -> Unit,
@@ -245,8 +276,8 @@ private fun CustomCollapsingTopBar(
     val headerContentAlpha = 1f - (collapseFraction * 2).coerceAtMost(1f)
 
     // Title animation
-    val titleScale = lerp(1f, 0.85f, collapseFraction)
-    val titlePaddingStart = lerp(24.dp, 68.dp, collapseFraction)
+    val titleScale = lerp(1f, 0.75f, collapseFraction)
+    val titlePaddingStart = lerp(24.dp, 58.dp, collapseFraction)
     val titleMaxLines = if(collapseFraction < 0.5f) 2 else 1
     val titleVerticalBias = lerp(1f, -1f, collapseFraction)
     val animatedTitleAlignment = BiasAlignment(horizontalBias = -1f, verticalBias = titleVerticalBias)
@@ -326,21 +357,33 @@ private fun CustomCollapsingTopBar(
                     .fillMaxWidth()
                     .offset(y = yOffsetCorrection)
             ) {
-                Text(
-                    text = artist.name,
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = titleMaxLines,
-                    overflow = TextOverflow.Ellipsis,
+                Column(
                     modifier = Modifier
                         .align(Alignment.CenterStart)
                         .padding(start = titlePaddingStart, end = 120.dp)
                         .graphicsLayer {
                             scaleX = titleScale
                             scaleY = titleScale
-                        }
-                )
+                        },
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = artist.name,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = titleMaxLines,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Text(
+                        text = "$songsCount canciones",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
 
             // Botón de Play
