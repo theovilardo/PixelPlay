@@ -1004,20 +1004,18 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 
                 Row(
                     modifier = GlanceModifier
-                        .defaultWeight()
                         .fillMaxWidth()
-                        .height(58.dp)
-                        .padding(horizontal = 0.dp),
+                        .height(58.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     val items = queue.take(4)
-                    items.forEachIndexed { index, queueItem ->
-                        Box(
-                            modifier = GlanceModifier
-                                .defaultWeight(),
-                            contentAlignment = Alignment.Center
-                        ) {
+                    val itemSize = 58.dp
+                    val cornerRadius = 14.dp
+
+                    for (i in 0 until 4) {
+                        if (i < items.size) {
+                            val queueItem = items[i]
                             AlbumArtImageGlance(
                                 modifier = GlanceModifier.clickable(
                                     actionRunCallback<PlayerControlActionCallback>(
@@ -1026,13 +1024,20 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                                             PlayerActions.songIdKey to queueItem.id
                                         )
                                     )
-                                ).fillMaxSize(), // Asegura que la imagen llene el Box
+                                ),
                                 bitmapData = queueItem.albumArtBitmapData,
+                                size = itemSize,
                                 context = context,
-                                cornerRadius = 14.dp, // Aumentar el radio de las esquinas
+                                cornerRadius = cornerRadius
+                            )
+                        } else {
+                            EndOfQueuePlaceholder(
+                                size = itemSize,
+                                cornerRadius = cornerRadius
                             )
                         }
-                        if (index < items.size - 1) {
+
+                        if (i < 3) {
                             Spacer(GlanceModifier.width(8.dp))
                         }
                     }
@@ -1152,7 +1157,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                     provider = imageProvider,
                     contentDescription = "Album Art",
                     modifier = GlanceModifier.fillMaxSize().cornerRadius(cornerRadius),
-                    contentScale = ContentScale.FillBounds
+                    contentScale = ContentScale.Crop
                 )
             } else {
                 // Placeholder with tint
@@ -1160,7 +1165,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                     provider = ImageProvider(R.drawable.rounded_album_24),
                     contentDescription = "Album Art Placeholder",
                     modifier = GlanceModifier.fillMaxSize().cornerRadius(cornerRadius),
-                    contentScale = ContentScale.FillBounds,
+                    contentScale = ContentScale.Crop,
                     colorFilter = ColorFilter.tint(GlanceTheme.colors.onSurface)
                 )
             }
@@ -1292,6 +1297,31 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 contentDescription = "Previous",
                 modifier = GlanceModifier.size(iconSize),
                 colorFilter = ColorFilter.tint(iconColor)
+            )
+        }
+    }
+
+    @Composable
+    fun EndOfQueuePlaceholder(
+        modifier: GlanceModifier = GlanceModifier,
+        size: Dp,
+        cornerRadius: Dp
+    ) {
+        Box(
+            modifier = modifier
+                .size(size)
+                .background(GlanceTheme.colors.surfaceVariant)
+                .cornerRadius(cornerRadius),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "End of queue",
+                style = TextStyle(
+                    color = GlanceTheme.colors.onSurfaceVariant,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                ),
+                maxLines = 2
             )
         }
     }
