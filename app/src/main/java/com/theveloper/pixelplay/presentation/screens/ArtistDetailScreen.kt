@@ -124,17 +124,26 @@ fun ArtistDetailScreen(
             }
 
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                // Solo animar si no hay velocidad disponible para la lista (evita doble animación)
-                if (available.y == 0f) {
-                    val threshold = (maxTopBarHeightPx - minTopBarHeightPx) * 0.5f
-                    val shouldCollapse = topBarHeight.value < threshold + minTopBarHeightPx
-                    val targetValue = if (shouldCollapse) minTopBarHeightPx else maxTopBarHeightPx
-
-                    coroutineScope.launch {
-                        topBarHeight.animateTo(targetValue, spring(stiffness = Spring.StiffnessMedium))
-                    }
-                }
                 return super.onPostFling(consumed, available)
+            }
+        }
+    }
+
+    LaunchedEffect(lazyListState.isScrollInProgress) {
+        if (!lazyListState.isScrollInProgress) {
+            val shouldExpand = topBarHeight.value > (minTopBarHeightPx + maxTopBarHeightPx) / 2
+            val canExpand = lazyListState.firstVisibleItemIndex == 0 && lazyListState.firstVisibleItemScrollOffset == 0
+
+            val targetValue = if (shouldExpand && canExpand) {
+                maxTopBarHeightPx
+            } else {
+                minTopBarHeightPx
+            }
+
+            if (topBarHeight.value != targetValue) {
+                coroutineScope.launch {
+                    topBarHeight.animateTo(targetValue, spring(stiffness = Spring.StiffnessMedium))
+                }
             }
         }
     }
