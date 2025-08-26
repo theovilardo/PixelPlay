@@ -183,7 +183,7 @@ fun ArtistDetailScreen(
 
                     LazyColumn(
                         state = lazyListState,
-                        contentPadding = PaddingValues(top = currentTopBarHeightDp),
+                        contentPadding = PaddingValues(top = currentTopBarHeightDp, bottom = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier
                             .fillMaxSize()
@@ -277,7 +277,7 @@ private fun CustomCollapsingTopBar(
 
     // Title animation
     val titleScale = lerp(1f, 0.75f, collapseFraction)
-    val titlePaddingStart = lerp(24.dp, 68.dp, collapseFraction)
+    val titlePaddingStart = lerp(24.dp, 58.dp, collapseFraction)
     val titleMaxLines = if(collapseFraction < 0.5f) 2 else 1
     val titleVerticalBias = lerp(1f, -1f, collapseFraction)
     val animatedTitleAlignment = BiasAlignment(horizontalBias = -1f, verticalBias = titleVerticalBias)
