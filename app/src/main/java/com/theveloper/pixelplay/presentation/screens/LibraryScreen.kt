@@ -1240,17 +1240,17 @@ fun LibraryAlbumsTab(
                     )
                 }
             }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(14.dp)
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(MaterialTheme.colorScheme.surface, Color.Transparent)
-                        )
-                    )
-                    .align(Alignment.TopCenter)
-            )
+//            Box(
+//                modifier = Modifier
+//                    .fillMaxWidth()
+//                    .height(14.dp)
+//                    .background(
+//                        brush = Brush.verticalGradient(
+//                            colors = listOf(MaterialTheme.colorScheme.surface, Color.Transparent)
+//                        )
+//                    )
+//                    .align(Alignment.TopCenter)
+//            )
         }
     }
 }
@@ -1444,17 +1444,17 @@ fun LibraryArtistsTab(
                 //         .padding(16.dp), Alignment.Center) { CircularProgressIndicator() } }
                 // }
             }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(10.dp)
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(MaterialTheme.colorScheme.surface, Color.Transparent)
-                        )
-                    )
-                    .align(Alignment.TopCenter)
-            )
+//            Box(
+//                modifier = Modifier
+//                    .fillMaxWidth()
+//                    .height(10.dp)
+//                    .background(
+//                        brush = Brush.verticalGradient(
+//                            colors = listOf(MaterialTheme.colorScheme.surface, Color.Transparent)
+//                        )
+//                    )
+//                    .align(Alignment.TopCenter)
+//            )
         }
     }
 }
