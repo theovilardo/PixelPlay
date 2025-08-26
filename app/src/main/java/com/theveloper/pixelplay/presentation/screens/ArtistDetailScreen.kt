@@ -267,7 +267,7 @@ private fun CustomCollapsingTopBar(
     val headerContentAlpha = 1f - (collapseFraction * 2).coerceAtMost(1f)
 
     // Title animation
-    val titleScale = lerp(1f, 0.85f, collapseFraction)
+    val titleScale = lerp(1f, 0.75f, collapseFraction)
     val titlePaddingStart = lerp(24.dp, 68.dp, collapseFraction)
     val titleMaxLines = if(collapseFraction < 0.5f) 2 else 1
     val titleVerticalBias = lerp(1f, -1f, collapseFraction)
@@ -351,7 +351,11 @@ private fun CustomCollapsingTopBar(
                 Column(
                     modifier = Modifier
                         .align(Alignment.CenterStart)
-                        .padding(start = titlePaddingStart, end = 120.dp),
+                        .padding(start = titlePaddingStart, end = 120.dp)
+                        .graphicsLayer {
+                            scaleX = titleScale
+                            scaleY = titleScale
+                        },
                     verticalArrangement = Arrangement.Center
                 ) {
                     Text(
@@ -360,12 +364,7 @@ private fun CustomCollapsingTopBar(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = titleMaxLines,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .graphicsLayer {
-                                scaleX = titleScale
-                                scaleY = titleScale
-                            }
+                        overflow = TextOverflow.Ellipsis
                     )
 
                     Text(
