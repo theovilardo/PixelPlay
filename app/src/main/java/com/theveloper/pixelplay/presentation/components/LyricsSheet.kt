@@ -368,7 +368,7 @@ fun LyricsSheet(
                         brush = Brush.verticalGradient(
                             colors = listOf(
                                 Color.Transparent,
-                                containerColor.copy(0.5f),
+                                //containerColor.copy(0.5f),
                                 containerColor
                             )
                         )
