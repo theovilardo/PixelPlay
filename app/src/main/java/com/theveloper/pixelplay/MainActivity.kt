@@ -344,7 +344,10 @@ class MainActivity : ComponentActivity() {
         val sessionToken = SessionToken(this, ComponentName(this, MusicService::class.java))
         mediaControllerFuture = MediaController.Builder(this, sessionToken).buildAsync()
         mediaControllerFuture?.addListener({
-            playerViewModel.connectToService()
+            // The ViewModel now handles its own connection logic internally.
+            // This listener in MainActivity can be used for Activity-specific logic
+            // when the controller is ready, but for now, it's not needed to trigger
+            // anything in the ViewModel.
         }, MoreExecutors.directExecutor())
     }
 

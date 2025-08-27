@@ -398,6 +398,8 @@ class PlayerViewModel @Inject constructor(
     private val mediaControllerFuture: ListenableFuture<MediaController> =
         MediaController.Builder(context, sessionToken).buildAsync()
 
+    private var pendingPlaybackAction: (() -> Unit)? = null
+
     val favoriteSongIds: StateFlow<Set<String>> = userPreferencesRepository.favoriteSongIdsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     // StateFlow separado para la opción de ordenación de canciones favoritas
@@ -481,23 +483,6 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    // *** NUEVA FUNCIÓN AÑADIDA PARA SOLUCIONAR EL ERROR ***
-    /**
-     * Ensures the connection to the MusicService is being established.
-     * This function is called from MainActivity's onStart to ensure listeners are set up
-     * if the ViewModel is created late or the connection needs to be re-established.
-     * The actual connection logic is handled by `mediaControllerFuture` and its listener
-     * in the `init` block.
-     */
-    fun connectToService() {
-        if (mediaController == null && !mediaControllerFuture.isDone) {
-            Log.d("PlayerViewModel", "connectToService() called. Connection already in progress via mediaControllerFuture.")
-        } else if (mediaController == null && mediaControllerFuture.isDone) {
-            Log.w("PlayerViewModel", "connectToService() called, but future is done and controller is still null. There might have been a connection error.")
-        } else {
-            Log.d("PlayerViewModel", "connectToService() called. MediaController already available.")
-        }
-    }
 
     fun updateBottomBarHeight(heightPx: Int) {
         if (_bottomBarHeight.value != heightPx) {
@@ -590,6 +575,9 @@ class PlayerViewModel @Inject constructor(
             try {
                 mediaController = mediaControllerFuture.get()
                 setupMediaControllerListeners()
+                // Execute any pending action that was queued while the controller was connecting
+                pendingPlaybackAction?.invoke()
+                pendingPlaybackAction = null
             } catch (e: Exception) {
                 _playerUiState.update { it.copy(isLoadingInitialSongs = false, isLoadingLibraryCategories = false) }
                 Log.e("PlayerViewModel", "Error setting up MediaController", e)
@@ -1192,56 +1180,64 @@ class PlayerViewModel @Inject constructor(
         Log.d("PlayerViewModel_MediaItem", "internalPlaySongs called. Songs count: ${songsToPlay.size}, StartSong: ${startSong.title}, QueueName: $queueName")
         Log.d("PlayerViewModel_MediaItem", "internalPlaySongs: mediaController is null: ${mediaController == null}")
 
-        // Old EOT deactivation logic removed, handled by eotSongMonitorJob
-        mediaController?.let { controller ->
-            // Si la lista de canciones a reproducir es la lista 'allSongs' (paginada),
-            // idealmente deberíamos cargar todas las canciones para la cola.
-            // Esto es un compromiso: o cargamos todo para la cola (puede ser lento),
-            // o la cola se limita a lo ya cargado.
-            // Por ahora, usaremos `songsToPlay` como viene.
-            val mediaItems = songsToPlay.map { song ->
-                Log.d("PlayerViewModel_MediaItem", "Creating MediaItem for Song ID: ${song.id}, Title: ${song.title}")
-                Log.d("PlayerViewModel_MediaItem", "Song's albumArtUriString: ${song.albumArtUriString}")
+        val playSongsAction = {
+            mediaController?.let { controller ->
+                // Si la lista de canciones a reproducir es la lista 'allSongs' (paginada),
+                // idealmente deberíamos cargar todas las canciones para la cola.
+                // Esto es un compromiso: o cargamos todo para la cola (puede ser lento),
+                // o la cola se limita a lo ya cargado.
+                // Por ahora, usaremos `songsToPlay` como viene.
+                val mediaItems = songsToPlay.map { song ->
+                    Log.d("PlayerViewModel_MediaItem", "Creating MediaItem for Song ID: ${song.id}, Title: ${song.title}")
+                    Log.d("PlayerViewModel_MediaItem", "Song's albumArtUriString: ${song.albumArtUriString}")
 
-                val metadataBuilder = MediaMetadata.Builder()
-                    .setTitle(song.title)
-                    .setArtist(song.artist)
-                // .setAlbumTitle(song.album) // Opcional
+                    val metadataBuilder = MediaMetadata.Builder()
+                        .setTitle(song.title)
+                        .setArtist(song.artist)
+                    // .setAlbumTitle(song.album) // Opcional
 
-                playlistId?.let {
-                    val extras = android.os.Bundle()
-                    extras.putString("playlistId", it)
-                    metadataBuilder.setExtras(extras)
+                    playlistId?.let {
+                        val extras = android.os.Bundle()
+                        extras.putString("playlistId", it)
+                        metadataBuilder.setExtras(extras)
+                    }
+
+                    // Set artwork URI without pre-loading byte data
+                    song.albumArtUriString?.toUri()?.let { uri ->
+                        metadataBuilder.setArtworkUri(uri)
+                    }
+
+                    val metadata = metadataBuilder.build()
+
+                    MediaItem.Builder()
+                        .setMediaId(song.id)
+                        .setUri(song.contentUriString.toUri())
+                        .setMediaMetadata(metadata)
+                        .build()
                 }
+                val startIndex = songsToPlay.indexOf(startSong).coerceAtLeast(0)
 
-                // Set artwork URI without pre-loading byte data
-                song.albumArtUriString?.toUri()?.let { uri ->
-                    metadataBuilder.setArtworkUri(uri)
+                if (mediaItems.isNotEmpty()) {
+                    controller.setMediaItems(mediaItems, startIndex, 0L)
+                    controller.prepare()
+                    controller.play()
+                    _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
+                    //_stablePlayerState.update { it.copy(currentSong = startSong, isPlaying = true) }
+                    // The extractAndGenerateColorScheme call will happen via onMediaItemTransition listener setup,
+                    // so no need to explicitly call it here for startSong after this refactor.
+                    // The listener should pick up the current song and process its artwork URI.
+                    updateFavoriteStatusForCurrentSong() // This depends on stablePlayerState.currentSong, ensure it's updated timely.
                 }
-
-                val metadata = metadataBuilder.build()
-
-                MediaItem.Builder()
-                    .setMediaId(song.id)
-                    .setUri(song.contentUriString.toUri())
-                    .setMediaMetadata(metadata)
-                    .build()
             }
-            val startIndex = songsToPlay.indexOf(startSong).coerceAtLeast(0)
-
-            if (mediaItems.isNotEmpty()) {
-                controller.setMediaItems(mediaItems, startIndex, 0L)
-                controller.prepare()
-                controller.play()
-                _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
-                //_stablePlayerState.update { it.copy(currentSong = startSong, isPlaying = true) }
-                // The extractAndGenerateColorScheme call will happen via onMediaItemTransition listener setup,
-                // so no need to explicitly call it here for startSong after this refactor.
-                // The listener should pick up the current song and process its artwork URI.
-                updateFavoriteStatusForCurrentSong() // This depends on stablePlayerState.currentSong, ensure it's updated timely.
-            }
+            _playerUiState.update { it.copy(isLoadingInitialSongs = false) } // Marcar que la carga inicial de esta canción terminó
         }
-        _playerUiState.update { it.copy(isLoadingInitialSongs = false) } // Marcar que la carga inicial de esta canción terminó
+
+        if (mediaController == null) {
+            Log.w("PlayerViewModel", "MediaController not available. Queuing playback action.")
+            pendingPlaybackAction = playSongsAction
+        } else {
+            playSongsAction()
+        }
     }
 
 
