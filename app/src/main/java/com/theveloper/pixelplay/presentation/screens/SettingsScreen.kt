@@ -24,10 +24,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.outlined.Folder
@@ -42,7 +41,6 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Palette
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -57,12 +55,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -72,6 +67,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -80,7 +76,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.unit.lerp
+import androidx.compose.ui.util.lerp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.theveloper.pixelplay.R
@@ -90,12 +87,89 @@ import com.theveloper.pixelplay.presentation.viewmodel.SettingsViewModel
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
+import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
+
+@Composable
+private fun SettingsTopBar(
+    collapseFraction: Float,
+    headerHeight: Dp,
+    onBackPressed: () -> Unit
+) {
+    val surfaceColor = MaterialTheme.colorScheme.surface
+    val titleScale = lerp(1.2f, 0.8f, collapseFraction)
+    val titlePaddingStart = lerp(32.dp, 58.dp, collapseFraction)
+    val titleVerticalBias = lerp(1f, -1f, collapseFraction)
+    val animatedTitleAlignment = BiasAlignment(horizontalBias = -1f, verticalBias = titleVerticalBias)
+    val titleContainerHeight = lerp(88.dp, 56.dp, collapseFraction)
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(headerHeight)
+            .background(surfaceColor.copy(alpha = collapseFraction))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+        ) {
+            FilledIconButton(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 12.dp, top = 4.dp),
+                onClick = onBackPressed,
+                colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+            ) {
+                Icon(painterResource(R.drawable.rounded_arrow_back_24), contentDescription = "Back")
+            }
+
+            Box(
+                modifier = Modifier
+                    .align(animatedTitleAlignment)
+                    .height(titleContainerHeight)
+                    .fillMaxWidth()
+                    .padding(start = titlePaddingStart, end = 24.dp)
+            ) {
+                Text(
+                    text = "Settings",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .graphicsLayer {
+                            scaleX = titleScale
+                            scaleY = titleScale
+                        }
+                )
+            }
+        }
+    }
+}
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class)
@@ -141,244 +215,258 @@ fun SettingsScreen(
         transitionSpec = { tween(durationMillis = 400, easing = FastOutSlowInEasing) }
     ) { if (it) 0.dp else 40.dp }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        "Settings",
-                    )
-                },
-                navigationIcon = {
-                    FilledIconButton(
-                        onClick = onNavigationIconClick,
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        ),
-                        modifier = Modifier
-                            .padding(8.dp)
-                            .padding(start = 4.dp)
-                            .clip(CircleShape)
-                    ) {
+    val density = LocalDensity.current
+    val coroutineScope = rememberCoroutineScope()
+    val lazyListState = rememberLazyListState()
+
+    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val minTopBarHeight = 64.dp + statusBarHeight
+    val maxTopBarHeight = 180.dp // Adjusted for a less intrusive header
+
+    val minTopBarHeightPx = with(density) { minTopBarHeight.toPx() }
+    val maxTopBarHeightPx = with(density) { maxTopBarHeight.toPx() }
+
+    val topBarHeight = remember { Animatable(maxTopBarHeightPx) }
+    var collapseFraction by remember { mutableStateOf(0f) }
+
+    LaunchedEffect(topBarHeight.value) {
+        collapseFraction = 1f - ((topBarHeight.value - minTopBarHeightPx) / (maxTopBarHeightPx - minTopBarHeightPx)).coerceIn(0f, 1f)
+    }
+
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                val delta = available.y
+                val isScrollingDown = delta < 0
+
+                if (!isScrollingDown && (lazyListState.firstVisibleItemIndex > 0 || lazyListState.firstVisibleItemScrollOffset > 0)) {
+                    return Offset.Zero
+                }
+
+                val previousHeight = topBarHeight.value
+                val newHeight = (previousHeight + delta).coerceIn(minTopBarHeightPx, maxTopBarHeightPx)
+                val consumed = newHeight - previousHeight
+
+                if (consumed.roundToInt() != 0) {
+                    coroutineScope.launch {
+                        topBarHeight.snapTo(newHeight)
+                    }
+                }
+
+                val canConsumeScroll = !(isScrollingDown && newHeight == minTopBarHeightPx)
+                return if (canConsumeScroll) Offset(0f, consumed) else Offset.Zero
+            }
+        }
+    }
+
+    LaunchedEffect(lazyListState.isScrollInProgress) {
+        if (!lazyListState.isScrollInProgress) {
+            val shouldExpand = topBarHeight.value > (minTopBarHeightPx + maxTopBarHeightPx) / 2
+            val canExpand = lazyListState.firstVisibleItemIndex == 0 && lazyListState.firstVisibleItemScrollOffset == 0
+
+            val targetValue = if (shouldExpand && canExpand) maxTopBarHeightPx else minTopBarHeightPx
+
+            if (topBarHeight.value != targetValue) {
+                coroutineScope.launch {
+                    topBarHeight.animateTo(targetValue, spring(stiffness = Spring.StiffnessMedium))
+                }
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .nestedScroll(nestedScrollConnection)
+            .fillMaxSize()
+            .graphicsLayer {
+                alpha = contentAlpha
+                translationY = contentOffset.toPx()
+            }
+    ) {
+        val currentTopBarHeightDp = with(density) { topBarHeight.value.toDp() }
+        LazyColumn(
+            state = lazyListState,
+            contentPadding = PaddingValues(top = currentTopBarHeightDp),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            item {
+                // Sección de gestión de música
+                SettingsSection(
+                    title = "Music Management",
+                    icon = {
                         Icon(
-                            painterResource(R.drawable.rounded_arrow_back_24),
-                            contentDescription = "Volver",
-                            tint = MaterialTheme.colorScheme.onSurface
+                            imageVector = Icons.Rounded.MusicNote,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
-                },
-            )
-        }
-    ) { innerPadding ->
-        val scrollState = rememberScrollState()
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = innerPadding.calculateTopPadding())
-                .graphicsLayer {
-                    alpha = contentAlpha
-                    translationY = contentOffset.toPx()
-                }
-                .verticalScroll(scrollState)
-        ) {
-            // Sección de gestión de música
-            SettingsSection(
-                title = "Music Management",
-                icon = {
-                    Icon(
-                        imageVector = Icons.Rounded.MusicNote,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            ) {
-                //SettingsCard {
-                Column(
-                    modifier = Modifier.clip(
-                        shape = RoundedCornerShape(24.dp)
-                    )
                 ) {
-                    SettingsItem(
-                        title = "Allowed Directories",
-                        subtitle = "Choose the directories you want to get the music files from.",
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.Folder,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary
-                            )
-                        },
-                        trailingIcon = {
-                            Icon(
-                                imageVector = Icons.Rounded.ChevronRight,
-                                contentDescription = "Abrir selector",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        },
-                        onClick = { showDirectoryDialog = true }
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    //}
-                    SettingsItem(
-                        title = "Refresh Library",
-                        subtitle = "Rescan MediaStore and update the local database.",
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.Sync,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary
-                            )
-                        },
-                        onClick = { settingsViewModel.refreshLibrary() }
-                    )
+                    Column(modifier = Modifier.clip(shape = RoundedCornerShape(24.dp))) {
+                        SettingsItem(
+                            title = "Allowed Directories",
+                            subtitle = "Choose the directories you want to get the music files from.",
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.Folder,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            },
+                            trailingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronRight,
+                                    contentDescription = "Abrir selector",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            onClick = { showDirectoryDialog = true }
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        SettingsItem(
+                            title = "Refresh Library",
+                            subtitle = "Rescan MediaStore and update the local database.",
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.Sync,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            },
+                            onClick = { settingsViewModel.refreshLibrary() }
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            item { Spacer(modifier = Modifier.height(16.dp)) }
 
-            // Sección de apariencia
-            SettingsSection(
-                title = "Appearance",
-                icon = {
-                    Icon(
-                        imageVector = Icons.Rounded.Palette,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            ) {
-                Column(
-                    Modifier
-                        .background(
-                            color = Color.Transparent,
-                            shape = RoundedCornerShape(24.dp)
+            item {
+                // Sección de apariencia
+                SettingsSection(
+                    title = "Appearance",
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Palette,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
                         )
-                        .clip(
-                            shape = RoundedCornerShape(24.dp)
-                        )
-                ){
-                    // Selector para Tema del Reproductor
-                    ThemeSelectorItem(
-                        label = "Player Theme",
-                        description = "Choose the appearance for the floating player.",
-                        options = mapOf(
-                            ThemePreference.ALBUM_ART to "Album Art", // Default
-                            ThemePreference.DYNAMIC to "System Dynamic" // Or ThemePreference.DEFAULT if it means system dynamic
-                        ),
-                        selectedKey = uiState.playerThemePreference,
-                        onSelectionChanged = { settingsViewModel.setPlayerThemePreference(it) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.PlayCircle,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary
-                            )
-                        }
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    SettingsItem(
-                        title = "NavBar Corner Radius",
-                        subtitle = "Adjust the corner radius of the navigation bar.",
-                        leadingIcon = {
-                            Icon(
-                                painter = painterResource(id = R.drawable.rounded_rounded_corner_24),
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary
-                            )
-                        },
-                        trailingIcon = {
-                            Icon(
-                                imageVector = Icons.Rounded.ChevronRight,
-                                contentDescription = "Adjust radius",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        },
-                        onClick = { navController.navigate("nav_bar_corner_radius") }
-                    )
-                }
-            }
-
-            // Aquí podrías añadir más secciones de configuración
-            Spacer(modifier = Modifier.height(16.dp))
-
-            SettingsSection(
-                title = "AI Integration",
-                icon = {
-                    Icon(
-                        painter = painterResource(id = R.drawable.gemini_ai),
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            ) {
-                GeminiApiKeyItem(
-                    apiKey = geminiApiKey,
-                    onApiKeyChange = { settingsViewModel.onGeminiApiKeyChange(it) },
-                    title = "Gemini API Key",
-                    subtitle = "Needed for AI-powered features."
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Sección de Opciones de Desarrollador
-            SettingsSection(
-                title = "Developer Options",
-                icon = {
-                    Icon(
-                        imageVector = Icons.Outlined.Style,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            ) {
-                Column(
-                    Modifier
-                        .background(
-                            color = Color.Transparent,
-                            shape = RoundedCornerShape(24.dp)
-                        )
-                        .clip(
-                            shape = RoundedCornerShape(24.dp)
-                        )
+                    }
                 ) {
-//                    SettingsSwitchItem(
-//                        title = "Mock Genres",
-//                        subtitle = "Use hardcoded genres for testing purposes.",
-//                        checked = uiState.mockGenresEnabled,
-//                        onCheckedChange = { settingsViewModel.setMockGenresEnabled(it) },
-//                        leadingIcon = {
-//                            Icon(
-//                                imageVector = Icons.Rounded.MusicNote,
-//                                contentDescription = null,
-//                                tint = MaterialTheme.colorScheme.secondary
-//                            )
-//                        }
-//                    )
-                    //Spacer(modifier = Modifier.height(4.dp))
-                    SettingsItem(
-                        title = "Force Daily Mix Regeneration",
-                        subtitle = "Re-creates the daily mix playlist immediately.",
-                        leadingIcon = {
-                            Icon(
-                                painter = painterResource(id = R.drawable.rounded_instant_mix_24),
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary
-                            )
-                        },
-                        onClick = { playerViewModel.forceUpdateDailyMix() }
+                    Column(
+                        Modifier
+                            .background(color = Color.Transparent, shape = RoundedCornerShape(24.dp))
+                            .clip(shape = RoundedCornerShape(24.dp))
+                    ){
+                        ThemeSelectorItem(
+                            label = "Player Theme",
+                            description = "Choose the appearance for the floating player.",
+                            options = mapOf(
+                                ThemePreference.ALBUM_ART to "Album Art",
+                                ThemePreference.DYNAMIC to "System Dynamic"
+                            ),
+                            selectedKey = uiState.playerThemePreference,
+                            onSelectionChanged = { settingsViewModel.setPlayerThemePreference(it) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.PlayCircle,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        SettingsItem(
+                            title = "NavBar Corner Radius",
+                            subtitle = "Adjust the corner radius of the navigation bar.",
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.rounded_rounded_corner_24),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            },
+                            trailingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronRight,
+                                    contentDescription = "Adjust radius",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            onClick = { navController.navigate("nav_bar_corner_radius") }
+                        )
+                    }
+                }
+            }
+
+            item { Spacer(modifier = Modifier.height(16.dp)) }
+
+            item {
+                SettingsSection(
+                    title = "AI Integration",
+                    icon = {
+                        Icon(
+                            painter = painterResource(id = R.drawable.gemini_ai),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                ) {
+                    GeminiApiKeyItem(
+                        apiKey = geminiApiKey,
+                        onApiKeyChange = { settingsViewModel.onGeminiApiKeyChange(it) },
+                        title = "Gemini API Key",
+                        subtitle = "Needed for AI-powered features."
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(MiniPlayerHeight + 36.dp))
+            item { Spacer(modifier = Modifier.height(16.dp)) }
+
+            item {
+                // Sección de Opciones de Desarrollador
+                SettingsSection(
+                    title = "Developer Options",
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Outlined.Style,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                ) {
+                    Column(
+                        Modifier
+                            .background(color = Color.Transparent, shape = RoundedCornerShape(24.dp))
+                            .clip(shape = RoundedCornerShape(24.dp))
+                    ) {
+                        SettingsItem(
+                            title = "Force Daily Mix Regeneration",
+                            subtitle = "Re-creates the daily mix playlist immediately.",
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.rounded_instant_mix_24),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            },
+                            onClick = { playerViewModel.forceUpdateDailyMix() }
+                        )
+                    }
+                }
+            }
+
+            item { Spacer(modifier = Modifier.height(MiniPlayerHeight + 36.dp)) }
         }
+        SettingsTopBar(
+            collapseFraction = collapseFraction,
+            headerHeight = currentTopBarHeightDp,
+            onBackPressed = onNavigationIconClick
+        )
     }
 
     // Diálogo para seleccionar directorios
     if (showDirectoryDialog) {
-        DirectoryPickerDialog(
+        DirectoryPickerBottomSheet(
             directoryItems = directoryItems,
             isLoading = uiState.isLoadingDirectories,
             onDismiss = { showDirectoryDialog = false },
@@ -622,165 +710,165 @@ fun ThemeSelectorItem(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DirectoryPickerDialog(
+fun DirectoryPickerBottomSheet(
     directoryItems: ImmutableList<DirectoryItem>,
     isLoading: Boolean,
     onDismiss: () -> Unit,
     onItemToggle: (DirectoryItem) -> Unit
 ) {
-    AlertDialog(
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            dismissOnBackPress = true,
-            dismissOnClickOutside = true,
-            usePlatformDefaultWidth = false
-        )
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        sheetState = sheetState,
+        modifier = Modifier.fillMaxHeight(),
+        dragHandle = { BottomSheetDefaults.DragHandle() }
     ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.7f),
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(vertical = 16.dp)
+                    //.padding(bottom = 16.dp)
             ) {
                 // Header
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 24.dp, end = 16.dp, bottom = 16.dp),
+                        .padding(start = 24.dp, end = 16.dp, bottom = 22.dp, top = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "Carpetas de Música",
-                        style = MaterialTheme.typography.headlineSmall,
+                        text = "Music Folders",
+                        fontFamily = GoogleSansRounded,
+                        style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold
                     )
-
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Close,
-                            contentDescription = "Cerrar",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
+//                    IconButton(
+//                        onClick = onDismiss,
+//                        modifier = Modifier
+//                            .size(40.dp)
+//                            .clip(CircleShape)
+//                    ) {
+//                        Icon(
+//                            imageVector = Icons.Rounded.Close,
+//                            contentDescription = "Close",
+//                            tint = MaterialTheme.colorScheme.onSurface
+//                        )
+//                    }
                 }
 
-//                HorizontalDivider(
-//                    modifier = Modifier.padding(horizontal = 24.dp),
-//                    color = MaterialTheme.colorScheme.outlineVariant
-//                )
-
-                // Contenido
+                // Content
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
                 ) {
-                    if (isLoading) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator(
-                                    color = MaterialTheme.colorScheme.primary,
-                                    strokeWidth = 4.dp
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = "Escaneando carpetas...",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                    when {
+                        isLoading -> {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    CircularProgressIndicator(
+                                        color = MaterialTheme.colorScheme.primary,
+                                        strokeWidth = 4.dp
+                                    )
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Text(
+                                        text = "Scanning folders...",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
-                    } else if (directoryItems.isEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    imageVector = Icons.Outlined.FolderOff,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(64.dp)
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = "No se encontraron carpetas con archivos de audio",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = TextAlign.Center
-                                )
+                        directoryItems.isEmpty() -> {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.FolderOff,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(64.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Text(
+                                        text = "No folders with audio files found",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
                             }
                         }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(directoryItems, key = { it.path }) { item ->
-                                DirectoryItemCard(
-                                    directoryItem = item,
-                                    onToggle = { onItemToggle(item) }
-                                )
+                        else -> {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                contentPadding = PaddingValues(bottom = 106.dp) // Space for the button
+                            ) {
+                                items(directoryItems, key = { it.path }) { item ->
+                                    DirectoryItemCard(
+                                        directoryItem = item,
+                                        onToggle = { onItemToggle(item) }
+                                    )
+                                }
                             }
                         }
                     }
                 }
+            }
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        shape = RoundedCornerShape(16.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                    ) {
-                        Text("Cancelar")
-                    }
+            FloatingActionButton(
+                onClick = onDismiss,
+                //enabled = !isLoading,
+                shape = RoundedCornerShape(16.dp),
+                //contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
+//                colors = ButtonDefaults.buttonColors(
+//                    containerColor = MaterialTheme.colorScheme.primary,
+//                    contentColor = MaterialTheme.colorScheme.onPrimary
+//                ),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 26.dp)
+                    //.fillMaxWidth(0.9f)
+            ) {
+                Text(
+                    modifier = Modifier.padding(horizontal = 26.dp, vertical = 0.dp),
+                    text = "Accept"
+                )
+            }
 
-                    Spacer(modifier = Modifier.width(16.dp))
-
-                    Button(
-                        onClick = onDismiss,
-                        enabled = !isLoading,
-                        shape = RoundedCornerShape(16.dp),
-                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 10.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(30.dp)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            listOf(
+                                Color.Transparent,
+                                MaterialTheme.colorScheme.surfaceContainer
+                            )
                         )
-                    ) {
-                        Text("Aceptar")
-                    }
-                }
+                    )
+            ) {
+
             }
         }
     }
 }
+
 
 @Composable
 fun DirectoryItemCard(
@@ -795,13 +883,13 @@ fun DirectoryItemCard(
     }
 
     Surface(
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(60.dp),
         color = if (checkedState.value)
             MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
         else
             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         border = BorderStroke(
-            width = 1.dp,
+            width = 2.dp,
             color = if (checkedState.value)
                 MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f)
             else
@@ -809,7 +897,7 @@ fun DirectoryItemCard(
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(60.dp))
             .clickable {
                 checkedState.value = !checkedState.value
                 onToggle()
@@ -829,7 +917,9 @@ fun DirectoryItemCard(
                     MaterialTheme.colorScheme.secondary
                 else
                     MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier
+                    .padding(start = 10.dp)
+                    .size(28.dp)
             )
 
             Spacer(modifier = Modifier.width(16.dp))
