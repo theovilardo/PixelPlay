@@ -42,7 +42,10 @@ class SyncWorker @AssistedInject constructor(
 
             if (songs.isNotEmpty()) {
                 val existingLyricsMap = musicDao.getAllSongsList().associate { it.id to it.lyrics }
-                val songsWithPreservedLyrics = songs.map { songEntity ->
+
+                val (correctedSongs, albums, artists) = preProcessAndDeduplicate(songs)
+
+                val songsWithPreservedLyrics = correctedSongs.map { songEntity ->
                     val existingLyrics = existingLyricsMap[songEntity.id]
                     if (!existingLyrics.isNullOrBlank()) {
                         songEntity.copy(lyrics = existingLyrics)
@@ -52,26 +55,8 @@ class SyncWorker @AssistedInject constructor(
                 }
 
                 musicDao.clearAllMusicData()
-                songsWithPreservedLyrics.chunked(1000).forEach { batch ->
-                    val albums = batch.distinctBy { it.albumId }.map {
-                        AlbumEntity(
-                            id = it.albumId,
-                            title = it.albumName,
-                            artistName = it.artistName,
-                            artistId = it.artistId,
-                            albumArtUriString = it.albumArtUriString,
-                            songCount = songs.count { s -> s.albumId == it.albumId }
-                        )
-                    }
-                    val artists = batch.distinctBy { it.artistId }.map {
-                        ArtistEntity(
-                            id = it.artistId,
-                            name = it.artistName,
-                            trackCount = songs.count { s -> s.artistId == it.artistId }
-                        )
-                    }
-                    musicDao.insertMusicData(batch, albums, artists)
-                }
+                musicDao.insertMusicData(songsWithPreservedLyrics, albums, artists)
+
                 Log.i(TAG, "Music data insertion call completed.")
             } else {
                 Log.w(TAG, "MediaStore fetch resulted in empty list for songs. No data will be inserted.")
@@ -86,6 +71,56 @@ class SyncWorker @AssistedInject constructor(
         } finally {
             Trace.endSection() // End SyncWorker.doWork
         }
+    }
+
+    private fun preProcessAndDeduplicate(songs: List<SongEntity>): Triple<List<SongEntity>, List<AlbumEntity>, List<ArtistEntity>> {
+        // Artist de-duplication
+        val artistMap = mutableMapOf<String, Long>()
+        songs.forEach { song ->
+            if (!artistMap.containsKey(song.artistName)) {
+                artistMap[song.artistName] = song.artistId
+            }
+        }
+
+        // Album de-duplication
+        val albumMap = mutableMapOf<Pair<String, String>, Long>()
+        songs.forEach { song ->
+            val key = Pair(song.albumName, song.artistName)
+            if (!albumMap.containsKey(key)) {
+                albumMap[key] = song.albumId
+            }
+        }
+
+        val correctedSongs = songs.map { song ->
+            val canonicalArtistId = artistMap[song.artistName]!!
+            val canonicalAlbumId = albumMap[Pair(song.albumName, song.artistName)]!!
+            song.copy(artistId = canonicalArtistId, albumId = canonicalAlbumId)
+        }
+
+        // Create unique albums
+        val albums = correctedSongs.groupBy { it.albumId }.map { (albumId, songsInAlbum) ->
+            val firstSong = songsInAlbum.first()
+            AlbumEntity(
+                id = albumId,
+                title = firstSong.albumName,
+                artistName = firstSong.artistName,
+                artistId = firstSong.artistId,
+                albumArtUriString = firstSong.albumArtUriString,
+                songCount = songsInAlbum.size
+            )
+        }
+
+        // Create unique artists
+        val artists = correctedSongs.groupBy { it.artistId }.map { (artistId, songsByArtist) ->
+            val firstSong = songsByArtist.first()
+            ArtistEntity(
+                id = artistId,
+                name = firstSong.artistName,
+                trackCount = songsByArtist.size
+            )
+        }
+
+        return Triple(correctedSongs, albums, artists)
     }
 
     private fun fetchAllMusicData(): List<SongEntity> {
