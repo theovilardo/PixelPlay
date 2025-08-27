@@ -735,7 +735,7 @@ fun DirectoryPickerBottomSheet(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 24.dp, end = 16.dp, bottom = 16.dp, top = 10.dp),
+                        .padding(start = 24.dp, end = 16.dp, bottom = 22.dp, top = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -815,7 +815,7 @@ fun DirectoryPickerBottomSheet(
                                     .fillMaxSize()
                                     .padding(horizontal = 16.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                                contentPadding = PaddingValues(bottom = 96.dp) // Space for the button
+                                contentPadding = PaddingValues(bottom = 106.dp) // Space for the button
                             ) {
                                 items(directoryItems, key = { it.path }) { item ->
                                     DirectoryItemCard(
@@ -840,11 +840,11 @@ fun DirectoryPickerBottomSheet(
 //                ),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 32.dp)
+                    .padding(bottom = 26.dp)
                     //.fillMaxWidth(0.9f)
             ) {
                 Text(
-                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 0.dp),
+                    modifier = Modifier.padding(horizontal = 26.dp, vertical = 0.dp),
                     text = "Accept"
                 )
             }
@@ -917,7 +917,9 @@ fun DirectoryItemCard(
                     MaterialTheme.colorScheme.secondary
                 else
                     MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier
+                    .padding(start = 10.dp)
+                    .size(28.dp)
             )
 
             Spacer(modifier = Modifier.width(16.dp))

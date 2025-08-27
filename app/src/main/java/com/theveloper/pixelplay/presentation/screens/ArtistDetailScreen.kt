@@ -23,6 +23,7 @@ import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SurroundSound
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -211,7 +212,11 @@ fun ArtistDetailScreen(
                         collapseFraction = collapseFraction,
                         headerHeight = currentTopBarHeightDp,
                         onBackPressed = { navController.popBackStack() },
-                        onPlayClick = { playerViewModel.playArtist(artist) }
+                        onPlayClick = {
+                            if (songs.isNotEmpty()) {
+                                val randomSong = songs.random()
+                                playerViewModel.showAndPlaySong(randomSong, songs) }
+                        }
                     )
                 }
             }
@@ -399,7 +404,7 @@ private fun CustomCollapsingTopBar(
                         alpha = fabScale
                     }
             ) {
-                Icon(Icons.Rounded.PlayArrow, contentDescription = "Reproducir artista")
+                Icon(Icons.Rounded.Shuffle, contentDescription = "Shuffle play album")
             }
         }
     }
