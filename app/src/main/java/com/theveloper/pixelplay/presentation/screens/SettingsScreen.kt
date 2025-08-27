@@ -93,20 +93,25 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
+import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 
 @Composable
 private fun SettingsTopBar(
@@ -116,7 +121,7 @@ private fun SettingsTopBar(
 ) {
     val surfaceColor = MaterialTheme.colorScheme.surface
     val titleScale = lerp(1.2f, 0.8f, collapseFraction)
-    val titlePaddingStart = lerp(24.dp, 58.dp, collapseFraction)
+    val titlePaddingStart = lerp(32.dp, 58.dp, collapseFraction)
     val titleVerticalBias = lerp(1f, -1f, collapseFraction)
     val animatedTitleAlignment = BiasAlignment(horizontalBias = -1f, verticalBias = titleVerticalBias)
     val titleContainerHeight = lerp(88.dp, 56.dp, collapseFraction)
@@ -359,7 +364,7 @@ fun SettingsScreen(
                                 ThemePreference.ALBUM_ART to "Album Art",
                                 ThemePreference.DYNAMIC to "System Dynamic"
                             ),
-                            selectedKey = uiState.playerPreference,
+                            selectedKey = uiState.playerThemePreference,
                             onSelectionChanged = { settingsViewModel.setPlayerThemePreference(it) },
                             leadingIcon = {
                                 Icon(
@@ -715,6 +720,7 @@ fun DirectoryPickerBottomSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         sheetState = sheetState,
         modifier = Modifier.fillMaxHeight(),
         dragHandle = { BottomSheetDefaults.DragHandle() }
@@ -723,33 +729,34 @@ fun DirectoryPickerBottomSheet(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = 16.dp)
+                    //.padding(bottom = 16.dp)
             ) {
                 // Header
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 24.dp, end = 16.dp, bottom = 16.dp),
+                        .padding(start = 24.dp, end = 16.dp, bottom = 16.dp, top = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
                         text = "Music Folders",
-                        style = MaterialTheme.typography.headlineSmall,
+                        fontFamily = GoogleSansRounded,
+                        style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold
                     )
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Close,
-                            contentDescription = "Close",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
+//                    IconButton(
+//                        onClick = onDismiss,
+//                        modifier = Modifier
+//                            .size(40.dp)
+//                            .clip(CircleShape)
+//                    ) {
+//                        Icon(
+//                            imageVector = Icons.Rounded.Close,
+//                            contentDescription = "Close",
+//                            tint = MaterialTheme.colorScheme.onSurface
+//                        )
+//                    }
                 }
 
                 // Content
@@ -822,21 +829,41 @@ fun DirectoryPickerBottomSheet(
                 }
             }
 
-            Button(
+            FloatingActionButton(
                 onClick = onDismiss,
-                enabled = !isLoading,
+                //enabled = !isLoading,
                 shape = RoundedCornerShape(16.dp),
-                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ),
+                //contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
+//                colors = ButtonDefaults.buttonColors(
+//                    containerColor = MaterialTheme.colorScheme.primary,
+//                    contentColor = MaterialTheme.colorScheme.onPrimary
+//                ),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 32.dp)
-                    .fillMaxWidth(0.9f)
+                    //.fillMaxWidth(0.9f)
             ) {
-                Text("Accept")
+                Text(
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 0.dp),
+                    text = "Accept"
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(30.dp)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            listOf(
+                                Color.Transparent,
+                                MaterialTheme.colorScheme.surfaceContainer
+                            )
+                        )
+                    )
+            ) {
+
             }
         }
     }
@@ -856,13 +883,13 @@ fun DirectoryItemCard(
     }
 
     Surface(
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(60.dp),
         color = if (checkedState.value)
             MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
         else
             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         border = BorderStroke(
-            width = 1.dp,
+            width = 2.dp,
             color = if (checkedState.value)
                 MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f)
             else
@@ -870,7 +897,7 @@ fun DirectoryItemCard(
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(60.dp))
             .clickable {
                 checkedState.value = !checkedState.value
                 onToggle()
