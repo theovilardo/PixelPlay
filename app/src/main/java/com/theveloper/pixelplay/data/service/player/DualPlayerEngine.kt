@@ -28,7 +28,6 @@ import javax.inject.Singleton
  * After a transition, Player A adopts the state of Player B, ensuring continuity.
  */
 @OptIn(UnstableApi::class)
-@Singleton
 class DualPlayerEngine @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {

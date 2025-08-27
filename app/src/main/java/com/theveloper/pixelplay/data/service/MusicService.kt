@@ -240,6 +240,7 @@ class MusicService : MediaSessionService() {
     private fun getOpenAppPendingIntent(): PendingIntent {
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra("ACTION_SHOW_PLAYER", true) // Signal to MainActivity to show the player
         }
         return PendingIntent.getActivity(
             this,

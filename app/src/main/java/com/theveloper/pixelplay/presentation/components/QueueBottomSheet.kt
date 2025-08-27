@@ -65,6 +65,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -88,20 +89,25 @@ import androidx.compose.ui.unit.dp
 import androidx.core.text.trimmedLength
 import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.core.view.ViewCompat
+import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.presentation.components.subcomps.PlayingEqIcon
+import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class,
     ExperimentalMaterial3ExpressiveApi::class
 )
 @Composable
 fun QueueBottomSheet(
+    viewModel: PlayerViewModel = hiltViewModel(),
     queue: List<Song>,
     currentQueueSourceName: String,
     currentSongId: String?,
@@ -125,6 +131,10 @@ fun QueueBottomSheet(
     val colors = MaterialTheme.colorScheme
     var showTimerOptions by rememberSaveable { mutableStateOf(false) }
     var showClearQueueDialog by remember { mutableStateOf(false) }
+
+    val stablePlayerState by viewModel.stablePlayerState.collectAsState()
+
+    val isPlaying = stablePlayerState.isPlaying
 
     var items by remember(queue) { mutableStateOf(queue) }
 
@@ -269,7 +279,7 @@ fun QueueBottomSheet(
                                         .clickable { onPlaySong(song) },
                                     song = song,
                                     isCurrentSong = song.id == currentSongId,
-                                    isPlaying = null,
+                                    isPlaying = isPlaying,
                                     isDragging = isDragging,
                                     onRemoveClick = { onRemoveSong(song.id) },
                                     isReorderModeEnabled = false,

@@ -150,7 +150,8 @@ data class PlayerUiState(
     val dismissedQueue: ImmutableList<Song> = persistentListOf(),
     val dismissedQueueName: String = "",
     val dismissedPosition: Long = 0L,
-    val undoBarVisibleDuration: Long = 4000L // 4 seconds
+    val undoBarVisibleDuration: Long = 4000L, // 4 seconds
+    val preparingSongId: String? = null
 )
 
 // Estado para la UI de búsqueda de letras
@@ -398,6 +399,8 @@ class PlayerViewModel @Inject constructor(
     private val mediaControllerFuture: ListenableFuture<MediaController> =
         MediaController.Builder(context, sessionToken).buildAsync()
 
+    private var pendingPlaybackAction: (() -> Unit)? = null
+
     val favoriteSongIds: StateFlow<Set<String>> = userPreferencesRepository.favoriteSongIdsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     // StateFlow separado para la opción de ordenación de canciones favoritas
@@ -481,23 +484,6 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    // *** NUEVA FUNCIÓN AÑADIDA PARA SOLUCIONAR EL ERROR ***
-    /**
-     * Ensures the connection to the MusicService is being established.
-     * This function is called from MainActivity's onStart to ensure listeners are set up
-     * if the ViewModel is created late or the connection needs to be re-established.
-     * The actual connection logic is handled by `mediaControllerFuture` and its listener
-     * in the `init` block.
-     */
-    fun connectToService() {
-        if (mediaController == null && !mediaControllerFuture.isDone) {
-            Log.d("PlayerViewModel", "connectToService() called. Connection already in progress via mediaControllerFuture.")
-        } else if (mediaController == null && mediaControllerFuture.isDone) {
-            Log.w("PlayerViewModel", "connectToService() called, but future is done and controller is still null. There might have been a connection error.")
-        } else {
-            Log.d("PlayerViewModel", "connectToService() called. MediaController already available.")
-        }
-    }
 
     fun updateBottomBarHeight(heightPx: Int) {
         if (_bottomBarHeight.value != heightPx) {
@@ -590,6 +576,9 @@ class PlayerViewModel @Inject constructor(
             try {
                 mediaController = mediaControllerFuture.get()
                 setupMediaControllerListeners()
+                // Execute any pending action that was queued while the controller was connecting
+                pendingPlaybackAction?.invoke()
+                pendingPlaybackAction = null
             } catch (e: Exception) {
                 _playerUiState.update { it.copy(isLoadingInitialSongs = false, isLoadingLibraryCategories = false) }
                 Log.e("PlayerViewModel", "Error setting up MediaController", e)
@@ -932,12 +921,13 @@ class PlayerViewModel @Inject constructor(
         queueName: String = "Current Context",
         isVoluntaryPlay: Boolean = true
     ) {
+        _playerUiState.update { it.copy(preparingSongId = song.id) }
         // Utiliza la lista de canciones del contexto actual (ej: canciones de un género específico) como la cola.
         if (isVoluntaryPlay) {
             incrementSongScore(song.id)
         }
         playSongs(contextSongs, song, queueName, null)
-        _isSheetVisible.value = true
+        // _isSheetVisible.value = true // MOVED to playSongsAction
         _predictiveBackCollapseFraction.value = 0f
     }
 
@@ -1083,8 +1073,11 @@ class PlayerViewModel @Inject constructor(
                     }
                 }
                 updateFavoriteStatusForCurrentSong()
-                if (playerCtrl.isPlaying) startProgressUpdates() // Use playerCtrl
-                if (_stablePlayerState.value.currentSong != null && !_isSheetVisible.value) _isSheetVisible.value = true
+                if (playerCtrl.isPlaying) {
+                    startProgressUpdates()
+                }
+                // DO NOT set _isSheetVisible.value = true here. It is handled by explicit user action
+                // (tapping notification -> showPlayer()) or by onIsPlayingChanged for new playback.
             } else {
                 _stablePlayerState.update { it.copy(currentSong = null, isPlaying = false) }
                 _playerUiState.update { it.copy(currentPosition = 0L) }
@@ -1095,7 +1088,17 @@ class PlayerViewModel @Inject constructor(
         playerCtrl.addListener(object : Player.Listener { // Use playerCtrl to add listener
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _stablePlayerState.update { it.copy(isPlaying = isPlaying) }
-                if (isPlaying) startProgressUpdates() else stopProgressUpdates()
+                if (isPlaying) {
+                    // This is the source of truth for showing the player when a new song starts.
+                    _isSheetVisible.value = true
+                    // Clear any "preparing" state now that playback is confirmed.
+                    if (_playerUiState.value.preparingSongId != null) {
+                        _playerUiState.update { it.copy(preparingSongId = null) }
+                    }
+                    startProgressUpdates()
+                } else {
+                    stopProgressUpdates()
+                }
             }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 // val controller = mediaController ?: return // No longer needed, use playerCtrl from outer scope
@@ -1188,60 +1191,73 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun showPlayer() {
+        // This method is called from MainActivity when the notification is tapped.
+        // It ensures the player becomes visible if it was hidden.
+        if (stablePlayerState.value.currentSong != null) {
+            _isSheetVisible.value = true
+        }
+    }
+
     private suspend fun internalPlaySongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None", playlistId: String? = null) {
         Log.d("PlayerViewModel_MediaItem", "internalPlaySongs called. Songs count: ${songsToPlay.size}, StartSong: ${startSong.title}, QueueName: $queueName")
         Log.d("PlayerViewModel_MediaItem", "internalPlaySongs: mediaController is null: ${mediaController == null}")
 
-        // Old EOT deactivation logic removed, handled by eotSongMonitorJob
-        mediaController?.let { controller ->
-            // Si la lista de canciones a reproducir es la lista 'allSongs' (paginada),
-            // idealmente deberíamos cargar todas las canciones para la cola.
-            // Esto es un compromiso: o cargamos todo para la cola (puede ser lento),
-            // o la cola se limita a lo ya cargado.
-            // Por ahora, usaremos `songsToPlay` como viene.
-            val mediaItems = songsToPlay.map { song ->
-                Log.d("PlayerViewModel_MediaItem", "Creating MediaItem for Song ID: ${song.id}, Title: ${song.title}")
-                Log.d("PlayerViewModel_MediaItem", "Song's albumArtUriString: ${song.albumArtUriString}")
+        val playSongsAction = {
+            mediaController?.let { controller ->
+                // Si la lista de canciones a reproducir es la lista 'allSongs' (paginada),
+                // idealmente deberíamos cargar todas las canciones para la cola.
+                // Esto es un compromiso: o cargamos todo para la cola (puede ser lento),
+                // o la cola se limita a lo ya cargado.
+                // Por ahora, usaremos `songsToPlay` como viene.
+                val mediaItems = songsToPlay.map { song ->
+                    Log.d("PlayerViewModel_MediaItem", "Creating MediaItem for Song ID: ${song.id}, Title: ${song.title}")
+                    Log.d("PlayerViewModel_MediaItem", "Song's albumArtUriString: ${song.albumArtUriString}")
 
-                val metadataBuilder = MediaMetadata.Builder()
-                    .setTitle(song.title)
-                    .setArtist(song.artist)
-                // .setAlbumTitle(song.album) // Opcional
+                    val metadataBuilder = MediaMetadata.Builder()
+                        .setTitle(song.title)
+                        .setArtist(song.artist)
+                    // .setAlbumTitle(song.album) // Opcional
 
-                playlistId?.let {
-                    val extras = android.os.Bundle()
-                    extras.putString("playlistId", it)
-                    metadataBuilder.setExtras(extras)
+                    playlistId?.let {
+                        val extras = android.os.Bundle()
+                        extras.putString("playlistId", it)
+                        metadataBuilder.setExtras(extras)
+                    }
+
+                    // Set artwork URI without pre-loading byte data
+                    song.albumArtUriString?.toUri()?.let { uri ->
+                        metadataBuilder.setArtworkUri(uri)
+                    }
+
+                    val metadata = metadataBuilder.build()
+
+                    MediaItem.Builder()
+                        .setMediaId(song.id)
+                        .setUri(song.contentUriString.toUri())
+                        .setMediaMetadata(metadata)
+                        .build()
                 }
+                val startIndex = songsToPlay.indexOf(startSong).coerceAtLeast(0)
 
-                // Set artwork URI without pre-loading byte data
-                song.albumArtUriString?.toUri()?.let { uri ->
-                    metadataBuilder.setArtworkUri(uri)
+                if (mediaItems.isNotEmpty()) {
+                    controller.setMediaItems(mediaItems, startIndex, 0L)
+                    controller.prepare()
+                    controller.play()
+                    _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
+                    // The listener should pick up the current song and process its artwork URI.
+                    updateFavoriteStatusForCurrentSong() // This depends on stablePlayerState.currentSong, ensure it's updated timely.
                 }
-
-                val metadata = metadataBuilder.build()
-
-                MediaItem.Builder()
-                    .setMediaId(song.id)
-                    .setUri(song.contentUriString.toUri())
-                    .setMediaMetadata(metadata)
-                    .build()
             }
-            val startIndex = songsToPlay.indexOf(startSong).coerceAtLeast(0)
-
-            if (mediaItems.isNotEmpty()) {
-                controller.setMediaItems(mediaItems, startIndex, 0L)
-                controller.prepare()
-                controller.play()
-                _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
-                //_stablePlayerState.update { it.copy(currentSong = startSong, isPlaying = true) }
-                // The extractAndGenerateColorScheme call will happen via onMediaItemTransition listener setup,
-                // so no need to explicitly call it here for startSong after this refactor.
-                // The listener should pick up the current song and process its artwork URI.
-                updateFavoriteStatusForCurrentSong() // This depends on stablePlayerState.currentSong, ensure it's updated timely.
-            }
+            _playerUiState.update { it.copy(isLoadingInitialSongs = false) } // Marcar que la carga inicial de esta canción terminó
         }
-        _playerUiState.update { it.copy(isLoadingInitialSongs = false) } // Marcar que la carga inicial de esta canción terminó
+
+        if (mediaController == null) {
+            Log.w("PlayerViewModel", "MediaController not available. Queuing playback action.")
+            pendingPlaybackAction = playSongsAction
+        } else {
+            playSongsAction()
+        }
     }
 
 
