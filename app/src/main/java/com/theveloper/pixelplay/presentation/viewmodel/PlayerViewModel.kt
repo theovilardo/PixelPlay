@@ -1075,10 +1075,9 @@ class PlayerViewModel @Inject constructor(
                 updateFavoriteStatusForCurrentSong()
                 if (playerCtrl.isPlaying) {
                     startProgressUpdates()
-                    // Only make the sheet visible on connection if music is already playing.
-                    // This prevents the "ghost" player from showing up on a cold start after a force-close.
-                    _isSheetVisible.value = true
                 }
+                // DO NOT set _isSheetVisible.value = true here.
+                // It will be handled exclusively by onIsPlayingChanged to avoid race conditions.
             } else {
                 _stablePlayerState.update { it.copy(currentSong = null, isPlaying = false) }
                 _playerUiState.update { it.copy(currentPosition = 0L) }
@@ -1090,14 +1089,18 @@ class PlayerViewModel @Inject constructor(
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _stablePlayerState.update { it.copy(isPlaying = isPlaying) }
                 if (isPlaying) {
-                    // If playback starts, ensure the sheet is visible and clear the preparing state
+                    // This is now the single source of truth for showing the player.
+                    // If isPlaying is true, the sheet should be visible.
+                    _isSheetVisible.value = true
+                    // Clear any "preparing" state now that playback is confirmed.
                     if (_playerUiState.value.preparingSongId != null) {
-                        _isSheetVisible.value = true
                         _playerUiState.update { it.copy(preparingSongId = null) }
                     }
                     startProgressUpdates()
                 } else {
                     stopProgressUpdates()
+                    // Optionally, you might want to hide the sheet if playback stops and the queue is empty,
+                    // but for now, we'll keep it visible as per standard player behavior.
                 }
             }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
