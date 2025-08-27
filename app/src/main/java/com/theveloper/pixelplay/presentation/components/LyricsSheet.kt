@@ -275,7 +275,7 @@ fun LyricsSheet(
                     // Item is visible, use precise scrollBy
                     val viewportHeight = listState.layoutInfo.viewportSize.height
                     val itemHeight = itemInfo.size
-                    val desiredOffset = ((viewportHeight * 0.4F) - (itemHeight / 2)).toInt()
+                    val desiredOffset = ((viewportHeight * 0.35F) - (itemHeight / 2)).toInt()
                     val scrollAmount = itemInfo.offset - desiredOffset
                     if (abs(scrollAmount) > 1) {
                         coroutineScope.launch {
@@ -289,7 +289,7 @@ fun LyricsSheet(
                     // Item is not visible, use animateScrollToItem with estimated height
                     val estimatedItemHeight = with(density) { 48.dp.toPx() }
                     val viewportHeight = listState.layoutInfo.viewportSize.height
-                    val desiredOffset = ((viewportHeight * 0.4F) - (estimatedItemHeight / 2)).toInt()
+                    val desiredOffset = ((viewportHeight * 0.35F) - (estimatedItemHeight / 2)).toInt()
 
                     coroutineScope.launch {
                         listState.animateScrollToItem(
