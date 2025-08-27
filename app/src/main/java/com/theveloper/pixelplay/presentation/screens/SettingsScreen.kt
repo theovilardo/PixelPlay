@@ -80,7 +80,6 @@ import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.util.lerp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.theveloper.pixelplay.presentation.components.LazyColumnWithCollapsibleTopBar
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.DirectoryItem
 import com.theveloper.pixelplay.data.preferences.ThemePreference
@@ -88,57 +87,77 @@ import com.theveloper.pixelplay.presentation.viewmodel.SettingsViewModel
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
 import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 
 @Composable
 private fun SettingsTopBar(
     collapseFraction: Float,
+    headerHeight: Dp,
     onBackPressed: () -> Unit
 ) {
     val surfaceColor = MaterialTheme.colorScheme.surface
     val titleScale = lerp(1.2f, 1f, collapseFraction)
     val titlePaddingStart = lerp(16.dp, 58.dp, collapseFraction)
-    val titleAlignment = lerp(0f, -1f, collapseFraction)
+    val titleVerticalBias = lerp(0.5f, -1f, collapseFraction) // Animate vertical bias
+    val animatedTitleAlignment = BiasAlignment(horizontalBias = -1f, verticalBias = titleVerticalBias)
 
     Box(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxWidth()
+            .height(headerHeight) // Apply the dynamic height
             .background(surfaceColor.copy(alpha = collapseFraction))
-            .statusBarsPadding()
     ) {
-        FilledIconButton(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(start = 12.dp, top = 4.dp),
-            onClick = onBackPressed,
-            colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
-        ) {
-            Icon(painterResource(R.drawable.rounded_arrow_back_24), contentDescription = "Back")
-        }
-
         Box(
             modifier = Modifier
-                .align(Alignment.CenterStart)
-                .fillMaxWidth()
-                .padding(start = titlePaddingStart, end = 24.dp)
+                .fillMaxSize()
+                .statusBarsPadding()
         ) {
-            Text(
-                text = "Settings",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
+            FilledIconButton(
                 modifier = Modifier
-                    .graphicsLayer {
+                    .align(Alignment.TopStart)
+                    .padding(start = 12.dp, top = 4.dp),
+                onClick = onBackPressed,
+                colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+            ) {
+                Icon(painterResource(R.drawable.rounded_arrow_back_24), contentDescription = "Back")
+            }
+
+            Box(
+                modifier = Modifier
+                    .align(animatedTitleAlignment)
+                    .fillMaxWidth()
+                    .padding(start = titlePaddingStart, end = 24.dp)
+            ) {
+                Text(
+                    text = "Settings",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.graphicsLayer {
                         scaleX = titleScale
                         scaleY = titleScale
                     }
-                    .align(BiasAlignment(horizontalBias = titleAlignment, verticalBias = 0f))
-            )
+                )
+            }
         }
     }
 }
@@ -187,222 +206,253 @@ fun SettingsScreen(
         transitionSpec = { tween(durationMillis = 400, easing = FastOutSlowInEasing) }
     ) { if (it) 0.dp else 40.dp }
 
-    val listState = rememberLazyListState()
+    val density = LocalDensity.current
+    val coroutineScope = rememberCoroutineScope()
+    val lazyListState = rememberLazyListState()
+
+    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val minTopBarHeight = 64.dp + statusBarHeight
+    val maxTopBarHeight = 180.dp // Adjusted for a less intrusive header
+
+    val minTopBarHeightPx = with(density) { minTopBarHeight.toPx() }
+    val maxTopBarHeightPx = with(density) { maxTopBarHeight.toPx() }
+
+    val topBarHeight = remember { Animatable(maxTopBarHeightPx) }
     var collapseFraction by remember { mutableStateOf(0f) }
 
-    LazyColumnWithCollapsibleTopBar(
-        listState = listState,
-        topBarContent = {
-            SettingsTopBar(
-                collapseFraction = collapseFraction,
-                onBackPressed = onNavigationIconClick
-            )
-        },
-        collapseFraction = { collapseFraction = it },
-        modifier = Modifier.fillMaxSize()
+    LaunchedEffect(topBarHeight.value) {
+        collapseFraction = 1f - ((topBarHeight.value - minTopBarHeightPx) / (maxTopBarHeightPx - minTopBarHeightPx)).coerceIn(0f, 1f)
+    }
+
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                val delta = available.y
+                val isScrollingDown = delta < 0
+
+                if (!isScrollingDown && (lazyListState.firstVisibleItemIndex > 0 || lazyListState.firstVisibleItemScrollOffset > 0)) {
+                    return Offset.Zero
+                }
+
+                val previousHeight = topBarHeight.value
+                val newHeight = (previousHeight + delta).coerceIn(minTopBarHeightPx, maxTopBarHeightPx)
+                val consumed = newHeight - previousHeight
+
+                if (consumed.roundToInt() != 0) {
+                    coroutineScope.launch {
+                        topBarHeight.snapTo(newHeight)
+                    }
+                }
+
+                val canConsumeScroll = !(isScrollingDown && newHeight == minTopBarHeightPx)
+                return if (canConsumeScroll) Offset(0f, consumed) else Offset.Zero
+            }
+        }
+    }
+
+    LaunchedEffect(lazyListState.isScrollInProgress) {
+        if (!lazyListState.isScrollInProgress) {
+            val shouldExpand = topBarHeight.value > (minTopBarHeightPx + maxTopBarHeightPx) / 2
+            val canExpand = lazyListState.firstVisibleItemIndex == 0 && lazyListState.firstVisibleItemScrollOffset == 0
+
+            val targetValue = if (shouldExpand && canExpand) maxTopBarHeightPx else minTopBarHeightPx
+
+            if (topBarHeight.value != targetValue) {
+                coroutineScope.launch {
+                    topBarHeight.animateTo(targetValue, spring(stiffness = Spring.StiffnessMedium))
+                }
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .nestedScroll(nestedScrollConnection)
+            .fillMaxSize()
             .graphicsLayer {
                 alpha = contentAlpha
                 translationY = contentOffset.toPx()
             }
     ) {
-        item {
-            // Sección de gestión de música
-            SettingsSection(
-                title = "Music Management",
-                icon = {
-                    Icon(
-                        imageVector = Icons.Rounded.MusicNote,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            ) {
-                //SettingsCard {
-                Column(
-                    modifier = Modifier.clip(
-                        shape = RoundedCornerShape(24.dp)
-                    )
+        val currentTopBarHeightDp = with(density) { topBarHeight.value.toDp() }
+        LazyColumn(
+            state = lazyListState,
+            contentPadding = PaddingValues(top = currentTopBarHeightDp),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            item {
+                // Sección de gestión de música
+                SettingsSection(
+                    title = "Music Management",
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Rounded.MusicNote,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 ) {
-                    SettingsItem(
-                        title = "Allowed Directories",
-                        subtitle = "Choose the directories you want to get the music files from.",
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.Folder,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary
-                            )
-                        },
-                        trailingIcon = {
-                            Icon(
-                                imageVector = Icons.Rounded.ChevronRight,
-                                contentDescription = "Abrir selector",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        },
-                        onClick = { showDirectoryDialog = true }
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    //}
-                    SettingsItem(
-                        title = "Refresh Library",
-                        subtitle = "Rescan MediaStore and update the local database.",
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.Sync,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary
-                            )
-                        },
-                        onClick = { settingsViewModel.refreshLibrary() }
-                    )
+                    Column(modifier = Modifier.clip(shape = RoundedCornerShape(24.dp))) {
+                        SettingsItem(
+                            title = "Allowed Directories",
+                            subtitle = "Choose the directories you want to get the music files from.",
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.Folder,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            },
+                            trailingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronRight,
+                                    contentDescription = "Abrir selector",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            onClick = { showDirectoryDialog = true }
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        SettingsItem(
+                            title = "Refresh Library",
+                            subtitle = "Rescan MediaStore and update the local database.",
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.Sync,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            },
+                            onClick = { settingsViewModel.refreshLibrary() }
+                        )
+                    }
                 }
             }
-        }
 
-        item { Spacer(modifier = Modifier.height(16.dp)) }
+            item { Spacer(modifier = Modifier.height(16.dp)) }
 
-        item {
-            // Sección de apariencia
-            SettingsSection(
-                title = "Appearance",
-                icon = {
-                    Icon(
-                        imageVector = Icons.Rounded.Palette,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            ) {
-                Column(
-                    Modifier
-                        .background(
-                            color = Color.Transparent,
-                            shape = RoundedCornerShape(24.dp)
+            item {
+                // Sección de apariencia
+                SettingsSection(
+                    title = "Appearance",
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Palette,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
                         )
-                        .clip(
-                            shape = RoundedCornerShape(24.dp)
-                        )
-                ){
-                    // Selector para Tema del Reproductor
-                    ThemeSelectorItem(
-                        label = "Player Theme",
-                        description = "Choose the appearance for the floating player.",
-                        options = mapOf(
-                            ThemePreference.ALBUM_ART to "Album Art", // Default
-                            ThemePreference.DYNAMIC to "System Dynamic" // Or ThemePreference.DEFAULT if it means system dynamic
-                        ),
-                        selectedKey = uiState.playerThemePreference,
-                        onSelectionChanged = { settingsViewModel.setPlayerThemePreference(it) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.PlayCircle,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary
-                            )
-                        }
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    SettingsItem(
-                        title = "NavBar Corner Radius",
-                        subtitle = "Adjust the corner radius of the navigation bar.",
-                        leadingIcon = {
-                            Icon(
-                                painter = painterResource(id = R.drawable.rounded_rounded_corner_24),
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary
-                            )
-                        },
-                        trailingIcon = {
-                            Icon(
-                                imageVector = Icons.Rounded.ChevronRight,
-                                contentDescription = "Adjust radius",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        },
-                        onClick = { navController.navigate("nav_bar_corner_radius") }
-                    )
-                }
-            }
-        }
-
-        item { Spacer(modifier = Modifier.height(16.dp)) }
-
-        item {
-            SettingsSection(
-                title = "AI Integration",
-                icon = {
-                    Icon(
-                        painter = painterResource(id = R.drawable.gemini_ai),
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            ) {
-                GeminiApiKeyItem(
-                    apiKey = geminiApiKey,
-                    onApiKeyChange = { settingsViewModel.onGeminiApiKeyChange(it) },
-                    title = "Gemini API Key",
-                    subtitle = "Needed for AI-powered features."
-                )
-            }
-        }
-
-        item { Spacer(modifier = Modifier.height(16.dp)) }
-
-        item {
-            // Sección de Opciones de Desarrollador
-            SettingsSection(
-                title = "Developer Options",
-                icon = {
-                    Icon(
-                        imageVector = Icons.Outlined.Style,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            ) {
-                Column(
-                    Modifier
-                        .background(
-                            color = Color.Transparent,
-                            shape = RoundedCornerShape(24.dp)
-                        )
-                        .clip(
-                            shape = RoundedCornerShape(24.dp)
-                        )
+                    }
                 ) {
-//                    SettingsSwitchItem(
-//                        title = "Mock Genres",
-//                        subtitle = "Use hardcoded genres for testing purposes.",
-//                        checked = uiState.mockGenresEnabled,
-//                        onCheckedChange = { settingsViewModel.setMockGenresEnabled(it) },
-//                        leadingIcon = {
-//                            Icon(
-//                                imageVector = Icons.Rounded.MusicNote,
-//                                contentDescription = null,
-//                                tint = MaterialTheme.colorScheme.secondary
-//                            )
-//                        }
-//                    )
-                    //Spacer(modifier = Modifier.height(4.dp))
-                    SettingsItem(
-                        title = "Force Daily Mix Regeneration",
-                        subtitle = "Re-creates the daily mix playlist immediately.",
-                        leadingIcon = {
-                            Icon(
-                                painter = painterResource(id = R.drawable.rounded_instant_mix_24),
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary
-                            )
-                        },
-                        onClick = { playerViewModel.forceUpdateDailyMix() }
+                    Column(
+                        Modifier
+                            .background(color = Color.Transparent, shape = RoundedCornerShape(24.dp))
+                            .clip(shape = RoundedCornerShape(24.dp))
+                    ){
+                        ThemeSelectorItem(
+                            label = "Player Theme",
+                            description = "Choose the appearance for the floating player.",
+                            options = mapOf(
+                                ThemePreference.ALBUM_ART to "Album Art",
+                                ThemePreference.DYNAMIC to "System Dynamic"
+                            ),
+                            selectedKey = uiState.playerPreference,
+                            onSelectionChanged = { settingsViewModel.setPlayerThemePreference(it) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.PlayCircle,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        SettingsItem(
+                            title = "NavBar Corner Radius",
+                            subtitle = "Adjust the corner radius of the navigation bar.",
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.rounded_rounded_corner_24),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            },
+                            trailingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronRight,
+                                    contentDescription = "Adjust radius",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            onClick = { navController.navigate("nav_bar_corner_radius") }
+                        )
+                    }
+                }
+            }
+
+            item { Spacer(modifier = Modifier.height(16.dp)) }
+
+            item {
+                SettingsSection(
+                    title = "AI Integration",
+                    icon = {
+                        Icon(
+                            painter = painterResource(id = R.drawable.gemini_ai),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                ) {
+                    GeminiApiKeyItem(
+                        apiKey = geminiApiKey,
+                        onApiKeyChange = { settingsViewModel.onGeminiApiKeyChange(it) },
+                        title = "Gemini API Key",
+                        subtitle = "Needed for AI-powered features."
                     )
                 }
             }
-        }
 
-        item { Spacer(modifier = Modifier.height(MiniPlayerHeight + 36.dp)) }
+            item { Spacer(modifier = Modifier.height(16.dp)) }
+
+            item {
+                // Sección de Opciones de Desarrollador
+                SettingsSection(
+                    title = "Developer Options",
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Outlined.Style,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                ) {
+                    Column(
+                        Modifier
+                            .background(color = Color.Transparent, shape = RoundedCornerShape(24.dp))
+                            .clip(shape = RoundedCornerShape(24.dp))
+                    ) {
+                        SettingsItem(
+                            title = "Force Daily Mix Regeneration",
+                            subtitle = "Re-creates the daily mix playlist immediately.",
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.rounded_instant_mix_24),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            },
+                            onClick = { playerViewModel.forceUpdateDailyMix() }
+                        )
+                    }
+                }
+            }
+
+            item { Spacer(modifier = Modifier.height(MiniPlayerHeight + 36.dp)) }
+        }
+        SettingsTopBar(
+            collapseFraction = collapseFraction,
+            headerHeight = currentTopBarHeightDp,
+            onBackPressed = onNavigationIconClick
+        )
     }
 
     // Diálogo para seleccionar directorios
