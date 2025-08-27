@@ -264,13 +264,16 @@ fun LyricsSheet(
 
         LaunchedEffect(currentItemIndex) {
             if (currentItemIndex != -1 && !listState.isScrollInProgress) {
-                val isItemVisible = listState.layoutInfo.visibleItemsInfo
-                    .any { it.index == currentItemIndex }
-                if (isItemVisible) {
+                val itemInfo = listState.layoutInfo.visibleItemsInfo
+                    .firstOrNull { it.index == currentItemIndex }
+                if (itemInfo != null) { // If the item is visible
+                    val viewportHeight = listState.layoutInfo.viewportSize.height
+                    val itemHeight = itemInfo.size
+                    val desiredOffset = (viewportHeight / 2) - (itemHeight / 2)
                     coroutineScope.launch {
                         listState.animateScrollToItem(
                             index = currentItemIndex,
-                            scrollOffset = (listState.layoutInfo.viewportSize.height / 2.2F).toInt()
+                            scrollOffset = desiredOffset
                         )
                     }
                 }
