@@ -925,7 +925,7 @@ class PlayerViewModel @Inject constructor(
             incrementSongScore(song.id)
         }
         playSongs(contextSongs, song, queueName, null)
-        _isSheetVisible.value = true
+        // _isSheetVisible.value = true // MOVED to playSongsAction
         _predictiveBackCollapseFraction.value = 0f
     }
 
@@ -1181,6 +1181,9 @@ class PlayerViewModel @Inject constructor(
         Log.d("PlayerViewModel_MediaItem", "internalPlaySongs: mediaController is null: ${mediaController == null}")
 
         val playSongsAction = {
+            _isSheetVisible.value = true // Show the sheet only when we are ready to play
+            _stablePlayerState.update { it.copy(currentSong = startSong, isPlaying = true) } // Optimistic update for instant UI feedback
+
             mediaController?.let { controller ->
                 // Si la lista de canciones a reproducir es la lista 'allSongs' (paginada),
                 // idealmente deberíamos cargar todas las canciones para la cola.
