@@ -1073,8 +1073,12 @@ class PlayerViewModel @Inject constructor(
                     }
                 }
                 updateFavoriteStatusForCurrentSong()
-                if (playerCtrl.isPlaying) startProgressUpdates() // Use playerCtrl
-                if (_stablePlayerState.value.currentSong != null && !_isSheetVisible.value) _isSheetVisible.value = true
+                if (playerCtrl.isPlaying) {
+                    startProgressUpdates()
+                    // Only make the sheet visible on connection if music is already playing.
+                    // This prevents the "ghost" player from showing up on a cold start after a force-close.
+                    _isSheetVisible.value = true
+                }
             } else {
                 _stablePlayerState.update { it.copy(currentSong = null, isPlaying = false) }
                 _playerUiState.update { it.copy(currentPosition = 0L) }
