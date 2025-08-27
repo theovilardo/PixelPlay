@@ -905,6 +905,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         queue: List<QueueItem>
     ) {
         val playButtonCornerRadius = if (isPlaying) 16.dp else 60.dp
+        val dividerColor = ColorProvider(textColor.getColor(context).copy(alpha = 0.15f))
         // *** FIX: Apply padding to the outer Box for consistency ***
         Box(
             modifier = modifier
@@ -1001,6 +1002,18 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 //                    ),
 //                    modifier = GlanceModifier.padding(bottom = 8.dp)
 //                )
+                Box(
+                    modifier = GlanceModifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 30.dp)
+                        .background(colorProvider = dividerColor)
+                        .height(2.dp)
+                        .cornerRadius(60.dp)
+                ) {
+
+                }
+
+                Spacer(GlanceModifier.height(12.dp))
 
                 Row(
                     modifier = GlanceModifier
@@ -1316,7 +1329,9 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 .size(size)
                 .background(GlanceTheme.colors.surfaceVariant)
                 .cornerRadius(cornerRadius)
-        )
+        ) {
+
+        }
     }
 }
 
