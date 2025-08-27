@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.screens.TabAnimation
+import com.theveloper.pixelplay.presentation.components.subcomps.PlayerSeekBar
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerUiState
 import com.theveloper.pixelplay.presentation.viewmodel.StablePlayerState
 import com.theveloper.pixelplay.utils.BubblesLine
@@ -240,6 +241,7 @@ fun LyricsSheet(
     ) { paddingValues ->
         val listState = rememberLazyListState()
         val coroutineScope = rememberCoroutineScope()
+        val playerUiState by playerUiStateFlow.collectAsState()
 
         LaunchedEffect(lyrics) { listState.scrollToItem(0) }
 
@@ -253,7 +255,7 @@ fun LyricsSheet(
                     start = 24.dp,
                     end = 24.dp,
                     top = paddingValues.calculateTopPadding(),
-                    bottom = paddingValues.calculateBottomPadding() + 90.dp // Padding for FAB
+                    bottom = paddingValues.calculateBottomPadding() + 180.dp // Padding for FAB and seek bar
                 ),
                 modifier = Modifier.fillMaxSize()
             ) {
@@ -308,7 +310,7 @@ fun LyricsSheet(
                                                 coroutineScope.launch {
                                                     listState.animateScrollToItem(
                                                         index = index,
-                                                        scrollOffset = -listState.layoutInfo.viewportSize.height / 3
+                                                        scrollOffset = (-listState.layoutInfo.viewportSize.height / 2.5F).toInt()
                                                     )
                                                 }
                                             }
@@ -376,6 +378,17 @@ fun LyricsSheet(
             ) {
 
             }
+
+            PlayerSeekBar(
+                currentPosition = playerUiState.currentPosition,
+                totalDuration = stablePlayerState.totalDuration,
+                onSeek = onSeekTo,
+                isPlaying = isPlaying,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 100.dp)
+                    .padding(horizontal = 24.dp)
+            )
         }
     }
 }
