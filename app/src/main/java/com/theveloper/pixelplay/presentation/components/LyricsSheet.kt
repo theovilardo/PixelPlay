@@ -271,7 +271,7 @@ fun LyricsSheet(
                 if (itemInfo != null) {
                     val viewportHeight = listState.layoutInfo.viewportSize.height
                     val itemHeight = itemInfo.size
-                    val desiredOffset = (viewportHeight - itemHeight) / 2
+                    val desiredOffset = ((viewportHeight * 0.4F) - (itemHeight / 2)).toInt()
                     val scrollAmount = itemInfo.offset - desiredOffset
                     if (abs(scrollAmount) > 1) {
                         coroutineScope.launch {
