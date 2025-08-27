@@ -196,6 +196,8 @@ dependencies {
 
     //permisisons
     implementation(libs.accompanist.permissions)
+    implementation(libs.accompanist.pager)
+    implementation(libs.accompanist.pager.indicators)
 
     //Audio editing
     // Spleeter para separación de audio y Amplituda para procesar formas de onda
