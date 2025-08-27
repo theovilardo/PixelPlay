@@ -23,6 +23,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -210,6 +211,7 @@ fun LyricsSheet(
         },
         floatingActionButton = {
             LargeFloatingActionButton(
+                modifier = Modifier.padding(bottom = 64.dp),
                 onClick = onPlayPause,
                 shape = fabShape,
                 containerColor = tertiaryColor,
@@ -237,7 +239,7 @@ fun LyricsSheet(
                 }
             }
         },
-        floatingActionButtonPosition = FabPosition.Center
+        floatingActionButtonPosition = FabPosition.Center,
     ) { paddingValues ->
         val listState = rememberLazyListState()
         val coroutineScope = rememberCoroutineScope()
@@ -380,13 +382,17 @@ fun LyricsSheet(
             }
 
             PlayerSeekBar(
+                backgroundColor = backgroundColor,
+                onBackgroundColor = onBackgroundColor,
+                primaryColor = accentColor,
                 currentPosition = playerUiState.currentPosition,
                 totalDuration = stablePlayerState.totalDuration,
                 onSeek = onSeekTo,
                 isPlaying = isPlaying,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 100.dp)
+                    .height(78.dp)
+                    .padding(bottom = paddingValues.calculateBottomPadding() + 10.dp)
                     .padding(horizontal = 24.dp)
             )
         }
