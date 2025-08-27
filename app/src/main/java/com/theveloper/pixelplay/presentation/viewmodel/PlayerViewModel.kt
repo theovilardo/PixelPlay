@@ -150,7 +150,8 @@ data class PlayerUiState(
     val dismissedQueue: ImmutableList<Song> = persistentListOf(),
     val dismissedQueueName: String = "",
     val dismissedPosition: Long = 0L,
-    val undoBarVisibleDuration: Long = 4000L // 4 seconds
+    val undoBarVisibleDuration: Long = 4000L, // 4 seconds
+    val preparingSongId: String? = null
 )
 
 // Estado para la UI de búsqueda de letras
@@ -920,6 +921,7 @@ class PlayerViewModel @Inject constructor(
         queueName: String = "Current Context",
         isVoluntaryPlay: Boolean = true
     ) {
+        _playerUiState.update { it.copy(preparingSongId = song.id) }
         // Utiliza la lista de canciones del contexto actual (ej: canciones de un género específico) como la cola.
         if (isVoluntaryPlay) {
             incrementSongScore(song.id)
@@ -1083,7 +1085,16 @@ class PlayerViewModel @Inject constructor(
         playerCtrl.addListener(object : Player.Listener { // Use playerCtrl to add listener
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _stablePlayerState.update { it.copy(isPlaying = isPlaying) }
-                if (isPlaying) startProgressUpdates() else stopProgressUpdates()
+                if (isPlaying) {
+                    // If playback starts, ensure the sheet is visible and clear the preparing state
+                    if (_playerUiState.value.preparingSongId != null) {
+                        _isSheetVisible.value = true
+                        _playerUiState.update { it.copy(preparingSongId = null) }
+                    }
+                    startProgressUpdates()
+                } else {
+                    stopProgressUpdates()
+                }
             }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 // val controller = mediaController ?: return // No longer needed, use playerCtrl from outer scope
@@ -1181,9 +1192,6 @@ class PlayerViewModel @Inject constructor(
         Log.d("PlayerViewModel_MediaItem", "internalPlaySongs: mediaController is null: ${mediaController == null}")
 
         val playSongsAction = {
-            _isSheetVisible.value = true // Show the sheet only when we are ready to play
-            _stablePlayerState.update { it.copy(currentSong = startSong, isPlaying = true) } // Optimistic update for instant UI feedback
-
             mediaController?.let { controller ->
                 // Si la lista de canciones a reproducir es la lista 'allSongs' (paginada),
                 // idealmente deberíamos cargar todas las canciones para la cola.
@@ -1225,9 +1233,6 @@ class PlayerViewModel @Inject constructor(
                     controller.prepare()
                     controller.play()
                     _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
-                    //_stablePlayerState.update { it.copy(currentSong = startSong, isPlaying = true) }
-                    // The extractAndGenerateColorScheme call will happen via onMediaItemTransition listener setup,
-                    // so no need to explicitly call it here for startSong after this refactor.
                     // The listener should pick up the current song and process its artwork URI.
                     updateFavoriteStatusForCurrentSong() // This depends on stablePlayerState.currentSong, ensure it's updated timely.
                 }
