@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -43,6 +44,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
+import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -266,15 +268,18 @@ fun LyricsSheet(
             if (currentItemIndex != -1 && !listState.isScrollInProgress) {
                 val itemInfo = listState.layoutInfo.visibleItemsInfo
                     .firstOrNull { it.index == currentItemIndex }
-                if (itemInfo != null) { // If the item is visible
+                if (itemInfo != null) {
                     val viewportHeight = listState.layoutInfo.viewportSize.height
                     val itemHeight = itemInfo.size
-                    val desiredOffset = (viewportHeight / 2) - (itemHeight / 2)
-                    coroutineScope.launch {
-                        listState.animateScrollToItem(
-                            index = currentItemIndex,
-                            scrollOffset = desiredOffset
-                        )
+                    val desiredOffset = (viewportHeight - itemHeight) / 2
+                    val scrollAmount = itemInfo.offset - desiredOffset
+                    if (abs(scrollAmount) > 1) {
+                        coroutineScope.launch {
+                            listState.animateScrollBy(
+                                value = scrollAmount.toFloat(),
+                                animationSpec = tween(durationMillis = 300)
+                            )
+                        }
                     }
                 }
             }
