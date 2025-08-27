@@ -8,7 +8,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -28,6 +27,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -44,7 +44,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
-import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -246,6 +245,7 @@ fun LyricsSheet(
         val listState = rememberLazyListState()
         val coroutineScope = rememberCoroutineScope()
         val playerUiState by playerUiStateFlow.collectAsState()
+        val density = LocalDensity.current
 
         val currentItemIndex by remember {
             derivedStateOf {
@@ -266,21 +266,15 @@ fun LyricsSheet(
 
         LaunchedEffect(currentItemIndex) {
             if (currentItemIndex != -1 && !listState.isScrollInProgress) {
-                val itemInfo = listState.layoutInfo.visibleItemsInfo
-                    .firstOrNull { it.index == currentItemIndex }
-                if (itemInfo != null) {
-                    val viewportHeight = listState.layoutInfo.viewportSize.height
-                    val itemHeight = itemInfo.size
-                    val desiredOffset = ((viewportHeight * 0.4F) - (itemHeight / 2)).toInt()
-                    val scrollAmount = itemInfo.offset - desiredOffset
-                    if (abs(scrollAmount) > 1) {
-                        coroutineScope.launch {
-                            listState.animateScrollBy(
-                                value = scrollAmount.toFloat(),
-                                animationSpec = tween(durationMillis = 300)
-                            )
-                        }
-                    }
+                val estimatedItemHeight = with(density) { 48.dp.toPx() }
+                val viewportHeight = listState.layoutInfo.viewportSize.height
+                val desiredOffset = ((viewportHeight * 0.3F) - (estimatedItemHeight / 2)).toInt()
+
+                coroutineScope.launch {
+                    listState.animateScrollToItem(
+                        index = currentItemIndex,
+                        scrollOffset = desiredOffset
+                    )
                 }
             }
         }
