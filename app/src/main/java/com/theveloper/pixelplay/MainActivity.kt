@@ -117,6 +117,18 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        handleIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra("ACTION_SHOW_PLAYER", false) == true) {
+            playerViewModel.showPlayer()
+        }
     }
 
     @OptIn(ExperimentalPermissionsApi::class)

@@ -1076,8 +1076,8 @@ class PlayerViewModel @Inject constructor(
                 if (playerCtrl.isPlaying) {
                     startProgressUpdates()
                 }
-                // DO NOT set _isSheetVisible.value = true here.
-                // It will be handled exclusively by onIsPlayingChanged to avoid race conditions.
+                // DO NOT set _isSheetVisible.value = true here. It is handled by explicit user action
+                // (tapping notification -> showPlayer()) or by onIsPlayingChanged for new playback.
             } else {
                 _stablePlayerState.update { it.copy(currentSong = null, isPlaying = false) }
                 _playerUiState.update { it.copy(currentPosition = 0L) }
@@ -1089,8 +1089,7 @@ class PlayerViewModel @Inject constructor(
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _stablePlayerState.update { it.copy(isPlaying = isPlaying) }
                 if (isPlaying) {
-                    // This is now the single source of truth for showing the player.
-                    // If isPlaying is true, the sheet should be visible.
+                    // This is the source of truth for showing the player when a new song starts.
                     _isSheetVisible.value = true
                     // Clear any "preparing" state now that playback is confirmed.
                     if (_playerUiState.value.preparingSongId != null) {
@@ -1099,8 +1098,6 @@ class PlayerViewModel @Inject constructor(
                     startProgressUpdates()
                 } else {
                     stopProgressUpdates()
-                    // Optionally, you might want to hide the sheet if playback stops and the queue is empty,
-                    // but for now, we'll keep it visible as per standard player behavior.
                 }
             }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -1191,6 +1188,14 @@ class PlayerViewModel @Inject constructor(
     fun playSongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None", playlistId: String? = null) {
         viewModelScope.launch {
             internalPlaySongs(songsToPlay, startSong, queueName, playlistId)
+        }
+    }
+
+    fun showPlayer() {
+        // This method is called from MainActivity when the notification is tapped.
+        // It ensures the player becomes visible if it was hidden.
+        if (stablePlayerState.value.currentSong != null) {
+            _isSheetVisible.value = true
         }
     }
 
