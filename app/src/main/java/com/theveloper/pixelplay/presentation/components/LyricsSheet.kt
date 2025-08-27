@@ -23,6 +23,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -32,6 +33,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.screens.TabAnimation
+import com.theveloper.pixelplay.presentation.components.subcomps.PlayerSeekBar
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerUiState
 import com.theveloper.pixelplay.presentation.viewmodel.StablePlayerState
 import com.theveloper.pixelplay.utils.BubblesLine
@@ -209,6 +211,7 @@ fun LyricsSheet(
         },
         floatingActionButton = {
             LargeFloatingActionButton(
+                modifier = Modifier.padding(bottom = 64.dp),
                 onClick = onPlayPause,
                 shape = fabShape,
                 containerColor = tertiaryColor,
@@ -236,10 +239,11 @@ fun LyricsSheet(
                 }
             }
         },
-        floatingActionButtonPosition = FabPosition.Center
+        floatingActionButtonPosition = FabPosition.Center,
     ) { paddingValues ->
         val listState = rememberLazyListState()
         val coroutineScope = rememberCoroutineScope()
+        val playerUiState by playerUiStateFlow.collectAsState()
 
         LaunchedEffect(lyrics) { listState.scrollToItem(0) }
 
@@ -253,7 +257,7 @@ fun LyricsSheet(
                     start = 24.dp,
                     end = 24.dp,
                     top = paddingValues.calculateTopPadding(),
-                    bottom = paddingValues.calculateBottomPadding() + 90.dp // Padding for FAB
+                    bottom = paddingValues.calculateBottomPadding() + 180.dp // Padding for FAB and seek bar
                 ),
                 modifier = Modifier.fillMaxSize()
             ) {
@@ -308,7 +312,7 @@ fun LyricsSheet(
                                                 coroutineScope.launch {
                                                     listState.animateScrollToItem(
                                                         index = index,
-                                                        scrollOffset = -listState.layoutInfo.viewportSize.height / 3
+                                                        scrollOffset = (-listState.layoutInfo.viewportSize.height / 2.5F).toInt()
                                                     )
                                                 }
                                             }
@@ -376,6 +380,21 @@ fun LyricsSheet(
             ) {
 
             }
+
+            PlayerSeekBar(
+                backgroundColor = backgroundColor,
+                onBackgroundColor = onBackgroundColor,
+                primaryColor = accentColor,
+                currentPosition = playerUiState.currentPosition,
+                totalDuration = stablePlayerState.totalDuration,
+                onSeek = onSeekTo,
+                isPlaying = isPlaying,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .height(78.dp)
+                    .padding(bottom = paddingValues.calculateBottomPadding() + 10.dp)
+                    .padding(horizontal = 24.dp)
+            )
         }
     }
 }
