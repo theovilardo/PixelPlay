@@ -115,15 +115,16 @@ private fun SettingsTopBar(
     onBackPressed: () -> Unit
 ) {
     val surfaceColor = MaterialTheme.colorScheme.surface
-    val titleScale = lerp(1.2f, 1f, collapseFraction)
-    val titlePaddingStart = lerp(16.dp, 58.dp, collapseFraction)
-    val titleVerticalBias = lerp(0.5f, -1f, collapseFraction) // Animate vertical bias
+    val titleScale = lerp(1.2f, 0.8f, collapseFraction)
+    val titlePaddingStart = lerp(24.dp, 58.dp, collapseFraction)
+    val titleVerticalBias = lerp(1f, -1f, collapseFraction)
     val animatedTitleAlignment = BiasAlignment(horizontalBias = -1f, verticalBias = titleVerticalBias)
+    val titleContainerHeight = lerp(88.dp, 56.dp, collapseFraction)
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(headerHeight) // Apply the dynamic height
+            .height(headerHeight)
             .background(surfaceColor.copy(alpha = collapseFraction))
     ) {
         Box(
@@ -144,6 +145,7 @@ private fun SettingsTopBar(
             Box(
                 modifier = Modifier
                     .align(animatedTitleAlignment)
+                    .height(titleContainerHeight)
                     .fillMaxWidth()
                     .padding(start = titlePaddingStart, end = 24.dp)
             ) {
@@ -152,10 +154,12 @@ private fun SettingsTopBar(
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.graphicsLayer {
-                        scaleX = titleScale
-                        scaleY = titleScale
-                    }
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .graphicsLayer {
+                            scaleX = titleScale
+                            scaleY = titleScale
+                        }
                 )
             }
         }
