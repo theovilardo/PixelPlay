@@ -245,6 +245,38 @@ fun LyricsSheet(
         val coroutineScope = rememberCoroutineScope()
         val playerUiState by playerUiStateFlow.collectAsState()
 
+        val currentItemIndex by remember {
+            derivedStateOf {
+                val position = playerUiState.currentPosition
+                lyrics?.synced?.let { synced ->
+                    var currentIndex = -1
+                    for ((index, line) in synced.withIndex()) {
+                        val nextTime = synced.getOrNull(index + 1)?.time?.toLong() ?: Long.MAX_VALUE
+                        if (position in line.time.toLong()..nextTime) {
+                            currentIndex = index
+                            break
+                        }
+                    }
+                    currentIndex
+                } ?: -1
+            }
+        }
+
+        LaunchedEffect(currentItemIndex) {
+            if (currentItemIndex != -1 && !listState.isScrollInProgress) {
+                val isItemVisible = listState.layoutInfo.visibleItemsInfo
+                    .any { it.index == currentItemIndex }
+                if (isItemVisible) {
+                    coroutineScope.launch {
+                        listState.animateScrollToItem(
+                            index = currentItemIndex,
+                            scrollOffset = (listState.layoutInfo.viewportSize.height / 2.2F).toInt()
+                        )
+                    }
+                }
+            }
+        }
+
         LaunchedEffect(lyrics) { listState.scrollToItem(0) }
 
         Box(
@@ -305,18 +337,6 @@ fun LyricsSheet(
                                         accentColor = accentColor,
                                         style = lyricsTextStyle,
                                         onClick = { onSeekTo(time.toLong()) },
-                                        onBecomeCurrent = {
-                                            val isItemVisible = listState.layoutInfo.visibleItemsInfo
-                                                .firstOrNull { it.index == index } != null
-                                            if (isItemVisible && !listState.isScrollInProgress) {
-                                                coroutineScope.launch {
-                                                    listState.animateScrollToItem(
-                                                        index = index,
-                                                        scrollOffset = (-listState.layoutInfo.viewportSize.height / 2F).toInt()
-                                                    )
-                                                }
-                                            }
-                                        },
                                         modifier = Modifier.fillMaxWidth()
                                     )
                                 } else {
@@ -448,18 +468,11 @@ fun SyncedLyricsLine(
     line: String,
     style: TextStyle,
     onClick: () -> Unit,
-    onBecomeCurrent: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val position by positionFlow.collectAsState(0)
     val isCurrentLine by remember(position, time, nextTime) {
         derivedStateOf { position in time.toLong()..nextTime.toLong() }
-    }
-
-    LaunchedEffect(isCurrentLine) {
-        if (isCurrentLine) {
-            onBecomeCurrent()
-        }
     }
 
     Text(
