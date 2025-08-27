@@ -312,7 +312,7 @@ fun LyricsSheet(
                                                 coroutineScope.launch {
                                                     listState.animateScrollToItem(
                                                         index = index,
-                                                        scrollOffset = (-listState.layoutInfo.viewportSize.height / 2.5F).toInt()
+                                                        scrollOffset = (-listState.layoutInfo.viewportSize.height / 2F).toInt()
                                                     )
                                                 }
                                             }
