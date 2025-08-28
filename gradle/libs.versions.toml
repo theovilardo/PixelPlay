@@ -127,8 +127,6 @@ pytorch_android = { module = "org.pytorch:pytorch_android", version.ref = "pytor
 pytorch_android_torchvision = { module = "org.pytorch:pytorch_android_torchvision", version.ref = "pytorch_android_torchvision" }
 reorderable = { module = "org.burnoutcrew.composereorderable:reorderable", version.ref = "reorderable" }
 accompanist-permissions = { module = "com.google.accompanist:accompanist-permissions", version.ref = "accompanist" }
-accompanist-pager = { module = "com.google.accompanist:accompanist-pager", version.ref = "accompanist" }
-accompanist-pager-indicators = { module = "com.google.accompanist:accompanist-pager-indicators", version.ref = "accompanist" }
 smooth-corner-rect-android-compose = { module = "com.github.racra:smooth-corner-rect-android-compose", version.ref = "smoothCornerRectAndroidCompose" }
 spleeter-android-ios = { module = "com.github.FaceOnLive:Spleeter-Android-iOS", version.ref = "spleeterAndroidIos" }
 tensorflow-lite = { module = "org.tensorflow:tensorflow-lite", version.ref = "tensorflowLite" }

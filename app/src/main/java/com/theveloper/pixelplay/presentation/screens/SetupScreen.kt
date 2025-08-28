@@ -5,35 +5,39 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.google.accompanist.pager.*
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.theveloper.pixelplay.presentation.viewmodel.SetupViewModel
 import kotlinx.coroutines.launch
-import kotlin.math.absoluteValue
 
-@OptIn(ExperimentalPagerApi::class, ExperimentalPermissionsApi::class)
+@OptIn(ExperimentalPermissionsApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun SetupScreen(
     setupViewModel: SetupViewModel = hiltViewModel(),
     onSetupComplete: () -> Unit
 ) {
-    val pagerState = rememberPagerState()
-    val scope = rememberCoroutineScope()
-
     val pages = remember {
         val list = mutableListOf<SetupPage>(
             SetupPage.Welcome,
@@ -50,6 +54,10 @@ fun SetupScreen(
         list.add(SetupPage.Finish)
         list
     }
+
+    val pagerState = rememberPagerState(pageCount = { pages.size })
+    val scope = rememberCoroutineScope()
+
 
     Scaffold(
         bottomBar = {
@@ -68,20 +76,19 @@ fun SetupScreen(
         }
     ) { paddingValues ->
         HorizontalPager(
-            count = pages.size,
             state = pagerState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) { pageIndex ->
             val page = pages[pageIndex]
-            val pageOffset = calculateCurrentOffsetForPage(pageIndex).absoluteValue
+            val pageOffset = pagerState.currentPageOffsetFraction
 
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
-                        alpha = 1f - pageOffset
+                        alpha = 1f - pageOffset.coerceIn(0f, 1f)
                         translationX = size.width * pageOffset
                     },
                 contentAlignment = Alignment.Center
@@ -227,7 +234,7 @@ fun PermissionPageLayout(
     }
 }
 
-@OptIn(ExperimentalPagerApi::class)
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun SetupBottomBar(
     pagerState: PagerState,
@@ -241,11 +248,9 @@ fun SetupBottomBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        HorizontalPagerIndicator(
+        CustomPagerIndicator(
             pagerState = pagerState,
-            modifier = Modifier.weight(1f),
-            activeColor = MaterialTheme.colorScheme.primary,
-            inactiveColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+            modifier = Modifier.weight(1f)
         )
         if (pagerState.currentPage < pagerState.pageCount - 1) {
             Button(onClick = onNextClicked) {
@@ -255,6 +260,35 @@ fun SetupBottomBar(
             Button(onClick = onFinishClicked) {
                 Text(text = "Finish")
             }
+        }
+    }
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+fun CustomPagerIndicator(
+    pagerState: PagerState,
+    modifier: Modifier = Modifier,
+    activeColor: Color = MaterialTheme.colorScheme.primary,
+    inactiveColor: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        for (i in 0 until pagerState.pageCount) {
+            val color by animateColorAsState(
+                targetValue = if (i == pagerState.currentPage) activeColor else inactiveColor,
+                animationSpec = tween(durationMillis = 300)
+            )
+            Box(
+                modifier = Modifier
+                    .padding(4.dp)
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(color)
+            )
         }
     }
 }
