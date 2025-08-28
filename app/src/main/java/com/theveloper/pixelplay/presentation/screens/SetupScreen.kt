@@ -7,6 +7,7 @@ import android.os.Build
 import android.provider.Settings
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
@@ -14,6 +15,10 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -22,6 +27,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -29,13 +35,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.components.subcomps.MaterialYouVectorDrawable
+import com.theveloper.pixelplay.presentation.components.subcomps.SineWaveLine
 import com.theveloper.pixelplay.presentation.viewmodel.SetupViewModel
+import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalPermissionsApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -123,18 +133,38 @@ sealed class SetupPage {
 fun WelcomePage() {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+        verticalArrangement = Arrangement.SpaceBetween,
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        Text(text = "Welcome to PixelPlay", style = MaterialTheme.typography.headlineLarge)
+        Text(
+            text = "Welcome to PixelPlay",
+            style = ExpTitleTypography.displayLarge.copy(
+                fontSize = 42.sp,
+                lineHeight = 1.1.em
+            )
+        )
         Spacer(modifier = Modifier.height(16.dp))
+
+        SineWaveLine(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(32.dp)
+                .padding(horizontal = 8.dp),
+            animate = true,
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f),
+            alpha = 0.95f,
+            strokeWidth = 3.dp,
+            amplitude = 4.dp,
+            waves = 7.6f,
+            phase = 0f
+        )
         // Placeholder for vector art
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(200.dp)
+                .height(240.dp)
                 //.background(color = Color.Red)
                 .clip(RoundedCornerShape(20.dp))
         ){
@@ -251,35 +281,105 @@ fun PermissionPageLayout(
     }
 }
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SetupBottomBar(
+    modifier: Modifier = Modifier,
     pagerState: PagerState,
     onNextClicked: () -> Unit,
     onFinishClicked: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        modifier = modifier
+            .padding(horizontal = 24.dp, vertical = 16.dp) // Padding para efecto flotante
+            .shadow(
+                elevation = 8.dp,
+                shape = RoundedCornerShape(24.dp), // Sombra con la misma forma
+                clip = true
+            ),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(24.dp) // Bordes redondeados expresivos
     ) {
-        CustomPagerIndicator(
-            pagerState = pagerState,
-            modifier = Modifier.weight(1f)
-        )
-        if (pagerState.currentPage < pagerState.pageCount - 1) {
-            Button(onClick = onNextClicked) {
-                Text(text = "Next")
-            }
-        } else {
-            Button(onClick = onFinishClicked) {
-                Text(text = "Finish")
+        Column(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            // La onda sinusoidal animada como decoración superior
+            SineWaveLine(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(20.dp)
+                    .padding(top = 8.dp),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                strokeWidth = 2.5.dp,
+                amplitude = 6.dp,
+                waves = 1.5f,
+                animate = true,
+                animationDurationMillis = 3000
+            )
+
+            // Contenido de la barra inferior (indicador y botones)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Aquí iría tu CustomPagerIndicator. Como no tengo el código,
+                // lo represento con un Text. Reemplázalo por tu Composable.
+                Text(
+                    text = "Step ${pagerState.currentPage + 1} of ${pagerState.pageCount}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 8.dp)
+                )
+
+                // Botón dinámico que cambia según la página actual
+                ElevatedButton(
+                    onClick = if (pagerState.currentPage < pagerState.pageCount - 1) onNextClicked else onFinishClicked,
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    if (pagerState.currentPage < pagerState.pageCount - 1) {
+                        Icon(Icons.Rounded.ArrowForward, contentDescription = "Siguiente")
+                    } else {
+                        Icon(Icons.Rounded.Check, contentDescription = "Finalizar")
+                    }
+                }
             }
         }
     }
 }
+//@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+//@Composable
+//fun SetupBottomBar(
+//    pagerState: PagerState,
+//    onNextClicked: () -> Unit,
+//    onFinishClicked: () -> Unit
+//) {
+//    Row(
+//        modifier = Modifier
+//            .fillMaxWidth()
+//            .padding(16.dp),
+//        horizontalArrangement = Arrangement.SpaceBetween,
+//        verticalAlignment = Alignment.CenterVertically
+//    ) {
+//        CustomPagerIndicator(
+//            pagerState = pagerState,
+//            modifier = Modifier.weight(1f)
+//        )
+//        if (pagerState.currentPage < pagerState.pageCount - 1) {
+//            Button(onClick = onNextClicked) {
+//                Text(text = "Next")
+//            }
+//        } else {
+//            Button(onClick = onFinishClicked) {
+//                Text(text = "Finish")
+//            }
+//        }
+//    }
+//}
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
