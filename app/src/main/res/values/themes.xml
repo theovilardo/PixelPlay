@@ -5,8 +5,6 @@
     <style name="Theme.PixelPlay" parent="Theme.Material3.DynamicColors.DayNight">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:windowLightStatusBar" tools:targetApi="23">true</item>
     </style>
 
     <!-- Splash screen theme can still extend Theme.SplashScreen -->
