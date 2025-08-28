@@ -21,7 +21,7 @@ fun MaterialYouVectorDrawable(
     painter: Painter
 ) {
     Image(
-        imageVector = ImageVector.vectorResource(id = R.drawable.welcome_art),
+        painter = painter,
         contentDescription = null,
         //contentScale = ContentScale.FillBounds,
         modifier = modifier
