@@ -2,23 +2,11 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Base app theme -->
-    <style name="Theme.PixelPlay" parent="Theme.Material3.DayNight.NoActionBar">
-<!--        <item name="android:windowBackground">@color/light_background</item>-->
-<!--        &lt;!&ndash; Primary & its container &ndash;&gt;-->
-<!--        <item name="colorPrimary">@color/my_primary</item>-->
-<!--        <item name="colorOnPrimary">@color/my_on_primary</item>-->
-<!--        <item name="colorPrimaryContainer">@color/my_primary_container</item>-->
-<!--        <item name="colorOnPrimaryContainer">@color/my_on_primary_container</item>-->
-
-<!--        &lt;!&ndash; Secondary & its container &ndash;&gt;-->
-<!--        <item name="colorSecondary">@color/my_secondary</item>-->
-<!--        <item name="colorOnSecondary">@color/my_on_secondary</item>-->
-<!--        <item name="colorSecondaryContainer">@color/my_secondary_container</item>-->
-<!--        <item name="colorOnSecondaryContainer">@color/my_on_secondary_container</item>-->
-
-<!--        &lt;!&ndash; Tertiary & its on-color &ndash;&gt;-->
-<!--        <item name="colorTertiary">@color/my_tertiary</item>-->
-<!--        <item name="colorOnTertiary">@color/my_on_tertiary</item>-->
+    <style name="Theme.PixelPlay" parent="Theme.Material3.DynamicColors.DayNight">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="23">true</item>
     </style>
 
     <!-- Splash screen theme can still extend Theme.SplashScreen -->
