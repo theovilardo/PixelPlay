@@ -42,7 +42,7 @@ class UserPreferencesRepository @Inject constructor(
     private object PreferencesKeys {
         val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
         val ALLOWED_DIRECTORIES = stringSetPreferencesKey("allowed_directories")
-        val INITIAL_SETUP_DONE = stringSetPreferencesKey("initial_setup_done_directories")
+        val INITIAL_SETUP_DONE = booleanPreferencesKey("initial_setup_done")
         // val GLOBAL_THEME_PREFERENCE = stringPreferencesKey("global_theme_preference_v2") // Removed
         val PLAYER_THEME_PREFERENCE = stringPreferencesKey("player_theme_preference_v2")
         val FAVORITE_SONG_IDS = stringSetPreferencesKey("favorite_song_ids")
@@ -122,9 +122,7 @@ class UserPreferencesRepository @Inject constructor(
 
     val initialSetupDoneFlow: Flow<Boolean> = dataStore.data
         .map { preferences ->
-            // Si INITIAL_SETUP_DONE existe (incluso vacío), significa que el setup se hizo.
-            // Lo usamos para decidir si la primera vez debemos permitir todos los directorios encontrados.
-            preferences.contains(PreferencesKeys.INITIAL_SETUP_DONE)
+            preferences[PreferencesKeys.INITIAL_SETUP_DONE] ?: false
         }
 
     // Removed globalThemePreferenceFlow
@@ -233,10 +231,6 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun updateAllowedDirectories(allowedPaths: Set<String>) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.ALLOWED_DIRECTORIES] = allowedPaths
-            // Aseguramos que al actualizar directorios, el setup se marque como hecho.
-            if (!preferences.contains(PreferencesKeys.INITIAL_SETUP_DONE)) {
-                preferences[PreferencesKeys.INITIAL_SETUP_DONE] = emptySet()
-            }
         }
     }
 
@@ -266,17 +260,7 @@ class UserPreferencesRepository @Inject constructor(
 
     suspend fun setInitialSetupDone(isDone: Boolean) {
         dataStore.edit { preferences ->
-            if (isDone) {
-                // Si queremos marcarlo como hecho, nos aseguramos de que la clave exista.
-                // Guardar un emptySet es consistente con tu lógica actual en updateAllowedDirectories.
-                if (!preferences.contains(PreferencesKeys.INITIAL_SETUP_DONE)) {
-                    preferences[PreferencesKeys.INITIAL_SETUP_DONE] = emptySet()
-                }
-            } else {
-                // Si queremos marcarlo como NO hecho (por ejemplo, para un reset), eliminamos la clave.
-                // Esto hará que initialSetupDoneFlow emita false.
-                preferences.remove(PreferencesKeys.INITIAL_SETUP_DONE)
-            }
+            preferences[PreferencesKeys.INITIAL_SETUP_DONE] = isDone
         }
     }
 

@@ -2,6 +2,7 @@ package com.theveloper.pixelplay.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.data.worker.SyncManager
 import com.theveloper.pixelplay.utils.LogUtils
@@ -15,8 +16,16 @@ import javax.inject.Inject
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val syncManager: SyncManager,
-    musicRepository: MusicRepository
+    musicRepository: MusicRepository,
+    userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
+
+    val isSetupComplete: StateFlow<Boolean> = userPreferencesRepository.initialSetupDoneFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = false
+        )
 
     /**
      * Un Flow que emite `true` si el SyncWorker está encolado o en ejecución.

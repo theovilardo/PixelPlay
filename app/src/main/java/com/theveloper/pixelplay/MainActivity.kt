@@ -75,6 +75,7 @@ import com.theveloper.pixelplay.presentation.components.AllFilesAccessDialog
 import com.theveloper.pixelplay.presentation.navigation.AppNavigation
 import com.theveloper.pixelplay.presentation.navigation.BottomNavItem
 import com.theveloper.pixelplay.presentation.navigation.Screen
+import com.theveloper.pixelplay.presentation.screens.SetupScreen
 import com.theveloper.pixelplay.presentation.viewmodel.MainViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.ui.theme.DarkColorScheme
@@ -108,12 +109,24 @@ class MainActivity : ComponentActivity() {
         setContent {
             val mainViewModel: MainViewModel = hiltViewModel()
             val useDarkTheme = isSystemInDarkTheme()
+            val isSetupComplete by mainViewModel.isSetupComplete.collectAsState()
+            var showSetupScreen by remember { mutableStateOf<Boolean?>(null) }
+
+            LaunchedEffect(isSetupComplete) {
+                if (showSetupScreen == null) {
+                    showSetupScreen = !isSetupComplete
+                }
+            }
 
             PixelPlayTheme(
                 darkTheme = useDarkTheme
             ) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    HandlePermissions(mainViewModel)
+                    if (showSetupScreen == true) {
+                        SetupScreen(onSetupComplete = { showSetupScreen = false })
+                    } else if (showSetupScreen == false) {
+                        HandlePermissions(mainViewModel)
+                    }
                 }
             }
         }
