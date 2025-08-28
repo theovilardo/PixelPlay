@@ -13,6 +13,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -23,12 +24,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import com.theveloper.pixelplay.R
+import com.theveloper.pixelplay.presentation.components.subcomps.MaterialYouVectorDrawable
 import com.theveloper.pixelplay.presentation.viewmodel.SetupViewModel
 import kotlinx.coroutines.launch
 
@@ -125,7 +131,18 @@ fun WelcomePage() {
         Text(text = "Welcome to PixelPlay", style = MaterialTheme.typography.headlineLarge)
         Spacer(modifier = Modifier.height(16.dp))
         // Placeholder for vector art
-        Box(modifier = Modifier.size(200.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                //.background(color = Color.Red)
+                .clip(RoundedCornerShape(20.dp))
+        ){
+            MaterialYouVectorDrawable(
+                modifier = Modifier.fillMaxSize(),
+                painter = painterResource(R.drawable.welcome_art)
+            )
+        }
         Spacer(modifier = Modifier.height(16.dp))
         Text(text = "Let's get everything set up for you.", style = MaterialTheme.typography.bodyLarge)
     }
