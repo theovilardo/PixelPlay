@@ -248,7 +248,7 @@ class MainActivity : ComponentActivity() {
         }
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = navBackStackEntry?.destination?.route
-        val routesWithHiddenNavBar = remember {
+        val routesWithHiddenNavigationBar = remember {
             setOf(
                 Screen.Settings.route,
                 Screen.PlaylistDetail.route,
@@ -260,10 +260,10 @@ class MainActivity : ComponentActivity() {
                 Screen.NavBarCrRad.route
             )
         }
-        val shouldHideNavBar by remember(currentRoute) {
+        val shouldHideNavigationBar by remember(currentRoute) {
             derivedStateOf {
                 currentRoute?.let { route ->
-                    routesWithHiddenNavBar.any { hiddenRoute ->
+                    routesWithHiddenNavigationBar.any { hiddenRoute ->
                         if (hiddenRoute.contains("{")) {
                             route.startsWith(hiddenRoute.substringBefore("{"))
                         } else {
@@ -288,8 +288,17 @@ class MainActivity : ComponentActivity() {
             val showPlayerContentInitially = stablePlayerState.currentSong != null
             val miniPlayerH = with(density) { MiniPlayerHeight.toPx() }
             val spacerH = with(density) { 0.dp.toPx() } // CollapsedPlayerContentSpacerHeight is not defined
+            val routesWithHiddenMiniPlayer = remember {
+                setOf(Screen.NavBarCrRad.route)
+            }
+            val shouldHideMiniPlayer by remember(currentRoute) {
+                derivedStateOf {
+                    currentRoute in routesWithHiddenMiniPlayer
+                }
+            }
+
             val initialContentHeightPx = if (showPlayerContentInitially) miniPlayerH + spacerH else 0f
-            val initialNavBarHeightPx = if (shouldHideNavBar) 0f else navBarH
+            val initialNavBarHeightPx = if (shouldHideNavigationBar) 0f else navBarH
             val initialTotalSheetHeightPx = initialContentHeightPx + initialNavBarHeightPx
             val initialY = screenHeightPx - initialTotalSheetHeightPx - collapsedMarginPx
             val horizontalMargin = systemNavBarInset
@@ -300,12 +309,14 @@ class MainActivity : ComponentActivity() {
             // The outer PixelPlayTheme in setContent > HandlePermissions > MainAppContent
             // provides the overall app theme.
             UnifiedPlayerSheet(
-                playerViewModel = playerViewModel, navController = navController,
-                    navItems = commonNavItems,
-                    initialTargetTranslationY = initialY,
-                    collapsedStateHorizontalPadding = collapsedStateBottomMargin,
-                    collapsedStateBottomMargin = collapsedStateBottomMargin,
-                    hideNavBar = shouldHideNavBar
+                playerViewModel = playerViewModel,
+                navController = navController,
+                navItems = commonNavItems,
+                initialTargetTranslationY = initialY,
+                collapsedStateHorizontalPadding = collapsedStateBottomMargin,
+                collapsedStateBottomMargin = collapsedStateBottomMargin,
+                hideNavigationBar = shouldHideNavigationBar,
+                hideMiniPlayer = shouldHideMiniPlayer
             )
         }
         Trace.endSection() // End MainActivity.MainUI
