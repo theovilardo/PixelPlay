@@ -238,19 +238,19 @@ fun LibraryScreen(
                     )
                 },
                 actions = {
-                    FilledTonalIconButton(
-                        modifier = Modifier.padding(end = 14.dp),
-                        onClick = { /* TODO: User profile action */ },
-                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Person,
-                            contentDescription = "User Profile",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
+//                    FilledTonalIconButton(
+//                        modifier = Modifier.padding(end = 14.dp),
+//                        onClick = { /* TODO: User profile action */ },
+//                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+//                            containerColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
+//                        )
+//                    ) {
+//                        Icon(
+//                            imageVector = Icons.Rounded.Person,
+//                            contentDescription = "User Profile",
+//                            tint = MaterialTheme.colorScheme.primary
+//                        )
+//                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = gradientColors[0]
