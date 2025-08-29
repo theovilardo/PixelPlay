@@ -307,15 +307,7 @@ fun UnifiedPlayerSheet(
                         }
                     )
                 } else {
-                    visualOvershootScaleY.animateTo(
-                        targetValue = 1f,
-                        animationSpec = keyframes {
-                            durationMillis = 150
-                            1.0f at 0
-                            0.95f at 0
-                            1.0f at 250
-                        }
-                    )
+                    visualOvershootScaleY.snapTo(1f)
                 }
             }
         } else {
@@ -936,6 +928,18 @@ fun UnifiedPlayerSheet(
                                                     stop = Spring.DampingRatioLowBouncy,
                                                     fraction = currentExpansionFraction
                                                 )
+                                                // New logic for scale animation
+                                                launch {
+                                                    val initialSquash = lerp(1.0f, 0.95f, currentExpansionFraction)
+                                                    visualOvershootScaleY.snapTo(initialSquash)
+                                                    visualOvershootScaleY.animateTo(
+                                                        targetValue = 1f,
+                                                        animationSpec = spring(
+                                                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                            stiffness = Spring.StiffnessLow
+                                                        )
+                                                    )
+                                                }
                                                 launch {
                                                     currentSheetTranslationY.animateTo(
                                                         targetValue = sheetCollapsedTargetY,
