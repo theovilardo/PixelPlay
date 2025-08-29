@@ -86,6 +86,14 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.delay
 import android.provider.Settings
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.SideEffect
 
 @UnstableApi
@@ -122,10 +130,27 @@ class MainActivity : ComponentActivity() {
                 darkTheme = useDarkTheme
             ) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    if (showSetupScreen == true) {
-                        SetupScreen(onSetupComplete = { showSetupScreen = false })
-                    } else if (showSetupScreen == false) {
-                        HandlePermissions(mainViewModel)
+                    if (showSetupScreen != null) {
+                        AnimatedContent(
+                            targetState = showSetupScreen,
+                            transitionSpec = {
+                                if (targetState == false) {
+                                    // Transition from Setup to Main App
+                                    scaleIn(initialScale = 0.8f, animationSpec = tween(400)) + fadeIn(animationSpec = tween(400)) togetherWith
+                                            slideOutHorizontally(targetOffsetX = { -it }, animationSpec = tween(400)) + fadeOut(animationSpec = tween(400))
+                                } else {
+                                    // Placeholder for other transitions, e.g., Main App to Setup
+                                    fadeIn(animationSpec = tween(400)) togetherWith fadeOut(animationSpec = tween(400))
+                                }
+                            },
+                            label = "SetupTransition"
+                        ) { targetState ->
+                            if (targetState == true) {
+                                SetupScreen(onSetupComplete = { showSetupScreen = false })
+                            } else {
+                                HandlePermissions(mainViewModel)
+                            }
+                        }
                     }
                 }
             }

@@ -108,6 +108,8 @@ fun SetupScreen(
         )
         // Add media permissions page for all versions
         list.add(SetupPage.MediaPermission)
+        // Add directory selection page
+        list.add(SetupPage.DirectorySelection)
         // Add notifications permission page for Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             list.add(SetupPage.NotificationsPermission)
@@ -168,6 +170,16 @@ fun SetupScreen(
                 when (page) {
                     SetupPage.Welcome -> WelcomePage()
                     SetupPage.MediaPermission -> MediaPermissionPage(uiState)
+                    SetupPage.DirectorySelection -> DirectorySelectionPage(
+                        uiState = uiState,
+                        onOpenDirectoryPicker = { /* Handled internally now */ },
+                        onSkip = {
+                            scope.launch {
+                                pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                            }
+                        },
+                        onItemToggle = setupViewModel::toggleDirectoryAllowed
+                    )
                     SetupPage.NotificationsPermission -> NotificationsPermissionPage(uiState)
                     SetupPage.AllFilesPermission -> AllFilesPermissionPage(uiState)
                     SetupPage.Finish -> FinishPage()
@@ -177,9 +189,275 @@ fun SetupScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DirectoryPickerBottomSheet(
+    directoryItems: ImmutableList<DirectoryItem>,
+    isLoading: Boolean,
+    onDismiss: () -> Unit,
+    onItemToggle: (DirectoryItem) -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        sheetState = sheetState,
+        modifier = Modifier.fillMaxHeight(),
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                //.padding(bottom = 16.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 24.dp, end = 16.dp, bottom = 22.dp, top = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Music Folders",
+                        fontFamily = GoogleSansRounded,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // Content
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                ) {
+                    when {
+                        isLoading -> {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    CircularProgressIndicator(
+                                        color = MaterialTheme.colorScheme.primary,
+                                        strokeWidth = 4.dp
+                                    )
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Text(
+                                        text = "Scanning folders...",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                        directoryItems.isEmpty() -> {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.FolderOff,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(64.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Text(
+                                        text = "No folders with audio files found",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
+                        else -> {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                contentPadding = PaddingValues(bottom = 106.dp) // Space for the button
+                            ) {
+                                items(directoryItems, key = { it.path }) { item ->
+                                    DirectoryItemCard(
+                                        directoryItem = item,
+                                        onToggle = { onItemToggle(item) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            FloatingActionButton(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 26.dp)
+            ) {
+                Text(
+                    modifier = Modifier.padding(horizontal = 26.dp, vertical = 0.dp),
+                    text = "Accept"
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(30.dp)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            listOf(
+                                Color.Transparent,
+                                MaterialTheme.colorScheme.surfaceContainer
+                            )
+                        )
+                    )
+            ) {
+
+            }
+        }
+    }
+}
+
+
+@Composable
+fun DirectoryItemCard(
+    directoryItem: DirectoryItem,
+    onToggle: () -> Unit
+) {
+    val checkedState = remember { mutableStateOf(directoryItem.isAllowed) }
+
+    // Actualizar el estado local cuando cambia el directoryItem
+    LaunchedEffect(directoryItem) {
+        checkedState.value = directoryItem.isAllowed
+    }
+
+    Surface(
+        shape = RoundedCornerShape(60.dp),
+        color = if (checkedState.value)
+            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
+        else
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        border = BorderStroke(
+            width = 2.dp,
+            color = if (checkedState.value)
+                MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f)
+            else
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(60.dp))
+            .clickable {
+                checkedState.value = !checkedState.value
+                onToggle()
+            }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Icono de carpeta
+            Icon(
+                imageVector = if (checkedState.value) Icons.Filled.Folder else Icons.Outlined.Folder,
+                contentDescription = null,
+                tint = if (checkedState.value)
+                    MaterialTheme.colorScheme.secondary
+                else
+                    MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .padding(start = 10.dp)
+                    .size(28.dp)
+            )
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            // Nombre de la carpeta
+            Text(
+                text = directoryItem.displayName,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (checkedState.value)
+                    MaterialTheme.colorScheme.onSecondaryContainer
+                else
+                    MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
+            )
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            // Checkbox
+            Checkbox(
+                checked = checkedState.value,
+                onCheckedChange = {
+                    checkedState.value = it
+                    onToggle()
+                },
+                colors = CheckboxDefaults.colors(
+                    checkedColor = MaterialTheme.colorScheme.primary,
+                    uncheckedColor = MaterialTheme.colorScheme.outline,
+                    checkmarkColor = MaterialTheme.colorScheme.onPrimary
+                )
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DirectorySelectionPage(
+    uiState: SetupUiState,
+    onOpenDirectoryPicker: () -> Unit,
+    onSkip: () -> Unit,
+    onItemToggle: (DirectoryItem) -> Unit,
+) {
+    var showDirectoryPicker by remember { mutableStateOf(false) }
+
+    PermissionPageLayout(
+        title = "Music Folders",
+        description = "Select the folders where your music is stored. If you skip this, you can select them later in settings.",
+        buttonText = "Select Folders",
+        onGrantClicked = { showDirectoryPicker = true },
+        icons = persistentListOf(
+            R.drawable.rounded_folder_24,
+            R.drawable.rounded_music_note_24,
+            R.drawable.rounded_create_new_folder_24,
+            R.drawable.rounded_folder_open_24,
+            R.drawable.rounded_audio_file_24
+        )
+    ) {
+        TextButton(onClick = onSkip) {
+            Text("Skip for now")
+        }
+    }
+
+    if (showDirectoryPicker) {
+        DirectoryPickerBottomSheet(
+            directoryItems = uiState.directoryItems,
+            isLoading = uiState.isLoadingDirectories,
+            onDismiss = { showDirectoryPicker = false },
+            onItemToggle = onItemToggle
+        )
+    }
+}
+
 sealed class SetupPage {
     object Welcome : SetupPage()
     object MediaPermission : SetupPage()
+    object DirectorySelection : SetupPage()
     object NotificationsPermission : SetupPage()
     object AllFilesPermission : SetupPage()
     object Finish : SetupPage()
@@ -393,7 +671,8 @@ fun PermissionPageLayout(
     description: String,
     buttonText: String,
     icons: ImmutableList<Int>,
-    onGrantClicked: () -> Unit
+        onGrantClicked: () -> Unit,
+        content: @Composable () -> Unit = {}
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -421,6 +700,7 @@ fun PermissionPageLayout(
             }
             Text(text = buttonText)
         }
+        content()
     }
 }
 

@@ -8,10 +8,20 @@ import android.os.Environment
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.theveloper.pixelplay.data.model.DirectoryItem
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
+import com.theveloper.pixelplay.data.repository.MusicRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -20,6 +30,8 @@ data class SetupUiState(
     val mediaPermissionGranted: Boolean = false,
     val notificationsPermissionGranted: Boolean = false,
     val allFilesAccessGranted: Boolean = false,
+    val directoryItems: ImmutableList<DirectoryItem> = persistentListOf(),
+    val isLoadingDirectories: Boolean = false,
 ) {
     val allPermissionsGranted: Boolean
         get() {
@@ -32,11 +44,16 @@ data class SetupUiState(
 
 @HiltViewModel
 class SetupViewModel @Inject constructor(
-    private val userPreferencesRepository: UserPreferencesRepository
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val musicRepository: MusicRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SetupUiState())
     val uiState = _uiState.asStateFlow()
+
+    init {
+        loadDirectoryPreferences()
+    }
 
     fun checkPermissions(context: Context) {
         val mediaPermissionGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -63,6 +80,38 @@ class SetupViewModel @Inject constructor(
                 notificationsPermissionGranted = notificationsPermissionGranted,
                 allFilesAccessGranted = allFilesAccessGranted
             )
+        }
+    }
+
+    private fun loadDirectoryPreferences() {
+        viewModelScope.launch {
+            userPreferencesRepository.allowedDirectoriesFlow.combine(
+                flow {
+                    emit(musicRepository.getAllUniqueAudioDirectories())
+                }.onStart { _uiState.update { it.copy(isLoadingDirectories = true) } }
+            ) { allowedDirs, allFoundDirs ->
+                val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
+                allFoundDirs.map { dirPath ->
+                    val isAllowed = if (!initialSetupDone) true else allowedDirs.contains(dirPath)
+                    DirectoryItem(path = dirPath, isAllowed = isAllowed)
+                }.sortedBy { it.displayName }
+            }.catch {
+                _uiState.update { it.copy(isLoadingDirectories = false, directoryItems = persistentListOf()) }
+            }.collect { directoryItems ->
+                _uiState.update { it.copy(directoryItems = directoryItems.toImmutableList(), isLoadingDirectories = false) }
+            }
+        }
+    }
+
+    fun toggleDirectoryAllowed(directoryItem: DirectoryItem) {
+        viewModelScope.launch {
+            val currentAllowed = userPreferencesRepository.allowedDirectoriesFlow.first().toMutableSet()
+            if (directoryItem.isAllowed) {
+                currentAllowed.remove(directoryItem.path)
+            } else {
+                currentAllowed.add(directoryItem.path)
+            }
+            userPreferencesRepository.updateAllowedDirectories(currentAllowed)
         }
     }
 
