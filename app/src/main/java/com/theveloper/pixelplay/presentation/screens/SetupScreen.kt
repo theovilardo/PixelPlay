@@ -5,8 +5,21 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -27,12 +40,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -139,6 +154,9 @@ fun WelcomePage() {
             .padding(16.dp)
     ) {
         Text(
+            modifier = Modifier
+                .padding(horizontal = 8.dp)
+                .padding(top = 12.dp),
             text = "Welcome to PixelPlay",
             style = ExpTitleTypography.displayLarge.copy(
                 fontSize = 42.sp,
@@ -147,19 +165,35 @@ fun WelcomePage() {
         )
         Spacer(modifier = Modifier.height(16.dp))
 
-        SineWaveLine(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(32.dp)
-                .padding(horizontal = 8.dp),
-            animate = true,
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f),
-            alpha = 0.95f,
-            strokeWidth = 3.dp,
-            amplitude = 4.dp,
-            waves = 7.6f,
-            phase = 0f
-        )
+        Column {
+            SineWaveLine(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(32.dp)
+                    .padding(horizontal = 8.dp),
+                //animate = true,
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f),
+                alpha = 0.95f,
+                strokeWidth = 3.dp,
+                amplitude = 4.dp,
+                waves = 7.6f,
+                phase = 0f
+            )
+
+            SineWaveLine(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(32.dp)
+                    .padding(horizontal = 8.dp),
+                //animate = true,
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f),
+                alpha = 0.95f,
+                strokeWidth = 3.dp,
+                amplitude = 4.dp,
+                waves = 7.6f,
+                phase = 0f
+            )
+        }
         // Placeholder for vector art
         Box(
             modifier = Modifier
@@ -281,7 +315,18 @@ fun PermissionPageLayout(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+/**
+ * Una Bottom Bar flotante con un diseño expresivo inspirado en Material 3,
+ * que incluye una onda sinusoidal animada en la parte superior.
+ *
+ * @param modifier Modificador para el Composable.
+ * @param pagerState El estado del Pager para mostrar el indicador de página.
+ * @param onNextClicked Lambda que se invoca al pulsar el botón "Siguiente".
+ * @param onFinishClicked Lambda que se invoca al pulsar el botón "Finalizar".
+ */
+@OptIn(ExperimentalFoundationApi::class, ExperimentalAnimationApi::class,
+    ExperimentalMaterial3ExpressiveApi::class
+)
 @Composable
 fun SetupBottomBar(
     modifier: Modifier = Modifier,
@@ -289,21 +334,39 @@ fun SetupBottomBar(
     onNextClicked: () -> Unit,
     onFinishClicked: () -> Unit
 ) {
+    // --- Animaciones para el Morphing y Rotación ---
+    val morphAnimationSpec = tween<Float>(durationMillis = 600, easing = FastOutSlowInEasing)
+    // Animación más lenta y sutil para la rotación
+    val rotationAnimationSpec = tween<Float>(durationMillis = 900, easing = FastOutSlowInEasing)
+
+    // 1. Determina los porcentajes de las esquinas para la forma objetivo
+    val targetShapeValues = when (pagerState.currentPage % 3) {
+        0 -> listOf(50f, 50f, 50f, 50f) // Círculo (50% en todas las esquinas)
+        1 -> listOf(16f, 16f, 16f, 16f) // Cuadrado Redondeado
+        else -> listOf(18f, 50f, 18f, 50f) // Forma de "Hoja"
+    }
+
+    // 2. Anima cada esquina individualmente hacia el valor objetivo
+    val animatedTopStart by animateFloatAsState(targetShapeValues[0], morphAnimationSpec, label = "TopStart")
+    val animatedTopEnd by animateFloatAsState(targetShapeValues[1], morphAnimationSpec, label = "TopEnd")
+    val animatedBottomStart by animateFloatAsState(targetShapeValues[2], morphAnimationSpec, label = "BottomStart")
+    val animatedBottomEnd by animateFloatAsState(targetShapeValues[3], morphAnimationSpec, label = "BottomEnd")
+
+    // 3. Anima la rotación del botón para que gire 360 grados en cada cambio de página.
+    val animatedRotation by animateFloatAsState(
+        targetValue = pagerState.currentPage * 360f,
+        animationSpec = rotationAnimationSpec,
+        label = "Rotation"
+    )
+
     Surface(
         modifier = modifier
-            .padding(horizontal = 24.dp, vertical = 16.dp) // Padding para efecto flotante
-            .shadow(
-                elevation = 8.dp,
-                shape = RoundedCornerShape(24.dp), // Sombra con la misma forma
-                clip = true
-            ),
+            .padding(horizontal = 24.dp, vertical = 16.dp)
+            .shadow(elevation = 8.dp, shape = RoundedCornerShape(24.dp), clip = true),
         color = MaterialTheme.colorScheme.surfaceContainer,
-        shape = RoundedCornerShape(24.dp) // Bordes redondeados expresivos
+        shape = RoundedCornerShape(24.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            // La onda sinusoidal animada como decoración superior
+        Column(modifier = Modifier.fillMaxWidth()) {
             SineWaveLine(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -316,70 +379,78 @@ fun SetupBottomBar(
                 animate = true,
                 animationDurationMillis = 3000
             )
-
-            // Contenido de la barra inferior (indicador y botones)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Aquí iría tu CustomPagerIndicator. Como no tengo el código,
-                // lo represento con un Text. Reemplázalo por tu Composable.
-                Text(
-                    text = "Step ${pagerState.currentPage + 1} of ${pagerState.pageCount}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                // --- CAMBIO CLAVE: Texto animado ---
+                AnimatedContent(
+                    targetState = pagerState.currentPage,
                     modifier = Modifier
                         .weight(1f)
-                        .padding(start = 8.dp)
-                )
-
-                // Botón dinámico que cambia según la página actual
-                ElevatedButton(
-                    onClick = if (pagerState.currentPage < pagerState.pageCount - 1) onNextClicked else onFinishClicked,
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    if (pagerState.currentPage < pagerState.pageCount - 1) {
-                        Icon(Icons.Rounded.ArrowForward, contentDescription = "Siguiente")
+                        .padding(start = 16.dp),
+                    transitionSpec = {
+                        if (targetState > initialState) {
+                            (slideInVertically { height -> height } + fadeIn()).togetherWith(slideOutVertically { height -> -height } + fadeOut())
+                        } else {
+                            (slideInVertically { height -> -height } + fadeIn()).togetherWith(slideOutVertically { height -> height } + fadeOut())
+                        }.using(SizeTransform(clip = false))
+                    },
+                    label = "StepTextAnimation"
+                ) { targetPage ->
+                    if (targetPage == 0) {
+                        Text(
+                            text = "Let's Go!",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
                     } else {
-                        Icon(Icons.Rounded.Check, contentDescription = "Finalizar")
+                        Text(
+                            text = "Step ${targetPage} of ${pagerState.pageCount - 1}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                // 4. Aplica la forma y rotación animadas al botón
+                MediumFloatingActionButton(
+                    onClick = if (pagerState.currentPage < pagerState.pageCount - 1) onNextClicked else onFinishClicked,
+                    shape = RoundedCornerShape(
+                        topStartPercent = animatedTopStart.toInt(),
+                        topEndPercent = animatedTopEnd.toInt(),
+                        bottomStartPercent = animatedBottomStart.toInt(),
+                        bottomEndPercent = animatedBottomEnd.toInt()
+                    ),
+                    modifier = Modifier.rotate(animatedRotation)
+                ) {
+                    // 5. Aplica una contra-rotación al contenido del botón (el icono)
+                    AnimatedContent(
+                        modifier = Modifier.rotate(-animatedRotation),
+                        targetState = pagerState.currentPage < pagerState.pageCount - 1,
+                        transitionSpec = {
+                            ContentTransform(
+                                targetContentEnter = fadeIn(animationSpec = tween(220, delayMillis = 90)) + scaleIn(initialScale = 0.9f, animationSpec = tween(220, delayMillis = 90)),
+                                initialContentExit = fadeOut(animationSpec = tween(90)) + scaleOut(targetScale = 0.9f, animationSpec = tween(90))
+                            ).using(SizeTransform(clip = false))
+                        },
+                        label = "AnimatedFabIcon"
+                    ) { isNextPage ->
+                        if (isNextPage) {
+                            Icon(Icons.Rounded.ArrowForward, contentDescription = "Siguiente")
+                        } else {
+                            Icon(Icons.Rounded.Check, contentDescription = "Finalizar")
+                        }
                     }
                 }
             }
         }
     }
 }
-//@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-//@Composable
-//fun SetupBottomBar(
-//    pagerState: PagerState,
-//    onNextClicked: () -> Unit,
-//    onFinishClicked: () -> Unit
-//) {
-//    Row(
-//        modifier = Modifier
-//            .fillMaxWidth()
-//            .padding(16.dp),
-//        horizontalArrangement = Arrangement.SpaceBetween,
-//        verticalAlignment = Alignment.CenterVertically
-//    ) {
-//        CustomPagerIndicator(
-//            pagerState = pagerState,
-//            modifier = Modifier.weight(1f)
-//        )
-//        if (pagerState.currentPage < pagerState.pageCount - 1) {
-//            Button(onClick = onNextClicked) {
-//                Text(text = "Next")
-//            }
-//        } else {
-//            Button(onClick = onFinishClicked) {
-//                Text(text = "Finish")
-//            }
-//        }
-//    }
-//}
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
