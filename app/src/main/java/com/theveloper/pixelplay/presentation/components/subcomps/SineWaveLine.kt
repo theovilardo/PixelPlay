@@ -17,15 +17,17 @@ import kotlin.math.sin
 /**
  * Composable que dibuja una línea horizontal con ondulación senoidal.
  *
- * @param modifier Modificador para el Composable
- * @param color Color de la línea
- * @param alpha Opacidad (0f..1f)
- * @param strokeWidth Grosor de la línea (Dp)
- * @param amplitude Amplitud de la onda (Dp) — la altura máxima desde el centro
- * @param waves Número de ondas completas a lo largo del ancho (ej: 1f = una onda)
- * @param phase Desplazamiento de fase (radianes). Útil para animación.
- * @param samples Cantidad de puntos usados para dibujar la curva (más = más suave)
- * @param cap Tipo de extremo de la línea (Round, Butt, Square)
+ * @param modifier Modificador para el Composable.
+ * @param color Color de la línea.
+ * @param alpha Opacidad (0f..1f).
+ * @param strokeWidth Grosor de la línea (Dp).
+ * @param amplitude Amplitud de la onda (Dp) — la altura máxima desde el centro.
+ * @param waves Número de ondas completas a lo largo del ancho (ej: 1f = una onda).
+ * @param phase Desplazamiento de fase estático (radianes). Se usa solo si animate = false.
+ * @param animate Si es true, activa una animación de desplazamiento infinita.
+ * @param animationDurationMillis Duración en milisegundos de un ciclo completo de animación.
+ * @param samples Cantidad de puntos usados para dibujar la curva (más = más suave).
+ * @param cap Tipo de extremo de la línea (Round, Butt, Square).
  */
 @Composable
 fun SineWaveLine(
@@ -36,47 +38,66 @@ fun SineWaveLine(
     amplitude: Dp = 8.dp,
     waves: Float = 2f,
     phase: Float = 0f,
+    animate: Boolean? = false,
+    animationDurationMillis: Int = 2000,
     samples: Int = 400,
     cap: StrokeCap = StrokeCap.Round
 ) {
     val density = LocalDensity.current
 
-    // Convertimos dp a px
-    val strokePx = with(density) { strokeWidth.toPx() }
-    val ampPx = with(density) { amplitude.toPx() }
+    // --- LÓGICA DE ANIMACIÓN ---
+    // 1. Creamos una transición infinita que se encargará de repetir la animación.
+    val infiniteTransition = rememberInfiniteTransition(label = "SineWaveAnimation")
+
+    // 2. Animamos un valor flotante (la fase) de 0 a 2π (un ciclo completo de la onda).
+    //    Esto crea el efecto de desplazamiento.
+    val animatedPhase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 2f * PI.toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = animationDurationMillis, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "phaseAnimation"
+    )
+
+    // 3. Decidimos qué fase usar: la animada o la estática.
+    val currentPhase = if (animate == true) animatedPhase else phase
 
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
         val centerY = h / 2f
 
+        // Convertimos dp a px dentro del scope de dibujo para eficiencia
+        val strokePx = with(density) { strokeWidth.toPx() }
+        val ampPx = with(density) { amplitude.toPx() }
+
         if (w <= 0f || samples < 2) return@Canvas
 
-        // Construimos el path senoidal
+        // Construimos el path senoidal usando la fase actual (animada o estática)
         val path = Path().apply {
-            var x = 0f
             val step = w / (samples - 1)
-            moveTo(0f, centerY + (ampPx * sin(phase))) // inicio
-            var i = 0
-            while (i < samples) {
-                x = i * step
+            // Usamos currentPhase para el punto inicial
+            moveTo(0f, centerY + (ampPx * sin(currentPhase)))
+            for (i in 1 until samples) {
+                val x = i * step
                 // theta recorre 0..(2π * waves)
-                val theta = (x / w) * (2f * PI.toFloat() * waves) + phase
+                val theta = (x / w) * (2f * PI.toFloat() * waves) + currentPhase
                 val y = centerY + ampPx * sin(theta)
                 lineTo(x, y)
-                i++
             }
         }
 
         drawPath(
             path = path,
-            color = color.copy(alpha = alpha),
+            color = color,
             style = Stroke(
                 width = strokePx,
                 cap = cap,
                 join = StrokeJoin.Round
             ),
-            alpha = 1f // ya aplicamos alpha al color
+            alpha = alpha
         )
     }
 }

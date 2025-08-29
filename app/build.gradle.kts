@@ -230,6 +230,8 @@ dependencies {
     implementation(libs.logging.interceptor)
 
     implementation(libs.androidx.ui.text.google.fonts)
+
+    implementation(libs.accompanist.drawablepainter)
 }
 
 

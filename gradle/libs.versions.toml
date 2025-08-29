@@ -1,4 +1,5 @@
 [versions]
+accompanistDrawablepainter = "0.37.3"
 agp = "8.9.2"
 googleGenai = "1.11.0"
 amplituda = "2.3.0"
@@ -68,6 +69,7 @@ retrofit = "3.0.0"
 okhttp = "5.1.0"
 
 [libraries]
+accompanist-drawablepainter = { module = "com.google.accompanist:accompanist-drawablepainter", version.ref = "accompanistDrawablepainter" }
 androidx-ui-text-google-fonts = { module = "androidx.compose.ui:ui-text-google-fonts" }
 google-genai = { group = "com.google.genai", name = "google-genai", version.ref = "googleGenai" }
 amplituda = { module = "com.github.lincollincol:amplituda", version.ref = "amplituda" }

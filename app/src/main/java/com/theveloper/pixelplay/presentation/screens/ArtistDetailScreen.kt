@@ -346,13 +346,13 @@ private fun CustomCollapsingTopBar(
             }
 
             // Botón de búsqueda
-            FilledIconButton(
-                modifier = Modifier.align(Alignment.TopEnd).padding(end = 12.dp, top = 4.dp),
-                onClick = { /* TODO */ },
-                colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
-            ) {
-                Icon(Icons.Rounded.Search, contentDescription = "Buscar en artista")
-            }
+//            FilledIconButton(
+//                modifier = Modifier.align(Alignment.TopEnd).padding(end = 12.dp, top = 4.dp),
+//                onClick = { /* TODO */ },
+//                colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+//            ) {
+//                Icon(Icons.Rounded.Search, contentDescription = "Buscar en artista")
+//            }
 
             // Box contenedor para el título
             Box(

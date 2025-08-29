@@ -402,7 +402,7 @@ fun SettingsScreen(
 
             item {
                 SettingsSection(
-                    title = "AI Integration",
+                    title = "AI Integration (Beta)",
                     icon = {
                         Icon(
                             painter = painterResource(id = R.drawable.gemini_ai),
