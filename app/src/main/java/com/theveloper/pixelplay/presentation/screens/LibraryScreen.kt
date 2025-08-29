@@ -149,6 +149,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import com.theveloper.pixelplay.presentation.components.subcomps.PlayingEqIcon
 import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
+import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import com.theveloper.pixelplay.ui.theme.MontserratFamily
 
 val ListExtraBottomGap = 30.dp
@@ -231,13 +232,30 @@ fun LibraryScreen(
                     Text(
                         modifier = Modifier.padding(start = 8.dp),
                         text = "Library",
-                        style = ExpTitleTypography.titleMedium,
+                        fontFamily = GoogleSansRounded,
+                        //style = ExpTitleTypography.titleMedium,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.primary,
+                        fontSize = 40.sp,
                         letterSpacing = 1.sp
                     )
                 },
                 actions = {
+                    FilledIconButton(
+                        modifier = Modifier.padding(end = 6.dp),
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        ),
+                        onClick = {
+                            navController.navigate(Screen.Settings.route)
+                        }
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.rounded_settings_24),
+                            contentDescription = "Ajustes"
+                        )
+                    }
 //                    FilledTonalIconButton(
 //                        modifier = Modifier.padding(end = 14.dp),
 //                        onClick = { /* TODO: User profile action */ },
