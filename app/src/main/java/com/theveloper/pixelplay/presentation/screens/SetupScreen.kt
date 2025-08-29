@@ -57,10 +57,12 @@ import coil.compose.AsyncImage
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.theveloper.pixelplay.R
+import com.theveloper.pixelplay.presentation.components.PermissionIconCollage
 import com.theveloper.pixelplay.presentation.components.subcomps.MaterialYouVectorDrawable
 import com.theveloper.pixelplay.presentation.components.subcomps.SineWaveLine
 import com.theveloper.pixelplay.presentation.viewmodel.SetupViewModel
 import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalPermissionsApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -221,11 +223,19 @@ fun MediaPermissionPage() {
         listOf(Manifest.permission.READ_EXTERNAL_STORAGE)
     }
     val permissionState = rememberMultiplePermissionsState(permissions = permissions)
+    val mediaIcons = persistentListOf(
+        R.drawable.rounded_music_note_24,
+        R.drawable.rounded_album_24,
+        R.drawable.rounded_library_music_24,
+        R.drawable.rounded_artist_24,
+        R.drawable.rounded_playlist_play_24
+    )
 
     PermissionPageLayout(
         title = "Media Permission",
         description = "PixelPlay needs access to your audio files to build your music library.",
         buttonText = if (permissionState.allPermissionsGranted) "Permission Granted" else "Grant Media Permission",
+        icons = mediaIcons,
         onGrantClicked = {
             if (!permissionState.allPermissionsGranted) {
                 permissionState.launchMultiplePermissionRequest()
@@ -240,11 +250,20 @@ fun NotificationsPermissionPage() {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
 
     val permissionState = rememberMultiplePermissionsState(permissions = listOf(Manifest.permission.POST_NOTIFICATIONS))
+    val notificationIcons = persistentListOf(
+        R.drawable.rounded_circle_notifications_24,
+        R.drawable.rounded_skip_next_24,
+        R.drawable.rounded_play_arrow_24,
+        R.drawable.rounded_pause_24,
+        R.drawable.rounded_skip_previous_24
+    )
+
 
     PermissionPageLayout(
         title = "Notifications",
         description = "Enable notifications to control your music from the lock screen and notification shade.",
         buttonText = if (permissionState.allPermissionsGranted) "Permission Granted" else "Enable Notifications",
+        icons = notificationIcons,
         onGrantClicked = {
             if (!permissionState.allPermissionsGranted) {
                 permissionState.launchMultiplePermissionRequest()
@@ -256,10 +275,18 @@ fun NotificationsPermissionPage() {
 @Composable
 fun AllFilesPermissionPage() {
     val context = LocalContext.current
+    val fileIcons = persistentListOf(
+        R.drawable.rounded_question_mark_24,
+        R.drawable.rounded_lyrics_24,
+        R.drawable.rounded_imagesmode_24,
+        R.drawable.rounded_broken_image_24,
+        R.drawable.rounded_question_mark_24
+    )
     PermissionPageLayout(
         title = "All Files Access",
         description = "For some Android versions, PixelPlay needs broader file access to find all your music.",
         buttonText = "Go to Settings",
+        icons = fileIcons,
         onGrantClicked = {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
@@ -272,6 +299,14 @@ fun AllFilesPermissionPage() {
 
 @Composable
 fun FinishPage() {
+    val finishIcons = persistentListOf(
+        R.drawable.rounded_check_circle_24,
+        R.drawable.round_favorite_24,
+        R.drawable.rounded_all_inclusive_24,
+        R.drawable.round_favorite_24,
+        R.drawable.rounded_all_inclusive_24
+    )
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
@@ -281,8 +316,7 @@ fun FinishPage() {
     ) {
         Text(text = "All Set!", style = MaterialTheme.typography.headlineLarge)
         Spacer(modifier = Modifier.height(16.dp))
-        // Placeholder for vector art
-        Box(modifier = Modifier.size(200.dp))
+        PermissionIconCollage(icons = finishIcons)
         Spacer(modifier = Modifier.height(16.dp))
         Text(text = "You're ready to enjoy your music.", style = MaterialTheme.typography.bodyLarge)
     }
@@ -293,6 +327,7 @@ fun PermissionPageLayout(
     title: String,
     description: String,
     buttonText: String,
+    icons: persistentListOf<Int>,
     onGrantClicked: () -> Unit
 ) {
     Column(
@@ -304,8 +339,7 @@ fun PermissionPageLayout(
     ) {
         Text(text = title, style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(16.dp))
-        // Placeholder for vector art
-        Box(modifier = Modifier.size(200.dp))
+        PermissionIconCollage(icons = icons)
         Spacer(modifier = Modifier.height(16.dp))
         Text(text = description, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(32.dp))
