@@ -931,12 +931,17 @@ fun UnifiedPlayerSheet(
                                                 }
                                                 playerViewModel.expandPlayerSheet()
                                             } else {
+                                                val dynamicDampingRatio = lerp(
+                                                    start = Spring.DampingRatioNoBouncy,
+                                                    stop = Spring.DampingRatioLowBouncy,
+                                                    fraction = currentExpansionFraction
+                                                )
                                                 launch {
                                                     currentSheetTranslationY.animateTo(
                                                         targetValue = sheetCollapsedTargetY,
                                                         initialVelocity = verticalVelocity,
                                                         animationSpec = spring(
-                                                            dampingRatio = Spring.DampingRatioLowBouncy,
+                                                            dampingRatio = dynamicDampingRatio,
                                                             stiffness = Spring.StiffnessMedium
                                                         )
                                                     )
@@ -946,7 +951,7 @@ fun UnifiedPlayerSheet(
                                                         targetValue = 0f,
                                                         initialVelocity = verticalVelocity / (sheetCollapsedTargetY - sheetExpandedTargetY).coerceAtLeast(1f),
                                                         animationSpec = spring(
-                                                            dampingRatio = Spring.DampingRatioLowBouncy,
+                                                            dampingRatio = dynamicDampingRatio,
                                                             stiffness = Spring.StiffnessMedium
                                                         )
                                                     )
