@@ -307,15 +307,17 @@ fun UnifiedPlayerSheet(
                         }
                     )
                 } else {
-                    visualOvershootScaleY.animateTo(
-                        targetValue = 1f,
-                        animationSpec = keyframes {
-                            durationMillis = 150
-                            1.0f at 0
-                            0.95f at 0
-                            1.0f at 250
-                        }
-                    )
+                    // A default bounce for tap-to-collapse
+                    launch {
+                        visualOvershootScaleY.snapTo(0.96f) //controls how much it can reduce vertically
+                        visualOvershootScaleY.animateTo(
+                            targetValue = 1f,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessLow
+                            )
+                        )
+                    }
                 }
             }
         } else {
@@ -931,21 +933,40 @@ fun UnifiedPlayerSheet(
                                                 }
                                                 playerViewModel.expandPlayerSheet()
                                             } else {
+                                                val dynamicDampingRatio = lerp(
+                                                    start = Spring.DampingRatioNoBouncy,
+                                                    stop = Spring.DampingRatioLowBouncy,
+                                                    fraction = currentExpansionFraction
+                                                )
+                                                // New logic for scale animation
+                                                launch {
+                                                    val initialSquash = lerp(1.0f, 0.97f, currentExpansionFraction)
+                                                    visualOvershootScaleY.snapTo(initialSquash)
+                                                    visualOvershootScaleY.animateTo(
+                                                        targetValue = 1f,
+                                                        animationSpec = spring(
+                                                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                            stiffness = Spring.StiffnessVeryLow
+                                                        )
+                                                    )
+                                                }
                                                 launch {
                                                     currentSheetTranslationY.animateTo(
                                                         targetValue = sheetCollapsedTargetY,
-                                                        animationSpec = tween(
-                                                            durationMillis = ANIMATION_DURATION_MS,
-                                                            easing = FastOutSlowInEasing
+                                                        initialVelocity = verticalVelocity,
+                                                        animationSpec = spring(
+                                                            dampingRatio = dynamicDampingRatio,
+                                                            stiffness = Spring.StiffnessLow
                                                         )
                                                     )
                                                 }
                                                 launch {
                                                     playerContentExpansionFraction.animateTo(
                                                         targetValue = 0f,
-                                                        animationSpec = tween(
-                                                            durationMillis = ANIMATION_DURATION_MS,
-                                                            easing = FastOutSlowInEasing
+                                                        initialVelocity = verticalVelocity / (sheetCollapsedTargetY - sheetExpandedTargetY).coerceAtLeast(1f),
+                                                        animationSpec = spring(
+                                                            dampingRatio = dynamicDampingRatio,
+                                                            stiffness = Spring.StiffnessLow
                                                         )
                                                     )
                                                 }
