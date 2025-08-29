@@ -41,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import com.theveloper.pixelplay.presentation.components.ChangelogBottomSheet
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -105,6 +106,7 @@ fun HomeScreen(
     val bottomPadding = if (currentSong != null) MiniPlayerHeight else 0.dp
 
     var showOptionsBottomSheet by remember { mutableStateOf(false) }
+    var showChangelogBottomSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -120,8 +122,7 @@ fun HomeScreen(
                         navController.navigate(Screen.Settings.route)
                     },
                     onMoreOptionsClick = {
-                        //showOptionsBottomSheet = true
-                        Toast.makeText(context, "Coming Soon...", Toast.LENGTH_SHORT).show()
+                        showChangelogBottomSheet = true
                     }
                 )
             }
@@ -215,6 +216,14 @@ fun HomeScreen(
                     }
                 }
             )
+        }
+    }
+    if (showChangelogBottomSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showChangelogBottomSheet = false },
+            sheetState = sheetState
+        ) {
+            ChangelogBottomSheet()
         }
     }
 }
