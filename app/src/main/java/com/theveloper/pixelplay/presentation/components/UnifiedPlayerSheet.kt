@@ -314,7 +314,7 @@ fun UnifiedPlayerSheet(
                             targetValue = 1f,
                             animationSpec = spring(
                                 dampingRatio = Spring.DampingRatioMediumBouncy,
-                                stiffness = Spring.StiffnessVeryLow
+                                stiffness = Spring.StiffnessLow
                             )
                         )
                     }
