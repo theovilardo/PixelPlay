@@ -532,14 +532,14 @@ fun SetupBottomBar(
 
                 val isLastPage = pagerState.currentPage == pagerState.pageCount - 1
                 val containerColor = if (isLastPage && !isFinishButtonEnabled) {
-                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                    MaterialTheme.colorScheme.surfaceContainerHigh
                 } else {
-                    MaterialTheme.colorScheme.primary
+                    MaterialTheme.colorScheme.primaryContainer
                 }
                 val contentColor = if (isLastPage && !isFinishButtonEnabled) {
-                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f)
                 } else {
-                    MaterialTheme.colorScheme.onPrimary
+                    MaterialTheme.colorScheme.onPrimaryContainer
                 }
 
                 // 4. Aplica la forma y rotación animadas al botón
@@ -551,10 +551,8 @@ fun SetupBottomBar(
                         bottomStartPercent = animatedBottomStart.toInt(),
                         bottomEndPercent = animatedBottomEnd.toInt()
                     ),
-                    colors = FloatingActionButtonDefaults.containerColor(
-                        containerColor = containerColor,
-                        contentColor = contentColor
-                    ),
+                    containerColor = containerColor,
+                    contentColor = contentColor,
                     modifier = Modifier
                         .rotate(animatedRotation)
                         .padding(end = 0.dp)
