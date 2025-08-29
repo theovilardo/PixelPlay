@@ -64,6 +64,7 @@ import com.theveloper.pixelplay.presentation.components.HomeOptionsBottomSheet
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
+import com.theveloper.pixelplay.presentation.components.subcomps.PlayingEqIcon
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
@@ -292,11 +293,12 @@ fun SongListItemFavs(
     artist: String,
     albumArtUrl: String?,
     isPlaying: Boolean,
+    isCurrentSong: Boolean,
     onClick: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
-    val containerColor = if (isPlaying) colors.primaryContainer.copy(alpha = 0.46f) else colors.surfaceContainer
-    val contentColor = if (isPlaying) colors.primary else colors.onSurface
+    val containerColor = if (isCurrentSong) colors.primaryContainer.copy(alpha = 0.46f) else colors.surfaceContainer
+    val contentColor = if (isCurrentSong) colors.primary else colors.onSurface
 
     Card(
         modifier = modifier
@@ -310,42 +312,46 @@ fun SongListItemFavs(
             modifier = Modifier
                 .padding(12.dp)
                 .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            SmartImage(
-                model = albumArtUrl ?: Icons.Filled.MusicNote,
-                contentDescription = "Carátula de $title",
-                contentScale = ContentScale.Crop,
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.size(48.dp)
-            )
-            Spacer(Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Normal,
-                    color = contentColor,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis
+            Row(
+                modifier = Modifier
+                    .weight(0.9f),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SmartImage(
+                    model = albumArtUrl ?: Icons.Filled.MusicNote,
+                    contentDescription = "Carátula de $title",
+                    contentScale = ContentScale.Crop,
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.size(48.dp)
                 )
-                Text(
-                    text = artist, style = MaterialTheme.typography.bodyMedium,
-                    color = contentColor.copy(alpha = 0.7f),
-                    maxLines = 1, overflow = TextOverflow.Ellipsis
-                )
+                Spacer(Modifier.width(16.dp))
+                Column(modifier = Modifier) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = if (isCurrentSong) FontWeight.Bold else FontWeight.Normal,
+                        color = contentColor,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = artist, style = MaterialTheme.typography.bodyMedium,
+                        color = contentColor.copy(alpha = 0.7f),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
             Spacer(Modifier.width(16.dp))
-            if (isPlaying) {
-                Icon(
-                    Icons.Filled.GraphicEq, // O algún icono de "reproduciendo"
-                    contentDescription = "Reproduciendo",
-                    tint = colors.primary // O contentColor
-                )
-            } else {
-                Icon(
-                    Icons.Filled.PlayArrow,
-                    contentDescription = "Reproducir",
-                    tint = Color.Transparent//contentColor.copy(alpha = 0.7f)
+            if (isCurrentSong) {
+                PlayingEqIcon(
+                    modifier = Modifier
+                        .weight(0.1f)
+                        .padding(start = 8.dp)
+                        .size(width = 18.dp, height = 16.dp), // similar al tamaño del ícono
+                    color = colors.primary,
+                    isPlaying = isPlaying  // o conectalo a tu estado real de reproducción
                 )
             }
         }
@@ -366,7 +372,7 @@ fun SongListItemFavsWrapper(
 
     // Derive isThisSongPlaying using remember
     val isThisSongPlaying = remember(song.id, stablePlayerState.currentSong?.id, stablePlayerState.isPlaying) {
-        song.id == stablePlayerState.currentSong?.id && stablePlayerState.isPlaying
+        song.id == stablePlayerState.currentSong?.id
     }
 
     // Call the presentational composable
@@ -376,7 +382,8 @@ fun SongListItemFavsWrapper(
         title = song.title,
         artist = song.artist,
         albumArtUrl = song.albumArtUriString,
-        isPlaying = isThisSongPlaying,
+        isPlaying = stablePlayerState.isPlaying,
+        isCurrentSong = song.id == stablePlayerState.currentSong?.id,
         onClick = onClick
     )
 }

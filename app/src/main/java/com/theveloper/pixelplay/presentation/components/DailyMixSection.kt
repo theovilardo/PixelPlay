@@ -34,6 +34,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.screens.SongListItemFavsWrapper
@@ -201,6 +202,7 @@ fun threeShapeSwitch(index: Int, thirdShapeCornerRadius: Dp = 16.dp): Shape { //
     }
 }
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 private fun DailyMixSongList(
     songs: ImmutableList<Song>,
