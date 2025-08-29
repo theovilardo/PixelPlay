@@ -1,5 +1,7 @@
 package com.theveloper.pixelplay.presentation.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateDp
@@ -103,7 +105,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
@@ -112,6 +119,7 @@ import kotlin.math.roundToInt
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
+import androidx.core.net.toUri
 
 @Composable
 private fun SettingsTopBar(
@@ -1082,12 +1090,46 @@ fun GeminiApiKeyItem(
                     Icon(
                         painter = painterResource(id = R.drawable.rounded_key_vertical_24),
                         contentDescription = null,
-                        //modifier = Modifier.size(24.dp) // Adjusted size
                     )
                 },
                 singleLine = true,
                 shape = RoundedCornerShape(10.dp)
             )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            if (apiKey == "") {
+                // --- INICIO DE LA MODIFICACIÓN ---
+
+                // 1. Obtenemos el contexto actual para poder lanzar un Intent
+                val context = LocalContext.current
+                val url = "https://aistudio.google.com/app/apikey"
+
+                // 2. Creamos un texto con estilos múltiples (AnnotatedString)
+                val annotatedString = buildAnnotatedString {
+                    // Parte "Get it here: " en color onSurface
+                    withStyle(style = SpanStyle(color = MaterialTheme.colorScheme.onSurface)) {
+                        append("Get it here: ")
+                    }
+                    // Parte con la URL en color primary y subrayada
+                    withStyle(style = SpanStyle(
+                        color = MaterialTheme.colorScheme.primary,
+                        textDecoration = TextDecoration.Underline)
+                    ) {
+                        append(url)
+                    }
+                }
+
+                // 3. Hacemos que el Text sea clickeable para abrir el navegador
+                Text(
+                    text = annotatedString,
+                    modifier = Modifier.clickable {
+                        val intent = Intent(Intent.ACTION_VIEW, url.toUri())
+                        context.startActivity(intent)
+                    }
+                )
+                // --- FIN DE LA MODIFICACIÓN ---
+            }
         }
     }
 }
