@@ -269,11 +269,7 @@ fun UnifiedPlayerSheet(
 
         playerContentExpansionFraction.animateTo(
             targetFraction,
-            animationSpec = if (targetFraction == 0f) {
-                spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow)
-            } else {
-                tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
-            }
+            animationSpec = tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
         ) {
             if (targetFraction == 1f && this.value == 1f) {
                 shouldRenderFullPlayer = true
@@ -313,7 +309,7 @@ fun UnifiedPlayerSheet(
                 } else {
                     // A default bounce for tap-to-collapse
                     launch {
-                        visualOvershootScaleY.snapTo(0.95f)
+                        visualOvershootScaleY.snapTo(0.97f)
                         visualOvershootScaleY.animateTo(
                             targetValue = 1f,
                             animationSpec = spring(
@@ -415,14 +411,9 @@ fun UnifiedPlayerSheet(
         val targetY = if (showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
             sheetExpandedTargetY
         } else { sheetCollapsedTargetY }
-        val spec: AnimationSpec<Float> = if (targetY == sheetCollapsedTargetY) {
-            spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow)
-        } else {
-            tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
-        }
         currentSheetTranslationY.animateTo(
             targetValue = targetY,
-            animationSpec = spec
+            animationSpec = tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
         )
     }
 
@@ -949,7 +940,7 @@ fun UnifiedPlayerSheet(
                                                 )
                                                 // New logic for scale animation
                                                 launch {
-                                                    val initialSquash = lerp(1.0f, 0.95f, currentExpansionFraction)
+                                                    val initialSquash = lerp(1.0f, 0.97f, currentExpansionFraction)
                                                     visualOvershootScaleY.snapTo(initialSquash)
                                                     visualOvershootScaleY.animateTo(
                                                         targetValue = 1f,
