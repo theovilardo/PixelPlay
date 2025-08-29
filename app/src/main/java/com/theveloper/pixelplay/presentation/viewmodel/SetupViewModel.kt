@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import com.theveloper.pixelplay.data.model.DirectoryItem
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.MusicRepository
+import com.theveloper.pixelplay.data.worker.SyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -46,13 +47,23 @@ data class SetupUiState(
 class SetupViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val musicRepository: MusicRepository,
+    private val syncManager: SyncManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SetupUiState())
     val uiState = _uiState.asStateFlow()
 
     init {
-        loadDirectoryPreferences()
+        viewModelScope.launch {
+            if (!userPreferencesRepository.initialSetupDoneFlow.first()) {
+                val allowedDirs = userPreferencesRepository.allowedDirectoriesFlow.first()
+                if (allowedDirs.isEmpty()) {
+                    val allAudioDirs = musicRepository.getAllUniqueAudioDirectories().toSet()
+                    userPreferencesRepository.updateAllowedDirectories(allAudioDirs)
+                }
+            }
+            loadDirectoryPreferences()
+        }
     }
 
     fun checkPermissions(context: Context) {
@@ -90,10 +101,8 @@ class SetupViewModel @Inject constructor(
                     emit(musicRepository.getAllUniqueAudioDirectories())
                 }.onStart { _uiState.update { it.copy(isLoadingDirectories = true) } }
             ) { allowedDirs, allFoundDirs ->
-                val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
                 allFoundDirs.map { dirPath ->
-                    val isAllowed = if (!initialSetupDone) true else allowedDirs.contains(dirPath)
-                    DirectoryItem(path = dirPath, isAllowed = isAllowed)
+                    DirectoryItem(path = dirPath, isAllowed = allowedDirs.contains(dirPath))
                 }.sortedBy { it.displayName }
             }.catch {
                 _uiState.update { it.copy(isLoadingDirectories = false, directoryItems = persistentListOf()) }
@@ -118,6 +127,7 @@ class SetupViewModel @Inject constructor(
     fun setSetupComplete() {
         viewModelScope.launch {
             userPreferencesRepository.setInitialSetupDone(true)
+            syncManager.forceRefresh()
         }
     }
 }
