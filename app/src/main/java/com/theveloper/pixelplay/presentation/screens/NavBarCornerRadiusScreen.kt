@@ -8,7 +8,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -42,12 +41,12 @@ fun NavBarCornerRadiusScreen(
                     }
                 }
             )
-        },
-        containerColor = Color.LightGray.copy(alpha = 0.9f)
+        }
     ) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
                 .padding(top = paddingValues.calculateTopPadding())
                 .padding(bottom = paddingValues.calculateBottomPadding())
         ) {
@@ -55,7 +54,7 @@ fun NavBarCornerRadiusScreen(
                 text = "Match the black area's corners with your device's corners",
                 style = MaterialTheme.typography.headlineSmall,
                 textAlign = TextAlign.Center,
-                color = Color.Black,
+                color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(16.dp)
@@ -72,9 +71,9 @@ fun NavBarCornerRadiusScreen(
                     onValueChange = { sliderValue = it },
                     valueRange = 0f..50f,
                     colors = SliderDefaults.colors(
-                        thumbColor = Color.Black,
-                        activeTrackColor = Color.Black,
-                        inactiveTrackColor = Color.LightGray
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                        inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -87,7 +86,7 @@ fun NavBarCornerRadiusScreen(
                         .fillMaxWidth()
                         .height(80.dp)
                         .padding(horizontal = paddingValues.calculateBottomPadding()),
-                    color = Color.Black,
+                    color = MaterialTheme.colorScheme.onBackground,
                     shape = AbsoluteSmoothCornerShape(
                         cornerRadiusTL = 10.dp,
                         smoothnessAsPercentBL = 60,
