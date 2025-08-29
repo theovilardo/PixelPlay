@@ -1,6 +1,7 @@
 package com.theveloper.pixelplay.presentation.components
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -15,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.presentation.components.subcomps.SineWaveLine
 import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
+import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 
 @Composable
 fun ChangelogBottomSheet(
@@ -26,9 +28,12 @@ fun ChangelogBottomSheet(
     ) {
         Text(
             text = "Changelog",
+            fontFamily = GoogleSansRounded,
             style = ExpTitleTypography.displaySmall,
             color = MaterialTheme.colorScheme.onSurface
         )
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         SineWaveLine(
             modifier = Modifier
@@ -38,9 +43,9 @@ fun ChangelogBottomSheet(
                 .padding(horizontal = 8.dp)
                 .padding(bottom = 4.dp),
             animate = true,
-            color = MaterialTheme.colorScheme.surface,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.75f),
             alpha = 0.95f,
-            strokeWidth = 16.dp,
+            strokeWidth = 4.dp,
             amplitude = 4.dp,
             waves = 7.6f,
             phase = 0f

@@ -309,7 +309,7 @@ fun UnifiedPlayerSheet(
                 } else {
                     // A default bounce for tap-to-collapse
                     launch {
-                        visualOvershootScaleY.snapTo(0.97f)
+                        visualOvershootScaleY.snapTo(0.96f) //controls how much it can reduce vertically
                         visualOvershootScaleY.animateTo(
                             targetValue = 1f,
                             animationSpec = spring(
