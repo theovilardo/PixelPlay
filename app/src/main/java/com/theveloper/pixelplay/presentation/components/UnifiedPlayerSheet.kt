@@ -269,7 +269,11 @@ fun UnifiedPlayerSheet(
 
         playerContentExpansionFraction.animateTo(
             targetFraction,
-            animationSpec = tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
+            animationSpec = if (targetFraction == 0f) {
+                spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium)
+            } else {
+                tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
+            }
         ) {
             if (targetFraction == 1f && this.value == 1f) {
                 shouldRenderFullPlayer = true
@@ -307,7 +311,17 @@ fun UnifiedPlayerSheet(
                         }
                     )
                 } else {
-                    visualOvershootScaleY.snapTo(1f)
+                    // A default bounce for tap-to-collapse
+                    launch {
+                        visualOvershootScaleY.snapTo(0.95f)
+                        visualOvershootScaleY.animateTo(
+                            targetValue = 1f,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessLow
+                            )
+                        )
+                    }
                 }
             }
         } else {
@@ -401,9 +415,14 @@ fun UnifiedPlayerSheet(
         val targetY = if (showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
             sheetExpandedTargetY
         } else { sheetCollapsedTargetY }
+        val spec: AnimationSpec<Float> = if (targetY == sheetCollapsedTargetY) {
+            spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium)
+        } else {
+            tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
+        }
         currentSheetTranslationY.animateTo(
             targetValue = targetY,
-            animationSpec = tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
+            animationSpec = spec
         )
     }
 
