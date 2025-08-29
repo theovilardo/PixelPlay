@@ -270,7 +270,7 @@ fun UnifiedPlayerSheet(
         playerContentExpansionFraction.animateTo(
             targetFraction,
             animationSpec = if (targetFraction == 0f) {
-                spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium)
+                spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow)
             } else {
                 tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
             }
@@ -318,7 +318,7 @@ fun UnifiedPlayerSheet(
                             targetValue = 1f,
                             animationSpec = spring(
                                 dampingRatio = Spring.DampingRatioMediumBouncy,
-                                stiffness = Spring.StiffnessLow
+                                stiffness = Spring.StiffnessVeryLow
                             )
                         )
                     }
@@ -416,7 +416,7 @@ fun UnifiedPlayerSheet(
             sheetExpandedTargetY
         } else { sheetCollapsedTargetY }
         val spec: AnimationSpec<Float> = if (targetY == sheetCollapsedTargetY) {
-            spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium)
+            spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow)
         } else {
             tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
         }
@@ -955,7 +955,7 @@ fun UnifiedPlayerSheet(
                                                         targetValue = 1f,
                                                         animationSpec = spring(
                                                             dampingRatio = Spring.DampingRatioMediumBouncy,
-                                                            stiffness = Spring.StiffnessLow
+                                                            stiffness = Spring.StiffnessVeryLow
                                                         )
                                                     )
                                                 }
@@ -965,7 +965,7 @@ fun UnifiedPlayerSheet(
                                                         initialVelocity = verticalVelocity,
                                                         animationSpec = spring(
                                                             dampingRatio = dynamicDampingRatio,
-                                                            stiffness = Spring.StiffnessMedium
+                                                            stiffness = Spring.StiffnessLow
                                                         )
                                                     )
                                                 }
@@ -975,7 +975,7 @@ fun UnifiedPlayerSheet(
                                                         initialVelocity = verticalVelocity / (sheetCollapsedTargetY - sheetExpandedTargetY).coerceAtLeast(1f),
                                                         animationSpec = spring(
                                                             dampingRatio = dynamicDampingRatio,
-                                                            stiffness = Spring.StiffnessMedium
+                                                            stiffness = Spring.StiffnessLow
                                                         )
                                                     )
                                                 }
