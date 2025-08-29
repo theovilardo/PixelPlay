@@ -27,8 +27,8 @@ android {
         applicationId = "com.theveloper.pixelplay"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = (project.findProperty("APP_VERSION_CODE") as String).toInt()
+        versionName = project.findProperty("APP_VERSION_NAME") as String
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
