@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
@@ -27,7 +28,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Stable
-data class IconConfig(val size: Dp, val align: Alignment, val rot: Float, val shape: Shape, val offsetX: Dp, val offsetY: Dp)
+data class IconConfig(
+    val size: Dp,
+    val color: Color,
+    val align: Alignment,
+    val rot: Float,
+    val shape: Shape,
+    val offsetX: Dp,
+    val offsetY: Dp
+)
 
 @Composable
 fun PermissionIconCollage(
@@ -47,15 +56,21 @@ fun PermissionIconCollage(
             .padding(padding)
     ) {
         val boxMaxHeight = maxHeight
+        val iconNrColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+        val iconNrSdColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+        val iconHighlightColor = MaterialTheme.colorScheme.primary
+        val iconTrdColor = MaterialTheme.colorScheme.tertiary
+        val iconSndColor = MaterialTheme.colorScheme.secondary
+
         val iconConfigs by produceState<List<IconConfig>>(initialValue = emptyList(), iconsToShow, boxMaxHeight) {
             value = withContext(Dispatchers.Default) {
                 val min = minOf(200.dp, height)
                 listOf(
-                    IconConfig(size = min * 0.8f, align = Alignment.Center, rot = -15f, shape = RoundedCornerShape(20.dp), offsetX = 0.dp, offsetY = 0.dp),
-                    IconConfig(size = min * 0.4f, align = Alignment.TopStart, rot = 15f, shape = CircleShape, offsetX = (300.dp * 0.05f), offsetY = (boxMaxHeight * 0.05f)),
-                    IconConfig(size = min * 0.4f, align = Alignment.BottomEnd, rot = 5f, shape = CircleShape, offsetX = -(300.dp * 0.05f), offsetY = -(boxMaxHeight * 0.05f)),
-                    IconConfig(size = min * 0.5f, align = Alignment.TopEnd, rot = -20f, shape = RoundedCornerShape(20.dp), offsetX = -(300.dp * 0.1f), offsetY = (boxMaxHeight * 0.1f)),
-                    IconConfig(size = min * 0.35f, align = Alignment.BottomStart, rot = 10f, shape = RoundedStarShape(sides = 8, curve = 0.1f), offsetX = (300.dp * 0.1f), offsetY = -(boxMaxHeight * 0.1f))
+                    IconConfig(size = min * 0.8f, color = iconSndColor, align = Alignment.Center, rot = -15f, shape = RoundedCornerShape(20.dp), offsetX = 0.dp, offsetY = 0.dp),
+                    IconConfig(size = min * 0.4f, color = iconNrColor, align = Alignment.TopStart, rot = 15f, shape = CircleShape, offsetX = (300.dp * 0.05f), offsetY = (boxMaxHeight * 0.05f)),
+                    IconConfig(size = min * 0.4f, color = iconHighlightColor, align = Alignment.BottomEnd, rot = 5f, shape = CircleShape, offsetX = -(300.dp * 0.05f), offsetY = -(boxMaxHeight * 0.05f)),
+                    IconConfig(size = min * 0.5f, color = iconNrSdColor, align = Alignment.TopEnd, rot = -20f, shape = RoundedCornerShape(20.dp), offsetX = -(300.dp * 0.1f), offsetY = (boxMaxHeight * 0.1f)),
+                    IconConfig(size = min * 0.35f, color = iconTrdColor, align = Alignment.BottomStart, rot = 10f, shape = RoundedStarShape(sides = 8, curve = 0.1), offsetX = (300.dp * 0.1f), offsetY = -(boxMaxHeight * 0.1f))
                 )
             }
         }
@@ -67,7 +82,7 @@ fun PermissionIconCollage(
                     Icon(
                         painter = painterResource(id = iconRes),
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                        tint = config.color,
                         modifier = Modifier
                             .size(config.size)
                             .align(config.align)

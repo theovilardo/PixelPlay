@@ -376,13 +376,13 @@ private fun CollapsingAlbumTopBar(
                 Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
 
-            FilledIconButton(
-                modifier = Modifier.align(Alignment.TopEnd).padding(end = 12.dp, top = 4.dp),
-                onClick = { /* TODO */ },
-                colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
-            ) {
-                Icon(Icons.Rounded.Search, contentDescription = "Search in album")
-            }
+//            FilledIconButton(
+//                modifier = Modifier.align(Alignment.TopEnd).padding(end = 12.dp, top = 4.dp),
+//                onClick = { /* TODO */ },
+//                colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+//            ) {
+//                Icon(Icons.Rounded.Search, contentDescription = "Search in album")
+//            }
 
             Box(
                 modifier = Modifier

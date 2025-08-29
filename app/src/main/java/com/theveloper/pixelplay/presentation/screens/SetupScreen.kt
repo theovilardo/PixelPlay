@@ -62,8 +62,12 @@ import com.theveloper.pixelplay.presentation.components.subcomps.MaterialYouVect
 import com.theveloper.pixelplay.presentation.components.subcomps.SineWaveLine
 import com.theveloper.pixelplay.presentation.viewmodel.SetupViewModel
 import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.launch
+import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.persistentListOf
+import androidx.core.net.toUri
 
 @OptIn(ExperimentalPermissionsApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -96,6 +100,7 @@ fun SetupScreen(
         bottomBar = {
             SetupBottomBar(
                 pagerState = pagerState,
+                animated = (pagerState.currentPage != 0),
                 onNextClicked = {
                     scope.launch {
                         pagerState.animateScrollToPage(pagerState.currentPage + 1)
@@ -166,36 +171,6 @@ fun WelcomePage() {
             )
         )
         Spacer(modifier = Modifier.height(16.dp))
-
-        Column {
-            SineWaveLine(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(32.dp)
-                    .padding(horizontal = 8.dp),
-                //animate = true,
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f),
-                alpha = 0.95f,
-                strokeWidth = 3.dp,
-                amplitude = 4.dp,
-                waves = 7.6f,
-                phase = 0f
-            )
-
-            SineWaveLine(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(32.dp)
-                    .padding(horizontal = 8.dp),
-                //animate = true,
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f),
-                alpha = 0.95f,
-                strokeWidth = 3.dp,
-                amplitude = 4.dp,
-                waves = 7.6f,
-                phase = 0f
-            )
-        }
         // Placeholder for vector art
         Box(
             modifier = Modifier
@@ -207,6 +182,47 @@ fun WelcomePage() {
             MaterialYouVectorDrawable(
                 modifier = Modifier.fillMaxSize(),
                 painter = painterResource(R.drawable.welcome_art)
+            )
+            SineWaveLine(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .height(32.dp)
+                    .padding(horizontal = 8.dp)
+                    .padding(bottom = 4.dp),
+                animate = true,
+                color = MaterialTheme.colorScheme.surface,
+                alpha = 0.95f,
+                strokeWidth = 16.dp,
+                amplitude = 4.dp,
+                waves = 7.6f,
+                phase = 0f
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .height(22.dp)
+                    .background(color = MaterialTheme.colorScheme.surface)
+                    .padding(horizontal = 8.dp)
+                    .padding(bottom = 4.dp)
+            ){
+
+            }
+            SineWaveLine(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .height(32.dp)
+                    .padding(horizontal = 8.dp)
+                    .padding(bottom = 4.dp),
+                animate = true,
+                color = MaterialTheme.colorScheme.primary, //Container.copy(alpha = 0.9f),
+                alpha = 0.95f,
+                strokeWidth = 4.dp,
+                amplitude = 4.dp,
+                waves = 7.6f,
+                phase = 0f
             )
         }
         Spacer(modifier = Modifier.height(16.dp))
@@ -233,6 +249,7 @@ fun MediaPermissionPage() {
 
     PermissionPageLayout(
         title = "Media Permission",
+        granted = permissionState.allPermissionsGranted,
         description = "PixelPlay needs access to your audio files to build your music library.",
         buttonText = if (permissionState.allPermissionsGranted) "Permission Granted" else "Grant Media Permission",
         icons = mediaIcons,
@@ -261,6 +278,7 @@ fun NotificationsPermissionPage() {
 
     PermissionPageLayout(
         title = "Notifications",
+        granted = permissionState.allPermissionsGranted,
         description = "Enable notifications to control your music from the lock screen and notification shade.",
         buttonText = if (permissionState.allPermissionsGranted) "Permission Granted" else "Enable Notifications",
         icons = notificationIcons,
@@ -277,10 +295,10 @@ fun AllFilesPermissionPage() {
     val context = LocalContext.current
     val fileIcons = persistentListOf(
         R.drawable.rounded_question_mark_24,
-        R.drawable.rounded_lyrics_24,
+        R.drawable.rounded_attach_file_24,
         R.drawable.rounded_imagesmode_24,
         R.drawable.rounded_broken_image_24,
-        R.drawable.rounded_question_mark_24
+        R.drawable.rounded_folder_24
     )
     PermissionPageLayout(
         title = "All Files Access",
@@ -290,7 +308,7 @@ fun AllFilesPermissionPage() {
         onGrantClicked = {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                intent.data = Uri.parse("package:${context.packageName}")
+                intent.data = "package:${context.packageName}".toUri()
                 context.startActivity(intent)
             }
         }
@@ -302,9 +320,9 @@ fun FinishPage() {
     val finishIcons = persistentListOf(
         R.drawable.rounded_check_circle_24,
         R.drawable.round_favorite_24,
-        R.drawable.rounded_all_inclusive_24,
+        R.drawable.rounded_celebration_24,
         R.drawable.round_favorite_24,
-        R.drawable.rounded_all_inclusive_24
+        R.drawable.rounded_explosion_24
     )
 
     Column(
@@ -316,7 +334,10 @@ fun FinishPage() {
     ) {
         Text(text = "All Set!", style = MaterialTheme.typography.headlineLarge)
         Spacer(modifier = Modifier.height(16.dp))
-        PermissionIconCollage(icons = finishIcons)
+        PermissionIconCollage(
+            modifier = Modifier.height(230.dp),
+            icons = finishIcons
+        )
         Spacer(modifier = Modifier.height(16.dp))
         Text(text = "You're ready to enjoy your music.", style = MaterialTheme.typography.bodyLarge)
     }
@@ -325,9 +346,10 @@ fun FinishPage() {
 @Composable
 fun PermissionPageLayout(
     title: String,
+    granted: Boolean = false,
     description: String,
     buttonText: String,
-    icons: persistentListOf<Int>,
+    icons: ImmutableList<Int>,
     onGrantClicked: () -> Unit
 ) {
     Column(
@@ -343,7 +365,10 @@ fun PermissionPageLayout(
         Spacer(modifier = Modifier.height(16.dp))
         Text(text = description, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(32.dp))
-        Button(onClick = onGrantClicked) {
+        Button(
+            onClick = onGrantClicked,
+            enabled = !granted
+        ) {
             Text(text = buttonText)
         }
     }
@@ -364,6 +389,7 @@ fun PermissionPageLayout(
 @Composable
 fun SetupBottomBar(
     modifier: Modifier = Modifier,
+    animated: Boolean = false,
     pagerState: PagerState,
     onNextClicked: () -> Unit,
     onFinishClicked: () -> Unit
@@ -395,24 +421,28 @@ fun SetupBottomBar(
 
     Surface(
         modifier = modifier
-            .padding(horizontal = 24.dp, vertical = 16.dp)
+            //.padding(horizontal = 24.dp, vertical = 16.dp)
             .shadow(elevation = 8.dp, shape = RoundedCornerShape(24.dp), clip = true),
         color = MaterialTheme.colorScheme.surfaceContainer,
         shape = RoundedCornerShape(24.dp)
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            SineWaveLine(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(20.dp)
-                    .padding(top = 8.dp),
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                strokeWidth = 2.5.dp,
-                amplitude = 6.dp,
-                waves = 1.5f,
-                animate = true,
-                animationDurationMillis = 3000
-            )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 14.dp)
+        ) {
+//            SineWaveLine(
+//                modifier = Modifier
+//                    .fillMaxWidth()
+//                    .height(16.dp)
+//                    .padding(top = 16.dp, bottom = 6.dp),
+//                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+//                strokeWidth = 2.dp,
+//                amplitude = 6.dp,
+//                waves = 1.5f,
+//                //animate = true,
+//                animationDurationMillis = 3000
+//            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -460,7 +490,9 @@ fun SetupBottomBar(
                         bottomStartPercent = animatedBottomStart.toInt(),
                         bottomEndPercent = animatedBottomEnd.toInt()
                     ),
-                    modifier = Modifier.rotate(animatedRotation)
+                    modifier = Modifier
+                        .rotate(animatedRotation)
+                        .padding(end = 0.dp)
                 ) {
                     // 5. Aplica una contra-rotación al contenido del botón (el icono)
                     AnimatedContent(

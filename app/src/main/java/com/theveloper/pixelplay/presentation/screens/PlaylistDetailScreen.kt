@@ -296,7 +296,7 @@ fun PlaylistDetailScreen(
                         enabled = localReorderableSongs.isNotEmpty(),
                         shape = AbsoluteSmoothCornerShape(cornerRadiusTL = 60.dp, smoothnessAsPercentTR = 60, cornerRadiusTR = 14.dp, smoothnessAsPercentTL = 60, cornerRadiusBL = 60.dp, smoothnessAsPercentBR = 60, cornerRadiusBR = 14.dp, smoothnessAsPercentBL = 60)
                     ) {
-                        Icon(Icons.Rounded.PlayArrow, contentDescription = "Play", modifier = Modifier.size(ButtonDefaults.IconSize))
+                        Icon(Icons.Rounded.PlayArrow, contentDescription = "Play", modifier = Modifier.size(20.dp))
                         Spacer(Modifier.size(ButtonDefaults.IconSpacing))
                         Text("Play it")
                     }
@@ -642,6 +642,7 @@ fun SongPickerBottomSheet(
                             Row(
                                 Modifier
                                     .fillMaxWidth()
+                                    .clip(CircleShape)
                                     .clickable {
                                         val currentSelection = selectedSongIds[song.id] ?: false
                                         selectedSongIds[song.id] = !currentSelection
