@@ -35,6 +35,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -76,6 +77,7 @@ import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.launch
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 @OptIn(ExperimentalPermissionsApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -451,7 +453,7 @@ fun SetupBottomBar(
     // 1. Determina los porcentajes de las esquinas para la forma objetivo
     val targetShapeValues = when (pagerState.currentPage % 3) {
         0 -> listOf(50f, 50f, 50f, 50f) // Círculo (50% en todas las esquinas)
-        1 -> listOf(16f, 16f, 16f, 16f) // Cuadrado Redondeado
+        1 -> listOf(26f, 26f, 26f, 26f) // Cuadrado Redondeado
         else -> listOf(18f, 50f, 18f, 50f) // Forma de "Hoja"
     }
 
@@ -473,25 +475,22 @@ fun SetupBottomBar(
             //.padding(horizontal = 24.dp, vertical = 16.dp)
             .shadow(elevation = 8.dp, shape = RoundedCornerShape(24.dp), clip = true),
         color = MaterialTheme.colorScheme.surfaceContainer,
-        shape = RoundedCornerShape(24.dp)
+        shape = AbsoluteSmoothCornerShape(
+            cornerRadiusTR = 36.dp,
+            smoothnessAsPercentTL = 60,
+            cornerRadiusTL = 36.dp,
+            smoothnessAsPercentBR = 60,
+            cornerRadiusBR = 36.dp,
+            smoothnessAsPercentBL = 60,
+            cornerRadiusBL = 36.dp,
+            smoothnessAsPercentTR = 60
+        )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 14.dp)
         ) {
-//            SineWaveLine(
-//                modifier = Modifier
-//                    .fillMaxWidth()
-//                    .height(16.dp)
-//                    .padding(top = 16.dp, bottom = 6.dp),
-//                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-//                strokeWidth = 2.dp,
-//                amplitude = 6.dp,
-//                waves = 1.5f,
-//                //animate = true,
-//                animationDurationMillis = 3000
-//            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -532,7 +531,7 @@ fun SetupBottomBar(
 
                 val isLastPage = pagerState.currentPage == pagerState.pageCount - 1
                 val containerColor = if (isLastPage && !isFinishButtonEnabled) {
-                    MaterialTheme.colorScheme.surfaceContainerHigh
+                    MaterialTheme.colorScheme.surfaceContainerHighest
                 } else {
                     MaterialTheme.colorScheme.primaryContainer
                 }
@@ -545,12 +544,17 @@ fun SetupBottomBar(
                 // 4. Aplica la forma y rotación animadas al botón
                 MediumFloatingActionButton(
                     onClick = if (isLastPage) onFinishClicked else onNextClicked,
-                    shape = RoundedCornerShape(
-                        topStartPercent = animatedTopStart.toInt(),
-                        topEndPercent = animatedTopEnd.toInt(),
-                        bottomStartPercent = animatedBottomStart.toInt(),
-                        bottomEndPercent = animatedBottomEnd.toInt()
+                    shape = AbsoluteSmoothCornerShape(
+                        cornerRadiusTL = animatedTopStart.toInt().dp,
+                        smoothnessAsPercentTR = 60,
+                        cornerRadiusTR = animatedTopEnd.toInt().dp,
+                        smoothnessAsPercentTL = 60,
+                        cornerRadiusBL = animatedBottomStart.toInt().dp,
+                        smoothnessAsPercentBL = 60,
+                        cornerRadiusBR = animatedBottomEnd.toInt().dp,
+                        smoothnessAsPercentBR = 60,
                     ),
+                    elevation = FloatingActionButtonDefaults.elevation(0.dp),
                     containerColor = containerColor,
                     contentColor = contentColor,
                     modifier = Modifier
@@ -572,7 +576,11 @@ fun SetupBottomBar(
                         if (isNextPage) {
                             Icon(Icons.Rounded.ArrowForward, contentDescription = "Siguiente")
                         } else {
-                            Icon(Icons.Rounded.Check, contentDescription = "Finalizar")
+                            if (isFinishButtonEnabled) {
+                                Icon(Icons.Rounded.Check, contentDescription = "Finalizar")
+                            } else {
+                                Icon(Icons.Rounded.Close, contentDescription = "Finalizar")
+                            }
                         }
                     }
                 }
