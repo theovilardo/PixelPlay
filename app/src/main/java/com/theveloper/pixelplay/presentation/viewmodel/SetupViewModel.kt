@@ -53,18 +53,7 @@ class SetupViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(SetupUiState())
     val uiState = _uiState.asStateFlow()
 
-    init {
-        viewModelScope.launch {
-            if (!userPreferencesRepository.initialSetupDoneFlow.first()) {
-                val allowedDirs = userPreferencesRepository.allowedDirectoriesFlow.first()
-                if (allowedDirs.isEmpty()) {
-                    val allAudioDirs = musicRepository.getAllUniqueAudioDirectories().toSet()
-                    userPreferencesRepository.updateAllowedDirectories(allAudioDirs)
-                }
-            }
-            loadDirectoryPreferences()
-        }
-    }
+    // init block removed
 
     fun checkPermissions(context: Context) {
         val mediaPermissionGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -94,8 +83,16 @@ class SetupViewModel @Inject constructor(
         }
     }
 
-    private fun loadDirectoryPreferences() {
+    fun loadMusicDirectories() {
         viewModelScope.launch {
+            if (!userPreferencesRepository.initialSetupDoneFlow.first()) {
+                val allowedDirs = userPreferencesRepository.allowedDirectoriesFlow.first()
+                if (allowedDirs.isEmpty()) {
+                    val allAudioDirs = musicRepository.getAllUniqueAudioDirectories().toSet()
+                    userPreferencesRepository.updateAllowedDirectories(allAudioDirs)
+                }
+            }
+
             userPreferencesRepository.allowedDirectoriesFlow.combine(
                 flow {
                     emit(musicRepository.getAllUniqueAudioDirectories())
