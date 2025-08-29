@@ -934,18 +934,20 @@ fun UnifiedPlayerSheet(
                                                 launch {
                                                     currentSheetTranslationY.animateTo(
                                                         targetValue = sheetCollapsedTargetY,
-                                                        animationSpec = tween(
-                                                            durationMillis = ANIMATION_DURATION_MS,
-                                                            easing = FastOutSlowInEasing
+                                                        initialVelocity = verticalVelocity,
+                                                        animationSpec = spring(
+                                                            dampingRatio = Spring.DampingRatioLowBouncy,
+                                                            stiffness = Spring.StiffnessMedium
                                                         )
                                                     )
                                                 }
                                                 launch {
                                                     playerContentExpansionFraction.animateTo(
                                                         targetValue = 0f,
-                                                        animationSpec = tween(
-                                                            durationMillis = ANIMATION_DURATION_MS,
-                                                            easing = FastOutSlowInEasing
+                                                        initialVelocity = verticalVelocity / (sheetCollapsedTargetY - sheetExpandedTargetY).coerceAtLeast(1f),
+                                                        animationSpec = spring(
+                                                            dampingRatio = Spring.DampingRatioLowBouncy,
+                                                            stiffness = Spring.StiffnessMedium
                                                         )
                                                     )
                                                 }
