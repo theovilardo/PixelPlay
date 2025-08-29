@@ -359,7 +359,7 @@ fun UnifiedPlayerSheet(
         miniPlayerAndSpacerHeightPx,
         navBarHeightPx
     ) {
-        val playerSlotHeightContribution = if (isPlayerSlotOccupied) miniPlayerAndSpacerHeightPx else 0f
+        val playerSlotHeightContribution = if (isPlayerSlotOccupied && !hideNavBar) miniPlayerAndSpacerHeightPx else 0f
         val navHeight = if (hideNavBar) 0f else navBarHeightPx
         playerSlotHeightContribution + navHeight
     }
