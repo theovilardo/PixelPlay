@@ -5,7 +5,9 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.SizeTransform
@@ -32,8 +34,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -46,13 +53,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.AsyncImage
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
@@ -60,14 +71,13 @@ import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.components.PermissionIconCollage
 import com.theveloper.pixelplay.presentation.components.subcomps.MaterialYouVectorDrawable
 import com.theveloper.pixelplay.presentation.components.subcomps.SineWaveLine
+import com.theveloper.pixelplay.presentation.viewmodel.SetupUiState
 import com.theveloper.pixelplay.presentation.viewmodel.SetupViewModel
 import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.launch
-import kotlinx.collections.immutable.PersistentList
-import kotlinx.collections.immutable.persistentListOf
-import androidx.core.net.toUri
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 @OptIn(ExperimentalPermissionsApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -75,16 +85,34 @@ fun SetupScreen(
     setupViewModel: SetupViewModel = hiltViewModel(),
     onSetupComplete: () -> Unit
 ) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val uiState by setupViewModel.uiState.collectAsState()
+
+    // Re-check permissions when the screen is resumed
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                setupViewModel.checkPermissions(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
     val pages = remember {
         val list = mutableListOf<SetupPage>(
             SetupPage.Welcome,
         )
+        // Add media permissions page for all versions
+        list.add(SetupPage.MediaPermission)
+        // Add notifications permission page for Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            list.add(SetupPage.MediaPermission)
             list.add(SetupPage.NotificationsPermission)
-        } else {
-            list.add(SetupPage.MediaPermission)
         }
+        // Add all files access page for Android 11+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             list.add(SetupPage.AllFilesPermission)
         }
@@ -95,20 +123,26 @@ fun SetupScreen(
     val pagerState = rememberPagerState(pageCount = { pages.size })
     val scope = rememberCoroutineScope()
 
-
     Scaffold(
         bottomBar = {
             SetupBottomBar(
                 pagerState = pagerState,
                 animated = (pagerState.currentPage != 0),
+                isFinishButtonEnabled = uiState.allPermissionsGranted,
                 onNextClicked = {
                     scope.launch {
                         pagerState.animateScrollToPage(pagerState.currentPage + 1)
                     }
                 },
                 onFinishClicked = {
-                    setupViewModel.setSetupComplete()
-                    onSetupComplete()
+                    // Re-check permissions before finishing
+                    setupViewModel.checkPermissions(context)
+                    if (uiState.allPermissionsGranted) {
+                        setupViewModel.setSetupComplete()
+                        onSetupComplete()
+                    } else {
+                        Toast.makeText(context, "Please grant all required permissions.", Toast.LENGTH_SHORT).show()
+                    }
                 }
             )
         }
@@ -133,9 +167,9 @@ fun SetupScreen(
             ) {
                 when (page) {
                     SetupPage.Welcome -> WelcomePage()
-                    SetupPage.MediaPermission -> MediaPermissionPage()
-                    SetupPage.NotificationsPermission -> NotificationsPermissionPage()
-                    SetupPage.AllFilesPermission -> AllFilesPermissionPage()
+                    SetupPage.MediaPermission -> MediaPermissionPage(uiState)
+                    SetupPage.NotificationsPermission -> NotificationsPermissionPage(uiState)
+                    SetupPage.AllFilesPermission -> AllFilesPermissionPage(uiState)
                     SetupPage.Finish -> FinishPage()
                 }
             }
@@ -232,7 +266,7 @@ fun WelcomePage() {
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
-fun MediaPermissionPage() {
+fun MediaPermissionPage(uiState: SetupUiState) {
     val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         listOf(Manifest.permission.READ_MEDIA_AUDIO)
     } else {
@@ -247,14 +281,17 @@ fun MediaPermissionPage() {
         R.drawable.rounded_playlist_play_24
     )
 
+    // Sync the granted state with the ViewModel
+    val isGranted = uiState.mediaPermissionGranted || permissionState.allPermissionsGranted
+
     PermissionPageLayout(
         title = "Media Permission",
-        granted = permissionState.allPermissionsGranted,
+        granted = isGranted,
         description = "PixelPlay needs access to your audio files to build your music library.",
-        buttonText = if (permissionState.allPermissionsGranted) "Permission Granted" else "Grant Media Permission",
+        buttonText = if (isGranted) "Permission Granted" else "Grant Media Permission",
         icons = mediaIcons,
         onGrantClicked = {
-            if (!permissionState.allPermissionsGranted) {
+            if (!isGranted) {
                 permissionState.launchMultiplePermissionRequest()
             }
         }
@@ -263,7 +300,7 @@ fun MediaPermissionPage() {
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
-fun NotificationsPermissionPage() {
+fun NotificationsPermissionPage(uiState: SetupUiState) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
 
     val permissionState = rememberMultiplePermissionsState(permissions = listOf(Manifest.permission.POST_NOTIFICATIONS))
@@ -275,15 +312,17 @@ fun NotificationsPermissionPage() {
         R.drawable.rounded_skip_previous_24
     )
 
+    // Sync the granted state with the ViewModel
+    val isGranted = uiState.notificationsPermissionGranted || permissionState.allPermissionsGranted
 
     PermissionPageLayout(
         title = "Notifications",
-        granted = permissionState.allPermissionsGranted,
+        granted = isGranted,
         description = "Enable notifications to control your music from the lock screen and notification shade.",
-        buttonText = if (permissionState.allPermissionsGranted) "Permission Granted" else "Enable Notifications",
+        buttonText = if (isGranted) "Permission Granted" else "Enable Notifications",
         icons = notificationIcons,
         onGrantClicked = {
-            if (!permissionState.allPermissionsGranted) {
+            if (!isGranted) {
                 permissionState.launchMultiplePermissionRequest()
             }
         }
@@ -291,7 +330,7 @@ fun NotificationsPermissionPage() {
 }
 
 @Composable
-fun AllFilesPermissionPage() {
+fun AllFilesPermissionPage(uiState: SetupUiState) {
     val context = LocalContext.current
     val fileIcons = persistentListOf(
         R.drawable.rounded_question_mark_24,
@@ -300,13 +339,17 @@ fun AllFilesPermissionPage() {
         R.drawable.rounded_broken_image_24,
         R.drawable.rounded_folder_24
     )
+
+    val isGranted = uiState.allFilesAccessGranted
+
     PermissionPageLayout(
         title = "All Files Access",
+        granted = isGranted,
         description = "For some Android versions, PixelPlay needs broader file access to find all your music.",
-        buttonText = "Go to Settings",
+        buttonText = if(isGranted) "Permission Granted" else "Go to Settings",
         icons = fileIcons,
         onGrantClicked = {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !isGranted) {
                 val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
                 intent.data = "package:${context.packageName}".toUri()
                 context.startActivity(intent)
@@ -367,8 +410,15 @@ fun PermissionPageLayout(
         Spacer(modifier = Modifier.height(32.dp))
         Button(
             onClick = onGrantClicked,
-            enabled = !granted
+            enabled = !granted,
+            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
         ) {
+            AnimatedVisibility(visible = granted) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Check, contentDescription = "Granted")
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+            }
             Text(text = buttonText)
         }
     }
@@ -392,7 +442,8 @@ fun SetupBottomBar(
     animated: Boolean = false,
     pagerState: PagerState,
     onNextClicked: () -> Unit,
-    onFinishClicked: () -> Unit
+    onFinishClicked: () -> Unit,
+    isFinishButtonEnabled: Boolean
 ) {
     // --- Animaciones para el Morphing y Rotación ---
     val morphAnimationSpec = tween<Float>(durationMillis = 600, easing = FastOutSlowInEasing)
@@ -402,7 +453,7 @@ fun SetupBottomBar(
     // 1. Determina los porcentajes de las esquinas para la forma objetivo
     val targetShapeValues = when (pagerState.currentPage % 3) {
         0 -> listOf(50f, 50f, 50f, 50f) // Círculo (50% en todas las esquinas)
-        1 -> listOf(16f, 16f, 16f, 16f) // Cuadrado Redondeado
+        1 -> listOf(26f, 26f, 26f, 26f) // Cuadrado Redondeado
         else -> listOf(18f, 50f, 18f, 50f) // Forma de "Hoja"
     }
 
@@ -424,25 +475,22 @@ fun SetupBottomBar(
             //.padding(horizontal = 24.dp, vertical = 16.dp)
             .shadow(elevation = 8.dp, shape = RoundedCornerShape(24.dp), clip = true),
         color = MaterialTheme.colorScheme.surfaceContainer,
-        shape = RoundedCornerShape(24.dp)
+        shape = AbsoluteSmoothCornerShape(
+            cornerRadiusTR = 36.dp,
+            smoothnessAsPercentTL = 60,
+            cornerRadiusTL = 36.dp,
+            smoothnessAsPercentBR = 60,
+            cornerRadiusBR = 36.dp,
+            smoothnessAsPercentBL = 60,
+            cornerRadiusBL = 36.dp,
+            smoothnessAsPercentTR = 60
+        )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 14.dp)
         ) {
-//            SineWaveLine(
-//                modifier = Modifier
-//                    .fillMaxWidth()
-//                    .height(16.dp)
-//                    .padding(top = 16.dp, bottom = 6.dp),
-//                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-//                strokeWidth = 2.dp,
-//                amplitude = 6.dp,
-//                waves = 1.5f,
-//                //animate = true,
-//                animationDurationMillis = 3000
-//            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -481,15 +529,34 @@ fun SetupBottomBar(
                     }
                 }
 
+                val isLastPage = pagerState.currentPage == pagerState.pageCount - 1
+                val containerColor = if (isLastPage && !isFinishButtonEnabled) {
+                    MaterialTheme.colorScheme.surfaceContainerHighest
+                } else {
+                    MaterialTheme.colorScheme.primaryContainer
+                }
+                val contentColor = if (isLastPage && !isFinishButtonEnabled) {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f)
+                } else {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                }
+
                 // 4. Aplica la forma y rotación animadas al botón
                 MediumFloatingActionButton(
-                    onClick = if (pagerState.currentPage < pagerState.pageCount - 1) onNextClicked else onFinishClicked,
-                    shape = RoundedCornerShape(
-                        topStartPercent = animatedTopStart.toInt(),
-                        topEndPercent = animatedTopEnd.toInt(),
-                        bottomStartPercent = animatedBottomStart.toInt(),
-                        bottomEndPercent = animatedBottomEnd.toInt()
+                    onClick = if (isLastPage) onFinishClicked else onNextClicked,
+                    shape = AbsoluteSmoothCornerShape(
+                        cornerRadiusTL = animatedTopStart.toInt().dp,
+                        smoothnessAsPercentTR = 60,
+                        cornerRadiusTR = animatedTopEnd.toInt().dp,
+                        smoothnessAsPercentTL = 60,
+                        cornerRadiusBL = animatedBottomStart.toInt().dp,
+                        smoothnessAsPercentBL = 60,
+                        cornerRadiusBR = animatedBottomEnd.toInt().dp,
+                        smoothnessAsPercentBR = 60,
                     ),
+                    elevation = FloatingActionButtonDefaults.elevation(0.dp),
+                    containerColor = containerColor,
+                    contentColor = contentColor,
                     modifier = Modifier
                         .rotate(animatedRotation)
                         .padding(end = 0.dp)
@@ -509,7 +576,11 @@ fun SetupBottomBar(
                         if (isNextPage) {
                             Icon(Icons.Rounded.ArrowForward, contentDescription = "Siguiente")
                         } else {
-                            Icon(Icons.Rounded.Check, contentDescription = "Finalizar")
+                            if (isFinishButtonEnabled) {
+                                Icon(Icons.Rounded.Check, contentDescription = "Finalizar")
+                            } else {
+                                Icon(Icons.Rounded.Close, contentDescription = "Finalizar")
+                            }
                         }
                     }
                 }
