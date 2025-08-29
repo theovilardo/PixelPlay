@@ -126,6 +126,7 @@ fun SetupScreen(
             SetupBottomBar(
                 pagerState = pagerState,
                 animated = (pagerState.currentPage != 0),
+                isFinishButtonEnabled = uiState.allPermissionsGranted,
                 onNextClicked = {
                     scope.launch {
                         pagerState.animateScrollToPage(pagerState.currentPage + 1)
@@ -439,7 +440,8 @@ fun SetupBottomBar(
     animated: Boolean = false,
     pagerState: PagerState,
     onNextClicked: () -> Unit,
-    onFinishClicked: () -> Unit
+    onFinishClicked: () -> Unit,
+    isFinishButtonEnabled: Boolean
 ) {
     // --- Animaciones para el Morphing y Rotación ---
     val morphAnimationSpec = tween<Float>(durationMillis = 600, easing = FastOutSlowInEasing)
@@ -528,14 +530,30 @@ fun SetupBottomBar(
                     }
                 }
 
+                val isLastPage = pagerState.currentPage == pagerState.pageCount - 1
+                val containerColor = if (isLastPage && !isFinishButtonEnabled) {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                } else {
+                    MaterialTheme.colorScheme.primary
+                }
+                val contentColor = if (isLastPage && !isFinishButtonEnabled) {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                } else {
+                    MaterialTheme.colorScheme.onPrimary
+                }
+
                 // 4. Aplica la forma y rotación animadas al botón
                 MediumFloatingActionButton(
-                    onClick = if (pagerState.currentPage < pagerState.pageCount - 1) onNextClicked else onFinishClicked,
+                    onClick = if (isLastPage) onFinishClicked else onNextClicked,
                     shape = RoundedCornerShape(
                         topStartPercent = animatedTopStart.toInt(),
                         topEndPercent = animatedTopEnd.toInt(),
                         bottomStartPercent = animatedBottomStart.toInt(),
                         bottomEndPercent = animatedBottomEnd.toInt()
+                    ),
+                    colors = FloatingActionButtonDefaults.containerColor(
+                        containerColor = containerColor,
+                        contentColor = contentColor
                     ),
                     modifier = Modifier
                         .rotate(animatedRotation)
