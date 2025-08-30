@@ -13,7 +13,7 @@
 
 <p align="center">
     <a href="https://github.com/theovilardo/PixelPlay/releases">
-        <img src="https://img.shields.io/github/downloads/theovilardo/PixelPlay/releases/tag/0.1.0-beta?label=Downloads&logo=github&style=for-the-badge" alt="GitHub Downloads">
+        <img src="https://img.shields.io/github/downloads/theovilardo/PixelPlay/latest/total?label=Downloads&logo=github&style=for-the-badge" alt="GitHub Downloads">
     </a>
 </p>
 
