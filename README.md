@@ -13,10 +13,7 @@
 
 <p align="center">
     <a href="https://github.com/theovilardo/PixelPlay/releases">
-        <img src="https://img.shields.io/github/downloads/TheVeler/PixelPlay/total?label=Downloads&logo=github&style=for-the-badge" alt="GitHub Downloads">
-    </a>
-    <a href="https://github.com/TheVeler/PixelPlay/releases/latest">
-        <img src="https://img.shields.io/github/v/release/TheVeler/PixelPlay?display_name=tag&logo=github&style=for-the-badge" alt="GitHub release">
+        <img src="https://img.shields.io/github/downloads/theovilardo/PixelPlay/total?label=Downloads&logo=github&style=for-the-badge" alt="GitHub Downloads">
     </a>
 </p>
 
