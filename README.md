@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-    <a href="https://github.com/TheVeler/PixelPlay/releases">
+    <a href="[https://github.com/TheVeler/PixelPlay/releases](https://github.com/theovilardo/PixelPlay/releases)">
         <img src="https://img.shields.io/github/downloads/TheVeler/PixelPlay/total?label=Downloads&logo=github&style=for-the-badge" alt="GitHub Downloads">
     </a>
     <a href="https://github.com/TheVeler/PixelPlay/releases/latest">
