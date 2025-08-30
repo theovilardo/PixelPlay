@@ -1,102 +1,73 @@
-# PixelPlay 🎵
+# PixelPlay Music Player 🎵
 
-*Reproductor de música **local** para Android construido con **Kotlin** y **Jetpack Compose**.*
+PixelPlay is a modern, offline-first music player for Android, built with Kotlin and Jetpack Compose. It's designed to provide a beautiful and seamless experience for listening to your local music library.
 
-> Este README fue reescrito y modernizado en **agosto de 2025**. Ajusta cualquier punto que no refleje el estado real del repo.
+## ✨ Core Features
 
----
+- **Local Music Playback**: Scans and plays your local audio files (MP3, FLAC, AAC, etc.).
+- **Background Playback**: Listen to music while the app is in the background, thanks to a foreground service and Media3.
+- **Modern UI**: A beautiful and responsive UI built with Jetpack Compose and Material 3, supporting Dynamic Color and dark/light themes.
+- **Music Library**: Organize and browse your music by songs, albums, and artists.
+- **Home Screen Widget**: Control your music from the home screen with a Glance-based app widget.
+- **Audio Waveform**: See the sound with a real-time audio waveform visualization.
+- **Tag Editor**: Edit song metadata (title, artist, album, etc.) with the built-in tag editor.
+- **AI-Powered Features**: Explore advanced features powered by Gemini for a unique listening experience.
+- **Permissions Handling**: A smooth user experience with clear and concise permission requests.
 
-## ✨ Resumen
+## 🛠️ Tech Stack & Architecture
 
-**PixelPlay** es una app de música **offline** que escanea tu biblioteca local y ofrece una experiencia fluida con una interfaz moderna basada en **Material 3**. Soporta controles del sistema, notificación persistente, cola de reproducción, y navegación por artistas, álbumes, canciones y carpetas.
+- **Language**: 100% [Kotlin](https://kotlinlang.org/)
+- **UI**: [Jetpack Compose](https://developer.android.com/jetpack/compose) for a declarative and modern UI.
+- **Audio Playback**: [Media3 (ExoPlayer)](https://developer.android.com/guide/topics/media/media3) for robust audio playback.
+- **Architecture**: MVVM (Model-View-ViewModel) with a reactive approach using StateFlow and SharedFlow.
+- **Dependency Injection**: [Hilt](https://dagger.dev/hilt/) for managing dependencies.
+- **Database**: [Room](https://developer.android.com/training/data-storage/room) for local database storage.
+- **Background Processing**: [WorkManager](https://developer.android.com/topic/libraries/architecture/workmanager) for background tasks like syncing the music library.
+- **Asynchronous Operations**: [Kotlin Coroutines & Flow](https://kotlinlang.org/docs/coroutines-guide.html) for managing asynchronous operations.
+- **Networking**: [Retrofit](https://square.github.io/retrofit/) for making HTTP requests.
+- **Image Loading**: [Coil](https://coil-kt.github.io/coil/) for loading and caching images.
+- **Metadata**: [JAudioTagger](http://www.jthink.net/jaudiotagger/) for reading and writing audio file metadata.
+- **Audio Processing**: [Amplituda](https://github.com/lincollincol/Amplituda) for audio processing and waveform generation.
 
----
+## 🚀 Getting Started
 
-## 🔎 Características (principales)
+To get a local copy up and running, follow these simple steps.
 
-* 🔊 **Reproducción local** con soporte para formatos comunes (MP3/AAC/FLAC/OGG, etc.)
-* 🎚️ **Controles**: play/pause, siguiente/anterior, repetir/aleatorio, seek
-* 🧭 **Biblioteca**: Canciones · Álbumes · Artistas · Carpetas · Listas
-* 📦 **Cola de reproducción** (añadir/quitar, reordenar)
-* 🪄 **Búsqueda** rápida por texto
-* 🎨 **Material 3 / Dynamic Color** (modo claro/oscuro)
-* 🔔 **Notificación** y **MediaSession** (controles desde lockscreen/auriculares)
-* 📱 **Compact/Expanded** player (miniplayer y pantalla “Now Playing”)
-* 🗂️ Lectura de **MediaStore** y carátulas embebidas/externas
-* 🌐 **Idiomas**: ES/EN (si aplica)
+### Prerequisites
 
-> Marca con ✅ lo que ya esté implementado y mueve lo restante a *Roadmap*.
+- Android Studio Iguana | 2023.2.1 or newer.
+- Android SDK 29 or newer.
 
----
+### Installation
 
-## 🧰 Pila técnica
+1. Clone the repo
+   ```sh
+   git clone https://github.com/your_username/PixelPlay.git
+   ```
+2. Open the project in Android Studio.
+3. Let Gradle sync and download the required dependencies.
+4. Run the app on an emulator or a physical device.
 
-* **Lenguaje**: Kotlin
-* **UI**: Jetpack Compose (BOM), Material 3
-* **Media**: AndroidX **Media3** (ExoPlayer, Session, UI)
-* **Arquitectura**: MVVM + Flows/Coroutines
-* **DI**: Hilt/Koin (si aplica)
-* **Data**: MediaStore · Room (si aplica)
-* **Testing**: JUnit/MockK/Compose UI Test (si aplica)
+## 📂 Project Structure
 
----
-
-## 🏗️ Estructura (sugerida)
+The project follows the standard Android app structure, with a few key directories:
 
 ```
-app/
-  ├─ data/            # Repositorios, fuentes de datos (MediaStore, Room)
-  ├─ domain/          # Casos de uso y modelos de dominio
-  ├─ ui/              # Pantallas Compose, theming, navegación
-  ├─ playback/        # ExoPlayer, MediaSession, notificación
-  └─ core/            # Utilidades comunes, ext, result wrappers
-```
-
-> Adapta a la estructura real del proyecto si difiere.
-
----
-
-## 🚀 Empezar
-
-### Requisitos
-
-* **Android Studio** reciente (Koala/Ladybug o superior)
-* **Android Gradle Plugin** y **Gradle** acordes a la versión del proyecto
-* **Min SDK**: el del repo (ej.: 24+)
-
-### Clonar y ejecutar
-
-```bash
-git clone https://github.com/<tu-usuario>/PixelPlay.git
-cd PixelPlay
-# Abre en Android Studio y sincroniza Gradle
-```
-
-Selecciona un dispositivo/emulador y ejecuta **Run** ▶️.
-
----
-
-## 📦 Dependencias clave (build.gradle.kts)
-
-> Usa **BOM de Compose** y **Media3**. Ajusta versiones si ya estás en otras.
-
-```kotlin
-dependencies {
-    // BOM de Compose (bloquea versiones compatibles)
-    implementation(platform("androidx.compose:compose-bom:2025.08.00"))
-
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-tooling-preview")
-    debugImplementation("androidx.compose.ui:ui-tooling")
-    implementation("androidx.compose.material3:material3")
-
-    // Media3 (ExoPlayer/Session/UI)
-    val media3 = "1.8.0"
-    implementation("androidx.media3:media3-exoplayer:$media3")
-    implementation("androidx.media3:media3-session:$media3")
-    implementation("androidx.media3:media3-ui:$media3")
-
-    // Kotlin Coroutines, Lifecycle, etc. (opcional)
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:<ver>")
-    implementation("androidx.lifecycle:lifecy
+app/src/main/java/com/theveloper/pixelplay/
+├── data
+│   ├── local       # Room database, DAOs, and entities.
+│   ├── remote      # Retrofit services for any network calls.
+│   ├── repository  # Repositories that abstract data sources.
+│   └── service     # The MusicService for background playback.
+├── di              # Hilt dependency injection modules.
+├── domain          # Use cases and domain models (if any).
+├── presentation    # UI-related classes.
+│   ├── components  # Reusable Jetpack Compose components.
+│   ├── navigation  # Navigation graph and related utilities.
+│   ├── screens     # Composable screens for different parts of the app.
+│   └── viewmodel   # ViewModels for each screen.
+├── ui
+│   ├── glancewidget # Glance App Widget implementation.
+│   └── theme       # App theme, colors, and typography.
+└── utils           # Utility classes and extension functions.
 ```
