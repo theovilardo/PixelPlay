@@ -6,13 +6,11 @@ PixelPlay is a modern, offline-first music player for Android, built with Kotlin
 
 - **Local Music Playback**: Scans and plays your local audio files (MP3, FLAC, AAC, etc.).
 - **Background Playback**: Listen to music while the app is in the background, thanks to a foreground service and Media3.
-- **Modern UI**: A beautiful and responsive UI built with Jetpack Compose and Material 3, supporting Dynamic Color and dark/light themes.
+- **Modern UI**: A beautiful and responsive UI built with Jetpack Compose and Material 3 Expressive, supporting Dynamic Color and dark/light themes.
 - **Music Library**: Organize and browse your music by songs, albums, and artists.
-- **Home Screen Widget**: Control your music from the home screen with a Glance-based app widget.
-- **Audio Waveform**: See the sound with a real-time audio waveform visualization.
+- **Widget**: Control your music from the home screen with a Glance-based app widget.
 - **Tag Editor**: Edit song metadata (title, artist, album, etc.) with the built-in tag editor.
 - **AI-Powered Features**: Explore advanced features powered by Gemini for a unique listening experience.
-- **Permissions Handling**: A smooth user experience with clear and concise permission requests.
 
 ## 🛠️ Tech Stack & Architecture
 
