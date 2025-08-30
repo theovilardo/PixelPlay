@@ -1,5 +1,15 @@
 # PixelPlay Music Player 🎵
 
+<p align="center">
+  <img src="assets/icon.png" alt="App Icon" width="128"/>
+</p>
+
+<p align="center">
+  <img src="assets/screenshot1.png" alt="Screenshot 1" width="200"/>
+  <img src="assets/screenshot2.png" alt="Screenshot 2" width="200"/>
+  <img src="assets/screenshot3.png" alt="Screenshot 3" width="200"/>
+</p>
+
 PixelPlay is a modern, offline-first music player for Android, built with Kotlin and Jetpack Compose. It's designed to provide a beautiful and seamless experience for listening to your local music library.
 
 ## ✨ Core Features
