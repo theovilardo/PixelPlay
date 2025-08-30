@@ -11,6 +11,15 @@
   <img src="assets/screenshot4.jpg" alt="Screenshot 4" width="200" style="border-radius:26px;"/>
 </p>
 
+<p align="center">
+    <a href="https://github.com/TheVeler/PixelPlay/releases">
+        <img src="https://img.shields.io/github/downloads/TheVeler/PixelPlay/total?label=Downloads&logo=github&style=for-the-badge" alt="GitHub Downloads">
+    </a>
+    <a href="https://github.com/TheVeler/PixelPlay/releases/latest">
+        <img src="https://img.shields.io/github/v/release/TheVeler/PixelPlay?display_name=tag&logo=github&style=for-the-badge" alt="GitHub release">
+    </a>
+</p>
+
 PixelPlay is a modern, offline-first music player for Android, built with Kotlin and Jetpack Compose. It's designed to provide a beautiful and seamless experience for listening to your local music library.
 
 ## ✨ Core Features
