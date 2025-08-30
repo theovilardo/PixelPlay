@@ -17,9 +17,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class TransitionUiState(
-    // The rule object itself is now the state. It can be null if no rule is set.
     val rule: TransitionRule? = null,
-    // We also hold the global settings separately to use as a fallback for display.
     val globalSettings: TransitionSettings = TransitionSettings(),
     val isLoading: Boolean = true,
     val isSaved: Boolean = false
@@ -43,8 +41,6 @@ class TransitionViewModel @Inject constructor(
     private fun loadSettings() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-
-            // Fetch both the specific rule (if it exists) and the global settings.
             val playlistRule = playlistId?.let { transitionRepository.getPlaylistDefaultRule(it).first() }
             val globalSettings = transitionRepository.getGlobalSettings().first()
 
@@ -58,9 +54,6 @@ class TransitionViewModel @Inject constructor(
         }
     }
 
-    // The settings currently displayed to the user.
-    // If a specific rule exists for the playlist, use its settings.
-    // Otherwise, fall back to the global settings.
     private fun getCurrentSettings(): TransitionSettings {
         return _uiState.value.rule?.settings ?: _uiState.value.globalSettings
     }
@@ -84,10 +77,9 @@ class TransitionViewModel @Inject constructor(
     }
 
     private fun updateRuleWithNewSettings(newSettings: TransitionSettings) {
-        // If a rule didn't exist, create a new one to hold the new settings.
         val ruleToUpdate = _uiState.value.rule ?: TransitionRule(
-            playlistId = playlistId ?: "", // Should not be null if we are updating a playlist rule
-            settings = TransitionSettings() // Start with default settings
+            playlistId = playlistId ?: "",
+            settings = TransitionSettings()
         )
         _uiState.update {
             it.copy(rule = ruleToUpdate.copy(settings = newSettings), isSaved = false)
@@ -100,8 +92,6 @@ class TransitionViewModel @Inject constructor(
 
             if (playlistId != null) {
                 if (ruleToSave != null) {
-                    // If the mode is NONE, we delete the rule.
-                    // Otherwise, we save (upsert) it.
                     if (ruleToSave.settings.mode == TransitionMode.NONE) {
                         transitionRepository.deletePlaylistDefaultRule(playlistId)
                     } else {
@@ -109,10 +99,8 @@ class TransitionViewModel @Inject constructor(
                     }
                 }
             } else {
-                // Editing global settings. The rule object is not used here.
                 transitionRepository.saveGlobalSettings(getCurrentSettings())
             }
-            // After saving, reload the settings from the source of truth.
             loadSettings()
             _uiState.update { it.copy(isSaved = true) }
         }

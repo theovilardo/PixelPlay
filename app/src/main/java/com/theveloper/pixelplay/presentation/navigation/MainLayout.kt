@@ -26,6 +26,6 @@ fun MainLayout(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
-        content(innerPadding) // El contenido principal de la app
+        content(innerPadding)
     }
 }

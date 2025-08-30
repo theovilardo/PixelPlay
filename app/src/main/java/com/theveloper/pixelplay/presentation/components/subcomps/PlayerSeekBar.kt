@@ -71,7 +71,6 @@ fun PlayerSeekBar(
             color = onBackgroundColor,
             fontSize = 12.sp
         )
-        //Spacer(modifier = Modifier.width(6.dp))
         WavyMusicSlider(
             modifier = Modifier
                 .fillMaxWidth()
@@ -88,7 +87,6 @@ fun PlayerSeekBar(
             waveFrequency = 0.08f,
             isPlaying = isPlaying
         )
-        //Spacer(modifier = Modifier.width(6.dp))
         Text(
             modifier = Modifier.weight(0.15f),
             text = formatDuration(totalDuration),

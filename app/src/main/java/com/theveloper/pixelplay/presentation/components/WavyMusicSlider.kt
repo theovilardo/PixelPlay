@@ -112,14 +112,6 @@ fun WavyMusicSlider(
     val thumbLineHeightPxInternal = with(LocalDensity.current) { thumbLineHeightWhenInteracting.toPx() }
     val thumbGapPx = with(LocalDensity.current) { 4.dp.toPx() }
 
-    // normalizedValue ahora usa valueProvider() y se recalcula cuando valueProvider() cambia.
-    // Ya no se puede 'remember' de la misma manera directa si queremos que reaccione a cambios en el proveedor.
-    // Se leerá dentro de drawWithCache donde se necesita.
-    // val normalizedValue = valueProvider().let { v ->
-    //     if (valueRange.endInclusive == valueRange.start) 0f
-    //     else ((v - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
-    // }
-
     val wavePath = remember { Path() }
 
     val sliderVisualHeight = remember(trackHeight, thumbRadius, thumbLineHeightWhenInteracting) {
@@ -127,10 +119,6 @@ fun WavyMusicSlider(
     }
 
     BoxWithConstraints(modifier = modifier.clipToBounds()) {
-        // El Slider subyacente todavía necesita un valor Float.
-        // Lo obtenemos del provider aquí. Si el provider cambia, esto se recompondrá.
-        // La optimización es que WavyMusicSlider en sí mismo no se recompone si SOLO el valor del provider cambia
-        // pero otros parámetros de WavyMusicSlider (como colores, etc.) no.
         val currentValue = valueProvider()
         Slider(
             value = currentValue,
@@ -154,26 +142,17 @@ fun WavyMusicSlider(
                 .fillMaxWidth()
                 .height(sliderVisualHeight)
                 .drawWithCache {
-                    // Cálculos que dependen del tamaño del Canvas (size)
                     val canvasWidth = size.width
                     val localCenterY = size.height / 2f
                     val localTrackStart = thumbRadiusPx
                     val localTrackEnd = canvasWidth - thumbRadiusPx
                     val localTrackWidth = (localTrackEnd - localTrackStart).coerceAtLeast(0f)
 
-                    // Obtener el valor normalizado aquí dentro, usando el provider
                     val normalizedValue = valueProvider().let { v ->
                         if (valueRange.endInclusive == valueRange.start) 0f
                         else ((v - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
                     }
-
-                    // El lambda onDraw DEBE devolver un DrawResult.
-                    // Lo hacemos llamando a onDrawWithContent al final,
-                    // aunque aquí no dibujamos el contenido original del Spacer (es vacío).
-                    // Esto simplemente satisface el tipo de retorno.
                     onDrawWithContent {
-                        // this: DrawScope
-
                         // --- Dibujar Pista Inactiva ---
                         val currentProgressPxEndVisual = localTrackStart + localTrackWidth * normalizedValue
                         if (hideInactiveTrackPortion) {
@@ -259,10 +238,6 @@ fun WavyMusicSlider(
                             size = Size(thumbCurrentWidthPx, thumbCurrentHeightPx),
                             cornerRadius = CornerRadius(thumbCurrentWidthPx / 2f)
                         )
-                        // No es necesario llamar a drawContent() aquí explícitamente porque
-                        // estamos dibujando todo nosotros y no queremos que el Spacer (vacío) se dibuje.
-                        // La llamada a onDrawWithContent {} al final del bloque drawWithCache es lo que
-                        // devuelve el DrawResult.
                     }
                 }
         )

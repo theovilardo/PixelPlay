@@ -326,13 +326,7 @@ class MainActivity : ComponentActivity() {
             val initialNavBarHeightPx = if (shouldHideNavigationBar) 0f else navBarH
             val initialTotalSheetHeightPx = initialContentHeightPx + initialNavBarHeightPx
             val initialY = screenHeightPx - initialTotalSheetHeightPx - collapsedMarginPx
-            val horizontalMargin = systemNavBarInset
 
-            // The PixelPlayTheme wrapping UnifiedPlayerSheet is removed as UnifiedPlayerSheet
-            // now handles its own theming internally based on playerViewModel's activePlayerColorSchemePair
-            // and the system MaterialTheme.colorScheme.
-            // The outer PixelPlayTheme in setContent > HandlePermissions > MainAppContent
-            // provides the overall app theme.
             UnifiedPlayerSheet(
                 playerViewModel = playerViewModel,
                 navController = navController,
@@ -344,7 +338,7 @@ class MainActivity : ComponentActivity() {
                 hideMiniPlayer = shouldHideMiniPlayer
             )
         }
-        Trace.endSection() // End MainActivity.MainUI
+        Trace.endSection()
     }
 
     @Composable
@@ -405,10 +399,6 @@ class MainActivity : ComponentActivity() {
         val sessionToken = SessionToken(this, ComponentName(this, MusicService::class.java))
         mediaControllerFuture = MediaController.Builder(this, sessionToken).buildAsync()
         mediaControllerFuture?.addListener({
-            // The ViewModel now handles its own connection logic internally.
-            // This listener in MainActivity can be used for Activity-specific logic
-            // when the controller is ready, but for now, it's not needed to trigger
-            // anything in the ViewModel.
         }, MoreExecutors.directExecutor())
     }
 

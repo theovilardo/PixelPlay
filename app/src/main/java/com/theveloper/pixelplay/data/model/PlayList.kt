@@ -5,13 +5,12 @@ import androidx.compose.runtime.Stable
 import kotlinx.serialization.Serializable
 
 @Immutable
-@Serializable // Para poder convertirlo a/desde JSON
+@Serializable
 data class Playlist(
-    val id: String, // UUID o timestamp para unicidad
+    val id: String,
     var name: String,
-    var songIds: List<String>, // Lista de IDs de las canciones en MediaStore
+    var songIds: List<String>,
     val createdAt: Long = System.currentTimeMillis(),
     var lastModified: Long = System.currentTimeMillis(),
-    // Podrías añadir una URI para una imagen de portada de la playlist si quieres
     val isAiGenerated: Boolean = false
 )

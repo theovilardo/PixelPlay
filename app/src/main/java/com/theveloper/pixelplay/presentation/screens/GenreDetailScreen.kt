@@ -8,8 +8,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,26 +21,20 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.filled.Shuffle // Import Shuffle icon
-import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FloatingActionButton // Import FAB
-import androidx.compose.material3.LargeFloatingActionButton
 import androidx.compose.material3.MediumFloatingActionButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
@@ -53,10 +45,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color // Added for default color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -66,7 +56,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavHostController
 import com.theveloper.pixelplay.data.model.Song // Import Song
-import com.theveloper.pixelplay.presentation.components.CollapsibleGenreTopBar
 import com.theveloper.pixelplay.presentation.components.GenreGradientTopBar
 // Attempt to import ExpressiveSongListItem. If this fails, a local one will be used.
 // import com.theveloper.pixelplay.presentation.screens.ExpressiveSongListItem // Path might vary
@@ -173,9 +162,6 @@ fun GenreDetailScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
-        // **LA CORRECCIÓN CLAVE ESTÁ AQUÍ**
-        // Usamos un Box como contenedor principal en lugar de una Column.
-        // Esto simplifica la jerarquía y soluciona el problema del scroll.
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -198,7 +184,6 @@ fun GenreDetailScreen(
                         modifier = Modifier.align(Alignment.Center).padding(16.dp)
                     )
                 } else {
-                    // Ahora la LazyColumn llena el Box, lo que le permite ser scrollable.
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
@@ -214,7 +199,6 @@ fun GenreDetailScreen(
                                     cornerRadiusBR = 0.dp
                                 )
                             )
-                            //.background(Color.Red)
                         ,
                         contentPadding = PaddingValues(bottom = MiniPlayerHeight + 36.dp),
                         verticalArrangement = Arrangement.spacedBy(24.dp)

@@ -111,11 +111,6 @@ class MusicRepositoryImpl @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun getAlbumById(id: Long): Flow<Album?> {
         LogUtils.d(this, "getAlbumById: $id")
-        // This method might need to consider allowed directories as well if consistency is key.
-        // For now, it fetches directly. If an album exists but all its songs are in disallowed
-        // directories, this would still return the album, while getAlbums might not.
-        // This could be acceptable for direct navigation (e.g. from a widget or notification).
-        // To make it consistent:
         return combine(
             userPreferencesRepository.allowedDirectoriesFlow,
             userPreferencesRepository.initialSetupDoneFlow
@@ -223,11 +218,6 @@ class MusicRepositoryImpl @Inject constructor(
 
     override suspend fun getAllUniqueAudioDirectories(): Set<String> = withContext(Dispatchers.IO) {
         LogUtils.d(this, "getAllUniqueAudioDirectories")
-        // This function's core logic of scanning MediaStore remains,
-        // as it's for discovering directories, not for filtering playback.
-        // The part about saving to userPreferencesRepository if initialSetupDone is false
-        // also remains relevant.
-        // No changes needed here based on parentDirectoryPath in SongEntity for this specific function.
         directoryScanMutex.withLock {
             val directories = mutableSetOf<String>()
             val projection = arrayOf(MediaStore.Audio.Media.DATA)

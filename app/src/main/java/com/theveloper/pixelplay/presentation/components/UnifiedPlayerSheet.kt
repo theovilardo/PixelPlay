@@ -2,7 +2,6 @@ package com.theveloper.pixelplay.presentation.components
 
 import android.annotation.SuppressLint
 import android.util.Log
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -19,7 +18,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.Image // Import Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -47,18 +45,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
@@ -66,7 +60,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -98,7 +91,6 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
-import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
 import com.theveloper.pixelplay.presentation.navigation.BottomNavItem
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
@@ -107,14 +99,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 // Coil imports for FullPlayerContentInternal
-import coil.compose.AsyncImagePainter
-import coil.compose.rememberAsyncImagePainter
-import coil.request.ImageRequest
-import coil.request.CachePolicy
-import kotlinx.coroutines.Dispatchers
 
 import com.theveloper.pixelplay.utils.formatDuration
 import kotlinx.collections.immutable.ImmutableList
@@ -123,8 +109,6 @@ import android.os.Trace // Import Trace
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.presentation.components.subcomps.FetchLyricsDialog
@@ -135,6 +119,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
+import timber.log.Timber
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
 import kotlin.math.pow
@@ -144,24 +129,8 @@ private val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error("
 
 val MiniPlayerHeight = 64.dp
 val PlayerSheetExpandedCornerRadius = 32.dp
-//val PlayerSheetCollapsedCornerRadius = 32.dp
 val CollapsedPlayerContentSpacerHeight = 6.dp
 const val ANIMATION_DURATION_MS = 255
-
-data class AlbumColorPalette(
-    val primary: Color,
-    val onPrimary: Color,
-    val secondary: Color,
-    val onSecondary: Color,
-    val tertiary: Color,
-    val onTertiary: Color,
-    val surface: Color,
-    val onSurface: Color,
-    val surfaceVariant: Color,
-    val onSurfaceVariant: Color,
-    val outline: Color,
-    val gradient: List<Color>
-)
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
@@ -646,7 +615,7 @@ fun UnifiedPlayerSheet(
         snapshotFlow { imeInsets.getBottom(density) > 0 }
             .collectLatest { isVisible ->
                 internalIsKeyboardVisible = isVisible
-                Log.d("UnifiedPlayerSheet", "Internal Keyboard Visible: $isVisible")
+                Timber.tag("UnifiedPlayerSheet").d("Internal Keyboard Visible: $isVisible")
             }
     }
 
@@ -1520,15 +1489,12 @@ private fun FullPlayerContentInternal(
         when (val state = lyricsSearchUiState) {
             is LyricsSearchUiState.Success -> {
                 if (showFetchLyricsDialog) {
-                    showFetchLyricsDialog = false // Cierra el diálogo de búsqueda
-                    showLyricsSheet = true       // Muestra la letra encontrada
+                    showFetchLyricsDialog = false
+                    showLyricsSheet = true
                     playerViewModel.resetLyricsSearchState()
                 }
             }
             is LyricsSearchUiState.Error -> {
-                // El diálogo ya muestra el error. Si falla, el usuario
-                // puede cerrar el diálogo de error con el botón "OK".
-                // El toast que mencionas se reemplaza por este diálogo de error.
             }
             else -> Unit
         }
@@ -1664,7 +1630,7 @@ private fun FullPlayerContentInternal(
 
             // Album Cover section - uses new Composable
             AlbumArtDisplaySection(
-                song = currentSong, // currentSong is from stablePlayerState via FullPlayerContentInternal's parameter
+                song = currentSong,
                 expansionFraction = expansionFraction,
                 modifier = albumArtContainerModifier
             )

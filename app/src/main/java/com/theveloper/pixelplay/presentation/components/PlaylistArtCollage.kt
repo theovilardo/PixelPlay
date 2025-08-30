@@ -56,7 +56,7 @@ fun PlaylistArtCollage(
             modifier = modifier
                 .aspectRatio(1f),
             shape = RoundedCornerShape(0.dp),
-            color = Color.Transparent//MaterialTheme.colorScheme.surfaceContainerLowest
+            color = Color.Transparent
         ) {
             val imageModifier = Modifier
 

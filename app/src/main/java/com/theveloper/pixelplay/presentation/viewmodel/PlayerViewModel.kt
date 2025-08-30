@@ -5,19 +5,22 @@ import android.content.ComponentName
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.drawable.Drawable
 import android.net.Uri
+import android.os.Trace
+import android.util.Log
 import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.compositeOver
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.drawable.toBitmap
+import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import coil.imageLoader
@@ -25,89 +28,76 @@ import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Size
 import com.google.common.util.concurrent.ListenableFuture
-import com.google.common.util.concurrent.MoreExecutors
-import com.theveloper.pixelplay.data.EotStateHolder // Ensure this import is present
+import com.theveloper.pixelplay.data.DailyMixManager
+import com.theveloper.pixelplay.data.EotStateHolder
+import com.theveloper.pixelplay.data.ai.AiMetadataGenerator
+import com.theveloper.pixelplay.data.ai.AiPlaylistGenerator
+import com.theveloper.pixelplay.data.ai.SongMetadata
 import com.theveloper.pixelplay.data.database.AlbumArtThemeDao
 import com.theveloper.pixelplay.data.database.AlbumArtThemeEntity
+import com.theveloper.pixelplay.data.database.StoredColorSchemeValues
 import com.theveloper.pixelplay.data.database.toComposeColor
+import com.theveloper.pixelplay.data.media.SongMetadataEditor
 import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Artist
+import com.theveloper.pixelplay.data.model.Genre
+import com.theveloper.pixelplay.data.model.Lyrics
+import com.theveloper.pixelplay.data.model.SearchFilterType
+import com.theveloper.pixelplay.data.model.SearchHistoryItem
+import com.theveloper.pixelplay.data.model.SearchResultItem
 import com.theveloper.pixelplay.data.model.Song
+import com.theveloper.pixelplay.data.model.SortOption
 import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.data.service.MusicService
+import com.theveloper.pixelplay.data.worker.SyncManager
 import com.theveloper.pixelplay.ui.theme.DarkColorScheme
+import com.theveloper.pixelplay.ui.theme.GenreColors
 import com.theveloper.pixelplay.ui.theme.LightColorScheme
 import com.theveloper.pixelplay.ui.theme.extractSeedColor
 import com.theveloper.pixelplay.ui.theme.generateColorSchemeFromSeed
+import com.theveloper.pixelplay.utils.toHexString
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import javax.inject.Inject
-import kotlin.math.abs
-import androidx.core.graphics.createBitmap
-import com.theveloper.pixelplay.data.database.StoredColorSchemeValues
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.isActive
-import android.util.Log
-import androidx.core.content.ContextCompat
-import kotlinx.coroutines.joinAll
-import androidx.core.graphics.drawable.toBitmap
-import com.theveloper.pixelplay.data.model.SearchFilterType
-import com.theveloper.pixelplay.data.model.SearchHistoryItem
-import com.theveloper.pixelplay.data.model.SearchResultItem
-import com.theveloper.pixelplay.data.media.SongMetadataEditor
-import com.theveloper.pixelplay.data.model.SortOption
-import com.theveloper.pixelplay.data.worker.SyncManager
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
-import android.os.Trace // Import Trace
-import kotlinx.coroutines.flow.stateIn
-import java.util.concurrent.TimeUnit
-import androidx.lifecycle.asFlow
-import androidx.work.WorkInfo
-import androidx.core.net.toUri
-import androidx.media3.common.util.UnstableApi
-import com.theveloper.pixelplay.data.DailyMixManager
-import com.theveloper.pixelplay.data.ai.AiMetadataGenerator
-import com.theveloper.pixelplay.data.ai.AiPlaylistGenerator
-import com.theveloper.pixelplay.data.ai.SongMetadata
-import com.theveloper.pixelplay.data.model.Genre
-import com.theveloper.pixelplay.data.model.Lyrics
-import timber.log.Timber
-import com.theveloper.pixelplay.ui.theme.GenreColors
-import com.theveloper.pixelplay.utils.toHexString
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import timber.log.Timber
+import java.util.concurrent.TimeUnit
+import javax.inject.Inject
 
-// Nuevo enum para el estado del sheet
 enum class PlayerSheetState {
     COLLAPSED,
     EXPANDED
 }
 
-data class ColorSchemePair( // Definición local si no está en un archivo común
+data class ColorSchemePair(
     val light: ColorScheme,
     val dark: ColorScheme
 )
 
-// Estado para datos que no cambian cada segundo
 data class StablePlayerState(
     val currentSong: Song? = null,
     val isPlaying: Boolean = false,
@@ -120,21 +110,16 @@ data class StablePlayerState(
 )
 
 data class PlayerUiState(
-    // currentSong, isPlaying, totalDuration, shuffle, repeat, favorite se mueven a StablePlayerState
-    val currentPosition: Long = 0L, // Este se actualiza frecuentemente
+    val currentPosition: Long = 0L,
     val isLoadingInitialSongs: Boolean = true,
     val isGeneratingAiMetadata: Boolean = false,
-    // val isLoadingMoreSongs: Boolean = false, // Removed
     val allSongs: ImmutableList<Song> = persistentListOf(),
-    // val canLoadMoreSongs: Boolean = true, // Removed
     val currentPlaybackQueue: ImmutableList<Song> = persistentListOf(),
     val currentQueueSourceName: String = "All Songs",
     val lavaLampColors: ImmutableList<Color> = persistentListOf(),
     val albums: ImmutableList<Album> = persistentListOf(),
     val artists: ImmutableList<Artist> = persistentListOf(),
-    val isLoadingLibraryCategories: Boolean = false, // Default to false, might need separate flags for albums/artists
-    // val canLoadMoreAlbums: Boolean = true, // Removed
-    // val canLoadMoreArtists: Boolean = true, // Removed
+    val isLoadingLibraryCategories: Boolean = false,
     val currentSongSortOption: SortOption = SortOption.SongTitleAZ,
     val currentAlbumSortOption: SortOption = SortOption.AlbumTitleAZ,
     val currentArtistSortOption: SortOption = SortOption.ArtistNameAZ,
@@ -142,7 +127,7 @@ data class PlayerUiState(
     val searchResults: ImmutableList<SearchResultItem> = persistentListOf(),
     val selectedSearchFilter: SearchFilterType = SearchFilterType.ALL,
     val searchHistory: ImmutableList<SearchHistoryItem> = persistentListOf(),
-    val isSyncingLibrary: Boolean = false, // Nuevo estado para la sincronización
+    val isSyncingLibrary: Boolean = false,
 
     // State for dismiss/undo functionality
     val showDismissUndoBar: Boolean = false,
@@ -150,11 +135,10 @@ data class PlayerUiState(
     val dismissedQueue: ImmutableList<Song> = persistentListOf(),
     val dismissedQueueName: String = "",
     val dismissedPosition: Long = 0L,
-    val undoBarVisibleDuration: Long = 4000L, // 4 seconds
+    val undoBarVisibleDuration: Long = 4000L,
     val preparingSongId: String? = null
 )
 
-// Estado para la UI de búsqueda de letras
 sealed interface LyricsSearchUiState {
     object Idle : LyricsSearchUiState
     object Loading : LyricsSearchUiState
@@ -207,9 +191,7 @@ class PlayerViewModel @Inject constructor(
 
     private val _currentAlbumArtColorSchemePair = MutableStateFlow<ColorSchemePair?>(null)
     val currentAlbumArtColorSchemePair: StateFlow<ColorSchemePair?> = _currentAlbumArtColorSchemePair.asStateFlow()
-    // Global and Player theme preferences are now managed by UserPreferencesRepository,
-    // but PlayerViewModel still needs to observe them to react to changes.
-    //val globalThemePreference: StateFlow<String> = userPreferencesRepository.globalThemePreferenceFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemePreference.DYNAMIC)
+
     val playerThemePreference: StateFlow<String> = userPreferencesRepository.playerThemePreferenceFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemePreference.GLOBAL)
 
     val navBarCornerRadius: StateFlow<Int> = userPreferencesRepository.navBarCornerRadiusFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 32)
@@ -231,7 +213,6 @@ class PlayerViewModel @Inject constructor(
     val lyricsSearchUiState = _lyricsSearchUiState.asStateFlow()
 
     private var sleepTimerJob: Job? = null
-    // private val _endOfTrackSongId = MutableStateFlow<String?>(null) // Removed, EotStateHolder is the source of truth
     private var eotSongMonitorJob: Job? = null
 
     // Toast Events
@@ -252,12 +233,9 @@ class PlayerViewModel @Inject constructor(
             initialValue = 0 // Default to Songs tab
         )
 
-    
 
-    // CAMBIO 1: Añadir estado para rastrear las pestañas ya cargadas.
     private val _loadedTabs = MutableStateFlow(emptySet<Int>())
 
-    // CAMBIO 3: Mover la lógica de las opciones de ordenamiento al ViewModel.
     val availableSortOptions: StateFlow<List<SortOption>> =
         lastLibraryTabIndexFlow.map { tabIndex ->
             Trace.beginSection("PlayerViewModel.availableSortOptionsMapping")
@@ -277,7 +255,7 @@ class PlayerViewModel @Inject constructor(
                     SortOption.AlbumReleaseYear
                 )
                 2 -> listOf(SortOption.ArtistNameAZ, SortOption.ArtistNameZA)
-                3 -> listOf( // Assuming Playlist sort options might exist
+                3 -> listOf(
                     SortOption.PlaylistNameAZ,
                     SortOption.PlaylistNameZA,
                     SortOption.PlaylistDateCreated
@@ -302,21 +280,14 @@ class PlayerViewModel @Inject constructor(
             )
         )
 
-    // StateFlow to hold the sync status, converted from syncManager.isSyncing (Flow)
-    // Initial value true, as we might assume sync is active on app start until proven otherwise.
     val isSyncingStateFlow: StateFlow<Boolean> = syncManager.isSyncing
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = true // Assuming sync might be initially active
+            initialValue = true
         )
 
-    private val _isInitialDataLoaded = MutableStateFlow(false) // Flag to prevent double loading
-
-    // Paginación - REMOVED
-    // private var currentSongPage = 1
-    // private var currentAlbumPage = 1
-    // private var currentArtistPage = 1
+    private val _isInitialDataLoaded = MutableStateFlow(false)
 
     // Flow dedicado sólo a la lista de canciones:
     val allSongsFlow: StateFlow<List<Song>> =
@@ -354,7 +325,7 @@ class PlayerViewModel @Inject constructor(
                     null
                 }
             }.filterNotNull()
-                .sortedBy { it.name } // Sort genres alphabetically
+                .sortedBy { it.name }
                 .toImmutableList()
         }
         .stateIn(
@@ -363,17 +334,6 @@ class PlayerViewModel @Inject constructor(
             initialValue = persistentListOf()
         )
 
-    // val activeGlobalColorSchemePair: StateFlow<ColorSchemePair?> = combine( // Removed
-    //     globalThemePreference, _currentAlbumArtColorSchemePair
-    // ) { globalPref, albumScheme ->
-    //     when (globalPref) {
-    //         ThemePreference.ALBUM_ART -> albumScheme
-    //         ThemePreference.DYNAMIC -> null
-    //         ThemePreference.DEFAULT -> ColorSchemePair(LightColorScheme, DarkColorScheme)
-    //         else -> null
-    //     }
-    // }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
-
     val activePlayerColorSchemePair: StateFlow<ColorSchemePair?> = combine(
         playerThemePreference, _currentAlbumArtColorSchemePair
     ) { playerPref, albumScheme ->
@@ -381,18 +341,14 @@ class PlayerViewModel @Inject constructor(
             ThemePreference.ALBUM_ART -> albumScheme
             ThemePreference.DYNAMIC -> null // Signal to use system's MaterialTheme.colorScheme
             ThemePreference.DEFAULT -> null // Effectively makes DEFAULT same as DYNAMIC (use system theme)
-            // ThemePreference.GLOBAL has been removed from defaults and options
             else -> albumScheme // Fallback to album art if preference is somehow unknown or old 'GLOBAL'
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null) // Initial value null (system theme)
 
-    // Caché en memoria para los ColorSchemePair de álbumes individuales, para acceso rápido en la UI.
-    // Room es el caché persistente.
     private val individualAlbumColorSchemes = mutableMapOf<String, MutableStateFlow<ColorSchemePair?>>()
 
-    // Cola para procesar solicitudes de generación de ColorScheme
     private val colorSchemeRequestChannel = kotlinx.coroutines.channels.Channel<String>(kotlinx.coroutines.channels.Channel.UNLIMITED)
-    private val urisBeingProcessed = mutableSetOf<String>() // Para evitar encolar duplicados
+    private val urisBeingProcessed = mutableSetOf<String>()
 
     private var mediaController: MediaController? = null
     private val sessionToken = SessionToken(context, ComponentName(context, MusicService::class.java))
@@ -403,15 +359,13 @@ class PlayerViewModel @Inject constructor(
 
     val favoriteSongIds: StateFlow<Set<String>> = userPreferencesRepository.favoriteSongIdsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
-    // StateFlow separado para la opción de ordenación de canciones favoritas
     private val _currentFavoriteSortOptionStateFlow = MutableStateFlow<SortOption>(SortOption.LikedSongTitleAZ) // Default. Especificar el tipo general SortOption.
     val currentFavoriteSortOptionStateFlow: StateFlow<SortOption> = _currentFavoriteSortOptionStateFlow.asStateFlow()
 
-    // Nuevo StateFlow para la lista de objetos Song favoritos
     val favoriteSongs: StateFlow<ImmutableList<Song>> = combine(
         favoriteSongIds,
-        _masterAllSongs, // Depende de la lista maestra, no de la lista ordenada de la UI
-        currentFavoriteSortOptionStateFlow // Depende del StateFlow de ordenación dedicado
+        _masterAllSongs,
+        currentFavoriteSortOptionStateFlow
     ) { ids, allSongsList, sortOption ->
         Log.d("PlayerViewModel", "Calculating favoriteSongs. IDs size: ${ids.size}, All songs size: ${allSongsList.size}, SortOption: $sortOption")
         val favoriteSongsList = allSongsList.filter { song -> ids.contains(song.id) }
@@ -421,8 +375,8 @@ class PlayerViewModel @Inject constructor(
             SortOption.LikedSongTitleZA -> favoriteSongsList.sortedByDescending { it.title }
             SortOption.LikedSongArtist -> favoriteSongsList.sortedBy { it.artist }
             SortOption.LikedSongAlbum -> favoriteSongsList.sortedBy { it.album }
-            SortOption.LikedSongDateLiked -> favoriteSongsList.sortedByDescending { it.id } // Assuming dateAdded for Liked
-            else -> favoriteSongsList // Should not happen
+            SortOption.LikedSongDateLiked -> favoriteSongsList.sortedByDescending { it.id }
+            else -> favoriteSongsList
         }.toImmutableList()
     }
     .flowOn(Dispatchers.Default) // Execute combine and transformations on Default dispatcher
@@ -485,18 +439,8 @@ class PlayerViewModel @Inject constructor(
     }
 
 
-    fun updateBottomBarHeight(heightPx: Int) {
-        if (_bottomBarHeight.value != heightPx) {
-            _bottomBarHeight.value = heightPx
-        }
-    }
-
     fun updatePredictiveBackCollapseFraction(fraction: Float) {
         _predictiveBackCollapseFraction.value = fraction.coerceIn(0f, 1f)
-    }
-
-    fun resetPredictiveBackCollapseFractionAfterAnimation() {
-        _predictiveBackCollapseFraction.value = 0f
     }
 
     // Helper function to convert SortOption name string to SortOption object
@@ -525,7 +469,6 @@ class PlayerViewModel @Inject constructor(
     }
 
     init {
-        Trace.beginSection("PlayerViewModel.init")
         Log.i("PlayerViewModel", "init started.")
 
         // Load initial sort options ONCE at startup.
@@ -564,8 +507,6 @@ class PlayerViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            // This check ensures that if sync is already complete (e.g. on subsequent app starts or if sync was very fast)
-            // and data hasn't been loaded yet, it gets loaded.
             if (!isSyncingStateFlow.value && !_isInitialDataLoaded.value && _playerUiState.value.allSongs.isEmpty()) {
                 Log.i("PlayerViewModel", "Initial check: Sync not active and initial data not loaded. Calling resetAndLoadInitialData.")
                 resetAndLoadInitialData("Initial Check")
@@ -617,12 +558,6 @@ class PlayerViewModel @Inject constructor(
             val overallInitStartTime = System.currentTimeMillis()
             _isInitialThemePreloadComplete.value = false // Mantener esto
             Log.d("PlayerViewModelPerformance", "preloadThemesAndInitialData: _isInitialThemePreloadComplete set to false. Time from start: ${System.currentTimeMillis() - overallInitStartTime} ms")
-
-            // Start loading initial UI data
-            // Note: resetAndLoadInitialData is now called conditionally based on sync state in the init block.
-            // We might not need to call it unconditionally here anymore if the init block's logic is robust.
-            // However, if sync is not involved (e.g. app already synced), this ensures data is loaded.
-            // The conditional calls in init block aim to prevent redundant loads if sync just finished.
             if (isSyncingStateFlow.value && !_isInitialDataLoaded.value) {
                  Log.i("PlayerViewModel", "preloadThemesAndInitialData: Sync is active and initial data not yet loaded, deferring initial load to sync completion handler.")
             } else if (!_isInitialDataLoaded.value && _playerUiState.value.allSongs.isEmpty()) { // Check _isInitialDataLoaded
@@ -631,16 +566,12 @@ class PlayerViewModel @Inject constructor(
             } else {
                 Log.i("PlayerViewModel", "preloadThemesAndInitialData: Initial data already loaded or sync is active and will trigger load. Skipping direct call to resetAndLoadInitialData from preload.")
             }
-            //Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData() call took ${System.currentTimeMillis() - resetLoadDataStartTime} ms (Note: actual loading is async). Time from overallInitStart: ${System.currentTimeMillis() - overallInitStartTime} ms")
-
-            // The UI will observe isLoadingInitialSongs and isLoadingLibraryCategories directly.
-            // We set _isInitialThemePreloadComplete to true immediately after dispatching async work.
             _isInitialThemePreloadComplete.value = true
             val timeToComplete = System.currentTimeMillis() - overallInitStartTime
             Log.d("PlayerViewModelPerformance", "Initial theme preload complete (async data loading dispatched). Total time since overallInitStart: ${timeToComplete} ms")
         }
         Log.d("PlayerViewModelPerformance", "preloadThemesAndInitialData END. Total function time: ${System.currentTimeMillis() - functionStartTime} ms (dispatching async work)")
-        Trace.endSection() // End PlayerViewModel.preloadThemesAndInitialData
+        Trace.endSection()
     }
 
     // Nueva función para carga paralela
@@ -648,7 +579,7 @@ class PlayerViewModel @Inject constructor(
         _playerUiState.update {
             it.copy(
                 isLoadingInitialSongs = true,
-                isLoadingLibraryCategories = true // Marcar ambos como cargando
+                isLoadingLibraryCategories = true
             )
         }
 
@@ -706,14 +637,14 @@ class PlayerViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                joinAll(songsJob, albumsJob, artistsJob) // Esperar a que todas las cargas finalicen
+                joinAll(songsJob, albumsJob, artistsJob)
                 Log.d("PlayerViewModel", "All parallel loads (songs, albums, artists) completed.")
             } catch (e: Exception) {
                 Log.e("PlayerViewModel", "Error during parallel data loading completion", e)
             } finally {
                 _playerUiState.update {
                     it.copy(
-                        isLoadingInitialSongs = false, // Asegurarse de que estén en false
+                        isLoadingInitialSongs = false,
                         isLoadingLibraryCategories = false
                     )
                 }
@@ -729,13 +660,9 @@ class PlayerViewModel @Inject constructor(
         Log.i("PlayerViewModel", "resetAndLoadInitialData called from: $caller. Proceeding with load.")
         Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData START - Called by: $caller")
 
-        // Reset relevant parts of UI state is handled by loadInitialLibraryDataParallel
-        // by setting isLoading flags to true at its beginning.
-
-        loadInitialLibraryDataParallel() // Call the new parallel loading function
+        loadInitialLibraryDataParallel()
         updateDailyMix()
 
-        // Initial load for albums and artists will be triggered by their respective tabs if needed.
         Log.d("PlayerViewModelPerformance", "resetAndLoadInitialData END (dispatching parallel async work). Total function time: ${System.currentTimeMillis() - functionStartTime} ms")
         Trace.endSection() // End PlayerViewModel.resetAndLoadInitialData
     }
@@ -747,7 +674,6 @@ class PlayerViewModel @Inject constructor(
         // No longer need checks for isLoadingMoreSongs or canLoadMoreSongs
 
         viewModelScope.launch { // Default dispatcher is Main.Immediate which is fine for launching.
-            Trace.beginSection("PlayerViewModel.loadSongsFromRepository_coroutine")
             val functionStartTime = System.currentTimeMillis()
             Log.d("PlayerViewModelPerformance", "loadSongsFromRepository (Single Action) START")
 
@@ -786,13 +712,7 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    // fun loadMoreSongs() { // REMOVED
-    //     loadSongsFromRepository()
-    // }
-
-    // Funciones para cargar álbumes
     private fun loadAlbumsFromRepository() {
-        // No longer need checks for isLoadingLibraryCategories (for more) or canLoadMoreAlbums
         Log.d("PlayerViewModelPerformance", "loadAlbumsFromRepository (All) called.")
 
         viewModelScope.launch {
@@ -800,8 +720,6 @@ class PlayerViewModel @Inject constructor(
             val functionStartTime = System.currentTimeMillis()
             Log.d("PlayerViewModelPerformance", "loadAlbumsFromRepository (All) START")
 
-            // Use isLoadingLibraryCategories for initial load of albums for now.
-            // Consider separate isLoadingAlbums if more granularity is needed.
             _playerUiState.update { it.copy(isLoadingLibraryCategories = true) }
 
             try {
@@ -843,13 +761,9 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    // fun loadMoreAlbums() { // REMOVED
-    // }
-
     fun loadAlbumsIfNeeded() {
         val albumsEmpty = _playerUiState.value.albums.isEmpty()
-        // val canLoadMore = _playerUiState.value.canLoadMoreAlbums // Removed
-        val notLoading = !_playerUiState.value.isLoadingLibraryCategories // Still relevant for initial load
+        val notLoading = !_playerUiState.value.isLoadingLibraryCategories
         Log.d("PlayerViewModel", "loadAlbumsIfNeeded: albumsEmpty=$albumsEmpty, notLoadingLibraryCategories=$notLoading")
         if (albumsEmpty && notLoading) { // Simplified condition
             Log.i("PlayerViewModel", "loadAlbumsIfNeeded: Conditions met. Loading all albums.")
@@ -864,14 +778,12 @@ class PlayerViewModel @Inject constructor(
 
     // Funciones para cargar artistas
     private fun loadArtistsFromRepository() {
-        // No longer need checks for isLoadingLibraryCategories (for more) or canLoadMoreArtists
         Log.d("PlayerViewModelPerformance", "loadArtistsFromRepository (All) called.")
 
         viewModelScope.launch {
             val functionStartTime = System.currentTimeMillis()
             Log.d("PlayerViewModelPerformance", "loadArtistsFromRepository (All) START")
 
-            // Use isLoadingLibraryCategories for initial load of artists for now.
             _playerUiState.update { it.copy(isLoadingLibraryCategories = true) }
 
             try {
@@ -895,13 +807,9 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    // fun loadMoreArtists() { // REMOVED
-    // }
-
     fun loadArtistsIfNeeded() {
         val artistsEmpty = _playerUiState.value.artists.isEmpty()
-        // val canLoadMore = _playerUiState.value.canLoadMoreArtists // Removed
-        val notLoading = !_playerUiState.value.isLoadingLibraryCategories // Still relevant for initial load
+        val notLoading = !_playerUiState.value.isLoadingLibraryCategories
         Log.d("PlayerViewModel", "loadArtistsIfNeeded: artistsEmpty=$artistsEmpty, notLoadingLibraryCategories=$notLoading")
         if (artistsEmpty && notLoading) { // Simplified condition
             Log.i("PlayerViewModel", "loadArtistsIfNeeded: Conditions met. Loading all artists.")
@@ -914,7 +822,6 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    // showAndPlaySong ahora usa playSongs con la lista de contexto proporcionada.
     fun showAndPlaySong(
         song: Song,
         contextSongs: List<Song>,
@@ -922,47 +829,32 @@ class PlayerViewModel @Inject constructor(
         isVoluntaryPlay: Boolean = true
     ) {
         _playerUiState.update { it.copy(preparingSongId = song.id) }
-        // Utiliza la lista de canciones del contexto actual (ej: canciones de un género específico) como la cola.
         if (isVoluntaryPlay) {
             incrementSongScore(song.id)
         }
         playSongs(contextSongs, song, queueName, null)
-        // _isSheetVisible.value = true // MOVED to playSongsAction
         _predictiveBackCollapseFraction.value = 0f
     }
 
-    // Overloaded method for playing a single song, assuming it's from the main "all songs" list.
     fun showAndPlaySong(song: Song) {
-        // Uses the current 'allSongs' list from the UI state as the default playback context.
-        // This list is paginated, so the full queue might only contain currently loaded songs.
-        // For a true "play from library" feel where the queue is all songs,
-        // 'allSongs' should ideally represent the fully loaded library if performance allows,
-        // or this method might need to trigger loading all songs for the queue.
-        // For now, it uses the existing playerUiState.value.allSongs.
         showAndPlaySong(song, playerUiState.value.allSongs.toList(), "Library")
     }
 
     fun playAlbum(album: Album) {
         viewModelScope.launch {
             try {
-                // Colecta la lista de canciones del Flow
                 val songsList: List<Song> = withContext(Dispatchers.IO) {
                     musicRepository.getSongsForAlbum(album.id).first()
                 }
 
                 if (songsList.isNotEmpty()) {
-                    // Ahora songsList es una List<Song>, y songsList.first() es una Song
-                    // UI updates and calls to playSongs (which might interact with MediaController) should be on Main
                     playSongs(songsList, songsList.first(), album.title, null)
                     _isSheetVisible.value = true // Mostrar reproductor
                 } else {
-                    // Opcional: manejar el caso donde el álbum no tiene canciones (o no permitidas)
                     Log.w("PlayerViewModel", "Album '${album.title}' has no playable songs.")
-                    // podrías emitir un evento Toast o actualizar el UI de alguna manera
                 }
             } catch (e: Exception) {
                 Log.e("PlayerViewModel", "Error playing album ${album.title}", e)
-                // Manejar el error, quizás mostrar un Toast
             }
         }
     }
@@ -970,14 +862,11 @@ class PlayerViewModel @Inject constructor(
     fun playArtist(artist: Artist) {
         viewModelScope.launch {
             try {
-                // Colecta la lista de canciones del Flow
                 val songsList: List<Song> = withContext(Dispatchers.IO) {
                     musicRepository.getSongsForArtist(artist.id).first()
                 }
 
                 if (songsList.isNotEmpty()) {
-                    // Ahora songsList es una List<Song>, y songsList.first() es una Song
-                    // UI updates and calls to playSongs should be on Main
                     playSongs(songsList, songsList.first(), artist.name, null)
                     _isSheetVisible.value = true
                 } else {
@@ -986,7 +875,6 @@ class PlayerViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 Log.e("PlayerViewModel", "Error playing artist ${artist.name}", e)
-                // Manejar el error
             }
         }
     }
@@ -997,7 +885,6 @@ class PlayerViewModel @Inject constructor(
             val indexToRemove = currentQueue.indexOfFirst { it.id == songId }
             if (indexToRemove != -1) {
                 controller.removeMediaItem(indexToRemove)
-                // La UI se actualizará a través de onTimelineChanged -> updateCurrentPlaybackQueueFromPlayer
             }
         }
     }
@@ -1007,7 +894,6 @@ class PlayerViewModel @Inject constructor(
             if (fromIndex >= 0 && fromIndex < controller.mediaItemCount &&
                 toIndex >= 0 && toIndex < controller.mediaItemCount) {
                 controller.moveMediaItem(fromIndex, toIndex)
-                // La UI se actualizará a través de onTimelineChanged
             }
         }
     }
@@ -1031,8 +917,8 @@ class PlayerViewModel @Inject constructor(
         _predictiveBackCollapseFraction.value = 0f
     }
 
-    private fun updateCurrentPlaybackQueueFromPlayer(playerCtrl: MediaController?) { // Accept playerCtrl as parameter
-        val currentMediaController = playerCtrl ?: mediaController ?: return // Use passed controller or fallback to class property
+    private fun updateCurrentPlaybackQueueFromPlayer(playerCtrl: MediaController?) {
+        val currentMediaController = playerCtrl ?: mediaController ?: return
         val count = currentMediaController.mediaItemCount
         val queue = mutableListOf<Song>()
         val allSongsMasterList = _playerUiState.value.allSongs
@@ -1045,17 +931,17 @@ class PlayerViewModel @Inject constructor(
 
     private fun setupMediaControllerListeners() {
         Trace.beginSection("PlayerViewModel.setupMediaControllerListeners")
-        val playerCtrl = mediaController ?: return Trace.endSection() // Renamed to avoid shadowing, ensure trace ends if early exit
+        val playerCtrl = mediaController ?: return Trace.endSection()
         _stablePlayerState.update {
             it.copy(
-                isShuffleEnabled = playerCtrl.shuffleModeEnabled, // Use playerCtrl
-                repeatMode = playerCtrl.repeatMode, // Use playerCtrl
-                isPlaying = playerCtrl.isPlaying // Use playerCtrl
+                isShuffleEnabled = playerCtrl.shuffleModeEnabled,
+                repeatMode = playerCtrl.repeatMode,
+                isPlaying = playerCtrl.isPlaying
             )
         }
-        updateCurrentPlaybackQueueFromPlayer(playerCtrl) // Pass playerCtrl
+        updateCurrentPlaybackQueueFromPlayer(playerCtrl)
 
-        playerCtrl.currentMediaItem?.mediaId?.let { songId -> // Use playerCtrl
+        playerCtrl.currentMediaItem?.mediaId?.let { songId ->
             val song = _playerUiState.value.currentPlaybackQueue.find { s -> s.id == songId }
                 ?: _playerUiState.value.allSongs.find { s -> s.id == songId }
 
@@ -1063,11 +949,11 @@ class PlayerViewModel @Inject constructor(
                 _stablePlayerState.update {
                     it.copy(
                         currentSong = song,
-                        totalDuration = playerCtrl.duration.coerceAtLeast(0L) // Use playerCtrl
+                        totalDuration = playerCtrl.duration.coerceAtLeast(0L)
                     )
                 }
-                _playerUiState.update { it.copy(currentPosition = playerCtrl.currentPosition.coerceAtLeast(0L)) } // Use playerCtrl
-                viewModelScope.launch { // ver si causa problemas, extractAndGenerateColorScheme ahora es suspend
+                _playerUiState.update { it.copy(currentPosition = playerCtrl.currentPosition.coerceAtLeast(0L)) }
+                viewModelScope.launch {
                     song.albumArtUriString?.toUri()?.let { uri ->
                         extractAndGenerateColorScheme(uri)
                     }
@@ -1076,22 +962,17 @@ class PlayerViewModel @Inject constructor(
                 if (playerCtrl.isPlaying) {
                     startProgressUpdates()
                 }
-                // DO NOT set _isSheetVisible.value = true here. It is handled by explicit user action
-                // (tapping notification -> showPlayer()) or by onIsPlayingChanged for new playback.
             } else {
                 _stablePlayerState.update { it.copy(currentSong = null, isPlaying = false) }
                 _playerUiState.update { it.copy(currentPosition = 0L) }
-                //if (_isSheetVisible.value) { /* hideSheetCompletely() */ }
             }
         }
 
-        playerCtrl.addListener(object : Player.Listener { // Use playerCtrl to add listener
+        playerCtrl.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _stablePlayerState.update { it.copy(isPlaying = isPlaying) }
                 if (isPlaying) {
-                    // This is the source of truth for showing the player when a new song starts.
                     _isSheetVisible.value = true
-                    // Clear any "preparing" state now that playback is confirmed.
                     if (_playerUiState.value.preparingSongId != null) {
                         _playerUiState.update { it.copy(preparingSongId = null) }
                     }
@@ -1101,17 +982,12 @@ class PlayerViewModel @Inject constructor(
                 }
             }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                // val controller = mediaController ?: return // No longer needed, use playerCtrl from outer scope
-
-                // --- EOT Completion Logic ---
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
-                    val activeEotSongId = com.theveloper.pixelplay.data.EotStateHolder.eotTargetSongId.value
-                    // Correctly get previousMediaItem using the playerCtrl instance
+                    val activeEotSongId = EotStateHolder.eotTargetSongId.value
                     val previousSongId = playerCtrl.run { if (previousMediaItemIndex != C.INDEX_UNSET) getMediaItemAt(previousMediaItemIndex).mediaId else null }
 
                     if (_isEndOfTrackTimerActive.value && activeEotSongId != null && previousSongId != null && previousSongId == activeEotSongId) {
-                        // EOT Condition Met: The EOT target song (previousSongId) just finished naturally.
-                        playerCtrl.seekTo(0L) // Seek new current item (mediaItem which is the next song) to its start
+                        playerCtrl.seekTo(0L)
                         playerCtrl.pause()
 
                         val finishedSongTitle = _playerUiState.value.allSongs.find { it.id == previousSongId }?.title
@@ -1120,10 +996,7 @@ class PlayerViewModel @Inject constructor(
                         viewModelScope.launch {
                             _toastEvents.emit("Playback stopped: $finishedSongTitle finished (End of Track).")
                         }
-                        // This clears _isEndOfTrackTimerActive, EotStateHolder.eotTargetSongId, and other timer states.
                         cancelSleepTimer(suppressDefaultToast = true)
-                        // eotHandled = true // Conceptually, EOT was handled. Player is now paused.
-                                         // The onIsPlayingChanged listener will update isPlaying state.
                     }
                 }
 
@@ -1136,7 +1009,7 @@ class PlayerViewModel @Inject constructor(
                         it.copy(
                             currentSong = song,
                             // Duration might be C.TIME_UNSET if not yet known, ensure it's non-negative
-                            totalDuration = playerCtrl.duration.coerceAtLeast(0L) // Use playerCtrl
+                            totalDuration = playerCtrl.duration.coerceAtLeast(0L)
                         )
                     }
                     // Reset position for the new song. If EOT handled, this is fine as player is paused.
@@ -1154,13 +1027,8 @@ class PlayerViewModel @Inject constructor(
                         loadLyricsForCurrentSong()
                     }
                 } ?: _stablePlayerState.update {
-                    // Handles case where mediaItem is null (e.g., end of playlist, queue cleared)
                     it.copy(currentSong = null, isPlaying = false, isCurrentSongFavorite = false)
                 }
-                // Other non-EOT related onMediaItemTransition logic for the new song can continue here if any.
-                // The player's play/pause state (isPlaying) is managed by onIsPlayingChanged listener.
-                // If EOT was handled, player was paused, onIsPlayingChanged(false) would have been triggered.
-                // If EOT not handled and player was playing, it continues playing the new mediaItem.
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -1180,11 +1048,9 @@ class PlayerViewModel @Inject constructor(
                 if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) updateCurrentPlaybackQueueFromPlayer(playerCtrl) // Pass playerCtrl
             }
         })
-        Trace.endSection() // End PlayerViewModel.setupMediaControllerListeners
+        Trace.endSection()
     }
 
-    // Modificado para establecer una lista de reproducción
-    // Modificar playSongs para que la cola sea la lista completa de allSongs si se inicia desde ahí
     fun playSongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None", playlistId: String? = null) {
         viewModelScope.launch {
             internalPlaySongs(songsToPlay, startSong, queueName, playlistId)
@@ -1192,8 +1058,6 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun showPlayer() {
-        // This method is called from MainActivity when the notification is tapped.
-        // It ensures the player becomes visible if it was hidden.
         if (stablePlayerState.value.currentSong != null) {
             _isSheetVisible.value = true
         }
@@ -1205,11 +1069,6 @@ class PlayerViewModel @Inject constructor(
 
         val playSongsAction = {
             mediaController?.let { controller ->
-                // Si la lista de canciones a reproducir es la lista 'allSongs' (paginada),
-                // idealmente deberíamos cargar todas las canciones para la cola.
-                // Esto es un compromiso: o cargamos todo para la cola (puede ser lento),
-                // o la cola se limita a lo ya cargado.
-                // Por ahora, usaremos `songsToPlay` como viene.
                 val mediaItems = songsToPlay.map { song ->
                     Log.d("PlayerViewModel_MediaItem", "Creating MediaItem for Song ID: ${song.id}, Title: ${song.title}")
                     Log.d("PlayerViewModel_MediaItem", "Song's albumArtUriString: ${song.albumArtUriString}")
@@ -1217,7 +1076,6 @@ class PlayerViewModel @Inject constructor(
                     val metadataBuilder = MediaMetadata.Builder()
                         .setTitle(song.title)
                         .setArtist(song.artist)
-                    // .setAlbumTitle(song.album) // Opcional
 
                     playlistId?.let {
                         val extras = android.os.Bundle()
@@ -1225,7 +1083,6 @@ class PlayerViewModel @Inject constructor(
                         metadataBuilder.setExtras(extras)
                     }
 
-                    // Set artwork URI without pre-loading byte data
                     song.albumArtUriString?.toUri()?.let { uri ->
                         metadataBuilder.setArtworkUri(uri)
                     }
@@ -1245,8 +1102,7 @@ class PlayerViewModel @Inject constructor(
                     controller.prepare()
                     controller.play()
                     _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
-                    // The listener should pick up the current song and process its artwork URI.
-                    updateFavoriteStatusForCurrentSong() // This depends on stablePlayerState.currentSong, ensure it's updated timely.
+                    updateFavoriteStatusForCurrentSong()
                 }
             }
             _playerUiState.update { it.copy(isLoadingInitialSongs = false) } // Marcar que la carga inicial de esta canción terminó
@@ -1274,7 +1130,6 @@ class PlayerViewModel @Inject constructor(
                 .setTitle(song.title)
                 .setArtist(song.artist)
                 .setArtworkUri(artworkUriForMediaItem)
-                // .setAlbumTitle(song.album) // Opcional: Considerar añadir si es útil
                 .build()
             val mediaItem = MediaItem.Builder()
                 .setMediaId(song.id)
@@ -1294,7 +1149,6 @@ class PlayerViewModel @Inject constructor(
                     extractAndGenerateColorScheme(uri, isPreload = false)
                 }
             }
-            //extractAndGeneratePalette(song.albumArtUri)
         }
     }
 
@@ -1308,7 +1162,6 @@ class PlayerViewModel @Inject constructor(
     fun toggleShuffle() {
         val newShuffleState = !_stablePlayerState.value.isShuffleEnabled
         mediaController?.shuffleModeEnabled = newShuffleState
-        // El listener onShuffleModeEnabledChanged actualizará el _uiState
     }
 
     fun cycleRepeatMode() {
@@ -1320,7 +1173,6 @@ class PlayerViewModel @Inject constructor(
             else -> Player.REPEAT_MODE_OFF
         }
         mediaController?.repeatMode = newMode
-        // El listener onRepeatModeChanged actualizará el _uiState
     }
 
     fun toggleFavorite() {
@@ -1328,7 +1180,6 @@ class PlayerViewModel @Inject constructor(
             viewModelScope.launch {
                 userPreferencesRepository.toggleFavoriteSong(songId)
                 updateFavoriteStatusForCurrentSong()
-                // _favoriteSongIds y, por ende, isCurrentSongFavorite se actualizarán por el flujo
             }
         }
     }
@@ -1336,8 +1187,6 @@ class PlayerViewModel @Inject constructor(
     fun toggleFavoriteSpecificSong(song: Song) {
         viewModelScope.launch {
             userPreferencesRepository.toggleFavoriteSong(song.id)
-            // _favoriteSongIds will update automatically via its flow from UserPreferencesRepository
-            // If current playing song is the one toggled, update its status too
             if (_stablePlayerState.value.currentSong?.id == song.id) {
                 updateFavoriteStatusForCurrentSong()
             }
@@ -1356,33 +1205,18 @@ class PlayerViewModel @Inject constructor(
                     .build())
                 .build()
             controller.addMediaItem(mediaItem)
-            // Optionally update local queue state if not automatically handled by listeners
-            // updateCurrentPlaybackQueueFromPlayer() // Call if needed and if it's safe
         }
     }
 
-    // Función para ser llamada por AlbumGridItem
     fun getAlbumColorSchemeFlow(albumArtUri: String?): StateFlow<ColorSchemePair?> {
-        val uriString = albumArtUri ?: "default_fallback_key" // Usar el operador Elvis para el valor por defecto
+        val uriString = albumArtUri ?: "default_fallback_key"
 
-        // Devolver flujo existente si ya está en la caché en memoria.
         individualAlbumColorSchemes[uriString]?.let { return it }
 
-        // Si el flujo no existe, créalo, encola la tarea (si es una URI válida) y devuélvelo.
         val newFlow = MutableStateFlow<ColorSchemePair?>(null)
         individualAlbumColorSchemes[uriString] = newFlow
 
-        if (albumArtUri != null) { // Solo procesa URIs válidas, no la clave de fallback aquí.
-            // urisBeingProcessed previene que la misma URI se encole múltiples veces si la llamada es rápida.
-            // El procesador del canal (launchColorSchemeProcessor) se encargará de la generación.
-            // No es necesario añadir a urisBeingProcessed aquí, launchColorSchemeProcessor lo maneja
-            // al consumir del canal y antes de llamar a getOrGenerateColorSchemeForUri.
-            // Sin embargo, el check original en launchColorSchemeProcessor es para evitar que se procese
-            // algo que ya se está procesando activamente. La adición a urisBeingProcessed
-            // debería ocurrir ANTES de enviar al canal para evitar que múltiples llamadas a esta función
-            // encolen la misma URI antes de que el procesador la tome.
-
-            // Sincronizar el acceso a urisBeingProcessed y el envío al canal
+        if (albumArtUri != null) {
             synchronized(urisBeingProcessed) {
                 if (!urisBeingProcessed.contains(uriString)) {
                     urisBeingProcessed.add(uriString) // Marcar como "intención de procesar"
@@ -1398,48 +1232,45 @@ class PlayerViewModel @Inject constructor(
                 }
             }
         } else if (uriString == "default_fallback_key") {
-            // Para la clave de fallback (URI nula), establece directamente el esquema por defecto.
             newFlow.value = ColorSchemePair(LightColorScheme, DarkColorScheme)
         }
         return newFlow
     }
 
     private fun launchColorSchemeProcessor() {
-        viewModelScope.launch(Dispatchers.IO) { // Usar Dispatchers.IO para el bucle del canal
+        viewModelScope.launch(Dispatchers.IO) {
             Trace.beginSection("PlayerViewModel.colorSchemeProcessorLoop")
             try {
-                for (albumArtUri in colorSchemeRequestChannel) { // Consume de la cola
+                for (albumArtUri in colorSchemeRequestChannel) {
                     Trace.beginSection("PlayerViewModel.processColorSchemeForUri")
                     try {
                         Log.d("PlayerViewModel", "Processing $albumArtUri from queue.")
-                        val scheme = getOrGenerateColorSchemeForUri(albumArtUri, false) // isPreload = false
+                        val scheme = getOrGenerateColorSchemeForUri(albumArtUri, false)
                         individualAlbumColorSchemes[albumArtUri]?.value = scheme
                         Log.d("PlayerViewModel", "Finished processing $albumArtUri. Scheme: ${scheme != null}")
                     } catch (e: Exception) {
                         Log.e("PlayerViewModel", "Error processing $albumArtUri in ColorSchemeProcessor", e)
-                        individualAlbumColorSchemes[albumArtUri]?.value = null // O un esquema de error/default
+                        individualAlbumColorSchemes[albumArtUri]?.value = null
                     } finally {
                         synchronized(urisBeingProcessed) {
-                            urisBeingProcessed.remove(albumArtUri) // Eliminar de procesándose
+                            urisBeingProcessed.remove(albumArtUri)
                         }
-                        Trace.endSection() // End PlayerViewModel.processColorSchemeForUri
+                        Trace.endSection()
                     }
                 }
             } finally {
-                Trace.endSection() // End PlayerViewModel.colorSchemeProcessorLoop
+                Trace.endSection()
             }
         }
     }
 
-    // Modificada para devolver el ColorSchemePair y ser usada por getAlbumColorSchemeFlow y la precarga
     private suspend fun getOrGenerateColorSchemeForUri(albumArtUri: String, isPreload: Boolean): ColorSchemePair? {
         Trace.beginSection("PlayerViewModel.getOrGenerateColorSchemeForUri")
-        val uriString = albumArtUri // uriString ya es el albumArtUri
+        val uriString = albumArtUri
         val cachedEntity = withContext(Dispatchers.IO) { albumArtThemeDao.getThemeByUri(uriString) }
 
         if (cachedEntity != null) {
             val schemePair = mapEntityToColorSchemePair(cachedEntity)
-            // Si es la canción actual Y no es precarga, actualizar el tema del reproductor
             if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) {
                 _currentAlbumArtColorSchemePair.value = schemePair
                 updateLavaLampColorsBasedOnActivePlayerScheme()
@@ -1447,16 +1278,15 @@ class PlayerViewModel @Inject constructor(
             return schemePair
         }
 
-        // Si no está en caché, generar
         return try {
             val bitmap = withContext(Dispatchers.IO) {
                 val request = ImageRequest.Builder(context)
                     .data(albumArtUri)
                     .allowHardware(false)
                     .size(Size(128, 128))
-                    .bitmapConfig(Bitmap.Config.ARGB_8888) // Asegurar consistencia
-                    .memoryCachePolicy(CachePolicy.ENABLED) // Consistencia con extractAndGenerateColorScheme
-                    .diskCachePolicy(CachePolicy.ENABLED)   // Consistencia con extractAndGenerateColorScheme
+                    .bitmapConfig(Bitmap.Config.ARGB_8888)
+                    .memoryCachePolicy(CachePolicy.ENABLED)
+                    .diskCachePolicy(CachePolicy.ENABLED)
                     .build()
                 val result = context.imageLoader.execute(request).drawable
                 result?.let { drawable ->
@@ -1482,7 +1312,7 @@ class PlayerViewModel @Inject constructor(
                     _currentAlbumArtColorSchemePair.value = null
                     updateLavaLampColorsBasedOnActivePlayerScheme()
                 }
-                Trace.endSection() // End PlayerViewModel.getOrGenerateColorSchemeForUri (bitmap was null)
+                Trace.endSection()
                 null
             }
         } catch (e: Exception) {
@@ -1490,7 +1320,7 @@ class PlayerViewModel @Inject constructor(
                 _currentAlbumArtColorSchemePair.value = null
                 updateLavaLampColorsBasedOnActivePlayerScheme()
             }
-            Trace.endSection() // End PlayerViewModel.getOrGenerateColorSchemeForUri (exception)
+            Trace.endSection()
             null
         }
     }
@@ -1498,12 +1328,11 @@ class PlayerViewModel @Inject constructor(
     private suspend fun extractAndGenerateColorScheme(albumArtUriAsUri: Uri?, isPreload: Boolean = false) {
         Trace.beginSection("PlayerViewModel.extractAndGenerateColorScheme")
         if (albumArtUriAsUri == null) {
-            // Check current song's string URI when determining if it's the one without art
             if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == null) {
                 _currentAlbumArtColorSchemePair.value = null
                 updateLavaLampColorsBasedOnActivePlayerScheme()
             }
-            Trace.endSection() // End PlayerViewModel.extractAndGenerateColorScheme (URI null)
+            Trace.endSection()
             return
         }
         val uriString = albumArtUriAsUri.toString()
@@ -1515,21 +1344,19 @@ class PlayerViewModel @Inject constructor(
                 _currentAlbumArtColorSchemePair.value = schemePair
                 updateLavaLampColorsBasedOnActivePlayerScheme()
             } else if (isPreload) {
-                // No es necesario actualizar _currentAlbumArtColorSchemePair durante la precarga
             }
-            Trace.endSection() // End PlayerViewModel.extractAndGenerateColorScheme (cached)
+            Trace.endSection()
             return
         }
 
-        // Si no está en caché, generar (incluso durante la precarga)
         try {
             val bitmap = withContext(Dispatchers.IO) {
                 val request = ImageRequest.Builder(context)
                     .data(albumArtUriAsUri)
-                    .allowHardware(false) // Palette necesita ARGB_8888
-                    .size(Size(128, 128)) // Redimensionar para Palette, más pequeño es más rápido
-                    .bitmapConfig(Bitmap.Config.ARGB_8888) // Explicitly set config
-                    .memoryCachePolicy(CachePolicy.ENABLED) // Ensure caching
+                    .allowHardware(false)
+                    .size(Size(128, 128))
+                    .bitmapConfig(Bitmap.Config.ARGB_8888)
+                    .memoryCachePolicy(CachePolicy.ENABLED)
                     .diskCachePolicy(CachePolicy.ENABLED)
                     .build()
                 val result = context.imageLoader.execute(request).drawable
@@ -1553,11 +1380,10 @@ class PlayerViewModel @Inject constructor(
             } ?: run { if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) { _currentAlbumArtColorSchemePair.value = null; updateLavaLampColorsBasedOnActivePlayerScheme() } }
         } catch (e: Exception) { if (!isPreload && _stablePlayerState.value.currentSong?.albumArtUriString == uriString) { _currentAlbumArtColorSchemePair.value = null; updateLavaLampColorsBasedOnActivePlayerScheme() } }
         finally {
-            Trace.endSection() // End PlayerViewModel.extractAndGenerateColorScheme (after generation attempt)
+            Trace.endSection()
         }
     }
 
-    // Funciones de Mapeo Entity <-> ColorSchemePair (Corregidas)
     private fun mapColorSchemePairToEntity(uriString: String, pair: ColorSchemePair): AlbumArtThemeEntity {
         fun mapSchemeToStoredValues(cs: ColorScheme) = StoredColorSchemeValues(
             primary = cs.primary.toHexString(), onPrimary = cs.onPrimary.toHexString(), primaryContainer = cs.primaryContainer.toHexString(), onPrimaryContainer = cs.onPrimaryContainer.toHexString(),
@@ -1585,7 +1411,6 @@ class PlayerViewModel @Inject constructor(
                 outline = sv.outline.toComposeColor(), errorContainer = sv.errorContainer.toComposeColor(), onErrorContainer = sv.onErrorContainer.toComposeColor(),
                 inversePrimary = sv.inversePrimary.toComposeColor(), surfaceTint = sv.surfaceTint.toComposeColor(), outlineVariant = sv.outlineVariant.toComposeColor(), scrim = sv.scrim.toComposeColor(),
                 inverseSurface = sv.inverseSurface.toComposeColor(), inverseOnSurface = sv.inverseOnSurface.toComposeColor(),
-                // Fill missing parameters with the placeholderColor
                 surfaceBright = placeholderColor,
                 surfaceDim = placeholderColor,
                 surfaceContainer = placeholderColor,
@@ -1610,19 +1435,10 @@ class PlayerViewModel @Inject constructor(
         return ColorSchemePair(mapStoredValuesToScheme(entity.lightThemeValues, false), mapStoredValuesToScheme(entity.darkThemeValues, true))
     }
 
-    // Helper para determinar el color del texto/icono basado en la luminancia del fondo
-    private fun getOnColor(backgroundColor: Color, lightColor: Color = Color.White, darkColor: Color = Color.Black): Color {
-        val r = backgroundColor.red * 255
-        val g = backgroundColor.green * 255
-        val b = backgroundColor.blue * 255
-        val luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
-        return if (luminance > 0.5) darkColor else lightColor
-    }
-
     private fun updateLavaLampColorsBasedOnActivePlayerScheme() {
         viewModelScope.launch {
-            val currentPlayerSchemePair = activePlayerColorSchemePair.first() // Puede ser null
-            val schemeForLava = currentPlayerSchemePair?.dark ?: DarkColorScheme // Fallback si es null
+            val currentPlayerSchemePair = activePlayerColorSchemePair.first()
+            val schemeForLava = currentPlayerSchemePair?.dark ?: DarkColorScheme
             _playerUiState.update {
                 it.copy(lavaLampColors = listOf(schemeForLava.primary, schemeForLava.secondary, schemeForLava.tertiary).distinct().toImmutableList())
             }
@@ -1635,7 +1451,6 @@ class PlayerViewModel @Inject constructor(
                 it.pause()
             } else {
                 if (it.currentMediaItem == null && _playerUiState.value.allSongs.isNotEmpty()) {
-                    // Si no hay nada cargado, carga la primera canción de la lista
                     loadAndPlaySong(_playerUiState.value.allSongs.first())
                 } else {
                     it.play()
@@ -1650,7 +1465,6 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun nextSong() {
-        // Old EOT deactivation logic removed, handled by eotSongMonitorJob
         mediaController?.let {
             if (it.hasNextMediaItem()) {
                 it.seekToNextMediaItem()
@@ -1660,7 +1474,6 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun previousSong() {
-        // Old EOT deactivation logic removed, handled by eotSongMonitorJob
         mediaController?.let { controller ->
             if (controller.currentPosition > 10000 && controller.isCurrentMediaItemSeekable) { // 10 segundos
                 controller.seekTo(0)
@@ -1694,8 +1507,8 @@ class PlayerViewModel @Inject constructor(
             try {
                 val request = ImageRequest.Builder(context)
                     .data(uriString.toUri())
-                    .size(Size(256, 256)) // Consistent with MusicService, can be adjusted
-                    .allowHardware(false) // Important for direct manipulation/conversion
+                    .size(Size(256, 256))
+                    .allowHardware(false)
                     .bitmapConfig(Bitmap.Config.ARGB_8888)
                     .build()
                 val drawable = context.imageLoader.execute(request).drawable
@@ -1707,7 +1520,6 @@ class PlayerViewModel @Inject constructor(
                     )
 
                     val stream = java.io.ByteArrayOutputStream()
-                    // Use WEBP for better quality/compression if possible, or JPEG with decent quality.
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                         bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 80, stream)
                     } else {
@@ -1729,7 +1541,7 @@ class PlayerViewModel @Inject constructor(
             SortOption.SongTitleZA -> _masterAllSongs.value.sortedByDescending { it.title }
             SortOption.SongArtist -> _masterAllSongs.value.sortedBy { it.artist }
             SortOption.SongAlbum -> _masterAllSongs.value.sortedBy { it.album }
-            SortOption.SongDateAdded -> _masterAllSongs.value.sortedByDescending { it.albumId } // need to implement date added for Song
+            SortOption.SongDateAdded -> _masterAllSongs.value.sortedByDescending { it.albumId }
             SortOption.SongDuration -> _masterAllSongs.value.sortedBy { it.duration }
             else -> _masterAllSongs.value
         }.toImmutableList()
@@ -1794,16 +1606,9 @@ class PlayerViewModel @Inject constructor(
 
     fun updateSearchFilter(filterType: SearchFilterType) {
         _playerUiState.update { it.copy(selectedSearchFilter = filterType) }
-        // Trigger a new search with the updated filter
-        // We get the current query from the state, assuming it's maintained elsewhere or not needed if query is also changing.
-        // For simplicity, let's assume the query is available and a search should be re-triggered.
-        // If performSearch is called from UI based on query text changes, this might be redundant
-        // unless the query is stable and only filter changes.
-        // Consider if the current query should be passed or fetched from a state field if it exists.
-        // For now, let's assume the UI will call performSearch again after updating the filter.
     }
 
-    fun loadSearchHistory(limit: Int = 15) { // Default limit to 15 or configurable
+    fun loadSearchHistory(limit: Int = 15) {
         viewModelScope.launch {
             val history = withContext(Dispatchers.IO) {
                 musicRepository.getRecentSearchHistory(limit)
@@ -1843,7 +1648,7 @@ class PlayerViewModel @Inject constructor(
                 Log.e("PlayerViewModel", "Error performing search for query: $query", e)
                 _playerUiState.update {
                     it.copy(
-                        searchResults = persistentListOf(), // Limpiar resultados en caso de error
+                        searchResults = persistentListOf(),
                     )
                 }
             }
@@ -1855,7 +1660,7 @@ class PlayerViewModel @Inject constructor(
             withContext(Dispatchers.IO) {
                 musicRepository.deleteSearchHistoryItemByQuery(query)
             }
-            loadSearchHistory() // Refresh the list
+            loadSearchHistory()
         }
     }
 
@@ -1930,12 +1735,9 @@ class PlayerViewModel @Inject constructor(
         mediaController?.let { controller ->
             val currentSongIndex = controller.currentMediaItemIndex
             if (currentSongIndex == C.INDEX_UNSET) return@let
-
-            // We must copy the indices to a separate list before removing them,
-            // because removing items shifts the indices of subsequent items.
             val indicesToRemove = (0 until controller.mediaItemCount)
                 .filter { it != currentSongIndex }
-                .sortedDescending() // Important: remove from the end to avoid index shifting issues
+                .sortedDescending()
 
             for (index in indicesToRemove) {
                 controller.removeMediaItem(index)
@@ -1946,17 +1748,13 @@ class PlayerViewModel @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         stopProgressUpdates()
-        // No liberar mediaControllerFuture aquí si es compartido o gestionado por la Activity/Service
-        // MediaController.releaseFuture(mediaControllerFuture) // Solo si este ViewModel es el único propietario
     }
 
     // Sleep Timer Control Functions
     fun setSleepTimer(durationMinutes: Int) {
         if (_isEndOfTrackTimerActive.value) {
             eotSongMonitorJob?.cancel()
-            // Suppress default toast because we are setting a new timer, which will have its own toast.
             cancelSleepTimer(suppressDefaultToast = true)
-            // _isEndOfTrackTimerActive and _endOfTrackSongId are cleared by cancelSleepTimer
         }
 
         sleepTimerJob?.cancel() // Cancel any existing duration-based timer job
@@ -1993,18 +1791,9 @@ class PlayerViewModel @Inject constructor(
             eotSongMonitorJob?.cancel()
             eotSongMonitorJob = viewModelScope.launch {
                 stablePlayerState.map { it.currentSong?.id }.distinctUntilChanged().collect { newSongId ->
-                    // Primary condition: Is EOT *still supposed to be active* according to our state?
-                    // And was it set for a specific song? And has the song ID actually changed from that target?
                     if (_isEndOfTrackTimerActive.value &&
                         EotStateHolder.eotTargetSongId.value != null &&
                         newSongId != EotStateHolder.eotTargetSongId.value) {
-
-                        // If all the above are true, it implies that:
-                        // 1. EOT was active for a specific song (EotStateHolder.eotTargetSongId.value).
-                        // 2. The current song (newSongId) is now different.
-                        // 3. The EOT did NOT complete naturally via onPlaybackStateChanged
-                        //    (because if it did, _isEndOfTrackTimerActive.value would be false now).
-                        // This strongly suggests a manual skip or programmatic song change.
 
                         val oldSongIdForToast = EotStateHolder.eotTargetSongId.value // Capture before it's cleared by cancelSleepTimer
                         val oldSongTitle = _playerUiState.value.allSongs.find { it.id == oldSongIdForToast }?.title
@@ -2016,12 +1805,8 @@ class PlayerViewModel @Inject constructor(
                             _toastEvents.emit("End of Track timer deactivated: song changed from $oldSongTitle to $newSongTitleText.")
                         }
 
-                        // Call cancelSleepTimer to perform the full cleanup.
-                        // Pass suppressDefaultToast = true because we've just emitted a more specific toast.
                         cancelSleepTimer(suppressDefaultToast = true)
 
-                        // It's good practice to also cancel the job itself if its purpose is fulfilled,
-                        // though cancelSleepTimer should also be cancelling it. This is belt-and-suspenders.
                         eotSongMonitorJob?.cancel()
                         eotSongMonitorJob = null
                     }
@@ -2029,10 +1814,9 @@ class PlayerViewModel @Inject constructor(
             }
             viewModelScope.launch { _toastEvents.emit("Playback will stop at end of track.") }
         } else {
-            // This branch is for explicit disabling, e.g., via UI toggle if it doesn't call cancelSleepTimer directly.
             eotSongMonitorJob?.cancel()
-            if (_isEndOfTrackTimerActive.value && EotStateHolder.eotTargetSongId.value != null) { // Check shared state
-                cancelSleepTimer() // Ensures full cleanup and default "Timer Cancelled" toast
+            if (_isEndOfTrackTimerActive.value && EotStateHolder.eotTargetSongId.value != null) {
+                cancelSleepTimer()
             }
         }
     }
@@ -2130,9 +1914,6 @@ class PlayerViewModel @Inject constructor(
                 // Restore the playlist and song
                 playSongs(queueToRestore.toList(), songToRestore, queueNameToRestore) // playSongs handles setting media items and playing
 
-                // Seek to the original position after media is prepared
-                // Need to observe player state or add a callback to know when it's safe to seek.
-                // For simplicity, adding a small delay, but a more robust solution would be better.
                 delay(500) // Small delay to allow player to prepare
                 mediaController?.seekTo(positionToRestore)
 
@@ -2173,12 +1954,6 @@ class PlayerViewModel @Inject constructor(
     // CAMBIO 1: Nueva función para manejar la carga de datos de forma diferida (lazy).
     fun onLibraryTabSelected(tabIndex: Int) {
         Trace.beginSection("PlayerViewModel.onLibraryTabSelected")
-        // Guarda el índice para la próxima vez que el usuario abra la app.
-        // Esta llamada ya está en el ViewModel, así que la lógica de persistencia está bien.
-        // No necesitamos llamarla explícitamente aquí si ya se llama cuando cambia el tab en la UI.
-        // Sin embargo, si esta función es la *única* fuente de verdad para la selección de tabs,
-        // entonces sí es necesario llamar a saveLastLibraryTabIndex(tabIndex).
-        // La especificación indica que LibraryScreen lo llamará, así que aquí es correcto.
         saveLastLibraryTabIndex(tabIndex)
 
         // Si la pestaña ya fue cargada, no hacemos nada para evitar trabajo innecesario.
@@ -2194,20 +1969,19 @@ class PlayerViewModel @Inject constructor(
             Trace.beginSection("PlayerViewModel.onLibraryTabSelected_coroutine_load")
             try {
                 when (tabIndex) {
-                    0 -> loadSongsIfNeeded() // Carga canciones si es necesario
-                    1 -> loadAlbumsIfNeeded() // Carga álbumes si es necesario
-                    2 -> loadArtistsIfNeeded() // Carga artistas si es necesario
-                    // Las pestañas 3 (Playlists) y 4 (Liked) ya tienen su propia lógica
-                    // de carga a través de otros ViewModels o flujos, lo cual está bien.
+                    0 -> loadSongsIfNeeded()
+                    1 -> loadAlbumsIfNeeded()
+                    2 -> loadArtistsIfNeeded()
+
                 }
                 // Marca la pestaña como cargada para no volver a cargarla.
                 _loadedTabs.update { currentTabs -> currentTabs + tabIndex }
                 Log.d("PlayerViewModel", "Tab $tabIndex marked as loaded. Current loaded tabs: ${_loadedTabs.value}")
             } finally {
-                Trace.endSection() // End PlayerViewModel.onLibraryTabSelected_coroutine_load
+                Trace.endSection()
             }
         }
-        Trace.endSection() // End PlayerViewModel.onLibraryTabSelected
+        Trace.endSection()
     }
 
     fun selectSongForInfo(song: Song) {

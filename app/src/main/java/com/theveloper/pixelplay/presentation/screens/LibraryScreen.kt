@@ -447,10 +447,8 @@ fun LibraryScreen(
                                             .distinctUntilChanged()
                                     }.collectAsState(initial = albums.isEmpty())
 
-                                    val stableOnAlbumClick: (Long) -> Unit = remember(navController) { // (1)
-                                        // Esta es la lambda que `remember` ejecutará (solo una vez si navController no cambia)
-                                        // Su trabajo es DEVOLVER la lambda que realmente quieres usar.
-                                        { albumId: Long -> // (2) Esta es la lambda (Long) -> Unit que se recuerda
+                                    val stableOnAlbumClick: (Long) -> Unit = remember(navController) {
+                                        { albumId: Long ->
                                             navController.navigate(Screen.AlbumDetail.createRoute(albumId))
                                         }
                                     }
@@ -487,10 +485,6 @@ fun LibraryScreen(
                                     )
                                 }
                                 3 -> {
-                                    // playlistUiState ya es granular y se recolecta una vez fuera del Pager
-                                    // si se va a usar para el `currentSelectedSortOption`.
-                                    // Si no, se puede recolectar aquí. Para consistencia con el prompt,
-                                    // asumimos que `playlistUiState` ya está disponible.
                                     val currentPlaylistUiState by playlistViewModel.uiState.collectAsState()
                                     LibraryPlaylistsTab(
                                         playlistUiState = currentPlaylistUiState,
@@ -502,7 +496,6 @@ fun LibraryScreen(
                                 }
 
                                 4 -> {
-                                    // favoriteSongs ya es un Flow separado, lo cual es perfecto.
                                     val favoriteSongs by playerViewModel.favoriteSongs.collectAsState()
                                     LibraryFavoritesTab(
                                         favoriteSongs = favoriteSongs,
@@ -517,9 +510,6 @@ fun LibraryScreen(
                         }
                     }
                 }
-
-                // El indicador de carga global puede permanecer, ya que es una superposición.
-                // Recolectar playerUiState aquí solo para el indicador de carga global.
                 val globalLoadingState by playerViewModel.playerUiState.collectAsState()
                 if (globalLoadingState.isGeneratingAiMetadata) {
                     Surface( // Fondo semitransparente para el indicador
@@ -539,7 +529,7 @@ fun LibraryScreen(
                         }
                     }
                 } else if (globalLoadingState.isSyncingLibrary || ((globalLoadingState.isLoadingInitialSongs || globalLoadingState.isLoadingLibraryCategories) && (globalLoadingState.allSongs.isEmpty() && globalLoadingState.albums.isEmpty() && globalLoadingState.artists.isEmpty()))) {
-                    Surface( // Fondo semitransparente para el indicador
+                    Surface(
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f)
                     ) {
@@ -566,10 +556,10 @@ fun LibraryScreen(
                     .background(
                         brush = Brush.verticalGradient(
                             colorStops = arrayOf(
-                                0.0f to Color.Transparent,                                           // Todo arriba transparente
-                                0.2f to Color.Transparent,                                           // Mantener transparencia hasta 60%
-                                0.8f to MaterialTheme.colorScheme.surfaceContainerLowest,            // Arranque repentino del color
-                                1.0f to MaterialTheme.colorScheme.surfaceContainerLowest             // Sólido hasta abajo
+                                0.0f to Color.Transparent,
+                                0.2f to Color.Transparent,
+                                0.8f to MaterialTheme.colorScheme.surfaceContainerLowest,
+                                1.0f to MaterialTheme.colorScheme.surfaceContainerLowest
                             )
                         )
                     )

@@ -94,18 +94,23 @@ class MusicService : MediaSessionService() {
                 customCommand: SessionCommand,
                 args: Bundle
             ): ListenableFuture<SessionResult> {
-                android.util.Log.d("MusicService", "onCustomCommand received: ${customCommand.customAction}")
+                Timber.tag("MusicService")
+                    .d("onCustomCommand received: ${customCommand.customAction}")
                 when (customCommand.customAction) {
                     MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_ON -> {
-                        android.util.Log.d("MusicService", "Executing SHUFFLE_ON. Current shuffleMode: ${session.player.shuffleModeEnabled}")
+                        Timber.tag("MusicService")
+                            .d("Executing SHUFFLE_ON. Current shuffleMode: ${session.player.shuffleModeEnabled}")
                         session.player.shuffleModeEnabled = true
-                        android.util.Log.d("MusicService", "Executed SHUFFLE_ON. New shuffleMode: ${session.player.shuffleModeEnabled}")
+                        Timber.tag("MusicService")
+                            .d("Executed SHUFFLE_ON. New shuffleMode: ${session.player.shuffleModeEnabled}")
                         onUpdateNotification(session)
                     }
                     MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_OFF -> {
-                        android.util.Log.d("MusicService", "Executing SHUFFLE_OFF. Current shuffleMode: ${session.player.shuffleModeEnabled}")
+                        Timber.tag("MusicService")
+                            .d("Executing SHUFFLE_OFF. Current shuffleMode: ${session.player.shuffleModeEnabled}")
                         session.player.shuffleModeEnabled = false
-                        android.util.Log.d("MusicService", "Executed SHUFFLE_OFF. New shuffleMode: ${session.player.shuffleModeEnabled}")
+                        Timber.tag("MusicService")
+                            .d("Executed SHUFFLE_OFF. New shuffleMode: ${session.player.shuffleModeEnabled}")
                         onUpdateNotification(session)
                     }
                     MusicNotificationProvider.CUSTOM_COMMAND_CYCLE_REPEAT_MODE -> {
@@ -120,11 +125,12 @@ class MusicService : MediaSessionService() {
                     }
                     MusicNotificationProvider.CUSTOM_COMMAND_LIKE -> {
                         val songId = session.player.currentMediaItem?.mediaId ?: return@onCustomCommand Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_UNKNOWN))
-                        android.util.Log.d("MusicService", "Executing LIKE for songId: $songId")
+                        Timber.tag("MusicService").d("Executing LIKE for songId: $songId")
                         serviceScope.launch {
-                            android.util.Log.d("MusicService", "Toggling favorite status for $songId")
+                            Timber.tag("MusicService").d("Toggling favorite status for $songId")
                             userPreferencesRepository.toggleFavoriteSong(songId)
-                            android.util.Log.d("MusicService", "Toggled favorite status. Updating notification.")
+                            Timber.tag("MusicService")
+                                .d("Toggled favorite status. Updating notification.")
                             // The flow collector will handle the notification update,
                             // but for instant feedback, we trigger it here too.
                             onUpdateNotification(session)
@@ -144,7 +150,8 @@ class MusicService : MediaSessionService() {
 
         serviceScope.launch {
             userPreferencesRepository.favoriteSongIdsFlow.collect { ids ->
-                android.util.Log.d("MusicService", "favoriteSongIdsFlow collected. New ids size: ${ids.size}")
+                Timber.tag("MusicService")
+                    .d("favoriteSongIdsFlow collected. New ids size: ${ids.size}")
                 val oldIds = favoriteSongIds
                 favoriteSongIds = ids
                 val currentSongId = mediaSession?.player?.currentMediaItem?.mediaId
@@ -152,7 +159,8 @@ class MusicService : MediaSessionService() {
                     val wasFavorite = oldIds.contains(currentSongId)
                     val isFavorite = ids.contains(currentSongId)
                     if (wasFavorite != isFavorite) {
-                        android.util.Log.d("MusicService", "Favorite status changed for current song. Updating notification.")
+                        Timber.tag("MusicService")
+                            .d("Favorite status changed for current song. Updating notification.")
                         mediaSession?.let { onUpdateNotification(it) }
                     }
                 }
@@ -160,8 +168,6 @@ class MusicService : MediaSessionService() {
         }
     }
 
-    // SOLUCIÓN WIDGET: Re-introducimos onStartCommand para traducir las acciones del widget.
-    // Esto asegura la compatibilidad con los intents que ya envía tu widget.
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         intent?.action?.let { action ->
             val player = mediaSession?.player ?: return@let
@@ -203,7 +209,8 @@ class MusicService : MediaSessionService() {
         }
 
         override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
-            android.util.Log.d("MusicService", "playerListener.onShuffleModeEnabledChanged: $shuffleModeEnabled")
+            Timber.tag("MusicService")
+                .d("playerListener.onShuffleModeEnabledChanged: $shuffleModeEnabled")
             mediaSession?.let { onUpdateNotification(it) }
         }
 
@@ -212,7 +219,7 @@ class MusicService : MediaSessionService() {
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            Log.e(TAG, "Error en el reproductor: ", error)
+            Timber.tag(TAG).e(error, "Error en el reproductor: ")
         }
     }
 
@@ -284,7 +291,6 @@ class MusicService : MediaSessionService() {
 
         val (artBytes, artUriString) = getAlbumArtForWidget(artworkData, artworkUri)
 
-        // CORRECCIÓN: Obtenemos el estado de favorito desde el Flow del repositorio.
         val isFavorite = false
 //        val isFavorite = mediaId?.let {
 //            //musicRepository.getFavoriteSongs().firstOrNull()?.any { song -> song.id.toString() == it }

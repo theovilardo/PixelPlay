@@ -1,12 +1,15 @@
 package com.theveloper.pixelplay.presentation.screens
 
 import android.content.Intent
-import android.net.Uri
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDp
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.rememberTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -17,17 +20,20 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
@@ -35,25 +41,20 @@ import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.FolderOff
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Style
-import androidx.compose.material.icons.outlined.Sync // Importar icono de Sync
-import androidx.compose.material.icons.rounded.ArrowDropDown
+import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material3.BottomSheetDefaults
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -67,59 +68,48 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.lerp
-import androidx.compose.ui.util.lerp
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.navigation.NavController
-import com.theveloper.pixelplay.R
-import com.theveloper.pixelplay.data.model.DirectoryItem
-import com.theveloper.pixelplay.data.preferences.ThemePreference
-import com.theveloper.pixelplay.presentation.viewmodel.SettingsViewModel
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.toImmutableList
-import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
+import androidx.compose.ui.util.lerp
+import androidx.core.net.toUri
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
+import androidx.navigation.NavController
+import com.theveloper.pixelplay.R
+import com.theveloper.pixelplay.data.model.DirectoryItem
+import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
+import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
+import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import com.theveloper.pixelplay.presentation.viewmodel.SettingsViewModel
+import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
-import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
-import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
-import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
-import androidx.core.net.toUri
 
 @Composable
 private fun SettingsTopBar(
@@ -648,7 +638,6 @@ fun ThemeSelectorItem(
         }
     }
 
-    // Dropdown menu con estilo mejorado
     if (expanded) {
         ModalBottomSheet(
             onDismissRequest = { expanded = false },
@@ -753,18 +742,6 @@ fun DirectoryPickerBottomSheet(
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold
                     )
-//                    IconButton(
-//                        onClick = onDismiss,
-//                        modifier = Modifier
-//                            .size(40.dp)
-//                            .clip(CircleShape)
-//                    ) {
-//                        Icon(
-//                            imageVector = Icons.Rounded.Close,
-//                            contentDescription = "Close",
-//                            tint = MaterialTheme.colorScheme.onSurface
-//                        )
-//                    }
                 }
 
                 // Content
@@ -839,17 +816,10 @@ fun DirectoryPickerBottomSheet(
 
             FloatingActionButton(
                 onClick = onDismiss,
-                //enabled = !isLoading,
                 shape = RoundedCornerShape(16.dp),
-                //contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
-//                colors = ButtonDefaults.buttonColors(
-//                    containerColor = MaterialTheme.colorScheme.primary,
-//                    contentColor = MaterialTheme.colorScheme.onPrimary
-//                ),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 26.dp)
-                    //.fillMaxWidth(0.9f)
             ) {
                 Text(
                     modifier = Modifier.padding(horizontal = 26.dp, vertical = 0.dp),
@@ -885,7 +855,6 @@ fun DirectoryItemCard(
 ) {
     val checkedState = remember { mutableStateOf(directoryItem.isAllowed) }
 
-    // Actualizar el estado local cuando cambia el directoryItem
     LaunchedEffect(directoryItem) {
         checkedState.value = directoryItem.isAllowed
     }
@@ -917,7 +886,6 @@ fun DirectoryItemCard(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icono de carpeta
             Icon(
                 imageVector = if (checkedState.value) Icons.Filled.Folder else Icons.Outlined.Folder,
                 contentDescription = null,
@@ -932,7 +900,6 @@ fun DirectoryItemCard(
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            // Nombre de la carpeta
             Text(
                 text = directoryItem.displayName,
                 style = MaterialTheme.typography.bodyLarge,
@@ -956,68 +923,6 @@ fun DirectoryItemCard(
                     checkedColor = MaterialTheme.colorScheme.primary,
                     uncheckedColor = MaterialTheme.colorScheme.outline,
                     checkmarkColor = MaterialTheme.colorScheme.onPrimary
-                )
-            )
-        }
-    }
-}
-
-@Composable
-fun SettingsSwitchItem(
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    leadingIcon: @Composable () -> Unit
-) {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .clickable { onCheckedChange(!checked) }
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth()
-        ) {
-            Box(
-                modifier = Modifier
-                    .padding(end = 16.dp)
-                    .size(24.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                leadingIcon()
-            }
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(end = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            androidx.compose.material3.Switch(
-                checked = checked,
-                onCheckedChange = onCheckedChange,
-                colors = androidx.compose.material3.SwitchDefaults.colors(
-                    checkedThumbColor = MaterialTheme.colorScheme.primary,
-                    checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                    uncheckedThumbColor = MaterialTheme.colorScheme.outline,
-                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
                 )
             )
         }
@@ -1099,19 +1004,12 @@ fun GeminiApiKeyItem(
             Spacer(modifier = Modifier.height(10.dp))
 
             if (apiKey == "") {
-                // --- INICIO DE LA MODIFICACIÓN ---
-
-                // 1. Obtenemos el contexto actual para poder lanzar un Intent
                 val context = LocalContext.current
                 val url = "https://aistudio.google.com/app/apikey"
-
-                // 2. Creamos un texto con estilos múltiples (AnnotatedString)
                 val annotatedString = buildAnnotatedString {
-                    // Parte "Get it here: " en color onSurface
                     withStyle(style = SpanStyle(color = MaterialTheme.colorScheme.onSurface)) {
                         append("Get it here: ")
                     }
-                    // Parte con la URL en color primary y subrayada
                     withStyle(style = SpanStyle(
                         color = MaterialTheme.colorScheme.primary,
                         textDecoration = TextDecoration.Underline)
@@ -1120,7 +1018,6 @@ fun GeminiApiKeyItem(
                     }
                 }
 
-                // 3. Hacemos que el Text sea clickeable para abrir el navegador
                 Text(
                     text = annotatedString,
                     modifier = Modifier.clickable {
@@ -1128,7 +1025,6 @@ fun GeminiApiKeyItem(
                         context.startActivity(intent)
                     }
                 )
-                // --- FIN DE LA MODIFICACIÓN ---
             }
         }
     }

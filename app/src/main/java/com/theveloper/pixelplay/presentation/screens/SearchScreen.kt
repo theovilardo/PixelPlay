@@ -111,6 +111,7 @@ import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.navigation.Screen // Required for Screen.GenreDetail.createRoute
 import com.theveloper.pixelplay.presentation.screens.search.components.GenreCategoriesGrid
 import kotlinx.collections.immutable.toImmutableList
+import timber.log.Timber
 
 
 @androidx.annotation.OptIn(UnstableApi::class)
@@ -150,7 +151,6 @@ fun SearchScreen(
 
     val dm = isSystemInDarkTheme()
 
-    // Colores con estilo "Expressive"
     val gradientColorsDark = listOf(
         MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
         Color.Transparent
@@ -174,7 +174,6 @@ fun SearchScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // Fondo con gradiente dinámico
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -184,7 +183,6 @@ fun SearchScreen(
                 )
         )
 
-        // Contenido principal
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
@@ -216,7 +214,6 @@ fun SearchScreen(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        //.padding(top = 8.dp, bottom = 0.dp)
                         .animateContentSize()
                         .clip(RoundedCornerShape(searchbarCornerRadius)),
                     placeholder = {
@@ -335,9 +332,10 @@ fun SearchScreen(
                 if (searchQuery.isBlank()) {
                     Box {
                         GenreCategoriesGrid(
-                            genres = genres, // Use the new combined list
+                            genres = genres,
                             onGenreClick = { genre ->
-                                Log.d("SearchScreen", "Genre clicked: ${genre.name} (ID: ${genre.id})")
+                                Timber.tag("SearchScreen")
+                                    .d("Genre clicked: ${genre.name} (ID: ${genre.id})")
                                 val encodedGenreId = java.net.URLEncoder.encode(genre.id, "UTF-8")
                                 navController.navigate(Screen.GenreDetail.createRoute(encodedGenreId))
                             },
@@ -386,7 +384,6 @@ fun SearchScreen(
                 }
             }
         }
-        //
     }
 }
 
@@ -397,7 +394,7 @@ fun SearchResultSectionHeader(title: String) {
         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp, horizontal = 4.dp) // Adjust padding as needed
+            .padding(vertical = 8.dp, horizontal = 4.dp)
     )
 }
 
@@ -431,7 +428,6 @@ fun SearchHistoryList(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(
                 top = 8.dp,
-               // bottom = 8.dp + WindowInsets.ime.getBottom(localDensity).dp // Direct IME padding
             )
         ) {
             items(historyItems, key = { "history_${it.id ?: it.query}" }) { item ->
@@ -527,9 +523,7 @@ fun SearchResultsList(
 ) {
     val localDensity = LocalDensity.current
 
-    if (results.isEmpty()) { // Should be handled by EmptySearchResults, but good to have a check
-        // EmptySearchResults is typically called before SearchResultsList if results are empty.
-        // However, if called directly with empty results, this provides a fallback.
+    if (results.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
             Text("No results found.", style = MaterialTheme.typography.bodyLarge)
         }
@@ -552,9 +546,6 @@ fun SearchResultsList(
         SearchFilterType.ALBUMS,
         SearchFilterType.ARTISTS,
         SearchFilterType.PLAYLISTS
-        // Add SearchFilterType.ALL here if you expect it in groupedResults and want a section for it.
-        // However, SearchResultItem itself does not have an 'ALL' type, so this might not be applicable
-        // unless your SearchResultItem has a more generic fallback type.
     )
 
     var imePadding = WindowInsets.ime.getBottom(localDensity).dp
@@ -562,8 +553,6 @@ fun SearchResultsList(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        // Remove global verticalArrangement.spacedBy if headers manage their own spacing or if spacing between items of different types is not desired.
-        // verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(
             top = 8.dp,
             bottom = if (imePadding <= 8.dp) (MiniPlayerHeight + systemBarPaddingBottom) else imePadding // Direct IME padding
@@ -573,7 +562,6 @@ fun SearchResultsList(
             val itemsForSection = groupedResults[filterType] ?: emptyList()
 
             if (itemsForSection.isNotEmpty()) {
-                // Add header for the section
                 item {
                     SearchResultSectionHeader(
                         title = when (filterType) {
@@ -596,7 +584,7 @@ fun SearchResultsList(
                     }
                 }) { item ->
                     // Apply spacing for each item within the group
-                    Box(modifier = Modifier.padding(bottom = 12.dp)) { // Add spacing here
+                    Box(modifier = Modifier.padding(bottom = 12.dp)) {
                         when (item) {
                             is SearchResultItem.SongItem -> {
                                 val rememberedOnClick = remember(item.song, playerViewModel, onItemSelected) {
@@ -613,7 +601,8 @@ fun SearchResultsList(
                             is SearchResultItem.AlbumItem -> {
                                 val rememberedOnClick = remember(item.album, playerViewModel, onItemSelected) {
                                     {
-                                        Log.d("SearchScreen", "Album clicked: ${item.album.title}")
+                                        Timber.tag("SearchScreen")
+                                            .d("Album clicked: ${item.album.title}")
                                         playerViewModel.playAlbum(item.album)
                                         onItemSelected()
                                     }
@@ -626,7 +615,8 @@ fun SearchResultsList(
                             is SearchResultItem.ArtistItem -> {
                                 val rememberedOnClick = remember(item.artist, playerViewModel, onItemSelected) {
                                     {
-                                        Log.d("SearchScreen", "Artist clicked: ${item.artist.name}")
+                                        Timber.tag("SearchScreen")
+                                            .d("Artist clicked: ${item.artist.name}")
                                         playerViewModel.playArtist(item.artist)
                                         onItemSelected()
                                     }
@@ -640,7 +630,6 @@ fun SearchResultsList(
                                 val rememberedOnClick = remember(item.playlist, playerViewModel, onItemSelected) {
                                     {
                                         Log.d("SearchScreen", "Playlist clicked: ${item.playlist.name}")
-                                        // Assuming playerViewModel.playPlaylist(item.playlist) would be here too
                                         onItemSelected()
                                     }
                                 }
@@ -656,9 +645,6 @@ fun SearchResultsList(
         }
     }
 }
-
-
-// New List Item Composables
 
 @Composable
 fun AlbumListItem(album: Album, onClick: () -> Unit) {
@@ -906,9 +892,6 @@ fun ExpressiveSongListItem(
         label = "song_item_background_color"
     )
 
-    // Removed the erroneous Card definition that was here.
-    // The correct Card is below, using the animated values.
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -993,7 +976,6 @@ fun ExpressiveSongListItem(
 }
 
 @androidx.annotation.OptIn(UnstableApi::class)
-@OptIn(ExperimentalMaterial3Api::class) // FilterChip y sus defaults son experimentales
 @Composable
 fun SearchFilterChip(
     filterType: SearchFilterType,
@@ -1020,10 +1002,8 @@ fun SearchFilterChip(
             // Expressive colors for selected state
             selectedContainerColor = MaterialTheme.colorScheme.primary,
             selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-            selectedLeadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer, // If using a leading icon
-            //disabledContainerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
+            selectedLeadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
         ),
-//         Opcional: puedes añadir un icono principal, por ejemplo, para indicar selección
          leadingIcon = if (selected) {
              {
                  Icon(

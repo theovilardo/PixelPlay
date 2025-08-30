@@ -16,7 +16,6 @@ import kotlin.math.sqrt
  * @return A Float from 0.0 to 1.0 representing the calculated volume multiplier.
  */
 fun envelope(progress: Float, curve: Curve): Float {
-    // Ensure progress is clamped between 0.0 and 1.0 to avoid unexpected math results
     val clampedProgress = progress.coerceIn(0f, 1f)
 
     return when (curve) {

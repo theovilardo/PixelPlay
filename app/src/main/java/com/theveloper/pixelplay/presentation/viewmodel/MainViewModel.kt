@@ -43,8 +43,6 @@ class MainViewModel @Inject constructor(
      * Nos ayuda a saber si es la primera vez que se abre la app.
      */
     val isLibraryEmpty: StateFlow<Boolean> = musicRepository
-        // --- CORRECCIÓN AQUÍ ---
-        // Llamamos al método correcto pidiendo solo la primera canción para verificar si la biblioteca está vacía.
         .getAudioFiles()
         .map { it.isEmpty() }
         .stateIn(

@@ -1,16 +1,40 @@
 package com.theveloper.pixelplay.presentation.components
 
-import android.app.TimePickerDialog
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material3.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -22,11 +46,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
-import java.util.Calendar
 import kotlin.math.roundToInt
 
 val predefinedTimes = listOf(0, 5, 10, 15, 20, 30, 45, 60) // 0 represents 'Off'
@@ -39,7 +61,7 @@ fun TimerOptionsBottomSheet(
     onDismiss: () -> Unit,
     onSetPredefinedTimer: (minutes: Int) -> Unit,
     onSetEndOfTrackTimer: (enable: Boolean) -> Unit,
-    onOpenCustomTimePicker: () -> Unit, // This could be removed if not used elsewhere, but kept for now
+    onOpenCustomTimePicker: () -> Unit,
     onCancelTimer: () -> Unit
 ) {
     var showCustomTimePicker by rememberSaveable { mutableStateOf(false) }
@@ -57,12 +79,7 @@ fun TimerOptionsBottomSheet(
 
     // Animate corner radius
     val boxCornerRadius by animateDpAsState(
-        targetValue = if (isSwitchEnabled) 18.dp else 50.dp, // Or your default CircleShape equivalent for "not rounded"
-        // If your original was CircleShape, it implies 50% corners.
-        // For a more controlled animation to 0dp from rounded:
-        //  start with RoundedCornerShape(0.dp) for the 'else' case
-        //  if you want to animate from fully sharp corners.
-        //  Using CircleShape directly in 'else' might not animate smoothly to 18.dp.
+        targetValue = if (isSwitchEnabled) 18.dp else 50.dp,
         label = "boxCornerRadiusAnimation"
     )
 
@@ -143,17 +160,12 @@ fun TimerOptionsBottomSheet(
                             } else {
                                 onSetPredefinedTimer(selectedMinutesOnFinish)
                             }
-                            // Consider dismissing the sheet: onDismiss()
                         },
                         track = { sliderState ->
                             SliderDefaults.Track(
-                                // Le pasamos el estado que nos provee el Slider
                                 sliderState = sliderState,
-                                // El modifier para la altura sigue funcionando igual
                                 modifier = Modifier
-                                    .heightIn(min = 32.dp), // <-- ¡Aquí defines la altura!
-                                // Los colores y el estado 'enabled' se infieren del Slider principal,
-                                // por lo que no necesitas especificarlos a menos que quieras anularlos.
+                                    .heightIn(min = 32.dp),
                             )
                         },
                         modifier = Modifier
@@ -217,21 +229,20 @@ fun TimerOptionsBottomSheet(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp, horizontal = 16.dp), // Adjusted padding for better spacing
+                        .padding(vertical = 8.dp, horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = "End of current track",
                         modifier = Modifier
                             .weight(1f)
-                            .padding(end = 8.dp), // Added end padding for spacing from switch
+                            .padding(end = 8.dp),
                         color = if (isSwitchEnabled) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onSurface // Adjust text color for contrast
                     )
                     Switch(
                         checked = isSwitchEnabled,
                         onCheckedChange = {
                             onSetEndOfTrackTimer(it)
-                            // onDismiss() // Optional: based on desired UX
                         },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = MaterialTheme.colorScheme.tertiary,
@@ -240,7 +251,7 @@ fun TimerOptionsBottomSheet(
                             uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
                         ),
                         thumbContent = if (isSwitchEnabled) {
-                            { // Composable lambda for thumb content
+                            {
                                 Icon(
                                     imageVector = Icons.Rounded.Check,
                                     contentDescription = "Switch is on",
@@ -249,26 +260,22 @@ fun TimerOptionsBottomSheet(
                                 )
                             }
                         } else {
-                            null // No icon when switch is off
+                            null
                         }
                     )
                 }
             }
 
-            // Combined Custom Time and Cancel Timer buttons in a single Row
             val buttonHeight = 68.dp
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 16.dp, horizontal = 6.dp), // Add some vertical padding around the Row
-                horizontalArrangement = Arrangement.spacedBy(6.dp), // Or SpaceEvenly, or use weights
+                    .padding(vertical = 16.dp, horizontal = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-
-                // Custom time picker Button
                 Button(
                     onClick = {
-                        // onOpenCustomTimePicker() // If you have other logic for this callback
                         showCustomTimePicker = true
                     },
                     shape = RoundedCornerShape(
@@ -283,8 +290,6 @@ fun TimerOptionsBottomSheet(
                 ) {
                     Text("Custom Time")
                 }
-
-                // Cancel Timer Button
                 Button(
                     onClick = {
                         onCancelTimer()
@@ -302,19 +307,17 @@ fun TimerOptionsBottomSheet(
                     ),
                     enabled = activeTimerValueDisplay != null,
                     modifier = Modifier
-                        .weight(1f) // Give buttons equal space if desired
+                        .weight(1f)
                         .height(buttonHeight)
                 ) {
                     Text("Cancel Timer")
                 }
             }
-            Spacer(modifier = Modifier.height(16.dp)) // For bottom sheet handle spacing
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 
     if (showCustomTimePicker) {
-        // Initialize the TimePickerState for Material 3 TimePicker.
-        // For a duration picker, default hours to 0.
         val initialHour = 0    // Default to 0 hours for a duration
         val initialMinute = 15 // Default to 15 minutes for a duration
 
@@ -332,14 +335,7 @@ fun TimerOptionsBottomSheet(
             },
             title = { Text("Set Custom Duration") },
             text = {
-                // Place the Material 3 TimePicker in the dialog's content area.
                 TimePicker(state = timePickerState)
-                // Optionally, if you also want the text input fields along with the clock:
-                // Column {
-                //     TimePicker(state = timePickerState)
-                //     Spacer(modifier = Modifier.height(16.dp))
-                //     TimeInput(state = timePickerState, modifier = Modifier.fillMaxWidth())
-                // }
             },
             confirmButton = {
                 TextButton(
@@ -369,34 +365,4 @@ fun TimerOptionsBottomSheet(
             }
         )
     }
-//    if (showCustomTimePicker) {
-//        val calendar = Calendar.getInstance()
-//        val initialHour = 0 // Default to 00 hours
-//        val initialMinute = 15 // Default to 15 minutes
-//
-//        val timePickerDialog = remember(context) {
-//            TimePickerDialog(
-//                context,
-//                { _, hourOfDay, minute ->
-//                    val totalMinutes = hourOfDay * 60 + minute
-//                    if (totalMinutes > 0) { // Ensure some time is set
-//                        onSetPredefinedTimer(totalMinutes)
-//                    }
-//                    showCustomTimePicker = false
-//                    onDismiss() // Dismiss the bottom sheet after setting time
-//                },
-//                initialHour,
-//                initialMinute,
-//                true // 24-hour format
-//            ).apply {
-//                setOnCancelListener {
-//                    showCustomTimePicker = false
-//                }
-//            }
-//        }
-//
-//        LaunchedEffect(Unit) {
-//            timePickerDialog.show()
-//        }
-//    }
 }

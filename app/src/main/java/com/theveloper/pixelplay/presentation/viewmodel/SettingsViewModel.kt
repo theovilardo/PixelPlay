@@ -6,8 +6,7 @@ import com.theveloper.pixelplay.data.model.DirectoryItem
 import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.MusicRepository
-// Ya no es necesario MusicRepositoryImpl aquí directamente si SyncManager lo maneja
-import com.theveloper.pixelplay.data.worker.SyncManager // Importar SyncManager
+import com.theveloper.pixelplay.data.worker.SyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -16,7 +15,7 @@ import javax.inject.Inject
 data class SettingsUiState(
     val directoryItems: List<DirectoryItem> = emptyList(),
     val isLoadingDirectories: Boolean = true,
-    val playerThemePreference: String = ThemePreference.ALBUM_ART, // Default to Album Art
+    val playerThemePreference: String = ThemePreference.ALBUM_ART,
     val mockGenresEnabled: Boolean = false,
     val navBarCornerRadius: Int = 32
 )
@@ -25,7 +24,7 @@ data class SettingsUiState(
 class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val musicRepository: MusicRepository,
-    private val syncManager: SyncManager // Inyectar SyncManager
+    private val syncManager: SyncManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -34,7 +33,6 @@ class SettingsViewModel @Inject constructor(
     val geminiApiKey: StateFlow<String> = userPreferencesRepository.geminiApiKey
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
-    // Observar las preferencias de tema directamente
     init {
         viewModelScope.launch {
             userPreferencesRepository.playerThemePreferenceFlow.collect { preference ->
@@ -54,36 +52,26 @@ class SettingsViewModel @Inject constructor(
             }
         }
 
-        // Cargar los directorios y observar cambios en los directorios permitidos
         loadDirectoryPreferences()
     }
 
     private fun loadDirectoryPreferences() {
         viewModelScope.launch {
-            // Combina el flujo de directorios permitidos con la lista de todos los directorios encontrados.
-            // Usamos flow {} para envolver la llamada suspend a getAllUniqueAudioDirectories()
-            // y onStart para emitir un estado de carga inicial.
             userPreferencesRepository.allowedDirectoriesFlow.combine(
                 flow {
-                    // Emitir true para isLoading antes de empezar la carga de directorios
                     emit(musicRepository.getAllUniqueAudioDirectories())
-                }.onStart { _uiState.update { it.copy(isLoadingDirectories = true) } } // Mostrar indicador de carga al inicio del flujo
+                }.onStart { _uiState.update { it.copy(isLoadingDirectories = true) } }
             ) { allowedDirs, allFoundDirs ->
-                // Esta parte se ejecuta cada vez que allowedDirs o allFoundDirs cambian.
-                // allFoundDirs solo cambiará la primera vez o si el repositorio lo re-escanea.
-                val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first() // Obtener el estado actual
+                val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
 
                 allFoundDirs.map { dirPath ->
                     val isAllowed = if (!initialSetupDone) true else allowedDirs.contains(dirPath)
                     DirectoryItem(path = dirPath, isAllowed = isAllowed)
-                }.sortedBy { it.displayName } // Ordenar alfabéticamente
+                }.sortedBy { it.displayName }
             }.catch { e ->
-                // Manejar error durante la carga o procesamiento de directorios
-                _uiState.update { it.copy(isLoadingDirectories = false, directoryItems = emptyList()) } // Indicar fallo y limpiar lista
-                // Loggear el error
+                _uiState.update { it.copy(isLoadingDirectories = false, directoryItems = emptyList()) }
             }.collectLatest { directoryItems ->
-                // Recopilar la lista de DirectoryItem generada y actualizar el estado de la UI
-                _uiState.update { it.copy(directoryItems = directoryItems, isLoadingDirectories = false) } // Ocultar indicador de carga
+                _uiState.update { it.copy(directoryItems = directoryItems, isLoadingDirectories = false) }
             }
         }
     }
@@ -98,13 +86,6 @@ class SettingsViewModel @Inject constructor(
                 currentAllowed.add(directoryItem.path)
             }
             userPreferencesRepository.updateAllowedDirectories(currentAllowed)
-
-            //musicRepository.invalidateCachesDependentOnAllowedDirectories()
-
-            // El flujo allowedDirectoriesFlow en loadDirectoryPreferences() se actualizará,
-            // y también lo hará la lista de DirectoryItem en la UI de Ajustes.
-            // La invalidación de caché asegura que PlayerViewModel, etc., obtengan datos frescos
-            // la próxima vez que consulten el repositorio.
         }
     }
 
@@ -112,22 +93,12 @@ class SettingsViewModel @Inject constructor(
     fun setPlayerThemePreference(preference: String) {
         viewModelScope.launch {
             userPreferencesRepository.setPlayerThemePreference(preference)
-            // El flujo playerThemePreferenceFlow en init{} detectará el cambio y actualizará _uiState
         }
     }
 
     fun refreshLibrary() {
         viewModelScope.launch {
-            // *** CORRECCIÓN AQUÍ ***
-            // Llamamos al nuevo método específico para forzar el refresco.
             syncManager.forceRefresh()
-            // Opcional: Podrías emitir un evento a la UI para mostrar un Toast "Refresco iniciado"
-        }
-    }
-
-    fun setMockGenresEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            userPreferencesRepository.setMockGenresEnabled(enabled)
         }
     }
 

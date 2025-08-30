@@ -5,16 +5,16 @@ import androidx.compose.runtime.Immutable
 
 @Immutable
 data class Song(
-    val id: String, // MediaStore.Audio.Media._ID
+    val id: String,
     val title: String,
     val artist: String,
-    val artistId: Long, // MediaStore.Audio.Media.ARTIST_ID para obtener foto de artista
+    val artistId: Long,
     val album: String,
-    val albumId: Long, // MediaStore.Audio.Media.ALBUM_ID para obtener carátula
-    val contentUriString: String, // Uri para cargar la canción
-    val albumArtUriString: String?, // Uri de la carátula del álbum
-    val duration: Long, // en milisegundos
-    val genre: String? = null, // Added genre field
+    val albumId: Long,
+    val contentUriString: String,
+    val albumArtUriString: String?,
+    val duration: Long,
+    val genre: String? = null,
     val lyrics: String? = null,
     val isFavorite: Boolean = false,
     val trackNumber: Int = 0

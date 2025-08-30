@@ -23,7 +23,6 @@ fun MaterialYouVectorDrawable(
     Image(
         painter = painter,
         contentDescription = null,
-        //contentScale = ContentScale.FillBounds,
         modifier = modifier
     )
 }

@@ -22,6 +22,5 @@ object EotStateHolder {
      */
     fun setEotTargetSong(songId: String?) {
         _eotTargetSongId.value = songId
-        // Log.d("EotStateHolder", "EOT Target Song ID set to: $songId") // Optional: for debugging
     }
 }

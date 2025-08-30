@@ -58,9 +58,6 @@ fun FetchLyricsDialog(
             )
         }
         is LyricsSearchUiState.Success -> {
-            // El éxito se maneja cerrando el diálogo y mostrando la LyricsSheet,
-            // por lo que no se necesita un diálogo específico aquí.
-            // El onDismiss se llamará desde el colector del estado.
         }
     }
 }

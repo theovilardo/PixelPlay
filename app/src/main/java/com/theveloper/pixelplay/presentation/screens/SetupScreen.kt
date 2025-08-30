@@ -2,7 +2,6 @@ package com.theveloper.pixelplay.presentation.screens
 
 import android.Manifest
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
@@ -11,7 +10,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -24,19 +22,36 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material3.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MediumFloatingActionButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -51,9 +66,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
@@ -66,7 +79,6 @@ import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import coil.compose.AsyncImage
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.theveloper.pixelplay.R
@@ -77,7 +89,6 @@ import com.theveloper.pixelplay.presentation.components.subcomps.SineWaveLine
 import com.theveloper.pixelplay.presentation.viewmodel.SetupUiState
 import com.theveloper.pixelplay.presentation.viewmodel.SetupViewModel
 import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
-import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.launch
@@ -200,233 +211,6 @@ fun SetupScreen(
         }
     }
 }
-
-//@OptIn(ExperimentalMaterial3Api::class)
-//@Composable
-//fun DirectoryPickerBottomSheet(
-//    directoryItems: ImmutableList<DirectoryItem>,
-//    isLoading: Boolean,
-//    onDismiss: () -> Unit,
-//    onItemToggle: (DirectoryItem) -> Unit
-//) {
-//    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-//
-//    ModalBottomSheet(
-//        onDismissRequest = onDismiss,
-//        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-//        sheetState = sheetState,
-//        modifier = Modifier.fillMaxHeight(),
-//        dragHandle = { BottomSheetDefaults.DragHandle() }
-//    ) {
-//        Box(modifier = Modifier.fillMaxSize()) {
-//            Column(
-//                modifier = Modifier
-//                    .fillMaxSize()
-//                //.padding(bottom = 16.dp)
-//            ) {
-//                // Header
-//                Row(
-//                    modifier = Modifier
-//                        .fillMaxWidth()
-//                        .padding(start = 24.dp, end = 16.dp, bottom = 22.dp, top = 10.dp),
-//                    verticalAlignment = Alignment.CenterVertically,
-//                    horizontalArrangement = Arrangement.SpaceBetween
-//                ) {
-//                    Text(
-//                        text = "Music Folders",
-//                        fontFamily = GoogleSansRounded,
-//                        style = MaterialTheme.typography.headlineMedium,
-//                        fontWeight = FontWeight.Bold
-//                    )
-//                }
-//
-//                // Content
-//                Box(
-//                    modifier = Modifier
-//                        .weight(1f)
-//                        .fillMaxWidth()
-//                ) {
-//                    when {
-//                        isLoading -> {
-//                            Box(
-//                                modifier = Modifier.fillMaxSize(),
-//                                contentAlignment = Alignment.Center
-//                            ) {
-//                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-//                                    CircularProgressIndicator(
-//                                        color = MaterialTheme.colorScheme.primary,
-//                                        strokeWidth = 4.dp
-//                                    )
-//                                    Spacer(modifier = Modifier.height(16.dp))
-//                                    Text(
-//                                        text = "Scanning folders...",
-//                                        style = MaterialTheme.typography.bodyLarge,
-//                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-//                                    )
-//                                }
-//                            }
-//                        }
-//                        directoryItems.isEmpty() -> {
-//                            Box(
-//                                modifier = Modifier
-//                                    .fillMaxSize()
-//                                    .padding(16.dp),
-//                                contentAlignment = Alignment.Center
-//                            ) {
-//                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-//                                    Icon(
-//                                        imageVector = Icons.Outlined.FolderOff,
-//                                        contentDescription = null,
-//                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-//                                        modifier = Modifier.size(64.dp)
-//                                    )
-//                                    Spacer(modifier = Modifier.height(16.dp))
-//                                    Text(
-//                                        text = "No folders with audio files found",
-//                                        style = MaterialTheme.typography.bodyLarge,
-//                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-//                                        textAlign = TextAlign.Center
-//                                    )
-//                                }
-//                            }
-//                        }
-//                        else -> {
-//                            LazyColumn(
-//                                modifier = Modifier
-//                                    .fillMaxSize()
-//                                    .padding(horizontal = 16.dp),
-//                                verticalArrangement = Arrangement.spacedBy(8.dp),
-//                                contentPadding = PaddingValues(bottom = 106.dp) // Space for the button
-//                            ) {
-//                                items(directoryItems, key = { it.path }) { item ->
-//                                    DirectoryItemCard(
-//                                        directoryItem = item,
-//                                        onToggle = { onItemToggle(item) }
-//                                    )
-//                                }
-//                            }
-//                        }
-//                    }
-//                }
-//            }
-//
-//            FloatingActionButton(
-//                onClick = onDismiss,
-//                shape = RoundedCornerShape(16.dp),
-//                modifier = Modifier
-//                    .align(Alignment.BottomCenter)
-//                    .padding(bottom = 26.dp)
-//            ) {
-//                Text(
-//                    modifier = Modifier.padding(horizontal = 26.dp, vertical = 0.dp),
-//                    text = "Accept"
-//                )
-//            }
-//
-//            Box(
-//                modifier = Modifier
-//                    .align(Alignment.BottomCenter)
-//                    .fillMaxWidth()
-//                    .height(30.dp)
-//                    .background(
-//                        brush = Brush.verticalGradient(
-//                            listOf(
-//                                Color.Transparent,
-//                                MaterialTheme.colorScheme.surfaceContainer
-//                            )
-//                        )
-//                    )
-//            ) {
-//
-//            }
-//        }
-//    }
-//}
-
-
-//@Composable
-//fun DirectoryItemCard(
-//    directoryItem: DirectoryItem,
-//    onToggle: () -> Unit
-//) {
-//    val checkedState = remember { mutableStateOf(directoryItem.isAllowed) }
-//
-//    // Actualizar el estado local cuando cambia el directoryItem
-//    LaunchedEffect(directoryItem) {
-//        checkedState.value = directoryItem.isAllowed
-//    }
-//
-//    Surface(
-//        shape = RoundedCornerShape(60.dp),
-//        color = if (checkedState.value)
-//            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
-//        else
-//            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-//        border = BorderStroke(
-//            width = 2.dp,
-//            color = if (checkedState.value)
-//                MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f)
-//            else
-//                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-//        ),
-//        modifier = Modifier
-//            .fillMaxWidth()
-//            .clip(RoundedCornerShape(60.dp))
-//            .clickable {
-//                checkedState.value = !checkedState.value
-//                onToggle()
-//            }
-//    ) {
-//        Row(
-//            modifier = Modifier
-//                .fillMaxWidth()
-//                .padding(16.dp),
-//            verticalAlignment = Alignment.CenterVertically
-//        ) {
-//            // Icono de carpeta
-//            Icon(
-//                imageVector = if (checkedState.value) Icons.Filled.Folder else Icons.Outlined.Folder,
-//                contentDescription = null,
-//                tint = if (checkedState.value)
-//                    MaterialTheme.colorScheme.secondary
-//                else
-//                    MaterialTheme.colorScheme.onSurfaceVariant,
-//                modifier = Modifier
-//                    .padding(start = 10.dp)
-//                    .size(28.dp)
-//            )
-//
-//            Spacer(modifier = Modifier.width(16.dp))
-//
-//            // Nombre de la carpeta
-//            Text(
-//                text = directoryItem.displayName,
-//                style = MaterialTheme.typography.bodyLarge,
-//                color = if (checkedState.value)
-//                    MaterialTheme.colorScheme.onSecondaryContainer
-//                else
-//                    MaterialTheme.colorScheme.onSurface,
-//                modifier = Modifier.weight(1f)
-//            )
-//
-//            Spacer(modifier = Modifier.width(16.dp))
-//
-//            // Checkbox
-//            Checkbox(
-//                checked = checkedState.value,
-//                onCheckedChange = {
-//                    checkedState.value = it
-//                    onToggle()
-//                },
-//                colors = CheckboxDefaults.colors(
-//                    checkedColor = MaterialTheme.colorScheme.primary,
-//                    uncheckedColor = MaterialTheme.colorScheme.outline,
-//                    checkmarkColor = MaterialTheme.colorScheme.onPrimary
-//                )
-//            )
-//        }
-//    }
-//}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -877,35 +661,6 @@ fun SetupBottomBar(
                     }
                 }
             }
-        }
-    }
-}
-
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-@Composable
-fun CustomPagerIndicator(
-    pagerState: PagerState,
-    modifier: Modifier = Modifier,
-    activeColor: Color = MaterialTheme.colorScheme.primary,
-    inactiveColor: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
-) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        for (i in 0 until pagerState.pageCount) {
-            val color by animateColorAsState(
-                targetValue = if (i == pagerState.currentPage) activeColor else inactiveColor,
-                animationSpec = tween(durationMillis = 300)
-            )
-            Box(
-                modifier = Modifier
-                    .padding(4.dp)
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(color)
-            )
         }
     }
 }

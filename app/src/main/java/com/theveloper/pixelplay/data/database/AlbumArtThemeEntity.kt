@@ -18,23 +18,6 @@ data class StoredColorSchemeValues(
     val surfaceTint: String, val outlineVariant: String, val scrim: String
     // Añade aquí todos los roles de ColorScheme que quieras persistir
 )
-//data class StoredColorScheme(
-//    // Light Theme Colors
-//    val primaryLight: String, val onPrimaryLight: String, val primaryContainerLight: String, val onPrimaryContainerLight: String,
-//    val secondaryLight: String, val onSecondaryLight: String, val secondaryContainerLight: String, val onSecondaryContainerLight: String,
-//    val tertiaryLight: String, val onTertiaryLight: String, val tertiaryContainerLight: String, val onTertiaryContainerLight: String,
-//    val backgroundLight: String, val onBackgroundLight: String, val surfaceLight: String, val onSurfaceLight: String,
-//    val surfaceVariantLight: String, val onSurfaceVariantLight: String, val errorLight: String, val onErrorLight: String,
-//    val outlineLight: String,
-//
-//    // Dark Theme Colors
-//    val primaryDark: String, val onPrimaryDark: String, val primaryContainerDark: String, val onPrimaryContainerDark: String,
-//    val secondaryDark: String, val onSecondaryDark: String, val secondaryContainerDark: String, val onSecondaryContainerDark: String,
-//    val tertiaryDark: String, val onTertiaryDark: String, val tertiaryContainerDark: String, val onTertiaryContainerDark: String,
-//    val backgroundDark: String, val onBackgroundDark: String, val surfaceDark: String, val onSurfaceDark: String,
-//    val surfaceVariantDark: String, val onSurfaceVariantDark: String, val errorDark: String, val onErrorDark: String,
-//    val outlineDark: String
-//)
 
 @Entity(tableName = "album_art_themes")
 data class AlbumArtThemeEntity(
@@ -42,10 +25,3 @@ data class AlbumArtThemeEntity(
     @Embedded(prefix = "light_") val lightThemeValues: StoredColorSchemeValues,
     @Embedded(prefix = "dark_") val darkThemeValues: StoredColorSchemeValues
 )
-
-//@Entity(tableName = "album_art_themes")
-//data class AlbumArtThemeEntity(
-//    @PrimaryKey val albumArtUriString: String,
-//    @Embedded val lightThemeColors: StoredColorScheme,
-//    @Embedded(prefix = "dark_") val darkThemeColors: StoredColorScheme
-//)

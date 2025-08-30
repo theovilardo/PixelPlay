@@ -155,24 +155,10 @@ class PlaylistViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isLoadingSongSelection = false
-                        // Opcional: añadir un campo de error al PlaylistUiState
-                        // errorLoadingSongSelection = "Failed to load songs: ${e.message}"
                     )
                 }
             }
         }
-    }
-
-    // Función para refrescar la lista de selección de canciones (ej. si cambian los directorios)
-    fun refreshSongSelection() {
-        _uiState.update {
-            it.copy(
-                songSelectionForPlaylist = emptyList(), // Limpiar lista actual
-                canLoadMoreSongsForSelection = true, // Permitir cargar de nuevo
-                // isLoadingSongSelection = true // El estado de carga se maneja en loadMoreSongsForSelection
-            )
-        }
-        loadMoreSongsForSelection(isInitialLoad = true)
     }
 
 
@@ -207,8 +193,6 @@ class PlaylistViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isLoading = false
-                        // Opcional: añadir un campo de error al PlaylistUiState
-                        // errorLoadingPlaylistDetails = "Failed to load playlist details: ${e.message}"
                     )
                 }
             }
@@ -275,18 +259,17 @@ class PlaylistViewModel @Inject constructor(
 
     //Sort funs
     fun sortPlaylists(sortOption: SortOption) {
-        // Update the state with the new sort option first
         _uiState.update { it.copy(currentPlaylistSortOption = sortOption) }
 
-        val currentPlaylists = _uiState.value.playlists // Get potentially updated list if any other op happened
+        val currentPlaylists = _uiState.value.playlists
         val sortedPlaylists = when (sortOption) {
             SortOption.PlaylistNameAZ -> currentPlaylists.sortedBy { it.name }
             SortOption.PlaylistNameZA -> currentPlaylists.sortedByDescending { it.name }
             SortOption.PlaylistDateCreated -> currentPlaylists.sortedByDescending { it.lastModified }
-            else -> currentPlaylists // Should not happen for playlist specific options
-        }.toList() // Ensure a new list
+            else -> currentPlaylists
+        }.toList()
 
-        _uiState.update { it.copy(playlists = sortedPlaylists) } // Update with the sorted list
+        _uiState.update { it.copy(playlists = sortedPlaylists) }
 
         viewModelScope.launch {
             userPreferencesRepository.setPlaylistsSortOption(sortOption.displayName)

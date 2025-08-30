@@ -106,7 +106,6 @@ fun DailyMixScreen(
 ) {
     Trace.beginSection("DailyMixScreen.Composition")
     val dailyMixSongs: ImmutableList<Song> by playerViewModel.dailyMixSongs.collectAsState()
-    // Granular state collection for stablePlayerState fields
     val currentSongId by remember { playerViewModel.stablePlayerState.map { it.currentSong?.id }.distinctUntilChanged() }.collectAsState(initial = null)
     val isPlaying by remember { playerViewModel.stablePlayerState.map { it.isPlaying }.distinctUntilChanged() }.collectAsState(initial = false)
     val isShuffleEnabled by remember { playerViewModel.stablePlayerState.map { it.isShuffleEnabled }.distinctUntilChanged() }.collectAsState(initial = false)
@@ -156,7 +155,6 @@ fun DailyMixScreen(
         playerViewModel.collapsePlayerSheet()
     }
 
-    // CORRECTION: Correctly implemented BottomSheet call with all parameters
     if (showSongInfoSheet && selectedSongForInfo != null) {
         val song = selectedSongForInfo!!
         SongInfoBottomSheet(
@@ -346,7 +344,7 @@ fun DailyMixScreen(
 
         }
     }
-    Trace.endSection() // End DailyMixScreen.Composition
+    Trace.endSection()
 }
 
 
@@ -514,126 +512,3 @@ private fun ExpressiveDailyMixHeader(
     }
     Trace.endSection()
 }
-//@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-//@Composable
-//private fun ExpressiveDailyMixHeader(
-//    songs: List<Song>,
-//    scrollState: LazyListState
-//) {
-//    Trace.beginSection("ExpressiveDailyMixHeader.Composition")
-//    val albumArts = remember(songs) { songs.map { it.albumArtUriString }.distinct().take(3) }
-//    val totalDuration = remember(songs) { songs.sumOf { it.duration } }
-//
-//    val parallaxOffset by remember { derivedStateOf { if (scrollState.firstVisibleItemIndex == 0) scrollState.firstVisibleItemScrollOffset * 0.5f else 0f } }
-//
-//    // Animación de Alpha para el fade-out
-//    val headerAlpha by remember {
-//        derivedStateOf {
-//            (1f - (scrollState.firstVisibleItemScrollOffset / 600f)).coerceIn(0f, 1f)
-//        }
-//    }
-//
-//    Box(
-//        modifier = Modifier
-//            .fillMaxWidth()
-//            .height(340.dp)
-//            .graphicsLayer {
-//                translationY = parallaxOffset
-//                alpha = headerAlpha // Aplicar fade-out
-//            }
-//    ) {
-//        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-//            Row(
-//                horizontalArrangement = Arrangement.spacedBy((-80).dp),
-//                verticalAlignment = Alignment.CenterVertically
-//            ) {
-//                albumArts.forEachIndexed { index, artUrl ->
-//                    val size = when (index) {
-//                        0 -> 180.dp
-//                        1 -> 220.dp
-//                        2 -> 180.dp
-//                        else -> 150.dp
-//                    }
-//                    val rotation = when (index) {
-//                        0 -> -15f
-//                        1 -> 0f
-//                        2 -> 15f
-//                        else -> 0f
-//                    }
-//                    val shape = threeShapeSwitch(index, thirdShapeCornerRadius = 30.dp)
-//                    Box(
-//                        modifier = Modifier
-//                            .size(size)
-//                            .graphicsLayer { rotationZ = rotation }
-//                            .clip(shape)
-//                    ) {
-//                        SmartImage(
-//                            model = artUrl ?: R.drawable.rounded_album_24,
-//                            contentDescription = null,
-//                            contentScale = ContentScale.Crop,
-//                            modifier = Modifier.fillMaxSize()
-//                        )
-//                    }
-//                }
-//            }
-//        }
-//        Box(
-//            modifier = Modifier
-//                .fillMaxSize()
-//                .background(
-//                    Brush.verticalGradient(
-//                        colors = listOf(
-//                            MaterialTheme.colorScheme.surface.copy(alpha = 0.1f),
-//                            Color.Transparent,
-//                            MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-//                            MaterialTheme.colorScheme.surface
-//                        ),
-//                        startY = 0f,
-//                        endY = 900f
-//                    )
-//                )
-//        )
-//        Row(
-//            modifier = Modifier
-//                .align(Alignment.BottomCenter)
-//                .fillMaxWidth()
-//                .padding(horizontal = 22.dp),
-//            horizontalArrangement = Arrangement.Absolute.SpaceBetween,
-//            verticalAlignment = Alignment.CenterVertically
-//        ) {
-//            Column(
-//                modifier = Modifier
-//                    .padding(start = 6.dp),
-//                verticalArrangement = Arrangement.Bottom,
-//                horizontalAlignment = Alignment.Start
-//            ) {
-//                Text(
-//                    text = "Daily Mix", style = MaterialTheme.typography.headlineLarge,
-//                    fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface
-//                )
-//                Spacer(Modifier.height(4.dp))
-//                Text(
-//                    text = "${songs.size} Songs • ${formatDuration(totalDuration)}",
-//                    style = MaterialTheme.typography.bodyMedium,
-//                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-//                )
-//            }
-//            LargeFloatingActionButton(
-//                modifier = Modifier,
-//                onClick = {},
-//                shape = RoundedStarShape(
-//                    sides = 8,
-//                    curve = 0.05,
-//                    rotation = 0f
-//                )
-//            ) {
-//                Icon(
-//                    modifier = Modifier.size(20.dp),
-//                    painter = painterResource(R.drawable.gemini_ai),
-//                    contentDescription = "Play"
-//                )
-//            }
-//        }
-//    }
-//    Trace.endSection() // End ExpressiveDailyMixHeader.Composition
-//}

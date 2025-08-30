@@ -27,10 +27,10 @@ import javax.inject.Singleton
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
 object ThemePreference {
-    const val DEFAULT = "default"       // Tema PixelPlay predeterminado
-    const val DYNAMIC = "dynamic"       // Tema dinámico del sistema (Android 12+)
-    const val ALBUM_ART = "album_art"   // Tema basado en carátula
-    const val GLOBAL = "global"         // Para que el reproductor siga el tema global
+    const val DEFAULT = "default"
+    const val DYNAMIC = "dynamic"
+    const val ALBUM_ART = "album_art"
+    const val GLOBAL = "global"
 }
 
 @Singleton
@@ -124,12 +124,6 @@ class UserPreferencesRepository @Inject constructor(
         .map { preferences ->
             preferences[PreferencesKeys.INITIAL_SETUP_DONE] ?: false
         }
-
-    // Removed globalThemePreferenceFlow
-    // val globalThemePreferenceFlow: Flow<String> = dataStore.data
-    //     .map { preferences ->
-    //         preferences[PreferencesKeys.GLOBAL_THEME_PREFERENCE] ?: ThemePreference.DYNAMIC
-    //     }
 
     val playerThemePreferenceFlow: Flow<String> = dataStore.data
         .map { preferences ->
@@ -233,13 +227,6 @@ class UserPreferencesRepository @Inject constructor(
             preferences[PreferencesKeys.ALLOWED_DIRECTORIES] = allowedPaths
         }
     }
-
-    // Removed setGlobalThemePreference
-    // suspend fun setGlobalThemePreference(themeMode: String) {
-    //     dataStore.edit { preferences ->
-    //         preferences[PreferencesKeys.GLOBAL_THEME_PREFERENCE] = themeMode
-    //     }
-    // }
 
     suspend fun setPlayerThemePreference(themeMode: String) {
         dataStore.edit { preferences ->

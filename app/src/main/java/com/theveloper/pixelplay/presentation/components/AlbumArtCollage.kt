@@ -1,7 +1,5 @@
 package com.theveloper.pixelplay.presentation.components
 
-import android.net.Uri
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -154,15 +152,3 @@ fun AlbumArtCollage(
         }
     }
 }
-
-// Clase de datos para almacenar la configuración de cada imagen en el collage
-data class ImageConfig(
-    val size: Dp, // Tamaño para formas cuadradas (la mayoría)
-    val width: Dp = size, // Ancho específico (para píldora)
-    val height: Dp = size, // Alto específico (para píldora)
-    val alignment: Alignment,
-    val rotation: Float,
-    val shape: Shape,
-    val offsetX: Dp,
-    val offsetY: Dp
-)

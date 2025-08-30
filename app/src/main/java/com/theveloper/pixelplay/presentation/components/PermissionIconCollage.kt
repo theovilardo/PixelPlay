@@ -62,7 +62,7 @@ fun PermissionIconCollage(
         val iconTrdColor = MaterialTheme.colorScheme.tertiary
         val iconSndColor = MaterialTheme.colorScheme.secondary
 
-        val iconConfigs by produceState<List<IconConfig>>(initialValue = emptyList(), iconsToShow, boxMaxHeight) {
+        val iconConfigs by produceState(initialValue = emptyList(), iconsToShow, boxMaxHeight) {
             value = withContext(Dispatchers.Default) {
                 val min = minOf(200.dp, height)
                 listOf(

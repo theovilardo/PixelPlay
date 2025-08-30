@@ -5,6 +5,7 @@ import com.theveloper.pixelplay.data.database.TransitionRuleEntity
 import com.theveloper.pixelplay.data.model.TransitionRule
 import com.theveloper.pixelplay.data.model.TransitionSettings
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -18,6 +19,7 @@ class TransitionRepositoryImpl @Inject constructor(
     private val userPreferences: UserPreferencesRepository
 ) : TransitionRepository {
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     override fun resolveTransitionSettings(
         playlistId: String,
         fromTrackId: String,

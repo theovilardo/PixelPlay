@@ -188,10 +188,10 @@ fun HomeScreen(
                 .background(
                     brush = Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.0f to Color.Transparent,                                           // Todo arriba transparente
-                            0.2f to Color.Transparent,                                           // Mantener transparencia hasta 60%
-                            0.8f to MaterialTheme.colorScheme.surfaceContainerLowest,            // Arranque repentino del color
-                            1.0f to MaterialTheme.colorScheme.surfaceContainerLowest             // Sólido hasta abajo
+                            0.0f to Color.Transparent,
+                            0.2f to Color.Transparent,
+                            0.8f to MaterialTheme.colorScheme.surfaceContainerLowest,
+                            1.0f to MaterialTheme.colorScheme.surfaceContainerLowest
                         )
                     )
                 )

@@ -1,12 +1,10 @@
 package com.theveloper.pixelplay.presentation.viewmodel
 
-import androidx.compose.foundation.gestures.forEach
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.theveloper.pixelplay.data.model.Genre
 import com.theveloper.pixelplay.data.model.Song
-
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,10 +23,10 @@ sealed interface GroupedSongListItem {
 
 data class GenreDetailUiState(
     val genre: Genre? = null,
-    val songs: List<Song> = emptyList(), // Keep the flat list for playback context
-    val groupedSongs: List<GroupedSongListItem> = emptyList(), // For display
-    val isLoadingGenreName: Boolean = false, // For initial genre name loading
-    val isLoadingSongs: Boolean = false,    // For song loading
+    val songs: List<Song> = emptyList(),
+    val groupedSongs: List<GroupedSongListItem> = emptyList(),
+    val isLoadingGenreName: Boolean = false,
+    val isLoadingSongs: Boolean = false,
     val error: String? = null
 )
 

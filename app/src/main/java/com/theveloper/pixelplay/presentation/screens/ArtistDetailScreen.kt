@@ -320,8 +320,6 @@ private fun CustomCollapsingTopBar(
                     )
             )
         }
-
-        // Gradiente para la barra de estado (se dibuja debajo de los botones)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -329,14 +327,11 @@ private fun CustomCollapsingTopBar(
                 .background(Brush.verticalGradient(colors = listOf(statusBarColor, Color.Transparent)))
                 .align(Alignment.TopCenter)
         )
-
-        // --- Contenido de la barra superior (botones, título, etc.) ---
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            // Botón de volver
             FilledIconButton(
                 modifier = Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 4.dp),
                 onClick = onBackPressed,
@@ -344,15 +339,6 @@ private fun CustomCollapsingTopBar(
             ) {
                 Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
             }
-
-            // Botón de búsqueda
-//            FilledIconButton(
-//                modifier = Modifier.align(Alignment.TopEnd).padding(end = 12.dp, top = 4.dp),
-//                onClick = { /* TODO */ },
-//                colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
-//            ) {
-//                Icon(Icons.Rounded.Search, contentDescription = "Buscar en artista")
-//            }
 
             // Box contenedor para el título
             Box(

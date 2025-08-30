@@ -74,8 +74,6 @@ fun SongInfoBottomSheet(
 
     val evenCornerRadiusElems = 26.dp
 
-    // Formas personalizadas (asumiendo que AbsoluteSmoothCornerShape está definida en tu proyecto)
-    // Si no lo está, reemplaza con RoundedCornerShape(valor)
     val listItemShape = AbsoluteSmoothCornerShape(
         cornerRadiusTR = 20.dp, smoothnessAsPercentBR = 60, cornerRadiusBR = 20.dp,
         smoothnessAsPercentTL = 60, cornerRadiusTL = 20.dp, smoothnessAsPercentBL = 60,
@@ -94,12 +92,11 @@ fun SongInfoBottomSheet(
 
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
-        confirmValueChange = { true } // Permite cerrar el BottomSheet
+        confirmValueChange = { true }
     )
 
-    // Animaciones para el botón de favorito
     val favoriteButtonCornerRadius by animateDpAsState(
-        targetValue = if (isFavorite) evenCornerRadiusElems else 60.dp, // 28.dp para hacerlo circular en un alto de 56.dp
+        targetValue = if (isFavorite) evenCornerRadiusElems else 60.dp,
         animationSpec = tween(durationMillis = 300), label = "FavoriteCornerAnimation"
     )
     val favoriteButtonContainerColor by animateColorAsState(

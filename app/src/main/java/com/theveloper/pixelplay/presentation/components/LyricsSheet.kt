@@ -13,9 +13,6 @@ import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -25,7 +22,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -126,13 +122,9 @@ fun LyricsSheet(
                                     containerColor,
                                     containerColor,
                                     containerColor,
-                                    //tst
                                     containerColor,
                                     containerColor,
                                     containerColor,
-                                    //fin tst
-                                    //containerColor.copy(alpha = 0.95f),
-                                    //containerColor.copy(alpha = 0.4f),
                                     Color.Transparent
                                 )
                             )
@@ -173,12 +165,11 @@ fun LyricsSheet(
                             selectedTabIndex = selectedTabIndex,
                             containerColor = Color.Transparent,
                             indicator = { tabPositions ->
-                                // FIX: Ensure the indicator uses the correct selectedTabIndex.
                                 if (selectedTabIndex < tabPositions.size) {
                                     TabRowDefaults.PrimaryIndicator(
                                         modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
                                         height = 3.dp,
-                                        color = Color.Transparent//MaterialTheme.colorScheme.primary
+                                        color = Color.Transparent
                                     )
                                 }
                             },
@@ -191,7 +182,6 @@ fun LyricsSheet(
                             ) {
                                 Spacer(modifier = Modifier.width(14.dp))
                                 tabTitles.forEachIndexed { index, title ->
-                                    // FIX: Update the state when a tab is clicked.
                                     TabAnimation(
                                         modifier = Modifier.weight(1f),
                                         selectedColor = accentColor,
@@ -229,14 +219,12 @@ fun LyricsSheet(
                         Icon(
                             modifier = Modifier.size(36.dp),
                             imageVector = Icons.Rounded.Pause,
-                            //tint = containerColor.copy(alpha = 0.45f),
                             contentDescription = "Pause"
                         )
                     } else {
                         Icon(
                             modifier = Modifier.size(36.dp),
                             imageVector = Icons.Rounded.PlayArrow,
-                            //tint = containerColor.copy(alpha = 0.45f),
                             contentDescription = "Play"
                         )
                     }
@@ -417,7 +405,6 @@ fun LyricsSheet(
                         brush = Brush.verticalGradient(
                             colors = listOf(
                                 Color.Transparent,
-                                //containerColor.copy(0.5f),
                                 containerColor
                             )
                         )
@@ -439,46 +426,6 @@ fun LyricsSheet(
                     .height(78.dp)
                     .padding(bottom = paddingValues.calculateBottomPadding() + 10.dp)
                     .padding(horizontal = 24.dp)
-            )
-        }
-    }
-}
-
-@Composable
-fun ExpressiveLyricsTypeSwitch(
-    selectedIndex: Int,
-    onSelectedIndexChange: (Int) -> Unit,
-    accentColor: Color,
-    modifier: Modifier = Modifier
-) {
-    val items = listOf("Synced", "Static")
-    PrimaryTabRow(
-        selectedTabIndex = selectedIndex,
-        containerColor = Color.Transparent,
-        indicator = {
-            TabRowDefaults.PrimaryIndicator(
-                modifier = Modifier
-                    .tabIndicatorOffset(selectedIndex)
-                    .clip(RoundedCornerShape(100)),
-                height = 4.dp,
-                color = accentColor
-            )
-        },
-        divider = {},
-        modifier = modifier
-    ) {
-        items.forEachIndexed { index, title ->
-            Tab(
-                selected = selectedIndex == index,
-                onClick = { onSelectedIndexChange(index) },
-                text = {
-                    Text(
-                        text = title,
-                        fontWeight = if (selectedIndex == index) FontWeight.Bold else FontWeight.Medium,
-                    )
-                },
-                selectedContentColor = accentColor,
-                unselectedContentColor = LocalContentColor.current.copy(alpha = 0.7f)
             )
         }
     }

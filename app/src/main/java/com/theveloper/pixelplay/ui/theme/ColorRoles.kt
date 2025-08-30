@@ -2,47 +2,28 @@ package com.theveloper.pixelplay.ui.theme
 
 import android.graphics.Bitmap
 import android.util.LruCache
-import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.core.graphics.ColorUtils
 import androidx.palette.graphics.Palette
 import com.theveloper.pixelplay.presentation.viewmodel.ColorSchemePair
-import kotlin.math.abs
 import kotlin.math.max
-import kotlin.math.min
+import androidx.core.graphics.scale
 
-// --- HCT Simulation Helpers (Simplificado) ---
-// En una implementación real, se usaría una biblioteca o una lógica más precisa para HCT.
 private fun Color.toHct(): Triple<Float, Float, Float> {
     val hsl = FloatArray(3)
     ColorUtils.RGBToHSL(red.toByteInt(), green.toByteInt(), blue.toByteInt(), hsl)
-    // Esto es HSL, no HCT. HCT es más complejo.
-    // Para simular, usaremos HSL y ajustaremos el tono (Lightness) para simular el Tono de HCT.
-    // Chroma (Saturación en HSL) también se ajusta.
-    return Triple(hsl[0], hsl[1], hsl[2]) // Hue, Saturation, Lightness
+    return Triple(hsl[0], hsl[1], hsl[2])
 }
 
 private fun hctToColor(hue: Float, chroma: Float, tone: Float): Color {
-    // Asumimos que 'tone' es Lightness y 'chroma' es Saturation para HSL.
     val hsl = floatArrayOf(hue.coerceIn(0f, 360f), chroma.coerceIn(0f, 1f), tone.coerceIn(0f, 1f))
     return Color(ColorUtils.HSLToColor(hsl))
 }
 
-private fun Color.getHarmonizedSeed(seed: Color): Color {
-    // Lógica simple para asegurar que el color no sea demasiado similar al seed
-    val thisHct = this.toHct()
-    val seedHct = seed.toHct()
-    if (abs(thisHct.first - seedHct.first) < 30 && abs(thisHct.third - seedHct.third) < 0.1f) {
-        return hctToColor((thisHct.first + 45f) % 360f, thisHct.second, thisHct.third)
-    }
-    return this
-}
-
-private fun Color.tone(targetTone: Int): Color { // targetTone 0-100
-    val (_, chroma, _) = this.toHct() // Usar chroma original como base
+private fun Color.tone(targetTone: Int): Color {
+    val (_, chroma, _) = this.toHct()
     return hctToColor(this.toHct().first, chroma, targetTone / 100f)
 }
 private fun Color.withChroma(targetChroma: Float): Color {
@@ -53,36 +34,29 @@ private fun Color.withChroma(targetChroma: Float): Color {
 private fun Float.toByteInt(): Int = (this * 255f).toInt()
 
 
-// Cache for extracted colors to avoid repeated palette generation
-private val extractedColorCache = LruCache<Int, Color>(20) // Cache for 20 bitmaps
+private val extractedColorCache = LruCache<Int, Color>(20)
 
 // --- Optimized Color Scheme Generation ---
 fun extractSeedColor(bitmap: Bitmap): Color {
-    // Generate a hash based on bitmap content for cache key
     val bitmapHash = bitmap.hashCode()
-    
-    // Check cache first
+
     extractedColorCache.get(bitmapHash)?.let { return it }
-    
-    // If not in cache, create a scaled-down version for palette generation
-    // to reduce computation cost
+
     val scaledBitmap = if (bitmap.width > 200 || bitmap.height > 200) {
         val scale = 200f / max(bitmap.width, bitmap.height)
         val scaledWidth = (bitmap.width * scale).toInt()
         val scaledHeight = (bitmap.height * scale).toInt()
-        Bitmap.createScaledBitmap(bitmap, scaledWidth, scaledHeight, true)
+        bitmap.scale(scaledWidth, scaledHeight)
     } else {
         bitmap
     }
-    
-    // Use fewer colors (16 instead of 24) for faster generation
+
     val palette = Palette.Builder(scaledBitmap)
         .maximumColorCount(16)
-        .resizeBitmapArea(0) // Don't resize again
-        .clearFilters() // Don't apply default filters
+        .resizeBitmapArea(0)
+        .clearFilters()
         .generate()
-    
-    // Prioridad: Vibrant > Muted > Dominant
+
     val color = palette.vibrantSwatch?.rgb?.let { Color(it) }
         ?: palette.mutedSwatch?.rgb?.let { Color(it) }
         ?: palette.dominantSwatch?.rgb?.let { Color(it) }
@@ -90,8 +64,7 @@ fun extractSeedColor(bitmap: Bitmap): Color {
     
     // Store in cache
     extractedColorCache.put(bitmapHash, color)
-    
-    // Clean up the scaled bitmap if we created one
+
     if (scaledBitmap != bitmap) {
         scaledBitmap.recycle()
     }
@@ -101,7 +74,7 @@ fun extractSeedColor(bitmap: Bitmap): Color {
 
 fun generateColorSchemeFromSeed(seedColor: Color): ColorSchemePair {
 
-    // --- Tonal Palettes (Simulación de Material You) ---
+    // --- Tonal Palettes ---
     // Primary Tones
     val primary10 = seedColor.tone(10)
     val primary20 = seedColor.tone(20)
