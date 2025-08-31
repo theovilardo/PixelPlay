@@ -331,16 +331,6 @@ private fun ArtistSectionCard(
     albums: List<AlbumData>,
     onSongClick: (Song) -> Unit
 ) {
-    val shadowShaoe = AbsoluteSmoothCornerShape(
-        cornerRadiusTR = 28.dp,
-        smoothnessAsPercentTL = 60,
-        cornerRadiusTL = 28.dp,
-        smoothnessAsPercentTR = 60,
-        cornerRadiusBL = 28.dp,
-        smoothnessAsPercentBR = 60,
-        cornerRadiusBR = 28.dp,
-        smoothnessAsPercentBL = 60
-    )
     Column(
         modifier = Modifier
     ) {
@@ -534,7 +524,7 @@ private fun SquareSongCard(
                     text = song.title,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     fontWeight = FontWeight.Medium,
                     lineHeight = 16.sp
