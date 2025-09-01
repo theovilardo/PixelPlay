@@ -28,7 +28,7 @@ import com.theveloper.pixelplay.presentation.components.scoped.CustomNavigationB
 import com.theveloper.pixelplay.presentation.navigation.BottomNavItem
 import kotlinx.collections.immutable.ImmutableList
 
-val NavBarContentHeight = 64.dp // Altura del contenido de la barra de navegación
+val NavBarContentHeight = 74.dp // Altura del contenido de la barra de navegación
 
 @Composable
 private fun PlayerInternalNavigationItemsRow(
@@ -41,7 +41,7 @@ private fun PlayerInternalNavigationItemsRow(
     val rowModifier = if (navBarStyle == NavBarStyle.FULL_WIDTH) {
         modifier
             .fillMaxWidth()
-            .padding(top = 4.dp, bottom = 8.dp, start = 12.dp, end = 12.dp)
+            .padding(top = 14.dp, bottom = 8.dp, start = 12.dp, end = 12.dp)
     } else {
         modifier
             .fillMaxWidth()
