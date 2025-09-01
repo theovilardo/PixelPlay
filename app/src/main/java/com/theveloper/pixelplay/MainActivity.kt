@@ -302,13 +302,18 @@ class MainActivity : ComponentActivity() {
         Box(modifier = Modifier.fillMaxSize()) {
             AppNavigation(playerViewModel = playerViewModel, navController = navController)
 
+import com.theveloper.pixelplay.data.preferences.NavBarStyle
+
             val density = LocalDensity.current
             val configuration = LocalConfiguration.current
             val screenHeightPx = remember(configuration) { with(density) { configuration.screenHeightDp.dp.toPx() } }
-            val collapsedStateBottomMargin = getNavigationBarHeight()
+            val navBarStyle by playerViewModel.navBarStyle.collectAsState()
+            val defaultBottomMargin = getNavigationBarHeight()
+            val actualCollapsedStateBottomMargin = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else defaultBottomMargin
+
             val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-            val navBarH = with(density) { (NavBarContentHeight + collapsedStateBottomMargin).toPx() }
-            val collapsedMarginPx = with(density) { collapsedStateBottomMargin.toPx() }
+            val navBarH = with(density) { (NavBarContentHeight + defaultBottomMargin).toPx() }
+            val collapsedMarginPx = with(density) { actualCollapsedStateBottomMargin.toPx() }
             val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
             val showPlayerContentInitially = stablePlayerState.currentSong != null
             val miniPlayerH = with(density) { MiniPlayerHeight.toPx() }
@@ -332,8 +337,8 @@ class MainActivity : ComponentActivity() {
                 navController = navController,
                 navItems = commonNavItems,
                 initialTargetTranslationY = initialY,
-                collapsedStateHorizontalPadding = collapsedStateBottomMargin,
-                collapsedStateBottomMargin = collapsedStateBottomMargin,
+                collapsedStateHorizontalPadding = actualCollapsedStateBottomMargin,
+                collapsedStateBottomMargin = actualCollapsedStateBottomMargin,
                 hideNavigationBar = shouldHideNavigationBar,
                 hideMiniPlayer = shouldHideMiniPlayer
             )
