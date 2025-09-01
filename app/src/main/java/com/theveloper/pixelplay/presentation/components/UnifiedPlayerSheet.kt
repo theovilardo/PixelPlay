@@ -1086,7 +1086,12 @@ import com.theveloper.pixelplay.data.preferences.NavBarStyle
                     val conditionalShape = if (showPlayerContentArea) {
                         actualShape
                     } else {
-                        CircleShape
+                        RoundedCornerShape(
+                            topStart = 32.dp,
+                            topEnd = 32.dp,
+                            bottomStart = 0.dp,
+                            bottomEnd = 0.dp
+                        )
                     }
 
                     val navBarHorizontalPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else actualCollapsedStateHorizontalPadding
