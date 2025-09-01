@@ -28,7 +28,7 @@ import com.theveloper.pixelplay.presentation.components.scoped.CustomNavigationB
 import com.theveloper.pixelplay.presentation.navigation.BottomNavItem
 import kotlinx.collections.immutable.ImmutableList
 
-val NavBarContentHeight = 74.dp // Altura del contenido de la barra de navegación
+val NavBarContentHeight = 66.dp // Altura del contenido de la barra de navegación
 val NavBarContentHeightFullWidth = 84.dp // Altura del contenido de la barra de navegación en modo completo
 
 @Composable
@@ -155,7 +155,7 @@ fun PlayerInternalNavigationBar(
             navController = navController,
             navItems = navItems,
             currentRoute = currentRoute,
-            modifier = Modifier.height(NavBarContentHeight), // Content has fixed height
+            modifier = Modifier.height(navHeight), // Content has fixed height
             navBarStyle = navBarStyle
         )
     }

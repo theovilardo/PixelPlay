@@ -112,6 +112,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
+import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
+import com.theveloper.pixelplay.presentation.components.NavBarContentHeightFullWidth
 import com.theveloper.pixelplay.presentation.components.subcomps.FetchLyricsDialog
 import com.theveloper.pixelplay.presentation.viewmodel.LyricsSearchUiState
 import kotlinx.collections.immutable.persistentListOf
@@ -211,7 +213,10 @@ fun UnifiedPlayerSheet(
     val screenHeightPx = remember(configuration) { with(density) { configuration.screenHeightDp.dp.toPx() } }
     val miniPlayerContentHeightPx = remember { with(density) { MiniPlayerHeight.toPx() } }
     val systemNavBarInset = WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
-    val navBarHeightPx = remember(density, systemNavBarInset) { with(density) { (NavBarContentHeight + systemNavBarInset).toPx() } }
+    val navBarHeightPx = remember(density, systemNavBarInset, navBarStyle) {
+        val height = if (navBarStyle == NavBarStyle.FULL_WIDTH) NavBarContentHeightFullWidth else NavBarContentHeight
+        with(density) { (height + systemNavBarInset).toPx() }
+    }
     val miniPlayerAndSpacerHeightPx = remember(density, MiniPlayerHeight, CollapsedPlayerContentSpacerHeight) { with(density) { (MiniPlayerHeight + CollapsedPlayerContentSpacerHeight).toPx() } }
     remember { with(density) { CollapsedPlayerContentSpacerHeight.toPx() } }
 
@@ -1088,12 +1093,16 @@ fun UnifiedPlayerSheet(
                     val conditionalShape = if (showPlayerContentArea) {
                         actualShape
                     } else {
-                        RoundedCornerShape(
-                            topStart = 32.dp,
-                            topEnd = 32.dp,
-                            bottomStart = 0.dp,
-                            bottomEnd = 0.dp
-                        )
+                        if (navBarStyle == NavBarStyle.DEFAULT) {
+                            RoundedCornerShape(
+                                topStart = 32.dp,
+                                topEnd = 32.dp,
+                                bottomStart = 0.dp,
+                                bottomEnd = 0.dp
+                            )
+                        } else { // FULL_WIDTH
+                            RoundedCornerShape(0.dp)
+                        }
                     }
 
                     val navBarHorizontalPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else actualCollapsedStateHorizontalPadding
