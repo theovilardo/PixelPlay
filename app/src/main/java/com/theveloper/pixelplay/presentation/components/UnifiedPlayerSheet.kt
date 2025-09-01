@@ -461,7 +461,7 @@ import com.theveloper.pixelplay.data.preferences.NavBarStyle
         derivedStateOf {
             if (navBarStyle == NavBarStyle.FULL_WIDTH) {
                 val fraction = playerContentExpansionFraction.value
-                return@derivedStateOf lerp(60.dp, 26.dp, fraction)
+                return@derivedStateOf lerp(22.dp, 26.dp, fraction)
             }
 
             val calculatedNormally = if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
