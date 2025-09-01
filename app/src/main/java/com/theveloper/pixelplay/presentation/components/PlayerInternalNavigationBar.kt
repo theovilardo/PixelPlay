@@ -41,7 +41,7 @@ private fun PlayerInternalNavigationItemsRow(
     val rowModifier = if (navBarStyle == NavBarStyle.FULL_WIDTH) {
         modifier
             .fillMaxWidth()
-            .padding(top = 10.dp, start = 12.dp, end = 12.dp)
+            .padding(top = 4.dp, bottom = 8.dp, start = 12.dp, end = 12.dp)
     } else {
         modifier
             .fillMaxWidth()
