@@ -1089,10 +1089,11 @@ import com.theveloper.pixelplay.data.preferences.NavBarStyle
                         CircleShape
                     }
 
-                    val playerInternalNavBarModifier = remember(actualCollapsedStateHorizontalPadding) {
+                    val navBarHorizontalPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else actualCollapsedStateHorizontalPadding
+                    val playerInternalNavBarModifier = remember(navBarHorizontalPadding) {
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = actualCollapsedStateHorizontalPadding)
+                            .padding(horizontal = navBarHorizontalPadding)
                             .pointerInput(Unit) {
                                 detectTapGestures { /* Permitir taps normales en nav items */ }
                             }
