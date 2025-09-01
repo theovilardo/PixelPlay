@@ -1110,7 +1110,8 @@ import com.theveloper.pixelplay.data.preferences.NavBarStyle
                         bottomCornersRadiusDp = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp,
                         navBarHeightPx = navBarHeightPx,
                         navBarInset = systemNavBarInset,
-                        modifier = playerInternalNavBarModifier
+                        modifier = playerInternalNavBarModifier,
+                        navBarStyle = navBarStyle
                     )
                 }
             }
