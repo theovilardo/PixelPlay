@@ -408,7 +408,7 @@ import com.theveloper.pixelplay.data.preferences.NavBarStyle
         derivedStateOf {
             if (showPlayerContentArea) {
                 val collapsedCornerTarget = if (navBarStyle == NavBarStyle.FULL_WIDTH) {
-                    60.dp
+                    32.dp
                 } else {
                     if (hideNavigationBar) 32.dp else navBarCornerRadius.dp
                 }
@@ -461,7 +461,7 @@ import com.theveloper.pixelplay.data.preferences.NavBarStyle
         derivedStateOf {
             if (navBarStyle == NavBarStyle.FULL_WIDTH) {
                 val fraction = playerContentExpansionFraction.value
-                return@derivedStateOf lerp(22.dp, 26.dp, fraction)
+                return@derivedStateOf lerp(32.dp, 26.dp, fraction)
             }
 
             val calculatedNormally = if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
@@ -1070,15 +1070,16 @@ import com.theveloper.pixelplay.data.preferences.NavBarStyle
                         currentRouteValue
                     }
 
-                    val actualShape = remember(playerContentActualBottomRadius, showPlayerContentArea) {
+                    val actualShape = remember(playerContentActualBottomRadius, showPlayerContentArea, navBarStyle, navBarCornerRadius) {
+                        val bottomRadius = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp
                         AbsoluteSmoothCornerShape(
                             cornerRadiusTL = playerContentActualBottomRadius,
                             smoothnessAsPercentBR = 60,
                             cornerRadiusTR = playerContentActualBottomRadius,
                             smoothnessAsPercentTL = 60,
-                            cornerRadiusBL = navBarCornerRadius.dp,
+                            cornerRadiusBL = bottomRadius,
                             smoothnessAsPercentTR = 60,
-                            cornerRadiusBR = navBarCornerRadius.dp,
+                            cornerRadiusBR = bottomRadius,
                             smoothnessAsPercentBL = 60
                         )
                     }
