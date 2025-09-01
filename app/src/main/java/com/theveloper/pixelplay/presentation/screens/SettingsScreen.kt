@@ -371,27 +371,48 @@ fun SettingsScreen(
                                     tint = MaterialTheme.colorScheme.secondary
                                 )
                             }
+import com.theveloper.pixelplay.data.preferences.NavBarStyle
                         )
                         Spacer(modifier = Modifier.height(4.dp))
-                        SettingsItem(
-                            title = "NavBar Corner Radius",
-                            subtitle = "Adjust the corner radius of the navigation bar.",
+                        ThemeSelectorItem(
+                            label = "NavBar Style",
+                            description = "Choose the appearance for the navigation bar.",
+                            options = mapOf(
+                                NavBarStyle.DEFAULT to "Default",
+                                NavBarStyle.FULL_WIDTH to "Full Width"
+                            ),
+                            selectedKey = uiState.navBarStyle,
+                            onSelectionChanged = { settingsViewModel.setNavBarStyle(it) },
                             leadingIcon = {
                                 Icon(
-                                    painter = painterResource(id = R.drawable.rounded_rounded_corner_24),
+                                    imageVector = Icons.Outlined.Style,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.secondary
                                 )
-                            },
-                            trailingIcon = {
-                                Icon(
-                                    imageVector = Icons.Rounded.ChevronRight,
-                                    contentDescription = "Adjust radius",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            },
-                            onClick = { navController.navigate("nav_bar_corner_radius") }
+                            }
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        if (uiState.navBarStyle == NavBarStyle.DEFAULT) {
+                            SettingsItem(
+                                title = "NavBar Corner Radius",
+                                subtitle = "Adjust the corner radius of the navigation bar.",
+                                leadingIcon = {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.rounded_rounded_corner_24),
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.secondary
+                                    )
+                                },
+                                trailingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Rounded.ChevronRight,
+                                        contentDescription = "Adjust radius",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                },
+                                onClick = { navController.navigate("nav_bar_corner_radius") }
+                            )
+                        }
                     }
                 }
             }

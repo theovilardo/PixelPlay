@@ -186,7 +186,10 @@ fun UnifiedPlayerSheet(
     val currentSheetContentState by playerViewModel.sheetState.collectAsState()
     val predictiveBackCollapseProgress by playerViewModel.predictiveBackCollapseFraction.collectAsState()
 
+import com.theveloper.pixelplay.data.preferences.NavBarStyle
+
     val navBarCornerRadius by playerViewModel.navBarCornerRadius.collectAsState()
+    val navBarStyle by playerViewModel.navBarStyle.collectAsState()
 
     val density = LocalDensity.current
     val configuration = LocalConfiguration.current
@@ -398,22 +401,32 @@ fun UnifiedPlayerSheet(
         playerContentExpansionFraction,
         hideNavigationBar,
         predictiveBackCollapseProgress,
-        currentSheetContentState
+        currentSheetContentState,
+        navBarStyle,
+        navBarCornerRadius
     ) {
         derivedStateOf {
             if (showPlayerContentArea) {
+                val collapsedCornerTarget = if (navBarStyle == NavBarStyle.FULL_WIDTH) {
+                    60.dp
+                } else {
+                    if (hideNavigationBar) 32.dp else navBarCornerRadius.dp
+                }
+
                 if (predictiveBackCollapseProgress > 0f && currentSheetContentState == PlayerSheetState.EXPANDED) {
                     val expandedCorner = 0.dp
-                    val collapsedCornerTarget = if (hideNavigationBar) 32.dp else navBarCornerRadius.dp
                     lerp(expandedCorner, collapsedCornerTarget, predictiveBackCollapseProgress)
                 } else {
                     val fraction = playerContentExpansionFraction.value
                     val expandedTarget = 0.dp
-                    val collapsedTarget = if (hideNavigationBar) 32.dp else navBarCornerRadius.dp
-                    lerp(collapsedTarget, expandedTarget, fraction)
+                    lerp(collapsedCornerTarget, expandedTarget, fraction)
                 }
             } else {
-                if (hideNavigationBar) 32.dp else navBarCornerRadius.dp
+                if (navBarStyle == NavBarStyle.FULL_WIDTH) {
+                    0.dp
+                } else {
+                    if (hideNavigationBar) 32.dp else navBarCornerRadius.dp
+                }
             }
         }
     }
@@ -430,11 +443,12 @@ fun UnifiedPlayerSheet(
     val sheetShape = RoundedCornerShape(
         topStart = overallSheetTopCornerRadius,
         topEnd = overallSheetTopCornerRadius,
-        bottomStart = navBarCornerRadius.dp,
-        bottomEnd = navBarCornerRadius.dp
+        bottomStart = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp,
+        bottomEnd = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp
     )
 
     val playerContentActualBottomRadiusTargetValue by remember(
+        navBarStyle,
         hideNavigationBar,
         showPlayerContentArea,
         playerContentExpansionFraction,
@@ -445,6 +459,11 @@ fun UnifiedPlayerSheet(
         swipeDismissProgress.value
     ) {
         derivedStateOf {
+            if (navBarStyle == NavBarStyle.FULL_WIDTH) {
+                val fraction = playerContentExpansionFraction.value
+                return@derivedStateOf lerp(60.dp, 26.dp, fraction)
+            }
+
             val calculatedNormally = if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
                 val expandedRadius = if (hideNavigationBar) 32.dp else 26.dp
                 val collapsedRadiusTarget = if (hideNavigationBar) 32.dp else 12.dp
@@ -531,19 +550,22 @@ fun UnifiedPlayerSheet(
         label = "NavBarTopRadius"
     )
 
+    val actualCollapsedStateHorizontalPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else collapsedStateHorizontalPadding
+
     val currentHorizontalPadding by remember(
         showPlayerContentArea,
         playerContentExpansionFraction,
-        collapsedStateHorizontalPadding,
-        predictiveBackCollapseProgress
+        actualCollapsedStateHorizontalPadding,
+        predictiveBackCollapseProgress,
+        navBarStyle
     ) {
         derivedStateOf {
             if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                lerp(0.dp, collapsedStateHorizontalPadding, predictiveBackCollapseProgress)
+                lerp(0.dp, actualCollapsedStateHorizontalPadding, predictiveBackCollapseProgress)
             } else if (showPlayerContentArea) {
-                lerp(collapsedStateHorizontalPadding, 0.dp, playerContentExpansionFraction.value)
+                lerp(actualCollapsedStateHorizontalPadding, 0.dp, playerContentExpansionFraction.value)
             } else {
-                collapsedStateHorizontalPadding
+                actualCollapsedStateHorizontalPadding
             }
         }
     }
@@ -1067,10 +1089,10 @@ fun UnifiedPlayerSheet(
                         CircleShape
                     }
 
-                    val playerInternalNavBarModifier = remember(collapsedStateHorizontalPadding) {
+                    val playerInternalNavBarModifier = remember(actualCollapsedStateHorizontalPadding) {
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = collapsedStateHorizontalPadding)
+                            .padding(horizontal = actualCollapsedStateHorizontalPadding)
                             .pointerInput(Unit) {
                                 detectTapGestures { /* Permitir taps normales en nav items */ }
                             }
@@ -1084,8 +1106,8 @@ fun UnifiedPlayerSheet(
                         isPlayerVisible = showPlayerContentArea,
                         currentRoute = rememberedCurrentRoute,
                         navBarHideFraction = navBarHideFraction,
-                        topCornersRadiusDp = playerContentActualBottomRadius,
-                        bottomCornersRadiusDp = navBarCornerRadius.dp,
+                        topCornersRadiusDp = if (navBarStyle == NavBarStyle.FULL_WIDTH && !isPlayerVisible) 0.dp else playerContentActualBottomRadius,
+                        bottomCornersRadiusDp = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp,
                         navBarHeightPx = navBarHeightPx,
                         navBarInset = systemNavBarInset,
                         modifier = playerInternalNavBarModifier

@@ -192,9 +192,18 @@ class PlayerViewModel @Inject constructor(
     private val _currentAlbumArtColorSchemePair = MutableStateFlow<ColorSchemePair?>(null)
     val currentAlbumArtColorSchemePair: StateFlow<ColorSchemePair?> = _currentAlbumArtColorSchemePair.asStateFlow()
 
+import com.theveloper.pixelplay.data.preferences.NavBarStyle
+
     val playerThemePreference: StateFlow<String> = userPreferencesRepository.playerThemePreferenceFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemePreference.GLOBAL)
 
     val navBarCornerRadius: StateFlow<Int> = userPreferencesRepository.navBarCornerRadiusFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 32)
+
+    val navBarStyle: StateFlow<String> = userPreferencesRepository.navBarStyleFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = NavBarStyle.DEFAULT
+        )
 
     private val _isInitialThemePreloadComplete = MutableStateFlow(false)
     val isInitialThemePreloadComplete: StateFlow<Boolean> = _isInitialThemePreloadComplete.asStateFlow()
