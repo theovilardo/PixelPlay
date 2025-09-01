@@ -1094,12 +1094,7 @@ fun UnifiedPlayerSheet(
                         actualShape
                     } else {
                         if (navBarStyle == NavBarStyle.DEFAULT) {
-                            RoundedCornerShape(
-                                topStart = 32.dp,
-                                topEnd = 32.dp,
-                                bottomStart = 0.dp,
-                                bottomEnd = 0.dp
-                            )
+                            RoundedCornerShape(60.dp)
                         } else { // FULL_WIDTH
                             RoundedCornerShape(0.dp)
                         }
