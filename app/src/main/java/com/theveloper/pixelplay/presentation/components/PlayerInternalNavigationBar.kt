@@ -23,6 +23,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.presentation.components.scoped.CustomNavigationBarItem
 import com.theveloper.pixelplay.presentation.navigation.BottomNavItem
 import kotlinx.collections.immutable.ImmutableList
@@ -34,12 +35,20 @@ private fun PlayerInternalNavigationItemsRow(
     navController: NavHostController,
     navItems: ImmutableList<BottomNavItem>,
     currentRoute: String?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    navBarStyle: String
 ) {
-    Row(
-        modifier = modifier
+    val rowModifier = if (navBarStyle == NavBarStyle.FULL_WIDTH) {
+        modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp),
+            .padding(top = 10.dp, start = 12.dp, end = 12.dp)
+    } else {
+        modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp)
+    }
+    Row(
+        modifier = rowModifier,
         horizontalArrangement = Arrangement.SpaceAround,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -111,8 +120,6 @@ fun PlayerInternalNavigationBar(
     modifier: Modifier = Modifier,
     topCornersRadiusDp: Dp,
     bottomCornersRadiusDp: Dp,
-import com.theveloper.pixelplay.data.preferences.NavBarStyle
-
     navBarHideFraction: Float,
     navBarHeightPx: Float,
     navBarInset: Dp,
@@ -145,7 +152,8 @@ import com.theveloper.pixelplay.data.preferences.NavBarStyle
             navController = navController,
             navItems = navItems,
             currentRoute = currentRoute,
-            modifier = Modifier.height(NavBarContentHeight) // Content has fixed height
+            modifier = Modifier.height(NavBarContentHeight), // Content has fixed height
+            navBarStyle = navBarStyle
         )
     }
 }

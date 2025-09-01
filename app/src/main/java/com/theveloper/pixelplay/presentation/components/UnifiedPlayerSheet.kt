@@ -550,7 +550,7 @@ import com.theveloper.pixelplay.data.preferences.NavBarStyle
         label = "NavBarTopRadius"
     )
 
-    val actualCollapsedStateHorizontalPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else collapsedStateHorizontalPadding
+    val actualCollapsedStateHorizontalPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 14.dp else collapsedStateHorizontalPadding
 
     val currentHorizontalPadding by remember(
         showPlayerContentArea,
