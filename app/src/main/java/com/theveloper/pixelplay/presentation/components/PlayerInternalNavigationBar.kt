@@ -29,6 +29,7 @@ import com.theveloper.pixelplay.presentation.navigation.BottomNavItem
 import kotlinx.collections.immutable.ImmutableList
 
 val NavBarContentHeight = 74.dp // Altura del contenido de la barra de navegación
+val NavBarContentHeightFullWidth = 84.dp // Altura del contenido de la barra de navegación en modo completo
 
 @Composable
 private fun PlayerInternalNavigationItemsRow(
@@ -129,10 +130,12 @@ fun PlayerInternalNavigationBar(
     val animatedTranslationY = remember(navBarHideFraction, navBarHeightPx) { derivedStateOf { navBarHeightPx * navBarHideFraction } }
     val boxAlignment = if (navBarStyle == NavBarStyle.FULL_WIDTH) Alignment.TopCenter else Alignment.Center
 
+    val navHeight = if (navBarStyle == NavBarStyle.FULL_WIDTH) NavBarContentHeightFullWidth else NavBarContentHeight
+
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(NavBarContentHeight + navBarInset) // Explicit total height
+            .height(navHeight + navBarInset) // Explicit total height
             .graphicsLayer {
                 translationY = animatedTranslationY.value
                 alpha = 1f

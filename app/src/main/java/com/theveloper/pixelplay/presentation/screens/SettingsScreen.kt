@@ -100,6 +100,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.DirectoryItem
+import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
@@ -371,7 +372,6 @@ fun SettingsScreen(
                                     tint = MaterialTheme.colorScheme.secondary
                                 )
                             }
-import com.theveloper.pixelplay.data.preferences.NavBarStyle
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         ThemeSelectorItem(
@@ -391,8 +391,8 @@ import com.theveloper.pixelplay.data.preferences.NavBarStyle
                                 )
                             }
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
                         if (uiState.navBarStyle == NavBarStyle.DEFAULT) {
+                            Spacer(modifier = Modifier.height(4.dp))
                             SettingsItem(
                                 title = "NavBar Corner Radius",
                                 subtitle = "Adjust the corner radius of the navigation bar.",

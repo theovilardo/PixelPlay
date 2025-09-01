@@ -95,6 +95,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.SideEffect
+import com.theveloper.pixelplay.data.preferences.NavBarStyle
 
 @UnstableApi
 @AndroidEntryPoint
@@ -301,8 +302,6 @@ class MainActivity : ComponentActivity() {
 
         Box(modifier = Modifier.fillMaxSize()) {
             AppNavigation(playerViewModel = playerViewModel, navController = navController)
-
-import com.theveloper.pixelplay.data.preferences.NavBarStyle
 
             val density = LocalDensity.current
             val configuration = LocalConfiguration.current

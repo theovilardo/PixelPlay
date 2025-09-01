@@ -111,6 +111,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.media3.common.util.UnstableApi
+import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.presentation.components.subcomps.FetchLyricsDialog
 import com.theveloper.pixelplay.presentation.viewmodel.LyricsSearchUiState
 import kotlinx.collections.immutable.persistentListOf
@@ -182,11 +183,11 @@ fun UnifiedPlayerSheet(
         playerViewModel.playerUiState.map { it.undoBarVisibleDuration }.distinctUntilChanged()
     }.collectAsState(initial = 4000L)
 
+    val isPlayerVisible = stablePlayerState.isPlaying
+
 
     val currentSheetContentState by playerViewModel.sheetState.collectAsState()
     val predictiveBackCollapseProgress by playerViewModel.predictiveBackCollapseFraction.collectAsState()
-
-import com.theveloper.pixelplay.data.preferences.NavBarStyle
 
     val navBarCornerRadius by playerViewModel.navBarCornerRadius.collectAsState()
     val navBarStyle by playerViewModel.navBarStyle.collectAsState()
