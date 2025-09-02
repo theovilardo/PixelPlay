@@ -1050,7 +1050,10 @@ class PlayerViewModel @Inject constructor(
                 // Old EOT completion logic (based on _isEndOfTrackTimerActive and _endOfTrackSongId/EotStateHolder.eotTargetSongId) removed from here.
                 // Assertive EOT actions in MusicService and natural EOT completion in onMediaItemTransition cover this.
             }
-            override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) { _stablePlayerState.update { it.copy(isShuffleEnabled = shuffleModeEnabled) } }
+            override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+                _stablePlayerState.update { it.copy(isShuffleEnabled = shuffleModeEnabled) }
+                updateCurrentPlaybackQueueFromPlayer(playerCtrl)
+            }
             override fun onRepeatModeChanged(repeatMode: Int) { _stablePlayerState.update { it.copy(repeatMode = repeatMode) } }
             override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
                 if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) updateCurrentPlaybackQueueFromPlayer(playerCtrl) // Pass playerCtrl
