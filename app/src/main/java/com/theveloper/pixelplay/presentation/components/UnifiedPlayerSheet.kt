@@ -1656,7 +1656,7 @@ private fun FullPlayerContentInternal(
         ) {
             // Album Cover section
             val albumArtContainerModifier = Modifier
-                .padding(vertical = lerp(4.dp, 16.dp, expansionFraction))
+                .padding(vertical = lerp(4.dp, 8.dp, expansionFraction))
                 .fillMaxWidth(lerp(0.5f, 0.8f, expansionFraction))
                 .aspectRatio(1f)
                 .clip(RoundedCornerShape(lerp(16.dp, 24.dp, expansionFraction)))
@@ -1717,7 +1717,7 @@ private fun FullPlayerContentInternal(
             BottomToggleRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 38.dp, max = 88.dp)
+                    .heightIn(min = 58.dp, max = 88.dp)
                     .padding(horizontal = 26.dp, vertical = 8.dp),
                 isShuffleEnabled = isShuffleEnabled,
                 repeatMode = repeatMode,

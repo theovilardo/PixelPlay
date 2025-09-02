@@ -94,6 +94,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.SideEffect
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 
@@ -300,53 +301,55 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        Box(modifier = Modifier.fillMaxSize()) {
-            AppNavigation(playerViewModel = playerViewModel, navController = navController)
-
-            val density = LocalDensity.current
-            val configuration = LocalConfiguration.current
-            val screenHeightPx = remember(configuration) { with(density) { configuration.screenHeightDp.dp.toPx() } }
-            val navBarStyle by playerViewModel.navBarStyle.collectAsState()
-            val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-            val actualCollapsedStateBottomMargin = if (navBarStyle == NavBarStyle.FULL_WIDTH) {
-                if (shouldHideNavigationBar) {
-                    systemNavBarInset
+        Scaffold { innerPadding ->
+            Box(modifier = Modifier.fillMaxSize()) {
+                val density = LocalDensity.current
+                val configuration = LocalConfiguration.current
+                val screenHeightPx = remember(configuration) { with(density) { configuration.screenHeightDp.dp.toPx() } }
+                val navBarStyle by playerViewModel.navBarStyle.collectAsState()
+                val systemNavBarInset = innerPadding.calculateBottomPadding()//WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                val actualCollapsedStateBottomMargin = if (navBarStyle == NavBarStyle.FULL_WIDTH) {
+                    if (shouldHideNavigationBar) {
+                        systemNavBarInset
+                    } else {
+                        0.dp
+                    }
                 } else {
-                    0.dp
+                    systemNavBarInset
                 }
-            } else {
-                systemNavBarInset
-            }
-            val navBarH = with(density) { (NavBarContentHeight + systemNavBarInset).toPx() }
-            val collapsedMarginPx = with(density) { actualCollapsedStateBottomMargin.toPx() }
-            val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
-            val showPlayerContentInitially = stablePlayerState.currentSong != null
-            val miniPlayerH = with(density) { MiniPlayerHeight.toPx() }
-            val spacerH = with(density) { 0.dp.toPx() } // CollapsedPlayerContentSpacerHeight is not defined
-            val routesWithHiddenMiniPlayer = remember {
-                setOf(Screen.NavBarCrRad.route)
-            }
-            val shouldHideMiniPlayer by remember(currentRoute) {
-                derivedStateOf {
-                    currentRoute in routesWithHiddenMiniPlayer
+                val navBarH = with(density) { (NavBarContentHeight + systemNavBarInset).toPx() }
+                val collapsedMarginPx = with(density) { actualCollapsedStateBottomMargin.toPx() }
+                val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
+                val showPlayerContentInitially = stablePlayerState.currentSong != null
+                val miniPlayerH = with(density) { MiniPlayerHeight.toPx() }
+                val spacerH = with(density) { 0.dp.toPx() } // CollapsedPlayerContentSpacerHeight is not defined
+                val routesWithHiddenMiniPlayer = remember {
+                    setOf(Screen.NavBarCrRad.route)
                 }
+                val shouldHideMiniPlayer by remember(currentRoute) {
+                    derivedStateOf {
+                        currentRoute in routesWithHiddenMiniPlayer
+                    }
+                }
+
+                val initialContentHeightPx = if (showPlayerContentInitially) miniPlayerH + spacerH else 0f
+                val initialNavBarHeightPx = if (shouldHideNavigationBar) 0f else navBarH
+                val initialTotalSheetHeightPx = initialContentHeightPx + initialNavBarHeightPx
+                val initialY = screenHeightPx - initialTotalSheetHeightPx - collapsedMarginPx
+
+                AppNavigation(playerViewModel = playerViewModel, navController = navController)
+
+                UnifiedPlayerSheet(
+                    playerViewModel = playerViewModel,
+                    navController = navController,
+                    navItems = commonNavItems,
+                    initialTargetTranslationY = initialY,
+                    collapsedStateHorizontalPadding = actualCollapsedStateBottomMargin,
+                    collapsedStateBottomMargin = actualCollapsedStateBottomMargin,
+                    hideNavigationBar = shouldHideNavigationBar,
+                    hideMiniPlayer = shouldHideMiniPlayer
+                )
             }
-
-            val initialContentHeightPx = if (showPlayerContentInitially) miniPlayerH + spacerH else 0f
-            val initialNavBarHeightPx = if (shouldHideNavigationBar) 0f else navBarH
-            val initialTotalSheetHeightPx = initialContentHeightPx + initialNavBarHeightPx
-            val initialY = screenHeightPx - initialTotalSheetHeightPx - collapsedMarginPx
-
-            UnifiedPlayerSheet(
-                playerViewModel = playerViewModel,
-                navController = navController,
-                navItems = commonNavItems,
-                initialTargetTranslationY = initialY,
-                collapsedStateHorizontalPadding = actualCollapsedStateBottomMargin,
-                collapsedStateBottomMargin = actualCollapsedStateBottomMargin,
-                hideNavigationBar = shouldHideNavigationBar,
-                hideMiniPlayer = shouldHideMiniPlayer
-            )
         }
         Trace.endSection()
     }
