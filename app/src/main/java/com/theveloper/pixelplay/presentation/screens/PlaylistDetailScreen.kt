@@ -5,6 +5,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -88,10 +89,12 @@ import androidx.core.view.ViewCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
+import coil.size.Size
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.QueuePlaylistSongItem
+import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
@@ -555,6 +558,21 @@ fun SongPickerBottomSheet(
         else allSongs.filter { it.title.contains(searchQuery, true) || it.artist.contains(searchQuery, true) }
     }
 
+    val animatedAlbumCornerRadius = 60.dp
+
+    val albumShape = remember(animatedAlbumCornerRadius) {
+        AbsoluteSmoothCornerShape(
+            cornerRadiusTL = animatedAlbumCornerRadius,
+            smoothnessAsPercentTR = 60,
+            cornerRadiusTR = animatedAlbumCornerRadius,
+            smoothnessAsPercentBR = 60,
+            cornerRadiusBL = animatedAlbumCornerRadius,
+            smoothnessAsPercentBL = 60,
+            cornerRadiusBR = animatedAlbumCornerRadius,
+            smoothnessAsPercentTL = 60
+        )
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -634,13 +652,27 @@ fun SongPickerBottomSheet(
                                         color = MaterialTheme.colorScheme.surfaceContainerLowest,
                                         shape = CircleShape
                                     )
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Checkbox(
                                     checked = selectedSongIds[song.id] ?: false,
                                     onCheckedChange = { isChecked -> selectedSongIds[song.id] = isChecked }
                                 )
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                                ) {
+                                    // Usando tu composable SmartImage
+                                    SmartImage(
+                                        model = song.albumArtUriString,
+                                        contentDescription = song.title,
+                                        shape = albumShape,
+                                        targetSize = Size(168, 168), // 56dp * 3 (para densidad xxhdpi)
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
                                 Spacer(Modifier.width(16.dp))
                                 Column {
                                     Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
