@@ -928,13 +928,44 @@ class PlayerViewModel @Inject constructor(
     private fun updateCurrentPlaybackQueueFromPlayer(playerCtrl: MediaController?) {
         val currentMediaController = playerCtrl ?: mediaController ?: return
         val count = currentMediaController.mediaItemCount
-        val queue = mutableListOf<Song>()
-        val allSongsMasterList = _playerUiState.value.allSongs
-        for (i in 0 until count) {
-            val mediaItem = currentMediaController.getMediaItemAt(i)
-            allSongsMasterList.find { it.id == mediaItem.mediaId }?.let { song -> queue.add(song) }
+        if (count == 0) {
+            _playerUiState.update { it.copy(currentPlaybackQueue = persistentListOf()) }
+            return
         }
-        _playerUiState.update { it.copy(currentPlaybackQueue = queue.toImmutableList()) }
+
+        val queue = mutableListOf<Song>()
+        val allSongsMasterList = _masterAllSongs.value // Use the master list for lookup
+        val timeline = currentMediaController.currentTimeline
+        val window = androidx.media3.common.Timeline.Window()
+
+        if (currentMediaController.shuffleModeEnabled) {
+            val shuffledIndices = mutableListOf<Int>()
+            var currentIndex = timeline.getFirstWindowIndex(true)
+            while (currentIndex != C.INDEX_UNSET) {
+                shuffledIndices.add(currentIndex)
+                // Use the player's repeat mode to correctly handle the end of the playlist
+                currentIndex = timeline.getNextWindowIndex(currentIndex, currentMediaController.repeatMode, true)
+                if (shuffledIndices.contains(currentIndex)) { // Avoid infinite loops
+                    break
+                }
+            }
+
+            shuffledIndices.forEach { index ->
+                if (index >= 0 && index < timeline.windowCount) {
+                    timeline.getWindow(index, window)
+                    val mediaItem = window.mediaItem
+                    allSongsMasterList.find { it.id == mediaItem.mediaId }?.let { song -> queue.add(song) }
+                }
+            }
+            _playerUiState.update { it.copy(currentPlaybackQueue = queue.toImmutableList()) }
+        } else {
+            // Original logic for sequential order
+            for (i in 0 until count) {
+                val mediaItem = currentMediaController.getMediaItemAt(i)
+                allSongsMasterList.find { it.id == mediaItem.mediaId }?.let { song -> queue.add(song) }
+            }
+            _playerUiState.update { it.copy(currentPlaybackQueue = queue.toImmutableList()) }
+        }
     }
 
     private fun setupMediaControllerListeners() {
