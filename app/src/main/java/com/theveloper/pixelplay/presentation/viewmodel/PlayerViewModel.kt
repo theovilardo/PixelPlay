@@ -1022,11 +1022,9 @@ class PlayerViewModel @Inject constructor(
             }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
-                    val previousIndex = playerCtrl.previousMediaItemIndex
-                    val previousSongId = if (previousIndex != C.INDEX_UNSET) playerCtrl.getMediaItemAt(previousIndex).mediaId else null
-
-                    // Existing End-of-Track sleep timer logic
                     val activeEotSongId = EotStateHolder.eotTargetSongId.value
+                    val previousSongId = playerCtrl.run { if (previousMediaItemIndex != C.INDEX_UNSET) getMediaItemAt(previousMediaItemIndex).mediaId else null }
+
                     if (_isEndOfTrackTimerActive.value && activeEotSongId != null && previousSongId != null && previousSongId == activeEotSongId) {
                         playerCtrl.seekTo(0L)
                         playerCtrl.pause()
@@ -1038,11 +1036,6 @@ class PlayerViewModel @Inject constructor(
                             _toastEvents.emit("Playback stopped: $finishedSongTitle finished (End of Track).")
                         }
                         cancelSleepTimer(suppressDefaultToast = true)
-                    } else {
-                        // New logic: auto-dequeue if repeat mode is OFF
-                        if (previousIndex != C.INDEX_UNSET && playerCtrl.repeatMode == Player.REPEAT_MODE_OFF) {
-                            playerCtrl.removeMediaItem(previousIndex)
-                        }
                     }
                 }
 
@@ -1118,63 +1111,43 @@ class PlayerViewModel @Inject constructor(
 
         val playSongsAction = {
             mediaController?.let { controller ->
-                val startIndexInContext = songsToPlay.indexOf(startSong)
-                if (startIndexInContext != -1) {
-                    val newQueue = songsToPlay.subList(startIndexInContext, songsToPlay.size)
-                    val mediaItems = newQueue.map { song ->
-                        Log.d("PlayerViewModel_MediaItem", "Creating MediaItem for Song ID: ${song.id}, Title: ${song.title}")
-                        Log.d("PlayerViewModel_MediaItem", "Song's albumArtUriString: ${song.albumArtUriString}")
+                val mediaItems = songsToPlay.map { song ->
+                    Log.d("PlayerViewModel_MediaItem", "Creating MediaItem for Song ID: ${song.id}, Title: ${song.title}")
+                    Log.d("PlayerViewModel_MediaItem", "Song's albumArtUriString: ${song.albumArtUriString}")
 
-                        val metadataBuilder = MediaMetadata.Builder()
-                            .setTitle(song.title)
-                            .setArtist(song.artist)
+                    val metadataBuilder = MediaMetadata.Builder()
+                        .setTitle(song.title)
+                        .setArtist(song.artist)
 
-                        playlistId?.let {
-                            val extras = android.os.Bundle()
-                            extras.putString("playlistId", it)
-                            metadataBuilder.setExtras(extras)
-                        }
-
-                        song.albumArtUriString?.toUri()?.let { uri ->
-                            metadataBuilder.setArtworkUri(uri)
-                        }
-
-                        val metadata = metadataBuilder.build()
-
-                        MediaItem.Builder()
-                            .setMediaId(song.id)
-                            .setUri(song.contentUriString.toUri())
-                            .setMediaMetadata(metadata)
-                            .build()
+                    playlistId?.let {
+                        val extras = android.os.Bundle()
+                        extras.putString("playlistId", it)
+                        metadataBuilder.setExtras(extras)
                     }
 
-                    if (mediaItems.isNotEmpty()) {
-                        controller.setMediaItems(mediaItems, 0, 0L) // Start from the beginning of the new queue
-                        controller.prepare()
-                        controller.play()
-                        _playerUiState.update { it.copy(currentPlaybackQueue = newQueue.toImmutableList(), currentQueueSourceName = queueName) }
-                        updateFavoriteStatusForCurrentSong()
+                    song.albumArtUriString?.toUri()?.let { uri ->
+                        metadataBuilder.setArtworkUri(uri)
                     }
-                } else {
-                    // Fallback to old behavior if startSong is not in the list
-                    val mediaItems = songsToPlay.map { song ->
-                        MediaItem.Builder()
-                            .setMediaId(song.id)
-                            .setUri(song.contentUriString.toUri())
-                            .setMediaMetadata(MediaMetadata.Builder().setTitle(song.title).setArtist(song.artist).setArtworkUri(song.albumArtUriString?.toUri()).build())
-                            .build()
-                    }
-                    val startIndex = songsToPlay.indexOf(startSong).coerceAtLeast(0)
-                    if (mediaItems.isNotEmpty()) {
-                        controller.setMediaItems(mediaItems, startIndex, 0L)
-                        controller.prepare()
-                        controller.play()
-                        _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
-                        updateFavoriteStatusForCurrentSong()
-                    }
+
+                    val metadata = metadataBuilder.build()
+
+                    MediaItem.Builder()
+                        .setMediaId(song.id)
+                        .setUri(song.contentUriString.toUri())
+                        .setMediaMetadata(metadata)
+                        .build()
+                }
+                val startIndex = songsToPlay.indexOf(startSong).coerceAtLeast(0)
+
+                if (mediaItems.isNotEmpty()) {
+                    controller.setMediaItems(mediaItems, startIndex, 0L)
+                    controller.prepare()
+                    controller.play()
+                    _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
+                    updateFavoriteStatusForCurrentSong()
                 }
             }
-            _playerUiState.update { it.copy(isLoadingInitialSongs = false) } // Mark initial loading for this song as complete
+            _playerUiState.update { it.copy(isLoadingInitialSongs = false) } // Marcar que la carga inicial de esta canción terminó
         }
 
         if (mediaController == null) {

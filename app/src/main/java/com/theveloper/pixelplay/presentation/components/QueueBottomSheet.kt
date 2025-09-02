@@ -117,16 +117,16 @@ fun QueueBottomSheet(
 
     val isPlaying = stablePlayerState.isPlaying
 
-    val sortedQueue = remember(queue, currentSongId) {
-        val currentSong = queue.find { it.id == currentSongId }
-        if (currentSong != null) {
-            listOf(currentSong) + queue.filter { it.id != currentSongId }
+    val displayQueue = remember(queue, currentSongId) {
+        val currentSongIndex = queue.indexOfFirst { it.id == currentSongId }
+        if (currentSongIndex != -1) {
+            queue.subList(currentSongIndex, queue.size)
         } else {
             queue
         }
     }
 
-    var items by remember(sortedQueue) { mutableStateOf(sortedQueue) }
+    var items by remember(displayQueue) { mutableStateOf(displayQueue) }
 
     val listState = rememberLazyListState()
     val view = LocalView.current
@@ -152,9 +152,8 @@ fun QueueBottomSheet(
             val fromIndex = lastMovedFrom!!
             val toIndex = lastMovedTo!!
 
-            // Ensure we don't try to reorder the current song
             if (fromIndex != 0) {
-                val fromSong = sortedQueue[fromIndex]
+                val fromSong = displayQueue[fromIndex]
                 val fromOriginalIndex = queue.indexOfFirst { it.id == fromSong.id }
 
                 val toSong = items[toIndex]
