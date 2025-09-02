@@ -1914,7 +1914,7 @@ class PlayerViewModel @Inject constructor(
                     currentSong = null,
                     isPlaying = false,
                     totalDuration = 0L,
-                    isCurrentSongFavorite = false
+                    //isCurrentSongFavorite = false
                 )
             }
             _playerUiState.update {
