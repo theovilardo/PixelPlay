@@ -144,7 +144,7 @@ fun QueueBottomSheet(
             }
             lastMovedTo = to.index
         },
-        canDragOver = { _, over -> over.index != 0 }
+        //canDragOver = { _, over -> over.index != 0 }
     )
 
     LaunchedEffect(reorderableState.isAnyItemDragging) {
