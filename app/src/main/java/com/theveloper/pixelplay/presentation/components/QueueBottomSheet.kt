@@ -117,7 +117,16 @@ fun QueueBottomSheet(
 
     val isPlaying = stablePlayerState.isPlaying
 
-    var items by remember(queue) { mutableStateOf(queue) }
+    val sortedQueue = remember(queue, currentSongId) {
+        val currentSong = queue.find { it.id == currentSongId }
+        if (currentSong != null) {
+            listOf(currentSong) + queue.filter { it.id != currentSongId }
+        } else {
+            queue
+        }
+    }
+
+    var items by remember(sortedQueue) { mutableStateOf(sortedQueue) }
 
     val listState = rememberLazyListState()
     val view = LocalView.current
@@ -134,12 +143,28 @@ fun QueueBottomSheet(
                 lastMovedFrom = from.index
             }
             lastMovedTo = to.index
-        }
+        },
+        canDragOver = { _, over -> over.index != 0 }
     )
 
     LaunchedEffect(reorderableState.isAnyItemDragging) {
         if (!reorderableState.isAnyItemDragging && lastMovedFrom != null && lastMovedTo != null) {
-            onReorder(lastMovedFrom!!, lastMovedTo!!)
+            val fromIndex = lastMovedFrom!!
+            val toIndex = lastMovedTo!!
+
+            // Ensure we don't try to reorder the current song
+            if (fromIndex != 0) {
+                val fromSong = sortedQueue[fromIndex]
+                val fromOriginalIndex = queue.indexOfFirst { it.id == fromSong.id }
+
+                val toSong = items[toIndex]
+                val toOriginalIndex = queue.indexOfFirst { it.id == toSong.id }
+
+                if (fromOriginalIndex != -1 && toOriginalIndex != -1) {
+                    onReorder(fromOriginalIndex, toOriginalIndex)
+                }
+            }
+
             lastMovedFrom = null
             lastMovedTo = null
         }
@@ -225,10 +250,11 @@ fun QueueBottomSheet(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(bottom = 110.dp)
                     ) {
-                        itemsIndexed(items, key = { _, s -> s.id }) { _, song ->
+                        itemsIndexed(items, key = { _, s -> s.id }) { index, song ->
                             ReorderableItem(
                                 state = reorderableState,
-                                key = song.id
+                                key = song.id,
+                                enabled = index != 0
                             ) { isDragging ->
                                 val scale by animateFloatAsState(
                                     targetValue = if (isDragging) 1.05f else 1f,
@@ -264,7 +290,7 @@ fun QueueBottomSheet(
                                     isDragging = isDragging,
                                     onRemoveClick = { onRemoveSong(song.id) },
                                     isReorderModeEnabled = false,
-                                    isDragHandleVisible = true,
+                                    isDragHandleVisible = index != 0,
                                     isRemoveButtonVisible = true,
                                     dragHandle = {
                                         IconButton(

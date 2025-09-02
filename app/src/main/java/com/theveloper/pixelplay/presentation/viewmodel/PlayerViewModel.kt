@@ -1022,9 +1022,11 @@ class PlayerViewModel @Inject constructor(
             }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
-                    val activeEotSongId = EotStateHolder.eotTargetSongId.value
-                    val previousSongId = playerCtrl.run { if (previousMediaItemIndex != C.INDEX_UNSET) getMediaItemAt(previousMediaItemIndex).mediaId else null }
+                    val previousIndex = playerCtrl.previousMediaItemIndex
+                    val previousSongId = if (previousIndex != C.INDEX_UNSET) playerCtrl.getMediaItemAt(previousIndex).mediaId else null
 
+                    // Existing End-of-Track sleep timer logic
+                    val activeEotSongId = EotStateHolder.eotTargetSongId.value
                     if (_isEndOfTrackTimerActive.value && activeEotSongId != null && previousSongId != null && previousSongId == activeEotSongId) {
                         playerCtrl.seekTo(0L)
                         playerCtrl.pause()
@@ -1036,6 +1038,11 @@ class PlayerViewModel @Inject constructor(
                             _toastEvents.emit("Playback stopped: $finishedSongTitle finished (End of Track).")
                         }
                         cancelSleepTimer(suppressDefaultToast = true)
+                    } else {
+                        // New logic: auto-dequeue if repeat mode is OFF
+                        if (previousIndex != C.INDEX_UNSET && playerCtrl.repeatMode == Player.REPEAT_MODE_OFF) {
+                            playerCtrl.removeMediaItem(previousIndex)
+                        }
                     }
                 }
 
