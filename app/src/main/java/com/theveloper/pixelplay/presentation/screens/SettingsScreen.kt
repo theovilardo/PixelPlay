@@ -34,6 +34,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.AbsoluteRoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
@@ -89,10 +91,12 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -110,6 +114,7 @@ import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.launch
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import kotlin.math.roundToInt
 
 @Composable
@@ -837,7 +842,7 @@ fun DirectoryPickerBottomSheet(
 
             FloatingActionButton(
                 onClick = onDismiss,
-                shape = RoundedCornerShape(16.dp),
+                shape = CircleShape,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 26.dp)
@@ -876,12 +881,23 @@ fun DirectoryItemCard(
 ) {
     val checkedState = remember { mutableStateOf(directoryItem.isAllowed) }
 
+    val shape = AbsoluteSmoothCornerShape(
+        cornerRadiusTL = 20.dp,
+        smoothnessAsPercentBR = 60,
+        cornerRadiusTR = 20.dp,
+        smoothnessAsPercentBL = 60,
+        cornerRadiusBL = 20.dp,
+        smoothnessAsPercentTR = 60,
+        cornerRadiusBR = 20.dp,
+        smoothnessAsPercentTL = 60
+    )
+
     LaunchedEffect(directoryItem) {
         checkedState.value = directoryItem.isAllowed
     }
 
     Surface(
-        shape = RoundedCornerShape(60.dp),
+        shape = shape,
         color = if (checkedState.value)
             MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
         else
@@ -891,11 +907,11 @@ fun DirectoryItemCard(
             color = if (checkedState.value)
                 MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f)
             else
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                Color.Transparent//MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(60.dp))
+            .clip(shape)
             .clickable {
                 checkedState.value = !checkedState.value
                 onToggle()
@@ -921,15 +937,28 @@ fun DirectoryItemCard(
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            Text(
-                text = directoryItem.displayName,
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (checkedState.value)
-                    MaterialTheme.colorScheme.onSecondaryContainer
-                else
-                    MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = directoryItem.displayName,
+                    lineHeight = 18.sp,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (checkedState.value)
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    else
+                        MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = directoryItem.path,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.StartEllipsis,
+                    color = if (checkedState.value)
+                        MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                    else
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+            }
 
             Spacer(modifier = Modifier.width(16.dp))
 
