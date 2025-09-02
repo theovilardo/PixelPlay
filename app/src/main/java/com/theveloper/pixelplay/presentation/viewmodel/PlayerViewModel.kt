@@ -1118,43 +1118,63 @@ class PlayerViewModel @Inject constructor(
 
         val playSongsAction = {
             mediaController?.let { controller ->
-                val mediaItems = songsToPlay.map { song ->
-                    Log.d("PlayerViewModel_MediaItem", "Creating MediaItem for Song ID: ${song.id}, Title: ${song.title}")
-                    Log.d("PlayerViewModel_MediaItem", "Song's albumArtUriString: ${song.albumArtUriString}")
+                val startIndexInContext = songsToPlay.indexOf(startSong)
+                if (startIndexInContext != -1) {
+                    val newQueue = songsToPlay.subList(startIndexInContext, songsToPlay.size)
+                    val mediaItems = newQueue.map { song ->
+                        Log.d("PlayerViewModel_MediaItem", "Creating MediaItem for Song ID: ${song.id}, Title: ${song.title}")
+                        Log.d("PlayerViewModel_MediaItem", "Song's albumArtUriString: ${song.albumArtUriString}")
 
-                    val metadataBuilder = MediaMetadata.Builder()
-                        .setTitle(song.title)
-                        .setArtist(song.artist)
+                        val metadataBuilder = MediaMetadata.Builder()
+                            .setTitle(song.title)
+                            .setArtist(song.artist)
 
-                    playlistId?.let {
-                        val extras = android.os.Bundle()
-                        extras.putString("playlistId", it)
-                        metadataBuilder.setExtras(extras)
+                        playlistId?.let {
+                            val extras = android.os.Bundle()
+                            extras.putString("playlistId", it)
+                            metadataBuilder.setExtras(extras)
+                        }
+
+                        song.albumArtUriString?.toUri()?.let { uri ->
+                            metadataBuilder.setArtworkUri(uri)
+                        }
+
+                        val metadata = metadataBuilder.build()
+
+                        MediaItem.Builder()
+                            .setMediaId(song.id)
+                            .setUri(song.contentUriString.toUri())
+                            .setMediaMetadata(metadata)
+                            .build()
                     }
 
-                    song.albumArtUriString?.toUri()?.let { uri ->
-                        metadataBuilder.setArtworkUri(uri)
+                    if (mediaItems.isNotEmpty()) {
+                        controller.setMediaItems(mediaItems, 0, 0L) // Start from the beginning of the new queue
+                        controller.prepare()
+                        controller.play()
+                        _playerUiState.update { it.copy(currentPlaybackQueue = newQueue.toImmutableList(), currentQueueSourceName = queueName) }
+                        updateFavoriteStatusForCurrentSong()
                     }
-
-                    val metadata = metadataBuilder.build()
-
-                    MediaItem.Builder()
-                        .setMediaId(song.id)
-                        .setUri(song.contentUriString.toUri())
-                        .setMediaMetadata(metadata)
-                        .build()
-                }
-                val startIndex = songsToPlay.indexOf(startSong).coerceAtLeast(0)
-
-                if (mediaItems.isNotEmpty()) {
-                    controller.setMediaItems(mediaItems, startIndex, 0L)
-                    controller.prepare()
-                    controller.play()
-                    _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
-                    updateFavoriteStatusForCurrentSong()
+                } else {
+                    // Fallback to old behavior if startSong is not in the list
+                    val mediaItems = songsToPlay.map { song ->
+                        MediaItem.Builder()
+                            .setMediaId(song.id)
+                            .setUri(song.contentUriString.toUri())
+                            .setMediaMetadata(MediaMetadata.Builder().setTitle(song.title).setArtist(song.artist).setArtworkUri(song.albumArtUriString?.toUri()).build())
+                            .build()
+                    }
+                    val startIndex = songsToPlay.indexOf(startSong).coerceAtLeast(0)
+                    if (mediaItems.isNotEmpty()) {
+                        controller.setMediaItems(mediaItems, startIndex, 0L)
+                        controller.prepare()
+                        controller.play()
+                        _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
+                        updateFavoriteStatusForCurrentSong()
+                    }
                 }
             }
-            _playerUiState.update { it.copy(isLoadingInitialSongs = false) } // Marcar que la carga inicial de esta canción terminó
+            _playerUiState.update { it.copy(isLoadingInitialSongs = false) } // Mark initial loading for this song as complete
         }
 
         if (mediaController == null) {
