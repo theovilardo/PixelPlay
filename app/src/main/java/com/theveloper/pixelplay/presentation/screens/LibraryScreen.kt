@@ -242,7 +242,7 @@ fun LibraryScreen(
                 },
                 actions = {
                     FilledIconButton(
-                        modifier = Modifier.padding(end = 6.dp),
+                        modifier = Modifier.padding(end = 14.dp),
                         colors = IconButtonDefaults.filledIconButtonColors(
                             containerColor = MaterialTheme.colorScheme.primaryContainer,
                             contentColor = MaterialTheme.colorScheme.onPrimaryContainer
