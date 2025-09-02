@@ -111,6 +111,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.media3.common.util.UnstableApi
+import com.theveloper.pixelplay.data.preferences.NavBarStyle
+import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
+import com.theveloper.pixelplay.presentation.components.NavBarContentHeightFullWidth
 import com.theveloper.pixelplay.presentation.components.subcomps.FetchLyricsDialog
 import com.theveloper.pixelplay.presentation.viewmodel.LyricsSearchUiState
 import kotlinx.collections.immutable.persistentListOf
@@ -182,11 +185,14 @@ fun UnifiedPlayerSheet(
         playerViewModel.playerUiState.map { it.undoBarVisibleDuration }.distinctUntilChanged()
     }.collectAsState(initial = 4000L)
 
+    val isPlayerVisible = stablePlayerState.isPlaying
+
 
     val currentSheetContentState by playerViewModel.sheetState.collectAsState()
     val predictiveBackCollapseProgress by playerViewModel.predictiveBackCollapseFraction.collectAsState()
 
     val navBarCornerRadius by playerViewModel.navBarCornerRadius.collectAsState()
+    val navBarStyle by playerViewModel.navBarStyle.collectAsState()
 
     val density = LocalDensity.current
     val configuration = LocalConfiguration.current
@@ -207,7 +213,10 @@ fun UnifiedPlayerSheet(
     val screenHeightPx = remember(configuration) { with(density) { configuration.screenHeightDp.dp.toPx() } }
     val miniPlayerContentHeightPx = remember { with(density) { MiniPlayerHeight.toPx() } }
     val systemNavBarInset = WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
-    val navBarHeightPx = remember(density, systemNavBarInset) { with(density) { (NavBarContentHeight + systemNavBarInset).toPx() } }
+    val navBarHeightPx = remember(density, systemNavBarInset, navBarStyle) {
+        val height = if (navBarStyle == NavBarStyle.FULL_WIDTH) NavBarContentHeightFullWidth else NavBarContentHeight
+        with(density) { (height + systemNavBarInset).toPx() }
+    }
     val miniPlayerAndSpacerHeightPx = remember(density, MiniPlayerHeight, CollapsedPlayerContentSpacerHeight) { with(density) { (MiniPlayerHeight + CollapsedPlayerContentSpacerHeight).toPx() } }
     remember { with(density) { CollapsedPlayerContentSpacerHeight.toPx() } }
 
@@ -398,22 +407,32 @@ fun UnifiedPlayerSheet(
         playerContentExpansionFraction,
         hideNavigationBar,
         predictiveBackCollapseProgress,
-        currentSheetContentState
+        currentSheetContentState,
+        navBarStyle,
+        navBarCornerRadius
     ) {
         derivedStateOf {
             if (showPlayerContentArea) {
+                val collapsedCornerTarget = if (navBarStyle == NavBarStyle.FULL_WIDTH) {
+                    32.dp
+                } else {
+                    if (hideNavigationBar) 32.dp else navBarCornerRadius.dp
+                }
+
                 if (predictiveBackCollapseProgress > 0f && currentSheetContentState == PlayerSheetState.EXPANDED) {
                     val expandedCorner = 0.dp
-                    val collapsedCornerTarget = if (hideNavigationBar) 32.dp else navBarCornerRadius.dp
                     lerp(expandedCorner, collapsedCornerTarget, predictiveBackCollapseProgress)
                 } else {
                     val fraction = playerContentExpansionFraction.value
                     val expandedTarget = 0.dp
-                    val collapsedTarget = if (hideNavigationBar) 32.dp else navBarCornerRadius.dp
-                    lerp(collapsedTarget, expandedTarget, fraction)
+                    lerp(collapsedCornerTarget, expandedTarget, fraction)
                 }
             } else {
-                if (hideNavigationBar) 32.dp else navBarCornerRadius.dp
+                if (navBarStyle == NavBarStyle.FULL_WIDTH) {
+                    0.dp
+                } else {
+                    if (hideNavigationBar) 32.dp else navBarCornerRadius.dp
+                }
             }
         }
     }
@@ -430,11 +449,12 @@ fun UnifiedPlayerSheet(
     val sheetShape = RoundedCornerShape(
         topStart = overallSheetTopCornerRadius,
         topEnd = overallSheetTopCornerRadius,
-        bottomStart = navBarCornerRadius.dp,
-        bottomEnd = navBarCornerRadius.dp
+        bottomStart = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp,
+        bottomEnd = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp
     )
 
     val playerContentActualBottomRadiusTargetValue by remember(
+        navBarStyle,
         hideNavigationBar,
         showPlayerContentArea,
         playerContentExpansionFraction,
@@ -445,6 +465,11 @@ fun UnifiedPlayerSheet(
         swipeDismissProgress.value
     ) {
         derivedStateOf {
+            if (navBarStyle == NavBarStyle.FULL_WIDTH) {
+                val fraction = playerContentExpansionFraction.value
+                return@derivedStateOf lerp(32.dp, 26.dp, fraction)
+            }
+
             val calculatedNormally = if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
                 val expandedRadius = if (hideNavigationBar) 32.dp else 26.dp
                 val collapsedRadiusTarget = if (hideNavigationBar) 32.dp else 12.dp
@@ -531,19 +556,22 @@ fun UnifiedPlayerSheet(
         label = "NavBarTopRadius"
     )
 
+    val actualCollapsedStateHorizontalPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 14.dp else collapsedStateHorizontalPadding
+
     val currentHorizontalPadding by remember(
         showPlayerContentArea,
         playerContentExpansionFraction,
-        collapsedStateHorizontalPadding,
-        predictiveBackCollapseProgress
+        actualCollapsedStateHorizontalPadding,
+        predictiveBackCollapseProgress,
+        navBarStyle
     ) {
         derivedStateOf {
             if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                lerp(0.dp, collapsedStateHorizontalPadding, predictiveBackCollapseProgress)
+                lerp(0.dp, actualCollapsedStateHorizontalPadding, predictiveBackCollapseProgress)
             } else if (showPlayerContentArea) {
-                lerp(collapsedStateHorizontalPadding, 0.dp, playerContentExpansionFraction.value)
+                lerp(actualCollapsedStateHorizontalPadding, 0.dp, playerContentExpansionFraction.value)
             } else {
-                collapsedStateHorizontalPadding
+                actualCollapsedStateHorizontalPadding
             }
         }
     }
@@ -1048,15 +1076,16 @@ fun UnifiedPlayerSheet(
                         currentRouteValue
                     }
 
-                    val actualShape = remember(playerContentActualBottomRadius, showPlayerContentArea) {
+                    val actualShape = remember(playerContentActualBottomRadius, showPlayerContentArea, navBarStyle, navBarCornerRadius) {
+                        val bottomRadius = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp
                         AbsoluteSmoothCornerShape(
                             cornerRadiusTL = playerContentActualBottomRadius,
                             smoothnessAsPercentBR = 60,
                             cornerRadiusTR = playerContentActualBottomRadius,
                             smoothnessAsPercentTL = 60,
-                            cornerRadiusBL = navBarCornerRadius.dp,
+                            cornerRadiusBL = bottomRadius,
                             smoothnessAsPercentTR = 60,
-                            cornerRadiusBR = navBarCornerRadius.dp,
+                            cornerRadiusBR = bottomRadius,
                             smoothnessAsPercentBL = 60
                         )
                     }
@@ -1064,13 +1093,18 @@ fun UnifiedPlayerSheet(
                     val conditionalShape = if (showPlayerContentArea) {
                         actualShape
                     } else {
-                        CircleShape
+                        if (navBarStyle == NavBarStyle.DEFAULT) {
+                            RoundedCornerShape(60.dp)
+                        } else { // FULL_WIDTH
+                            RoundedCornerShape(0.dp)
+                        }
                     }
 
-                    val playerInternalNavBarModifier = remember(collapsedStateHorizontalPadding) {
+                    val navBarHorizontalPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else actualCollapsedStateHorizontalPadding
+                    val playerInternalNavBarModifier = remember(navBarHorizontalPadding) {
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = collapsedStateHorizontalPadding)
+                            .padding(horizontal = navBarHorizontalPadding)
                             .pointerInput(Unit) {
                                 detectTapGestures { /* Permitir taps normales en nav items */ }
                             }
@@ -1084,11 +1118,12 @@ fun UnifiedPlayerSheet(
                         isPlayerVisible = showPlayerContentArea,
                         currentRoute = rememberedCurrentRoute,
                         navBarHideFraction = navBarHideFraction,
-                        topCornersRadiusDp = playerContentActualBottomRadius,
-                        bottomCornersRadiusDp = navBarCornerRadius.dp,
+                        topCornersRadiusDp = if (navBarStyle == NavBarStyle.FULL_WIDTH && !isPlayerVisible) 0.dp else playerContentActualBottomRadius,
+                        bottomCornersRadiusDp = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp,
                         navBarHeightPx = navBarHeightPx,
                         navBarInset = systemNavBarInset,
-                        modifier = playerInternalNavBarModifier
+                        modifier = playerInternalNavBarModifier,
+                        navBarStyle = navBarStyle
                     )
                 }
             }

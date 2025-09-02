@@ -23,23 +23,33 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.presentation.components.scoped.CustomNavigationBarItem
 import com.theveloper.pixelplay.presentation.navigation.BottomNavItem
 import kotlinx.collections.immutable.ImmutableList
 
-val NavBarContentHeight = 64.dp // Altura del contenido de la barra de navegación
+val NavBarContentHeight = 66.dp // Altura del contenido de la barra de navegación
+val NavBarContentHeightFullWidth = 84.dp // Altura del contenido de la barra de navegación en modo completo
 
 @Composable
 private fun PlayerInternalNavigationItemsRow(
     navController: NavHostController,
     navItems: ImmutableList<BottomNavItem>,
     currentRoute: String?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    navBarStyle: String
 ) {
-    Row(
-        modifier = modifier
+    val rowModifier = if (navBarStyle == NavBarStyle.FULL_WIDTH) {
+        modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp),
+            .padding(top = 14.dp, bottom = 8.dp, start = 12.dp, end = 12.dp)
+    } else {
+        modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp)
+    }
+    Row(
+        modifier = rowModifier,
         horizontalArrangement = Arrangement.SpaceAround,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -113,15 +123,19 @@ fun PlayerInternalNavigationBar(
     bottomCornersRadiusDp: Dp,
     navBarHideFraction: Float,
     navBarHeightPx: Float,
-    navBarInset: Dp
+    navBarInset: Dp,
+    navBarStyle: String
 ) {
     remember(navBarHideFraction) { derivedStateOf { 1f - navBarHideFraction } }
     val animatedTranslationY = remember(navBarHideFraction, navBarHeightPx) { derivedStateOf { navBarHeightPx * navBarHideFraction } }
+    val boxAlignment = if (navBarStyle == NavBarStyle.FULL_WIDTH) Alignment.TopCenter else Alignment.Center
+
+    val navHeight = if (navBarStyle == NavBarStyle.FULL_WIDTH) NavBarContentHeightFullWidth else NavBarContentHeight
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(NavBarContentHeight + navBarInset) // Explicit total height
+            .height(navHeight + navBarInset) // Explicit total height
             .graphicsLayer {
                 translationY = animatedTranslationY.value
                 alpha = 1f
@@ -135,13 +149,14 @@ fun PlayerInternalNavigationBar(
                 color = NavigationBarDefaults.containerColor,
                 shape = containerShape
             ),
-        contentAlignment = Alignment.Center // Center the content within this Box
+        contentAlignment = boxAlignment
     ) {
         PlayerInternalNavigationItemsRow(
             navController = navController,
             navItems = navItems,
             currentRoute = currentRoute,
-            modifier = Modifier.height(NavBarContentHeight) // Content has fixed height
+            modifier = Modifier.height(navHeight), // Content has fixed height
+            navBarStyle = navBarStyle
         )
     }
 }

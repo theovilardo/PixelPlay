@@ -95,6 +95,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.SideEffect
+import com.theveloper.pixelplay.data.preferences.NavBarStyle
 
 @UnstableApi
 @AndroidEntryPoint
@@ -305,10 +306,19 @@ class MainActivity : ComponentActivity() {
             val density = LocalDensity.current
             val configuration = LocalConfiguration.current
             val screenHeightPx = remember(configuration) { with(density) { configuration.screenHeightDp.dp.toPx() } }
-            val collapsedStateBottomMargin = getNavigationBarHeight()
+            val navBarStyle by playerViewModel.navBarStyle.collectAsState()
             val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-            val navBarH = with(density) { (NavBarContentHeight + collapsedStateBottomMargin).toPx() }
-            val collapsedMarginPx = with(density) { collapsedStateBottomMargin.toPx() }
+            val actualCollapsedStateBottomMargin = if (navBarStyle == NavBarStyle.FULL_WIDTH) {
+                if (shouldHideNavigationBar) {
+                    systemNavBarInset
+                } else {
+                    0.dp
+                }
+            } else {
+                systemNavBarInset
+            }
+            val navBarH = with(density) { (NavBarContentHeight + systemNavBarInset).toPx() }
+            val collapsedMarginPx = with(density) { actualCollapsedStateBottomMargin.toPx() }
             val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
             val showPlayerContentInitially = stablePlayerState.currentSong != null
             val miniPlayerH = with(density) { MiniPlayerHeight.toPx() }
@@ -332,8 +342,8 @@ class MainActivity : ComponentActivity() {
                 navController = navController,
                 navItems = commonNavItems,
                 initialTargetTranslationY = initialY,
-                collapsedStateHorizontalPadding = collapsedStateBottomMargin,
-                collapsedStateBottomMargin = collapsedStateBottomMargin,
+                collapsedStateHorizontalPadding = actualCollapsedStateBottomMargin,
+                collapsedStateBottomMargin = actualCollapsedStateBottomMargin,
                 hideNavigationBar = shouldHideNavigationBar,
                 hideMiniPlayer = shouldHideMiniPlayer
             )
@@ -408,13 +418,6 @@ class MainActivity : ComponentActivity() {
         mediaControllerFuture?.let {
             MediaController.releaseFuture(it)
         }
-    }
-
-    // Helper composable para la altura de la barra de navegación, si lo necesitas
-    @Composable
-    fun getNavigationBarHeight(): Dp {
-        val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-        return if (bottomPadding > 0.dp) bottomPadding else 22.dp // Fallback
     }
 
 }

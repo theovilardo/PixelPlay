@@ -12,12 +12,15 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import com.theveloper.pixelplay.data.preferences.NavBarStyle
+
 data class SettingsUiState(
     val directoryItems: List<DirectoryItem> = emptyList(),
     val isLoadingDirectories: Boolean = true,
     val playerThemePreference: String = ThemePreference.ALBUM_ART,
     val mockGenresEnabled: Boolean = false,
-    val navBarCornerRadius: Int = 32
+    val navBarCornerRadius: Int = 32,
+    val navBarStyle: String = NavBarStyle.DEFAULT
 )
 
 @HiltViewModel
@@ -49,6 +52,12 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferencesRepository.navBarCornerRadiusFlow.collect { radius ->
                 _uiState.update { it.copy(navBarCornerRadius = radius) }
+            }
+        }
+
+        viewModelScope.launch {
+            userPreferencesRepository.navBarStyleFlow.collect { style ->
+                _uiState.update { it.copy(navBarStyle = style) }
             }
         }
 
@@ -111,6 +120,12 @@ class SettingsViewModel @Inject constructor(
     fun setNavBarCornerRadius(radius: Int) {
         viewModelScope.launch {
             userPreferencesRepository.setNavBarCornerRadius(radius)
+        }
+    }
+
+    fun setNavBarStyle(style: String) {
+        viewModelScope.launch {
+            userPreferencesRepository.setNavBarStyle(style)
         }
     }
 }
