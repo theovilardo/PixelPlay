@@ -105,7 +105,6 @@ data class StablePlayerState(
     val totalDuration: Long = 0L,
     val isShuffleEnabled: Boolean = false,
     @Player.RepeatMode val repeatMode: Int = Player.REPEAT_MODE_OFF,
-    val isCurrentSongFavorite: Boolean = false,
     val lyrics: Lyrics? = null,
     val isLoadingLyrics: Boolean = false
 )
@@ -366,6 +365,13 @@ class PlayerViewModel @Inject constructor(
     private var pendingPlaybackAction: (() -> Unit)? = null
 
     val favoriteSongIds: StateFlow<Set<String>> = userPreferencesRepository.favoriteSongIdsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    val isCurrentSongFavorite: StateFlow<Boolean> = combine(
+        stablePlayerState,
+        favoriteSongIds
+    ) { state, ids ->
+        state.currentSong?.id?.let { ids.contains(it) } ?: false
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     private val _currentFavoriteSortOptionStateFlow = MutableStateFlow<SortOption>(SortOption.LikedSongTitleAZ) // Default. Especificar el tipo general SortOption.
     val currentFavoriteSortOptionStateFlow: StateFlow<SortOption> = _currentFavoriteSortOptionStateFlow.asStateFlow()
@@ -997,7 +1003,6 @@ class PlayerViewModel @Inject constructor(
                         extractAndGenerateColorScheme(uri)
                     }
                 }
-                updateFavoriteStatusForCurrentSong()
                 if (playerCtrl.isPlaying) {
                     startProgressUpdates()
                 }
@@ -1061,12 +1066,11 @@ class PlayerViewModel @Inject constructor(
                                 extractAndGenerateColorScheme(uri)
                             }
                         }
-                        updateFavoriteStatusForCurrentSong() // Depends on currentSong being set in _stablePlayerState
 
                         loadLyricsForCurrentSong()
                     }
                 } ?: _stablePlayerState.update {
-                    it.copy(currentSong = null, isPlaying = false, isCurrentSongFavorite = false)
+                    it.copy(currentSong = null, isPlaying = false)
                 }
             }
 
@@ -1144,7 +1148,6 @@ class PlayerViewModel @Inject constructor(
                     controller.prepare()
                     controller.play()
                     _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
-                    updateFavoriteStatusForCurrentSong()
                 }
             }
             _playerUiState.update { it.copy(isLoadingInitialSongs = false) } // Marcar que la carga inicial de esta canción terminó
@@ -1194,13 +1197,6 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    private fun updateFavoriteStatusForCurrentSong() {
-        val currentSongId = _stablePlayerState.value.currentSong?.id
-        _stablePlayerState.update {
-            it.copy(isCurrentSongFavorite = currentSongId != null && favoriteSongIds.value.contains(currentSongId))
-        }
-    }
-
     fun toggleShuffle() {
         val newShuffleState = !_stablePlayerState.value.isShuffleEnabled
         mediaController?.shuffleModeEnabled = newShuffleState
@@ -1221,7 +1217,6 @@ class PlayerViewModel @Inject constructor(
         _stablePlayerState.value.currentSong?.id?.let { songId ->
             viewModelScope.launch {
                 userPreferencesRepository.toggleFavoriteSong(songId)
-                updateFavoriteStatusForCurrentSong()
             }
         }
     }
@@ -1229,9 +1224,6 @@ class PlayerViewModel @Inject constructor(
     fun toggleFavoriteSpecificSong(song: Song) {
         viewModelScope.launch {
             userPreferencesRepository.toggleFavoriteSong(song.id)
-            if (_stablePlayerState.value.currentSong?.id == song.id) {
-                updateFavoriteStatusForCurrentSong()
-            }
         }
     }
 
@@ -1922,7 +1914,7 @@ class PlayerViewModel @Inject constructor(
                     currentSong = null,
                     isPlaying = false,
                     totalDuration = 0L,
-                    isCurrentSongFavorite = false
+                    //isCurrentSongFavorite = false
                 )
             }
             _playerUiState.update {
