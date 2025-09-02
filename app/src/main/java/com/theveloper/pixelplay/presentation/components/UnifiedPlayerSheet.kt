@@ -1021,7 +1021,7 @@ fun UnifiedPlayerSheet(
                                                 isPlaying = stablePlayerState.isPlaying,
                                                 isShuffleEnabled = stablePlayerState.isShuffleEnabled,
                                                 repeatMode = stablePlayerState.repeatMode,
-                                                isFavorite = stablePlayerState.isCurrentSongFavorite,
+                                                isFavorite = playerViewModel.isCurrentSongFavorite.collectAsState().value,
                                                 onPlayPause = { playerViewModel.playPause() },
                                                 onSeek = { playerViewModel.seekTo(it) },
                                                 onNext = { playerViewModel.nextSong() },
