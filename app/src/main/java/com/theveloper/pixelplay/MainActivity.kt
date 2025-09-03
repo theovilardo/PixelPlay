@@ -112,9 +112,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         LogUtils.d(this, "onCreate")
         installSplashScreen()
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge(
-        )
 
         setContent {
             val mainViewModel: MainViewModel = hiltViewModel()
@@ -301,15 +300,13 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        Scaffold(
-            contentWindowInsets = WindowInsets(0,0,0,0)
-        ) { innerPadding ->
+        Scaffold { innerPadding ->
             Box(modifier = Modifier.fillMaxSize()) {
                 val density = LocalDensity.current
                 val configuration = LocalConfiguration.current
                 val screenHeightPx = remember(configuration) { with(density) { configuration.screenHeightDp.dp.toPx() } }
                 val navBarStyle by playerViewModel.navBarStyle.collectAsState()
-                val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                val systemNavBarInset = innerPadding.calculateBottomPadding()//WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
                 val actualCollapsedStateBottomMargin = if (navBarStyle == NavBarStyle.FULL_WIDTH) {
                     if (shouldHideNavigationBar) {
                         systemNavBarInset
@@ -339,19 +336,10 @@ class MainActivity : ComponentActivity() {
                 val initialTotalSheetHeightPx = initialContentHeightPx + initialNavBarHeightPx
                 val initialY = screenHeightPx - initialTotalSheetHeightPx - collapsedMarginPx
 
-                val bottomPaddingForNavHost = if (shouldHideMiniPlayer) {
-                    systemNavBarInset
-                } else {
-                    if (shouldHideNavigationBar) {
-                        MiniPlayerHeight
-                    } else {
-                        MiniPlayerHeight + NavBarContentHeight
-                    }
-                }
                 AppNavigation(
                     playerViewModel = playerViewModel,
                     navController = navController,
-                    paddingValues = PaddingValues(bottom = bottomPaddingForNavHost)
+                    paddingValues = innerPadding
                 )
 
                 UnifiedPlayerSheet(

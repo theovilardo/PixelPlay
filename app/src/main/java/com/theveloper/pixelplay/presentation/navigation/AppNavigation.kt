@@ -34,13 +34,11 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 fun AppNavigation(
     playerViewModel: PlayerViewModel,
     navController: NavHostController,
-    modifier: Modifier = Modifier,
     paddingValues: PaddingValues
 ) {
     NavHost(
         navController = navController,
-        startDestination = Screen.Home.route,
-        modifier = modifier
+        startDestination = Screen.Home.route
     ) {
         composable(
             Screen.Home.route,
@@ -142,7 +140,7 @@ fun AppNavigation(
                         playerViewModel = playerViewModel
                     )
                 } else {
-                    Text("Error: Genre ID missing", modifier = Modifier.padding(paddingValues))
+                    Text("Error: Genre ID missing", modifier = Modifier)
                 }
             }
             composable(
