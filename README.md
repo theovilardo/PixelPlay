@@ -60,7 +60,7 @@ To get a local copy up and running, follow these simple steps.
 
 1. Clone the repo
    ```sh
-   git clone https://github.com/your_username/PixelPlay.git
+   git clone https://github.com/theovilardo/PixelPlay.git
    ```
 2. Open the project in Android Studio.
 3. Let Gradle sync and download the required dependencies.
