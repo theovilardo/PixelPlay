@@ -426,10 +426,4 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        WindowCompat.setDecorFitsSystemWindows(window, true)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-    }
-
 }
