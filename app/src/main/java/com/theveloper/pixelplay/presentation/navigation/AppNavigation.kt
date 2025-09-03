@@ -34,30 +34,32 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 fun AppNavigation(
     playerViewModel: PlayerViewModel,
     navController: NavHostController,
+    modifier: Modifier = Modifier,
+    paddingValues: PaddingValues
 ) {
-    MainLayout { paddingValues ->
-        NavHost(
-            navController = navController,
-            startDestination = Screen.Home.route
+    NavHost(
+        navController = navController,
+        startDestination = Screen.Home.route,
+        modifier = modifier
+    ) {
+        composable(
+            Screen.Home.route,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { enterTransition() },
+            popExitTransition = { exitTransition() },
         ) {
-            composable(
-                Screen.Home.route,
-                enterTransition = { enterTransition() },
-                exitTransition = { exitTransition() },
-                popEnterTransition = { enterTransition() },
-                popExitTransition = { exitTransition() },
-            ) {
-                HomeScreen(navController = navController, paddingValuesParent = paddingValues, playerViewModel = playerViewModel)
-            }
-            composable(
-                Screen.Search.route,
-                enterTransition = { enterTransition() },
-                exitTransition = { exitTransition() },
-                popEnterTransition = { enterTransition() },
-                popExitTransition = { exitTransition() },
-            ) {
-                SearchScreen(paddingValues = paddingValues, playerViewModel = playerViewModel, navController = navController)
-            }
+            HomeScreen(navController = navController, paddingValuesParent = paddingValues, playerViewModel = playerViewModel)
+        }
+        composable(
+            Screen.Search.route,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { enterTransition() },
+            popExitTransition = { exitTransition() },
+        ) {
+            SearchScreen(paddingValues = paddingValues, playerViewModel = playerViewModel, navController = navController)
+        }
             composable(
                 Screen.Library.route,
                 enterTransition = { enterTransition() },
@@ -200,5 +202,4 @@ fun AppNavigation(
                 EditTransitionScreen(navController = navController)
             }
         }
-    }
 }

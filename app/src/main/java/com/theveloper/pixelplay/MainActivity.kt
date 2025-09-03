@@ -301,13 +301,15 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        Scaffold { innerPadding ->
+        Scaffold(
+            contentWindowInsets = WindowInsets(0,0,0,0)
+        ) { innerPadding ->
             Box(modifier = Modifier.fillMaxSize()) {
                 val density = LocalDensity.current
                 val configuration = LocalConfiguration.current
                 val screenHeightPx = remember(configuration) { with(density) { configuration.screenHeightDp.dp.toPx() } }
                 val navBarStyle by playerViewModel.navBarStyle.collectAsState()
-                val systemNavBarInset = innerPadding.calculateBottomPadding()//WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
                 val actualCollapsedStateBottomMargin = if (navBarStyle == NavBarStyle.FULL_WIDTH) {
                     if (shouldHideNavigationBar) {
                         systemNavBarInset
@@ -337,7 +339,20 @@ class MainActivity : ComponentActivity() {
                 val initialTotalSheetHeightPx = initialContentHeightPx + initialNavBarHeightPx
                 val initialY = screenHeightPx - initialTotalSheetHeightPx - collapsedMarginPx
 
-                AppNavigation(playerViewModel = playerViewModel, navController = navController)
+                val bottomPaddingForNavHost = if (shouldHideMiniPlayer) {
+                    systemNavBarInset
+                } else {
+                    if (shouldHideNavigationBar) {
+                        MiniPlayerHeight
+                    } else {
+                        MiniPlayerHeight + NavBarContentHeight
+                    }
+                }
+                AppNavigation(
+                    playerViewModel = playerViewModel,
+                    navController = navController,
+                    paddingValues = PaddingValues(bottom = bottomPaddingForNavHost)
+                )
 
                 UnifiedPlayerSheet(
                     playerViewModel = playerViewModel,
