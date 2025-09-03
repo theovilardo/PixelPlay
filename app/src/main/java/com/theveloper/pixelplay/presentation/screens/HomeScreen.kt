@@ -145,7 +145,7 @@ fun HomeScreen(
                         song = yourMixSong,
                         onPlayRandomSong = {
                             if (yourMixSongs.isNotEmpty()) {
-                                playerViewModel.showAndPlaySong(yourMixSongs.first(), yourMixSongs, "Your Mix")
+                                playerViewModel.showAndPlaySong(yourMixSongs.random(), yourMixSongs, "Your Mix")
                             }
                         }
                     )
@@ -234,7 +234,6 @@ fun YourMixHeader(
     song: String,
     onPlayRandomSong: () -> Unit
 ) {
-
     val buttonCorners = 68.dp
 
     Box(
@@ -284,9 +283,9 @@ fun YourMixHeader(
             )
         ) {
             Icon(
-                painter = painterResource(R.drawable.rounded_play_arrow_24),
+                painter = painterResource(R.drawable.rounded_shuffle_24),
                 contentDescription = "Reproducir",
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier.size(36.dp)
             )
         }
     }

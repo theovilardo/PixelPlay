@@ -72,19 +72,13 @@ fun ChangelogBottomSheet(
                 VersionChanges(
                     versionNumber = "0.1.5-beta",
                     changesTitle = "Second beta Build",
-                    changes = " ✸ Minor visual changes \n ✸ Partial fix for navigation bar padding \n ✸ Fixed favorite button not working"
+                    changes = " ✸ Minor visual changes \n ✸ Partial fix for navigation bar padding \n ✸ Fixed favorite button not working \n ✸ Improved directory picker"
                 )
                 VersionChanges(
                     versionNumber = "0.1.0-beta",
                     changesTitle = "First Beta build.",
                     changes = ""
                 )
-//                VersionBadge(versionNumber = "0.1.0-beta")
-//                Text(
-//                    text = "- First Beta build.",
-//                    style = MaterialTheme.typography.bodyLarge,
-//                    color = MaterialTheme.colorScheme.onSurface
-//                )
             }
         }
     }
