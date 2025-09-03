@@ -48,7 +48,7 @@ import androidx.compose.ui.text.style.TextAlign
 import android.os.Trace // Import Trace
 import androidx.compose.ui.unit.Dp
 // import androidx.compose.ui.platform.LocalView // No longer needed for this
-// import androidx.core.view.ViewCompat // No longer needed for this
+import androidx.core.view.WindowCompat
 // import androidx.core.view.WindowInsetsCompat // No longer needed for this
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -424,6 +424,11 @@ class MainActivity : ComponentActivity() {
         mediaControllerFuture?.let {
             MediaController.releaseFuture(it)
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        WindowCompat.setDecorFitsSystemWindows(window, false)
     }
 
 }
