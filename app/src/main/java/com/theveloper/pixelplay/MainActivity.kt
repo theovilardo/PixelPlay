@@ -73,7 +73,6 @@ import com.theveloper.pixelplay.presentation.components.UnifiedPlayerSheet
 import com.theveloper.pixelplay.presentation.components.getNavigationBarHeight
 import com.theveloper.pixelplay.presentation.components.AllFilesAccessDialog
 import com.theveloper.pixelplay.presentation.navigation.AppNavigation
-import com.theveloper.pixelplay.presentation.navigation.BottomNavItem
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.screens.SetupScreen
 import com.theveloper.pixelplay.presentation.viewmodel.MainViewModel
@@ -86,6 +85,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.delay
 import android.provider.Settings
+import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -94,9 +94,19 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.SideEffect
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
+import javax.annotation.concurrent.Immutable
+
+@Immutable
+data class BottomNavItem(
+    val label: String,
+    @DrawableRes val iconResId: Int,
+    @DrawableRes val selectedIconResId: Int? = null,
+    val screen: Screen
+)
 
 @UnstableApi
 @AndroidEntryPoint
