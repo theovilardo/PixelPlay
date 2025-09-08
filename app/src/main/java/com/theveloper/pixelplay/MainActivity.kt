@@ -408,11 +408,12 @@ class MainActivity : ComponentActivity() {
                             .onSizeChanged { componentHeightPx = it.height }
                             .graphicsLayer { translationY = animatedTranslationY }
                     ) {
+                        val bottomPadding = if (navBarStyle == NavBarStyle.DEFAULT) systemNavBarInset else 0.dp
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = horizontalPadding)
-                                .padding(bottom = systemNavBarInset),
+                                .padding(bottom = bottomPadding),
                             color = NavigationBarDefaults.containerColor,
                             shape = conditionalShape,
                             shadowElevation = navBarElevation
