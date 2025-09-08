@@ -385,9 +385,7 @@ class PlayerViewModel @Inject constructor(
         _masterAllSongs,
         currentFavoriteSortOptionStateFlow
     ) { ids, allSongsList, sortOption ->
-        Log.d("PlayerViewModel", "Calculating favoriteSongs. IDs size: ${ids.size}, All songs size: ${allSongsList.size}, SortOption: $sortOption")
         val favoriteSongsList = allSongsList.filter { song -> ids.contains(song.id) }
-        Log.d("PlayerViewModel", "Filtered favoriteSongsList size: ${favoriteSongsList.size}")
         when (sortOption) {
             SortOption.LikedSongTitleAZ -> favoriteSongsList.sortedBy { it.title }
             SortOption.LikedSongTitleZA -> favoriteSongsList.sortedByDescending { it.title }
@@ -938,7 +936,6 @@ class PlayerViewModel @Inject constructor(
     private fun updateCurrentPlaybackQueueFromPlayer(playerCtrl: MediaController?) {
         val currentMediaController = playerCtrl ?: mediaController ?: return
         val count = currentMediaController.mediaItemCount
-        Log.d("PlayerViewModel", "updateCurrentPlaybackQueueFromPlayer: count=$count")
 
         if (count == 0) {
             _playerUiState.update { it.copy(currentPlaybackQueue = persistentListOf()) }
@@ -947,32 +944,15 @@ class PlayerViewModel @Inject constructor(
 
         val queue = mutableListOf<Song>()
         val allSongsMasterList = _masterAllSongs.value // Use the master list for lookup
-        val timeline = currentMediaController.currentTimeline
-        val window = androidx.media3.common.Timeline.Window()
 
-        if (currentMediaController.shuffleModeEnabled) {
-            val shuffledQueue = createShuffledQueue(allSongsMasterList);
-
-            Log.d(
-                "PlayerViewModel",
-                "updateCurrentPlaybackQueueFromPlayer: shuffledQueue=${shuffledQueue}"
-            )
-
-
-            _playerUiState.update {
-                it.copy(
-                    currentPlaybackQueue = shuffledQueue.toImmutableList()
-                )
-            }
-
-        } else {
-            // Original logic for sequential order
-            for (i in 0 until count) {
-                val mediaItem = currentMediaController.getMediaItemAt(i)
-                allSongsMasterList.find { it.id == mediaItem.mediaId }?.let { song -> queue.add(song) }
-            }
-            _playerUiState.update { it.copy(currentPlaybackQueue = queue.toImmutableList()) }
+        // This reflects the timeline order as defined by the MediaController.
+        // If shuffle mode is on, the controller plays in a shuffled order, but the
+        // underlying timeline list remains in its original order.
+        for (i in 0 until count) {
+            val mediaItem = currentMediaController.getMediaItemAt(i)
+            allSongsMasterList.find { it.id == mediaItem.mediaId }?.let { song -> queue.add(song) }
         }
+        _playerUiState.update { it.copy(currentPlaybackQueue = queue.toImmutableList()) }
     }
 
     private fun setupMediaControllerListeners() {
@@ -986,7 +966,6 @@ class PlayerViewModel @Inject constructor(
             )
         }
 
-        println("HERE3")
         updateCurrentPlaybackQueueFromPlayer(playerCtrl)
 
         playerCtrl.currentMediaItem?.mediaId?.let { songId ->
@@ -1107,13 +1086,11 @@ class PlayerViewModel @Inject constructor(
         Trace.endSection()
     }
 
-    fun createShuffledQueue(songs: List<Song>): List<Song> {
-        val chosenSong = songs[(0 until songs.size).random()]
-        println("Chosen Song: $chosenSong")
-
+    private fun createShuffledQueue(songs: List<Song>): List<Song> {
+        if (songs.isEmpty()) return emptyList()
+        val chosenSong = songs[songs.indices.random()]
         val shuffledQueue = songs.shuffled().filter { it.id != chosenSong.id }.toMutableList()
         shuffledQueue.add(0, chosenSong)
-
         return shuffledQueue
     }
 
@@ -1130,17 +1107,9 @@ class PlayerViewModel @Inject constructor(
     }
 
     private suspend fun internalPlaySongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None", playlistId: String? = null) {
-        Log.d("PlayerViewModel_MediaItem", "internalPlaySongs called. Songs count: ${songsToPlay.size}, StartSong: ${startSong.title}, QueueName: $queueName")
-        Log.d("PlayerViewModel_MediaItem", "internalPlaySongs: mediaController is null: ${mediaController == null}")
-
-        Log.d("PlayerViewModel_MediaItem", "internalPlaySongs: songsToPlay: $songsToPlay")
-
         val playSongsAction = {
             mediaController?.let { controller ->
                 val mediaItems = songsToPlay.map { song ->
-                    Log.d("PlayerViewModel_MediaItem", "Creating MediaItem for Song ID: ${song.id}, Title: ${song.title}")
-                    Log.d("PlayerViewModel_MediaItem", "Song's albumArtUriString: ${song.albumArtUriString}")
-
                     val metadataBuilder = MediaMetadata.Builder()
                         .setTitle(song.title)
                         .setArtist(song.artist)
@@ -1165,8 +1134,6 @@ class PlayerViewModel @Inject constructor(
                 }
                 val startIndex = songsToPlay.indexOf(startSong).coerceAtLeast(0)
 
-                Log.d("PlayerViewModel_MediaItem", "internalPlaySongs: startIndex: $startIndex")
-
                 if (mediaItems.isNotEmpty()) {
                     controller.setMediaItems(mediaItems, startIndex, 0L)
                     controller.prepare()
@@ -1187,13 +1154,8 @@ class PlayerViewModel @Inject constructor(
 
 
     private fun loadAndPlaySong(song: Song) {
-        Log.d("PlayerViewModel_MediaItem", "(loadAndPlaySong) called for Song ID: ${song.id}, Title: ${song.title}")
-        Log.d("PlayerViewModel_MediaItem", "(loadAndPlaySong) mediaController is null: ${mediaController == null}")
         mediaController?.let { controller ->
-            Log.d("PlayerViewModel_MediaItem", "(loadAndPlaySong) Creating MediaItem for Song ID: ${song.id}, Title: ${song.title}") // Log original, mantenido para contexto dentro del let.
-            Log.d("PlayerViewModel_MediaItem", "(loadAndPlaySong) Song's albumArtUriString: ${song.albumArtUriString}")
             val artworkUriForMediaItem = song.albumArtUriString?.toUri()
-            Log.d("PlayerViewModel_MediaItem", "(loadAndPlaySong) Setting artworkUri on MediaItem: $artworkUriForMediaItem")
 
             val metadata = MediaMetadata.Builder()
                 .setTitle(song.title)
