@@ -575,14 +575,19 @@ fun SearchResultsList(
                 }
 
                 // Add items for this section
-                items(itemsForSection, key = { item ->
-                    when (item) {
-                        is SearchResultItem.SongItem -> "song_${item.song.id}"
-                        is SearchResultItem.AlbumItem -> "album_${item.album.id}"
-                        is SearchResultItem.ArtistItem -> "artist_${item.artist.id}"
-                        is SearchResultItem.PlaylistItem -> "playlist_${item.playlist.id}"
+                items(
+                    count = itemsForSection.size,
+                    key = { index ->
+                        val item = itemsForSection[index]
+                        when (item) {
+                            is SearchResultItem.SongItem -> "song_${item.song.id}"
+                            is SearchResultItem.AlbumItem -> "album_${item.album.id}"
+                            is SearchResultItem.ArtistItem -> "artist_${item.artist.id}"
+                            is SearchResultItem.PlaylistItem -> "playlist_${item.playlist.id}_${index}"
+                        }
                     }
-                }) { item ->
+                ) { index ->
+                    val item = itemsForSection[index]
                     // Apply spacing for each item within the group
                     Box(modifier = Modifier.padding(bottom = 12.dp)) {
                         when (item) {
