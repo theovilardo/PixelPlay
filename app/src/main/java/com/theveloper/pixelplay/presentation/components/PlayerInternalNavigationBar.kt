@@ -118,49 +118,15 @@ private fun PlayerInternalNavigationItemsRow(
 fun PlayerInternalNavigationBar(
     navController: NavHostController,
     navItems: ImmutableList<BottomNavItem>,
-    containerShape: Shape,
-    navBarElevation: Dp,
-    isPlayerVisible: Boolean,
     currentRoute: String?,
     modifier: Modifier = Modifier,
-    topCornersRadiusDp: Dp,
-    bottomCornersRadiusDp: Dp,
-    navBarHideFraction: Float,
-    navBarInset: Dp,
     navBarStyle: String
 ) {
-    var componentHeightPx by remember { mutableStateOf(0) }
-    val animatedTranslationY = remember(navBarHideFraction, componentHeightPx) { derivedStateOf { componentHeightPx * navBarHideFraction } }
-    val boxAlignment = Alignment.TopCenter
-
-    val navHeight = if (navBarStyle == NavBarStyle.FULL_WIDTH) NavBarContentHeightFullWidth else NavBarContentHeight
-
-    Box(
+    PlayerInternalNavigationItemsRow(
+        navController = navController,
+        navItems = navItems,
+        currentRoute = currentRoute,
+        navBarStyle = navBarStyle,
         modifier = modifier
-            .fillMaxWidth()
-            .height(navHeight + navBarInset) // Explicit total height
-            .onSizeChanged { componentHeightPx = it.height }
-            .graphicsLayer {
-                translationY = animatedTranslationY.value
-                alpha = 1f
-            }
-            .shadow(
-                elevation = navBarElevation,
-                shape = containerShape,
-                clip = false
-            )
-            .background(
-                color = NavigationBarDefaults.containerColor,
-                shape = containerShape
-            ),
-        contentAlignment = boxAlignment
-    ) {
-        PlayerInternalNavigationItemsRow(
-            navController = navController,
-            navItems = navItems,
-            currentRoute = currentRoute,
-            modifier = Modifier.height(navHeight), // Content has fixed height
-            navBarStyle = navBarStyle
-        )
-    }
+    )
 }

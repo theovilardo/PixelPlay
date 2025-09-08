@@ -100,7 +100,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.focusModifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
 import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.PlayerInternalNavigationBar
@@ -394,20 +399,33 @@ class MainActivity : ComponentActivity() {
 
                     val horizontalPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else 12.dp
 
-                    PlayerInternalNavigationBar(
-                        navController = navController,
-                        navItems = commonNavItems,
-                        containerShape = conditionalShape,
-                        navBarElevation = navBarElevation,
-                        isPlayerVisible = showPlayerContentArea,
-                        currentRoute = currentRoute,
-                        navBarHideFraction = navBarHideFraction,
-                        topCornersRadiusDp = if (navBarStyle == NavBarStyle.FULL_WIDTH && !showPlayerContentArea) 0.dp else playerContentActualBottomRadius,
-                        bottomCornersRadiusDp = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp,
-                        navBarInset = systemNavBarInset,
-                        navBarStyle = navBarStyle,
-                        modifier = Modifier.padding(horizontal = horizontalPadding)
-                    )
+                    var componentHeightPx by remember { mutableStateOf(0) }
+                    val animatedTranslationY by remember(navBarHideFraction, componentHeightPx) { derivedStateOf { componentHeightPx * navBarHideFraction } }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onSizeChanged { componentHeightPx = it.height }
+                            .graphicsLayer { translationY = animatedTranslationY }
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = horizontalPadding)
+                                .padding(bottom = systemNavBarInset),
+                            color = NavigationBarDefaults.containerColor,
+                            shape = conditionalShape,
+                            shadowElevation = navBarElevation
+                        ) {
+                            PlayerInternalNavigationBar(
+                                navController = navController,
+                                navItems = commonNavItems,
+                                currentRoute = currentRoute,
+                                navBarStyle = navBarStyle,
+                                modifier = Modifier.height(if (navBarStyle == NavBarStyle.FULL_WIDTH) NavBarContentHeightFullWidth else NavBarContentHeight)
+                            )
+                        }
+                    }
                 }
             }
         ) { innerPadding ->
