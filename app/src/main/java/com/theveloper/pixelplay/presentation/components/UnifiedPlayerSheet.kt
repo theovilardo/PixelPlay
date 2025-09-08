@@ -139,6 +139,7 @@ const val ANIMATION_DURATION_MS = 255
 fun UnifiedPlayerSheet(
     playerViewModel: PlayerViewModel,
     sheetCollapsedTargetY: Float,
+    containerHeight: Dp,
     collapsedStateHorizontalPadding: Dp = 12.dp,
     hideMiniPlayer: Boolean = false
 ) {
@@ -314,10 +315,11 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val playerContentAreaActualHeightPx by remember(showPlayerContentArea, playerContentExpansionFraction, screenHeightPx, miniPlayerContentHeightPx) {
+    val playerContentAreaActualHeightPx by remember(showPlayerContentArea, playerContentExpansionFraction, containerHeight, miniPlayerContentHeightPx) {
         derivedStateOf {
             if (showPlayerContentArea) {
-                lerp(miniPlayerContentHeightPx, screenHeightPx, playerContentExpansionFraction.value)
+                val containerHeightPx = with(density) { containerHeight.toPx() }
+                lerp(miniPlayerContentHeightPx, containerHeightPx, playerContentExpansionFraction.value)
             } else { 0f }
         }
     }

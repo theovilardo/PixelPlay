@@ -94,6 +94,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.CircleShape
@@ -412,10 +413,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         ) { innerPadding ->
-            Box(modifier = Modifier.fillMaxSize()) {
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                 val density = LocalDensity.current
                 val configuration = LocalWindowInfo.current
                 val screenHeightPx = remember(configuration) { with(density) { configuration.containerSize.height } }
+                val containerHeight = this.maxHeight
 
                 val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
                 val showPlayerContentInitially = stablePlayerState.currentSong != null
@@ -443,7 +445,8 @@ class MainActivity : ComponentActivity() {
                     playerViewModel = playerViewModel,
                     sheetCollapsedTargetY = sheetCollapsedTargetY,
                     collapsedStateHorizontalPadding = 12.dp,
-                    hideMiniPlayer = shouldHideMiniPlayer
+                    hideMiniPlayer = shouldHideMiniPlayer,
+                    containerHeight = containerHeight
                 )
             }
         }
