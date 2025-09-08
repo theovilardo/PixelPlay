@@ -418,6 +418,15 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun shuffleAllSongs() {
+        mediaController?.shuffleModeEnabled = true
+        val allSongs = _playerUiState.value.allSongs
+        if (allSongs.isNotEmpty()) {
+            val randomSong = allSongs.random()
+            playSongs(allSongs.toList(), randomSong, "All Songs (Shuffled)")
+        }
+    }
+
     private fun loadPersistedDailyMix() {
         viewModelScope.launch {
             // Combine the flow of persisted IDs with the flow of all songs

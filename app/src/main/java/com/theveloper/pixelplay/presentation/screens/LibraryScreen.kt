@@ -373,10 +373,7 @@ fun LibraryScreen(
                             onMainActionClick = {
                                 when (pagerState.currentPage) {
                                     3 -> showCreatePlaylistDialog = true
-                                    else -> {
-                                        playerViewModel.toggleShuffle()
-                                        playerViewModel.playPause()
-                                    }
+                                    else -> playerViewModel.shuffleAllSongs()
                                 }
                             },
                             iconRotation = iconRotation,
