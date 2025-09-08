@@ -423,6 +423,7 @@ class MainActivity : ComponentActivity() {
                                 navItems = commonNavItems,
                                 currentRoute = currentRoute,
                                 navBarStyle = navBarStyle,
+                                navBarInset = systemNavBarInset,
                                 modifier = Modifier.height(if (navBarStyle == NavBarStyle.FULL_WIDTH) NavBarContentHeightFullWidth else NavBarContentHeight)
                             )
                         }
