@@ -387,7 +387,8 @@ class MainActivity : ComponentActivity() {
                         collapsedStateHorizontalPadding = actualCollapsedStateBottomMargin,
                         collapsedStateBottomMargin = actualCollapsedStateBottomMargin,
                         hideNavigationBar = shouldHideNavigationBar,
-                        hideMiniPlayer = shouldHideMiniPlayer
+                        hideMiniPlayer = shouldHideMiniPlayer,
+                        navBarBottomInset = systemNavBarInset
                     )
 
 //                    Box(

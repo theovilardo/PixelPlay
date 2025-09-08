@@ -145,7 +145,8 @@ fun UnifiedPlayerSheet(
     collapsedStateHorizontalPadding: Dp = 12.dp,
     collapsedStateBottomMargin: Dp = 0.dp,
     hideNavigationBar: Boolean = false,
-    hideMiniPlayer: Boolean = false
+    hideMiniPlayer: Boolean = false,
+    navBarBottomInset: Dp
 ) {
     Trace.beginSection("UnifiedPlayerSheet.Composition")
     val context = LocalContext.current
@@ -212,10 +213,9 @@ fun UnifiedPlayerSheet(
 
     val screenHeightPx = remember(configuration) { with(density) { configuration.screenHeightDp.dp.toPx() } }
     val miniPlayerContentHeightPx = remember { with(density) { MiniPlayerHeight.toPx() } }
-    val systemNavBarInset = WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
-    val navBarHeightPx = remember(density, systemNavBarInset, navBarStyle) {
+    val navBarHeightPx = remember(density, navBarBottomInset, navBarStyle) {
         val height = if (navBarStyle == NavBarStyle.FULL_WIDTH) NavBarContentHeightFullWidth else NavBarContentHeight
-        with(density) { (height + systemNavBarInset).toPx() }
+        with(density) { (height + navBarBottomInset).toPx() }
     }
     val miniPlayerAndSpacerHeightPx = remember(density, MiniPlayerHeight, CollapsedPlayerContentSpacerHeight) { with(density) { (MiniPlayerHeight + CollapsedPlayerContentSpacerHeight).toPx() } }
     remember { with(density) { CollapsedPlayerContentSpacerHeight.toPx() } }
@@ -1121,7 +1121,7 @@ fun UnifiedPlayerSheet(
                         topCornersRadiusDp = if (navBarStyle == NavBarStyle.FULL_WIDTH && !isPlayerVisible) 0.dp else playerContentActualBottomRadius,
                         bottomCornersRadiusDp = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp,
                         navBarHeightPx = navBarHeightPx,
-                        navBarInset = systemNavBarInset,
+                        navBarInset = navBarBottomInset,
                         modifier = playerInternalNavBarModifier,
                         navBarStyle = navBarStyle
                     )
