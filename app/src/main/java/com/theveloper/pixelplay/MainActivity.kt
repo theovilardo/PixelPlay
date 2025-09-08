@@ -409,9 +409,11 @@ class MainActivity : ComponentActivity() {
                             .graphicsLayer { translationY = animatedTranslationY }
                     ) {
                         val bottomPadding = if (navBarStyle == NavBarStyle.DEFAULT) systemNavBarInset else 0.dp
+                        val navHeight = if (navBarStyle == NavBarStyle.FULL_WIDTH) NavBarContentHeightFullWidth else NavBarContentHeight
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .height(navHeight)
                                 .padding(horizontal = horizontalPadding)
                                 .padding(bottom = bottomPadding),
                             color = NavigationBarDefaults.containerColor,
@@ -424,7 +426,7 @@ class MainActivity : ComponentActivity() {
                                 currentRoute = currentRoute,
                                 navBarStyle = navBarStyle,
                                 navBarInset = systemNavBarInset,
-                                modifier = Modifier.height(if (navBarStyle == NavBarStyle.FULL_WIDTH) NavBarContentHeightFullWidth else NavBarContentHeight)
+                                modifier = Modifier.fillMaxSize()
                             )
                         }
                     }
