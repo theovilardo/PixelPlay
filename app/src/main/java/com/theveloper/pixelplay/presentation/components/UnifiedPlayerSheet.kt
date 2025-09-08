@@ -132,7 +132,6 @@ private val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error("
 
 val MiniPlayerHeight = 64.dp
 val PlayerSheetExpandedCornerRadius = 32.dp
-val CollapsedPlayerContentSpacerHeight = 6.dp
 const val ANIMATION_DURATION_MS = 255
 
 @androidx.annotation.OptIn(UnstableApi::class)
@@ -209,8 +208,7 @@ fun UnifiedPlayerSheet(
 
     val screenHeightPx = remember(configuration) { with(density) { configuration.screenHeightDp.dp.toPx() } }
     val miniPlayerContentHeightPx = remember { with(density) { MiniPlayerHeight.toPx() } }
-    val miniPlayerAndSpacerHeightPx = remember(density, MiniPlayerHeight, CollapsedPlayerContentSpacerHeight) { with(density) { (MiniPlayerHeight + CollapsedPlayerContentSpacerHeight).toPx() } }
-    remember { with(density) { CollapsedPlayerContentSpacerHeight.toPx() } }
+    val miniPlayerAndSpacerHeightPx = remember(density, MiniPlayerHeight) { with(density) { MiniPlayerHeight.toPx() } }
 
     val showPlayerContentArea by remember { derivedStateOf { stablePlayerState.currentSong != null } }
 
@@ -1022,28 +1020,9 @@ fun UnifiedPlayerSheet(
 
                 // Use granular showDismissUndoBar
                 val isPlayerOrUndoBarVisible = showPlayerContentArea || showDismissUndoBar
-                if (isPlayerOrUndoBarVisible && !hideNavigationBar) {
-                    val spacerTargetHeight = lerp(
-                        start = CollapsedPlayerContentSpacerHeight,
-                        stop = 0.dp,
-                        fraction = (playerContentExpansionFraction.value / 0.4f).coerceIn(0f, 1f)
-                    )
-                    val animatedSpacerHeight by animateDpAsState(
-                        targetValue = spacerTargetHeight,
-                        animationSpec = spring(stiffness = Spring.StiffnessMedium),
-                        label = "SpacerHeightAnimation"
-                    )
-
-                    if (animatedSpacerHeight > 0.1.dp) {
-                        Spacer(
-                            Modifier
-                                .height(animatedSpacerHeight)
-                                .fillMaxWidth()
-                                .background(Color.Transparent)
-                        )
-                    }
+                if (isPlayerOrUndoBarVisible) {
+                    // Spacer removed
                 }
-
             }
         }
     }

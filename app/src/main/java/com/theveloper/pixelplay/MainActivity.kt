@@ -101,20 +101,17 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.focus.focusModifier
 import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
-import com.theveloper.pixelplay.presentation.components.NavBarContentHeightFullWidth
-import com.theveloper.pixelplay.presentation.components.CollapsedPlayerContentSpacerHeight
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.PlayerInternalNavigationBar
 import javax.annotation.concurrent.Immutable
 import androidx.core.net.toUri
+import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
+import com.theveloper.pixelplay.presentation.components.NavBarContentHeightFullWidth
 import kotlin.math.pow
-
-// ... other imports ...
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.lerp
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
-
 
 @Immutable
 data class BottomNavItem(
@@ -429,11 +426,12 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val miniPlayerH = with(density) { MiniPlayerHeight.toPx() }
-                val spacerH = with(density) { CollapsedPlayerContentSpacerHeight.toPx() }
-                val totalSheetHeightWhenContentCollapsedPx = if (showPlayerContentInitially && !shouldHideMiniPlayer) miniPlayerH + spacerH else 0f
+                val totalSheetHeightWhenContentCollapsedPx = if (showPlayerContentInitially && !shouldHideMiniPlayer) miniPlayerH else 0f
 
                 val bottomMargin = innerPadding.calculateBottomPadding()
-                val sheetCollapsedTargetY = screenHeightPx - totalSheetHeightWhenContentCollapsedPx - with(density){ bottomMargin.toPx() }
+                val MiniPlayerBottomSpacer = 6.dp
+                val spacerPx = with(density) { MiniPlayerBottomSpacer.toPx() }
+                val sheetCollapsedTargetY = screenHeightPx - totalSheetHeightWhenContentCollapsedPx - with(density){ bottomMargin.toPx() } - spacerPx
 
                 AppNavigation(
                     playerViewModel = playerViewModel,
