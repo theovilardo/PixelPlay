@@ -138,9 +138,8 @@ const val ANIMATION_DURATION_MS = 255
 @Composable
 fun UnifiedPlayerSheet(
     playerViewModel: PlayerViewModel,
-    initialTargetTranslationY: Float,
+    sheetCollapsedTargetY: Float,
     collapsedStateHorizontalPadding: Dp = 12.dp,
-    collapsedStateBottomMargin: Dp = 0.dp,
     hideMiniPlayer: Boolean = false
 ) {
     Trace.beginSection("UnifiedPlayerSheet.Composition")
@@ -362,11 +361,10 @@ fun UnifiedPlayerSheet(
     with(density) { animatedTotalSheetHeightPx.toDp() }
 
     val sheetExpandedTargetY = 0f
-    val sheetCollapsedTargetY = remember(screenHeightPx, totalSheetHeightWhenContentCollapsedPx, collapsedStateBottomMargin) {
-        screenHeightPx - totalSheetHeightWhenContentCollapsedPx - with(density) { collapsedStateBottomMargin.toPx() }
-    }
 
-    val currentSheetTranslationY = remember { Animatable(initialTargetTranslationY) }
+    val initialY = if (currentSheetContentState == PlayerSheetState.COLLAPSED) sheetCollapsedTargetY else sheetExpandedTargetY
+    val currentSheetTranslationY = remember { Animatable(initialY) }
+
     LaunchedEffect(showPlayerContentArea, currentSheetContentState, sheetCollapsedTargetY, sheetExpandedTargetY) {
         val targetY = if (showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
             sheetExpandedTargetY
