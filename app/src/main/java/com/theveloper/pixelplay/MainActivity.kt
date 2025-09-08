@@ -343,7 +343,7 @@ class MainActivity : ComponentActivity() {
                     }
                     }
                     val navBarStyle by playerViewModel.navBarStyle.collectAsState()
-                    val systemNavBarInset = innerPadding.calculateBottomPadding()//WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                    val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
                     val actualCollapsedStateBottomMargin = if (navBarStyle == NavBarStyle.FULL_WIDTH) {
                         if (shouldHideNavigationBar) {
                             systemNavBarInset
