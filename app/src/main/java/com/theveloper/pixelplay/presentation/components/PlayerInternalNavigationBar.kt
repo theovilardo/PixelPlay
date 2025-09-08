@@ -131,7 +131,7 @@ fun PlayerInternalNavigationBar(
 ) {
     var componentHeightPx by remember { mutableStateOf(0) }
     val animatedTranslationY = remember(navBarHideFraction, componentHeightPx) { derivedStateOf { componentHeightPx * navBarHideFraction } }
-    val boxAlignment = if (navBarStyle == NavBarStyle.FULL_WIDTH) Alignment.TopCenter else Alignment.Center
+    val boxAlignment = Alignment.TopCenter
 
     val navHeight = if (navBarStyle == NavBarStyle.FULL_WIDTH) NavBarContentHeightFullWidth else NavBarContentHeight
 
