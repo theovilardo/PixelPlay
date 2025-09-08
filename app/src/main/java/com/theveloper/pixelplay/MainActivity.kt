@@ -391,7 +391,6 @@ class MainActivity : ComponentActivity() {
                     }
 
                     val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-                    val navBarH = with(LocalDensity.current) { (NavBarContentHeight + systemNavBarInset).toPx() }
 
                     val horizontalPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else 12.dp
 
@@ -405,7 +404,6 @@ class MainActivity : ComponentActivity() {
                         navBarHideFraction = navBarHideFraction,
                         topCornersRadiusDp = if (navBarStyle == NavBarStyle.FULL_WIDTH && !showPlayerContentArea) 0.dp else playerContentActualBottomRadius,
                         bottomCornersRadiusDp = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp,
-                        navBarHeightPx = navBarH,
                         navBarInset = systemNavBarInset,
                         navBarStyle = navBarStyle,
                         modifier = Modifier.padding(horizontal = horizontalPadding)

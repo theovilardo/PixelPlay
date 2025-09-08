@@ -13,12 +13,16 @@ import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -122,12 +126,11 @@ fun PlayerInternalNavigationBar(
     topCornersRadiusDp: Dp,
     bottomCornersRadiusDp: Dp,
     navBarHideFraction: Float,
-    navBarHeightPx: Float,
     navBarInset: Dp,
     navBarStyle: String
 ) {
-    remember(navBarHideFraction) { derivedStateOf { 1f - navBarHideFraction } }
-    val animatedTranslationY = remember(navBarHideFraction, navBarHeightPx) { derivedStateOf { navBarHeightPx * navBarHideFraction } }
+    var componentHeightPx by remember { mutableStateOf(0) }
+    val animatedTranslationY = remember(navBarHideFraction, componentHeightPx) { derivedStateOf { componentHeightPx * navBarHideFraction } }
     val boxAlignment = if (navBarStyle == NavBarStyle.FULL_WIDTH) Alignment.TopCenter else Alignment.Center
 
     val navHeight = if (navBarStyle == NavBarStyle.FULL_WIDTH) NavBarContentHeightFullWidth else NavBarContentHeight
@@ -136,6 +139,7 @@ fun PlayerInternalNavigationBar(
         modifier = modifier
             .fillMaxWidth()
             .height(navHeight + navBarInset) // Explicit total height
+            .onSizeChanged { componentHeightPx = it.height }
             .graphicsLayer {
                 translationY = animatedTranslationY.value
                 alpha = 1f
