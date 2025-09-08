@@ -1138,21 +1138,9 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                     Timber.tag(TAG_AAIG)
                         .d("Sampled bitmap size: ${sampledBitmap.width}x${sampledBitmap.height}")
 
-                    // Scale the bitmap to the exact target size if necessary
-                    if (sampledBitmap.width != targetWidthPx || sampledBitmap.height != targetHeightPx) {
-                        Timber.tag(TAG_AAIG)
-                            .d("Scaling sampled bitmap from ${sampledBitmap.width}x${sampledBitmap.height} to ${targetWidthPx}x${targetHeightPx}")
-                        val scaledBitmap = sampledBitmap.scale(targetWidthPx, targetHeightPx)
-                        if (scaledBitmap != sampledBitmap) {
-                            sampledBitmap.recycle()
-                            Timber.tag(TAG_AAIG).d("Recycled intermediate sampledBitmap.")
-                        }
-                        bitmap = scaledBitmap
-                    } else {
-                        bitmap = sampledBitmap
-                        Timber.tag(TAG_AAIG)
-                            .d("No final scaling needed. Using sampled bitmap directly.")
-                    }
+                    // The bitmap is no longer scaled here to preserve aspect ratio.
+                    // Scaling is now handled by the Image composable's ContentScale.
+                    bitmap = sampledBitmap
 
                     Timber.tag(TAG_AAIG)
                         .d("Final bitmap size: ${bitmap.width}x${bitmap.height}. Putting into cache with key: $cacheKey")
