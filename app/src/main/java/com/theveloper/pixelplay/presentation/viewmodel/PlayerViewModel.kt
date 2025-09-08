@@ -75,10 +75,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.count
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -86,8 +88,10 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.lang.Math.random
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
+import kotlin.collections.map
 
 enum class PlayerSheetState {
     COLLAPSED,
@@ -934,6 +938,8 @@ class PlayerViewModel @Inject constructor(
     private fun updateCurrentPlaybackQueueFromPlayer(playerCtrl: MediaController?) {
         val currentMediaController = playerCtrl ?: mediaController ?: return
         val count = currentMediaController.mediaItemCount
+        Log.d("PlayerViewModel", "updateCurrentPlaybackQueueFromPlayer: count=$count")
+
         if (count == 0) {
             _playerUiState.update { it.copy(currentPlaybackQueue = persistentListOf()) }
             return
@@ -945,25 +951,20 @@ class PlayerViewModel @Inject constructor(
         val window = androidx.media3.common.Timeline.Window()
 
         if (currentMediaController.shuffleModeEnabled) {
-            val shuffledIndices = mutableListOf<Int>()
-            var currentIndex = timeline.getFirstWindowIndex(true)
-            while (currentIndex != C.INDEX_UNSET) {
-                shuffledIndices.add(currentIndex)
-                // Use the player's repeat mode to correctly handle the end of the playlist
-                currentIndex = timeline.getNextWindowIndex(currentIndex, currentMediaController.repeatMode, true)
-                if (shuffledIndices.contains(currentIndex)) { // Avoid infinite loops
-                    break
-                }
+            val shuffledQueue = createShuffledQueue(allSongsMasterList);
+
+            Log.d(
+                "PlayerViewModel",
+                "updateCurrentPlaybackQueueFromPlayer: shuffledQueue=${shuffledQueue}"
+            )
+
+
+            _playerUiState.update {
+                it.copy(
+                    currentPlaybackQueue = shuffledQueue.toImmutableList()
+                )
             }
 
-            shuffledIndices.forEach { index ->
-                if (index >= 0 && index < timeline.windowCount) {
-                    timeline.getWindow(index, window)
-                    val mediaItem = window.mediaItem
-                    allSongsMasterList.find { it.id == mediaItem.mediaId }?.let { song -> queue.add(song) }
-                }
-            }
-            _playerUiState.update { it.copy(currentPlaybackQueue = queue.toImmutableList()) }
         } else {
             // Original logic for sequential order
             for (i in 0 until count) {
@@ -984,6 +985,8 @@ class PlayerViewModel @Inject constructor(
                 isPlaying = playerCtrl.isPlaying
             )
         }
+
+        println("HERE3")
         updateCurrentPlaybackQueueFromPlayer(playerCtrl)
 
         playerCtrl.currentMediaItem?.mediaId?.let { songId ->
@@ -1087,14 +1090,31 @@ class PlayerViewModel @Inject constructor(
             }
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
                 _stablePlayerState.update { it.copy(isShuffleEnabled = shuffleModeEnabled) }
-                updateCurrentPlaybackQueueFromPlayer(playerCtrl)
+                if (playerCtrl.mediaItemCount == 0) {
+                    val shuffledQueue = createShuffledQueue(_masterAllSongs.value)
+                    playSongs(shuffledQueue, shuffledQueue.first(), "Shuffled Queue", null)
+                }
+             //   updateCurrentPlaybackQueueFromPlayer(playerCtrl)
             }
             override fun onRepeatModeChanged(repeatMode: Int) { _stablePlayerState.update { it.copy(repeatMode = repeatMode) } }
             override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
-                if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) updateCurrentPlaybackQueueFromPlayer(playerCtrl) // Pass playerCtrl
+                if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) {
+                    println("IN onTimelineChanged")
+                  //  updateCurrentPlaybackQueueFromPlayer(playerCtrl)
+                } // Pass playerCtrl}
             }
         })
         Trace.endSection()
+    }
+
+    fun createShuffledQueue(songs: List<Song>): List<Song> {
+        val chosenSong = songs[(0 until songs.size).random()]
+        println("Chosen Song: $chosenSong")
+
+        val shuffledQueue = songs.shuffled().filter { it.id != chosenSong.id }.toMutableList()
+        shuffledQueue.add(0, chosenSong)
+
+        return shuffledQueue
     }
 
     fun playSongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None", playlistId: String? = null) {
@@ -1112,6 +1132,8 @@ class PlayerViewModel @Inject constructor(
     private suspend fun internalPlaySongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None", playlistId: String? = null) {
         Log.d("PlayerViewModel_MediaItem", "internalPlaySongs called. Songs count: ${songsToPlay.size}, StartSong: ${startSong.title}, QueueName: $queueName")
         Log.d("PlayerViewModel_MediaItem", "internalPlaySongs: mediaController is null: ${mediaController == null}")
+
+        Log.d("PlayerViewModel_MediaItem", "internalPlaySongs: songsToPlay: $songsToPlay")
 
         val playSongsAction = {
             mediaController?.let { controller ->
@@ -1142,6 +1164,8 @@ class PlayerViewModel @Inject constructor(
                         .build()
                 }
                 val startIndex = songsToPlay.indexOf(startSong).coerceAtLeast(0)
+
+                Log.d("PlayerViewModel_MediaItem", "internalPlaySongs: startIndex: $startIndex")
 
                 if (mediaItems.isNotEmpty()) {
                     controller.setMediaItems(mediaItems, startIndex, 0L)
