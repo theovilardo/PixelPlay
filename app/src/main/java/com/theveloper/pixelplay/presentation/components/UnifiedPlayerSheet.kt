@@ -132,19 +132,17 @@ private val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error("
 
 val MiniPlayerHeight = 64.dp
 val PlayerSheetExpandedCornerRadius = 32.dp
-val CollapsedPlayerContentSpacerHeight = 6.dp
 const val ANIMATION_DURATION_MS = 255
+
+val MiniPlayerBottomSpacer = 8.dp
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun UnifiedPlayerSheet(
     playerViewModel: PlayerViewModel,
-    navController: NavHostController,
-    navItems: ImmutableList<BottomNavItem>,
-    initialTargetTranslationY: Float,
+    sheetCollapsedTargetY: Float,
+    containerHeight: Dp,
     collapsedStateHorizontalPadding: Dp = 12.dp,
-    collapsedStateBottomMargin: Dp = 0.dp,
-    hideNavigationBar: Boolean = false,
     hideMiniPlayer: Boolean = false
 ) {
     Trace.beginSection("UnifiedPlayerSheet.Composition")
@@ -212,13 +210,7 @@ fun UnifiedPlayerSheet(
 
     val screenHeightPx = remember(configuration) { with(density) { configuration.screenHeightDp.dp.toPx() } }
     val miniPlayerContentHeightPx = remember { with(density) { MiniPlayerHeight.toPx() } }
-    val systemNavBarInset = WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
-    val navBarHeightPx = remember(density, systemNavBarInset, navBarStyle) {
-        val height = if (navBarStyle == NavBarStyle.FULL_WIDTH) NavBarContentHeightFullWidth else NavBarContentHeight
-        with(density) { (height + systemNavBarInset).toPx() }
-    }
-    val miniPlayerAndSpacerHeightPx = remember(density, MiniPlayerHeight, CollapsedPlayerContentSpacerHeight) { with(density) { (MiniPlayerHeight + CollapsedPlayerContentSpacerHeight).toPx() } }
-    remember { with(density) { CollapsedPlayerContentSpacerHeight.toPx() } }
+    val miniPlayerAndSpacerHeightPx = remember(density, MiniPlayerHeight) { with(density) { MiniPlayerHeight.toPx() } }
 
     val showPlayerContentArea by remember { derivedStateOf { stablePlayerState.currentSong != null } }
 
@@ -229,7 +221,7 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val playerContentExpansionFraction = remember { Animatable(0f) }
+    val playerContentExpansionFraction = playerViewModel.playerContentExpansionFraction
     val visualOvershootScaleY = remember { Animatable(1f) }
     var shouldRenderFullPlayer by remember { mutableStateOf(false) }
     val fullPlayerContentAlpha = remember { Animatable(0f) }
@@ -325,10 +317,11 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val playerContentAreaActualHeightPx by remember(showPlayerContentArea, playerContentExpansionFraction, screenHeightPx, miniPlayerContentHeightPx) {
+    val playerContentAreaActualHeightPx by remember(showPlayerContentArea, playerContentExpansionFraction, containerHeight, miniPlayerContentHeightPx) {
         derivedStateOf {
             if (showPlayerContentArea) {
-                lerp(miniPlayerContentHeightPx, screenHeightPx, playerContentExpansionFraction.value)
+                val containerHeightPx = with(density) { containerHeight.toPx() }
+                lerp(miniPlayerContentHeightPx, containerHeightPx, playerContentExpansionFraction.value)
             } else { 0f }
         }
     }
@@ -336,14 +329,10 @@ fun UnifiedPlayerSheet(
 
     val totalSheetHeightWhenContentCollapsedPx = remember(
         isPlayerSlotOccupied,
-        hideNavigationBar,
         hideMiniPlayer,
-        miniPlayerAndSpacerHeightPx,
-        navBarHeightPx
+        miniPlayerAndSpacerHeightPx
     ) {
-        val playerSlotHeightContribution = if (isPlayerSlotOccupied && !hideMiniPlayer) miniPlayerAndSpacerHeightPx else 0f
-        val navHeight = if (hideNavigationBar) 0f else navBarHeightPx
-        playerSlotHeightContribution + navHeight
+        if (isPlayerSlotOccupied && !hideMiniPlayer) miniPlayerAndSpacerHeightPx else 0f
     }
 
     val animatedTotalSheetHeightPx by remember(
@@ -356,23 +345,19 @@ fun UnifiedPlayerSheet(
             if (isPlayerSlotOccupied) {
                 lerp(totalSheetHeightWhenContentCollapsedPx, screenHeightPx, playerContentExpansionFraction.value)
             } else {
-                navBarHeightPx
+                0f
             }
         }
     }
 
-    val navBarElevation = if (!hideNavigationBar) 3.dp else 0.dp
+    val navBarElevation = 3.dp
     val shadowSpacePx = remember(density, navBarElevation) {
         with(density) { (navBarElevation * 8).toPx() }
     }
 
-    val animatedTotalSheetHeightWithShadowPx by remember(animatedTotalSheetHeightPx, hideNavigationBar, shadowSpacePx) {
+    val animatedTotalSheetHeightWithShadowPx by remember(animatedTotalSheetHeightPx, shadowSpacePx) {
         derivedStateOf {
-            if (hideNavigationBar) {
-                animatedTotalSheetHeightPx
-            } else {
-                animatedTotalSheetHeightPx + shadowSpacePx
-            }
+            animatedTotalSheetHeightPx + shadowSpacePx
         }
     }
     val animatedTotalSheetHeightWithShadowDp = with(density) { animatedTotalSheetHeightWithShadowPx.toDp() }
@@ -380,11 +365,10 @@ fun UnifiedPlayerSheet(
     with(density) { animatedTotalSheetHeightPx.toDp() }
 
     val sheetExpandedTargetY = 0f
-    val sheetCollapsedTargetY = remember(screenHeightPx, totalSheetHeightWhenContentCollapsedPx, collapsedStateBottomMargin) {
-        screenHeightPx - totalSheetHeightWhenContentCollapsedPx - with(density) { collapsedStateBottomMargin.toPx() }
-    }
 
-    val currentSheetTranslationY = remember { Animatable(initialTargetTranslationY) }
+    val initialY = if (currentSheetContentState == PlayerSheetState.COLLAPSED) sheetCollapsedTargetY else sheetExpandedTargetY
+    val currentSheetTranslationY = remember { Animatable(initialY) }
+
     LaunchedEffect(showPlayerContentArea, currentSheetContentState, sheetCollapsedTargetY, sheetExpandedTargetY) {
         val targetY = if (showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
             sheetExpandedTargetY
@@ -405,7 +389,6 @@ fun UnifiedPlayerSheet(
     val overallSheetTopCornerRadiusTargetValue by remember(
         showPlayerContentArea,
         playerContentExpansionFraction,
-        hideNavigationBar,
         predictiveBackCollapseProgress,
         currentSheetContentState,
         navBarStyle,
@@ -416,7 +399,7 @@ fun UnifiedPlayerSheet(
                 val collapsedCornerTarget = if (navBarStyle == NavBarStyle.FULL_WIDTH) {
                     32.dp
                 } else {
-                    if (hideNavigationBar) 32.dp else navBarCornerRadius.dp
+                    navBarCornerRadius.dp
                 }
 
                 if (predictiveBackCollapseProgress > 0f && currentSheetContentState == PlayerSheetState.EXPANDED) {
@@ -431,7 +414,7 @@ fun UnifiedPlayerSheet(
                 if (navBarStyle == NavBarStyle.FULL_WIDTH) {
                     0.dp
                 } else {
-                    if (hideNavigationBar) 32.dp else navBarCornerRadius.dp
+                    navBarCornerRadius.dp
                 }
             }
         }
@@ -455,7 +438,6 @@ fun UnifiedPlayerSheet(
 
     val playerContentActualBottomRadiusTargetValue by remember(
         navBarStyle,
-        hideNavigationBar,
         showPlayerContentArea,
         playerContentExpansionFraction,
         stablePlayerState.isPlaying,
@@ -471,13 +453,11 @@ fun UnifiedPlayerSheet(
             }
 
             val calculatedNormally = if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                val expandedRadius = if (hideNavigationBar) 32.dp else 26.dp
-                val collapsedRadiusTarget = if (hideNavigationBar) 32.dp else 12.dp
+                val expandedRadius = 26.dp
+                val collapsedRadiusTarget = 12.dp
                 lerp(expandedRadius, collapsedRadiusTarget, predictiveBackCollapseProgress)
             } else {
-                if (hideNavigationBar) {
-                    32.dp
-                } else if (showPlayerContentArea) {
+                if (showPlayerContentArea) {
                     val fraction = playerContentExpansionFraction.value
                     if (fraction < 0.2f) {
                         lerp(12.dp, 26.dp, (fraction / 0.2f).coerceIn(0f, 1f))
@@ -495,7 +475,6 @@ fun UnifiedPlayerSheet(
 
             if (currentSheetContentState == PlayerSheetState.COLLAPSED &&
                 swipeDismissProgress.value > 0f &&
-                !hideNavigationBar &&
                 showPlayerContentArea &&
                 playerContentExpansionFraction.value < 0.01f
             ) {
@@ -518,8 +497,7 @@ fun UnifiedPlayerSheet(
 
     val navBarActualTopRadiusTarget by remember(
         showPlayerContentArea, playerContentExpansionFraction,
-        currentSheetContentState, swipeDismissProgress.value,
-        hideNavigationBar
+        currentSheetContentState, swipeDismissProgress.value
     ) {
         derivedStateOf {
             val calculatedNormally = if (showPlayerContentArea) {
@@ -535,7 +513,6 @@ fun UnifiedPlayerSheet(
 
             if (currentSheetContentState == PlayerSheetState.COLLAPSED &&
                 swipeDismissProgress.value > 0f &&
-                !hideNavigationBar &&
                 showPlayerContentArea &&
                 playerContentExpansionFraction.value < 0.01f
             ) {
@@ -632,8 +609,8 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val shouldShowSheet by remember(showPlayerContentArea, hideNavigationBar, hideMiniPlayer) {
-        derivedStateOf { (showPlayerContentArea && !hideMiniPlayer) || !hideNavigationBar }
+    val shouldShowSheet by remember(showPlayerContentArea, hideMiniPlayer) {
+        derivedStateOf { showPlayerContentArea && !hideMiniPlayer }
     }
 
     var internalIsKeyboardVisible by remember { mutableStateOf(false) }
@@ -1045,86 +1022,8 @@ fun UnifiedPlayerSheet(
 
                 // Use granular showDismissUndoBar
                 val isPlayerOrUndoBarVisible = showPlayerContentArea || showDismissUndoBar
-                if (isPlayerOrUndoBarVisible && !hideNavigationBar) {
-                    val spacerTargetHeight = lerp(
-                        start = CollapsedPlayerContentSpacerHeight,
-                        stop = 0.dp,
-                        fraction = (playerContentExpansionFraction.value / 0.4f).coerceIn(0f, 1f)
-                    )
-                    val animatedSpacerHeight by animateDpAsState(
-                        targetValue = spacerTargetHeight,
-                        animationSpec = spring(stiffness = Spring.StiffnessMedium),
-                        label = "SpacerHeightAnimation"
-                    )
-
-                    if (animatedSpacerHeight > 0.1.dp) {
-                        Spacer(
-                            Modifier
-                                .height(animatedSpacerHeight)
-                                .fillMaxWidth()
-                                .background(Color.Transparent)
-                        )
-                    }
-                }
-
-                if (!hideNavigationBar) {
-                    val navBarHideFraction = if (showPlayerContentArea) playerContentExpansionFraction.value.pow(2) else 0f
-                    val navBackStackEntry by navController.currentBackStackEntryAsState()
-                    val currentRouteValue = navBackStackEntry?.destination?.route
-                    val rememberedCurrentRoute = remember(currentRouteValue) {
-                        Log.d("RouteDebug", "rememberedCurrentRoute recalculated. New value: $currentRouteValue")
-                        currentRouteValue
-                    }
-
-                    val actualShape = remember(playerContentActualBottomRadius, showPlayerContentArea, navBarStyle, navBarCornerRadius) {
-                        val bottomRadius = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp
-                        AbsoluteSmoothCornerShape(
-                            cornerRadiusTL = playerContentActualBottomRadius,
-                            smoothnessAsPercentBR = 60,
-                            cornerRadiusTR = playerContentActualBottomRadius,
-                            smoothnessAsPercentTL = 60,
-                            cornerRadiusBL = bottomRadius,
-                            smoothnessAsPercentTR = 60,
-                            cornerRadiusBR = bottomRadius,
-                            smoothnessAsPercentBL = 60
-                        )
-                    }
-
-                    val conditionalShape = if (showPlayerContentArea) {
-                        actualShape
-                    } else {
-                        if (navBarStyle == NavBarStyle.DEFAULT) {
-                            RoundedCornerShape(60.dp)
-                        } else { // FULL_WIDTH
-                            RoundedCornerShape(0.dp)
-                        }
-                    }
-
-                    val navBarHorizontalPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else actualCollapsedStateHorizontalPadding
-                    val playerInternalNavBarModifier = remember(navBarHorizontalPadding) {
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = navBarHorizontalPadding)
-                            .pointerInput(Unit) {
-                                detectTapGestures { /* Permitir taps normales en nav items */ }
-                            }
-                    }
-
-                    PlayerInternalNavigationBar(
-                        navController = navController,
-                        navItems = navItems,
-                        containerShape = conditionalShape,
-                        navBarElevation = navBarElevation,
-                        isPlayerVisible = showPlayerContentArea,
-                        currentRoute = rememberedCurrentRoute,
-                        navBarHideFraction = navBarHideFraction,
-                        topCornersRadiusDp = if (navBarStyle == NavBarStyle.FULL_WIDTH && !isPlayerVisible) 0.dp else playerContentActualBottomRadius,
-                        bottomCornersRadiusDp = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp,
-                        navBarHeightPx = navBarHeightPx,
-                        navBarInset = systemNavBarInset,
-                        modifier = playerInternalNavBarModifier,
-                        navBarStyle = navBarStyle
-                    )
+                if (isPlayerOrUndoBarVisible) {
+                    // Spacer removed
                 }
             }
         }

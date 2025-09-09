@@ -8,6 +8,7 @@ import android.graphics.Canvas
 import android.net.Uri
 import android.os.Trace
 import android.util.Log
+import androidx.compose.animation.core.Animatable
 import androidx.compose.material3.ColorScheme
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
@@ -179,6 +180,8 @@ class PlayerViewModel @Inject constructor(
     val bottomBarHeight: StateFlow<Int> = _bottomBarHeight.asStateFlow()
     private val _predictiveBackCollapseFraction = MutableStateFlow(0f)
     val predictiveBackCollapseFraction: StateFlow<Float> = _predictiveBackCollapseFraction.asStateFlow()
+
+    val playerContentExpansionFraction = Animatable(0f)
 
     // AI Playlist Generation State
     private val _showAiPlaylistSheet = MutableStateFlow(false)
@@ -1107,12 +1110,14 @@ class PlayerViewModel @Inject constructor(
 
     private fun createShuffledQueue(songs: List<Song>): List<Song> {
         if (songs.isEmpty()) return emptyList()
+       
         val shuffledQueue = songs.shuffled()
         val chosenSong = shuffledQueue.firstOrNull()
         Log.d(
             "ShuffleDebug",
             "createShuffledQueue called. Input size: ${songs.size}. Chosen first song: '${chosenSong?.title}'"
         )
+        
         return shuffledQueue
     }
 
