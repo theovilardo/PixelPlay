@@ -127,8 +127,11 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.roundToLong
+import kotlin.math.sign
 
 private val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error("No ColorScheme provided") }
+
+private enum class DragPhase { IDLE, TENSION, SNAPPING, FREE_DRAG }
 
 val MiniPlayerHeight = 64.dp
 val PlayerSheetExpandedCornerRadius = 32.dp
@@ -197,15 +200,15 @@ fun UnifiedPlayerSheet(
     val configuration = LocalConfiguration.current
     val scope = rememberCoroutineScope()
 
-    var horizontalDragOffset by remember { mutableFloatStateOf(0f) }
+    val offsetAnimatable = remember { Animatable(0f) }
 
     val screenWidthPx = remember(configuration, density) { with(density) { configuration.screenWidthDp.dp.toPx() } }
     val dismissThresholdPx = remember(screenWidthPx) { screenWidthPx * 0.4f }
 
-    val swipeDismissProgress = remember(horizontalDragOffset, dismissThresholdPx) {
+    val swipeDismissProgress = remember(offsetAnimatable.value, dismissThresholdPx) {
         derivedStateOf {
             if (dismissThresholdPx == 0f) 0f
-            else (abs(horizontalDragOffset) / dismissThresholdPx).coerceIn(0f, 1f)
+            else (abs(offsetAnimatable.value) / dismissThresholdPx).coerceIn(0f, 1f)
         }
     }
 
@@ -763,44 +766,86 @@ fun UnifiedPlayerSheet(
                             .fillMaxWidth()
                             .pointerInput(playerViewModel, showPlayerContentArea, currentSheetContentState, configuration, density, scope) {
                                 if (!showPlayerContentArea || currentSheetContentState != PlayerSheetState.COLLAPSED) {
-                                    if (horizontalDragOffset != 0f) horizontalDragOffset = 0f
+                                    scope.launch { offsetAnimatable.snapTo(0f) }
                                     return@pointerInput
                                 }
-                                var accumulatedDragX = 0f
+                                var accumulatedDragX by mutableFloatStateOf(0f)
+                                var dragPhase by mutableStateOf(DragPhase.IDLE)
+
                                 detectHorizontalDragGestures(
                                     onDragStart = {
+                                        dragPhase = DragPhase.TENSION
                                         accumulatedDragX = 0f
+                                        scope.launch { offsetAnimatable.stop() }
                                     },
                                     onHorizontalDrag = { change, dragAmount ->
                                         change.consume()
                                         accumulatedDragX += dragAmount
-                                        horizontalDragOffset += dragAmount
+
+                                        when (dragPhase) {
+                                            DragPhase.TENSION -> {
+                                                val snapThresholdPx = with(density) { 100.dp.toPx() }
+                                                if (abs(accumulatedDragX) < snapThresholdPx) {
+                                                    val maxTensionOffsetPx = with(density) { 30.dp.toPx() }
+                                                    val dragFraction = (abs(accumulatedDragX) / snapThresholdPx).coerceIn(0f, 1f)
+                                                    val tensionOffset = lerp(0f, maxTensionOffsetPx, dragFraction)
+                                                    scope.launch { offsetAnimatable.snapTo(tensionOffset * accumulatedDragX.sign) }
+                                                } else {
+                                                    // Threshold crossed, transition to the snap phase
+                                                    dragPhase = DragPhase.SNAPPING
+                                                }
+                                            }
+                                            DragPhase.SNAPPING -> {
+                                                // On the first frame of snapping, launch the soft spring animation
+                                                scope.launch {
+                                                    offsetAnimatable.animateTo(
+                                                        targetValue = accumulatedDragX,
+                                                        animationSpec = spring(
+                                                            dampingRatio = 0.8f,
+                                                            stiffness = Spring.StiffnessLow
+                                                        )
+                                                    )
+                                                }
+                                                // Immediately transition to free drag so subsequent events are handled there
+                                                dragPhase = DragPhase.FREE_DRAG
+                                            }
+                                            DragPhase.FREE_DRAG -> {
+                                                // After the initial snap, track the finger with a very stiff spring to feel 1-to-1
+                                                scope.launch {
+                                                    offsetAnimatable.animateTo(
+                                                        targetValue = accumulatedDragX,
+                                                        animationSpec = spring(
+                                                            dampingRatio = Spring.DampingRatioNoBouncy,
+                                                            stiffness = Spring.StiffnessHigh
+                                                        )
+                                                    )
+                                                }
+                                            }
+                                            else -> {}
+                                        }
                                     },
                                     onDragEnd = {
-                                        val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
+                                        dragPhase = DragPhase.IDLE
                                         val dismissThreshold = screenWidthPx * 0.4f
-                                        val currentVisualOffset = horizontalDragOffset
                                         if (abs(accumulatedDragX) > dismissThreshold) {
                                             val targetDismissOffset = if (accumulatedDragX < 0) -screenWidthPx else screenWidthPx
                                             scope.launch {
-                                                Animatable(currentVisualOffset).animateTo(
+                                                offsetAnimatable.animateTo(
                                                     targetValue = targetDismissOffset,
                                                     animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
-                                                ) { horizontalDragOffset = value }
+                                                )
                                                 playerViewModel.dismissPlaylistAndShowUndo()
-                                                horizontalDragOffset = 0f
-                                                accumulatedDragX = 0f
+                                                offsetAnimatable.snapTo(0f)
                                             }
                                         } else {
                                             scope.launch {
-                                                Animatable(currentVisualOffset).animateTo(
+                                                offsetAnimatable.animateTo(
                                                     targetValue = 0f,
                                                     animationSpec = spring(
-                                                        dampingRatio = Spring.DampingRatioNoBouncy,
+                                                        dampingRatio = Spring.DampingRatioMediumBouncy,
                                                         stiffness = Spring.StiffnessMedium
                                                     )
-                                                ) { horizontalDragOffset = value }
-                                                accumulatedDragX = 0f
+                                                )
                                             }
                                         }
                                     }
@@ -809,7 +854,7 @@ fun UnifiedPlayerSheet(
                             .padding(horizontal = currentHorizontalPadding)
                             .height(playerContentAreaActualHeightDp)
                             .graphicsLayer {
-                                translationX = horizontalDragOffset
+                                translationX = offsetAnimatable.value
                                 scaleY = visualOvershootScaleY.value
                                 transformOrigin = TransformOrigin(0.5f, 1f)
                             }
