@@ -417,7 +417,7 @@ class MainActivity : ComponentActivity() {
                             .graphicsLayer { translationY = animatedTranslationY }
                     ) {
                         val bottomPadding = if (navBarStyle == NavBarStyle.DEFAULT) systemNavBarInset else 0.dp
-                        val navHeight = if (navBarStyle == NavBarStyle.FULL_WIDTH) NavBarContentHeightFullWidth else NavBarContentHeight
+                    val navHeight = if (navBarStyle == NavBarStyle.FULL_WIDTH) NavBarContentHeightFullWidth + systemNavBarInset else NavBarContentHeight
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
