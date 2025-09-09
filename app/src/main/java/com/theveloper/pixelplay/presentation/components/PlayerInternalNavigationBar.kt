@@ -13,12 +13,16 @@ import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -28,8 +32,8 @@ import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.presentation.components.scoped.CustomNavigationBarItem
 import kotlinx.collections.immutable.ImmutableList
 
-val NavBarContentHeight = 66.dp // Altura del contenido de la barra de navegación
-val NavBarContentHeightFullWidth = 84.dp // Altura del contenido de la barra de navegación en modo completo
+internal val NavBarContentHeight = 106.dp // Altura del contenido de la barra de navegación
+internal val NavBarContentHeightFullWidth = 94.dp // Altura del contenido de la barra de navegación en modo completo
 
 @Composable
 private fun PlayerInternalNavigationItemsRow(
@@ -37,12 +41,13 @@ private fun PlayerInternalNavigationItemsRow(
     navItems: ImmutableList<BottomNavItem>,
     currentRoute: String?,
     modifier: Modifier = Modifier,
-    navBarStyle: String
+    navBarStyle: String,
+    navBarInset: Dp
 ) {
     val rowModifier = if (navBarStyle == NavBarStyle.FULL_WIDTH) {
         modifier
             .fillMaxWidth()
-            .padding(top = 14.dp, bottom = 8.dp, start = 12.dp, end = 12.dp)
+            .padding(top = 14.dp, bottom = 8.dp + navBarInset, start = 12.dp, end = 12.dp)
     } else {
         modifier
             .fillMaxWidth()
@@ -114,49 +119,17 @@ private fun PlayerInternalNavigationItemsRow(
 fun PlayerInternalNavigationBar(
     navController: NavHostController,
     navItems: ImmutableList<BottomNavItem>,
-    containerShape: Shape,
-    navBarElevation: Dp,
-    isPlayerVisible: Boolean,
     currentRoute: String?,
     modifier: Modifier = Modifier,
-    topCornersRadiusDp: Dp,
-    bottomCornersRadiusDp: Dp,
-    navBarHideFraction: Float,
-    navBarHeightPx: Float,
-    navBarInset: Dp,
-    navBarStyle: String
+    navBarStyle: String,
+    navBarInset: Dp
 ) {
-    remember(navBarHideFraction) { derivedStateOf { 1f - navBarHideFraction } }
-    val animatedTranslationY = remember(navBarHideFraction, navBarHeightPx) { derivedStateOf { navBarHeightPx * navBarHideFraction } }
-    val boxAlignment = if (navBarStyle == NavBarStyle.FULL_WIDTH) Alignment.TopCenter else Alignment.Center
-
-    val navHeight = if (navBarStyle == NavBarStyle.FULL_WIDTH) NavBarContentHeightFullWidth else NavBarContentHeight
-
-    Box(
+    PlayerInternalNavigationItemsRow(
+        navController = navController,
+        navItems = navItems,
+        currentRoute = currentRoute,
+        navBarStyle = navBarStyle,
+        navBarInset = navBarInset,
         modifier = modifier
-            .fillMaxWidth()
-            .height(navHeight + navBarInset) // Explicit total height
-            .graphicsLayer {
-                translationY = animatedTranslationY.value
-                alpha = 1f
-            }
-            .shadow(
-                elevation = navBarElevation,
-                shape = containerShape,
-                clip = false
-            )
-            .background(
-                color = NavigationBarDefaults.containerColor,
-                shape = containerShape
-            ),
-        contentAlignment = boxAlignment
-    ) {
-        PlayerInternalNavigationItemsRow(
-            navController = navController,
-            navItems = navItems,
-            currentRoute = currentRoute,
-            modifier = Modifier.height(navHeight), // Content has fixed height
-            navBarStyle = navBarStyle
-        )
-    }
+    )
 }
