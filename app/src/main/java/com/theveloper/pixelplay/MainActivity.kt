@@ -486,7 +486,8 @@ class MainActivity : ComponentActivity() {
                     sheetCollapsedTargetY = sheetCollapsedTargetY,
                     collapsedStateHorizontalPadding = horizontalPadding,
                     hideMiniPlayer = shouldHideMiniPlayer,
-                    containerHeight = containerHeight
+                    containerHeight = containerHeight,
+                    isNavBarHidden = shouldHideNavigationBar
                 )
             }
         }
