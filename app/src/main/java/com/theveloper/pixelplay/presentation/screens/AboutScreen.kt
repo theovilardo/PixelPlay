@@ -20,7 +20,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,8 +27,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -48,6 +48,7 @@ import com.theveloper.pixelplay.R
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import kotlin.math.roundToInt
+import androidx.core.net.toUri
 
 // Data class to hold information about each person in the acknowledgements section
 data class Contributor(
@@ -130,7 +131,7 @@ fun AboutScreen(
     }
 
     val contributors = listOf(
-        Contributor(name = "TheVeloper", githubUrl = "https://github.com/TheVeloper", telegramUrl = "https://t.me/TheVeloper")
+        Contributor(name = "TheVeloper", githubUrl = "https://github.com/TheVeloper", telegramUrl = "https://t.me/thevelopersupport")
     )
 
     // Correctly initialize MutableTransitionState
@@ -232,21 +233,39 @@ fun AboutScreen(
                     modifier = Modifier.padding(top = 32.dp, bottom = 24.dp)
                 ) {
                     Image(
-                        painter = painterResource(id = R.drawable.monochrome),
+                        painter = painterResource(id = R.drawable.new_monochrome),
                         contentDescription = "App Icon",
+                        colorFilter = ColorFilter.tint(color = MaterialTheme.colorScheme.primary),
                         modifier = Modifier
-                            .size(128.dp)
+                            .size(108.dp)
+                            .scale(2.0f)
                             .padding(bottom = 16.dp)
                     )
-                    Text(
-                        text = "Pixel Play",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Version $versionName",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
+                    Column(
+                        modifier = Modifier,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Pixel Play",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.tertiaryContainer
+                                )
+                        ) {
+                            Text(
+                                modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp),
+                                text = "Version $versionName",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                    }
                 }
             }
 
@@ -356,31 +375,34 @@ fun ContributorCard(contributor: Contributor) {
                 Text(text = contributor.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
             }
 
-            Row {
+            Row(
+                modifier = Modifier,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 contributor.githubUrl?.let { url ->
-                    Text(
-                        text = "GitHub",
+                    Icon(
+                        painterResource(id = R.drawable.github),
+                        contentDescription = "GitHub Icon",
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier
+                            .size(34.dp)
                             .clickable {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                val intent = Intent(Intent.ACTION_VIEW, url.toUri())
                                 context.startActivity(intent)
                             }
-                            .padding(start = 8.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
                     )
                 }
                 contributor.telegramUrl?.let { url ->
-                    Text(
-                        text = "Telegram",
+                    Icon(
+                        painterResource(id = R.drawable.telegram),
+                        contentDescription = "Telegram Icon",
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier
+                            .size(32.dp)
                             .clickable {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                val intent = Intent(Intent.ACTION_VIEW, url.toUri())
                                 context.startActivity(intent)
                             }
-                            .padding(start = 8.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
                     )
                 }
             }

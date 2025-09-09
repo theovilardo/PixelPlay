@@ -771,7 +771,6 @@ fun LibraryFavoritesTab(
             ) {
                 items(favoriteSongs, key = { "fav_${it.id}" }) { song ->
                     val isPlayingThisSong = song.id == stablePlayerState.currentSong?.id && stablePlayerState.isPlaying
-                    // Using EnhancedSongListItem for consistency, though it has more details than SongListItemFavs
                     EnhancedSongListItem(
                         song = song,
                         isCurrentSong = favoriteSongs.isNotEmpty() && stablePlayerState.currentSong == song,
@@ -1016,8 +1015,8 @@ fun EnhancedSongListItem(
     val containerColor = if ((isCurrentSong) && !isLoading) colors.primaryContainer.copy(alpha = 0.34f) else colors.surfaceContainerLow
     val contentColor = if ((isCurrentSong) && !isLoading) colors.primary else colors.onSurface
 
-    val mvContainerColor = if ((isCurrentSong) && !isLoading) colors.secondaryContainer.copy(alpha = 0.44f) else colors.surfaceContainerHigh
-    val mvContentColor = if ((isCurrentSong) && !isLoading) colors.secondary else colors.onSurface
+    val mvContainerColor = if ((isCurrentSong) && !isLoading) colors.primaryContainer.copy(alpha = 0.44f) else colors.surfaceContainerHigh
+    val mvContentColor = if ((isCurrentSong) && !isLoading) colors.onPrimaryContainer else colors.onSurface
 
     if (isLoading) {
         // Shimmer Placeholder Layout
