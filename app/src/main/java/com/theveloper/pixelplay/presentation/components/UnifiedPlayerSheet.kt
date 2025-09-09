@@ -143,7 +143,8 @@ fun UnifiedPlayerSheet(
     sheetCollapsedTargetY: Float,
     containerHeight: Dp,
     collapsedStateHorizontalPadding: Dp = 12.dp,
-    hideMiniPlayer: Boolean = false
+    hideMiniPlayer: Boolean = false,
+    isNavBarHidden: Boolean = false
 ) {
     Trace.beginSection("UnifiedPlayerSheet.Composition")
     val context = LocalContext.current
@@ -444,44 +445,47 @@ fun UnifiedPlayerSheet(
         stablePlayerState.currentSong,
         predictiveBackCollapseProgress,
         currentSheetContentState,
-        swipeDismissProgress.value
+        swipeDismissProgress.value,
+        isNavBarHidden // Depend on isNavBarHidden state
     ) {
         derivedStateOf {
             if (navBarStyle == NavBarStyle.FULL_WIDTH) {
                 val fraction = playerContentExpansionFraction.value
-                return@derivedStateOf lerp(32.dp, 26.dp, fraction)
-            }
-
-            val calculatedNormally = if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                val expandedRadius = 26.dp
-                val collapsedRadiusTarget = 12.dp
-                lerp(expandedRadius, collapsedRadiusTarget, predictiveBackCollapseProgress)
+                lerp(32.dp, 26.dp, fraction)
             } else {
-                if (showPlayerContentArea) {
-                    val fraction = playerContentExpansionFraction.value
-                    if (fraction < 0.2f) {
-                        lerp(12.dp, 26.dp, (fraction / 0.2f).coerceIn(0f, 1f))
-                    } else {
-                        26.dp
-                    }
+                val calculatedNormally = if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
+                    val expandedRadius = 26.dp
+                    val collapsedRadiusTarget = 12.dp
+                    lerp(expandedRadius, collapsedRadiusTarget, predictiveBackCollapseProgress)
                 } else {
-                    if (!stablePlayerState.isPlaying || stablePlayerState.currentSong == null) {
-                        navBarCornerRadius.dp
+                    if (showPlayerContentArea) {
+                        val fraction = playerContentExpansionFraction.value
+                        if (fraction < 0.2f) {
+                            lerp(12.dp, 26.dp, (fraction / 0.2f).coerceIn(0f, 1f))
+                        } else {
+                            26.dp
+                        }
                     } else {
-                        12.dp
+                        if (isNavBarHidden && navBarStyle == NavBarStyle.DEFAULT) {
+                            32.dp // Fully rounded corners
+                        } else if (!stablePlayerState.isPlaying || stablePlayerState.currentSong == null) {
+                            navBarCornerRadius.dp
+                        } else {
+                            12.dp
+                        }
                     }
                 }
-            }
 
-            if (currentSheetContentState == PlayerSheetState.COLLAPSED &&
-                swipeDismissProgress.value > 0f &&
-                showPlayerContentArea &&
-                playerContentExpansionFraction.value < 0.01f
-            ) {
-                val baseCollapsedRadius = 12.dp
-                lerp(baseCollapsedRadius, navBarCornerRadius.dp, swipeDismissProgress.value)
-            } else {
-                calculatedNormally
+                if (currentSheetContentState == PlayerSheetState.COLLAPSED &&
+                    swipeDismissProgress.value > 0f &&
+                    showPlayerContentArea &&
+                    playerContentExpansionFraction.value < 0.01f
+                ) {
+                    val baseCollapsedRadius = 12.dp
+                    lerp(baseCollapsedRadius, navBarCornerRadius.dp, swipeDismissProgress.value)
+                } else {
+                    calculatedNormally
+                }
             }
         }
     }
