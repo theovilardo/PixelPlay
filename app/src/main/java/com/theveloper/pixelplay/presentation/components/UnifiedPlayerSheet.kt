@@ -786,7 +786,7 @@ fun UnifiedPlayerSheet(
                                             DragPhase.TENSION -> {
                                                 val snapThresholdPx = with(density) { 100.dp.toPx() }
                                                 if (abs(accumulatedDragX) < snapThresholdPx) {
-                                                    val maxTensionOffsetPx = with(density) { 60.dp.toPx() }
+                                                    val maxTensionOffsetPx = with(density) { 40.dp.toPx() }
                                                     val dragFraction = (abs(accumulatedDragX) / snapThresholdPx).coerceIn(0f, 1f)
                                                     val tensionOffset = lerp(0f, maxTensionOffsetPx, dragFraction)
                                                     scope.launch { offsetAnimatable.snapTo(tensionOffset * accumulatedDragX.sign) }
