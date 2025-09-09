@@ -208,7 +208,10 @@ fun AppNavigation(
                 popEnterTransition = { enterTransition() },
                 popExitTransition = { exitTransition() },
             ) {
-                AboutScreen(navController = navController)
+                AboutScreen(
+                    navController = navController,
+                    onNavigationIconClick = { navController.popBackStack() }
+                )
             }
         }
 }
