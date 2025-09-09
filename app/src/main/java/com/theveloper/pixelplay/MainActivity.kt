@@ -348,7 +348,6 @@ class MainActivity : ComponentActivity() {
                 if (!shouldHideNavigationBar) {
                     val playerContentExpansionFraction = playerViewModel.playerContentExpansionFraction.value
                     val showPlayerContentArea = playerViewModel.stablePlayerState.collectAsState().value.currentSong != null
-
                     val navBarCornerRadius by playerViewModel.navBarCornerRadius.collectAsState()
                     val navBarElevation = 3.dp
 
@@ -420,8 +419,17 @@ class MainActivity : ComponentActivity() {
                             .onSizeChanged { componentHeightPx = it.height }
                             .graphicsLayer { translationY = animatedTranslationY }
                     ) {
-                        val bottomPadding = if (navBarStyle == NavBarStyle.DEFAULT) systemNavBarInset else 0.dp
-                        val navHeight = if (navBarStyle == NavBarStyle.FULL_WIDTH) NavBarContentHeightFullWidth else NavBarContentHeight
+                        val navHeight: Dp
+                        val bottomPadding: Dp
+
+                        if (navBarStyle == NavBarStyle.DEFAULT) {
+                            navHeight = NavBarContentHeight
+                            bottomPadding = systemNavBarInset
+                        } else { // FULL_WIDTH
+                            navHeight = NavBarContentHeightFullWidth + systemNavBarInset
+                            bottomPadding = 0.dp
+                        }
+
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
