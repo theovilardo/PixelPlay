@@ -51,7 +51,6 @@ private fun PlayerInternalNavigationItemsRow(
     } else {
         modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp)
     }
     Row(
         modifier = rowModifier,

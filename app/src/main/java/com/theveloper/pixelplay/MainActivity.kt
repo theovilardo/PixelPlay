@@ -401,7 +401,11 @@ class MainActivity : ComponentActivity() {
 
                     val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
-                    val horizontalPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else 12.dp
+                    val horizontalPadding = if (navBarStyle == NavBarStyle.DEFAULT) {
+                        if (systemNavBarInset > 30.dp) 14.dp else systemNavBarInset
+                    } else {
+                        0.dp
+                    }
 
                     var componentHeightPx by remember { mutableStateOf(0) }
                     val animatedTranslationY by remember(navBarHideFraction, componentHeightPx) { derivedStateOf { componentHeightPx * navBarHideFraction } }
@@ -468,7 +472,7 @@ class MainActivity : ComponentActivity() {
                 UnifiedPlayerSheet(
                     playerViewModel = playerViewModel,
                     sheetCollapsedTargetY = sheetCollapsedTargetY,
-                    collapsedStateHorizontalPadding = 12.dp,
+                    collapsedStateHorizontalPadding = horizontalPadding,
                     hideMiniPlayer = shouldHideMiniPlayer,
                     containerHeight = containerHeight
                 )
