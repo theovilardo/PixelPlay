@@ -372,7 +372,7 @@ class MainActivity : ComponentActivity() {
                         label = "PlayerContentBottomRadius"
                     )
 
-                    val navBarHideFraction = if (showPlayerContentArea) playerContentExpansionFraction.pow(2) else 0f
+                    val navBarHideFraction = if (showPlayerContentArea) playerContentExpansionFraction else 0f
 
                     val actualShape = remember(playerContentActualBottomRadius, showPlayerContentArea, navBarStyle, navBarCornerRadius) {
                         val bottomRadius = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp
