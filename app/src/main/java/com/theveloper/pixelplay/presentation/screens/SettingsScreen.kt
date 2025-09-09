@@ -48,6 +48,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Checkbox
@@ -474,6 +475,48 @@ fun SettingsScreen(
                                 )
                             },
                             onClick = { playerViewModel.forceUpdateDailyMix() }
+                        )
+                    }
+                }
+            }
+
+            item { Spacer(modifier = Modifier.height(16.dp)) }
+
+            item {
+                // About section
+                SettingsSection(
+                    title = "About",
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Outlined.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                ) {
+                    Column(
+                        Modifier
+                            .background(color = Color.Transparent, shape = RoundedCornerShape(24.dp))
+                            .clip(shape = RoundedCornerShape(24.dp))
+                    ) {
+                        SettingsItem(
+                            title = "About Pixel Play",
+                            subtitle = "App version, credits, and more.",
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.Info,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            },
+                            trailingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronRight,
+                                    contentDescription = "Navigate to about screen",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            onClick = { navController.navigate("about") }
                         )
                     }
                 }

@@ -24,6 +24,7 @@ import com.theveloper.pixelplay.presentation.screens.LibraryScreen
 import com.theveloper.pixelplay.presentation.screens.MashupScreen
 import com.theveloper.pixelplay.presentation.screens.NavBarCornerRadiusScreen
 import com.theveloper.pixelplay.presentation.screens.PlaylistDetailScreen
+import com.theveloper.pixelplay.presentation.screens.AboutScreen
 import com.theveloper.pixelplay.presentation.screens.SearchScreen
 import com.theveloper.pixelplay.presentation.screens.SettingsScreen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
@@ -199,6 +200,18 @@ fun AppNavigation(
                 popExitTransition = { exitTransition() },
             ) {
                 EditTransitionScreen(navController = navController)
+            }
+            composable(
+                Screen.About.route,
+                enterTransition = { enterTransition() },
+                exitTransition = { exitTransition() },
+                popEnterTransition = { enterTransition() },
+                popExitTransition = { exitTransition() },
+            ) {
+                AboutScreen(
+                    navController = navController,
+                    onNavigationIconClick = { navController.popBackStack() }
+                )
             }
         }
 }
