@@ -793,15 +793,18 @@ fun UnifiedPlayerSheet(
                                                     val tensionOffset = lerp(0f, maxTensionOffsetPx, dragFraction)
                                                     scope.launch { offsetAnimatable.snapTo(tensionOffset * accumulatedDragX.sign) }
                                                 } else {
+                                                    // Threshold crossed, start the snap
                                                     dragPhase = DragPhase.SNAPPING
+                                                    val snapTarget = accumulatedDragX
                                                     scope.launch {
                                                         offsetAnimatable.animateTo(
-                                                            targetValue = accumulatedDragX,
+                                                            targetValue = snapTarget,
                                                             animationSpec = spring(
                                                                 dampingRatio = 0.8f,
                                                                 stiffness = Spring.StiffnessLow
                                                             )
                                                         )
+                                                        // After snap, prepare for free drag
                                                         dragAccumulationAtSnapEnd = accumulatedDragX
                                                         offsetAtSnapEnd = offsetAnimatable.value
                                                         dragPhase = DragPhase.FREE_DRAG
@@ -809,10 +812,11 @@ fun UnifiedPlayerSheet(
                                                 }
                                             }
                                             DragPhase.SNAPPING -> {
-                                                // Drag events are ignored while the snap animation runs.
-                                                // The animation updates the offset, and the state will transition to FREE_DRAG when it's done.
+                                                // While snapping, we ignore further drag events to let the animation play out.
+                                                // This is a design choice to ensure the "snap" is clearly felt.
                                             }
                                             DragPhase.FREE_DRAG -> {
+                                                // After snapping, we track the finger 1-to-1.
                                                 val dragSinceSnap = accumulatedDragX - dragAccumulationAtSnapEnd
                                                 val newOffset = offsetAtSnapEnd + dragSinceSnap
                                                 scope.launch { offsetAnimatable.snapTo(newOffset) }
