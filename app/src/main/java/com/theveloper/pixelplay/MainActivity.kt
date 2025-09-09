@@ -296,6 +296,10 @@ class MainActivity : ComponentActivity() {
     private fun MainUI(playerViewModel: PlayerViewModel, navController: NavHostController) {
         Trace.beginSection("MainActivity.MainUI")
 
+        val navBarStyle by playerViewModel.navBarStyle.collectAsState()
+        val baseHorizontalPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else 12.dp
+        val horizontalPadding = if (baseHorizontalPadding > 30.dp) 14.dp else baseHorizontalPadding
+
         val commonNavItems = remember {
             persistentListOf(
                 BottomNavItem("Home", R.drawable.rounded_home_24, R.drawable.home_24_rounded_filled, Screen.Home),
@@ -338,7 +342,6 @@ class MainActivity : ComponentActivity() {
                 if (!shouldHideNavigationBar) {
                     val playerContentExpansionFraction = playerViewModel.playerContentExpansionFraction.value
                     val showPlayerContentArea = playerViewModel.stablePlayerState.collectAsState().value.currentSong != null
-                    val navBarStyle by playerViewModel.navBarStyle.collectAsState()
                     val navBarCornerRadius by playerViewModel.navBarCornerRadius.collectAsState()
                     val navBarElevation = 3.dp
 
@@ -400,9 +403,6 @@ class MainActivity : ComponentActivity() {
                     }
 
                     val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-
-                    val baseHorizontalPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else 12.dp
-                    val horizontalPadding = if (baseHorizontalPadding > 30.dp) 14.dp else baseHorizontalPadding
 
                     var componentHeightPx by remember { mutableStateOf(0) }
                     val animatedTranslationY by remember(navBarHideFraction, componentHeightPx) { derivedStateOf { componentHeightPx * navBarHideFraction } }
