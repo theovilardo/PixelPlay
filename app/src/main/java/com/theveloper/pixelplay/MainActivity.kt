@@ -66,7 +66,6 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import com.theveloper.pixelplay.data.service.MusicService
-import com.theveloper.pixelplay.presentation.components.CollapsedPlayerContentSpacerHeight
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
 import com.theveloper.pixelplay.presentation.components.UnifiedPlayerSheet
@@ -116,7 +115,11 @@ import com.theveloper.pixelplay.presentation.components.NavBarContentHeightFullW
 import kotlin.math.pow
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.NavigationBarDefaults
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.lerp
+import com.theveloper.pixelplay.data.preferences.NavBarStyle
+import com.theveloper.pixelplay.presentation.components.MiniPlayerBottomSpacer
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 @Immutable
@@ -451,7 +454,7 @@ class MainActivity : ComponentActivity() {
                 val totalSheetHeightWhenContentCollapsedPx = if (showPlayerContentInitially && !shouldHideMiniPlayer) miniPlayerH else 0f
 
                 val bottomMargin = innerPadding.calculateBottomPadding()
-                val MiniPlayerBottomSpacer = 6.dp
+
                 val spacerPx = with(density) { MiniPlayerBottomSpacer.toPx() }
                 val sheetCollapsedTargetY = screenHeightPx - totalSheetHeightWhenContentCollapsedPx - with(density){ bottomMargin.toPx() } - spacerPx
 

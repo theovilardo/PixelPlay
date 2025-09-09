@@ -134,6 +134,8 @@ val MiniPlayerHeight = 64.dp
 val PlayerSheetExpandedCornerRadius = 32.dp
 const val ANIMATION_DURATION_MS = 255
 
+val MiniPlayerBottomSpacer = 8.dp
+
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun UnifiedPlayerSheet(
