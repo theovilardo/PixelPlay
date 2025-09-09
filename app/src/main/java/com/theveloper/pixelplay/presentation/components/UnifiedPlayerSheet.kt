@@ -131,6 +131,8 @@ import kotlin.math.sign
 
 private val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error("No ColorScheme provided") }
 
+private enum class DragPhase { IDLE, TENSION, SNAPPING_AND_TRACKING }
+
 val MiniPlayerHeight = 64.dp
 val PlayerSheetExpandedCornerRadius = 32.dp
 const val ANIMATION_DURATION_MS = 255
@@ -768,11 +770,11 @@ fun UnifiedPlayerSheet(
                                     return@pointerInput
                                 }
                                 var accumulatedDragX by mutableFloatStateOf(0f)
-                                var hasSnapped by mutableStateOf(false)
+                                var dragPhase by mutableStateOf(DragPhase.IDLE)
 
                                 detectHorizontalDragGestures(
                                     onDragStart = {
-                                        hasSnapped = false
+                                        dragPhase = DragPhase.TENSION
                                         accumulatedDragX = 0f
                                         scope.launch { offsetAnimatable.stop() }
                                     },
@@ -780,36 +782,34 @@ fun UnifiedPlayerSheet(
                                         change.consume()
                                         accumulatedDragX += dragAmount
 
-                                        val snapThresholdPx = with(density) { 100.dp.toPx() }
-
-                                        if (hasSnapped) {
-                                            // Free drag mode
-                                            scope.launch { offsetAnimatable.snapTo(accumulatedDragX) }
-                                        } else {
-                                            // Tension mode
-                                            val maxTensionOffsetPx = with(density) { 60.dp.toPx() }
-
-                                            if (abs(accumulatedDragX) < snapThresholdPx) {
-                                                // Still in tension, calculate the resisted offset
-                                                val dragFraction = (abs(accumulatedDragX) / snapThresholdPx).coerceIn(0f, 1f)
-                                                val tensionOffset = lerp(0f, maxTensionOffsetPx, dragFraction)
-                                                scope.launch { offsetAnimatable.snapTo(tensionOffset * accumulatedDragX.sign) }
-                                            } else {
-                                                // Threshold crossed, trigger the snap
-                                                hasSnapped = true
+                                        when(dragPhase) {
+                                            DragPhase.TENSION -> {
+                                                val snapThresholdPx = with(density) { 100.dp.toPx() }
+                                                if (abs(accumulatedDragX) < snapThresholdPx) {
+                                                    val maxTensionOffsetPx = with(density) { 60.dp.toPx() }
+                                                    val dragFraction = (abs(accumulatedDragX) / snapThresholdPx).coerceIn(0f, 1f)
+                                                    val tensionOffset = lerp(0f, maxTensionOffsetPx, dragFraction)
+                                                    scope.launch { offsetAnimatable.snapTo(tensionOffset * accumulatedDragX.sign) }
+                                                } else {
+                                                    dragPhase = DragPhase.SNAPPING_AND_TRACKING
+                                                }
+                                            }
+                                            DragPhase.SNAPPING_AND_TRACKING -> {
                                                 scope.launch {
                                                     offsetAnimatable.animateTo(
                                                         targetValue = accumulatedDragX,
                                                         animationSpec = spring(
-                                                            dampingRatio = 0.6f, // A bit bouncy
-                                                            stiffness = Spring.StiffnessMedium
+                                                            dampingRatio = 0.8f,
+                                                            stiffness = Spring.StiffnessLow
                                                         )
                                                     )
                                                 }
                                             }
+                                            else -> {}
                                         }
                                     },
                                     onDragEnd = {
+                                        dragPhase = DragPhase.IDLE
                                         val dismissThreshold = screenWidthPx * 0.4f
                                         if (abs(accumulatedDragX) > dismissThreshold) {
                                             val targetDismissOffset = if (accumulatedDragX < 0) -screenWidthPx else screenWidthPx
