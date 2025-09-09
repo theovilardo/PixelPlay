@@ -401,7 +401,8 @@ class MainActivity : ComponentActivity() {
 
                     val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
-                    val horizontalPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else 12.dp
+                    val baseHorizontalPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else 12.dp
+                    val horizontalPadding = if (baseHorizontalPadding > 30.dp) 14.dp else baseHorizontalPadding
 
                     var componentHeightPx by remember { mutableStateOf(0) }
                     val animatedTranslationY by remember(navBarHideFraction, componentHeightPx) { derivedStateOf { componentHeightPx * navBarHideFraction } }
@@ -412,7 +413,11 @@ class MainActivity : ComponentActivity() {
                             .onSizeChanged { componentHeightPx = it.height }
                             .graphicsLayer { translationY = animatedTranslationY }
                     ) {
-                        val bottomPadding = if (navBarStyle == NavBarStyle.DEFAULT) systemNavBarInset else 0.dp
+                        val bottomPadding = if (navBarStyle == NavBarStyle.DEFAULT) {
+                            systemNavBarInset + horizontalPadding
+                        } else {
+                            systemNavBarInset // Keep original logic for other styles
+                        }
                         val navHeight = if (navBarStyle == NavBarStyle.FULL_WIDTH) NavBarContentHeightFullWidth else NavBarContentHeight
                         Surface(
                             modifier = Modifier
@@ -468,7 +473,7 @@ class MainActivity : ComponentActivity() {
                 UnifiedPlayerSheet(
                     playerViewModel = playerViewModel,
                     sheetCollapsedTargetY = sheetCollapsedTargetY,
-                    collapsedStateHorizontalPadding = 12.dp,
+                    collapsedStateHorizontalPadding = horizontalPadding,
                     hideMiniPlayer = shouldHideMiniPlayer,
                     containerHeight = containerHeight
                 )
