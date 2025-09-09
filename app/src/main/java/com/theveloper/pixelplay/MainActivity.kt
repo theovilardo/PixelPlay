@@ -332,13 +332,23 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        val navBarStyle by playerViewModel.navBarStyle.collectAsState()
+
+        val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+
+        val horizontalPadding = if (navBarStyle == NavBarStyle.DEFAULT) {
+            if (systemNavBarInset > 30.dp) 14.dp else systemNavBarInset
+        } else {
+            0.dp
+        }
+
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             bottomBar = {
                 if (!shouldHideNavigationBar) {
                     val playerContentExpansionFraction = playerViewModel.playerContentExpansionFraction.value
                     val showPlayerContentArea = playerViewModel.stablePlayerState.collectAsState().value.currentSong != null
-                    val navBarStyle by playerViewModel.navBarStyle.collectAsState()
+
                     val navBarCornerRadius by playerViewModel.navBarCornerRadius.collectAsState()
                     val navBarElevation = 3.dp
 
@@ -399,13 +409,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
-                    val horizontalPadding = if (navBarStyle == NavBarStyle.DEFAULT) {
-                        if (systemNavBarInset > 30.dp) 14.dp else systemNavBarInset
-                    } else {
-                        0.dp
-                    }
 
                     var componentHeightPx by remember { mutableStateOf(0) }
                     val animatedTranslationY by remember(navBarHideFraction, componentHeightPx) { derivedStateOf { componentHeightPx * navBarHideFraction } }
