@@ -198,16 +198,15 @@ fun UnifiedPlayerSheet(
     val configuration = LocalConfiguration.current
     val scope = rememberCoroutineScope()
 
-    var horizontalDragOffset by remember { mutableFloatStateOf(0f) }
+    val offsetAnimatable = remember { Animatable(0f) }
 
     val screenWidthPx = remember(configuration, density) { with(density) { configuration.screenWidthDp.dp.toPx() } }
     val dismissThresholdPx = remember(screenWidthPx) { screenWidthPx * 0.4f }
-    val rubberBandThresholdPx = remember(density) { with(density) { 90.dp.toPx() } }
 
-    val swipeDismissProgress = remember(horizontalDragOffset, dismissThresholdPx) {
+    val swipeDismissProgress = remember(offsetAnimatable.value, dismissThresholdPx) {
         derivedStateOf {
             if (dismissThresholdPx == 0f) 0f
-            else (abs(horizontalDragOffset) / dismissThresholdPx).coerceIn(0f, 1f)
+            else (abs(offsetAnimatable.value) / dismissThresholdPx).coerceIn(0f, 1f)
         }
     }
 
@@ -765,53 +764,73 @@ fun UnifiedPlayerSheet(
                             .fillMaxWidth()
                             .pointerInput(playerViewModel, showPlayerContentArea, currentSheetContentState, configuration, density, scope) {
                                 if (!showPlayerContentArea || currentSheetContentState != PlayerSheetState.COLLAPSED) {
-                                    if (horizontalDragOffset != 0f) horizontalDragOffset = 0f
+                                    scope.launch { offsetAnimatable.snapTo(0f) }
                                     return@pointerInput
                                 }
-                                var accumulatedDragX = 0f
+                                var accumulatedDragX by mutableFloatStateOf(0f)
+                                var hasSnapped by mutableStateOf(false)
+
                                 detectHorizontalDragGestures(
                                     onDragStart = {
+                                        hasSnapped = false
                                         accumulatedDragX = 0f
+                                        scope.launch { offsetAnimatable.stop() }
                                     },
                                     onHorizontalDrag = { change, dragAmount ->
                                         change.consume()
                                         accumulatedDragX += dragAmount
 
-                                        val rubberBandFactor = 0.6f
+                                        val snapThresholdPx = with(density) { 100.dp.toPx() }
 
-                                        if (abs(accumulatedDragX) < rubberBandThresholdPx) {
-                                            horizontalDragOffset = accumulatedDragX * rubberBandFactor
+                                        if (hasSnapped) {
+                                            // Free drag mode
+                                            scope.launch { offsetAnimatable.snapTo(accumulatedDragX) }
                                         } else {
-                                            val sign = accumulatedDragX.sign
-                                            val rubberBandOffset = sign * rubberBandThresholdPx * rubberBandFactor
-                                            val postThresholdDrag = abs(accumulatedDragX) - rubberBandThresholdPx
-                                            horizontalDragOffset = rubberBandOffset + (sign * postThresholdDrag)
+                                            // Tension mode
+                                            val maxTensionOffsetPx = with(density) { 60.dp.toPx() }
+
+                                            if (abs(accumulatedDragX) < snapThresholdPx) {
+                                                // Still in tension, calculate the resisted offset
+                                                val dragFraction = (abs(accumulatedDragX) / snapThresholdPx).coerceIn(0f, 1f)
+                                                val tensionOffset = lerp(0f, maxTensionOffsetPx, dragFraction)
+                                                scope.launch { offsetAnimatable.snapTo(tensionOffset * accumulatedDragX.sign) }
+                                            } else {
+                                                // Threshold crossed, trigger the snap
+                                                hasSnapped = true
+                                                scope.launch {
+                                                    offsetAnimatable.animateTo(
+                                                        targetValue = accumulatedDragX,
+                                                        animationSpec = spring(
+                                                            dampingRatio = 0.6f, // A bit bouncy
+                                                            stiffness = Spring.StiffnessMedium
+                                                        )
+                                                    )
+                                                }
+                                            }
                                         }
                                     },
                                     onDragEnd = {
-                                        val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
                                         val dismissThreshold = screenWidthPx * 0.4f
-                                        val currentVisualOffset = horizontalDragOffset
                                         if (abs(accumulatedDragX) > dismissThreshold) {
                                             val targetDismissOffset = if (accumulatedDragX < 0) -screenWidthPx else screenWidthPx
                                             scope.launch {
-                                                Animatable(currentVisualOffset).animateTo(
+                                                offsetAnimatable.animateTo(
                                                     targetValue = targetDismissOffset,
                                                     animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
-                                                ) { horizontalDragOffset = value }
+                                                )
                                                 playerViewModel.dismissPlaylistAndShowUndo()
-                                                horizontalDragOffset = 0f
+                                                offsetAnimatable.snapTo(0f)
                                                 accumulatedDragX = 0f
                                             }
                                         } else {
                                             scope.launch {
-                                                Animatable(currentVisualOffset).animateTo(
+                                                offsetAnimatable.animateTo(
                                                     targetValue = 0f,
                                                     animationSpec = spring(
                                                         dampingRatio = Spring.DampingRatioNoBouncy,
                                                         stiffness = Spring.StiffnessMedium
                                                     )
-                                                ) { horizontalDragOffset = value }
+                                                )
                                                 accumulatedDragX = 0f
                                             }
                                         }
@@ -821,7 +840,7 @@ fun UnifiedPlayerSheet(
                             .padding(horizontal = currentHorizontalPadding)
                             .height(playerContentAreaActualHeightDp)
                             .graphicsLayer {
-                                translationX = horizontalDragOffset
+                                translationX = offsetAnimatable.value
                                 scaleY = visualOvershootScaleY.value
                                 transformOrigin = TransformOrigin(0.5f, 1f)
                             }
