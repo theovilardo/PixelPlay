@@ -127,6 +127,7 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.roundToLong
+import kotlin.math.sign
 
 private val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error("No ColorScheme provided") }
 
@@ -201,6 +202,7 @@ fun UnifiedPlayerSheet(
 
     val screenWidthPx = remember(configuration, density) { with(density) { configuration.screenWidthDp.dp.toPx() } }
     val dismissThresholdPx = remember(screenWidthPx) { screenWidthPx * 0.4f }
+    val rubberBandThresholdPx = remember(density) { with(density) { 90.dp.toPx() } }
 
     val swipeDismissProgress = remember(horizontalDragOffset, dismissThresholdPx) {
         derivedStateOf {
@@ -774,7 +776,17 @@ fun UnifiedPlayerSheet(
                                     onHorizontalDrag = { change, dragAmount ->
                                         change.consume()
                                         accumulatedDragX += dragAmount
-                                        horizontalDragOffset += dragAmount
+
+                                        val rubberBandFactor = 0.6f
+
+                                        if (abs(accumulatedDragX) < rubberBandThresholdPx) {
+                                            horizontalDragOffset = accumulatedDragX * rubberBandFactor
+                                        } else {
+                                            val sign = accumulatedDragX.sign
+                                            val rubberBandOffset = sign * rubberBandThresholdPx * rubberBandFactor
+                                            val postThresholdDrag = abs(accumulatedDragX) - rubberBandThresholdPx
+                                            horizontalDragOffset = rubberBandOffset + (sign * postThresholdDrag)
+                                        }
                                     },
                                     onDragEnd = {
                                         val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
