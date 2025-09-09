@@ -416,8 +416,16 @@ class MainActivity : ComponentActivity() {
                             .onSizeChanged { componentHeightPx = it.height }
                             .graphicsLayer { translationY = animatedTranslationY }
                     ) {
-                        val navHeight = (if (navBarStyle == NavBarStyle.FULL_WIDTH) NavBarContentHeightFullWidth else NavBarContentHeight) + systemNavBarInset
-                        val bottomPadding = 0.dp
+                        val navHeight: Dp
+                        val bottomPadding: Dp
+
+                        if (navBarStyle == NavBarStyle.DEFAULT) {
+                            navHeight = NavBarContentHeight
+                            bottomPadding = systemNavBarInset
+                        } else { // FULL_WIDTH
+                            navHeight = NavBarContentHeightFullWidth + systemNavBarInset
+                            bottomPadding = 0.dp
+                        }
 
                         Surface(
                             modifier = Modifier
