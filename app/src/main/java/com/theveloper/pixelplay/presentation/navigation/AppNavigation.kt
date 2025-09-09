@@ -2,6 +2,7 @@ package com.theveloper.pixelplay.presentation.navigation
 
 import android.annotation.SuppressLint
 import androidx.annotation.OptIn
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,30 +35,30 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 fun AppNavigation(
     playerViewModel: PlayerViewModel,
     navController: NavHostController,
+    paddingValues: PaddingValues
 ) {
-    MainLayout { paddingValues ->
-        NavHost(
-            navController = navController,
-            startDestination = Screen.Home.route
+    NavHost(
+        navController = navController,
+        startDestination = Screen.Home.route
+    ) {
+        composable(
+            Screen.Home.route,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { enterTransition() },
+            popExitTransition = { exitTransition() },
         ) {
-            composable(
-                Screen.Home.route,
-                enterTransition = { enterTransition() },
-                exitTransition = { exitTransition() },
-                popEnterTransition = { enterTransition() },
-                popExitTransition = { exitTransition() },
-            ) {
-                HomeScreen(navController = navController, paddingValuesParent = paddingValues, playerViewModel = playerViewModel)
-            }
-            composable(
-                Screen.Search.route,
-                enterTransition = { enterTransition() },
-                exitTransition = { exitTransition() },
-                popEnterTransition = { enterTransition() },
-                popExitTransition = { exitTransition() },
-            ) {
-                SearchScreen(paddingValues = paddingValues, playerViewModel = playerViewModel, navController = navController)
-            }
+            HomeScreen(navController = navController, paddingValuesParent = paddingValues, playerViewModel = playerViewModel)
+        }
+        composable(
+            Screen.Search.route,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { enterTransition() },
+            popExitTransition = { exitTransition() },
+        ) {
+            SearchScreen(paddingValues = paddingValues, playerViewModel = playerViewModel, navController = navController)
+        }
             composable(
                 Screen.Library.route,
                 enterTransition = { enterTransition() },
@@ -140,7 +141,7 @@ fun AppNavigation(
                         playerViewModel = playerViewModel
                     )
                 } else {
-                    Text("Error: Genre ID missing", modifier = Modifier.padding(paddingValues))
+                    Text("Error: Genre ID missing", modifier = Modifier)
                 }
             }
             composable(
@@ -200,5 +201,4 @@ fun AppNavigation(
                 EditTransitionScreen(navController = navController)
             }
         }
-    }
 }
