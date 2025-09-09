@@ -32,4 +32,6 @@ sealed class Screen(val route: String) {
         fun createRoute(playlistId: String?) =
             if (playlistId != null) "edit_transition?playlistId=$playlistId" else "edit_transition"
     }
+
+    object About : Screen("about")
 }
