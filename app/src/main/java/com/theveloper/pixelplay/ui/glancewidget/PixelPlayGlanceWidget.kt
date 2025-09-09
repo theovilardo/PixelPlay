@@ -1138,8 +1138,6 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                     Timber.tag(TAG_AAIG)
                         .d("Sampled bitmap size: ${sampledBitmap.width}x${sampledBitmap.height}")
 
-                    // The bitmap is no longer scaled here to preserve aspect ratio.
-                    // Scaling is now handled by the Image composable's ContentScale.
                     bitmap = sampledBitmap
 
                     Timber.tag(TAG_AAIG)
