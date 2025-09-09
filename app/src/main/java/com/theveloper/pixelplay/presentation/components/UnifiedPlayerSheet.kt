@@ -131,7 +131,7 @@ import kotlin.math.sign
 
 private val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error("No ColorScheme provided") }
 
-private enum class DragPhase { IDLE, TENSION, SNAPPING, FREE_DRAG }
+private enum class DragPhase { IDLE, TENSION, SNAPPING_AND_TRACKING }
 
 val MiniPlayerHeight = 64.dp
 val PlayerSheetExpandedCornerRadius = 32.dp
@@ -771,8 +771,6 @@ fun UnifiedPlayerSheet(
                                 }
                                 var accumulatedDragX by mutableFloatStateOf(0f)
                                 var dragPhase by mutableStateOf(DragPhase.IDLE)
-                                var dragAccumulationAtSnapEnd by mutableFloatStateOf(0f)
-                                var offsetAtSnapEnd by mutableFloatStateOf(0f)
 
                                 detectHorizontalDragGestures(
                                     onDragStart = {
@@ -793,33 +791,19 @@ fun UnifiedPlayerSheet(
                                                     val tensionOffset = lerp(0f, maxTensionOffsetPx, dragFraction)
                                                     scope.launch { offsetAnimatable.snapTo(tensionOffset * accumulatedDragX.sign) }
                                                 } else {
-                                                    // Threshold crossed, start the snap
-                                                    dragPhase = DragPhase.SNAPPING
-                                                    val snapTarget = accumulatedDragX
-                                                    scope.launch {
-                                                        offsetAnimatable.animateTo(
-                                                            targetValue = snapTarget,
-                                                            animationSpec = spring(
-                                                                dampingRatio = 0.8f,
-                                                                stiffness = Spring.StiffnessLow
-                                                            )
-                                                        )
-                                                        // After snap, prepare for free drag
-                                                        dragAccumulationAtSnapEnd = accumulatedDragX
-                                                        offsetAtSnapEnd = offsetAnimatable.value
-                                                        dragPhase = DragPhase.FREE_DRAG
-                                                    }
+                                                    dragPhase = DragPhase.SNAPPING_AND_TRACKING
                                                 }
                                             }
-                                            DragPhase.SNAPPING -> {
-                                                // While snapping, we ignore further drag events to let the animation play out.
-                                                // This is a design choice to ensure the "snap" is clearly felt.
-                                            }
-                                            DragPhase.FREE_DRAG -> {
-                                                // After snapping, we track the finger 1-to-1.
-                                                val dragSinceSnap = accumulatedDragX - dragAccumulationAtSnapEnd
-                                                val newOffset = offsetAtSnapEnd + dragSinceSnap
-                                                scope.launch { offsetAnimatable.snapTo(newOffset) }
+                                            DragPhase.SNAPPING_AND_TRACKING -> {
+                                                scope.launch {
+                                                    offsetAnimatable.animateTo(
+                                                        targetValue = accumulatedDragX,
+                                                        animationSpec = spring(
+                                                            dampingRatio = Spring.DampingRatioNoBouncy,
+                                                            stiffness = Spring.StiffnessHigh
+                                                        )
+                                                    )
+                                                }
                                             }
                                             else -> {}
                                         }
