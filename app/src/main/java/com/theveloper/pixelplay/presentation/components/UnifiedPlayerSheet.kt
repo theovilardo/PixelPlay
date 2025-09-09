@@ -97,7 +97,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 // Coil imports for FullPlayerContentInternal
 
@@ -743,24 +745,7 @@ fun UnifiedPlayerSheet(
                     .padding(bottom = currentBottomPadding.value.dp)
             ) {
             // Use granular showDismissUndoBar and undoBarVisibleDuration
-            if (showDismissUndoBar) {
-                    AnimatedVisibility(
-                        visible = true,
-                        enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
-                        exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut(),
-                        modifier = Modifier
-                            .padding(horizontal = currentHorizontalPadding)
-                            .height(MiniPlayerHeight)
-                    ) {
-                        DismissUndoBar(
-                            onUndo = {
-                                playerViewModel.undoDismissPlaylist()
-                            },
-                        durationMillis = undoBarVisibleDuration, // Use granular state
-                            modifier = Modifier.height(MiniPlayerHeight)
-                        )
-                    }
-                } else if (showPlayerContentArea) {
+            if (showPlayerContentArea) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -771,6 +756,7 @@ fun UnifiedPlayerSheet(
                                 }
                                 var accumulatedDragX by mutableFloatStateOf(0f)
                                 var dragPhase by mutableStateOf(DragPhase.IDLE)
+                                val hapticFeedback = LocalHapticFeedback.current
 
                                 detectHorizontalDragGestures(
                                     onDragStart = {
@@ -796,6 +782,7 @@ fun UnifiedPlayerSheet(
                                                 }
                                             }
                                             DragPhase.SNAPPING -> {
+                                                hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                                                 // On the first frame of snapping, launch the soft spring animation
                                                 scope.launch {
                                                     offsetAnimatable.animateTo(
@@ -1983,78 +1970,5 @@ fun ToggleSegmentButton(
             tint = if (active) activeContentColor else LocalMaterialTheme.current.primary,
             modifier = Modifier.size(24.dp)
         )
-    }
-}
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-fun DismissUndoBar(
-    modifier: Modifier = Modifier,
-    onUndo: () -> Unit,
-    durationMillis: Long
-) {
-    var progress by remember { mutableFloatStateOf(1f) }
-
-    LaunchedEffect(Unit) {
-        val startTime = System.currentTimeMillis()
-        while (System.currentTimeMillis() < startTime + durationMillis && progress > 0f) {
-            progress = 1f - (System.currentTimeMillis() - startTime).toFloat() / durationMillis
-            delay(16)
-        }
-        progress = 0f
-    }
-
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(MiniPlayerHeight),
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        shadowElevation = 4.dp
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    modifier = Modifier.padding(start = 10.dp),
-                    text = "Playlist Dismissed",
-                    style = MaterialTheme.typography.titleMediumEmphasized,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Button(
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                        contentColor = MaterialTheme.colorScheme.onSurface
-                    ),
-                    onClick = onUndo
-                ) {
-                    Text("Undo", color = MaterialTheme.colorScheme.primary)
-                }
-            }
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth(fraction = progress.coerceIn(0f,1f))
-                    .fillMaxHeight()
-                    .background(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
-                        shape = AbsoluteSmoothCornerShape(
-                            cornerRadiusTR = 12.dp,
-                            smoothnessAsPercentTL = 60,
-                            cornerRadiusTL = 12.dp,
-                            smoothnessAsPercentTR = 60,
-                            cornerRadiusBR = 12.dp,
-                            smoothnessAsPercentBL = 60,
-                            cornerRadiusBL = 12.dp,
-                            smoothnessAsPercentBR = 60
-                        )
-                    )
-            )
-        }
     }
 }

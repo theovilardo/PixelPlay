@@ -1950,6 +1950,18 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun hideDismissUndoBar() {
+        _playerUiState.update {
+            it.copy(
+                showDismissUndoBar = false,
+                dismissedSong = null,
+                dismissedQueue = persistentListOf(),
+                dismissedQueueName = "",
+                dismissedPosition = 0L
+            )
+        }
+    }
+
     fun undoDismissPlaylist() {
         viewModelScope.launch {
             val songToRestore = _playerUiState.value.dismissedSong
