@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDp
 import androidx.compose.animation.core.animateFloat
@@ -132,10 +133,10 @@ fun AboutScreen(
         Contributor(name = "TheVeloper", githubUrl = "https://github.com/TheVeloper", telegramUrl = "https://t.me/TheVeloper")
     )
 
-    // Animation states for the collapsing toolbar effect
-    val transitionState = remember { mutableStateOf(false) }
+    // Correctly initialize MutableTransitionState
+    val transitionState = remember { MutableTransitionState(false) }
     LaunchedEffect(true) {
-        transitionState.value = true
+        transitionState.targetState = true // Set targetState, not value
     }
     val transition = rememberTransition(transitionState, label = "AboutAppearTransition")
 
