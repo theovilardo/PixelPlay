@@ -422,11 +422,13 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun shuffleAllSongs() {
+        Log.d("ShuffleDebug", "shuffleAllSongs called.")
         mediaController?.shuffleModeEnabled = true
         val allSongs = _playerUiState.value.allSongs
         if (allSongs.isNotEmpty()) {
-            val randomSong = allSongs.random()
-            playSongs(allSongs.toList(), randomSong, "All Songs (Shuffled)")
+            val shuffledList = allSongs.shuffled().toMutableList()
+            val randomSong = shuffledList.first() // Pick the first from the already shuffled list
+            playSongs(shuffledList, randomSong, "All Songs (Shuffled)")
         }
     }
 
@@ -587,7 +589,7 @@ class PlayerViewModel @Inject constructor(
             _isInitialThemePreloadComplete.value = false // Mantener esto
             Log.d("PlayerViewModelPerformance", "preloadThemesAndInitialData: _isInitialThemePreloadComplete set to false. Time from start: ${System.currentTimeMillis() - overallInitStartTime} ms")
             if (isSyncingStateFlow.value && !_isInitialDataLoaded.value) {
-                 Log.i("PlayerViewModel", "preloadThemesAndInitialData: Sync is active and initial data not yet loaded, deferring initial load to sync completion handler.")
+                Log.i("PlayerViewModel", "preloadThemesAndInitialData: Sync is active and initial data not yet loaded, deferring initial load to sync completion handler.")
             } else if (!_isInitialDataLoaded.value && _playerUiState.value.allSongs.isEmpty()) { // Check _isInitialDataLoaded
                 Log.i("PlayerViewModel", "preloadThemesAndInitialData: Sync not active or already finished, and initial data not loaded. Calling resetAndLoadInitialData from preload.")
                 resetAndLoadInitialData("preloadThemesAndInitialData")
@@ -856,6 +858,7 @@ class PlayerViewModel @Inject constructor(
         queueName: String = "Current Context",
         isVoluntaryPlay: Boolean = true
     ) {
+        Log.d("ShuffleDebug", "showAndPlaySong called for '${song.title}' with queue: $queueName")
         _playerUiState.update { it.copy(preparingSongId = song.id) }
         if (isVoluntaryPlay) {
             incrementSongScore(song.id)
@@ -865,10 +868,12 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun showAndPlaySong(song: Song) {
+        Log.d("ShuffleDebug", "showAndPlaySong (single song overload) called for '${song.title}'")
         showAndPlaySong(song, playerUiState.value.allSongs.toList(), "Library")
     }
 
     fun playAlbum(album: Album) {
+        Log.d("ShuffleDebug", "playAlbum called for album: ${album.title}")
         viewModelScope.launch {
             try {
                 val songsList: List<Song> = withContext(Dispatchers.IO) {
@@ -888,6 +893,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun playArtist(artist: Artist) {
+        Log.d("ShuffleDebug", "playArtist called for artist: ${artist.name}")
         viewModelScope.launch {
             try {
                 val songsList: List<Song> = withContext(Dispatchers.IO) {
@@ -1080,12 +1086,16 @@ class PlayerViewModel @Inject constructor(
                 // Assertive EOT actions in MusicService and natural EOT completion in onMediaItemTransition cover this.
             }
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+                Log.d("ShuffleDebug", "onShuffleModeEnabledChanged: new state: $shuffleModeEnabled. Player has ${playerCtrl.mediaItemCount} items.")
                 _stablePlayerState.update { it.copy(isShuffleEnabled = shuffleModeEnabled) }
-                if (playerCtrl.mediaItemCount == 0) {
+                if (playerCtrl.mediaItemCount == 0 && shuffleModeEnabled) {
+                    Log.d("ShuffleDebug", "Player empty and shuffle enabled, creating and playing a new shuffled queue.")
                     val shuffledQueue = createShuffledQueue(_masterAllSongs.value)
-                    playSongs(shuffledQueue, shuffledQueue.first(), "Shuffled Queue", null)
+                    if (shuffledQueue.isNotEmpty()) {
+                        playSongs(shuffledQueue, shuffledQueue.first(), "Shuffled Queue", null)
+                    }
                 }
-             //   updateCurrentPlaybackQueueFromPlayer(playerCtrl)
+                //   updateCurrentPlaybackQueueFromPlayer(playerCtrl)
             }
             override fun onRepeatModeChanged(repeatMode: Int) { _stablePlayerState.update { it.copy(repeatMode = repeatMode) } }
             override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
@@ -1100,9 +1110,14 @@ class PlayerViewModel @Inject constructor(
 
     private fun createShuffledQueue(songs: List<Song>): List<Song> {
         if (songs.isEmpty()) return emptyList()
-        val chosenSong = songs[songs.indices.random()]
-        val shuffledQueue = songs.shuffled().filter { it.id != chosenSong.id }.toMutableList()
-        shuffledQueue.add(0, chosenSong)
+       
+        val shuffledQueue = songs.shuffled()
+        val chosenSong = shuffledQueue.firstOrNull()
+        Log.d(
+            "ShuffleDebug",
+            "createShuffledQueue called. Input size: ${songs.size}. Chosen first song: '${chosenSong?.title}'"
+        )
+        
         return shuffledQueue
     }
 

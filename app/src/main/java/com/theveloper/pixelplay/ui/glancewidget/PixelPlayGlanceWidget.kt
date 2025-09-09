@@ -45,11 +45,11 @@ import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
-import androidx.glance.unit.ColorProvider
 import com.theveloper.pixelplay.MainActivity
-import com.theveloper.pixelplay.data.model.PlayerInfo // Changed import
+import com.theveloper.pixelplay.data.model.PlayerInfo
 import com.theveloper.pixelplay.R
 import androidx.core.graphics.scale
+import androidx.glance.unit.ColorProvider
 import com.theveloper.pixelplay.data.model.QueueItem
 import com.theveloper.pixelplay.utils.createScalableBackgroundBitmap
 import timber.log.Timber
@@ -905,7 +905,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         queue: List<QueueItem>
     ) {
         val playButtonCornerRadius = if (isPlaying) 16.dp else 60.dp
-        val dividerColor = ColorProvider(textColor.getColor(context).copy(alpha = 0.15f))
+
         // *** FIX: Apply padding to the outer Box for consistency ***
         Box(
             modifier = modifier
@@ -1006,7 +1006,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                     modifier = GlanceModifier
                         .fillMaxWidth()
                         .padding(horizontal = 30.dp)
-                        .background(colorProvider = dividerColor)
+                        .background(textColor.getColor(context).copy(alpha = 0.15f))
                         .height(2.dp)
                         .cornerRadius(60.dp)
                 ) {
@@ -1138,21 +1138,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                     Timber.tag(TAG_AAIG)
                         .d("Sampled bitmap size: ${sampledBitmap.width}x${sampledBitmap.height}")
 
-                    // Scale the bitmap to the exact target size if necessary
-                    if (sampledBitmap.width != targetWidthPx || sampledBitmap.height != targetHeightPx) {
-                        Timber.tag(TAG_AAIG)
-                            .d("Scaling sampled bitmap from ${sampledBitmap.width}x${sampledBitmap.height} to ${targetWidthPx}x${targetHeightPx}")
-                        val scaledBitmap = sampledBitmap.scale(targetWidthPx, targetHeightPx)
-                        if (scaledBitmap != sampledBitmap) {
-                            sampledBitmap.recycle()
-                            Timber.tag(TAG_AAIG).d("Recycled intermediate sampledBitmap.")
-                        }
-                        bitmap = scaledBitmap
-                    } else {
-                        bitmap = sampledBitmap
-                        Timber.tag(TAG_AAIG)
-                            .d("No final scaling needed. Using sampled bitmap directly.")
-                    }
+                    bitmap = sampledBitmap
 
                     Timber.tag(TAG_AAIG)
                         .d("Final bitmap size: ${bitmap.width}x${bitmap.height}. Putting into cache with key: $cacheKey")
