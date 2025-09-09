@@ -1,6 +1,7 @@
 package com.theveloper.pixelplay.presentation.screens
 
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -13,12 +14,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.theveloper.pixelplay.R
 
 // Data class to hold information about each person in the acknowledgements section
 data class Contributor(
@@ -68,8 +68,11 @@ fun AboutScreen(navController: NavController) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.padding(bottom = 24.dp)
                 ) {
+                    // Load the icon from the assets folder to prevent crash from adaptive icons
+                    val inputStream = context.assets.open("icon.png")
+                    val bitmap = BitmapFactory.decodeStream(inputStream)
                     Image(
-                        painter = painterResource(id = R.mipmap.ic_launcher),
+                        bitmap = bitmap.asImageBitmap(),
                         contentDescription = "App Icon",
                         modifier = Modifier
                             .size(128.dp)
