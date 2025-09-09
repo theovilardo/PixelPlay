@@ -446,46 +446,46 @@ fun UnifiedPlayerSheet(
         predictiveBackCollapseProgress,
         currentSheetContentState,
         swipeDismissProgress.value,
-        isNavBarHidden // Depend on isNavBarHidden state
+        isNavBarHidden,
+        navBarCornerRadius
     ) {
         derivedStateOf {
             if (navBarStyle == NavBarStyle.FULL_WIDTH) {
                 val fraction = playerContentExpansionFraction.value
-                lerp(32.dp, 26.dp, fraction)
+                return@derivedStateOf lerp(32.dp, 26.dp, fraction)
+            }
+
+            val calculatedNormally = if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
+                val expandedRadius = 26.dp
+                val collapsedRadiusTarget = if (isNavBarHidden) 32.dp else 12.dp
+                lerp(expandedRadius, collapsedRadiusTarget, predictiveBackCollapseProgress)
             } else {
-                val calculatedNormally = if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                    val expandedRadius = 26.dp
-                    val collapsedRadiusTarget = 12.dp
-                    lerp(expandedRadius, collapsedRadiusTarget, predictiveBackCollapseProgress)
-                } else {
-                    if (showPlayerContentArea) {
-                        val fraction = playerContentExpansionFraction.value
-                        if (fraction < 0.2f) {
-                            lerp(12.dp, 26.dp, (fraction / 0.2f).coerceIn(0f, 1f))
-                        } else {
-                            26.dp
-                        }
+                if (showPlayerContentArea) {
+                    val fraction = playerContentExpansionFraction.value
+                    val collapsedRadius = if (isNavBarHidden) 32.dp else 12.dp
+                    if (fraction < 0.2f) {
+                        lerp(collapsedRadius, 26.dp, (fraction / 0.2f).coerceIn(0f, 1f))
                     } else {
-                        if (isNavBarHidden && navBarStyle == NavBarStyle.DEFAULT) {
-                            32.dp // Fully rounded corners
-                        } else if (!stablePlayerState.isPlaying || stablePlayerState.currentSong == null) {
-                            navBarCornerRadius.dp
-                        } else {
-                            12.dp
-                        }
+                        26.dp
+                    }
+                } else {
+                    if (!stablePlayerState.isPlaying || stablePlayerState.currentSong == null) {
+                        if (isNavBarHidden) 32.dp else navBarCornerRadius.dp
+                    } else {
+                        if (isNavBarHidden) 32.dp else 12.dp
                     }
                 }
+            }
 
-                if (currentSheetContentState == PlayerSheetState.COLLAPSED &&
-                    swipeDismissProgress.value > 0f &&
-                    showPlayerContentArea &&
-                    playerContentExpansionFraction.value < 0.01f
-                ) {
-                    val baseCollapsedRadius = 12.dp
-                    lerp(baseCollapsedRadius, navBarCornerRadius.dp, swipeDismissProgress.value)
-                } else {
-                    calculatedNormally
-                }
+            if (currentSheetContentState == PlayerSheetState.COLLAPSED &&
+                swipeDismissProgress.value > 0f &&
+                showPlayerContentArea &&
+                playerContentExpansionFraction.value < 0.01f
+            ) {
+                val baseCollapsedRadius = if (isNavBarHidden) 32.dp else 12.dp
+                lerp(baseCollapsedRadius, navBarCornerRadius.dp, swipeDismissProgress.value)
+            } else {
+                calculatedNormally
             }
         }
     }
