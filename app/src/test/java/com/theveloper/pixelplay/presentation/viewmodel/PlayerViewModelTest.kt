@@ -6,6 +6,7 @@ import com.theveloper.pixelplay.data.database.AlbumArtThemeDao
 import com.theveloper.pixelplay.data.model.SearchFilterType
 import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import com.theveloper.pixelplay.data.model.SearchResultItem
+import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import io.mockk.coEvery
@@ -13,6 +14,9 @@ import io.mockk.coVerify
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.runs
+import io.mockk.slot
+import io.mockk.spyk
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
@@ -377,6 +381,45 @@ class PlayerViewModelTest {
 
             val uris = playerViewModel.getSongUrisForGenre("Rock")
             assertEquals(listOf("rock_cover1.png"), uris) // Should only get song1
+        }
+    }
+
+    @Nested
+    @DisplayName("Shuffle Functionality")
+    inner class ShuffleFunctionalityTests {
+
+        private val song1 = Song(id = "1", title = "Song 1", artist = "Artist A", genre = "Rock", albumArtUriString = "cover1.png", artistId = 1L, albumId = 1L, contentUriString = "content://dummy/1", duration = 180000L)
+        private val song2 = Song(id = "2", title = "Song 2", artist = "Artist B", genre = "Pop", albumArtUriString = "cover2.png", artistId = 2L, albumId = 2L, contentUriString = "content://dummy/2", duration = 200000L)
+        private val allSongs = listOf(song1, song2)
+
+        @Test
+        fun `shuffleAllSongs calls playSongs with a random song`() = runTest {
+            // Arrange
+            val spiedViewModel = spyk(playerViewModel, recordPrivateCalls = true)
+            coEvery { spiedViewModel.playSongs(any(), any(), any(), any()) } just runs
+            spiedViewModel.playerUiState.update { it.copy(allSongs = allSongs.toImmutableList()) }
+
+            // Act
+            spiedViewModel.shuffleAllSongs()
+            advanceUntilIdle()
+
+            // Assert
+            val capturedSongs = slot<List<Song>>()
+            val capturedStartSong = slot<Song>()
+            val capturedQueueName = slot<String>()
+
+            coVerify {
+                spiedViewModel.playSongs(
+                    songsToPlay = capture(capturedSongs),
+                    startSong = capture(capturedStartSong),
+                    queueName = capture(capturedQueueName),
+                    playlistId = any()
+                )
+            }
+
+            assertEquals(allSongs, capturedSongs.captured)
+            assertTrue(allSongs.contains(capturedStartSong.captured))
+            assertEquals("All Songs (Shuffled)", capturedQueueName.captured)
         }
     }
 }
