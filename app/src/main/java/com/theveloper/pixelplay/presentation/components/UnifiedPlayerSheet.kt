@@ -131,7 +131,7 @@ import kotlin.math.sign
 
 private val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error("No ColorScheme provided") }
 
-private enum class DragPhase { IDLE, TENSION, SNAPPING_AND_TRACKING }
+private enum class DragPhase { IDLE, TENSION, SNAPPING, FREE_DRAG }
 
 val MiniPlayerHeight = 64.dp
 val PlayerSheetExpandedCornerRadius = 32.dp
@@ -791,10 +791,26 @@ fun UnifiedPlayerSheet(
                                                     val tensionOffset = lerp(0f, maxTensionOffsetPx, dragFraction)
                                                     scope.launch { offsetAnimatable.snapTo(tensionOffset * accumulatedDragX.sign) }
                                                 } else {
-                                                    dragPhase = DragPhase.SNAPPING_AND_TRACKING
+                                                    // Threshold crossed, transition to the snap phase
+                                                    dragPhase = DragPhase.SNAPPING
                                                 }
                                             }
-                                            DragPhase.SNAPPING_AND_TRACKING -> {
+                                            DragPhase.SNAPPING -> {
+                                                // On the first frame of snapping, launch the soft spring animation
+                                                scope.launch {
+                                                    offsetAnimatable.animateTo(
+                                                        targetValue = accumulatedDragX,
+                                                        animationSpec = spring(
+                                                            dampingRatio = 0.8f,
+                                                            stiffness = Spring.StiffnessLow
+                                                        )
+                                                    )
+                                                }
+                                                // Immediately transition to free drag so subsequent events are handled there
+                                                dragPhase = DragPhase.FREE_DRAG
+                                            }
+                                            DragPhase.FREE_DRAG -> {
+                                                // After the initial snap, track the finger with a very stiff spring to feel 1-to-1
                                                 scope.launch {
                                                     offsetAnimatable.animateTo(
                                                         targetValue = accumulatedDragX,
@@ -826,7 +842,7 @@ fun UnifiedPlayerSheet(
                                                 offsetAnimatable.animateTo(
                                                     targetValue = 0f,
                                                     animationSpec = spring(
-                                                        dampingRatio = Spring.DampingRatioNoBouncy,
+                                                        dampingRatio = Spring.DampingRatioMediumBouncy,
                                                         stiffness = Spring.StiffnessMedium
                                                     )
                                                 )
