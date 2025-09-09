@@ -296,10 +296,6 @@ class MainActivity : ComponentActivity() {
     private fun MainUI(playerViewModel: PlayerViewModel, navController: NavHostController) {
         Trace.beginSection("MainActivity.MainUI")
 
-        val navBarStyle by playerViewModel.navBarStyle.collectAsState()
-        val baseHorizontalPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else 12.dp
-        val horizontalPadding = if (baseHorizontalPadding > 30.dp) 14.dp else baseHorizontalPadding
-
         val commonNavItems = remember {
             persistentListOf(
                 BottomNavItem("Home", R.drawable.rounded_home_24, R.drawable.home_24_rounded_filled, Screen.Home),
@@ -342,6 +338,7 @@ class MainActivity : ComponentActivity() {
                 if (!shouldHideNavigationBar) {
                     val playerContentExpansionFraction = playerViewModel.playerContentExpansionFraction.value
                     val showPlayerContentArea = playerViewModel.stablePlayerState.collectAsState().value.currentSong != null
+                    val navBarStyle by playerViewModel.navBarStyle.collectAsState()
                     val navBarCornerRadius by playerViewModel.navBarCornerRadius.collectAsState()
                     val navBarElevation = 3.dp
 
@@ -404,6 +401,12 @@ class MainActivity : ComponentActivity() {
 
                     val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
+                    val horizontalPadding = if (navBarStyle == NavBarStyle.DEFAULT) {
+                        if (systemNavBarInset > 30.dp) 14.dp else systemNavBarInset
+                    } else {
+                        0.dp
+                    }
+
                     var componentHeightPx by remember { mutableStateOf(0) }
                     val animatedTranslationY by remember(navBarHideFraction, componentHeightPx) { derivedStateOf { componentHeightPx * navBarHideFraction } }
 
@@ -413,11 +416,7 @@ class MainActivity : ComponentActivity() {
                             .onSizeChanged { componentHeightPx = it.height }
                             .graphicsLayer { translationY = animatedTranslationY }
                     ) {
-                        val bottomPadding = if (navBarStyle == NavBarStyle.DEFAULT) {
-                            systemNavBarInset + horizontalPadding
-                        } else {
-                            systemNavBarInset // Keep original logic for other styles
-                        }
+                        val bottomPadding = if (navBarStyle == NavBarStyle.DEFAULT) systemNavBarInset else 0.dp
                         val navHeight = if (navBarStyle == NavBarStyle.FULL_WIDTH) NavBarContentHeightFullWidth else NavBarContentHeight
                         Surface(
                             modifier = Modifier
