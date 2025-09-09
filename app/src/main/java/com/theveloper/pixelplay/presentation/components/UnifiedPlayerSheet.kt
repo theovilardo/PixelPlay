@@ -131,7 +131,7 @@ import kotlin.math.sign
 
 private val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error("No ColorScheme provided") }
 
-private enum class DragPhase { IDLE, TENSION, SNAPPING_AND_TRACKING }
+private enum class DragPhase { IDLE, TENSION, SNAPPING, FREE_DRAG }
 
 val MiniPlayerHeight = 64.dp
 val PlayerSheetExpandedCornerRadius = 32.dp
@@ -771,6 +771,8 @@ fun UnifiedPlayerSheet(
                                 }
                                 var accumulatedDragX by mutableFloatStateOf(0f)
                                 var dragPhase by mutableStateOf(DragPhase.IDLE)
+                                var dragAccumulationAtSnapEnd by mutableFloatStateOf(0f)
+                                var offsetAtSnapEnd by mutableFloatStateOf(0f)
 
                                 detectHorizontalDragGestures(
                                     onDragStart = {
@@ -782,28 +784,38 @@ fun UnifiedPlayerSheet(
                                         change.consume()
                                         accumulatedDragX += dragAmount
 
-                                        when(dragPhase) {
+                                        when (dragPhase) {
                                             DragPhase.TENSION -> {
                                                 val snapThresholdPx = with(density) { 100.dp.toPx() }
                                                 if (abs(accumulatedDragX) < snapThresholdPx) {
-                                                    val maxTensionOffsetPx = with(density) { 40.dp.toPx() }
+                                                    val maxTensionOffsetPx = with(density) { 30.dp.toPx() }
                                                     val dragFraction = (abs(accumulatedDragX) / snapThresholdPx).coerceIn(0f, 1f)
                                                     val tensionOffset = lerp(0f, maxTensionOffsetPx, dragFraction)
                                                     scope.launch { offsetAnimatable.snapTo(tensionOffset * accumulatedDragX.sign) }
                                                 } else {
-                                                    dragPhase = DragPhase.SNAPPING_AND_TRACKING
+                                                    dragPhase = DragPhase.SNAPPING
+                                                    scope.launch {
+                                                        offsetAnimatable.animateTo(
+                                                            targetValue = accumulatedDragX,
+                                                            animationSpec = spring(
+                                                                dampingRatio = 0.8f,
+                                                                stiffness = Spring.StiffnessLow
+                                                            )
+                                                        )
+                                                        dragAccumulationAtSnapEnd = accumulatedDragX
+                                                        offsetAtSnapEnd = offsetAnimatable.value
+                                                        dragPhase = DragPhase.FREE_DRAG
+                                                    }
                                                 }
                                             }
-                                            DragPhase.SNAPPING_AND_TRACKING -> {
-                                                scope.launch {
-                                                    offsetAnimatable.animateTo(
-                                                        targetValue = accumulatedDragX,
-                                                        animationSpec = spring(
-                                                            dampingRatio = 0.8f,
-                                                            stiffness = Spring.StiffnessLow
-                                                        )
-                                                    )
-                                                }
+                                            DragPhase.SNAPPING -> {
+                                                // Drag events are ignored while the snap animation runs.
+                                                // The animation updates the offset, and the state will transition to FREE_DRAG when it's done.
+                                            }
+                                            DragPhase.FREE_DRAG -> {
+                                                val dragSinceSnap = accumulatedDragX - dragAccumulationAtSnapEnd
+                                                val newOffset = offsetAtSnapEnd + dragSinceSnap
+                                                scope.launch { offsetAnimatable.snapTo(newOffset) }
                                             }
                                             else -> {}
                                         }
@@ -820,7 +832,6 @@ fun UnifiedPlayerSheet(
                                                 )
                                                 playerViewModel.dismissPlaylistAndShowUndo()
                                                 offsetAnimatable.snapTo(0f)
-                                                accumulatedDragX = 0f
                                             }
                                         } else {
                                             scope.launch {
@@ -831,7 +842,6 @@ fun UnifiedPlayerSheet(
                                                         stiffness = Spring.StiffnessMedium
                                                     )
                                                 )
-                                                accumulatedDragX = 0f
                                             }
                                         }
                                     }
