@@ -233,12 +233,11 @@ fun AboutScreen(
                     modifier = Modifier.padding(top = 32.dp, bottom = 24.dp)
                 ) {
                     Image(
-                        painter = painterResource(id = R.drawable.new_monochrome),
+                        painter = painterResource(id = R.drawable.pixelplay_base_monochrome),
                         contentDescription = "App Icon",
                         colorFilter = ColorFilter.tint(color = MaterialTheme.colorScheme.primary),
                         modifier = Modifier
                             .size(108.dp)
-                            .scale(2.0f)
                             .padding(bottom = 16.dp)
                     )
                     Column(

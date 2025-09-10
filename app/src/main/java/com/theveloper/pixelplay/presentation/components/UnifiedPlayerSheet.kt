@@ -588,6 +588,8 @@ fun UnifiedPlayerSheet(
     val velocityTracker = remember { VelocityTracker() }
     var accumulatedDragYSinceStart by remember { mutableFloatStateOf(0f) }
 
+    val hapticFeedback = LocalHapticFeedback.current
+
     PredictiveBackHandler(
         enabled = showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED && !isDragging
     ) { progressFlow ->
@@ -756,7 +758,6 @@ fun UnifiedPlayerSheet(
                                 }
                                 var accumulatedDragX by mutableFloatStateOf(0f)
                                 var dragPhase by mutableStateOf(DragPhase.IDLE)
-                                val hapticFeedback = LocalHapticFeedback.current
 
                                 detectHorizontalDragGestures(
                                     onDragStart = {

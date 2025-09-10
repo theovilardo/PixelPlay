@@ -508,6 +508,14 @@ class MainActivity : ComponentActivity() {
                         .padding(horizontal = horizontalPadding)
                 ) {
                     DismissUndoBar(
+                        modifier = Modifier
+                            .fillMaxWidth()
+//                            .background(
+//                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+//                                shape = CircleShape
+//                            )
+                            .height(MiniPlayerHeight)
+                            .padding(horizontal = 14.dp),
                         onUndo = { playerViewModel.undoDismissPlaylist() },
                         onClose = { playerViewModel.hideDismissUndoBar() },
                         durationMillis = playerUiState.undoBarVisibleDuration
@@ -531,7 +539,7 @@ class MainActivity : ComponentActivity() {
                 CircularProgressIndicator()
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "Preparando tu biblioteca...",
+                    text = "Preparing your library...",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onBackground
                 )
@@ -549,20 +557,20 @@ class MainActivity : ComponentActivity() {
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "Permiso Requerido",
+                text = "Permission Required",
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onBackground
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "PixelPlay necesita acceso a tus archivos de audio para poder escanear y reproducir tu música. Por favor, concede el permiso para continuar.",
+                text = "PixelPlay needs access to your audio files to scan and play your music. Please grant permission to continue.",
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(24.dp))
             Button(onClick = onRequestPermissions) {
-                Text("Conceder Permiso")
+                Text("Grant Permission")
             }
         }
     }
