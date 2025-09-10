@@ -146,7 +146,6 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 
         val baseModifier =
             GlanceModifier.fillMaxSize().clickable(actionStartActivity<MainActivity>())
-        println(size)
 
         Box(
             GlanceModifier.fillMaxSize()
@@ -155,7 +154,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 ONE_BY_ONE_SIZE -> OneByOneWidgetLayout(
                     modifier = baseModifier,
                     backgroundColor = actualBackgroundColor,
-                    bgCornerRadius = 28.dp,
+                    bgCornerRadius = 100.dp,
                     isPlaying = isPlaying
                 )
 
