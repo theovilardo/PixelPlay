@@ -31,18 +31,13 @@ class PixelPlayGlanceWidgetPreviewProvider : GlanceAppWidget() {
             totalDurationMs = 100000,
             isFavorite = true,
             queue = listOf(
-                QueueItem(1L, null),
-                QueueItem(2L, null),
-                QueueItem(3L, null),
-                QueueItem(4L, null)
+                QueueItem(1L, null), QueueItem(2L, null), QueueItem(3L, null), QueueItem(4L, null)
             )
         )
 
         // The LocalSize and LocalContext are automatically provided by the @Preview environment
         PixelPlayGlanceWidget().WidgetUi(
-            playerInfo = playerInfo,
-            size = LocalSize.current,
-            context = LocalContext.current
+            playerInfo = playerInfo, size = LocalSize.current, context = LocalContext.current
         )
     }
 }
@@ -53,8 +48,92 @@ class PixelPlayGlanceWidgetPreviewProvider : GlanceAppWidget() {
  * This sets up the correct rendering environment for Glance composables.
  */
 @OptIn(ExperimentalGlancePreviewApi::class)
-@Preview
+@Preview(widthDp = 60, heightDp = 60)
 @Composable
-fun PixelPlayWidget_Preview() {
+fun PixelPlayWidget_Preview_1x1() {
+    PixelPlayGlanceWidgetPreviewProvider().Content()
+}
+
+@OptIn(ExperimentalGlancePreviewApi::class)
+@Preview(widthDp = 60, heightDp = 120)
+@Composable
+fun PixelPlayWidget_Preview_1x2() {
+    PixelPlayGlanceWidgetPreviewProvider().Content()
+}
+
+@OptIn(ExperimentalGlancePreviewApi::class)
+@Preview(widthDp = 120, heightDp = 60)
+@Composable
+fun PixelPlayWidget_Preview_2x1() {
+    PixelPlayGlanceWidgetPreviewProvider().Content()
+}
+
+@OptIn(ExperimentalGlancePreviewApi::class)
+@Preview(widthDp = 120, heightDp = 120)
+@Composable
+fun PixelPlayWidget_Preview_2x2() {
+    PixelPlayGlanceWidgetPreviewProvider().Content()
+}
+
+@OptIn(ExperimentalGlancePreviewApi::class)
+@Preview(widthDp = 180, heightDp = 60)
+@Composable
+fun PixelPlayWidget_Preview_3x1() {
+    PixelPlayGlanceWidgetPreviewProvider().Content()
+}
+
+@OptIn(ExperimentalGlancePreviewApi::class)
+@Preview(widthDp = 180, heightDp = 120)
+@Composable
+fun PixelPlayWidget_Preview_3x2() {
+    PixelPlayGlanceWidgetPreviewProvider().Content()
+}
+
+@OptIn(ExperimentalGlancePreviewApi::class)
+@Preview(widthDp = 180, heightDp = 180)
+@Composable
+fun PixelPlayWidget_Preview_3x3() {
+    PixelPlayGlanceWidgetPreviewProvider().Content()
+}
+
+@OptIn(ExperimentalGlancePreviewApi::class)
+@Preview(widthDp = 240, heightDp = 120)
+@Composable
+fun PixelPlayWidget_Preview_4x2() {
+    PixelPlayGlanceWidgetPreviewProvider().Content()
+}
+
+@OptIn(ExperimentalGlancePreviewApi::class)
+@Preview(widthDp = 240, heightDp = 180)
+@Composable
+fun PixelPlayWidget_Preview_4x3() {
+    PixelPlayGlanceWidgetPreviewProvider().Content()
+}
+
+@OptIn(ExperimentalGlancePreviewApi::class)
+@Preview(widthDp = 240, heightDp = 240)
+@Composable
+fun PixelPlayWidget_Preview_4x4() {
+    PixelPlayGlanceWidgetPreviewProvider().Content()
+}
+
+@OptIn(ExperimentalGlancePreviewApi::class)
+@Preview(widthDp = 300, heightDp = 180)
+@Composable
+fun PixelPlayWidget_Preview_5x3() {
+    PixelPlayGlanceWidgetPreviewProvider().Content()
+}
+
+@OptIn(ExperimentalGlancePreviewApi::class)
+@Preview(widthDp = 300, heightDp = 240)
+@Composable
+fun PixelPlayWidget_Preview_5x4() {
+    PixelPlayGlanceWidgetPreviewProvider().Content()
+}
+
+@OptIn(ExperimentalGlancePreviewApi::class)
+@Preview(widthDp = 300, heightDp = 300)
+@Composable
+fun PixelPlayWidget_Preview_5x5() {
     PixelPlayGlanceWidgetPreviewProvider().Content()
 }
