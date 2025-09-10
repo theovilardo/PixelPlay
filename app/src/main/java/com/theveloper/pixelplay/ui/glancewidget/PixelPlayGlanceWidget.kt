@@ -129,7 +129,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
     }
 
     @Composable
-    private fun WidgetUi(
+    fun WidgetUi(
         playerInfo: PlayerInfo, size: DpSize, context: Context
     ) {
         val title = playerInfo.songTitle.ifEmpty { "PixelPlay" }
@@ -1258,40 +1258,6 @@ fun EndOfQueuePlaceholder(
     }
 }
 
-@Composable
-private fun GlancePreview(
-    modifier: GlanceModifier = GlanceModifier, content: @Composable () -> Unit
-) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    CompositionLocalProvider(
-        LocalContext provides context, LocalSize provides DpSize(240.dp, 240.dp)
-    ) {
-        GlanceTheme {
-            content()
-        }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun ExtraLargeWidgetLayoutPreview() {
-    GlancePreview {
-        ExtraLargeWidgetLayout(
-            modifier = GlanceModifier,
-            title = "A Really Long Song Title That Might Wrap Around",
-            artist = "Some Artist Name",
-            albumArtBitmapData = null,
-            isPlaying = true,
-            backgroundColor = GlanceTheme.colors.surface,
-            bgCornerRadius = 28.dp,
-            textColor = GlanceTheme.colors.onSurface,
-            context = androidx.glance.LocalContext.current,
-            queue = listOf(
-                QueueItem(1L, null), QueueItem(2L, null), QueueItem(3L, null), QueueItem(4L, null)
-            )
-        )
-    }
-}
 
 // Helper para formatear duración en Glance (no puede usar TimeUnit directamente)
 private fun formatDurationGlance(millis: Long): String {
