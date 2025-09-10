@@ -14,7 +14,6 @@ import androidx.glance.layout.Box
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.preview.ExperimentalGlancePreviewApi
 import androidx.glance.preview.Preview
-import androidx.glance.unit.ColorProvider
 import com.theveloper.pixelplay.data.model.PlayerInfo
 import com.theveloper.pixelplay.data.model.QueueItem
 
@@ -43,7 +42,7 @@ class PixelPlayGlanceWidgetPreviewProvider : GlanceAppWidget() {
         )
 
         Box(
-            modifier = GlanceModifier.fillMaxSize().background(ColorProvider(Color(0xFFADD8E6))),
+            modifier = GlanceModifier.fillMaxSize().background(Color(0xFFADD8E6)),
             contentAlignment = Alignment.Center
         ) {
             // The LocalSize and LocalContext are automatically provided by the @Preview environment
