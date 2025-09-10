@@ -72,7 +72,7 @@ fun ChangelogBottomSheet(
                 VersionChanges(
                     versionNumber = "0.1.5-beta",
                     changesTitle = "Second beta Build",
-                    changes = " ✸ Minor visual changes \n ✸ Partial fix for navigation bar padding \n ✸ Fixed favorite button not working \n ✸ Improved directory picker"
+                    changes = " ✸ Minor visual changes \n ✸ Fixed navigation bar padding \n ✸ Fixed favorite button not working \n ✸ Improved directory picker \n ✸ Minor UI Improvements \n ✸ Added haptic feedback and M3E animations for player"
                 )
                 VersionChanges(
                     versionNumber = "0.1.0-beta",
