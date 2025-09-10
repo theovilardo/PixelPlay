@@ -28,6 +28,8 @@ import androidx.compose.ui.unit.max
 import kotlin.math.*
 import androidx.compose.ui.draw.drawWithCache // Importación necesaria
 import androidx.compose.ui.graphics.drawscope.DrawScope // Para el tipo de onDraw
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.util.lerp
 
 /**
@@ -57,7 +59,7 @@ import androidx.compose.ui.util.lerp
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
 fun WavyMusicSlider(
-    valueProvider: () -> Float, // Cambiado de value: Float
+    valueProvider: () -> Float,
     onValueChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
@@ -118,11 +120,21 @@ fun WavyMusicSlider(
         max(trackHeight * 2, max(thumbRadius * 2, thumbLineHeightWhenInteracting) + 8.dp)
     }
 
+    val hapticFeedback = LocalHapticFeedback.current
+
     BoxWithConstraints(modifier = modifier.clipToBounds()) {
         val currentValue = valueProvider()
+        val lastHapticStep = remember { mutableIntStateOf(-1) }
         Slider(
             value = currentValue,
-            onValueChange = onValueChange,
+            onValueChange = { newValue ->
+                val currentStep = (newValue * 100 / (valueRange.endInclusive - valueRange.start)).toInt()
+                if (currentStep != lastHapticStep.intValue) {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    lastHapticStep.intValue = currentStep
+                }
+                onValueChange(newValue)
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(sliderVisualHeight),
@@ -150,11 +162,15 @@ fun WavyMusicSlider(
 
                     val normalizedValue = valueProvider().let { v ->
                         if (valueRange.endInclusive == valueRange.start) 0f
-                        else ((v - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
+                        else ((v - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(
+                            0f,
+                            1f
+                        )
                     }
                     onDrawWithContent {
                         // --- Dibujar Pista Inactiva ---
-                        val currentProgressPxEndVisual = localTrackStart + localTrackWidth * normalizedValue
+                        val currentProgressPxEndVisual =
+                            localTrackStart + localTrackWidth * normalizedValue
                         if (hideInactiveTrackPortion) {
                             if (currentProgressPxEndVisual < localTrackEnd) {
                                 drawLine(
@@ -177,12 +193,14 @@ fun WavyMusicSlider(
 
                         // --- Dibujar Pista Activa (Onda o Línea) ---
                         if (normalizedValue > 0f) {
-                            val activeTrackVisualEnd = currentProgressPxEndVisual - (thumbGapPx * thumbInteractionFraction)
+                            val activeTrackVisualEnd =
+                                currentProgressPxEndVisual - (thumbGapPx * thumbInteractionFraction)
 
                             if (waveAmplitudePxInternal > 0.01f) {
                                 wavePath.reset()
                                 val waveStartDrawX = localTrackStart
-                                val waveEndDrawX = activeTrackVisualEnd.coerceAtLeast(waveStartDrawX)
+                                val waveEndDrawX =
+                                    activeTrackVisualEnd.coerceAtLeast(waveStartDrawX)
 
                                 if (waveEndDrawX > waveStartDrawX) {
                                     wavePath.moveTo(
@@ -193,7 +211,8 @@ fun WavyMusicSlider(
                                     var x = waveStartDrawX + waveStep
                                     while (x < waveEndDrawX) {
                                         val wavePhase = waveFrequency * x + phaseShift
-                                        val waveY = localCenterY + waveAmplitudePxInternal * sin(wavePhase)
+                                        val waveY =
+                                            localCenterY + waveAmplitudePxInternal * sin(wavePhase)
                                         val clampedY = waveY.coerceIn(
                                             localCenterY - waveAmplitudePxInternal - trackHeightPx / 2f,
                                             localCenterY + waveAmplitudePxInternal + trackHeightPx / 2f
@@ -225,9 +244,15 @@ fun WavyMusicSlider(
                         }
 
                         // --- Dibujar Thumb ---
-                        val currentThumbCenterX = localTrackStart + localTrackWidth * normalizedValue
-                        val thumbCurrentWidthPx = lerp(thumbRadiusPx * 2f, trackHeightPx * 1.2f, thumbInteractionFraction)
-                        val thumbCurrentHeightPx = lerp(thumbRadiusPx * 2f, thumbLineHeightPxInternal, thumbInteractionFraction)
+                        val currentThumbCenterX =
+                            localTrackStart + localTrackWidth * normalizedValue
+                        val thumbCurrentWidthPx =
+                            lerp(thumbRadiusPx * 2f, trackHeightPx * 1.2f, thumbInteractionFraction)
+                        val thumbCurrentHeightPx = lerp(
+                            thumbRadiusPx * 2f,
+                            thumbLineHeightPxInternal,
+                            thumbInteractionFraction
+                        )
 
                         drawRoundRect(
                             color = thumbColor,
