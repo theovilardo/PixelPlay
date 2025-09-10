@@ -2,12 +2,19 @@ package com.theveloper.pixelplay.ui.glancewidget
 
 import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.glance.GlanceId
+import androidx.glance.GlanceModifier
 import androidx.glance.LocalContext
 import androidx.glance.LocalSize
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.background
+import androidx.glance.layout.Alignment
+import androidx.glance.layout.Box
+import androidx.glance.layout.fillMaxSize
 import androidx.glance.preview.ExperimentalGlancePreviewApi
 import androidx.glance.preview.Preview
+import androidx.glance.unit.ColorProvider
 import com.theveloper.pixelplay.data.model.PlayerInfo
 import com.theveloper.pixelplay.data.model.QueueItem
 
@@ -35,10 +42,15 @@ class PixelPlayGlanceWidgetPreviewProvider : GlanceAppWidget() {
             )
         )
 
-        // The LocalSize and LocalContext are automatically provided by the @Preview environment
-        PixelPlayGlanceWidget().WidgetUi(
-            playerInfo = playerInfo, size = LocalSize.current, context = LocalContext.current
-        )
+        Box(
+            modifier = GlanceModifier.fillMaxSize().background(ColorProvider(Color(0xFFADD8E6))),
+            contentAlignment = Alignment.Center
+        ) {
+            // The LocalSize and LocalContext are automatically provided by the @Preview environment
+            PixelPlayGlanceWidget().WidgetUi(
+                playerInfo = playerInfo, size = LocalSize.current, context = LocalContext.current
+            )
+        }
     }
 }
 

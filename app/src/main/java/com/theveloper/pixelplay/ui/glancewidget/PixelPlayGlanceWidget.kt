@@ -478,7 +478,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 
         Box(
             modifier = modifier.background(backgroundColor).cornerRadius(bgCornerRadius)
-                .padding(16.dp)
+                .padding(10.dp)
         ) {
             Column(
                 modifier = GlanceModifier.fillMaxSize(),
@@ -486,12 +486,12 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 verticalAlignment = Alignment.Vertical.CenterVertically
             ) {
                 AlbumArtImageGlance(
-                    modifier = GlanceModifier.defaultWeight().fillMaxWidth().height(48.dp),
+                    modifier = GlanceModifier.defaultWeight().fillMaxWidth().height(44.dp),
                     bitmapData = albumArtBitmapData,
                     context = context,
                     cornerRadius = 64.dp
                 )
-                Spacer(GlanceModifier.height(14.dp))
+                Spacer(GlanceModifier.height(8.dp))
                 Column(
                     modifier = GlanceModifier.defaultWeight().cornerRadius(bgCornerRadius)
                 ) {
@@ -502,7 +502,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                         backgroundColor = secondaryColor,
                         cornerRadius = 10.dp
                     )
-                    Spacer(GlanceModifier.height(10.dp))
+                    Spacer(GlanceModifier.height(4.dp))
                     PlayPauseButtonGlance(
                         modifier = GlanceModifier.defaultWeight().fillMaxWidth(),
                         backgroundColor = primaryContainerColor,
@@ -511,7 +511,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                         iconSize = 26.dp,
                         cornerRadius = 10.dp
                     )
-                    Spacer(GlanceModifier.height(10.dp))
+                    Spacer(GlanceModifier.height(4.dp))
                     NextButtonGlance(
                         modifier = GlanceModifier.defaultWeight().fillMaxWidth(),
                         iconColor = onSecondaryColor,
@@ -536,7 +536,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 
         Box(
             modifier = modifier.background(backgroundColor).cornerRadius(bgCornerRadius)
-                .padding(16.dp), contentAlignment = Alignment.Center
+                .padding(8.dp), contentAlignment = Alignment.Center
         ) {
             PlayPauseButtonGlance(
                 modifier = GlanceModifier.fillMaxSize(),
@@ -573,7 +573,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 AlbumArtImageGlance(
                     modifier = GlanceModifier.padding(vertical = 6.dp),
                     bitmapData = albumArtBitmapData,
-                    size = 58.dp,
+                    size = 48.dp,
                     context = context,
                     cornerRadius = 64.dp
                 )
@@ -621,7 +621,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                     horizontalAlignment = Alignment.Start
                 ) {
                     AlbumArtImageGlance(
-                        modifier = GlanceModifier.defaultWeight(),
+                        modifier = GlanceModifier.defaultWeight().height(48.dp),
                         bitmapData = albumArtBitmapData,
                         context = context,
                         cornerRadius = 64.dp
@@ -630,7 +630,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 }
                 Spacer(GlanceModifier.height(8.dp))
                 PlayPauseButtonGlance(
-                    modifier = GlanceModifier.defaultWeight().fillMaxWidth().height(50.dp),
+                    modifier = GlanceModifier.defaultWeight().fillMaxWidth().height(30.dp),
                     isPlaying = isPlaying,
                     cornerRadius = playButtonCornerRadius,
                     iconSize = 26.dp,
@@ -639,7 +639,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 )
                 Spacer(GlanceModifier.height(8.dp))
                 Row(
-                    modifier = GlanceModifier.defaultWeight().fillMaxWidth().height(50.dp),
+                    modifier = GlanceModifier.defaultWeight().fillMaxWidth().height(30.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     PreviousButtonGlance(
