@@ -958,7 +958,7 @@ fun ExtraLargeWidgetLayout(
             Spacer(GlanceModifier.height(12.dp))
             Box(
                 modifier = GlanceModifier.fillMaxWidth()
-                    .padding(vertical = 5.dp, horizontal = 30.dp)
+                    .padding(vertical = 4.dp, horizontal = 30.dp)
                     .background(textColor.getColor(context).copy(alpha = 0.15f)).height(2.dp)
                     .cornerRadius(60.dp)
             ) {
