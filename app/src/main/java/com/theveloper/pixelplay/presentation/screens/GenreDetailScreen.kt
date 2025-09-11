@@ -32,6 +32,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material.icons.filled.Shuffle // Import Shuffle icon
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -156,7 +157,7 @@ fun GenreDetailScreen(
                     containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                     contentColor = MaterialTheme.colorScheme.onTertiaryContainer
                 ) {
-                    Icon(Icons.Filled.Shuffle, contentDescription = "Play Random")
+                    Icon(Icons.Rounded.Shuffle, contentDescription = "Play Random")
                 }
             }
         },
