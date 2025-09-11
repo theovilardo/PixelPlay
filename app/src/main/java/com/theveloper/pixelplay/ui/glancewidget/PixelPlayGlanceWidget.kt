@@ -275,13 +275,10 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         val onSecondaryColor = GlanceTheme.colors.onSecondaryContainer
         val primaryContainerColor = GlanceTheme.colors.primaryContainer
         val onPrimaryContainerColor = GlanceTheme.colors.onPrimaryContainer
-        val size = LocalSize.current
-        val albumArtSize = size.height - 24.dp
+        LocalSize.current
 
         Box(
-            modifier = modifier
-                .background(backgroundColor)
-                .cornerRadius(bgCornerRadius)
+            modifier = modifier.background(backgroundColor).cornerRadius(bgCornerRadius)
                 .padding(12.dp)
         ) {
             Row(
@@ -544,7 +541,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 
         Box(
             modifier = modifier.background(backgroundColor).cornerRadius(bgCornerRadius)
-                .padding(16.dp)
+                .padding(12.dp)
         ) {
             Row(
                 modifier = GlanceModifier.fillMaxSize().cornerRadius(bgCornerRadius),
@@ -552,13 +549,12 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 horizontalAlignment = Alignment.Horizontal.CenterHorizontally
             ) {
                 AlbumArtImageGlance(
-                    modifier = GlanceModifier.padding(vertical = 6.dp),
+                    modifier = GlanceModifier.defaultWeight().padding(vertical = 6.dp),
                     bitmapData = albumArtBitmapData,
-                    size = 48.dp,
                     context = context,
                     cornerRadius = 64.dp
                 )
-                Spacer(GlanceModifier.width(14.dp))
+                Spacer(GlanceModifier.width(10.dp))
                 PlayPauseButtonGlance(
                     modifier = GlanceModifier.defaultWeight().fillMaxHeight(),
                     backgroundColor = primaryContainerColor,
