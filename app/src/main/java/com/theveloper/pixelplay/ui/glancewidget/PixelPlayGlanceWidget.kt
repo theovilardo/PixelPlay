@@ -1,15 +1,17 @@
 package com.theveloper.pixelplay.ui.glancewidget
 
-// import androidx.datastore.preferences.protobuf.ByteString // No longer needed
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+// import androidx.datastore.preferences.protobuf.ByteString // No longer needed
 import androidx.glance.ColorFilter
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
@@ -44,10 +46,11 @@ import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
-import androidx.glance.unit.ColorProvider
 import com.theveloper.pixelplay.MainActivity
-import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.PlayerInfo
+import com.theveloper.pixelplay.R
+import androidx.core.graphics.scale
+import androidx.glance.unit.ColorProvider
 import com.theveloper.pixelplay.data.model.QueueItem
 import com.theveloper.pixelplay.utils.createScalableBackgroundBitmap
 import timber.log.Timber
@@ -143,6 +146,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 
         val baseModifier =
             GlanceModifier.fillMaxSize().clickable(actionStartActivity<MainActivity>())
+        println(size)
 
         Box(
             GlanceModifier.fillMaxSize()
@@ -151,7 +155,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 ONE_BY_ONE_SIZE -> OneByOneWidgetLayout(
                     modifier = baseModifier,
                     backgroundColor = actualBackgroundColor,
-                    bgCornerRadius = 100.dp,
+                    bgCornerRadius = 28.dp,
                     isPlaying = isPlaying
                 )
 
@@ -275,35 +279,52 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         val onSecondaryColor = GlanceTheme.colors.onSecondaryContainer
         val primaryContainerColor = GlanceTheme.colors.primaryContainer
         val onPrimaryContainerColor = GlanceTheme.colors.onPrimaryContainer
-        LocalSize.current
+        val size = LocalSize.current
+        val albumArtSize = size.height - 32.dp
 
         Box(
             modifier = modifier.background(backgroundColor).cornerRadius(bgCornerRadius)
-                .padding(12.dp)
+                .padding(16.dp) // Padding applied to the outer box
         ) {
             Row(
                 modifier = GlanceModifier.fillMaxSize().cornerRadius(bgCornerRadius),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalAlignment = Alignment.Horizontal.CenterHorizontally
             ) {
+
                 AlbumArtImageGlance(
-                    modifier = GlanceModifier.defaultWeight().fillMaxHeight(),
+                    modifier = GlanceModifier.size(albumArtSize),
                     bitmapData = albumArtBitmapData,
                     context = context,
                     cornerRadius = bgCornerRadius
                 )
+                Spacer(GlanceModifier.width(10.dp))
+                Column(modifier = GlanceModifier.defaultWeight()) {
+                    Text(
+                        text = title, style = TextStyle(
+                            fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textColor
+                        ), maxLines = 1
+                    )
+                    if (artist.isNotEmpty() && artist != "Toca para abrir") {
+                        Text(
+                            text = artist,
+                            style = TextStyle(fontSize = 14.sp, color = textColor),
+                            maxLines = 1
+                        )
+                    }
+                }
                 Spacer(GlanceModifier.width(8.dp))
                 PlayPauseButtonGlance(
-                    modifier = GlanceModifier.defaultWeight().fillMaxHeight(),
+                    modifier = GlanceModifier.defaultWeight().size(48.dp, 48.dp).fillMaxHeight(),
                     backgroundColor = primaryContainerColor,
                     iconColor = onPrimaryContainerColor,
                     isPlaying = isPlaying,
                     iconSize = 26.dp,
                     cornerRadius = 10.dp
                 )
-                Spacer(GlanceModifier.width(8.dp))
+                Spacer(GlanceModifier.width(10.dp))
                 NextButtonGlance(
-                    modifier = GlanceModifier.defaultWeight().fillMaxHeight(),
+                    modifier = GlanceModifier.defaultWeight().size(48.dp, 48.dp).fillMaxHeight(),
                     iconColor = onSecondaryColor,
                     iconSize = 26.dp,
                     backgroundColor = secondaryColor,
@@ -312,6 +333,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
             }
         }
     }
+
 
     @Composable
     fun ThinWidgetLayout(
@@ -456,7 +478,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 
         Box(
             modifier = modifier.background(backgroundColor).cornerRadius(bgCornerRadius)
-                .padding(10.dp)
+                .padding(16.dp)
         ) {
             Column(
                 modifier = GlanceModifier.fillMaxSize(),
@@ -464,12 +486,12 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 verticalAlignment = Alignment.Vertical.CenterVertically
             ) {
                 AlbumArtImageGlance(
-                    modifier = GlanceModifier.defaultWeight().fillMaxWidth().height(44.dp),
+                    modifier = GlanceModifier.defaultWeight().fillMaxWidth().height(48.dp),
                     bitmapData = albumArtBitmapData,
                     context = context,
                     cornerRadius = 64.dp
                 )
-                Spacer(GlanceModifier.height(8.dp))
+                Spacer(GlanceModifier.height(14.dp))
                 Column(
                     modifier = GlanceModifier.defaultWeight().cornerRadius(bgCornerRadius)
                 ) {
@@ -480,7 +502,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                         backgroundColor = secondaryColor,
                         cornerRadius = 10.dp
                     )
-                    Spacer(GlanceModifier.height(4.dp))
+                    Spacer(GlanceModifier.height(10.dp))
                     PlayPauseButtonGlance(
                         modifier = GlanceModifier.defaultWeight().fillMaxWidth(),
                         backgroundColor = primaryContainerColor,
@@ -489,7 +511,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                         iconSize = 26.dp,
                         cornerRadius = 10.dp
                     )
-                    Spacer(GlanceModifier.height(4.dp))
+                    Spacer(GlanceModifier.height(10.dp))
                     NextButtonGlance(
                         modifier = GlanceModifier.defaultWeight().fillMaxWidth(),
                         iconColor = onSecondaryColor,
@@ -514,7 +536,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 
         Box(
             modifier = modifier.background(backgroundColor).cornerRadius(bgCornerRadius)
-                .padding(8.dp), contentAlignment = Alignment.Center
+                .padding(16.dp), contentAlignment = Alignment.Center
         ) {
             PlayPauseButtonGlance(
                 modifier = GlanceModifier.fillMaxSize(),
@@ -541,7 +563,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
 
         Box(
             modifier = modifier.background(backgroundColor).cornerRadius(bgCornerRadius)
-                .padding(12.dp)
+                .padding(16.dp)
         ) {
             Row(
                 modifier = GlanceModifier.fillMaxSize().cornerRadius(bgCornerRadius),
@@ -549,12 +571,13 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 horizontalAlignment = Alignment.Horizontal.CenterHorizontally
             ) {
                 AlbumArtImageGlance(
-                    modifier = GlanceModifier.defaultWeight().padding(vertical = 6.dp),
+                    modifier = GlanceModifier.padding(vertical = 6.dp),
                     bitmapData = albumArtBitmapData,
+                    size = 58.dp,
                     context = context,
                     cornerRadius = 64.dp
                 )
-                Spacer(GlanceModifier.width(10.dp))
+                Spacer(GlanceModifier.width(14.dp))
                 PlayPauseButtonGlance(
                     modifier = GlanceModifier.defaultWeight().fillMaxHeight(),
                     backgroundColor = primaryContainerColor,
@@ -583,31 +606,31 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         val buttonCornerRadius = 16.dp
         val playButtonCornerRadius = if (isPlaying) 12.dp else 60.dp
 
-        // Total available height for the three main components, accounting for padding and spacers.
-        val contentHeight = LocalSize.current.height - (12.dp * 2) - (8.dp * 2)
-        val oneThirdHeight = contentHeight / 3
-
-        println("Content Height: $contentHeight")
-        println("One Third Height: $oneThirdHeight")
-
         Box(
             modifier = modifier.background(backgroundColor).cornerRadius(bgCornerRadius)
-                .padding(12.dp)
+                .padding(12.dp) // Using 12dp for this smaller layout
         ) {
             Column(
                 modifier = GlanceModifier.fillMaxSize(),
                 verticalAlignment = Alignment.Top,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                AlbumArtImageGlance(
+                Row(
                     modifier = GlanceModifier.defaultWeight().fillMaxWidth(),
-                    bitmapData = albumArtBitmapData,
-                    context = context,
-                    cornerRadius = 16.dp
-                )
-                Spacer(GlanceModifier.height(10.dp))
+                    verticalAlignment = Alignment.Vertical.Top,
+                    horizontalAlignment = Alignment.Start
+                ) {
+                    AlbumArtImageGlance(
+                        modifier = GlanceModifier.defaultWeight(),
+                        bitmapData = albumArtBitmapData,
+                        context = context,
+                        cornerRadius = 64.dp
+                    )
+                    //Spacer(GlanceModifier.width(10.dp))
+                }
+                Spacer(GlanceModifier.height(8.dp))
                 PlayPauseButtonGlance(
-                    modifier = GlanceModifier.defaultWeight().fillMaxWidth(),
+                    modifier = GlanceModifier.defaultWeight().fillMaxWidth().height(50.dp),
                     isPlaying = isPlaying,
                     cornerRadius = playButtonCornerRadius,
                     iconSize = 26.dp,
@@ -616,7 +639,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 )
                 Spacer(GlanceModifier.height(8.dp))
                 Row(
-                    modifier = GlanceModifier.defaultWeight().fillMaxWidth(),
+                    modifier = GlanceModifier.defaultWeight().fillMaxWidth().height(50.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     PreviousButtonGlance(
@@ -846,9 +869,11 @@ fun ExtraLargeWidgetLayout(
 ) {
     val playButtonCornerRadius = if (isPlaying) 16.dp else 60.dp
 
+    // *** FIX: Apply padding to the outer Box for consistency ***
     Box(
-        modifier = modifier.background(backgroundColor).cornerRadius(bgCornerRadius).padding(12.dp)
+        modifier = modifier.background(backgroundColor).cornerRadius(bgCornerRadius).padding(16.dp)
     ) {
+        // *** FIX: Removed padding from the inner Column ***
         Column(
             modifier = GlanceModifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -860,7 +885,7 @@ fun ExtraLargeWidgetLayout(
             ) {
                 AlbumArtImageGlance(
                     bitmapData = albumArtBitmapData,
-                    size = 60.dp,
+                    size = 68.dp,
                     context = context,
                     cornerRadius = 16.dp
                 )
@@ -869,7 +894,7 @@ fun ExtraLargeWidgetLayout(
                     Text(
                         text = title, style = TextStyle(
                             fontSize = 20.sp, fontWeight = FontWeight.Bold, color = textColor
-                        ), maxLines = 1
+                        ), maxLines = 2
                     )
                     Text(
                         text = artist,
@@ -883,7 +908,7 @@ fun ExtraLargeWidgetLayout(
 
             // Bottom Row: Controls
             Row(
-                modifier = GlanceModifier.defaultWeight().fillMaxWidth(),
+                modifier = GlanceModifier.defaultWeight().fillMaxWidth().height(56.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 val secondaryColor = GlanceTheme.colors.secondaryContainer
@@ -918,57 +943,68 @@ fun ExtraLargeWidgetLayout(
                 )
             }
 
+            Spacer(GlanceModifier.defaultWeight()) // Empuja el contenido hacia abajo
+            //Spacer(GlanceModifier.height(16.dp))
 
-            Column {
-                Spacer(GlanceModifier.height(12.dp))
+//                Text(
+//                    text = "Next Up",
+//                    style = TextStyle(
+//                        fontSize = 16.sp,
+//                        fontWeight = FontWeight.Bold,
+//                        color = textColor
+//                    ),
+//                    modifier = GlanceModifier.padding(bottom = 8.dp)
+//                )
+            Spacer(GlanceModifier.height(12.dp))
+            Box(
+                modifier = GlanceModifier.fillMaxWidth()
+                    .padding(vertical = 5.dp, horizontal = 30.dp)
+                    .background(textColor.getColor(context).copy(alpha = 0.15f)).height(2.dp)
+                    .cornerRadius(60.dp)
+            ) {
 
-                Box(
-                    modifier = GlanceModifier.fillMaxWidth()
-                        .padding(vertical = 4.dp, horizontal = 30.dp)
-                        .background(textColor.getColor(context).copy(alpha = 0.15f)).height(2.dp)
-                        .cornerRadius(60.dp)
-                ) {}
+            }
 
-                Spacer(GlanceModifier.height(12.dp))
-                Row(
-                    modifier = GlanceModifier.fillMaxWidth().height(52.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val items = queue.take(4)
-                    val itemSize = 58.dp
-                    val cornerRadius = 14.dp
+            Spacer(GlanceModifier.height(12.dp))
 
-                    for (i in 0 until 4) {
-                        Box(
-                            modifier = GlanceModifier.defaultWeight(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (i < items.size) {
-                                val queueItem = items[i]
-                                AlbumArtImageGlance(
-                                    modifier = GlanceModifier.clickable(
-                                        actionRunCallback<PlayerControlActionCallback>(
-                                            actionParametersOf(
-                                                PlayerActions.key to PlayerActions.PLAY_FROM_QUEUE,
-                                                PlayerActions.songIdKey to queueItem.id
-                                            )
+            Row(
+                modifier = GlanceModifier.fillMaxWidth().height(58.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val items = queue.take(4)
+                val itemSize = 58.dp
+                val cornerRadius = 14.dp
+
+                for (i in 0 until 4) {
+                    Box(
+                        modifier = GlanceModifier.defaultWeight(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (i < items.size) {
+                            val queueItem = items[i]
+                            AlbumArtImageGlance(
+                                modifier = GlanceModifier.clickable(
+                                    actionRunCallback<PlayerControlActionCallback>(
+                                        actionParametersOf(
+                                            PlayerActions.key to PlayerActions.PLAY_FROM_QUEUE,
+                                            PlayerActions.songIdKey to queueItem.id
                                         )
-                                    ),
-                                    bitmapData = queueItem.albumArtBitmapData,
-                                    size = itemSize,
-                                    context = context,
-                                    cornerRadius = cornerRadius
-                                )
-                            } else {
-                                EndOfQueuePlaceholder(
-                                    size = itemSize, cornerRadius = cornerRadius
-                                )
-                            }
+                                    )
+                                ),
+                                bitmapData = queueItem.albumArtBitmapData,
+                                size = itemSize,
+                                context = context,
+                                cornerRadius = cornerRadius
+                            )
+                        } else {
+                            EndOfQueuePlaceholder(
+                                size = itemSize, cornerRadius = cornerRadius
+                            )
                         }
+                    }
 
-                        if (i < 3) {
-                            Spacer(GlanceModifier.width(4.dp))
-                        }
+                    if (i < 3) {
+                        Spacer(GlanceModifier.width(8.dp))
                     }
                 }
             }
