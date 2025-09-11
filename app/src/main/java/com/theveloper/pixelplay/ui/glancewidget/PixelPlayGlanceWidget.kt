@@ -1,17 +1,15 @@
 package com.theveloper.pixelplay.ui.glancewidget
 
+// import androidx.datastore.preferences.protobuf.ByteString // No longer needed
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-// import androidx.datastore.preferences.protobuf.ByteString // No longer needed
 import androidx.glance.ColorFilter
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
@@ -46,11 +44,10 @@ import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
-import com.theveloper.pixelplay.MainActivity
-import com.theveloper.pixelplay.data.model.PlayerInfo
-import com.theveloper.pixelplay.R
-import androidx.core.graphics.scale
 import androidx.glance.unit.ColorProvider
+import com.theveloper.pixelplay.MainActivity
+import com.theveloper.pixelplay.R
+import com.theveloper.pixelplay.data.model.PlayerInfo
 import com.theveloper.pixelplay.data.model.QueueItem
 import com.theveloper.pixelplay.utils.createScalableBackgroundBitmap
 import timber.log.Timber
@@ -332,7 +329,6 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
             }
         }
     }
-
 
     @Composable
     fun ThinWidgetLayout(
@@ -868,11 +864,9 @@ fun ExtraLargeWidgetLayout(
 ) {
     val playButtonCornerRadius = if (isPlaying) 16.dp else 60.dp
 
-    // *** FIX: Apply padding to the outer Box for consistency ***
     Box(
-        modifier = modifier.background(backgroundColor).cornerRadius(bgCornerRadius).padding(16.dp)
+        modifier = modifier.background(backgroundColor).cornerRadius(bgCornerRadius).padding(12.dp)
     ) {
-        // *** FIX: Removed padding from the inner Column ***
         Column(
             modifier = GlanceModifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -884,7 +878,7 @@ fun ExtraLargeWidgetLayout(
             ) {
                 AlbumArtImageGlance(
                     bitmapData = albumArtBitmapData,
-                    size = 68.dp,
+                    size = 60.dp,
                     context = context,
                     cornerRadius = 16.dp
                 )
@@ -893,7 +887,7 @@ fun ExtraLargeWidgetLayout(
                     Text(
                         text = title, style = TextStyle(
                             fontSize = 20.sp, fontWeight = FontWeight.Bold, color = textColor
-                        ), maxLines = 2
+                        ), maxLines = 1
                     )
                     Text(
                         text = artist,
@@ -907,7 +901,7 @@ fun ExtraLargeWidgetLayout(
 
             // Bottom Row: Controls
             Row(
-                modifier = GlanceModifier.defaultWeight().fillMaxWidth().height(56.dp),
+                modifier = GlanceModifier.defaultWeight().fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 val secondaryColor = GlanceTheme.colors.secondaryContainer
@@ -942,68 +936,57 @@ fun ExtraLargeWidgetLayout(
                 )
             }
 
-            Spacer(GlanceModifier.defaultWeight()) // Empuja el contenido hacia abajo
-            //Spacer(GlanceModifier.height(16.dp))
 
-//                Text(
-//                    text = "Next Up",
-//                    style = TextStyle(
-//                        fontSize = 16.sp,
-//                        fontWeight = FontWeight.Bold,
-//                        color = textColor
-//                    ),
-//                    modifier = GlanceModifier.padding(bottom = 8.dp)
-//                )
-            Spacer(GlanceModifier.height(12.dp))
-            Box(
-                modifier = GlanceModifier.fillMaxWidth()
-                    .padding(vertical = 4.dp, horizontal = 30.dp)
-                    .background(textColor.getColor(context).copy(alpha = 0.15f)).height(2.dp)
-                    .cornerRadius(60.dp)
-            ) {
+            Column {
+                Spacer(GlanceModifier.height(12.dp))
 
-            }
+                Box(
+                    modifier = GlanceModifier.fillMaxWidth()
+                        .padding(vertical = 4.dp, horizontal = 30.dp)
+                        .background(textColor.getColor(context).copy(alpha = 0.15f)).height(2.dp)
+                        .cornerRadius(60.dp)
+                ) {}
 
-            Spacer(GlanceModifier.height(12.dp))
+                Spacer(GlanceModifier.height(12.dp))
+                Row(
+                    modifier = GlanceModifier.fillMaxWidth().height(52.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val items = queue.take(4)
+                    val itemSize = 58.dp
+                    val cornerRadius = 14.dp
 
-            Row(
-                modifier = GlanceModifier.fillMaxWidth().height(58.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val items = queue.take(4)
-                val itemSize = 58.dp
-                val cornerRadius = 14.dp
-
-                for (i in 0 until 4) {
-                    Box(
-                        modifier = GlanceModifier.defaultWeight(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (i < items.size) {
-                            val queueItem = items[i]
-                            AlbumArtImageGlance(
-                                modifier = GlanceModifier.clickable(
-                                    actionRunCallback<PlayerControlActionCallback>(
-                                        actionParametersOf(
-                                            PlayerActions.key to PlayerActions.PLAY_FROM_QUEUE,
-                                            PlayerActions.songIdKey to queueItem.id
+                    for (i in 0 until 4) {
+                        Box(
+                            modifier = GlanceModifier.defaultWeight(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (i < items.size) {
+                                val queueItem = items[i]
+                                AlbumArtImageGlance(
+                                    modifier = GlanceModifier.clickable(
+                                        actionRunCallback<PlayerControlActionCallback>(
+                                            actionParametersOf(
+                                                PlayerActions.key to PlayerActions.PLAY_FROM_QUEUE,
+                                                PlayerActions.songIdKey to queueItem.id
+                                            )
                                         )
-                                    )
-                                ),
-                                bitmapData = queueItem.albumArtBitmapData,
-                                size = itemSize,
-                                context = context,
-                                cornerRadius = cornerRadius
-                            )
-                        } else {
-                            EndOfQueuePlaceholder(
-                                size = itemSize, cornerRadius = cornerRadius
-                            )
+                                    ),
+                                    bitmapData = queueItem.albumArtBitmapData,
+                                    size = itemSize,
+                                    context = context,
+                                    cornerRadius = cornerRadius
+                                )
+                            } else {
+                                EndOfQueuePlaceholder(
+                                    size = itemSize, cornerRadius = cornerRadius
+                                )
+                            }
                         }
-                    }
 
-                    if (i < 3) {
-                        Spacer(GlanceModifier.width(8.dp))
+                        if (i < 3) {
+                            Spacer(GlanceModifier.width(4.dp))
+                        }
                     }
                 }
             }
