@@ -583,13 +583,6 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         val buttonCornerRadius = 16.dp
         val playButtonCornerRadius = if (isPlaying) 12.dp else 60.dp
 
-        // Total available height for the three main components, accounting for padding and spacers.
-        val contentHeight = LocalSize.current.height - (12.dp * 2) - (8.dp * 2)
-        val oneThirdHeight = contentHeight / 3
-
-        println("Content Height: $contentHeight")
-        println("One Third Height: $oneThirdHeight")
-
         Box(
             modifier = modifier.background(backgroundColor).cornerRadius(bgCornerRadius)
                 .padding(12.dp)
