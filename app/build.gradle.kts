@@ -80,7 +80,6 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.generativeai)
-    implementation(libs.androidx.glance.preview)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -113,7 +112,7 @@ dependencies {
     implementation(libs.androidx.glance)
     implementation(libs.androidx.glance.appwidget)
     implementation(libs.androidx.glance.material3)
-    debugImplementation("androidx.glance:glance-appwidget-preview:1.2.0-alpha01")
+    debugImplementation(libs.androidx.glance.appwidget.preview)
 
     //Gson
     implementation(libs.gson)
