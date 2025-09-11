@@ -605,31 +605,31 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
         val buttonCornerRadius = 16.dp
         val playButtonCornerRadius = if (isPlaying) 12.dp else 60.dp
 
+        // Total available height for the three main components, accounting for padding and spacers.
+        val contentHeight = LocalSize.current.height - (12.dp * 2) - (8.dp * 2)
+        val oneThirdHeight = contentHeight / 3
+
+        println("Content Height: $contentHeight")
+        println("One Third Height: $oneThirdHeight")
+
         Box(
             modifier = modifier.background(backgroundColor).cornerRadius(bgCornerRadius)
-                .padding(12.dp) // Using 12dp for this smaller layout
+                .padding(12.dp)
         ) {
             Column(
                 modifier = GlanceModifier.fillMaxSize(),
                 verticalAlignment = Alignment.Top,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Row(
+                AlbumArtImageGlance(
                     modifier = GlanceModifier.defaultWeight().fillMaxWidth(),
-                    verticalAlignment = Alignment.Vertical.Top,
-                    horizontalAlignment = Alignment.Start
-                ) {
-                    AlbumArtImageGlance(
-                        modifier = GlanceModifier.defaultWeight().height(48.dp),
-                        bitmapData = albumArtBitmapData,
-                        context = context,
-                        cornerRadius = 64.dp
-                    )
-                    //Spacer(GlanceModifier.width(10.dp))
-                }
-                Spacer(GlanceModifier.height(8.dp))
+                    bitmapData = albumArtBitmapData,
+                    context = context,
+                    cornerRadius = 16.dp
+                )
+                Spacer(GlanceModifier.height(10.dp))
                 PlayPauseButtonGlance(
-                    modifier = GlanceModifier.defaultWeight().fillMaxWidth().height(30.dp),
+                    modifier = GlanceModifier.defaultWeight().fillMaxWidth(),
                     isPlaying = isPlaying,
                     cornerRadius = playButtonCornerRadius,
                     iconSize = 26.dp,
@@ -638,7 +638,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                 )
                 Spacer(GlanceModifier.height(8.dp))
                 Row(
-                    modifier = GlanceModifier.defaultWeight().fillMaxWidth().height(30.dp),
+                    modifier = GlanceModifier.defaultWeight().fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     PreviousButtonGlance(
