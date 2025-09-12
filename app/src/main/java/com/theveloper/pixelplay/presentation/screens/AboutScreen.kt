@@ -297,6 +297,30 @@ fun AboutScreen(
                 }
             }
 
+            // Author section
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                ) {
+                    Text(
+                        text = "Author",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+            }
+
+            items(contributors) { contributor ->
+                ContributorCard(contributor)
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
             // Acknowledgements section
             item {
                 Column(
@@ -311,10 +335,6 @@ fun AboutScreen(
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                 }
-            }
-
-            items(contributors) { contributor ->
-                ContributorCard(contributor)
             }
         }
         AboutTopBar(

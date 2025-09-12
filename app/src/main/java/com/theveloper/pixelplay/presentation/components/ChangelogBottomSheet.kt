@@ -79,7 +79,7 @@ fun ChangelogBottomSheet(
                 )
                 HorizontalDivider(
                     modifier = Modifier
-                        .padding(vertical = 4.dp)
+                        .height(3.dp)
                         .clip(CircleShape),
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
                 )

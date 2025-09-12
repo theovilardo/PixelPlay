@@ -468,6 +468,22 @@ fun QueuePlaylistSongItem(
         smoothnessAsPercentBR = 60
     )
 
+    val albumCornerRadius by animateDpAsState(
+        targetValue = if (isCurrentSong) 60.dp else 8.dp,
+        label = "cornerRadiusAnimation"
+    )
+
+    val albumShape = AbsoluteSmoothCornerShape(
+        cornerRadiusTR = albumCornerRadius,
+        smoothnessAsPercentTL = 60,
+        cornerRadiusTL = albumCornerRadius,
+        smoothnessAsPercentTR = 60,
+        cornerRadiusBR = albumCornerRadius,
+        smoothnessAsPercentBL = 60,
+        cornerRadiusBL = albumCornerRadius,
+        smoothnessAsPercentBR = 60
+    )
+
     val elevation by animateDpAsState(
         targetValue = if (isDragging) 4.dp else 1.dp,
         label = "elevationAnimation"
@@ -505,11 +521,11 @@ fun QueuePlaylistSongItem(
 
             SmartImage(
                 model = song.albumArtUriString,
-                shape = RoundedCornerShape(8.dp),
+                shape = albumShape,
                 contentDescription = "Carátula",
                 modifier = Modifier
                     .size(42.dp)
-                    .clip(RoundedCornerShape(8.dp)),
+                    .clip(albumShape),
                 contentScale = ContentScale.Crop
             )
 
