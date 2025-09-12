@@ -12,11 +12,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.presentation.components.subcomps.SineWaveLine
@@ -72,7 +74,14 @@ fun ChangelogBottomSheet(
                 VersionChanges(
                     versionNumber = "0.1.5-beta",
                     changesTitle = "Second beta Build",
-                    changes = " ✸ Minor visual changes \n ✸ Fixed navigation bar padding \n ✸ Fixed favorite button not working \n ✸ Improved directory picker \n ✸ Minor UI Improvements \n ✸ Added haptic feedback and M3E animations for player"
+                    changes = " ✸ Minor visual changes \n ✸ Fixed navigation bar padding \n ✸ Fixed favorite button not working \n ✸ Improved directory picker \n ✸ Minor UI Improvements \n ✸ Added haptic feedback and M3E animations for player \n" +
+                            " ✸ Fixed critical database issues"
+                )
+                HorizontalDivider(
+                    modifier = Modifier
+                        .padding(vertical = 4.dp)
+                        .clip(CircleShape),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
                 )
                 VersionChanges(
                     versionNumber = "0.1.0-beta",
@@ -96,6 +105,11 @@ fun VersionChanges(
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         VersionBadge(versionNumber = versionNumber)
+        Spacer(
+            modifier = Modifier
+                .height(2.dp)
+                .fillMaxWidth()
+        )
         Text(
             modifier = Modifier.padding(start = 2.dp),
             text = changesTitle,
