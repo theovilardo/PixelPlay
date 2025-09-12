@@ -272,17 +272,19 @@ fun QueueBottomSheet(
                                             scaleX = scale
                                             scaleY = scale
                                         }
-                                        .clip(AbsoluteSmoothCornerShape(
-                                            cornerRadiusTR = 22.dp,
-                                            smoothnessAsPercentTL = 60,
-                                            cornerRadiusTL = 22.dp,
-                                            smoothnessAsPercentTR = 60,
-                                            cornerRadiusBR = 22.dp,
-                                            smoothnessAsPercentBL = 60,
-                                            cornerRadiusBL = 22.dp,
-                                            smoothnessAsPercentBR = 60
-                                        ))
-                                        .clickable { onPlaySong(song) },
+//                                        .clip(AbsoluteSmoothCornerShape(
+//                                            cornerRadiusTR = 22.dp,
+//                                            smoothnessAsPercentTL = 60,
+//                                            cornerRadiusTL = 22.dp,
+//                                            smoothnessAsPercentTR = 60,
+//                                            cornerRadiusBR = 22.dp,
+//                                            smoothnessAsPercentBL = 60,
+//                                            cornerRadiusBL = 22.dp,
+//                                            smoothnessAsPercentBR = 60
+//                                        ))
+                                        //.clickable { onPlaySong(song) }
+                                    ,
+                                    onClick = { onPlaySong(song) },
                                     song = song,
                                     isCurrentSong = song.id == currentSongId,
                                     isPlaying = isPlaying,
@@ -297,10 +299,16 @@ fun QueueBottomSheet(
                                             modifier = Modifier
                                                 .draggableHandle(
                                                     onDragStarted = {
-                                                        ViewCompat.performHapticFeedback(view, HapticFeedbackConstantsCompat.GESTURE_START)
+                                                        ViewCompat.performHapticFeedback(
+                                                            view,
+                                                            HapticFeedbackConstantsCompat.GESTURE_START
+                                                        )
                                                     },
                                                     onDragStopped = {
-                                                        ViewCompat.performHapticFeedback(view, HapticFeedbackConstantsCompat.GESTURE_END)
+                                                        ViewCompat.performHapticFeedback(
+                                                            view,
+                                                            HapticFeedbackConstantsCompat.GESTURE_END
+                                                        )
                                                     }
                                                 )
                                                 .size(40.dp)
@@ -431,6 +439,7 @@ fun QueueBottomSheet(
 @Composable
 fun QueuePlaylistSongItem(
     modifier: Modifier = Modifier,
+    onClick: () -> Unit,
     song: Song,
     isCurrentSong: Boolean,
     isPlaying: Boolean? = null,
@@ -442,14 +451,20 @@ fun QueuePlaylistSongItem(
     isRemoveButtonVisible: Boolean
 ) {
     val colors = MaterialTheme.colorScheme
+
+    val cornerRadius by animateDpAsState(
+        targetValue = if (isCurrentSong) 60.dp else 22.dp,
+        label = "cornerRadiusAnimation"
+    )
+
     val itemShape = AbsoluteSmoothCornerShape(
-        cornerRadiusTR = 22.dp,
+        cornerRadiusTR = cornerRadius,
         smoothnessAsPercentTL = 60,
-        cornerRadiusTL = 22.dp,
+        cornerRadiusTL = cornerRadius,
         smoothnessAsPercentTR = 60,
-        cornerRadiusBR = 22.dp,
+        cornerRadiusBR = cornerRadius,
         smoothnessAsPercentBL = 60,
-        cornerRadiusBL = 22.dp,
+        cornerRadiusBL = cornerRadius,
         smoothnessAsPercentBR = 60
     )
 
@@ -464,7 +479,11 @@ fun QueuePlaylistSongItem(
     )
 
     Surface(
-        modifier = modifier.clip(itemShape),
+        modifier = modifier
+            .clip(itemShape)
+            .clickable {
+                onClick()
+            },
         shape = itemShape,
         color = backgroundColor,
         tonalElevation = elevation,
@@ -488,7 +507,9 @@ fun QueuePlaylistSongItem(
                 model = song.albumArtUriString,
                 shape = RoundedCornerShape(8.dp),
                 contentDescription = "Carátula",
-                modifier = Modifier.size(42.dp).clip(RoundedCornerShape(8.dp)),
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(8.dp)),
                 contentScale = ContentScale.Crop
             )
 
@@ -518,6 +539,9 @@ fun QueuePlaylistSongItem(
                         isPlaying = isPlaying  // o conectalo a tu estado real de reproducción
                     )
                     Spacer(Modifier.width(4.dp))
+                    if (!isRemoveButtonVisible){
+                        Spacer(Modifier.width(8.dp))
+                    }
                 }
             } else {
                 Spacer(Modifier.width(8.dp))
@@ -538,7 +562,7 @@ fun QueuePlaylistSongItem(
                     Icon(
                         modifier = Modifier.size(18.dp),
                         painter = painterResource(R.drawable.rounded_close_24),
-                        contentDescription = "Quitar de la playlist",
+                        contentDescription = "Remove from playlist",
                     )
                 }
             }

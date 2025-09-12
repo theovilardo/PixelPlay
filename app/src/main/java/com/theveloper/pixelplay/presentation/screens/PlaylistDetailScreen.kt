@@ -446,27 +446,15 @@ fun PlaylistDetailScreen(
                                         .graphicsLayer {
                                             scaleX = scale
                                             scaleY = scale
-                                        }
-                                        .clip(
-                                            AbsoluteSmoothCornerShape(
-                                                cornerRadiusTR = 22.dp,
-                                                smoothnessAsPercentTL = 60,
-                                                cornerRadiusTL = 22.dp,
-                                                smoothnessAsPercentTR = 60,
-                                                cornerRadiusBR = 22.dp,
-                                                smoothnessAsPercentBL = 60,
-                                                cornerRadiusBL = 22.dp,
-                                                smoothnessAsPercentBR = 60
-                                            )
-                                        )
-                                        .clickable {
-                                            playerViewModel.playSongs(
-                                                localReorderableSongs,
-                                                song,
-                                                currentPlaylist.name,
-                                                currentPlaylist.id
-                                            )
                                         },
+                                    onClick = {
+                                        playerViewModel.playSongs(
+                                            localReorderableSongs,
+                                            song,
+                                            currentPlaylist.name,
+                                            currentPlaylist.id
+                                        )
+                                    },
                                     song = song,
                                     isCurrentSong = playerStableState.currentSong?.id == song.id,
                                     isPlaying = playerStableState.isPlaying,
