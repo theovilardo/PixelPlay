@@ -1,7 +1,10 @@
 package com.theveloper.pixelplay.presentation.screens
 
+import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.annotation.DrawableRes
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.MutableTransitionState
@@ -11,9 +14,12 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.rememberTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -34,11 +40,14 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
@@ -49,10 +58,15 @@ import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import kotlin.math.roundToInt
 import androidx.core.net.toUri
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 
 // Data class to hold information about each person in the acknowledgements section
 data class Contributor(
     val name: String,
+    val role: String? = null,
+    val avatarUrl: String? = null,          // optional remote/avatar image
+    @DrawableRes val iconRes: Int? = null,  // optional local icon fallback
     val githubUrl: String? = null,
     val telegramUrl: String? = null
 )
@@ -130,8 +144,12 @@ fun AboutScreen(
         "N/A"
     }
 
+    val authors = listOf(
+        Contributor(name = "Theo Vilardo", githubUrl = "https://github.com/theovilardo", telegramUrl = "https://t.me/thevelopersupport", avatarUrl = "https://avatars.githubusercontent.com/u/26845343?v=4"),
+    )
+
     val contributors = listOf(
-        Contributor(name = "TheVeloper", githubUrl = "https://github.com/TheVeloper", telegramUrl = "https://t.me/thevelopersupport")
+        Contributor(name = "Colby Cabrera", githubUrl = "https://github.com/ColbyCabrera", avatarUrl = "https://avatars.githubusercontent.com/u/77089439?v=4")
     )
 
     // Correctly initialize MutableTransitionState
@@ -313,15 +331,15 @@ fun AboutScreen(
                 }
             }
 
-            items(contributors) { contributor ->
-                ContributorCard(contributor)
+            item{
+                ContributorCard(authors[0])
             }
 
             item {
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // Acknowledgements section
+            // Contributors section
             item {
                 Column(
                     modifier = Modifier
@@ -329,12 +347,16 @@ fun AboutScreen(
                         .padding(horizontal = 16.dp)
                 ) {
                     Text(
-                        text = "Acknowledgements",
+                        text = "Contributors",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                 }
+            }
+
+            items(contributors) { contributor ->
+                ContributorCard(contributor)
             }
         }
         AboutTopBar(
@@ -347,84 +369,185 @@ fun AboutScreen(
 
 // Composable for displaying a single contributor
 @Composable
-fun ContributorCard(contributor: Contributor) {
-    val context = LocalContext.current
+fun ContributorCard(
+    contributor: Contributor,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null, // optional: make the whole card tappable if you want
+) {
     val shape = AbsoluteSmoothCornerShape(
-        cornerRadiusTL = 20.dp,
-        smoothnessAsPercentBR = 60,
-        cornerRadiusTR = 20.dp,
-        smoothnessAsPercentBL = 60,
-        cornerRadiusBL = 20.dp,
-        smoothnessAsPercentTR = 60,
-        cornerRadiusBR = 20.dp,
-        smoothnessAsPercentTL = 60
+        cornerRadiusTL = 22.dp, smoothnessAsPercentTL = 60,
+        cornerRadiusTR = 22.dp, smoothnessAsPercentTR = 60,
+        cornerRadiusBL = 22.dp, smoothnessAsPercentBL = 60,
+        cornerRadiusBR = 22.dp, smoothnessAsPercentBR = 60
     )
 
-    Surface(
-        shape = shape,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
+    val outline = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+
+    val clickableModifier = if (onClick != null) {
+        Modifier
             .clip(shape)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = LocalIndication.current,
+                role = Role.Button,
+                onClick = onClick
+            )
+    } else {
+        Modifier.clip(shape)
+    }
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .then(clickableModifier),
+        shape = shape,
+        color = MaterialTheme.colorScheme.surfaceContainer, // M3 “expressive” container
+        tonalElevation = 4.dp,
+        shadowElevation = 0.dp,
+        border = BorderStroke(1.dp, outline)
     ) {
         Row(
             modifier = Modifier
-                .padding(16.dp)
+                .padding(horizontal = 12.dp, vertical = 12.dp)
                 .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.Favorite,
-                            contentDescription = "Contributor Icon",
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-                Text(text = contributor.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
-            }
+            ContributorAvatar(
+                name = contributor.name,
+                avatarUrl = contributor.avatarUrl,
+                iconRes = contributor.iconRes ?: R.drawable.rounded_person_24, // keep a default drawable
+                modifier = Modifier
+            )
 
-            Row(
-                modifier = Modifier,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Spacer(Modifier.width(14.dp))
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 8.dp)
             ) {
-                contributor.githubUrl?.let { url ->
-                    Icon(
-                        painterResource(id = R.drawable.github),
-                        contentDescription = "GitHub Icon",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clickable {
-                                val intent = Intent(Intent.ACTION_VIEW, url.toUri())
-                                context.startActivity(intent)
-                            }
+                Text(
+                    text = contributor.name,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (!contributor.role.isNullOrBlank()) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = contributor.role,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
-                contributor.telegramUrl?.let { url ->
-                    Icon(
-                        painterResource(id = R.drawable.telegram),
-                        contentDescription = "Telegram Icon",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clickable {
-                                val intent = Intent(Intent.ACTION_VIEW, url.toUri())
-                                context.startActivity(intent)
-                            }
+            }
+
+            // Social icons only if links exist
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SocialIconButton(
+                    painterRes = R.drawable.github,
+                    contentDescription = "Abrir perfil de GitHub",
+                    url = contributor.githubUrl
+                )
+                SocialIconButton(
+                    painterRes = R.drawable.telegram,
+                    contentDescription = "Abrir Telegram",
+                    url = contributor.telegramUrl
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContributorAvatar(
+    name: String,
+    avatarUrl: String?,
+    @DrawableRes iconRes: Int?,
+    modifier: Modifier = Modifier
+) {
+    val bg = MaterialTheme.colorScheme.secondaryContainer
+    val fg = MaterialTheme.colorScheme.onSecondaryContainer
+    val initial = name.firstOrNull()?.uppercase() ?: "?"
+
+    Surface(
+        modifier = modifier.size(48.dp),
+        shape = CircleShape,
+        color = bg,
+        tonalElevation = 3.dp,
+    ) {
+        when {
+            !avatarUrl.isNullOrBlank() -> {
+                // Coil AsyncImage; if you don't use Coil, swap this for your own image loader
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(avatarUrl)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = "Avatar de $name",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                    error = painterResource(id = iconRes ?: 0).takeIf { iconRes != null },
+                    placeholder = painterResource(id = iconRes ?: 0).takeIf { iconRes != null }
+                )
+            }
+            iconRes != null -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Image(
+                        painter = painterResource(iconRes),
+                        contentDescription = "Icono de $name",
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
+            else -> {
+                // Letter tile fallback
+                Box(Modifier.fillMaxSize().background(bg), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = initial.toString(),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = fg
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SocialIconButton(
+    painterRes: Int,
+    contentDescription: String,
+    url: String?,
+    modifier: Modifier = Modifier
+) {
+    if (url.isNullOrBlank()) return
+    val context = LocalContext.current
+    IconButton(
+        onClick = { openUrl(context, url) },
+        modifier = modifier.size(40.dp)
+    ) {
+        Icon(
+            painter = painterResource(painterRes),
+            contentDescription = contentDescription,
+            tint = MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+private fun openUrl(context: Context, url: String) {
+    val uri = try { url.toUri() } catch (_: Throwable) { url.toUri() }
+    val intent = Intent(Intent.ACTION_VIEW, uri)
+    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    try {
+        context.startActivity(intent)
+    } catch (_: ActivityNotFoundException) {
+        // As a last resort, do nothing; you could show a toast/snackbar from the caller if needed.
     }
 }
