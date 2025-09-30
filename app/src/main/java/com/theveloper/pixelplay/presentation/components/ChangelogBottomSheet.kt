@@ -75,7 +75,7 @@ fun ChangelogBottomSheet(
                     versionNumber = "0.1.5-beta",
                     changesTitle = "Second beta Build",
                     changes = " ✸ Minor visual changes \n ✸ Fixed navigation bar padding \n ✸ Fixed favorite button not working \n ✸ Improved directory picker \n ✸ Minor UI Improvements \n ✸ Added haptic feedback and M3E animations for player \n" +
-                            " ✸ Fixed critical database issues"
+                            " ✸ Fixed critical database issues \n ✸ Improved different file types support"
                 )
                 HorizontalDivider(
                     modifier = Modifier

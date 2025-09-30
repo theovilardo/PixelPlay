@@ -7,7 +7,9 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+//import androidx.media3.exoplayer.ffmpeg.FfmpegAudioRenderer
 import com.theveloper.pixelplay.data.model.TransitionSettings
 import com.theveloper.pixelplay.utils.envelope
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -47,12 +49,15 @@ class DualPlayerEngine @Inject constructor(
     }
 
     private fun buildPlayer(): ExoPlayer {
+        val renderersFactory = DefaultRenderersFactory(context)
+            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+
         val audioAttributes = AudioAttributes.Builder()
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .setUsage(C.USAGE_MEDIA)
             .build()
 
-        return ExoPlayer.Builder(context).build().apply {
+        return ExoPlayer.Builder(context, renderersFactory).build().apply {
             setAudioAttributes(audioAttributes, true)
             setHandleAudioBecomingNoisy(true)
         }

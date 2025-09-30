@@ -2,6 +2,7 @@ package com.theveloper.pixelplay.data.media
 
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import android.util.Log
 import org.jaudiotagger.audio.AudioFile
 import org.jaudiotagger.audio.AudioFileIO
@@ -84,8 +85,9 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
 
     private fun createTempFileFromUri(uri: Uri): File? {
         return try {
+            val fileExtension = getFileExtension(uri)
             val inputStream = context.contentResolver.openInputStream(uri)
-            val tempFile = File.createTempFile("temp_audio", ".mp3", context.cacheDir)
+            val tempFile = File.createTempFile("temp_audio", fileExtension, context.cacheDir)
             tempFile.deleteOnExit()
             val outputStream = FileOutputStream(tempFile)
             inputStream?.use { input ->
@@ -98,5 +100,22 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
             Timber.tag("SongMetadataEditor").e(e, "Error creating temp file from URI")
             null
         }
+    }
+
+    private fun getFileExtension(uri: Uri): String {
+        var extension = ".mp3" // Default extension
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val displayNameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (displayNameIndex != -1) {
+                    val displayName = cursor.getString(displayNameIndex)
+                    val dotIndex = displayName.lastIndexOf('.')
+                    if (dotIndex > 0) {
+                        extension = displayName.substring(dotIndex)
+                    }
+                }
+            }
+        }
+        return extension
     }
 }
