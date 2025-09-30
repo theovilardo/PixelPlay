@@ -132,4 +132,6 @@ interface MusicRepository {
     suspend fun getLyrics(song: Song): Lyrics?
 
     suspend fun getLyricsFromRemote(song: Song): Result<Pair<Lyrics, String>>
+
+    suspend fun updateLyrics(songId: Long, lyrics: String)
 }

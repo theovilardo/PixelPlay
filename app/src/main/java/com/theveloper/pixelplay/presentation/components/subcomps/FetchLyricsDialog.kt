@@ -17,7 +17,8 @@ import com.theveloper.pixelplay.presentation.viewmodel.LyricsSearchUiState
 fun FetchLyricsDialog(
     uiState: LyricsSearchUiState,
     onConfirm: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onImport: () -> Unit
 ) {
     when (uiState) {
         LyricsSearchUiState.Idle -> {
@@ -33,6 +34,11 @@ fun FetchLyricsDialog(
                 dismissButton = {
                     TextButton(onClick = onDismiss) {
                         Text(stringResource(R.string.cancel))
+                    }
+                },
+                neutralButton = {
+                    TextButton(onClick = onImport) {
+                        Text(stringResource(R.string.import_file))
                     }
                 }
             )

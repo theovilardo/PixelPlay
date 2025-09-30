@@ -2136,6 +2136,38 @@ class PlayerViewModel @Inject constructor(
     }
 
     /**
+     * Procesa la letra importada de un archivo, la guarda y actualiza la UI.
+     * @param songId El ID de la canción para la que se importa la letra.
+     * @param lyricsContent El contenido de la letra como String.
+     */
+    fun importLyricsFromFile(songId: Long, lyricsContent: String) {
+        viewModelScope.launch {
+            // 1. Guardar la nueva letra en la base de datos.
+            musicRepository.updateLyrics(songId, lyricsContent)
+
+            // 2. Volver a cargar la letra para la canción actual para actualizar la UI.
+            val currentSong = _stablePlayerState.value.currentSong
+            if (currentSong != null && currentSong.id.toLong() == songId) {
+                // Actualizar la instancia de la canción en el estado estable con la nueva letra.
+                val updatedSong = currentSong.copy(lyrics = lyricsContent)
+                val parsedLyrics = LyricsUtils.parseLyrics(lyricsContent)
+
+                _stablePlayerState.update {
+                    it.copy(
+                        currentSong = updatedSong,
+                        lyrics = parsedLyrics,
+                        isLoadingLyrics = false
+                    )
+                }
+                _lyricsSearchUiState.value = LyricsSearchUiState.Success(parsedLyrics)
+                _toastEvents.emit("Lyrics imported successfully!")
+            } else {
+                _lyricsSearchUiState.value = LyricsSearchUiState.Error("Could not associate lyrics with the current song.")
+            }
+        }
+    }
+
+    /**
      * Resetea el estado de la búsqueda de letras a Idle.
      */
     fun resetLyricsSearchState() {

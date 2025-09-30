@@ -116,6 +116,9 @@ import com.theveloper.pixelplay.BottomNavItem
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
 import com.theveloper.pixelplay.presentation.components.NavBarContentHeightFullWidth
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.theveloper.pixelplay.presentation.components.subcomps.FetchLyricsDialog
 import com.theveloper.pixelplay.presentation.viewmodel.LyricsSearchUiState
 import kotlinx.collections.immutable.persistentListOf
@@ -1409,6 +1412,26 @@ private fun FullPlayerContentInternal(
 
     var showFetchLyricsDialog by remember { mutableStateOf(false) }
 
+    val context = LocalContext.current
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+        onResult = { uri: Uri? ->
+            uri?.let {
+                try {
+                    context.contentResolver.openInputStream(it)?.use { inputStream ->
+                        val lyricsContent = inputStream.bufferedReader().use { reader -> reader.readText() }
+                        currentSong?.id?.toLong()?.let { songId ->
+                            playerViewModel.importLyricsFromFile(songId, lyricsContent)
+                        }
+                    }
+                    showFetchLyricsDialog = false
+                } catch (e: Exception) {
+                    Timber.e(e, "Error reading imported lyrics file")
+                    playerViewModel.sendToast("Error reading file.")
+                }
+            }
+        }
+    )
 
     // totalDurationValue is derived from stablePlayerState, so it's fine.
     val totalDurationValue by remember {
@@ -1456,6 +1479,9 @@ private fun FullPlayerContentInternal(
                 // El usuario cancela o cierra el diálogo
                 showFetchLyricsDialog = false
                 playerViewModel.resetLyricsSearchState()
+            },
+            onImport = {
+                filePickerLauncher.launch("*/*")
             }
         )
     }

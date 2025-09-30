@@ -555,22 +555,9 @@ class MusicRepositoryImpl @Inject constructor(
     override suspend fun getLyrics(song: Song): Lyrics? {
         // 1. Check if lyrics are already in the song object (from DB)
         if (!song.lyrics.isNullOrBlank()) {
-            val lines = song.lyrics.lines()
-            val isLrc = lines.any { it.matches(Regex("\\[\\d{2}:\\d{2}\\.\\d{2,3}].*")) }
-            if (isLrc) {
-                val syncedLines = lines.mapNotNull { line ->
-                    val match = Regex("\\[(\\d{2}):(\\d{2})\\.(\\d{2,3})](.*)").find(line)
-                    if (match != null) {
-                        val (min, sec, ms, text) = match.destructured
-                        val time = min.toInt() * 60000 + sec.toInt() * 1000 + ms.toInt()
-                        SyncedLine(time, text.trim())
-                    } else {
-                        null
-                    }
-                }
-                return Lyrics(plain = lines, synced = syncedLines, areFromRemote = false)
-            } else {
-                return Lyrics(plain = lines, synced = null, areFromRemote = false)
+            val parsedLyrics = LyricsUtils.parseLyrics(song.lyrics)
+            if (!parsedLyrics.synced.isNullOrEmpty() || !parsedLyrics.plain.isNullOrEmpty()) {
+                return parsedLyrics.copy(areFromRemote = false)
             }
         }
 
@@ -588,22 +575,11 @@ class MusicRepositoryImpl @Inject constructor(
                 musicDao.updateLyrics(song.id.toLong(), lyricsFromFile)
 
                 // 4. Parse and return lyrics
-                val lines = lyricsFromFile.lines()
-                val isLrc = lines.any { it.matches(Regex("\\[\\d{2}:\\d{2}\\.\\d{2,3}].*")) }
-                 if (isLrc) {
-                    val syncedLines = lines.mapNotNull { line ->
-                        val match = Regex("\\[(\\d{2}):(\\d{2})\\.(\\d{2,3})](.*)").find(line)
-                        if (match != null) {
-                            val (min, sec, ms, text) = match.destructured
-                            val time = min.toInt() * 60000 + sec.toInt() * 1000 + ms.toInt()
-                            SyncedLine(time, text.trim())
-                        } else {
-                            null
-                        }
-                    }
-                    Lyrics(plain = lines, synced = syncedLines, areFromRemote = false)
+                val parsedLyrics = LyricsUtils.parseLyrics(lyricsFromFile)
+                if (!parsedLyrics.synced.isNullOrEmpty() || !parsedLyrics.plain.isNullOrEmpty()) {
+                    parsedLyrics.copy(areFromRemote = false)
                 } else {
-                    Lyrics(plain = lines, synced = null, areFromRemote = false)
+                    null
                 }
             } else {
                 null
@@ -635,19 +611,12 @@ class MusicRepositoryImpl @Inject constructor(
                 val rawLyricsToSave = response.syncedLyrics ?: response.plainLyrics!!
                 musicDao.updateLyrics(song.id.toLong(), rawLyricsToSave)
 
-                val synced = response.syncedLyrics?.let { LyricsUtils.parseLyrics(it).synced }
-                // If we have plain lyrics from the API, use them. Otherwise, create plain lyrics from the synced ones.
-                val plain = response.plainLyrics?.lines() ?: synced?.map { it.line }
+                // Use the centralized parser for the raw lyrics
+                val parsedLyrics = LyricsUtils.parseLyrics(rawLyricsToSave).copy(areFromRemote = true)
 
-                if (synced.isNullOrEmpty() && plain.isNullOrEmpty()) {
+                if (parsedLyrics.synced.isNullOrEmpty() && parsedLyrics.plain.isNullOrEmpty()) {
                      return@withContext Result.failure(Exception("No lyrics found for this song."))
                 }
-
-                val parsedLyrics = Lyrics(
-                    plain = plain,
-                    synced = synced,
-                    areFromRemote = true
-                )
 
                 Result.success(Pair(parsedLyrics, rawLyricsToSave))
             } else {
@@ -657,5 +626,9 @@ class MusicRepositoryImpl @Inject constructor(
             Log.e("MusicRepositoryImpl", "Error fetching lyrics from remote", e)
             Result.failure(e)
         }
+    }
+
+    override suspend fun updateLyrics(songId: Long, lyrics: String) {
+        musicDao.updateLyrics(songId, lyrics)
     }
 }
