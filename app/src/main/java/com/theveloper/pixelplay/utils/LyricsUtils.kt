@@ -110,7 +110,9 @@ object LyricsUtils {
         }
 
         return if (isSynced && syncedLines.isNotEmpty()) {
-            Lyrics(synced = syncedLines.sortedBy { it.time }, plain = plainLines.takeIf { it.any(String::isNotBlank) })
+            val sortedSyncedLines = syncedLines.sortedBy { it.time }
+            val plainVersion = sortedSyncedLines.map { it.line }
+            Lyrics(synced = sortedSyncedLines, plain = plainVersion)
         } else {
             Lyrics(plain = plainLines)
         }
