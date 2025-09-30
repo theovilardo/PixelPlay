@@ -405,7 +405,7 @@ fun ContributorCard(
         color = MaterialTheme.colorScheme.surfaceContainer, // M3 “expressive” container
         tonalElevation = 4.dp,
         shadowElevation = 0.dp,
-        border = BorderStroke(1.dp, outline)
+        border = BorderStroke(3.dp, outline)
     ) {
         Row(
             modifier = Modifier
