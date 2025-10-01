@@ -18,4 +18,5 @@
     <string name="error">Error</string>
     <string name="ok">OK</string>
     <string name="cancel">Cancel</string>
+    <string name="import_file">Import</string>
 </resources>

@@ -35,6 +35,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.data.model.Lyrics
 import com.theveloper.pixelplay.data.model.SyncedLine
+import com.theveloper.pixelplay.data.model.SyncedWord
 import kotlinx.coroutines.flow.Flow
 import java.util.regex.Pattern
 import kotlin.math.PI
@@ -44,6 +45,7 @@ import kotlin.math.sin
 object LyricsUtils {
 
     private val LRC_LINE_REGEX = Pattern.compile("^\\[(\\d{2}):(\\d{2})\\.(\\d{2,3})](.*)$")
+    private val LRC_WORD_REGEX = Pattern.compile("<(\\d{2}):(\\d{2})\\.(\\d{2,3})>([^<]*)")
 
     /**
      * Parsea un String que contiene una letra en formato LRC o texto plano.
@@ -60,16 +62,48 @@ object LyricsUtils {
         var isSynced = false
 
         lyricsText.lines().forEach { line ->
-            val matcher = LRC_LINE_REGEX.matcher(line)
-            if (matcher.matches()) {
+            val lineMatcher = LRC_LINE_REGEX.matcher(line)
+            if (lineMatcher.matches()) {
                 isSynced = true
-                val minutes = matcher.group(1)?.toLong() ?: 0
-                val seconds = matcher.group(2)?.toLong() ?: 0
-                val millis = matcher.group(3)?.toLong() ?: 0
-                val text = matcher.group(4)?.trim() ?: ""
-                val timestamp = minutes * 60 * 1000 + seconds * 1000 + millis
-                if (text.isNotEmpty()) {
-                    syncedLines.add(SyncedLine(timestamp.toInt(), text))
+                val minutes = lineMatcher.group(1)?.toLong() ?: 0
+                val seconds = lineMatcher.group(2)?.toLong() ?: 0
+                val fraction = lineMatcher.group(3)?.toLong() ?: 0
+                val text = lineMatcher.group(4)?.trim() ?: ""
+
+                val millis = if (lineMatcher.group(3)?.length == 2) fraction * 10 else fraction
+                val lineTimestamp = minutes * 60 * 1000 + seconds * 1000 + millis
+
+                // Enhanced word-by-word parsing
+                if (text.contains(Regex("<\\d{2}:\\d{2}\\.\\d{2,3}>"))) {
+                    val words = mutableListOf<SyncedWord>()
+                    val parts = text.split(Regex("(?=<\\d{2}:\\d{2}\\.\\d{2,3}>)"))
+
+                    for (part in parts) {
+                        if (part.isEmpty()) continue
+                        val wordMatcher = LRC_WORD_REGEX.matcher(part)
+                        if (wordMatcher.find()) {
+                            val wordMinutes = wordMatcher.group(1)?.toLong() ?: 0
+                            val wordSeconds = wordMatcher.group(2)?.toLong() ?: 0
+                            val wordFraction = wordMatcher.group(3)?.toLong() ?: 0
+                            val wordText = wordMatcher.group(4) ?: ""
+                            val wordMillis = if (wordMatcher.group(3)?.length == 2) wordFraction * 10 else wordFraction
+                            val wordTimestamp = wordMinutes * 60 * 1000 + wordSeconds * 1000 + wordMillis
+                            words.add(SyncedWord(wordTimestamp.toInt(), wordText))
+                        } else {
+                            // This is untagged text at the beginning of the line
+                            val lastTime = words.lastOrNull()?.time ?: lineTimestamp.toInt()
+                            words.add(SyncedWord(lastTime, part))
+                        }
+                    }
+
+                    if (words.isNotEmpty()) {
+                        val fullLineText = words.joinToString("") { it.word }
+                        syncedLines.add(SyncedLine(lineTimestamp.toInt(), fullLineText, words))
+                    } else if (text.isNotEmpty()) {
+                        syncedLines.add(SyncedLine(lineTimestamp.toInt(), text))
+                    }
+                } else if (text.isNotEmpty()) {
+                    syncedLines.add(SyncedLine(lineTimestamp.toInt(), text))
                 }
             } else {
                 plainLines.add(line)
@@ -77,7 +111,9 @@ object LyricsUtils {
         }
 
         return if (isSynced && syncedLines.isNotEmpty()) {
-            Lyrics(synced = syncedLines.sortedBy { it.time })
+            val sortedSyncedLines = syncedLines.sortedBy { it.time }
+            val plainVersion = sortedSyncedLines.map { it.line }
+            Lyrics(synced = sortedSyncedLines, plain = plainVersion)
         } else {
             Lyrics(plain = plainLines)
         }

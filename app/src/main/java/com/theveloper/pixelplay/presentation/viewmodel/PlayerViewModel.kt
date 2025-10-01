@@ -59,6 +59,7 @@ import com.theveloper.pixelplay.ui.theme.GenreColors
 import com.theveloper.pixelplay.ui.theme.LightColorScheme
 import com.theveloper.pixelplay.ui.theme.extractSeedColor
 import com.theveloper.pixelplay.ui.theme.generateColorSchemeFromSeed
+import com.theveloper.pixelplay.utils.LyricsUtils
 import com.theveloper.pixelplay.utils.toHexString
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -1049,6 +1050,9 @@ class PlayerViewModel @Inject constructor(
                     val song = _playerUiState.value.currentPlaybackQueue.find { s -> s.id == songId }
                         ?: _playerUiState.value.allSongs.find { s -> s.id == songId }
 
+                    // Reset lyrics state for the new song
+                    resetLyricsSearchState()
+
                     _stablePlayerState.update {
                         it.copy(
                             currentSong = song,
@@ -1538,7 +1542,7 @@ class PlayerViewModel @Inject constructor(
                 if (newPosition != _playerUiState.value.currentPosition) {
                     _playerUiState.update { it.copy(currentPosition = newPosition) }
                 }
-                delay(1000)
+                delay(40)
             }
         }
     }
@@ -2131,6 +2135,38 @@ class PlayerViewModel @Inject constructor(
                     .onFailure { error ->
                         _lyricsSearchUiState.value = LyricsSearchUiState.Error(error.message ?: "Unknown error")
                     }
+            }
+        }
+    }
+
+    /**
+     * Procesa la letra importada de un archivo, la guarda y actualiza la UI.
+     * @param songId El ID de la canción para la que se importa la letra.
+     * @param lyricsContent El contenido de la letra como String.
+     */
+    fun importLyricsFromFile(songId: Long, lyricsContent: String) {
+        viewModelScope.launch {
+            // 1. Guardar la nueva letra en la base de datos.
+            musicRepository.updateLyrics(songId, lyricsContent)
+
+            // 2. Volver a cargar la letra para la canción actual para actualizar la UI.
+            val currentSong = _stablePlayerState.value.currentSong
+            if (currentSong != null && currentSong.id.toLong() == songId) {
+                // Actualizar la instancia de la canción en el estado estable con la nueva letra.
+                val updatedSong = currentSong.copy(lyrics = lyricsContent)
+                val parsedLyrics = LyricsUtils.parseLyrics(lyricsContent)
+
+                _stablePlayerState.update {
+                    it.copy(
+                        currentSong = updatedSong,
+                        lyrics = parsedLyrics,
+                        isLoadingLyrics = false
+                    )
+                }
+                _lyricsSearchUiState.value = LyricsSearchUiState.Success(parsedLyrics)
+                _toastEvents.emit("Lyrics imported successfully!")
+            } else {
+                _lyricsSearchUiState.value = LyricsSearchUiState.Error("Could not associate lyrics with the current song.")
             }
         }
     }

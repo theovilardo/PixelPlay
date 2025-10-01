@@ -18,4 +18,11 @@ data class Lyrics(
 )
 
 @Serializable
-data class SyncedLine(val time: Int, val line: String)
+data class SyncedLine(
+    val time: Int,
+    val line: String,
+    val words: List<SyncedWord>? = null // Null if not a word-by-word synced lyric
+)
+
+@Serializable
+data class SyncedWord(val time: Int, val word: String)

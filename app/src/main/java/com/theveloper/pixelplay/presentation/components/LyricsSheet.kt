@@ -2,6 +2,7 @@ package com.theveloper.pixelplay.presentation.components
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -31,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.R
+import com.theveloper.pixelplay.data.model.SyncedLine
 import com.theveloper.pixelplay.presentation.screens.TabAnimation
 import com.theveloper.pixelplay.presentation.components.subcomps.PlayerSeekBar
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerUiState
@@ -338,24 +340,23 @@ fun LyricsSheet(
                             itemsIndexed(
                                 items = synced,
                                 key = { index, item -> "$index-${item.time}" }
-                            ) { index, (time, line) ->
+                            ) { index, syncedLine ->
                                 val nextTime = synced.getOrNull(index + 1)?.time ?: Int.MAX_VALUE
 
-                                if (line.isNotBlank()) {
+                                if (syncedLine.line.isNotBlank()) {
                                     SyncedLyricsLine(
                                         positionFlow = playerUiStateFlow.map { it.currentPosition },
-                                        time = time,
+                                        syncedLine = syncedLine,
                                         nextTime = nextTime,
-                                        line = line,
                                         accentColor = accentColor,
                                         style = lyricsTextStyle,
-                                        onClick = { onSeekTo(time.toLong()) },
+                                        onClick = { onSeekTo(syncedLine.time.toLong()) },
                                         modifier = Modifier.fillMaxWidth()
                                     )
                                 } else {
                                     BubblesLine(
                                         positionFlow = playerUiStateFlow.map { it.currentPosition },
-                                        time = time,
+                                        time = syncedLine.time,
                                         color = contentColor,
                                         nextTime = nextTime,
                                         modifier = Modifier.padding(vertical = 8.dp)
@@ -434,26 +435,54 @@ fun LyricsSheet(
 @Composable
 fun SyncedLyricsLine(
     positionFlow: Flow<Long>,
-    time: Int,
+    syncedLine: SyncedLine,
     accentColor: Color,
     nextTime: Int,
-    line: String,
     style: TextStyle,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val position by positionFlow.collectAsState(0)
-    val isCurrentLine by remember(position, time, nextTime) {
-        derivedStateOf { position in time.toLong()..nextTime.toLong() }
+    val position by positionFlow.collectAsState(0L)
+    val isCurrentLine by remember(position, syncedLine.time, nextTime) {
+        derivedStateOf { position in syncedLine.time.toLong()..<nextTime.toLong() }
     }
 
-    Text(
-        text = line,
-        style = style,
-        color = if (isCurrentLine) accentColor else LocalContentColor.current.copy(alpha = 0.45f),
-        fontWeight = if (isCurrentLine) FontWeight.Bold else FontWeight.Normal,
-        modifier = modifier.clickable { onClick() }
-    )
+    val words = syncedLine.words
+    if (words.isNullOrEmpty()) {
+        // Fallback to line-by-line
+        Text(
+            text = syncedLine.line,
+            style = style,
+            color = if (isCurrentLine) accentColor else LocalContentColor.current.copy(alpha = 0.45f),
+            fontWeight = if (isCurrentLine) FontWeight.Bold else FontWeight.Normal,
+            modifier = modifier.clickable { onClick() }
+        )
+    } else {
+        // Word-by-word highlighting
+        val unhighlightedColor = LocalContentColor.current.copy(alpha = 0.45f)
+        val highlightedColor = accentColor
+
+        Row(modifier = modifier.clickable { onClick() }) {
+            for ((index, word) in words.withIndex()) {
+                val nextWordTime = words.getOrNull(index + 1)?.time?.toLong() ?: nextTime.toLong()
+                val isCurrentWord by remember(position, word.time, nextWordTime) {
+                    derivedStateOf { position in word.time.toLong()..<nextWordTime }
+                }
+
+                val color by animateColorAsState(
+                    targetValue = if (isCurrentWord) highlightedColor else unhighlightedColor,
+                    animationSpec = tween(durationMillis = 300)
+                )
+
+                Text(
+                    text = word.word,
+                    style = style,
+                    color = color,
+                    fontWeight = if (isCurrentWord) FontWeight.Bold else FontWeight.Normal,
+                )
+            }
+        }
+    }
 }
 
 @Composable
