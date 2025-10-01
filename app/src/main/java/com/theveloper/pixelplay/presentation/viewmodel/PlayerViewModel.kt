@@ -928,7 +928,21 @@ class PlayerViewModel @Inject constructor(
         mediaController?.let { controller ->
             if (fromIndex >= 0 && fromIndex < controller.mediaItemCount &&
                 toIndex >= 0 && toIndex < controller.mediaItemCount) {
+
+                // Move the item in the MediaController's timeline.
+                // This is the source of truth for playback.
                 controller.moveMediaItem(fromIndex, toIndex)
+
+                // Also update the UI state immediately and optimistically.
+                // This prevents the visual "snap back" effect.
+                val currentQueue = _playerUiState.value.currentPlaybackQueue.toMutableList()
+                if (fromIndex < currentQueue.size && toIndex < currentQueue.size) {
+                    val movedItem = currentQueue.removeAt(fromIndex)
+                    currentQueue.add(toIndex, movedItem)
+                    _playerUiState.update {
+                        it.copy(currentPlaybackQueue = currentQueue.toImmutableList())
+                    }
+                }
             }
         }
     }
