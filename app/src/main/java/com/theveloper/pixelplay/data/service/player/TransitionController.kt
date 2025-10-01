@@ -62,8 +62,11 @@ class TransitionController @Inject constructor(
             override fun onTimelineChanged(timeline: Timeline, reason: Int) {
                 if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) {
                     // The queue has changed (e.g., reordered, item removed).
-                    // We need to re-evaluate and reschedule the transition for the new next track.
-                    engine.masterPlayer.currentMediaItem?.let { scheduleTransitionFor(it) }
+                    // We cancel any pending transition to let the player simply move to the
+                    // next track in the new order. The transition will be rescheduled in
+                    // onMediaItemTransition.
+                    transitionSchedulerJob?.cancel()
+                    engine.cancelNext()
                 }
             }
         }.also {
