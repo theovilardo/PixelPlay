@@ -926,39 +926,10 @@ class PlayerViewModel @Inject constructor(
 
     fun reorderQueueItem(fromIndex: Int, toIndex: Int) {
         mediaController?.let { controller ->
-            val currentQueue = _playerUiState.value.currentPlaybackQueue.toMutableList()
-            val currentSongId = controller.currentMediaItem?.mediaId ?: return@let
-            val currentPosition = controller.currentPosition
-
-            if (fromIndex < 0 || fromIndex >= currentQueue.size || toIndex < 0 || toIndex >= currentQueue.size) {
-                return@let
+            if (fromIndex >= 0 && fromIndex < controller.mediaItemCount &&
+                toIndex >= 0 && toIndex < controller.mediaItemCount) {
+                controller.moveMediaItem(fromIndex, toIndex)
             }
-
-            val songToMove = currentQueue.removeAt(fromIndex)
-            currentQueue.add(toIndex, songToMove)
-            val newQueue = currentQueue.toImmutableList()
-
-            val newCurrentIndex = newQueue.indexOfFirst { it.id == currentSongId }
-            if (newCurrentIndex == -1) {
-                return@let
-            }
-
-            val mediaItems = newQueue.map { song ->
-                MediaItem.Builder()
-                    .setMediaId(song.id)
-                    .setUri(song.contentUriString.toUri())
-                    .setMediaMetadata(
-                        MediaMetadata.Builder()
-                            .setTitle(song.title)
-                            .setArtist(song.artist)
-                            .setArtworkUri(song.albumArtUriString?.toUri())
-                            .build()
-                    )
-                    .build()
-            }
-
-            _playerUiState.update { it.copy(currentPlaybackQueue = newQueue) }
-            controller.setMediaItems(mediaItems, newCurrentIndex, currentPosition)
         }
     }
 
@@ -1133,9 +1104,8 @@ class PlayerViewModel @Inject constructor(
             override fun onRepeatModeChanged(repeatMode: Int) { _stablePlayerState.update { it.copy(repeatMode = repeatMode) } }
             override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
                 if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) {
-                    println("IN onTimelineChanged")
-                  //  updateCurrentPlaybackQueueFromPlayer(playerCtrl)
-                } // Pass playerCtrl}
+                    updateCurrentPlaybackQueueFromPlayer(playerCtrl)
+                }
             }
         })
         Trace.endSection()
