@@ -35,6 +35,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.data.model.Lyrics
 import com.theveloper.pixelplay.data.model.SyncedLine
+import com.theveloper.pixelplay.data.model.SyncedWord
 import kotlinx.coroutines.flow.Flow
 import java.util.regex.Pattern
 import kotlin.math.PI

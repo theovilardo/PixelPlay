@@ -59,6 +59,7 @@ import com.theveloper.pixelplay.ui.theme.GenreColors
 import com.theveloper.pixelplay.ui.theme.LightColorScheme
 import com.theveloper.pixelplay.ui.theme.extractSeedColor
 import com.theveloper.pixelplay.ui.theme.generateColorSchemeFromSeed
+import com.theveloper.pixelplay.utils.LyricsUtils
 import com.theveloper.pixelplay.utils.toHexString
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
