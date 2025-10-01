@@ -433,6 +433,16 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun shuffleFavoriteSongs() {
+        Log.d("ShuffleDebug", "shuffleFavoriteSongs called.")
+        mediaController?.shuffleModeEnabled = true
+        val favSongs = favoriteSongs.value
+        if (favSongs.isNotEmpty()) {
+            val shuffledList = favSongs.shuffled()
+            playSongs(shuffledList, shuffledList.first(), "Liked Songs (Shuffled)")
+        }
+    }
+
     private fun loadPersistedDailyMix() {
         viewModelScope.launch {
             // Combine the flow of persisted IDs with the flow of all songs

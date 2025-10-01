@@ -373,6 +373,7 @@ fun LibraryScreen(
                             onMainActionClick = {
                                 when (pagerState.currentPage) {
                                     3 -> showCreatePlaylistDialog = true
+                                    4 -> playerViewModel.shuffleFavoriteSongs()
                                     else -> playerViewModel.shuffleAllSongs()
                                 }
                             },
@@ -776,7 +777,7 @@ fun LibraryFavoritesTab(
                         isCurrentSong = favoriteSongs.isNotEmpty() && stablePlayerState.currentSong == song,
                         isPlaying = isPlayingThisSong,
                         onMoreOptionsClick = { onMoreOptionsClick(song) },
-                        onClick = { playerViewModel.showAndPlaySong(song) }
+                        onClick = { playerViewModel.showAndPlaySong(song, favoriteSongs, "Liked Songs") }
                     )
                 }
             }
