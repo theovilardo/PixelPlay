@@ -411,7 +411,10 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier
                             .fillMaxWidth()
                             .onSizeChanged { componentHeightPx = it.height }
-                            .graphicsLayer { translationY = animatedTranslationY }
+                            .graphicsLayer {
+                                translationY = animatedTranslationY
+                                alpha = 1f
+                            }
                     ) {
                         val navHeight: Dp
                         val bottomPadding: Dp
