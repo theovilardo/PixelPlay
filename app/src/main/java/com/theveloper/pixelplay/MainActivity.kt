@@ -404,18 +404,6 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    val conditionalShape = if (showPlayerContentArea) {
-                        actualShape
-                    } else {
-                        if (navBarStyle == NavBarStyle.DEFAULT) {
-                            RoundedCornerShape(60.dp)
-                        } else { // FULL_WIDTH
-                            RoundedCornerShape(0.dp)
-                        }
-                    }
-
-
-
                     var componentHeightPx by remember { mutableStateOf(0) }
                     val animatedTranslationY by remember(navBarHideFraction, componentHeightPx) { derivedStateOf { componentHeightPx * navBarHideFraction } }
 
@@ -443,7 +431,7 @@ class MainActivity : ComponentActivity() {
                                 .padding(horizontal = horizontalPadding)
                                 .padding(bottom = bottomPadding),
                             color = NavigationBarDefaults.containerColor,
-                            shape = conditionalShape,
+                            shape = actualShape,
                             shadowElevation = navBarElevation
                         ) {
                             PlayerInternalNavigationBar(
