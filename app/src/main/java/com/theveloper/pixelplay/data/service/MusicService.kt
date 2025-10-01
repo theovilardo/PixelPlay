@@ -218,13 +218,6 @@ class MusicService : MediaSessionService() {
             mediaSession?.let { onUpdateNotification(it) }
         }
 
-        override fun onTimelineChanged(timeline: Timeline, reason: Int) {
-            if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) {
-                requestWidgetFullUpdate(force = true)
-                mediaSession?.let { onUpdateNotification(it) }
-            }
-        }
-
         override fun onPlayerError(error: PlaybackException) {
             Timber.tag(TAG).e(error, "Error en el reproductor: ")
         }
