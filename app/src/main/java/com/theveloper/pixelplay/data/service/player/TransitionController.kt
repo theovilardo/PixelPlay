@@ -4,6 +4,7 @@ import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.data.model.TransitionMode
 import com.theveloper.pixelplay.data.repository.TransitionRepository
@@ -58,7 +59,7 @@ class TransitionController @Inject constructor(
                 }
             }
 
-            override fun onTimelineChanged(timeline: Player.Timeline, reason: Int) {
+            override fun onTimelineChanged(timeline: Timeline, reason: Int) {
                 if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) {
                     // The queue has changed (e.g., reordered, item removed).
                     // We need to re-evaluate and reschedule the transition for the new next track.
