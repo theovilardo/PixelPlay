@@ -918,8 +918,19 @@ class PlayerViewModel @Inject constructor(
         mediaController?.let { controller ->
             val currentQueue = _playerUiState.value.currentPlaybackQueue
             val indexToRemove = currentQueue.indexOfFirst { it.id == songId }
+
             if (indexToRemove != -1) {
+                // Command the player to remove the item. This is the source of truth for playback.
                 controller.removeMediaItem(indexToRemove)
+
+                // Also update the UI state immediately and optimistically.
+                // This prevents the visual lag where the item remains until the next full sync.
+                val updatedQueue = currentQueue.toMutableList().apply {
+                    removeAt(indexToRemove)
+                }
+                _playerUiState.update {
+                    it.copy(currentPlaybackQueue = updatedQueue.toImmutableList())
+                }
             }
         }
     }

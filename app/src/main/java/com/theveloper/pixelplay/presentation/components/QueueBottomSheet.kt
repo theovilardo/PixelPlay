@@ -156,7 +156,12 @@ fun QueueBottomSheet(
                 val fromSong = displayQueue[fromIndex]
                 val fromOriginalIndex = queue.indexOfFirst { it.id == fromSong.id }
 
-                val toSong = items[toIndex]
+                // FIX: The `to` index must be derived from the stable `displayQueue`.
+                // The `items` list is a temporary state for the drag animation and using it
+                // to find the destination song is incorrect because `items[toIndex]` will
+                // point to the song that was just moved. By using `displayQueue`, we get
+                // the song that was at the destination index *before* the drag operation.
+                val toSong = displayQueue[toIndex]
                 val toOriginalIndex = queue.indexOfFirst { it.id == toSong.id }
 
                 if (fromOriginalIndex != -1 && toOriginalIndex != -1) {
