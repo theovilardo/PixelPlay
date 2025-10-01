@@ -48,12 +48,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.HorizontalMultiBrowseCarousel
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberCarouselState
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -130,6 +132,7 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import timber.log.Timber
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
+import kotlin.math.absoluteValue
 import kotlin.math.pow
 import kotlin.math.roundToLong
 import kotlin.math.sign
@@ -1016,6 +1019,8 @@ fun UnifiedPlayerSheet(
                                             FullPlayerContentInternal(
                                                 currentSong = currentSongNonNull, // Use non-null version
                                                 currentPosition = currentPosition, // Pass granular currentPosition
+                                                currentPlaybackQueue = currentPlaybackQueue,
+                                                currentQueueSourceName = currentQueueSourceName,
                                                 isPlaying = stablePlayerState.isPlaying,
                                                 isShuffleEnabled = stablePlayerState.isShuffleEnabled,
                                                 repeatMode = stablePlayerState.repeatMode,
@@ -1088,19 +1093,65 @@ fun UnifiedPlayerSheet(
 }
 
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AlbumArtDisplaySection( // Renamed for clarity and to avoid conflict if OptimizedAlbumArt is used directly
-    song: Song?, // Nullable, comes from stablePlayerState
+private fun AlbumCarouselSection(
+    currentSong: Song?,
+    queue: ImmutableList<Song>,
     expansionFraction: Float,
+    onSongSelected: (Song) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    song?.let { currentSong ->
+    if (queue.isEmpty()) return
+
+    val carouselState = rememberCarouselState { queue.size }
+    val currentSongIndex = remember(currentSong, queue) {
+        queue.indexOf(currentSong).coerceAtLeast(0)
+    }
+
+    // Sync carousel page TO player state
+    LaunchedEffect(currentSongIndex) {
+        if (carouselState.currentPage != currentSongIndex) {
+            carouselState.animateScrollToPage(currentSongIndex)
+        }
+    }
+
+    // Sync player state TO carousel page (when user swipes)
+    LaunchedEffect(carouselState.settledPage) {
+        snapshotFlow { carouselState.settledPage }.distinctUntilChanged().collect { page ->
+            if (page != currentSongIndex) {
+                queue.getOrNull(page)?.let { newSong ->
+                    onSongSelected(newSong)
+                }
+            }
+        }
+    }
+
+    HorizontalMultiBrowseCarousel(
+        state = carouselState,
+        modifier = modifier,
+        preferredItemWidth = 280.dp,
+        itemSpacing = 8.dp,
+    ) { index ->
+        val songInCarousel = queue[index]
+        val pageOffset = (carouselState.currentPage - index + carouselState.currentPageOffsetFraction).absoluteValue
+        val scale = 1f - (pageOffset * 0.2f).coerceAtMost(0.2f)
+        val alpha = 1f - (pageOffset * 0.3f).coerceAtMost(0.6f)
+        val cornerRadius = lerp(16.dp, 24.dp, expansionFraction)
+
         OptimizedAlbumArt(
-            uri = currentSong.albumArtUriString,
-            title = currentSong.title,
+            uri = songInCarousel.albumArtUriString,
+            title = songInCarousel.title,
             expansionFraction = expansionFraction,
-            modifier = modifier,
-            targetSize = coil.size.Size(600, 600) // Tamaño específico para el reproductor expandido
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(cornerRadius))
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    this.alpha = alpha
+                },
+            targetSize = coil.size.Size(600, 600)
         )
     }
 }
@@ -1363,6 +1414,8 @@ private enum class ButtonType {
 private fun FullPlayerContentInternal(
     currentSong: Song?,
     currentPosition: Long, // Added currentPosition
+    currentPlaybackQueue: ImmutableList<Song>,
+    currentQueueSourceName: String,
     isPlaying: Boolean,
     isShuffleEnabled: Boolean,
     repeatMode: Int,
@@ -1601,16 +1654,24 @@ private fun FullPlayerContentInternal(
             // Album Cover section
             val albumArtContainerModifier = Modifier
                 .padding(vertical = lerp(4.dp, 8.dp, expansionFraction))
-                .fillMaxWidth(lerp(0.5f, 0.8f, expansionFraction))
-                .aspectRatio(1f)
-                .clip(RoundedCornerShape(lerp(16.dp, 24.dp, expansionFraction)))
-                //.shadow(elevation = 16.dp * expansionFraction)
+                .fillMaxWidth() // Let the carousel manage its width
+                .height(lerp(150.dp, 280.dp, expansionFraction)) // Adjust height for carousel
                 .graphicsLayer { alpha = expansionFraction }
 
             // Album Cover section - uses new Composable
-            AlbumArtDisplaySection(
-                song = currentSong,
+            AlbumCarouselSection(
+                currentSong = currentSong,
+                queue = currentPlaybackQueue,
                 expansionFraction = expansionFraction,
+                onSongSelected = { newSong ->
+                    if (newSong.id != currentSong?.id) {
+                        playerViewModel.playSongs(
+                            songs = currentPlaybackQueue,
+                            startSong = newSong,
+                            sourceName = currentQueueSourceName
+                        )
+                    }
+                },
                 modifier = albumArtContainerModifier
             )
 
