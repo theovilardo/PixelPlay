@@ -67,8 +67,20 @@ class DualPlayerEngine @Inject constructor(
      * Prepares the auxiliary player (Player B) with the next media item.
      */
     fun prepareNext(mediaItem: MediaItem) {
+        playerB.stop()
+        playerB.clearMediaItems()
         playerB.setMediaItem(mediaItem)
         playerB.prepare()
+    }
+
+    /**
+     * If a track was pre-buffered in Player B, this cancels it.
+     */
+    fun cancelNext() {
+        if (playerB.mediaItemCount > 0) {
+            playerB.stop()
+            playerB.clearMediaItems()
+        }
     }
 
     /**
@@ -115,15 +127,13 @@ class DualPlayerEngine @Inject constructor(
         }
         playerB.volume = 1f
 
-        // 3. Perform handover to make Player B the new Player A
-        // This is the same handover logic as the overlap transition.
-        val originalQueue = List(playerA.mediaItemCount) { i -> playerA.getMediaItemAt(i) }
-        val nextIndex = playerA.nextMediaItemIndex
-        if (nextIndex != C.INDEX_UNSET && nextIndex < originalQueue.size) {
-            val nextPosition = playerB.currentPosition
-            playerA.setMediaItems(originalQueue, nextIndex, nextPosition)
+        // 3. Handover to Player A.
+        // Player A is the master player and its timeline is managed by the MediaController.
+        // We just need to tell it to move to the next item and sync its state with Player B.
+        if (playerA.hasNextMediaItem()) {
+            playerA.seekToNextMediaItem()
+            playerA.seekTo(playerB.currentPosition)
             playerA.volume = 1f
-            playerA.prepare()
             playerA.play()
         }
 
@@ -154,14 +164,11 @@ class DualPlayerEngine @Inject constructor(
         // 2. Stop Player A after fade-out is complete
         playerA.stop()
 
-        // 3. Handover to Player A
-        val originalQueue = List(playerA.mediaItemCount) { i -> playerA.getMediaItemAt(i) }
-        val nextIndex = playerA.nextMediaItemIndex
-        if (nextIndex != C.INDEX_UNSET && nextIndex < originalQueue.size) {
-            val nextPosition = playerB.currentPosition
-            playerA.setMediaItems(originalQueue, nextIndex, nextPosition)
+        // 3. Handover to Player A.
+        if (playerA.hasNextMediaItem()) {
+            playerA.seekToNextMediaItem()
+            playerA.seekTo(playerB.currentPosition)
             playerA.volume = 1f
-            playerA.prepare()
             playerA.play()
         }
 

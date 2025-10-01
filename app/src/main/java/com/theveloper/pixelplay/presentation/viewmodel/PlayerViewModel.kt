@@ -918,8 +918,19 @@ class PlayerViewModel @Inject constructor(
         mediaController?.let { controller ->
             val currentQueue = _playerUiState.value.currentPlaybackQueue
             val indexToRemove = currentQueue.indexOfFirst { it.id == songId }
+
             if (indexToRemove != -1) {
+                // Command the player to remove the item. This is the source of truth for playback.
                 controller.removeMediaItem(indexToRemove)
+
+                // Also update the UI state immediately and optimistically.
+                // This prevents the visual lag where the item remains until the next full sync.
+                val updatedQueue = currentQueue.toMutableList().apply {
+                    removeAt(indexToRemove)
+                }
+                _playerUiState.update {
+                    it.copy(currentPlaybackQueue = updatedQueue.toImmutableList())
+                }
             }
         }
     }
@@ -928,7 +939,21 @@ class PlayerViewModel @Inject constructor(
         mediaController?.let { controller ->
             if (fromIndex >= 0 && fromIndex < controller.mediaItemCount &&
                 toIndex >= 0 && toIndex < controller.mediaItemCount) {
+
+                // Move the item in the MediaController's timeline.
+                // This is the source of truth for playback.
                 controller.moveMediaItem(fromIndex, toIndex)
+
+                // Also update the UI state immediately and optimistically.
+                // This prevents the visual "snap back" effect.
+                val currentQueue = _playerUiState.value.currentPlaybackQueue.toMutableList()
+                if (fromIndex < currentQueue.size && toIndex < currentQueue.size) {
+                    val movedItem = currentQueue.removeAt(fromIndex)
+                    currentQueue.add(toIndex, movedItem)
+                    _playerUiState.update {
+                        it.copy(currentPlaybackQueue = currentQueue.toImmutableList())
+                    }
+                }
             }
         }
     }
@@ -1103,10 +1128,8 @@ class PlayerViewModel @Inject constructor(
             }
             override fun onRepeatModeChanged(repeatMode: Int) { _stablePlayerState.update { it.copy(repeatMode = repeatMode) } }
             override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
-                if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) {
-                    println("IN onTimelineChanged")
-                  //  updateCurrentPlaybackQueueFromPlayer(playerCtrl)
-                } // Pass playerCtrl}
+                // The queue is now updated manually in reorderQueueItem to avoid race conditions.
+                // No longer need to update it here.
             }
         })
         Trace.endSection()

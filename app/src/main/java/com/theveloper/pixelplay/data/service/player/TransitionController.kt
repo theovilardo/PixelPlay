@@ -4,6 +4,7 @@ import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.data.model.TransitionMode
 import com.theveloper.pixelplay.data.repository.TransitionRepository
@@ -57,6 +58,17 @@ class TransitionController @Inject constructor(
                     job?.cancel()
                 }
             }
+
+            override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+                if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) {
+                    // The queue has changed (e.g., reordered, item removed).
+                    // We cancel any pending transition to let the player simply move to the
+                    // next track in the new order. The transition will be rescheduled in
+                    // onMediaItemTransition.
+                    transitionSchedulerJob?.cancel()
+                    engine.cancelNext()
+                }
+            }
         }.also {
             engine.masterPlayer.addListener(it)
         }
@@ -68,8 +80,9 @@ class TransitionController @Inject constructor(
             val player = engine.masterPlayer
             val nextIndex = player.currentMediaItemIndex + 1
 
-            // Ensure there is a next track to transition to.
+            // If there is no next track, cancel any pending transition and stop.
             if (nextIndex >= player.mediaItemCount) {
+                engine.cancelNext()
                 return@launch
             }
 
