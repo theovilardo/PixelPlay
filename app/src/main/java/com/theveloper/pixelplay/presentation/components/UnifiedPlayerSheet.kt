@@ -232,45 +232,27 @@ fun UnifiedPlayerSheet(
 
     val playerContentExpansionFraction = playerViewModel.playerContentExpansionFraction
     val visualOvershootScaleY = remember { Animatable(1f) }
-    var shouldRenderFullPlayer by remember { mutableStateOf(false) }
-    val fullPlayerContentAlpha = remember { Animatable(0f) }
     val initialFullPlayerOffsetY = remember(density) { with(density) { 24.dp.toPx() } }
-    val fullPlayerTranslationY = remember { Animatable(initialFullPlayerOffsetY) }
+
+    val fullPlayerContentAlpha by remember {
+        derivedStateOf {
+            (playerContentExpansionFraction.value - 0.25f).coerceIn(0f, 0.75f) / 0.75f
+        }
+    }
+
+    val fullPlayerTranslationY by remember {
+        derivedStateOf {
+            lerp(initialFullPlayerOffsetY, 0f, fullPlayerContentAlpha)
+        }
+    }
 
     LaunchedEffect(showPlayerContentArea, currentSheetContentState) {
         val targetFraction = if (showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) 1f else 0f
 
-        if (targetFraction == 0f) {
-            shouldRenderFullPlayer = false
-            fullPlayerContentAlpha.snapTo(0f)
-            fullPlayerTranslationY.snapTo(initialFullPlayerOffsetY)
-        }
-
         playerContentExpansionFraction.animateTo(
             targetFraction,
             animationSpec = tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
-        ) {
-            if (targetFraction == 1f && this.value == 1f) {
-                shouldRenderFullPlayer = true
-                scope.launch {
-                    launch {
-                        fullPlayerContentAlpha.animateTo(
-                            1f,
-                            animationSpec = tween(durationMillis = 100, easing = FastOutSlowInEasing)
-                        )
-                    }
-                    launch {
-                        fullPlayerTranslationY.animateTo(
-                            targetValue = 0f,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioNoBouncy,
-                                stiffness = Spring.StiffnessMedium
-                            )
-                        )
-                    }
-                }
-            }
-        }
+        )
 
         if (showPlayerContentArea) {
             scope.launch {
@@ -286,9 +268,8 @@ fun UnifiedPlayerSheet(
                         }
                     )
                 } else {
-                    // A default bounce for tap-to-collapse
                     launch {
-                        visualOvershootScaleY.snapTo(0.96f) //controls how much it can reduce vertically
+                        visualOvershootScaleY.snapTo(0.96f)
                         visualOvershootScaleY.animateTo(
                             targetValue = 1f,
                             animationSpec = spring(
@@ -302,11 +283,6 @@ fun UnifiedPlayerSheet(
         } else {
             scope.launch {
                 visualOvershootScaleY.snapTo(1f)
-            }
-            if(shouldRenderFullPlayer) { // Check if it was true before to avoid unnecessary snaps
-                shouldRenderFullPlayer = false
-                fullPlayerContentAlpha.snapTo(0f)
-                fullPlayerTranslationY.snapTo(initialFullPlayerOffsetY)
             }
         }
     }
@@ -1029,13 +1005,13 @@ fun UnifiedPlayerSheet(
                                     }
                                 }
 
-                                if (shouldRenderFullPlayer) {
+                                if (fullPlayerContentAlpha > 0f) {
                                     CompositionLocalProvider(
                                         LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
                                     ) {
                                         Box(modifier = Modifier.graphicsLayer {
-                                            alpha = fullPlayerContentAlpha.value
-                                            translationY = fullPlayerTranslationY.value
+                                            alpha = fullPlayerContentAlpha
+                                            translationY = fullPlayerTranslationY
                                         }) {
                                             FullPlayerContentInternal(
                                                 currentSong = currentSongNonNull, // Use non-null version
