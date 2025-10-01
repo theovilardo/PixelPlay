@@ -77,8 +77,9 @@ class TransitionController @Inject constructor(
             val player = engine.masterPlayer
             val nextIndex = player.currentMediaItemIndex + 1
 
-            // Ensure there is a next track to transition to.
+            // If there is no next track, cancel any pending transition and stop.
             if (nextIndex >= player.mediaItemCount) {
+                engine.cancelNext()
                 return@launch
             }
 
