@@ -1595,7 +1595,8 @@ private fun FullPlayerContentInternal(
                     horizontal = lerp(8.dp, 24.dp, expansionFraction),
                     vertical = lerp(0.dp, 16.dp, expansionFraction)
                 ),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceAround
         ) {
             // Album Cover section
             val albumArtContainerModifier = Modifier
@@ -1637,38 +1638,38 @@ private fun FullPlayerContentInternal(
                 timeTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f)
             )
 
-            Spacer(modifier = Modifier.weight(1f))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                AnimatedPlaybackControls(
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    isPlaying = isPlaying,
+                    onPrevious = onPrevious,
+                    onPlayPause = onPlayPause,
+                    onNext = onNext,
+                    height = 80.dp,
+                    pressAnimationSpec = stableControlAnimationSpec,
+                    releaseDelay = 220L,
+                    colorOtherButtons = controlOtherButtonsColor,
+                    colorPlayPause = controlPlayPauseColor,
+                    tintPlayPauseIcon = controlTintPlayPauseIcon,
+                    tintOtherIcons = controlTintOtherIcons
+                )
 
-            AnimatedPlaybackControls(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                isPlaying = isPlaying,
-                onPrevious = onPrevious,
-                onPlayPause = onPlayPause,
-                onNext = onNext,
-                height = 80.dp,
-                pressAnimationSpec = stableControlAnimationSpec,
-                releaseDelay = 220L,
-                colorOtherButtons = controlOtherButtonsColor,
-                colorPlayPause = controlPlayPauseColor,
-                tintPlayPauseIcon = controlTintPlayPauseIcon,
-                tintOtherIcons = controlTintOtherIcons
-            )
+                Spacer(modifier = Modifier.height(14.dp))
 
-            Spacer(modifier = Modifier.height(14.dp))
-
-            BottomToggleRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 58.dp, max = 88.dp)
-                    .padding(horizontal = 26.dp, vertical = 8.dp),
-                isShuffleEnabled = isShuffleEnabled,
-                repeatMode = repeatMode,
-                isFavorite = isFavorite,
-                onShuffleToggle = onShuffleToggle,
-                onRepeatToggle = onRepeatToggle,
-                onFavoriteToggle = onFavoriteToggle
-            )
+                BottomToggleRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 58.dp, max = 88.dp)
+                        .padding(horizontal = 26.dp, vertical = 8.dp),
+                    isShuffleEnabled = isShuffleEnabled,
+                    repeatMode = repeatMode,
+                    isFavorite = isFavorite,
+                    onShuffleToggle = onShuffleToggle,
+                    onRepeatToggle = onRepeatToggle,
+                    onFavoriteToggle = onFavoriteToggle
+                )
+            }
         }
     }
     AnimatedVisibility(
