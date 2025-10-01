@@ -1049,6 +1049,9 @@ class PlayerViewModel @Inject constructor(
                     val song = _playerUiState.value.currentPlaybackQueue.find { s -> s.id == songId }
                         ?: _playerUiState.value.allSongs.find { s -> s.id == songId }
 
+                    // Reset lyrics state for the new song
+                    resetLyricsSearchState()
+
                     _stablePlayerState.update {
                         it.copy(
                             currentSong = song,
@@ -1538,7 +1541,7 @@ class PlayerViewModel @Inject constructor(
                 if (newPosition != _playerUiState.value.currentPosition) {
                     _playerUiState.update { it.copy(currentPosition = newPosition) }
                 }
-                delay(1000)
+                delay(40)
             }
         }
     }
