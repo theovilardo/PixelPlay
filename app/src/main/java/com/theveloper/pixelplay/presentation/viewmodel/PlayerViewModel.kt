@@ -1104,9 +1104,8 @@ class PlayerViewModel @Inject constructor(
             override fun onRepeatModeChanged(repeatMode: Int) { _stablePlayerState.update { it.copy(repeatMode = repeatMode) } }
             override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
                 if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) {
-                    println("IN onTimelineChanged")
-                  //  updateCurrentPlaybackQueueFromPlayer(playerCtrl)
-                } // Pass playerCtrl}
+                    updateCurrentPlaybackQueueFromPlayer(playerCtrl)
+                }
             }
         })
         Trace.endSection()
