@@ -233,6 +233,10 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.logging.interceptor)
 
+    // Ktor for HTTP Server
+    implementation(libs.ktor.server.core)
+    implementation(libs.ktor.server.netty)
+
     implementation(libs.androidx.ui.text.google.fonts)
 
     implementation(libs.accompanist.drawablepainter)
