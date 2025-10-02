@@ -55,7 +55,7 @@ fun AlbumCarouselSection(
     }
 
     // Carousel -> Player (cuando se detiene el scroll)
-    LaunchedEffect(carouselState.pagerState, currentSongIndex) {
+    LaunchedEffect(carouselState.pagerState, currentSongIndex, queue) {
         snapshotFlow { carouselState.pagerState.isScrollInProgress }
             .distinctUntilChanged()
             .filter { !it }
