@@ -8,7 +8,9 @@ import androidx.compose.ui.util.lerp
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import coil.size.Size
 import com.theveloper.pixelplay.data.model.Song
 import kotlinx.collections.immutable.ImmutableList
@@ -54,6 +56,7 @@ fun AlbumCarouselSection(
         }
     }
 
+    val hapticFeedback = LocalHapticFeedback.current
     // Carousel -> Player (cuando se detiene el scroll)
     LaunchedEffect(carouselState.pagerState, currentSongIndex, queue) {
         snapshotFlow { carouselState.pagerState.isScrollInProgress }
@@ -62,6 +65,7 @@ fun AlbumCarouselSection(
             .collect {
                 val settled = carouselState.pagerState.currentPage
                 if (settled != currentSongIndex) {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                     queue.getOrNull(settled)?.let(onSongSelected)
                 }
             }
