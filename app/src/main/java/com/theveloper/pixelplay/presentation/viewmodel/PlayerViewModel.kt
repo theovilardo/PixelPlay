@@ -881,7 +881,7 @@ class PlayerViewModel @Inject constructor(
                 if (controller.currentMediaItemIndex == songIndexInQueue) {
                     if (!controller.isPlaying) controller.play()
                 } else {
-                    controller.seekToMediaItem(songIndexInQueue, 0L)
+                    controller.seekTo(songIndexInQueue, 0L)
                     controller.play() // Ensure playback starts after seeking
                 }
                 if (isVoluntaryPlay) {
