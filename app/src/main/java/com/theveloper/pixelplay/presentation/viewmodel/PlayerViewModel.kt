@@ -24,6 +24,9 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import androidx.mediarouter.media.MediaControlIntent
+import androidx.mediarouter.media.MediaRouteSelector
+import androidx.mediarouter.media.MediaRouter
 import coil.imageLoader
 import coil.request.CachePolicy
 import coil.request.ImageRequest
@@ -233,6 +236,11 @@ class PlayerViewModel @Inject constructor(
     // Toast Events
     private val _toastEvents = MutableSharedFlow<String>()
     val toastEvents = _toastEvents.asSharedFlow()
+
+    private val _castRoutes = MutableStateFlow<List<MediaRouter.RouteInfo>>(emptyList())
+    val castRoutes: StateFlow<List<MediaRouter.RouteInfo>> = _castRoutes.asStateFlow()
+    private val mediaRouter: MediaRouter
+    private val mediaRouterCallback: MediaRouter.Callback
 
     fun sendToast(message: String) {
         viewModelScope.launch {
@@ -567,6 +575,27 @@ class PlayerViewModel @Inject constructor(
                 Log.e("PlayerViewModel", "Error setting up MediaController", e)
             }
         }, ContextCompat.getMainExecutor(context))
+
+        mediaRouter = MediaRouter.getInstance(context)
+        val mediaRouteSelector = MediaRouteSelector.Builder()
+            .addControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK)
+            .build()
+
+        mediaRouterCallback = object : MediaRouter.Callback() {
+            override fun onRouteAdded(router: MediaRouter, route: MediaRouter.RouteInfo) {
+                _castRoutes.value = router.routes
+            }
+
+            override fun onRouteRemoved(router: MediaRouter, route: MediaRouter.RouteInfo) {
+                _castRoutes.value = router.routes
+            }
+
+            override fun onRouteChanged(router: MediaRouter, route: MediaRouter.RouteInfo) {
+                _castRoutes.value = router.routes
+            }
+        }
+        _castRoutes.value = mediaRouter.routes
+        mediaRouter.addCallback(mediaRouteSelector, mediaRouterCallback, MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY)
 
         Trace.endSection() // End PlayerViewModel.init
     }
@@ -1843,9 +1872,14 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun selectRoute(route: MediaRouter.RouteInfo) {
+        mediaRouter.selectRoute(route)
+    }
+
     override fun onCleared() {
         super.onCleared()
         stopProgressUpdates()
+        mediaRouter.removeCallback(mediaRouterCallback)
     }
 
     // Sleep Timer Control Functions

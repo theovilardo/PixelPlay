@@ -564,6 +564,7 @@ fun UnifiedPlayerSheet(
     }
 
     var showQueueSheet by remember { mutableStateOf(false) }
+    var showCastSheet by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
     var isDraggingPlayerArea by remember { mutableStateOf(false) }
     val velocityTracker = remember { VelocityTracker() }
@@ -1032,6 +1033,7 @@ fun UnifiedPlayerSheet(
                                                 expansionFraction = playerContentExpansionFraction.value,
                                                 currentSheetState = currentSheetContentState,
                                                 onShowQueueClicked = { showQueueSheet = true },
+                                                onShowCastClicked = { showCastSheet = true },
                                                 onShuffleToggle = { playerViewModel.toggleShuffle() },
                                                 onRepeatToggle = { playerViewModel.cycleRepeatMode() },
                                                 onFavoriteToggle = { playerViewModel.toggleFavorite() },
@@ -1085,6 +1087,17 @@ fun UnifiedPlayerSheet(
                     Log.d("TimerOptions", "OpenCustomTimePicker clicked")
                 },
                 onCancelTimer = { playerViewModel.cancelSleepTimer() }
+            )
+        }
+    }
+
+    if (showCastSheet && !internalIsKeyboardVisible) {
+        CompositionLocalProvider(
+            LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
+        ) {
+            CastBottomSheet(
+                playerViewModel = playerViewModel,
+                onDismiss = { showCastSheet = false }
             )
         }
     }
@@ -1466,6 +1479,7 @@ private fun FullPlayerContentInternal(
     expansionFraction: Float,
     currentSheetState: PlayerSheetState,
     onShowQueueClicked: () -> Unit,
+    onShowCastClicked: () -> Unit,
     onShuffleToggle: () -> Unit,
     onRepeatToggle: () -> Unit,
     onFavoriteToggle: () -> Unit,
@@ -1618,15 +1632,13 @@ private fun FullPlayerContentInternal(
                     Row(
                         modifier = Modifier
                             .padding(end = 14.dp)
-                            .width(104.dp),
-                        // Ahora puedes controlar el espaciado exacto entre los elementos.
-                        // Prueba a cambiar 0.dp por el valor que necesites, por ejemplo: 2.dp
+                            .width(162.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        // Primer botón (Lyrics)
+                        // Cast Button
                         Box(
                             modifier = Modifier
-                                .size(height = 42.dp, width = 50.dp) // Define un tamaño fijo para el área de clic
+                                .size(height = 42.dp, width = 50.dp)
                                 .clip(
                                     RoundedCornerShape(
                                         topStart = 50.dp,
@@ -1636,9 +1648,22 @@ private fun FullPlayerContentInternal(
                                     )
                                 )
                                 .background(LocalMaterialTheme.current.onPrimary)
-                                .clickable {
-                                    onLyricsClick()
-                                },
+                                .clickable { onShowCastClicked() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.rounded_cast_24),
+                                contentDescription = "Cast",
+                                tint = LocalMaterialTheme.current.primary
+                            )
+                        }
+                        // Lyrics Button
+                        Box(
+                            modifier = Modifier
+                                .size(height = 42.dp, width = 50.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(LocalMaterialTheme.current.onPrimary)
+                                .clickable { onLyricsClick() },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -1648,10 +1673,10 @@ private fun FullPlayerContentInternal(
                             )
                         }
 
-                        // Segundo botón (Queue)
+                        // Queue Button
                         Box(
                             modifier = Modifier
-                                .size(height = 42.dp, width = 50.dp) // Usa el mismo tamaño para mantener la consistencia
+                                .size(height = 42.dp, width = 50.dp)
                                 .clip(
                                     RoundedCornerShape(
                                         topStart = 6.dp,
