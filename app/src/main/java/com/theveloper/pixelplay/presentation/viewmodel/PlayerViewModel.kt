@@ -709,8 +709,8 @@ class PlayerViewModel @Inject constructor(
                 val mediaStatus = remoteMediaClient.mediaStatus ?: return
                 _stablePlayerState.update {
                     it.copy(
-                        isShuffleEnabled = mediaStatus.queueShuffleMode == MediaStatus.QUEUE_SHUFFLE_MODE_ALL,
-                        repeatMode = mediaStatus.queueRepeatMode
+                        isShuffleEnabled = mediaStatus.getQueueRepeatMode() == MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE,
+                        repeatMode = mediaStatus.getQueueRepeatMode()
                     )
                 }
             }
@@ -1468,8 +1468,13 @@ class PlayerViewModel @Inject constructor(
     fun toggleShuffle() {
         val castSession = _castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
-            val newShuffleState = if (_stablePlayerState.value.isShuffleEnabled) MediaStatus.QUEUE_SHUFFLE_MODE_OFF else MediaStatus.QUEUE_SHUFFLE_MODE_ALL
-            castSession.remoteMediaClient?.queueSetShuffleMode(newShuffleState, null)
+            val remoteMediaClient = castSession.remoteMediaClient
+            val newRepeatMode = if (remoteMediaClient?.mediaStatus?.getQueueRepeatMode() == MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE) {
+                MediaStatus.REPEAT_MODE_REPEAT_ALL
+            } else {
+                MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE
+            }
+            remoteMediaClient?.queueSetRepeatMode(newRepeatMode, null)
         } else {
             val newShuffleState = !_stablePlayerState.value.isShuffleEnabled
             mediaController?.shuffleModeEnabled = newShuffleState
@@ -1480,11 +1485,13 @@ class PlayerViewModel @Inject constructor(
         val castSession = _castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
             val remoteMediaClient = castSession.remoteMediaClient
-            val currentRepeatMode = remoteMediaClient?.mediaStatus?.queueRepeatMode ?: MediaStatus.REPEAT_MODE_REPEAT_OFF
+            val currentRepeatMode = remoteMediaClient?.mediaStatus?.getQueueRepeatMode() ?: MediaStatus.REPEAT_MODE_REPEAT_OFF
             val newMode = when (currentRepeatMode) {
-                MediaStatus.REPEAT_MODE_REPEAT_OFF -> MediaStatus.REPEAT_MODE_REPEAT_SINGLE
-                MediaStatus.REPEAT_MODE_REPEAT_SINGLE -> MediaStatus.REPEAT_MODE_REPEAT_ALL
-                MediaStatus.REPEAT_MODE_REPEAT_ALL -> MediaStatus.REPEAT_MODE_REPEAT_OFF
+                MediaStatus.REPEAT_MODE_REPEAT_OFF -> MediaStatus.REPEAT_MODE_REPEAT_ALL
+                MediaStatus.REPEAT_MODE_REPEAT_ALL -> MediaStatus.REPEAT_MODE_REPEAT_SINGLE
+                MediaStatus.REPEAT_MODE_REPEAT_SINGLE -> MediaStatus.REPEAT_MODE_REPEAT_OFF
+                // If user cycles repeat while shuffling, turn everything off.
+                MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE -> MediaStatus.REPEAT_MODE_REPEAT_OFF
                 else -> MediaStatus.REPEAT_MODE_REPEAT_OFF
             }
             remoteMediaClient?.queueSetRepeatMode(newMode, null)
