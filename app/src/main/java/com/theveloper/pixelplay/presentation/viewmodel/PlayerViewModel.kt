@@ -1362,7 +1362,6 @@ class PlayerViewModel @Inject constructor(
                 }
             }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                // Cancel any pending transition job to handle rapid swipes and prevent race conditions.
                 transitionSchedulerJob?.cancel()
                 transitionSchedulerJob = viewModelScope.launch {
                     if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
@@ -1374,7 +1373,7 @@ class PlayerViewModel @Inject constructor(
                             playerCtrl.pause()
 
                             val finishedSongTitle = _playerUiState.value.allSongs.find { it.id == previousSongId }?.title
-                                ?: "Track" // Fallback title
+                                ?: "Track"
 
                             viewModelScope.launch {
                                 _toastEvents.emit("Playback stopped: $finishedSongTitle finished (End of Track).")
@@ -1383,23 +1382,15 @@ class PlayerViewModel @Inject constructor(
                         }
                     }
 
-                    // --- Update state for the new mediaItem ---
                     mediaItem?.mediaId?.let { songId ->
-                        // Robustly find the song in the master list to ensure consistency.
                         val song = _masterAllSongs.value.find { s -> s.id == songId }
-
-                        // Reset lyrics state for the new song
                         resetLyricsSearchState()
-
                         _stablePlayerState.update {
                             it.copy(
                                 currentSong = song,
-                                // Duration might be C.TIME_UNSET if not yet known, ensure it's non-negative
                                 totalDuration = playerCtrl.duration.coerceAtLeast(0L)
                             )
                         }
-                        // Reset position for the new song. If EOT handled, this is fine as player is paused.
-                        // If not EOT, this correctly sets starting position for the new track.
                         _playerUiState.update { it.copy(currentPosition = 0L) }
 
                         song?.let { currentSongValue ->
@@ -1408,7 +1399,6 @@ class PlayerViewModel @Inject constructor(
                                     extractAndGenerateColorScheme(uri)
                                 }
                             }
-
                             loadLyricsForCurrentSong()
                         }
                     } ?: _stablePlayerState.update {
@@ -1419,33 +1409,24 @@ class PlayerViewModel @Inject constructor(
 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_READY) {
-                    _stablePlayerState.update { it.copy(totalDuration = playerCtrl.duration.coerceAtLeast(0L)) } // Use playerCtrl
+                    _stablePlayerState.update { it.copy(totalDuration = playerCtrl.duration.coerceAtLeast(0L)) }
                 }
-                if (playbackState == Player.STATE_IDLE && playerCtrl.mediaItemCount == 0) { // Use playerCtrl
+                if (playbackState == Player.STATE_IDLE && playerCtrl.mediaItemCount == 0) {
                     _stablePlayerState.update { it.copy(currentSong = null, isPlaying = false) }
                     _playerUiState.update { it.copy(currentPosition = 0L) }
                 }
-                // Old EOT completion logic (based on _isEndOfTrackTimerActive and _endOfTrackSongId/EotStateHolder.eotTargetSongId) removed from here.
-                // Assertive EOT actions in MusicService and natural EOT completion in onMediaItemTransition cover this.
             }
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
-                Log.d("ShuffleDebug", "onShuffleModeEnabledChanged: new state: $shuffleModeEnabled. Player has ${playerCtrl.mediaItemCount} items.")
                 _stablePlayerState.update { it.copy(isShuffleEnabled = shuffleModeEnabled) }
                 if (playerCtrl.mediaItemCount == 0 && shuffleModeEnabled) {
-                    Log.d("ShuffleDebug", "Player empty and shuffle enabled, creating and playing a new shuffled queue.")
                     val shuffledQueue = createShuffledQueue(_masterAllSongs.value)
                     if (shuffledQueue.isNotEmpty()) {
                         playSongs(shuffledQueue, shuffledQueue.first(), "Shuffled Queue", null)
                     }
                 }
-                //   updateCurrentPlaybackQueueFromPlayer(playerCtrl)
             }
             override fun onRepeatModeChanged(repeatMode: Int) { _stablePlayerState.update { it.copy(repeatMode = repeatMode) } }
             override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
-                // Cancel any pending song transition job. This is crucial to prevent a race condition
-                // where a transition update might use a stale queue, right before we update it here.
-                // This ensures that when the queue is modified (reorder, remove), the UI state
-                // remains perfectly in sync with the player's new timeline.
                 transitionSchedulerJob?.cancel()
                 updateCurrentPlaybackQueueFromPlayer(mediaController)
             }

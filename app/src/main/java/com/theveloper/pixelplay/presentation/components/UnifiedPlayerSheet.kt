@@ -1110,106 +1110,99 @@ fun UnifiedPlayerSheet(
 }
 
 
-//@OptIn(ExperimentalMaterial3Api::class)
-//@Composable
-//fun AlbumCarouselSection(
-//    currentSong: Song?,
-//    queue: ImmutableList<Song>,
-//    expansionFraction: Float,
-//    onSongSelected: (Song) -> Unit,
-//    modifier: Modifier = Modifier,
-//    preferredItemWidth: Dp = 280.dp,
-//    itemSpacing: Dp = 8.dp
-//) {
-//    if (queue.isEmpty()) return
-//
-//    val carouselState = rememberCarouselState { queue.size }
-//    val currentSongIndex = remember(currentSong, queue) {
-//        queue.indexOf(currentSong).coerceAtLeast(0)
-//    }
-//
-//    // Player -> Carousel
-//    LaunchedEffect(currentSongIndex) {
-//        if (carouselState.currentItem != currentSongIndex) {
-//            carouselState.animateScrollToItem(currentSongIndex)
-//        }
-//    }
-//
-//    // Carousel -> Player
-//    LaunchedEffect(carouselState) {
-//        snapshotFlow { carouselState.isScrollInProgress }
-//            .distinctUntilChanged()
-//            .filter { !it }
-//            .collect {
-//                val settled = carouselState.currentItem
-//                if (settled != currentSongIndex) {
-//                    queue.getOrNull(settled)?.let(onSongSelected)
-//                }
-//            }
-//    }
-//
-//    HorizontalMultiBrowseCarousel(
-//        state = carouselState,
-//        modifier = modifier,                  // sin clip aquí
-//        preferredItemWidth = preferredItemWidth,
-//        itemSpacing = itemSpacing
-//    ) { index ->
-//        val song = queue[index]
-//        val pageOffset = (carouselState.currentItem - index).absoluteValue
-//
-//        // Interpolaciones “visuales”
-//        val targetScale = 1f - (pageOffset * 0.20f).coerceAtMost(0.20f)
-//        val targetAlpha = 1f - (pageOffset * 0.30f).coerceAtMost(0.60f)
-//
-//        val scale by animateFloatAsState(
-//            targetValue = targetScale,
-//            animationSpec = tween(300),
-//            label = "scale"
-//        )
-//        val contentAlpha by animateFloatAsState(
-//            targetValue = targetAlpha.coerceIn(0.85f, 1f), // opcional: evitar alphas muy bajos
-//            animationSpec = tween(300),
-//            label = "contentAlpha"
-//        )
-//
-//        val corner = lerp(16.dp, 24.dp, expansionFraction)
-//        val shape = remember(corner) { RoundedCornerShape(corner) }
-//
-//        // ⬅️ Capa del ÍTEM del carrusel:
-//        // - NO tiene transforms
-//        // - SÍ tiene el clip redondeado que usa el maskRect del Carousel
-//        Box(
-//            modifier = Modifier
-//                .fillMaxWidth()
-//                .aspectRatio(1f)
-//                .maskClip(shape)   // clave: el peek respeta el redondeo SIEMPRE
-//        ) {
-//            // ⬇️ Capa interna (HIJO) con TODAS las transforms
-//            Box(
-//                modifier = Modifier
-//                    .fillMaxSize()
-//                    .graphicsLayer {
-//                        scaleX = scale
-//                        scaleY = scale
-//                        alpha = contentAlpha
-//                        compositingStrategy = CompositingStrategy.Offscreen
-//                        // Si aún vieses un “hairline” en tu device específico, prueba:
-//                        // translationY = if (pageOffset != 0) 0.3f else 0f
-//                    }
-//                    .maskClip(shape)
-//            ) {
-//                OptimizedAlbumArt(
-//                    uri = song.albumArtUriString,
-//                    title = song.title,
-//                    modifier = Modifier
-//                        .fillMaxSize()
-//                        .maskClip(shape),
-//                    targetSize = coil.size.Size(600, 600)
-//                )
-//            }
-//        }
-//    }
-//}
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun AlbumCarouselSection(
+    currentSong: Song?,
+    queue: ImmutableList<Song>,
+    expansionFraction: Float,
+    onSongSelected: (Song) -> Unit,
+    modifier: Modifier = Modifier,
+    preferredItemWidth: Dp = 280.dp,
+    itemSpacing: Dp = 8.dp
+) {
+    if (queue.isEmpty()) return
+
+    val carouselState = rememberCarouselState { queue.size }
+    val currentSongIndex = remember(currentSong, queue) {
+        queue.indexOf(currentSong).coerceAtLeast(0)
+    }
+
+    // Player -> Carousel
+    LaunchedEffect(currentSongIndex, queue) {
+        if (carouselState.currentItem != currentSongIndex) {
+            carouselState.animateScrollToItem(currentSongIndex)
+        }
+    }
+
+    // Carousel -> Player
+    LaunchedEffect(carouselState) {
+        snapshotFlow { carouselState.isScrollInProgress }
+            .distinctUntilChanged()
+            .filter { !it }
+            .collect {
+                val settled = carouselState.currentItem
+                if (settled != currentSongIndex) {
+                    queue.getOrNull(settled)?.let(onSongSelected)
+                }
+            }
+    }
+
+    HorizontalMultiBrowseCarousel(
+        state = carouselState,
+        modifier = modifier,
+        preferredItemWidth = preferredItemWidth,
+        itemSpacing = itemSpacing
+    ) { index ->
+        val song = queue[index]
+        val pageOffset = (carouselState.currentItem - index).absoluteValue.toFloat()
+
+        val targetScale = 1f - (pageOffset * 0.20f).coerceAtMost(0.20f)
+        val targetAlpha = 1f - (pageOffset * 0.30f).coerceAtMost(0.60f)
+
+        val scale by animateFloatAsState(
+            targetValue = targetScale,
+            animationSpec = tween(300),
+            label = "scale"
+        )
+        val contentAlpha by animateFloatAsState(
+            targetValue = targetAlpha.coerceIn(0.85f, 1f),
+            animationSpec = tween(300),
+            label = "contentAlpha"
+        )
+
+        val corner = lerp(16.dp, 24.dp, expansionFraction)
+        val shape = remember(corner) { RoundedCornerShape(corner) }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(shape)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        alpha = contentAlpha
+                        compositingStrategy = CompositingStrategy.Offscreen
+                    }
+                    .clip(shape)
+            ) {
+                OptimizedAlbumArt(
+                    uri = song.albumArtUriString,
+                    title = song.title,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(shape),
+                    targetSize = coil.size.Size(600, 600)
+                )
+            }
+        }
+    }
+}
 
 
 @Composable
@@ -1234,7 +1227,7 @@ private fun SongMetadataDisplaySection( // Renamed for clarity
 
 @Composable
 private fun PlayerProgressBarSection(
-    currentPosition: Long, // Changed from currentPositionValue
+    currentPosition: Long,
     totalDurationValue: Long,
     progressFractionValue: Float,
     onSeek: (Long) -> Unit,
@@ -1247,6 +1240,11 @@ private fun PlayerProgressBarSection(
     timeTextColor: Color,
     modifier: Modifier = Modifier
 ) {
+    // This local state holds the slider's position while the user is dragging.
+    // It's nullable to differentiate between a dragged state and the actual playback progress.
+    var sliderDragValue by remember { mutableStateOf<Float?>(null) }
+    val interactionSource = remember { MutableInteractionSource() }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -1256,13 +1254,23 @@ private fun PlayerProgressBarSection(
             }
             .heightIn(min = 70.dp)
     ) {
-        val onSliderValueChange = remember(onSeek, totalDurationValue) {
-            { frac: Float -> onSeek((frac * totalDurationValue).roundToLong()) }
-        }
         WavyMusicSlider(
-            valueProvider = { progressFractionValue },
-            onValueChange = onSliderValueChange,
-            onValueChangeFinished = { /* No specific action on finish needed for now */ },
+            // If the user is dragging, show their dragged position. Otherwise, show the actual playback progress.
+            valueProvider = { sliderDragValue ?: progressFractionValue },
+            onValueChange = { newValue ->
+                // When the user starts dragging, only update the local drag value.
+                // This provides immediate visual feedback without spamming the seek command.
+                sliderDragValue = newValue
+            },
+            onValueChangeFinished = {
+                // When the user releases the slider, perform the actual seek command.
+                sliderDragValue?.let { finalValue ->
+                    onSeek((finalValue * totalDurationValue).roundToLong())
+                }
+                // Reset the drag value to null so the slider resumes following the playback progress.
+                sliderDragValue = null
+            },
+            interactionSource = interactionSource,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 8.dp),
@@ -1272,7 +1280,7 @@ private fun PlayerProgressBarSection(
             inactiveTrackColor = inactiveTrackColor,
             thumbColor = thumbColor,
             waveFrequency = 0.08f,
-            isPlaying = (isPlaying && currentSheetState == PlayerSheetState.EXPANDED) // Wave animation only when expanded and playing
+            isPlaying = (isPlaying && currentSheetState == PlayerSheetState.EXPANDED)
         )
 
         Row(
@@ -1281,8 +1289,9 @@ private fun PlayerProgressBarSection(
                 .padding(horizontal = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
+            val displayPosition = sliderDragValue?.let { (it * totalDurationValue).toLong() } ?: currentPosition
             Text(
-                formatDuration(currentPosition), // Use currentPosition
+                formatDuration(displayPosition),
                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                 color = timeTextColor,
                 fontSize = 12.sp
