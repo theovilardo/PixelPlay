@@ -522,6 +522,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     private var progressJob: Job? = null
+    private var remoteProgressObserverJob: Job? = null
     private var transitionSchedulerJob: Job? = null
 
     private fun incrementSongScore(songId: String) {
@@ -625,41 +626,38 @@ class PlayerViewModel @Inject constructor(
 
         mediaRouterCallback = object : MediaRouter.Callback() {
             private fun updateRoutes(router: MediaRouter) {
-                _castRoutes.value = router.routes.distinctBy { it.id }
-                val currentSelectedRoute = router.selectedRoute
-                _selectedRoute.value = currentSelectedRoute
-                _routeVolume.value = currentSelectedRoute.volume
+                val routes = router.routes.filter {
+                    it.supportsControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK)
+                }.distinctBy { it.id }
+                _castRoutes.value = routes
+                _selectedRoute.value = router.selectedRoute
+                _routeVolume.value = router.selectedRoute.volume
             }
 
-            override fun onRouteAdded(router: MediaRouter, route: MediaRouter.RouteInfo) {
-                updateRoutes(router)
-            }
-
-            override fun onRouteRemoved(router: MediaRouter, route: MediaRouter.RouteInfo) {
-                updateRoutes(router)
-            }
-
-            override fun onRouteChanged(router: MediaRouter, route: MediaRouter.RouteInfo) {
-                updateRoutes(router)
-            }
-
+            override fun onRouteAdded(router: MediaRouter, route: MediaRouter.RouteInfo) { updateRoutes(router) }
+            override fun onRouteRemoved(router: MediaRouter, route: MediaRouter.RouteInfo) { updateRoutes(router) }
+            override fun onRouteChanged(router: MediaRouter, route: MediaRouter.RouteInfo) { updateRoutes(router) }
             override fun onRouteSelected(router: MediaRouter, route: MediaRouter.RouteInfo) {
                 updateRoutes(router)
+                if (route.supportsControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK) && !route.isDefault) {
+                    viewModelScope.launch {
+                        ensureHttpServerRunning()
+                    }
+                } else if (route.isDefault) {
+                    context.stopService(Intent(context, MediaFileHttpServerService::class.java))
+                }
             }
-
-            override fun onRouteUnselected(router: MediaRouter, route: MediaRouter.RouteInfo) {
-                updateRoutes(router)
-            }
-
+            override fun onRouteUnselected(router: MediaRouter, route: MediaRouter.RouteInfo) { updateRoutes(router) }
             override fun onRouteVolumeChanged(router: MediaRouter, route: MediaRouter.RouteInfo) {
                 if (route.id == _selectedRoute.value?.id) {
                     _routeVolume.value = route.volume
                 }
             }
         }
-        _castRoutes.value = mediaRouter.routes
-        _selectedRoute.value = mediaRouter.selectedRoute
+        // Initial route setup
         mediaRouter.addCallback(mediaRouteSelector, mediaRouterCallback, MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY)
+        _castRoutes.value = mediaRouter.routes.filter { it.supportsControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK) }.distinctBy { it.id }
+        _selectedRoute.value = mediaRouter.selectedRoute
 
         // Connectivity listeners
         connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -746,7 +744,11 @@ class PlayerViewModel @Inject constructor(
         castSessionManagerListener = object : SessionManagerListener<CastSession> {
             private fun transferPlayback(session: CastSession) {
                 viewModelScope.launch {
-                    if (!ensureHttpServerRunning()) return@launch
+                    if (!ensureHttpServerRunning()) {
+                        sendToast("Could not start cast server. Check connection.")
+                        disconnect()
+                        return@launch
+                    }
 
                     val serverAddress = MediaFileHttpServerService.serverAddress ?: return@launch
                     val localPlayer = mediaController ?: return@launch
@@ -756,15 +758,14 @@ class PlayerViewModel @Inject constructor(
                     val currentSongIndex = localPlayer.currentMediaItemIndex
                     val currentPosition = localPlayer.currentPosition
                     localPlayer.pause()
+                    stopProgressUpdates() // Stop local polling
 
                     val mediaItems = currentQueue.map { song ->
                         val mediaMetadata = com.google.android.gms.cast.MediaMetadata(com.google.android.gms.cast.MediaMetadata.MEDIA_TYPE_MUSIC_TRACK)
                         mediaMetadata.putString(com.google.android.gms.cast.MediaMetadata.KEY_TITLE, song.title)
                         mediaMetadata.putString(com.google.android.gms.cast.MediaMetadata.KEY_ARTIST, song.artist)
-
                         val artUrl = "$serverAddress/art/${song.id}"
                         mediaMetadata.addImage(WebImage(artUrl.toUri()))
-
                         val mediaUrl = "$serverAddress/song/${song.id}"
                         val mediaInfo = MediaInfo.Builder(mediaUrl)
                             .setStreamType(MediaInfo.STREAM_TYPE_BUFFERED)
@@ -778,6 +779,14 @@ class PlayerViewModel @Inject constructor(
                     _castSession.value = session
                     session.remoteMediaClient?.registerCallback(remoteMediaClientCallback!!)
                     session.remoteMediaClient?.addProgressListener(remoteProgressListener!!, 1000)
+
+                    // Start observing remote progress
+                    remoteProgressObserverJob?.cancel()
+                    remoteProgressObserverJob = viewModelScope.launch {
+                        _remotePosition.collect { position ->
+                            _playerUiState.update { it.copy(currentPosition = position) }
+                        }
+                    }
                 }
             }
 
@@ -789,34 +798,40 @@ class PlayerViewModel @Inject constructor(
                 transferPlayback(session)
             }
 
-            private fun stopServerAndTransferBack(session: CastSession) {
-                 val remoteMediaClient = session.remoteMediaClient
-                remoteMediaClient?.removeProgressListener(remoteProgressListener!!)
+            private fun stopServerAndTransferBack() {
+                remoteProgressObserverJob?.cancel() // Stop observing remote progress
+                val session = _castSession.value ?: return
+                val remoteMediaClient = session.remoteMediaClient
                 val lastKnownStatus = remoteMediaClient?.mediaStatus
                 val lastPosition = remoteMediaClient?.approximateStreamPosition ?: 0
                 val wasPlaying = lastKnownStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING
 
-                val queueItems = lastKnownStatus?.queueItems
-                if (mediaController != null && !queueItems.isNullOrEmpty()) {
+                if (mediaController != null && lastKnownStatus != null) {
                     val currentItemId = lastKnownStatus.currentItemId
-                    val startIndex = queueItems.indexOfFirst { it.itemId == currentItemId }.coerceAtLeast(0)
-                    mediaController?.seekTo(startIndex, lastPosition)
-                    if (wasPlaying) {
-                        mediaController?.play()
+                    val queueItems = lastKnownStatus.queueItems
+                    if (queueItems != null && queueItems.isNotEmpty()) {
+                        val startIndex = queueItems.indexOfFirst { it.itemId == currentItemId }.coerceAtLeast(0)
+                        // The queue should already be in the local player, just seek.
+                        mediaController?.seekTo(startIndex, lastPosition)
+                        if (wasPlaying) {
+                            mediaController?.play() // This will trigger startProgressUpdates
+                        }
                     }
                 }
 
+                remoteMediaClient?.removeProgressListener(remoteProgressListener!!)
                 remoteMediaClient?.unregisterCallback(remoteMediaClientCallback!!)
                 _castSession.value = null
                 context.stopService(Intent(context, MediaFileHttpServerService::class.java))
+                disconnect() // Return to the default route
             }
 
             override fun onSessionEnded(session: CastSession, error: Int) {
-                stopServerAndTransferBack(session)
+                stopServerAndTransferBack()
             }
 
             override fun onSessionSuspended(session: CastSession, reason: Int) {
-                stopServerAndTransferBack(session)
+                stopServerAndTransferBack()
             }
 
             // Other listener methods can be overridden if needed
@@ -1136,8 +1151,8 @@ class PlayerViewModel @Inject constructor(
         val castSession = _castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
             val remoteMediaClient = castSession.remoteMediaClient!!
-            val remoteQueue = remoteMediaClient.mediaQueue
-            val itemInQueue = remoteQueue.items.find { it.customData?.getString("songId") == song.id }
+            val remoteQueueItems = remoteMediaClient.mediaStatus?.queueItems ?: emptyList()
+            val itemInQueue = remoteQueueItems.find { it.customData?.optString("songId") == song.id }
 
             if (itemInQueue != null) {
                 // Song is already in the remote queue, just jump to it.
@@ -1577,7 +1592,7 @@ class PlayerViewModel @Inject constructor(
                 MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE
             }
             remoteMediaClient?.queueSetRepeatMode(newRepeatMode, null)?.setResultCallback {
-                if (!it.status.isSuccess) Timber.e("Remote media client failed to set repeat mode (for shuffle): ${it.status.statusMessage}")
+                if (!it.status.isSuccess) Timber.e("Remote media client failed to set repeat mode for shuffle: ${it.status.statusMessage}")
             }
         } else {
             val newShuffleState = !_stablePlayerState.value.isShuffleEnabled
@@ -1934,7 +1949,7 @@ class PlayerViewModel @Inject constructor(
         val castSession = _castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
             castSession.remoteMediaClient?.queueNext(null)?.setResultCallback {
-                if (!it.status.isSuccess) Timber.e("Remote media client failed to queueNext: ${it.status.statusMessage}")
+                if (!it.status.isSuccess) Timber.e("Remote media client failed to queue next: ${it.status.statusMessage}")
             }
         } else {
             mediaController?.let {
@@ -1950,7 +1965,7 @@ class PlayerViewModel @Inject constructor(
         val castSession = _castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
             castSession.remoteMediaClient?.queuePrev(null)?.setResultCallback {
-                if (!it.status.isSuccess) Timber.e("Remote media client failed to queuePrev: ${it.status.statusMessage}")
+                if (!it.status.isSuccess) Timber.e("Remote media client failed to queue prev: ${it.status.statusMessage}")
             }
         } else {
             mediaController?.let { controller ->
@@ -1964,25 +1979,17 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun startProgressUpdates() {
+        // Do not start local progress polling if we are casting
+        if (_castSession.value != null) return
+
         stopProgressUpdates()
         progressJob = viewModelScope.launch {
-            while (isActive) {
-                if (_castSession.value != null) {
-                    // Position is updated by the ProgressListener, so we don't need to do anything here
-                    // for the remote case. We just keep the loop alive.
-                    delay(1000) // Check every second
-                } else {
-                    if (_stablePlayerState.value.isPlaying) {
-                        val newPosition = mediaController?.currentPosition?.coerceAtLeast(0L) ?: 0L
-                        if (newPosition != _playerUiState.value.currentPosition) {
-                            _playerUiState.update { it.copy(currentPosition = newPosition) }
-                        }
-                        delay(40)
-                    } else {
-                        // Stop the loop if local player is not playing
-                        break
-                    }
+            while (isActive && _stablePlayerState.value.isPlaying) {
+                val newPosition = mediaController?.currentPosition?.coerceAtLeast(0L) ?: 0L
+                if (newPosition != _playerUiState.value.currentPosition) {
+                    _playerUiState.update { it.copy(currentPosition = newPosition) }
                 }
+                delay(40)
             }
         }
     }
