@@ -239,6 +239,12 @@ class PlayerViewModel @Inject constructor(
 
     private val _castRoutes = MutableStateFlow<List<MediaRouter.RouteInfo>>(emptyList())
     val castRoutes: StateFlow<List<MediaRouter.RouteInfo>> = _castRoutes.asStateFlow()
+    private val _selectedRoute = MutableStateFlow<MediaRouter.RouteInfo?>(null)
+    val selectedRoute: StateFlow<MediaRouter.RouteInfo?> = _selectedRoute.asStateFlow()
+    private val _routeVolume = MutableStateFlow(0)
+    val routeVolume: StateFlow<Int> = _routeVolume.asStateFlow()
+    private val _isRefreshingRoutes = MutableStateFlow(false)
+    val isRefreshingRoutes: StateFlow<Boolean> = _isRefreshingRoutes.asStateFlow()
     private val mediaRouter: MediaRouter
     private val mediaRouterCallback: MediaRouter.Callback
 
@@ -582,19 +588,41 @@ class PlayerViewModel @Inject constructor(
             .build()
 
         mediaRouterCallback = object : MediaRouter.Callback() {
-            override fun onRouteAdded(router: MediaRouter, route: MediaRouter.RouteInfo) {
+            private fun updateRoutes(router: MediaRouter) {
                 _castRoutes.value = router.routes
+                val currentSelectedRoute = router.selectedRoute
+                _selectedRoute.value = currentSelectedRoute
+                _routeVolume.value = currentSelectedRoute.volume
+            }
+
+            override fun onRouteAdded(router: MediaRouter, route: MediaRouter.RouteInfo) {
+                updateRoutes(router)
             }
 
             override fun onRouteRemoved(router: MediaRouter, route: MediaRouter.RouteInfo) {
-                _castRoutes.value = router.routes
+                updateRoutes(router)
             }
 
             override fun onRouteChanged(router: MediaRouter, route: MediaRouter.RouteInfo) {
-                _castRoutes.value = router.routes
+                updateRoutes(router)
+            }
+
+            override fun onRouteSelected(router: MediaRouter, route: MediaRouter.RouteInfo) {
+                updateRoutes(router)
+            }
+
+            override fun onRouteUnselected(router: MediaRouter, route: MediaRouter.RouteInfo) {
+                updateRoutes(router)
+            }
+
+            override fun onRouteVolumeChanged(router: MediaRouter, route: MediaRouter.RouteInfo) {
+                if (route.id == _selectedRoute.value?.id) {
+                    _routeVolume.value = route.volume
+                }
             }
         }
         _castRoutes.value = mediaRouter.routes
+        _selectedRoute.value = mediaRouter.selectedRoute
         mediaRouter.addCallback(mediaRouteSelector, mediaRouterCallback, MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY)
 
         Trace.endSection() // End PlayerViewModel.init
@@ -1874,6 +1902,27 @@ class PlayerViewModel @Inject constructor(
 
     fun selectRoute(route: MediaRouter.RouteInfo) {
         mediaRouter.selectRoute(route)
+    }
+
+    fun disconnect() {
+        mediaRouter.selectRoute(mediaRouter.defaultRoute)
+    }
+
+    fun setRouteVolume(volume: Int) {
+        _selectedRoute.value?.requestSetVolume(volume)
+    }
+
+    fun refreshCastRoutes() {
+        viewModelScope.launch {
+            _isRefreshingRoutes.value = true
+            mediaRouter.removeCallback(mediaRouterCallback)
+            val mediaRouteSelector = MediaRouteSelector.Builder()
+                .addControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK)
+                .build()
+            mediaRouter.addCallback(mediaRouteSelector, mediaRouterCallback, MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY)
+            delay(1500) // Simulate a refresh delay
+            _isRefreshingRoutes.value = false
+        }
     }
 
     override fun onCleared() {
