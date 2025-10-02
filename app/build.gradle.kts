@@ -238,6 +238,7 @@ dependencies {
     // Ktor for HTTP Server
     implementation(libs.ktor.server.core)
     implementation(libs.ktor.server.netty)
+    implementation(libs.kotlinx.coroutines.core)
 
     implementation(libs.androidx.ui.text.google.fonts)
 
