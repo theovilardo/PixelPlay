@@ -622,7 +622,7 @@ class PlayerViewModel @Inject constructor(
 
         mediaRouterCallback = object : MediaRouter.Callback() {
             private fun updateRoutes(router: MediaRouter) {
-                _castRoutes.value = router.routes
+                _castRoutes.value = router.routes.distinctBy { it.id }
                 val currentSelectedRoute = router.selectedRoute
                 _selectedRoute.value = currentSelectedRoute
                 _routeVolume.value = currentSelectedRoute.volume
@@ -717,18 +717,64 @@ class PlayerViewModel @Inject constructor(
         }
 
         castSessionManagerListener = object : SessionManagerListener<CastSession> {
-            override fun onSessionStarted(session: CastSession, sessionId: String) {
+            private fun transferPlayback(session: CastSession) {
+                val localPlayer = mediaController ?: return
+                val currentQueue = _playerUiState.value.currentPlaybackQueue
+                if (currentQueue.isEmpty()) return
+
+                val currentSongIndex = localPlayer.currentMediaItemIndex
+                val currentPosition = localPlayer.currentPosition
+
+                localPlayer.pause() // Pause local playback
+
+                val mediaItems = currentQueue.map { song ->
+                    val mediaMetadata = com.google.android.gms.cast.MediaMetadata(com.google.android.gms.cast.MediaMetadata.MEDIA_TYPE_MUSIC_TRACK)
+                    mediaMetadata.putString(com.google.android.gms.cast.MediaMetadata.KEY_TITLE, song.title)
+                    mediaMetadata.putString(com.google.android.gms.cast.MediaMetadata.KEY_ARTIST, song.artist)
+                    song.albumArtUriString?.let {
+                        mediaMetadata.addImage(WebImage(it.toUri()))
+                    }
+
+                    val mediaInfo = MediaInfo.Builder(song.contentUriString)
+                        .setStreamType(MediaInfo.STREAM_TYPE_BUFFERED)
+                        .setContentType("audio/mpeg")
+                        .setMetadata(mediaMetadata)
+                        .build()
+                    MediaQueueItem.Builder(mediaInfo).build()
+                }
+
+                session.remoteMediaClient?.queueLoad(mediaItems.toTypedArray(), currentSongIndex, localPlayer.repeatMode, currentPosition)
                 _castSession.value = session
                 session.remoteMediaClient?.registerCallback(remoteMediaClientCallback!!)
+            }
+
+            override fun onSessionStarted(session: CastSession, sessionId: String) {
+                transferPlayback(session)
             }
 
             override fun onSessionResumed(session: CastSession, wasSuspended: Boolean) {
-                _castSession.value = session
-                session.remoteMediaClient?.registerCallback(remoteMediaClientCallback!!)
+                transferPlayback(session)
             }
 
             override fun onSessionEnded(session: CastSession, error: Int) {
-                session.remoteMediaClient?.unregisterCallback(remoteMediaClientCallback!!)
+                val remoteMediaClient = session.remoteMediaClient
+                val lastKnownStatus = remoteMediaClient?.mediaStatus
+                val lastPosition = remoteMediaClient?.approximateStreamPosition ?: 0
+                val wasPlaying = lastKnownStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING
+
+                val queueItems = lastKnownStatus?.queueItems
+                if (mediaController != null && !queueItems.isNullOrEmpty()) {
+                    val currentItemId = lastKnownStatus.currentItemId
+                    val startIndex = queueItems.indexOfFirst { it.itemId == currentItemId }.coerceAtLeast(0)
+
+                    // The local queue should already be in sync, but we can re-set it to be safe
+                    mediaController?.seekTo(startIndex, lastPosition)
+                    if (wasPlaying) {
+                        mediaController?.play()
+                    }
+                }
+
+                remoteMediaClient?.unregisterCallback(remoteMediaClientCallback!!)
                 _castSession.value = null
             }
 
@@ -1776,11 +1822,24 @@ class PlayerViewModel @Inject constructor(
     fun playPause() {
         val castSession = _castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
-            val remoteMediaClient = castSession.remoteMediaClient
-            if (remoteMediaClient?.isPlaying == true) {
+            val remoteMediaClient = castSession.remoteMediaClient!!
+            if (remoteMediaClient.isPlaying) {
                 remoteMediaClient.pause()
             } else {
-                remoteMediaClient?.play()
+                val mediaStatus = remoteMediaClient.mediaStatus
+                if (mediaStatus == null || mediaStatus.playerState == MediaStatus.PLAYER_STATE_IDLE) {
+                    // Nothing is loaded, so load the current queue
+                    val queue = _playerUiState.value.currentPlaybackQueue
+                    if (queue.isNotEmpty()) {
+                        val startSong = _stablePlayerState.value.currentSong ?: queue.first()
+                        viewModelScope.launch {
+                            internalPlaySongs(queue.toList(), startSong, _playerUiState.value.currentQueueSourceName)
+                        }
+                    }
+                } else {
+                    // It's paused, so just play
+                    remoteMediaClient.play()
+                }
             }
         } else {
             mediaController?.let {
