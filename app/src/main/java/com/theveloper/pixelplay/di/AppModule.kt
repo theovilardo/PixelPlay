@@ -134,14 +134,14 @@ object AppModule {
         userPreferencesRepository: UserPreferencesRepository,
         searchHistoryDao: SearchHistoryDao,
         musicDao: MusicDao, // Añadir MusicDao como parámetro
-        lrcLibApiService: LrcLibApiService
+        lyricsRepository: LyricsRepository
     ): MusicRepository {
         return MusicRepositoryImpl(
             context = context,
             userPreferencesRepository = userPreferencesRepository,
             searchHistoryDao = searchHistoryDao,
             musicDao = musicDao,
-            lrcLibApiService = lrcLibApiService // Pasar MusicDao
+            lyricsRepository = lyricsRepository
         )
     }
 
