@@ -473,6 +473,8 @@ class PlayerViewModel @Inject constructor(
 
     private var progressJob: Job? = null
     private var transitionSchedulerJob: Job? = null
+
+    private fun incrementSongScore(songId: String) {
         viewModelScope.launch(Dispatchers.IO) {
             dailyMixManager.incrementScore(songId)
         }
