@@ -159,7 +159,7 @@ fun CastBottomSheet(
                     LazyColumn(
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        items(routes) { route ->
+                        items(routes, key = { it.id }) { route ->
                             if (!route.isDefault) {
                                 DeviceItem(
                                     route = route,
