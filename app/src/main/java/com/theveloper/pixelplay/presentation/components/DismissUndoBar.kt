@@ -18,7 +18,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -40,7 +39,6 @@ import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import kotlinx.coroutines.delay
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun DismissUndoBar(
     modifier: Modifier = Modifier,
@@ -77,7 +75,7 @@ fun DismissUndoBar(
                 Text(
                     modifier = Modifier.padding(start = 10.dp),
                     text = "Playlist Dismissed",
-                    style = MaterialTheme.typography.titleSmallEmphasized
+                    style = MaterialTheme.typography.titleSmall
                         .copy(
                             fontFamily = GoogleSansRounded
                         ),
