@@ -625,38 +625,41 @@ class PlayerViewModel @Inject constructor(
 
         mediaRouterCallback = object : MediaRouter.Callback() {
             private fun updateRoutes(router: MediaRouter) {
-                val routes = router.routes.filter {
-                    it.supportsControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK)
-                }.distinctBy { it.id }
-                _castRoutes.value = routes
-                _selectedRoute.value = router.selectedRoute
-                _routeVolume.value = router.selectedRoute.volume
+                _castRoutes.value = router.routes.distinctBy { it.id }
+                val currentSelectedRoute = router.selectedRoute
+                _selectedRoute.value = currentSelectedRoute
+                _routeVolume.value = currentSelectedRoute.volume
             }
 
-            override fun onRouteAdded(router: MediaRouter, route: MediaRouter.RouteInfo) { updateRoutes(router) }
-            override fun onRouteRemoved(router: MediaRouter, route: MediaRouter.RouteInfo) { updateRoutes(router) }
-            override fun onRouteChanged(router: MediaRouter, route: MediaRouter.RouteInfo) { updateRoutes(router) }
+            override fun onRouteAdded(router: MediaRouter, route: MediaRouter.RouteInfo) {
+                updateRoutes(router)
+            }
+
+            override fun onRouteRemoved(router: MediaRouter, route: MediaRouter.RouteInfo) {
+                updateRoutes(router)
+            }
+
+            override fun onRouteChanged(router: MediaRouter, route: MediaRouter.RouteInfo) {
+                updateRoutes(router)
+            }
+
             override fun onRouteSelected(router: MediaRouter, route: MediaRouter.RouteInfo) {
                 updateRoutes(router)
-                if (route.supportsControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK) && !route.isDefault) {
-                    viewModelScope.launch {
-                        ensureHttpServerRunning()
-                    }
-                } else if (route.isDefault) {
-                    context.stopService(Intent(context, MediaFileHttpServerService::class.java))
-                }
             }
-            override fun onRouteUnselected(router: MediaRouter, route: MediaRouter.RouteInfo) { updateRoutes(router) }
+
+            override fun onRouteUnselected(router: MediaRouter, route: MediaRouter.RouteInfo) {
+                updateRoutes(router)
+            }
+
             override fun onRouteVolumeChanged(router: MediaRouter, route: MediaRouter.RouteInfo) {
                 if (route.id == _selectedRoute.value?.id) {
                     _routeVolume.value = route.volume
                 }
             }
         }
-        // Initial route setup
-        mediaRouter.addCallback(mediaRouteSelector, mediaRouterCallback, MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY)
-        _castRoutes.value = mediaRouter.routes.filter { it.supportsControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK) }.distinctBy { it.id }
+        _castRoutes.value = mediaRouter.routes
         _selectedRoute.value = mediaRouter.selectedRoute
+        mediaRouter.addCallback(mediaRouteSelector, mediaRouterCallback, MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY)
 
         // Connectivity listeners
         connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -743,11 +746,7 @@ class PlayerViewModel @Inject constructor(
         castSessionManagerListener = object : SessionManagerListener<CastSession> {
             private fun transferPlayback(session: CastSession) {
                 viewModelScope.launch {
-                    if (!ensureHttpServerRunning()) {
-                        sendToast("Could not start cast server. Check connection.")
-                        disconnect()
-                        return@launch
-                    }
+                    if (!ensureHttpServerRunning()) return@launch
 
                     val serverAddress = MediaFileHttpServerService.serverAddress ?: return@launch
                     val localPlayer = mediaController ?: return@launch
@@ -762,8 +761,10 @@ class PlayerViewModel @Inject constructor(
                         val mediaMetadata = com.google.android.gms.cast.MediaMetadata(com.google.android.gms.cast.MediaMetadata.MEDIA_TYPE_MUSIC_TRACK)
                         mediaMetadata.putString(com.google.android.gms.cast.MediaMetadata.KEY_TITLE, song.title)
                         mediaMetadata.putString(com.google.android.gms.cast.MediaMetadata.KEY_ARTIST, song.artist)
+
                         val artUrl = "$serverAddress/art/${song.id}"
                         mediaMetadata.addImage(WebImage(artUrl.toUri()))
+
                         val mediaUrl = "$serverAddress/song/${song.id}"
                         val mediaInfo = MediaInfo.Builder(mediaUrl)
                             .setStreamType(MediaInfo.STREAM_TYPE_BUFFERED)
@@ -788,39 +789,34 @@ class PlayerViewModel @Inject constructor(
                 transferPlayback(session)
             }
 
-            private fun stopServerAndTransferBack() {
-                val session = _castSession.value ?: return
-                val remoteMediaClient = session.remoteMediaClient
+            private fun stopServerAndTransferBack(session: CastSession) {
+                 val remoteMediaClient = session.remoteMediaClient
+                remoteMediaClient?.removeProgressListener(remoteProgressListener!!)
                 val lastKnownStatus = remoteMediaClient?.mediaStatus
                 val lastPosition = remoteMediaClient?.approximateStreamPosition ?: 0
                 val wasPlaying = lastKnownStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING
 
-                if (mediaController != null && lastKnownStatus != null) {
+                val queueItems = lastKnownStatus?.queueItems
+                if (mediaController != null && !queueItems.isNullOrEmpty()) {
                     val currentItemId = lastKnownStatus.currentItemId
-                    val queueItems = lastKnownStatus.queueItems
-                    if (queueItems != null && queueItems.isNotEmpty()) {
-                        val startIndex = queueItems.indexOfFirst { it.itemId == currentItemId }.coerceAtLeast(0)
-                        // The queue should already be in the local player, just seek.
-                        mediaController?.seekTo(startIndex, lastPosition)
-                        if (wasPlaying) {
-                            mediaController?.play()
-                        }
+                    val startIndex = queueItems.indexOfFirst { it.itemId == currentItemId }.coerceAtLeast(0)
+                    mediaController?.seekTo(startIndex, lastPosition)
+                    if (wasPlaying) {
+                        mediaController?.play()
                     }
                 }
 
-                remoteMediaClient?.removeProgressListener(remoteProgressListener!!)
                 remoteMediaClient?.unregisterCallback(remoteMediaClientCallback!!)
                 _castSession.value = null
                 context.stopService(Intent(context, MediaFileHttpServerService::class.java))
-                disconnect() // Return to the default route
             }
 
             override fun onSessionEnded(session: CastSession, error: Int) {
-                stopServerAndTransferBack()
+                stopServerAndTransferBack(session)
             }
 
             override fun onSessionSuspended(session: CastSession, reason: Int) {
-                stopServerAndTransferBack()
+                stopServerAndTransferBack(session)
             }
 
             // Other listener methods can be overridden if needed
@@ -1137,32 +1133,46 @@ class PlayerViewModel @Inject constructor(
         queueName: String = "Current Context",
         isVoluntaryPlay: Boolean = true
     ) {
-        mediaController?.let { controller ->
-            val currentQueue = _playerUiState.value.currentPlaybackQueue
-            val songIndexInQueue = currentQueue.indexOfFirst { it.id == song.id }
+        val castSession = _castSession.value
+        if (castSession != null && castSession.remoteMediaClient != null) {
+            val remoteMediaClient = castSession.remoteMediaClient!!
+            val remoteQueue = remoteMediaClient.mediaQueue
+            val itemInQueue = remoteQueue.items.find { it.customData?.getString("songId") == song.id }
 
-            // If the song is already in the current playback queue, just seek to it.
-            // This avoids resetting the queue and preserves user modifications (reordering, etc.).
-            if (songIndexInQueue != -1) {
-                // Don't seek if it's already the current item, just ensure it plays.
-                if (controller.currentMediaItemIndex == songIndexInQueue) {
-                    if (!controller.isPlaying) controller.play()
-                } else {
-                    controller.seekTo(songIndexInQueue, 0L)
-                    controller.play() // Ensure playback starts after seeking
-                }
-                if (isVoluntaryPlay) {
-                    incrementSongScore(song.id)
+            if (itemInQueue != null) {
+                // Song is already in the remote queue, just jump to it.
+                remoteMediaClient.queueJumpToItem(itemInQueue.itemId, 0L, null)?.setResultCallback {
+                    if (!it.status.isSuccess) {
+                        Timber.e("Remote media client failed to jump to item: ${it.status.statusMessage}")
+                        // If jumping fails, fall back to reloading the queue
+                        playSongs(contextSongs, song, queueName, null)
+                    } else {
+                         if (isVoluntaryPlay) incrementSongScore(song.id)
+                    }
                 }
             } else {
-                // The song is not in the current queue, so treat it as a new playback context.
-                // This will reset the queue with the new contextSongs list.
-                Log.d("ShuffleDebug", "showAndPlaySong (new context) for '${song.title}' with queue: $queueName")
-                _playerUiState.update { it.copy(preparingSongId = song.id) }
-                if (isVoluntaryPlay) {
-                    incrementSongScore(song.id)
-                }
+                // Song not in remote queue, so start a new playback session.
+                if (isVoluntaryPlay) incrementSongScore(song.id)
                 playSongs(contextSongs, song, queueName, null)
+            }
+        } else {
+            // Local playback logic
+            mediaController?.let { controller ->
+                val currentQueue = _playerUiState.value.currentPlaybackQueue
+                val songIndexInQueue = currentQueue.indexOfFirst { it.id == song.id }
+
+                if (songIndexInQueue != -1) {
+                    if (controller.currentMediaItemIndex == songIndexInQueue) {
+                        if (!controller.isPlaying) controller.play()
+                    } else {
+                        controller.seekTo(songIndexInQueue, 0L)
+                        controller.play()
+                    }
+                    if (isVoluntaryPlay) incrementSongScore(song.id)
+                } else {
+                    if (isVoluntaryPlay) incrementSongScore(song.id)
+                    playSongs(contextSongs, song, queueName, null)
+                }
             }
         }
         _predictiveBackCollapseFraction.value = 0f
@@ -1454,52 +1464,51 @@ class PlayerViewModel @Inject constructor(
     private suspend fun internalPlaySongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None", playlistId: String? = null) {
         val castSession = _castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
-            // Casting to a device
             if (!ensureHttpServerRunning()) return
 
             val serverAddress = MediaFileHttpServerService.serverAddress ?: return
-
             val remoteMediaClient = castSession.remoteMediaClient
+
             val mediaItems = songsToPlay.map { song ->
                 val mediaMetadata = com.google.android.gms.cast.MediaMetadata(com.google.android.gms.cast.MediaMetadata.MEDIA_TYPE_MUSIC_TRACK)
                 mediaMetadata.putString(com.google.android.gms.cast.MediaMetadata.KEY_TITLE, song.title)
                 mediaMetadata.putString(com.google.android.gms.cast.MediaMetadata.KEY_ARTIST, song.artist)
-
                 val artUrl = "$serverAddress/art/${song.id}"
                 mediaMetadata.addImage(WebImage(artUrl.toUri()))
-
                 val mediaUrl = "$serverAddress/song/${song.id}"
                 val mediaInfo = MediaInfo.Builder(mediaUrl)
                     .setStreamType(MediaInfo.STREAM_TYPE_BUFFERED)
-                    .setContentType("audio/mpeg") // Adjust content type if necessary
+                    .setContentType("audio/mpeg")
                     .setMetadata(mediaMetadata)
                     .build()
-                MediaQueueItem.Builder(mediaInfo).build()
+                MediaQueueItem.Builder(mediaInfo).setCustomData(org.json.JSONObject().put("songId", song.id)).build()
             }
             val startIndex = songsToPlay.indexOf(startSong).coerceAtLeast(0)
-            // Corrected queueLoad parameters: items, startIndex, repeatMode, playPosition, customData
-            remoteMediaClient?.queueLoad(mediaItems.toTypedArray(), startIndex, _stablePlayerState.value.repeatMode, 0L, null)
+            val repeatMode = _stablePlayerState.value.repeatMode
+
+            remoteMediaClient?.queueLoad(mediaItems.toTypedArray(), startIndex, repeatMode, 0L, null)?.setResultCallback {
+                if (!it.status.isSuccess) {
+                    Timber.e("Remote media client failed to load queue: ${it.status.statusMessage}")
+                    sendToast("Failed to load media on cast device.")
+                }
+            }
+            _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
         } else {
-            // Local playback
             val playSongsAction = {
                 mediaController?.let { controller ->
                     val mediaItems = songsToPlay.map { song ->
                         val metadataBuilder = MediaMetadata.Builder()
                             .setTitle(song.title)
                             .setArtist(song.artist)
-
                         playlistId?.let {
                             val extras = android.os.Bundle()
                             extras.putString("playlistId", it)
                             metadataBuilder.setExtras(extras)
                         }
-
                         song.albumArtUriString?.toUri()?.let { uri ->
                             metadataBuilder.setArtworkUri(uri)
                         }
-
                         val metadata = metadataBuilder.build()
-
                         MediaItem.Builder()
                             .setMediaId(song.id)
                             .setUri(song.contentUriString.toUri())
@@ -1515,11 +1524,11 @@ class PlayerViewModel @Inject constructor(
                         _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
                     }
                 }
-                _playerUiState.update { it.copy(isLoadingInitialSongs = false) } // Marcar que la carga inicial de esta canción terminó
+                _playerUiState.update { it.copy(isLoadingInitialSongs = false) }
             }
 
             if (mediaController == null) {
-                Log.w("PlayerViewModel", "MediaController not available. Queuing playback action.")
+                Timber.w("MediaController not available. Queuing playback action.")
                 pendingPlaybackAction = playSongsAction
             } else {
                 playSongsAction()
@@ -2229,12 +2238,6 @@ class PlayerViewModel @Inject constructor(
 
     fun selectRoute(route: MediaRouter.RouteInfo) {
         mediaRouter.selectRoute(route)
-        // Proactively start the server if a remote route is selected.
-        if (route.supportsControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK) && !route.isDefault) {
-            viewModelScope.launch {
-                ensureHttpServerRunning()
-            }
-        }
     }
 
     fun disconnect() {
@@ -2268,20 +2271,17 @@ class PlayerViewModel @Inject constructor(
             action = MediaFileHttpServerService.ACTION_START_SERVER
         })
 
-        // Poll for server readiness with a timeout
         val startTime = System.currentTimeMillis()
-        val timeout = 10000L // 10 seconds
-        while (System.currentTimeMillis() - startTime < timeout) {
-            if (MediaFileHttpServerService.isServerRunning && MediaFileHttpServerService.serverAddress != null) {
-                Timber.i("HTTP Server is running at ${MediaFileHttpServerService.serverAddress}")
-                return true
+        val timeout = 5000L // 5 seconds
+        while (!MediaFileHttpServerService.isServerRunning || MediaFileHttpServerService.serverAddress == null) {
+            if (System.currentTimeMillis() - startTime > timeout) {
+                sendToast("Cast server failed to start. Check Wi-Fi connection.")
+                Timber.e("HTTP server start timed out.")
+                return false
             }
-            delay(200) // Poll every 200ms
+            delay(100)
         }
-
-        sendToast("Cast server failed to start. Check Wi-Fi connection.")
-        Timber.e("HTTP server start timed out after $timeout ms.")
-        return false
+        return true
     }
 
     override fun onCleared() {
