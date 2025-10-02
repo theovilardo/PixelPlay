@@ -78,6 +78,27 @@ class MediaFileHttpServerService : Service() {
                                 }
                                 call.respondInputStream(contentType = io.ktor.http.ContentType.Audio.MPEG) { inputStream }
                             }
+                            get("/art/{songId}") {
+                                val songId = call.parameters["songId"]
+                                if (songId == null) {
+                                    call.respondText("Song ID is missing", status = io.ktor.http.HttpStatusCode.BadRequest)
+                                    return@get
+                                }
+
+                                val song = musicRepository.getSongById(songId).firstOrNull()
+                                if (song?.albumArtUriString == null) {
+                                    call.respondText("Album art not found", status = io.ktor.http.HttpStatusCode.NotFound)
+                                    return@get
+                                }
+
+                                val artUri = android.net.Uri.parse(song.albumArtUriString)
+                                val inputStream: InputStream? = contentResolver.openInputStream(artUri)
+                                if (inputStream == null) {
+                                    call.respondText("Could not open album art file", status = io.ktor.http.HttpStatusCode.InternalServerError)
+                                    return@get
+                                }
+                                call.respondInputStream(contentType = io.ktor.http.ContentType.Image.JPEG) { inputStream }
+                            }
                         }
                     }.start(wait = false)
                     isServerRunning = true

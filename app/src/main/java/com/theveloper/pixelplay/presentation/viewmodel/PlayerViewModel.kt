@@ -117,6 +117,28 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlin.collections.map
 
+private suspend fun PlayerViewModel.ensureHttpServerRunning(): Boolean {
+    if (MediaFileHttpServerService.isServerRunning && MediaFileHttpServerService.serverAddress != null) {
+        return true
+    }
+
+    context.startService(Intent(context, MediaFileHttpServerService::class.java).apply {
+        action = MediaFileHttpServerService.ACTION_START_SERVER
+    })
+
+    val startTime = System.currentTimeMillis()
+    val timeout = 5000L // 5 seconds
+    while (!MediaFileHttpServerService.isServerRunning || MediaFileHttpServerService.serverAddress == null) {
+        if (System.currentTimeMillis() - startTime > timeout) {
+            sendToast("Cast server failed to start. Check Wi-Fi connection.")
+            Timber.e("HTTP server start timed out.")
+            return false
+        }
+        delay(100)
+    }
+    return true
+}
+
 enum class PlayerSheetState {
     COLLAPSED,
     EXPANDED
@@ -747,11 +769,8 @@ import com.theveloper.pixelplay.data.service.http.MediaFileHttpServerService
 
         castSessionManagerListener = object : SessionManagerListener<CastSession> {
             private fun transferPlayback(session: CastSession) {
-                serviceScope.launch {
-                    context.startService(Intent(context, MediaFileHttpServerService::class.java).apply {
-                        action = MediaFileHttpServerService.ACTION_START_SERVER
-                    })
-                    delay(500) // Wait for server
+                viewModelScope.launch {
+                    if (!ensureHttpServerRunning()) return@launch
 
                     val serverAddress = MediaFileHttpServerService.serverAddress ?: return@launch
                     val localPlayer = mediaController ?: return@launch
@@ -766,7 +785,10 @@ import com.theveloper.pixelplay.data.service.http.MediaFileHttpServerService
                         val mediaMetadata = com.google.android.gms.cast.MediaMetadata(com.google.android.gms.cast.MediaMetadata.MEDIA_TYPE_MUSIC_TRACK)
                         mediaMetadata.putString(com.google.android.gms.cast.MediaMetadata.KEY_TITLE, song.title)
                         mediaMetadata.putString(com.google.android.gms.cast.MediaMetadata.KEY_ARTIST, song.artist)
-                        song.albumArtUriString?.let { mediaMetadata.addImage(WebImage(it.toUri())) }
+
+                        val artUrl = "$serverAddress/art/${song.id}"
+                        mediaMetadata.addImage(WebImage(artUrl.toUri()))
+
                         val mediaUrl = "$serverAddress/song/${song.id}"
                         val mediaInfo = MediaInfo.Builder(mediaUrl)
                             .setStreamType(MediaInfo.STREAM_TYPE_BUFFERED)
@@ -1453,16 +1475,21 @@ import com.theveloper.pixelplay.data.service.http.MediaFileHttpServerService
         val castSession = _castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
             // Casting to a device
+            if (!ensureHttpServerRunning()) return
+
+            val serverAddress = MediaFileHttpServerService.serverAddress ?: return
+
             val remoteMediaClient = castSession.remoteMediaClient
             val mediaItems = songsToPlay.map { song ->
                 val mediaMetadata = com.google.android.gms.cast.MediaMetadata(com.google.android.gms.cast.MediaMetadata.MEDIA_TYPE_MUSIC_TRACK)
                 mediaMetadata.putString(com.google.android.gms.cast.MediaMetadata.KEY_TITLE, song.title)
                 mediaMetadata.putString(com.google.android.gms.cast.MediaMetadata.KEY_ARTIST, song.artist)
-                song.albumArtUriString?.let {
-                    mediaMetadata.addImage(WebImage(it.toUri()))
-                }
 
-                val mediaInfo = MediaInfo.Builder(song.contentUriString)
+                val artUrl = "$serverAddress/art/${song.id}"
+                mediaMetadata.addImage(WebImage(artUrl.toUri()))
+
+                val mediaUrl = "$serverAddress/song/${song.id}"
+                val mediaInfo = MediaInfo.Builder(mediaUrl)
                     .setStreamType(MediaInfo.STREAM_TYPE_BUFFERED)
                     .setContentType("audio/mpeg") // Adjust content type if necessary
                     .setMetadata(mediaMetadata)
@@ -1470,7 +1497,8 @@ import com.theveloper.pixelplay.data.service.http.MediaFileHttpServerService
                 MediaQueueItem.Builder(mediaInfo).build()
             }
             val startIndex = songsToPlay.indexOf(startSong).coerceAtLeast(0)
-            remoteMediaClient?.queueLoad(mediaItems.toTypedArray(), startIndex, Player.REPEAT_MODE_OFF, null)
+            // Corrected queueLoad parameters: items, startIndex, repeatMode, playPosition, customData
+            remoteMediaClient?.queueLoad(mediaItems.toTypedArray(), startIndex, MediaStatus.REPEAT_MODE_REPEAT_OFF, 0L, null)
         } else {
             // Local playback
             val playSongsAction = {
