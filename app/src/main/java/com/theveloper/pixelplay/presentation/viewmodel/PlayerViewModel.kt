@@ -870,12 +870,34 @@ class PlayerViewModel @Inject constructor(
         queueName: String = "Current Context",
         isVoluntaryPlay: Boolean = true
     ) {
-        Log.d("ShuffleDebug", "showAndPlaySong called for '${song.title}' with queue: $queueName")
-        _playerUiState.update { it.copy(preparingSongId = song.id) }
-        if (isVoluntaryPlay) {
-            incrementSongScore(song.id)
+        mediaController?.let { controller ->
+            val currentQueue = _playerUiState.value.currentPlaybackQueue
+            val songIndexInQueue = currentQueue.indexOfFirst { it.id == song.id }
+
+            // If the song is already in the current playback queue, just seek to it.
+            // This avoids resetting the queue and preserves user modifications (reordering, etc.).
+            if (songIndexInQueue != -1) {
+                // Don't seek if it's already the current item, just ensure it plays.
+                if (controller.currentMediaItemIndex == songIndexInQueue) {
+                    if (!controller.isPlaying) controller.play()
+                } else {
+                    controller.seekToMediaItem(songIndexInQueue, 0L)
+                    controller.play() // Ensure playback starts after seeking
+                }
+                if (isVoluntaryPlay) {
+                    incrementSongScore(song.id)
+                }
+            } else {
+                // The song is not in the current queue, so treat it as a new playback context.
+                // This will reset the queue with the new contextSongs list.
+                Log.d("ShuffleDebug", "showAndPlaySong (new context) for '${song.title}' with queue: $queueName")
+                _playerUiState.update { it.copy(preparingSongId = song.id) }
+                if (isVoluntaryPlay) {
+                    incrementSongScore(song.id)
+                }
+                playSongs(contextSongs, song, queueName, null)
+            }
         }
-        playSongs(contextSongs, song, queueName, null)
         _predictiveBackCollapseFraction.value = 0f
     }
 
