@@ -799,31 +799,34 @@ class PlayerViewModel @Inject constructor(
             }
 
             private fun stopServerAndTransferBack() {
-                remoteProgressObserverJob?.cancel() // Stop observing remote progress
+                remoteProgressObserverJob?.cancel()
                 val session = _castSession.value ?: return
                 val remoteMediaClient = session.remoteMediaClient
                 val lastKnownStatus = remoteMediaClient?.mediaStatus
                 val lastPosition = remoteMediaClient?.approximateStreamPosition ?: 0
                 val wasPlaying = lastKnownStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING
+                val lastItemId = lastKnownStatus?.currentItemId
 
-                if (mediaController != null && lastKnownStatus != null) {
-                    val currentItemId = lastKnownStatus.currentItemId
-                    val queueItems = lastKnownStatus.queueItems
-                    if (queueItems != null && queueItems.isNotEmpty()) {
-                        val startIndex = queueItems.indexOfFirst { it.itemId == currentItemId }.coerceAtLeast(0)
-                        // The queue should already be in the local player, just seek.
-                        mediaController?.seekTo(startIndex, lastPosition)
-                        if (wasPlaying) {
-                            mediaController?.play() // This will trigger startProgressUpdates
-                        }
-                    }
-                }
-
+                // First, completely tear down the remote session state from the ViewModel's perspective.
                 remoteMediaClient?.removeProgressListener(remoteProgressListener!!)
                 remoteMediaClient?.unregisterCallback(remoteMediaClientCallback!!)
                 _castSession.value = null
                 context.stopService(Intent(context, MediaFileHttpServerService::class.java))
-                disconnect() // Return to the default route
+                disconnect()
+
+                // Now, with the cast session confirmed null, transfer playback to the local player.
+                if (mediaController != null && lastKnownStatus != null && lastItemId != null) {
+                    val queueItems = lastKnownStatus.queueItems
+                    if (queueItems != null && queueItems.isNotEmpty()) {
+                        val startIndex = queueItems.indexOfFirst { it.itemId == lastItemId }.coerceAtLeast(0)
+                        mediaController?.seekTo(startIndex, lastPosition)
+                        if (wasPlaying) {
+                            // This call will now correctly trigger startProgressUpdates
+                            // because _castSession.value is null.
+                            mediaController?.play()
+                        }
+                    }
+                }
             }
 
             override fun onSessionEnded(session: CastSession, error: Int) {
