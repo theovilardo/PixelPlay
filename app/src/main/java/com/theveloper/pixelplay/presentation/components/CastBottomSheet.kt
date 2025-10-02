@@ -52,10 +52,7 @@ import android.content.Intent
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.SliderDefaults
 
-@androidx.annotation.OptIn(UnstableApi::class, ExperimentalPermissionsApi::class,
-    ExperimentalPermissionsApi::class, ExperimentalPermissionsApi::class
-)
-@OptIn(ExperimentalMaterial3Api::class)
+@androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun CastBottomSheet(

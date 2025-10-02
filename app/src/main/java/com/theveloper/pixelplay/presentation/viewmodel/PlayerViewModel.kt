@@ -2,7 +2,6 @@ package com.theveloper.pixelplay.presentation.viewmodel
 
 import android.annotation.SuppressLint
 import android.content.ComponentName
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.net.Uri
@@ -75,6 +74,7 @@ import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.data.service.MusicService
+import com.theveloper.pixelplay.data.service.http.MediaFileHttpServerService
 import com.theveloper.pixelplay.data.worker.SyncManager
 import com.theveloper.pixelplay.ui.theme.DarkColorScheme
 import com.theveloper.pixelplay.ui.theme.GenreColors
@@ -277,7 +277,7 @@ class PlayerViewModel @Inject constructor(
     private val bluetoothAdapter: BluetoothAdapter?
     private var bluetoothStateReceiver: BroadcastReceiver? = null
     private val sessionManager: SessionManager
-    private val castSessionManagerListener: SessionManagerListener<CastSession>
+    private var castSessionManagerListener: SessionManagerListener<CastSession>? = null
     private val _castSession = MutableStateFlow<CastSession?>(null)
     private val _remotePosition = MutableStateFlow(0L)
     val remotePosition: StateFlow<Long> = _remotePosition.asStateFlow()
@@ -743,8 +743,6 @@ class PlayerViewModel @Inject constructor(
             }
         }
 
-import com.theveloper.pixelplay.data.service.http.MediaFileHttpServerService
-
         castSessionManagerListener = object : SessionManagerListener<CastSession> {
             private fun transferPlayback(session: CastSession) {
                 viewModelScope.launch {
@@ -828,7 +826,7 @@ import com.theveloper.pixelplay.data.service.http.MediaFileHttpServerService
             override fun onSessionResuming(session: CastSession, sessionId: String) {}
             override fun onSessionResumeFailed(session: CastSession, error: Int) {}
         }
-        sessionManager.addSessionManagerListener(castSessionManagerListener, CastSession::class.java)
+        sessionManager.addSessionManagerListener(castSessionManagerListener as SessionManagerListener<CastSession>, CastSession::class.java)
         _castSession.value = sessionManager.currentCastSession
         _castSession.value?.remoteMediaClient?.registerCallback(remoteMediaClientCallback!!)
         _castSession.value?.remoteMediaClient?.addProgressListener(remoteProgressListener!!, 1000)
@@ -2256,7 +2254,7 @@ import com.theveloper.pixelplay.data.service.http.MediaFileHttpServerService
         mediaRouter.removeCallback(mediaRouterCallback)
         networkCallback?.let { connectivityManager.unregisterNetworkCallback(it) }
         bluetoothStateReceiver?.let { context.unregisterReceiver(it) }
-        sessionManager.removeSessionManagerListener(castSessionManagerListener, CastSession::class.java)
+        sessionManager.removeSessionManagerListener(castSessionManagerListener as SessionManagerListener<CastSession>, CastSession::class.java)
     }
 
     // Sleep Timer Control Functions
