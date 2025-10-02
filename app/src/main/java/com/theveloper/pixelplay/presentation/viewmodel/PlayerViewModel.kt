@@ -117,28 +117,6 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlin.collections.map
 
-private suspend fun PlayerViewModel.ensureHttpServerRunning(): Boolean {
-    if (MediaFileHttpServerService.isServerRunning && MediaFileHttpServerService.serverAddress != null) {
-        return true
-    }
-
-    context.startService(Intent(context, MediaFileHttpServerService::class.java).apply {
-        action = MediaFileHttpServerService.ACTION_START_SERVER
-    })
-
-    val startTime = System.currentTimeMillis()
-    val timeout = 5000L // 5 seconds
-    while (!MediaFileHttpServerService.isServerRunning || MediaFileHttpServerService.serverAddress == null) {
-        if (System.currentTimeMillis() - startTime > timeout) {
-            sendToast("Cast server failed to start. Check Wi-Fi connection.")
-            Timber.e("HTTP server start timed out.")
-            return false
-        }
-        delay(100)
-    }
-    return true
-}
-
 enum class PlayerSheetState {
     COLLAPSED,
     EXPANDED
@@ -2248,6 +2226,28 @@ import com.theveloper.pixelplay.data.service.http.MediaFileHttpServerService
             delay(1500) // Simulate a refresh delay
             _isRefreshingRoutes.value = false
         }
+    }
+
+    private suspend fun ensureHttpServerRunning(): Boolean {
+        if (MediaFileHttpServerService.isServerRunning && MediaFileHttpServerService.serverAddress != null) {
+            return true
+        }
+
+        context.startService(Intent(context, MediaFileHttpServerService::class.java).apply {
+            action = MediaFileHttpServerService.ACTION_START_SERVER
+        })
+
+        val startTime = System.currentTimeMillis()
+        val timeout = 5000L // 5 seconds
+        while (!MediaFileHttpServerService.isServerRunning || MediaFileHttpServerService.serverAddress == null) {
+            if (System.currentTimeMillis() - startTime > timeout) {
+                sendToast("Cast server failed to start. Check Wi-Fi connection.")
+                Timber.e("HTTP server start timed out.")
+                return false
+            }
+            delay(100)
+        }
+        return true
     }
 
     override fun onCleared() {
