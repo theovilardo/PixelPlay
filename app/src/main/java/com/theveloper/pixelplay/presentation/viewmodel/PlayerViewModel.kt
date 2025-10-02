@@ -743,7 +743,7 @@ class PlayerViewModel @Inject constructor(
                     MediaQueueItem.Builder(mediaInfo).build()
                 }
 
-                session.remoteMediaClient?.queueLoad(mediaItems.toTypedArray(), currentSongIndex, localPlayer.repeatMode, currentPosition)
+                session.remoteMediaClient?.queueLoad(mediaItems.toTypedArray(), currentSongIndex, localPlayer.repeatMode, currentPosition, null)
                 _castSession.value = session
                 session.remoteMediaClient?.registerCallback(remoteMediaClientCallback!!)
             }
