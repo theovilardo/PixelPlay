@@ -190,9 +190,9 @@ private fun DeviceItem(
                             color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
-                        val connectionTypeRes = when (route.connectionType) {
-                            MediaRouter.RouteInfo.CONNECTION_TYPE_BLUETOOTH -> R.drawable.rounded_bluetooth_24
-                            MediaRouter.RouteInfo.CONNECTION_TYPE_WIFI -> R.drawable.rounded_wifi_24
+                        val connectionTypeRes = when {
+                            route.deviceType == MediaRouter.RouteInfo.DEVICE_TYPE_BLUETOOTH -> R.drawable.rounded_bluetooth_24
+                            route.playbackType == MediaRouter.RouteInfo.PLAYBACK_TYPE_REMOTE -> R.drawable.rounded_wifi_24
                             else -> null
                         }
 
