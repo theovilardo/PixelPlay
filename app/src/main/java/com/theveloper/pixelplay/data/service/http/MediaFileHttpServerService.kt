@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import java.io.InputStream
 import javax.inject.Inject
+import io.ktor.utils.io.jvm.javaio.toByteReadChannel
 
 @AndroidEntryPoint
 class MediaFileHttpServerService : Service() {
@@ -65,7 +66,7 @@ class MediaFileHttpServerService : Service() {
                                     return@get
                                 }
 
-                                val song = musicRepository.getSongById(songId).firstOrNull()
+                                val song = musicRepository.getSong(songId).firstOrNull()
                                 if (song == null) {
                                     call.respondText("Song not found", status = io.ktor.http.HttpStatusCode.NotFound)
                                     return@get
@@ -76,7 +77,7 @@ class MediaFileHttpServerService : Service() {
                                      call.respondText("Could not open song file", status = io.ktor.http.HttpStatusCode.InternalServerError)
                                      return@get
                                 }
-                                call.respondInputStream(contentType = io.ktor.http.ContentType.Audio.MPEG) { inputStream }
+                                call.respond(io.ktor.server.http.content.OutgoingContent.ReadChannelContent(inputStream.toByteReadChannel(), io.ktor.http.ContentType.Audio.MPEG))
                             }
                             get("/art/{songId}") {
                                 val songId = call.parameters["songId"]
@@ -85,7 +86,7 @@ class MediaFileHttpServerService : Service() {
                                     return@get
                                 }
 
-                                val song = musicRepository.getSongById(songId).firstOrNull()
+                                val song = musicRepository.getSong(songId).firstOrNull()
                                 if (song?.albumArtUriString == null) {
                                     call.respondText("Album art not found", status = io.ktor.http.HttpStatusCode.NotFound)
                                     return@get
@@ -97,7 +98,7 @@ class MediaFileHttpServerService : Service() {
                                     call.respondText("Could not open album art file", status = io.ktor.http.HttpStatusCode.InternalServerError)
                                     return@get
                                 }
-                                call.respondInputStream(contentType = io.ktor.http.ContentType.Image.JPEG) { inputStream }
+                                call.respond(io.ktor.server.http.content.OutgoingContent.ReadChannelContent(inputStream.toByteReadChannel(), io.ktor.http.ContentType.Image.JPEG))
                             }
                         }
                     }.start(wait = false)
