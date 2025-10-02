@@ -21,7 +21,6 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -87,8 +86,6 @@ import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import androidx.media3.common.Player
-import androidx.navigation.NavHostController
-import androidx.navigation.compose.currentBackStackEntryAsState
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
@@ -107,30 +104,35 @@ import com.theveloper.pixelplay.utils.formatDuration
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.delay
 import android.os.Trace // Import Trace
-import androidx.compose.foundation.layout.systemBars
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.media3.common.util.UnstableApi
-import com.theveloper.pixelplay.BottomNavItem
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
-import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
-import com.theveloper.pixelplay.presentation.components.NavBarContentHeightFullWidth
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
+import androidx.compose.material3.carousel.rememberCarouselState
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.clipPath
+import coil.size.Size
 import com.theveloper.pixelplay.presentation.components.subcomps.FetchLyricsDialog
 import com.theveloper.pixelplay.presentation.viewmodel.LyricsSearchUiState
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import timber.log.Timber
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
-import kotlin.math.pow
+import kotlin.math.absoluteValue
 import kotlin.math.roundToLong
 import kotlin.math.sign
 
@@ -158,7 +160,7 @@ fun UnifiedPlayerSheet(
     val context = LocalContext.current
     LaunchedEffect(key1 = Unit) {
         playerViewModel.toastEvents.collect { message ->
-            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1016,6 +1018,8 @@ fun UnifiedPlayerSheet(
                                             FullPlayerContentInternal(
                                                 currentSong = currentSongNonNull, // Use non-null version
                                                 currentPosition = currentPosition, // Pass granular currentPosition
+                                                currentPlaybackQueue = currentPlaybackQueue,
+                                                currentQueueSourceName = currentQueueSourceName,
                                                 isPlaying = stablePlayerState.isPlaying,
                                                 isShuffleEnabled = stablePlayerState.isShuffleEnabled,
                                                 repeatMode = stablePlayerState.repeatMode,
@@ -1088,22 +1092,107 @@ fun UnifiedPlayerSheet(
 }
 
 
-@Composable
-private fun AlbumArtDisplaySection( // Renamed for clarity and to avoid conflict if OptimizedAlbumArt is used directly
-    song: Song?, // Nullable, comes from stablePlayerState
-    expansionFraction: Float,
-    modifier: Modifier = Modifier
-) {
-    song?.let { currentSong ->
-        OptimizedAlbumArt(
-            uri = currentSong.albumArtUriString,
-            title = currentSong.title,
-            expansionFraction = expansionFraction,
-            modifier = modifier,
-            targetSize = coil.size.Size(600, 600) // Tamaño específico para el reproductor expandido
-        )
-    }
-}
+//@OptIn(ExperimentalMaterial3Api::class)
+//@Composable
+//fun AlbumCarouselSection(
+//    currentSong: Song?,
+//    queue: ImmutableList<Song>,
+//    expansionFraction: Float,
+//    onSongSelected: (Song) -> Unit,
+//    modifier: Modifier = Modifier,
+//    preferredItemWidth: Dp = 280.dp,
+//    itemSpacing: Dp = 8.dp
+//) {
+//    if (queue.isEmpty()) return
+//
+//    val carouselState = rememberCarouselState { queue.size }
+//    val currentSongIndex = remember(currentSong, queue) {
+//        queue.indexOf(currentSong).coerceAtLeast(0)
+//    }
+//
+//    // Player -> Carousel
+//    LaunchedEffect(currentSongIndex) {
+//        if (carouselState.currentItem != currentSongIndex) {
+//            carouselState.animateScrollToItem(currentSongIndex)
+//        }
+//    }
+//
+//    // Carousel -> Player
+//    LaunchedEffect(carouselState) {
+//        snapshotFlow { carouselState.isScrollInProgress }
+//            .distinctUntilChanged()
+//            .filter { !it }
+//            .collect {
+//                val settled = carouselState.currentItem
+//                if (settled != currentSongIndex) {
+//                    queue.getOrNull(settled)?.let(onSongSelected)
+//                }
+//            }
+//    }
+//
+//    HorizontalMultiBrowseCarousel(
+//        state = carouselState,
+//        modifier = modifier,                  // sin clip aquí
+//        preferredItemWidth = preferredItemWidth,
+//        itemSpacing = itemSpacing
+//    ) { index ->
+//        val song = queue[index]
+//        val pageOffset = (carouselState.currentItem - index).absoluteValue
+//
+//        // Interpolaciones “visuales”
+//        val targetScale = 1f - (pageOffset * 0.20f).coerceAtMost(0.20f)
+//        val targetAlpha = 1f - (pageOffset * 0.30f).coerceAtMost(0.60f)
+//
+//        val scale by animateFloatAsState(
+//            targetValue = targetScale,
+//            animationSpec = tween(300),
+//            label = "scale"
+//        )
+//        val contentAlpha by animateFloatAsState(
+//            targetValue = targetAlpha.coerceIn(0.85f, 1f), // opcional: evitar alphas muy bajos
+//            animationSpec = tween(300),
+//            label = "contentAlpha"
+//        )
+//
+//        val corner = lerp(16.dp, 24.dp, expansionFraction)
+//        val shape = remember(corner) { RoundedCornerShape(corner) }
+//
+//        // ⬅️ Capa del ÍTEM del carrusel:
+//        // - NO tiene transforms
+//        // - SÍ tiene el clip redondeado que usa el maskRect del Carousel
+//        Box(
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .aspectRatio(1f)
+//                .maskClip(shape)   // clave: el peek respeta el redondeo SIEMPRE
+//        ) {
+//            // ⬇️ Capa interna (HIJO) con TODAS las transforms
+//            Box(
+//                modifier = Modifier
+//                    .fillMaxSize()
+//                    .graphicsLayer {
+//                        scaleX = scale
+//                        scaleY = scale
+//                        alpha = contentAlpha
+//                        compositingStrategy = CompositingStrategy.Offscreen
+//                        // Si aún vieses un “hairline” en tu device específico, prueba:
+//                        // translationY = if (pageOffset != 0) 0.3f else 0f
+//                    }
+//                    .maskClip(shape)
+//            ) {
+//                OptimizedAlbumArt(
+//                    uri = song.albumArtUriString,
+//                    title = song.title,
+//                    modifier = Modifier
+//                        .fillMaxSize()
+//                        .maskClip(shape),
+//                    targetSize = coil.size.Size(600, 600)
+//                )
+//            }
+//        }
+//    }
+//}
+
 
 @Composable
 private fun SongMetadataDisplaySection( // Renamed for clarity
@@ -1200,7 +1289,7 @@ private fun PlayerSongInfo(
     modifier: Modifier = Modifier
 ) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+        horizontalAlignment = Alignment.Start,
         modifier = modifier
             .padding(vertical = lerp(2.dp, 10.dp, expansionFraction))
             .fillMaxWidth(0.9f)
@@ -1218,7 +1307,7 @@ private fun PlayerSongInfo(
             color = textColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Start
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
@@ -1227,7 +1316,7 @@ private fun PlayerSongInfo(
             color = artistTextColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Start
         )
     }
 }
@@ -1268,7 +1357,7 @@ private fun MiniPlayerContentInternal(
             model = song.albumArtUriString ?: R.drawable.rounded_album_24,
             contentDescription = "Carátula de ${song.title}",
             shape = CircleShape,
-            targetSize = coil.size.Size(150, 150),
+            targetSize = Size(150, 150),
             modifier = Modifier
                 .size(44.dp)
         )
@@ -1363,6 +1452,8 @@ private enum class ButtonType {
 private fun FullPlayerContentInternal(
     currentSong: Song?,
     currentPosition: Long, // Added currentPosition
+    currentPlaybackQueue: ImmutableList<Song>,
+    currentQueueSourceName: String,
     isPlaying: Boolean,
     isShuffleEnabled: Boolean,
     repeatMode: Int,
@@ -1600,22 +1691,37 @@ private fun FullPlayerContentInternal(
         ) {
             // Album Cover section
             val albumArtContainerModifier = Modifier
+                .fillMaxWidth() // Let the carousel manage its width
                 .padding(vertical = lerp(4.dp, 8.dp, expansionFraction))
-                .fillMaxWidth(lerp(0.5f, 0.8f, expansionFraction))
-                .aspectRatio(1f)
-                .clip(RoundedCornerShape(lerp(16.dp, 24.dp, expansionFraction)))
-                //.shadow(elevation = 16.dp * expansionFraction)
+                .height(lerp(150.dp, 260.dp, expansionFraction)) // Adjust height for carousel
                 .graphicsLayer { alpha = expansionFraction }
 
             // Album Cover section - uses new Composable
-            AlbumArtDisplaySection(
-                song = currentSong,
+            AlbumCarouselSection(
+                currentSong = currentSong,
+                queue = currentPlaybackQueue,
                 expansionFraction = expansionFraction,
+                onSongSelected = { newSong ->
+                    if (newSong.id != currentSong.id) {
+                // By calling showAndPlaySong, we leverage the ViewModel's logic to determine
+                // whether to seek within the current queue (preserving modifications) or
+                // to start a new playback context. This is the correct way to handle
+                // user interaction from the carousel.
+                playerViewModel.showAndPlaySong(
+                    song = newSong,
+                    contextSongs = currentPlaybackQueue,
+                    queueName = currentQueueSourceName
+                        )
+                    }
+                },
                 modifier = albumArtContainerModifier
             )
 
             // Song Info - uses new Composable
             SongMetadataDisplaySection(
+                modifier = Modifier
+                    .align(Alignment.Start)
+                    .padding(start = 4.dp),
                 song = currentSong, // currentSong is from stablePlayerState
                 expansionFraction = expansionFraction,
                 textColor = LocalMaterialTheme.current.onPrimaryContainer,

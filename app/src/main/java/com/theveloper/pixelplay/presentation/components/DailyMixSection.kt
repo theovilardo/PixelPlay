@@ -17,7 +17,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -231,7 +230,7 @@ private fun DailyMixSongList(
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+
 @Composable
 private fun ViewAllDailyMixButton(
     modifier: Modifier = Modifier,
@@ -264,7 +263,7 @@ private fun ViewAllDailyMixButton(
         ) {
             Text(
                 text = "Check all of Daily Mix",
-                style = MaterialTheme.typography.bodyLargeEmphasized,
+                style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium
             )
             Icon(
