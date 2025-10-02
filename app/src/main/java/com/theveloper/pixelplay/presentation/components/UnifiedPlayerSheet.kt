@@ -1703,11 +1703,14 @@ private fun FullPlayerContentInternal(
                 expansionFraction = expansionFraction,
                 onSongSelected = { newSong ->
                     if (newSong.id != currentSong.id) {
-                        // -- AQUÍ ESTÁ LA CORRECCIÓN --
-                        playerViewModel.playSongs(
-                            songsToPlay = currentPlaybackQueue, // 'songs' cambiado a 'songsToPlay'
-                            startSong = newSong,
-                            queueName = currentQueueSourceName   // 'sourceName' cambiado a 'queueName'
+                // By calling showAndPlaySong, we leverage the ViewModel's logic to determine
+                // whether to seek within the current queue (preserving modifications) or
+                // to start a new playback context. This is the correct way to handle
+                // user interaction from the carousel.
+                playerViewModel.showAndPlaySong(
+                    song = newSong,
+                    contextSongs = currentPlaybackQueue,
+                    queueName = currentQueueSourceName
                         )
                     }
                 },
