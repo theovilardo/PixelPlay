@@ -40,10 +40,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.util.UnstableApi
 import androidx.mediarouter.media.MediaRouter
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CastBottomSheet(
@@ -169,8 +171,8 @@ private fun DeviceItem(
 
                     val deviceIconRes = when (route.deviceType) {
                         MediaRouter.RouteInfo.DEVICE_TYPE_TV -> R.drawable.rounded_tv_24
-                        MediaRouter.RouteInfo.DEVICE_TYPE_SPEAKER -> R.drawable.rounded_speaker_24
-                        MediaRouter.RouteInfo.DEVICE_TYPE_BLUETOOTH -> R.drawable.rounded_speaker_24
+                        MediaRouter.RouteInfo.DEVICE_TYPE_BUILTIN_SPEAKER -> R.drawable.rounded_speaker_24
+                        MediaRouter.RouteInfo.DEVICE_TYPE_REMOTE_SPEAKER -> R.drawable.rounded_speaker_24
                         else -> R.drawable.rounded_cast_24
                     }
 
@@ -191,7 +193,7 @@ private fun DeviceItem(
                         )
 
                         val connectionTypeRes = when {
-                            route.deviceType == MediaRouter.RouteInfo.DEVICE_TYPE_BLUETOOTH -> R.drawable.rounded_bluetooth_24
+                            route.deviceType == MediaRouter.RouteInfo.DEVICE_TYPE_BLUETOOTH_A2DP -> R.drawable.rounded_bluetooth_24
                             route.playbackType == MediaRouter.RouteInfo.PLAYBACK_TYPE_REMOTE -> R.drawable.rounded_wifi_24
                             else -> null
                         }
