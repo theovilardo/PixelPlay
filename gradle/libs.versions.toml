@@ -2,6 +2,7 @@
 accompanistDrawablepainter = "0.37.3"
 agp = "8.9.2"
 googleGenai = "1.11.0"
+googlePlayServicesCast = "21.5.0"
 amplituda = "2.3.0"
 animation = "1.8.1"
 appcompat = "1.7.0"
@@ -74,6 +75,7 @@ mediarouterVersion = "1.8.1"
 accompanist-drawablepainter = { module = "com.google.accompanist:accompanist-drawablepainter", version.ref = "accompanistDrawablepainter" }
 androidx-ui-text-google-fonts = { module = "androidx.compose.ui:ui-text-google-fonts" }
 google-genai = { group = "com.google.genai", name = "google-genai", version.ref = "googleGenai" }
+google-play-services-cast-framework = { group = "com.google.android.gms", name = "play-services-cast-framework", version.ref = "googlePlayServicesCast" }
 amplituda = { module = "com.github.lincollincol:amplituda", version.ref = "amplituda" }
 androidx-animation = { module = "androidx.compose.animation:animation", version.ref = "animation" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }

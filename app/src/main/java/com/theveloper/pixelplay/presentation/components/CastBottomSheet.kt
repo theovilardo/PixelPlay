@@ -37,16 +37,26 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.util.UnstableApi
 import androidx.mediarouter.media.MediaRouter
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import android.provider.Settings
+import android.content.Intent
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.SliderDefaults
 
-@androidx.annotation.OptIn(UnstableApi::class)
+@androidx.annotation.OptIn(UnstableApi::class, ExperimentalPermissionsApi::class,
+    ExperimentalPermissionsApi::class, ExperimentalPermissionsApi::class
+)
 @OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun CastBottomSheet(
     playerViewModel: PlayerViewModel,
@@ -58,6 +68,24 @@ fun CastBottomSheet(
     val selectedRoute by playerViewModel.selectedRoute.collectAsState()
     val routeVolume by playerViewModel.routeVolume.collectAsState()
     val isRefreshing by playerViewModel.isRefreshingRoutes.collectAsState()
+    val isWifiEnabled by playerViewModel.isWifiEnabled.collectAsState()
+    val isBluetoothEnabled by playerViewModel.isBluetoothEnabled.collectAsState()
+    val context = LocalContext.current
+
+    val wifiPermissions = rememberMultiplePermissionsState(
+        permissions = listOf(
+            android.Manifest.permission.ACCESS_NETWORK_STATE,
+            android.Manifest.permission.CHANGE_WIFI_STATE,
+            android.Manifest.permission.NEARBY_WIFI_DEVICES
+        )
+    )
+
+    val bluetoothPermissions = rememberMultiplePermissionsState(
+        permissions = listOf(
+            android.Manifest.permission.BLUETOOTH_CONNECT,
+            android.Manifest.permission.BLUETOOTH_SCAN
+        )
+    )
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -93,6 +121,34 @@ fun CastBottomSheet(
                         .align(Alignment.CenterHorizontally)
                 )
 
+                if (!isWifiEnabled) {
+                    EnableServiceCard(
+                        serviceName = "Wi-Fi",
+                        iconRes = R.drawable.rounded_wifi_24,
+                        onEnableClick = {
+                            if (wifiPermissions.allPermissionsGranted) {
+                                context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
+                            } else {
+                                wifiPermissions.launchMultiplePermissionRequest()
+                            }
+                        }
+                    )
+                }
+
+                if (!isBluetoothEnabled) {
+                    EnableServiceCard(
+                        serviceName = "Bluetooth",
+                        iconRes = R.drawable.rounded_bluetooth_24,
+                        onEnableClick = {
+                            if (bluetoothPermissions.allPermissionsGranted) {
+                                context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+                            } else {
+                                bluetoothPermissions.launchMultiplePermissionRequest()
+                            }
+                        }
+                    )
+                }
+
                 if (routes.isEmpty() && !isRefreshing) {
                     Box(
                         modifier = Modifier
@@ -114,11 +170,9 @@ fun CastBottomSheet(
                                     currentVolume = routeVolume,
                                     onConnect = {
                                         playerViewModel.selectRoute(route)
-                                        onDismiss()
                                     },
                                     onDisconnect = {
                                         playerViewModel.disconnect()
-                                        onDismiss()
                                     },
                                     onVolumeChange = { newVolume ->
                                         playerViewModel.setRouteVolume(newVolume)
@@ -128,6 +182,46 @@ fun CastBottomSheet(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EnableServiceCard(
+    serviceName: String,
+    iconRes: Int,
+    onEnableClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    painter = painterResource(id = iconRes),
+                    contentDescription = "$serviceName disabled",
+                    modifier = Modifier.size(32.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.size(16.dp))
+                Text(
+                    text = "$serviceName is disabled",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Button(onClick = onEnableClick) {
+                Text("Enable")
             }
         }
     }
@@ -210,7 +304,12 @@ private fun DeviceItem(
                 }
 
                 if (isSelected) {
-                    OutlinedButton(onClick = onDisconnect) {
+                    OutlinedButton(
+                        onClick = onDisconnect,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
                         Text("Disconnect")
                     }
                 } else {
@@ -224,7 +323,12 @@ private fun DeviceItem(
                     value = currentVolume.toFloat(),
                     onValueChange = { onVolumeChange(it.toInt()) },
                     valueRange = 0f..route.volumeMax.toFloat(),
-                    modifier = Modifier.padding(horizontal = 16.dp)
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                        inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
+                    )
                 )
             }
         }
