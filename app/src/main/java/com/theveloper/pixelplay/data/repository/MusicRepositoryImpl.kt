@@ -38,7 +38,6 @@ import com.theveloper.pixelplay.data.database.toArtist
 import com.theveloper.pixelplay.data.database.toSong
 import com.theveloper.pixelplay.data.model.Lyrics
 import com.theveloper.pixelplay.data.model.SyncedLine
-import com.theveloper.pixelplay.data.network.lyrics.LrcLibApiService
 import com.theveloper.pixelplay.utils.LogUtils
 import com.theveloper.pixelplay.utils.LyricsUtils
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -54,8 +53,6 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 // import kotlinx.coroutines.sync.withLock // May not be needed if directoryScanMutex logic changes
 import java.io.File
-import org.jaudiotagger.audio.AudioFileIO
-import org.jaudiotagger.tag.FieldKey
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @Singleton
@@ -64,7 +61,7 @@ class MusicRepositoryImpl @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val searchHistoryDao: SearchHistoryDao,
     private val musicDao: MusicDao,
-    private val lrcLibApiService: LrcLibApiService
+    private val lyricsRepository: LyricsRepository
 ) : MusicRepository {
 
     private val directoryScanMutex = Mutex()
@@ -553,41 +550,7 @@ class MusicRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getLyrics(song: Song): Lyrics? {
-        // 1. Check if lyrics are already in the song object (from DB)
-        if (!song.lyrics.isNullOrBlank()) {
-            val parsedLyrics = LyricsUtils.parseLyrics(song.lyrics)
-            if (!parsedLyrics.synced.isNullOrEmpty() || !parsedLyrics.plain.isNullOrEmpty()) {
-                return parsedLyrics.copy(areFromRemote = false)
-            }
-        }
-
-        // 2. If not in DB, try to read from the file's metadata
-        return try {
-            val file = File(song.contentUriString)
-            if (!file.exists()) return null
-
-            val audioFile = AudioFileIO.read(file)
-            val tag = audioFile.tag
-            val lyricsFromFile = tag?.getFirst(FieldKey.LYRICS)
-
-            if (!lyricsFromFile.isNullOrBlank()) {
-                // 3. If found, update DB for caching
-                musicDao.updateLyrics(song.id.toLong(), lyricsFromFile)
-
-                // 4. Parse and return lyrics
-                val parsedLyrics = LyricsUtils.parseLyrics(lyricsFromFile)
-                if (!parsedLyrics.synced.isNullOrEmpty() || !parsedLyrics.plain.isNullOrEmpty()) {
-                    parsedLyrics.copy(areFromRemote = false)
-                } else {
-                    null
-                }
-            } else {
-                null
-            }
-        } catch (e: Exception) {
-            Log.e("MusicRepositoryImpl", "Error reading lyrics from file for song: ${song.title}", e)
-            null
-        }
+        return lyricsRepository.getLyrics(song)
     }
 
     /**
@@ -597,38 +560,11 @@ class MusicRepositoryImpl @Inject constructor(
      * @param song La canción para la cual se buscará la letra.
      * @return Un objeto Result que contiene el objeto Lyrics si se encontró, o un error.
      */
-    override suspend fun getLyricsFromRemote(song: Song): Result<Pair<Lyrics, String>> = withContext(Dispatchers.IO) {
-        try {
-            val response = lrcLibApiService.getLyrics(
-                trackName = song.title,
-                artistName = song.artist,
-                albumName = song.album,
-                duration = (song.duration / 1000).toInt()
-            )
-
-            if (response != null && (!response.syncedLyrics.isNullOrEmpty() || !response.plainLyrics.isNullOrEmpty())) {
-                // Prioritize synced for saving, but parse both for returning
-                val rawLyricsToSave = response.syncedLyrics ?: response.plainLyrics!!
-                musicDao.updateLyrics(song.id.toLong(), rawLyricsToSave)
-
-                // Use the centralized parser for the raw lyrics
-                val parsedLyrics = LyricsUtils.parseLyrics(rawLyricsToSave).copy(areFromRemote = true)
-
-                if (parsedLyrics.synced.isNullOrEmpty() && parsedLyrics.plain.isNullOrEmpty()) {
-                     return@withContext Result.failure(Exception("No lyrics found for this song."))
-                }
-
-                Result.success(Pair(parsedLyrics, rawLyricsToSave))
-            } else {
-                Result.failure(Exception("No lyrics found for this song."))
-            }
-        } catch (e: Exception) {
-            Log.e("MusicRepositoryImpl", "Error fetching lyrics from remote", e)
-            Result.failure(e)
-        }
+    override suspend fun getLyricsFromRemote(song: Song): Result<Pair<Lyrics, String>> {
+        return lyricsRepository.fetchFromRemote(song)
     }
 
     override suspend fun updateLyrics(songId: Long, lyrics: String) {
-        musicDao.updateLyrics(songId, lyrics)
+        lyricsRepository.updateLyrics(songId, lyrics)
     }
 }

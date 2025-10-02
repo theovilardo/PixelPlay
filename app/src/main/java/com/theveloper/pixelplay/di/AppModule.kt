@@ -18,6 +18,8 @@ import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.preferences.dataStore
 import com.theveloper.pixelplay.data.media.SongMetadataEditor
 import com.theveloper.pixelplay.data.network.lyrics.LrcLibApiService
+import com.theveloper.pixelplay.data.repository.LyricsRepository
+import com.theveloper.pixelplay.data.repository.LyricsRepositoryImpl
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.data.repository.MusicRepositoryImpl
 import com.theveloper.pixelplay.data.repository.TransitionRepository
@@ -109,6 +111,20 @@ object AppModule {
             .dispatcher(Dispatchers.Default) // Use CPU-bound dispatcher for decoding
             .allowHardware(true) // Re-enable hardware bitmaps for better performance
             .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideLyricsRepository(
+        @ApplicationContext context: Context,
+        lrcLibApiService: LrcLibApiService,
+        musicDao: MusicDao
+    ): LyricsRepository {
+        return LyricsRepositoryImpl(
+            context = context,
+            lrcLibApiService = lrcLibApiService,
+            musicDao = musicDao
+        )
     }
 
     @Provides
