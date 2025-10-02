@@ -1567,7 +1567,9 @@ class PlayerViewModel @Inject constructor(
             } else {
                 MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE
             }
-            remoteMediaClient?.queueSetRepeatMode(newRepeatMode, null)
+            remoteMediaClient?.queueSetRepeatMode(newRepeatMode, null)?.setResultCallback {
+                if (!it.status.isSuccess) Timber.e("Remote media client failed to set repeat mode (for shuffle): ${it.status.statusMessage}")
+            }
         } else {
             val newShuffleState = !_stablePlayerState.value.isShuffleEnabled
             mediaController?.shuffleModeEnabled = newShuffleState
@@ -1587,7 +1589,9 @@ class PlayerViewModel @Inject constructor(
                 MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE -> MediaStatus.REPEAT_MODE_REPEAT_OFF
                 else -> MediaStatus.REPEAT_MODE_REPEAT_OFF
             }
-            remoteMediaClient?.queueSetRepeatMode(newMode, null)
+            remoteMediaClient?.queueSetRepeatMode(newMode, null)?.setResultCallback {
+                if (!it.status.isSuccess) Timber.e("Remote media client failed to set repeat mode: ${it.status.statusMessage}")
+            }
         } else {
             val currentMode = _stablePlayerState.value.repeatMode
             val newMode = when (currentMode) {
@@ -1871,11 +1875,12 @@ class PlayerViewModel @Inject constructor(
         if (castSession != null && castSession.remoteMediaClient != null) {
             val remoteMediaClient = castSession.remoteMediaClient!!
             if (remoteMediaClient.isPlaying) {
-                remoteMediaClient.pause()
+                remoteMediaClient.pause().setResultCallback {
+                    if (!it.status.isSuccess) Timber.e("Remote media client failed to pause: ${it.status.statusMessage}")
+                }
             } else {
                 val mediaStatus = remoteMediaClient.mediaStatus
                 if (mediaStatus == null || mediaStatus.playerState == MediaStatus.PLAYER_STATE_IDLE) {
-                    // Nothing is loaded, so load the current queue
                     val queue = _playerUiState.value.currentPlaybackQueue
                     if (queue.isNotEmpty()) {
                         val startSong = _stablePlayerState.value.currentSong ?: queue.first()
@@ -1884,8 +1889,9 @@ class PlayerViewModel @Inject constructor(
                         }
                     }
                 } else {
-                    // It's paused, so just play
-                    remoteMediaClient.play()
+                    remoteMediaClient.play().setResultCallback {
+                        if (!it.status.isSuccess) Timber.e("Remote media client failed to play: ${it.status.statusMessage}")
+                    }
                 }
             }
         } else {
@@ -1906,7 +1912,9 @@ class PlayerViewModel @Inject constructor(
     fun seekTo(position: Long) {
         val castSession = _castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
-            castSession.remoteMediaClient?.seek(position)
+            castSession.remoteMediaClient?.seek(position)?.setResultCallback {
+                if (!it.status.isSuccess) Timber.e("Remote media client failed to seek: ${it.status.statusMessage}")
+            }
         } else {
             mediaController?.seekTo(position)
             _playerUiState.update { it.copy(currentPosition = position) }
@@ -1916,7 +1924,9 @@ class PlayerViewModel @Inject constructor(
     fun nextSong() {
         val castSession = _castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
-            castSession.remoteMediaClient?.queueNext(null)
+            castSession.remoteMediaClient?.queueNext(null)?.setResultCallback {
+                if (!it.status.isSuccess) Timber.e("Remote media client failed to queueNext: ${it.status.statusMessage}")
+            }
         } else {
             mediaController?.let {
                 if (it.hasNextMediaItem()) {
@@ -1930,7 +1940,9 @@ class PlayerViewModel @Inject constructor(
     fun previousSong() {
         val castSession = _castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
-            castSession.remoteMediaClient?.queuePrev(null)
+            castSession.remoteMediaClient?.queuePrev(null)?.setResultCallback {
+                if (!it.status.isSuccess) Timber.e("Remote media client failed to queuePrev: ${it.status.statusMessage}")
+            }
         } else {
             mediaController?.let { controller ->
                 if (controller.currentPosition > 10000 && controller.isCurrentMediaItemSeekable) { // 10 segundos
@@ -1945,12 +1957,23 @@ class PlayerViewModel @Inject constructor(
     private fun startProgressUpdates() {
         stopProgressUpdates()
         progressJob = viewModelScope.launch {
-            while (isActive && _stablePlayerState.value.isPlaying) {
-                val newPosition = mediaController?.currentPosition?.coerceAtLeast(0L) ?: 0L
-                if (newPosition != _playerUiState.value.currentPosition) {
-                    _playerUiState.update { it.copy(currentPosition = newPosition) }
+            while (isActive) {
+                if (_castSession.value != null) {
+                    // Position is updated by the ProgressListener, so we don't need to do anything here
+                    // for the remote case. We just keep the loop alive.
+                    delay(1000) // Check every second
+                } else {
+                    if (_stablePlayerState.value.isPlaying) {
+                        val newPosition = mediaController?.currentPosition?.coerceAtLeast(0L) ?: 0L
+                        if (newPosition != _playerUiState.value.currentPosition) {
+                            _playerUiState.update { it.copy(currentPosition = newPosition) }
+                        }
+                        delay(40)
+                    } else {
+                        // Stop the loop if local player is not playing
+                        break
+                    }
                 }
-                delay(40)
             }
         }
     }
