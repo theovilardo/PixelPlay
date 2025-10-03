@@ -1940,6 +1940,8 @@ class PlayerViewModel @Inject constructor(
             remoteMediaClient.seek(seekOptions)?.setResultCallback {
                 if (!it.status.isSuccess) Timber.e("Remote media client failed to seek: ${it.status.statusMessage}")
             }
+            // Optimistically update the UI state for remote seek as well.
+            _playerUiState.update { it.copy(currentPosition = position) }
         } else {
             mediaController?.seekTo(position)
             _playerUiState.update { it.copy(currentPosition = position) }
