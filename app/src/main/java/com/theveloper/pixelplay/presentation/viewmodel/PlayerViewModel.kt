@@ -770,6 +770,8 @@ class PlayerViewModel @Inject constructor(
 
                     val currentSongIndex = localPlayer.currentMediaItemIndex
                     val currentPosition = localPlayer.currentPosition
+                    val wasPlaying = localPlayer.isPlaying // Capture state BEFORE pausing
+
                     localPlayer.pause()
                     stopProgressUpdates() // Stop local polling
 
@@ -787,10 +789,33 @@ class PlayerViewModel @Inject constructor(
                             .build()
                         MediaQueueItem.Builder(mediaInfo).setCustomData(org.json.JSONObject().put("songId", song.id)).build()
                     }
-                    val wasPlaying = localPlayer.isPlaying
-                    session.remoteMediaClient?.queueLoad(mediaItems.toTypedArray(), currentSongIndex, localPlayer.repeatMode, currentPosition, null)?.setResultCallback {
-                        if (it.status.isSuccess && wasPlaying) {
-                            session.remoteMediaClient?.play()
+
+                    // Correctly translate repeat and shuffle modes
+                    val castRepeatMode = if (localPlayer.shuffleModeEnabled) {
+                        MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE
+                    } else {
+                        when (localPlayer.repeatMode) {
+                            Player.REPEAT_MODE_ONE -> MediaStatus.REPEAT_MODE_REPEAT_SINGLE
+                            Player.REPEAT_MODE_ALL -> MediaStatus.REPEAT_MODE_REPEAT_ALL
+                            else -> MediaStatus.REPEAT_MODE_REPEAT_OFF
+                        }
+                    }
+
+                    session.remoteMediaClient?.queueLoad(
+                        mediaItems.toTypedArray(),
+                        currentSongIndex,
+                        castRepeatMode,
+                        currentPosition,
+                        null
+                    )?.setResultCallback {
+                        if (it.status.isSuccess) {
+                            if (wasPlaying) {
+                                session.remoteMediaClient?.play()
+                            }
+                        } else {
+                            sendToast("Failed to load media on cast device.")
+                            Timber.e("Remote media client failed to load queue: ${it.status.statusMessage}")
+                            disconnect()
                         }
                     }
                     _castSession.value = session
@@ -816,7 +841,6 @@ class PlayerViewModel @Inject constructor(
             }
 
             private fun stopServerAndTransferBack() {
-                remoteProgressObserverJob?.cancel()
                 val session = _castSession.value ?: return
                 val remoteMediaClient = session.remoteMediaClient ?: return
 
@@ -829,12 +853,13 @@ class PlayerViewModel @Inject constructor(
                 val lastRepeatMode = lastKnownStatus?.queueRepeatMode ?: Player.REPEAT_MODE_OFF
                 val lastShuffleMode = lastRepeatMode == MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE
 
-                // Tear down remote session
+                // Tear down remote session first
+                remoteProgressObserverJob?.cancel()
                 remoteMediaClient.removeProgressListener(remoteProgressListener!!)
                 remoteMediaClient.unregisterCallback(remoteMediaClientCallback!!)
                 _castSession.value = null
                 context.stopService(Intent(context, MediaFileHttpServerService::class.java))
-                disconnect()
+                disconnect() // This selects the default route
 
                 // Restore local playback
                 val localPlayer = mediaController ?: return
@@ -846,6 +871,7 @@ class PlayerViewModel @Inject constructor(
                     val startIndex = if (lastPlayedSongId != null) {
                         lastKnownQueue.indexOfFirst { it.id == lastPlayedSongId }
                     } else {
+                        // Fallback in case customData is missing
                         remoteQueueItems.indexOf(lastPlayedRemoteItem)
                     }.coerceAtLeast(0)
 
@@ -865,7 +891,6 @@ class PlayerViewModel @Inject constructor(
 
                     // Set modes BEFORE setting items
                     localPlayer.shuffleModeEnabled = lastShuffleMode
-                    // Translate Cast repeat mode to Media3 repeat mode
                     localPlayer.repeatMode = when(lastRepeatMode) {
                         MediaStatus.REPEAT_MODE_REPEAT_SINGLE -> Player.REPEAT_MODE_ONE
                         MediaStatus.REPEAT_MODE_REPEAT_ALL, MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE -> Player.REPEAT_MODE_ALL
@@ -875,7 +900,11 @@ class PlayerViewModel @Inject constructor(
                     localPlayer.setMediaItems(mediaItems, startIndex, lastPosition)
                     localPlayer.prepare()
                     if (wasPlaying) {
-                        localPlayer.play()
+                        localPlayer.play() // This will trigger onIsPlayingChanged, which calls startProgressUpdates
+                    } else {
+                        // If not playing, the UI still needs to be updated to the correct position.
+                        _playerUiState.update { it.copy(currentPosition = lastPosition) }
+                        stopProgressUpdates() // Ensure no old progress job is running
                     }
                 }
             }
@@ -1974,19 +2003,18 @@ class PlayerViewModel @Inject constructor(
         if (castSession != null && castSession.remoteMediaClient != null) {
             val remoteMediaClient = castSession.remoteMediaClient!!
             isRemotelySeeking.value = true
-            val wasPlaying = remoteMediaClient.isPlaying
             val seekOptions = MediaSeekOptions.Builder()
                 .setPosition(position)
-                .setResumeState(if (wasPlaying) MediaSeekOptions.RESUME_STATE_PLAY else MediaSeekOptions.RESUME_STATE_PAUSE)
+                .setResumeState(MediaSeekOptions.RESUME_STATE_UNCHANGED)
                 .build()
+
             remoteMediaClient.seek(seekOptions)?.setResultCallback {
                 if (!it.status.isSuccess) {
                     Timber.e("Remote media client failed to seek: ${it.status.statusMessage}")
                 }
-                // Whether seek succeeded or failed, we are no longer seeking.
                 isRemotelySeeking.value = false
             }
-            // Optimistically update the UI state for remote seek as well.
+            // Optimistically update the UI state for responsiveness
             _playerUiState.update { it.copy(currentPosition = position) }
         } else {
             mediaController?.seekTo(position)
