@@ -768,12 +768,12 @@ class PlayerViewModel @Inject constructor(
                     val currentQueue = _playerUiState.value.currentPlaybackQueue
                     if (currentQueue.isEmpty()) return@launch
 
+                    val wasPlaying = localPlayer.isPlaying
                     val currentSongIndex = localPlayer.currentMediaItemIndex
                     val currentPosition = localPlayer.currentPosition
-                    val wasPlaying = localPlayer.isPlaying // Capture state BEFORE pausing
 
                     localPlayer.pause()
-                    stopProgressUpdates() // Stop local polling
+                    stopProgressUpdates()
 
                     val mediaItems = currentQueue.map { song ->
                         val mediaMetadata = com.google.android.gms.cast.MediaMetadata(com.google.android.gms.cast.MediaMetadata.MEDIA_TYPE_MUSIC_TRACK)
@@ -790,7 +790,6 @@ class PlayerViewModel @Inject constructor(
                         MediaQueueItem.Builder(mediaInfo).setCustomData(org.json.JSONObject().put("songId", song.id)).build()
                     }
 
-                    // Correctly translate repeat and shuffle modes
                     val castRepeatMode = if (localPlayer.shuffleModeEnabled) {
                         MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE
                     } else {
@@ -810,7 +809,11 @@ class PlayerViewModel @Inject constructor(
                     )?.setResultCallback {
                         if (it.status.isSuccess) {
                             if (wasPlaying) {
-                                session.remoteMediaClient?.play()
+                                session.remoteMediaClient?.play()?.setResultCallback { playResult ->
+                                    if (!playResult.status.isSuccess) {
+                                        Timber.e("Remote play command failed: ${playResult.status.statusMessage}")
+                                    }
+                                }
                             }
                         } else {
                             sendToast("Failed to load media on cast device.")
@@ -822,7 +825,6 @@ class PlayerViewModel @Inject constructor(
                     session.remoteMediaClient?.registerCallback(remoteMediaClientCallback!!)
                     session.remoteMediaClient?.addProgressListener(remoteProgressListener!!, 1000)
 
-                    // Start observing remote progress
                     remoteProgressObserverJob?.cancel()
                     remoteProgressObserverJob = viewModelScope.launch {
                         _remotePosition.collect { position ->
@@ -843,25 +845,21 @@ class PlayerViewModel @Inject constructor(
             private fun stopServerAndTransferBack() {
                 val session = _castSession.value ?: return
                 val remoteMediaClient = session.remoteMediaClient ?: return
-
-                // Capture the full state BEFORE clearing it
                 val lastKnownStatus = remoteMediaClient.mediaStatus
-                val lastPosition = _remotePosition.value // Use the precise, real-time position
+                val lastPosition = _remotePosition.value
                 val wasPlaying = lastKnownStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING
                 val lastItemId = lastKnownStatus?.currentItemId
                 val lastKnownQueue = _playerUiState.value.currentPlaybackQueue.toList()
                 val lastRepeatMode = lastKnownStatus?.queueRepeatMode ?: Player.REPEAT_MODE_OFF
                 val lastShuffleMode = lastRepeatMode == MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE
 
-                // Tear down remote session first
                 remoteProgressObserverJob?.cancel()
                 remoteMediaClient.removeProgressListener(remoteProgressListener!!)
                 remoteMediaClient.unregisterCallback(remoteMediaClientCallback!!)
                 _castSession.value = null
                 context.stopService(Intent(context, MediaFileHttpServerService::class.java))
-                disconnect() // This selects the default route
+                disconnect()
 
-                // Restore local playback
                 val localPlayer = mediaController ?: return
                 if (lastKnownQueue.isNotEmpty() && lastKnownStatus != null && lastItemId != null) {
                     val remoteQueueItems = lastKnownStatus.queueItems ?: return
@@ -871,7 +869,6 @@ class PlayerViewModel @Inject constructor(
                     val startIndex = if (lastPlayedSongId != null) {
                         lastKnownQueue.indexOfFirst { it.id == lastPlayedSongId }
                     } else {
-                        // Fallback in case customData is missing
                         remoteQueueItems.indexOf(lastPlayedRemoteItem)
                     }.coerceAtLeast(0)
 
@@ -889,7 +886,6 @@ class PlayerViewModel @Inject constructor(
                             .build()
                     }
 
-                    // Set modes BEFORE setting items
                     localPlayer.shuffleModeEnabled = lastShuffleMode
                     localPlayer.repeatMode = when(lastRepeatMode) {
                         MediaStatus.REPEAT_MODE_REPEAT_SINGLE -> Player.REPEAT_MODE_ONE
@@ -900,11 +896,12 @@ class PlayerViewModel @Inject constructor(
                     localPlayer.setMediaItems(mediaItems, startIndex, lastPosition)
                     localPlayer.prepare()
                     if (wasPlaying) {
-                        localPlayer.play() // This will trigger onIsPlayingChanged, which calls startProgressUpdates
+                        localPlayer.play()
                     } else {
-                        // If not playing, the UI still needs to be updated to the correct position.
                         _playerUiState.update { it.copy(currentPosition = lastPosition) }
-                        stopProgressUpdates() // Ensure no old progress job is running
+                        if (_stablePlayerState.value.isPlaying) {
+                            startProgressUpdates()
+                        }
                     }
                 }
             }

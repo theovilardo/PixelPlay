@@ -1240,8 +1240,6 @@ private fun PlayerProgressBarSection(
     timeTextColor: Color,
     modifier: Modifier = Modifier
 ) {
-    // This local state holds the slider's position while the user is dragging.
-    // It's nullable to differentiate between a dragged state and the actual playback progress.
     var sliderDragValue by remember { mutableStateOf<Float?>(null) }
     val interactionSource = remember { MutableInteractionSource() }
 
@@ -1257,16 +1255,12 @@ private fun PlayerProgressBarSection(
         WavyMusicSlider(
             value = sliderDragValue ?: progressFractionValue,
             onValueChange = { newValue ->
-                // When the user starts dragging, only update the local drag value.
-                // This provides immediate visual feedback without spamming the seek command.
                 sliderDragValue = newValue
             },
             onValueChangeFinished = {
-                // When the user releases the slider, perform the actual seek command.
                 sliderDragValue?.let { finalValue ->
                     onSeek((finalValue * totalDurationValue).roundToLong())
                 }
-                // Reset the drag value to null so the slider resumes following the playback progress.
                 sliderDragValue = null
             },
             interactionSource = interactionSource,
