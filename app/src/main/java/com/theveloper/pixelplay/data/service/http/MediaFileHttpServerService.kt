@@ -3,9 +3,6 @@ package com.theveloper.pixelplay.data.service.http
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.app.Service
-import android.content.Context
-import android.content.Intent
 import android.net.ConnectivityManager
 import android.os.IBinder
 import androidx.core.net.toUri
@@ -22,6 +19,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.net.Inet4Address
 import javax.inject.Inject

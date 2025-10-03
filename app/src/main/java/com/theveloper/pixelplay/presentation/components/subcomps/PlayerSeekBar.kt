@@ -75,7 +75,7 @@ fun PlayerSeekBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(0.7f),
-            valueProvider = { progressFraction },
+            value = progressFraction,
             onValueChange = { newFraction ->
                 onSeek((newFraction * totalDuration).roundToLong())
             },

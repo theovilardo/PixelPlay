@@ -1110,99 +1110,99 @@ fun UnifiedPlayerSheet(
 }
 
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-fun AlbumCarouselSection(
-    currentSong: Song?,
-    queue: ImmutableList<Song>,
-    expansionFraction: Float,
-    onSongSelected: (Song) -> Unit,
-    modifier: Modifier = Modifier,
-    preferredItemWidth: Dp = 280.dp,
-    itemSpacing: Dp = 8.dp
-) {
-    if (queue.isEmpty()) return
-
-    val carouselState = rememberCarouselState { queue.size }
-    val currentSongIndex = remember(currentSong, queue) {
-        queue.indexOf(currentSong).coerceAtLeast(0)
-    }
-
-    // Player -> Carousel
-    LaunchedEffect(currentSongIndex, queue) {
-        if (carouselState.currentItem != currentSongIndex) {
-            carouselState.animateScrollToItem(currentSongIndex)
-        }
-    }
-
-    // Carousel -> Player
-    LaunchedEffect(carouselState) {
-        snapshotFlow { carouselState.isScrollInProgress }
-            .distinctUntilChanged()
-            .filter { !it }
-            .collect {
-                val settled = carouselState.currentItem
-                if (settled != currentSongIndex) {
-                    queue.getOrNull(settled)?.let(onSongSelected)
-                }
-            }
-    }
-
-    HorizontalMultiBrowseCarousel(
-        state = carouselState,
-        modifier = modifier,
-        preferredItemWidth = preferredItemWidth,
-        itemSpacing = itemSpacing
-    ) { index ->
-        val song = queue[index]
-        val pageOffset = (carouselState.currentItem - index).absoluteValue.toFloat()
-
-        val targetScale = 1f - (pageOffset * 0.20f).coerceAtMost(0.20f)
-        val targetAlpha = 1f - (pageOffset * 0.30f).coerceAtMost(0.60f)
-
-        val scale by animateFloatAsState(
-            targetValue = targetScale,
-            animationSpec = tween(300),
-            label = "scale"
-        )
-        val contentAlpha by animateFloatAsState(
-            targetValue = targetAlpha.coerceIn(0.85f, 1f),
-            animationSpec = tween(300),
-            label = "contentAlpha"
-        )
-
-        val corner = lerp(16.dp, 24.dp, expansionFraction)
-        val shape = remember(corner) { RoundedCornerShape(corner) }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .clip(shape)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                        alpha = contentAlpha
-                        compositingStrategy = CompositingStrategy.Offscreen
-                    }
-                    .clip(shape)
-            ) {
-                OptimizedAlbumArt(
-                    uri = song.albumArtUriString,
-                    title = song.title,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(shape),
-                    targetSize = coil.size.Size(600, 600)
-                )
-            }
-        }
-    }
-}
+//@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+//@Composable
+//fun AlbumCarouselSection(
+//    currentSong: Song?,
+//    queue: ImmutableList<Song>,
+//    expansionFraction: Float,
+//    onSongSelected: (Song) -> Unit,
+//    modifier: Modifier = Modifier,
+//    preferredItemWidth: Dp = 280.dp,
+//    itemSpacing: Dp = 8.dp
+//) {
+//    if (queue.isEmpty()) return
+//
+//    val carouselState = rememberCarouselState { queue.size }
+//    val currentSongIndex = remember(currentSong, queue) {
+//        queue.indexOf(currentSong).coerceAtLeast(0)
+//    }
+//
+//    // Player -> Carousel
+//    LaunchedEffect(currentSongIndex, queue) {
+//        if (carouselState.currentItem != currentSongIndex) {
+//            carouselState.animateScrollToItem(currentSongIndex)
+//        }
+//    }
+//
+//    // Carousel -> Player
+//    LaunchedEffect(carouselState) {
+//        snapshotFlow { carouselState.isScrollInProgress }
+//            .distinctUntilChanged()
+//            .filter { !it }
+//            .collect {
+//                val settled = carouselState.currentItem
+//                if (settled != currentSongIndex) {
+//                    queue.getOrNull(settled)?.let(onSongSelected)
+//                }
+//            }
+//    }
+//
+//    HorizontalMultiBrowseCarousel(
+//        state = carouselState,
+//        modifier = modifier,
+//        preferredItemWidth = preferredItemWidth,
+//        itemSpacing = itemSpacing
+//    ) { index ->
+//        val song = queue[index]
+//        val pageOffset = (carouselState.currentItem - index).absoluteValue.toFloat()
+//
+//        val targetScale = 1f - (pageOffset * 0.20f).coerceAtMost(0.20f)
+//        val targetAlpha = 1f - (pageOffset * 0.30f).coerceAtMost(0.60f)
+//
+//        val scale by animateFloatAsState(
+//            targetValue = targetScale,
+//            animationSpec = tween(300),
+//            label = "scale"
+//        )
+//        val contentAlpha by animateFloatAsState(
+//            targetValue = targetAlpha.coerceIn(0.85f, 1f),
+//            animationSpec = tween(300),
+//            label = "contentAlpha"
+//        )
+//
+//        val corner = lerp(16.dp, 24.dp, expansionFraction)
+//        val shape = remember(corner) { RoundedCornerShape(corner) }
+//
+//        Box(
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .aspectRatio(1f)
+//                .clip(shape)
+//        ) {
+//            Box(
+//                modifier = Modifier
+//                    .fillMaxSize()
+//                    .graphicsLayer {
+//                        scaleX = scale
+//                        scaleY = scale
+//                        alpha = contentAlpha
+//                        compositingStrategy = CompositingStrategy.Offscreen
+//                    }
+//                    .clip(shape)
+//            ) {
+//                OptimizedAlbumArt(
+//                    uri = song.albumArtUriString,
+//                    title = song.title,
+//                    modifier = Modifier
+//                        .fillMaxSize()
+//                        .clip(shape),
+//                    targetSize = coil.size.Size(600, 600)
+//                )
+//            }
+//        }
+//    }
+//}
 
 
 @Composable

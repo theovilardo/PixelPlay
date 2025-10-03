@@ -1239,13 +1239,13 @@ class PlayerViewModel @Inject constructor(
 
             if (itemInQueue != null) {
                 // Song is already in the remote queue, just jump to it.
-                remoteMediaClient.queueJumpToItem(itemInQueue.itemId, 0L, null)?.setResultCallback {
+                remoteMediaClient.queueJumpToItem(itemInQueue.itemId, 0L, null).setResultCallback {
                     if (!it.status.isSuccess) {
                         Timber.e("Remote media client failed to jump to item: ${it.status.statusMessage}")
                         // If jumping fails, fall back to reloading the queue
                         playSongs(contextSongs, song, queueName, null)
                     } else {
-                         if (isVoluntaryPlay) incrementSongScore(song.id)
+                        if (isVoluntaryPlay) incrementSongScore(song.id)
                     }
                 }
             } else {

@@ -50,6 +50,7 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import android.provider.Settings
 import android.content.Intent
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.SliderDefaults
 
 @androidx.annotation.OptIn(UnstableApi::class)
@@ -301,7 +302,7 @@ private fun DeviceItem(
                 }
 
                 if (isSelected) {
-                    OutlinedButton(
+                    FilledTonalButton(
                         onClick = onDisconnect,
                         colors = ButtonDefaults.outlinedButtonColors(
                             contentColor = MaterialTheme.colorScheme.primary
@@ -320,7 +321,9 @@ private fun DeviceItem(
                     value = currentVolume.toFloat(),
                     onValueChange = { onVolumeChange(it.toInt()) },
                     valueRange = 0f..route.volumeMax.toFloat(),
-                    modifier = Modifier.padding(horizontal = 16.dp),
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 16.dp),
                     colors = SliderDefaults.colors(
                         thumbColor = MaterialTheme.colorScheme.primary,
                         activeTrackColor = MaterialTheme.colorScheme.primary,
