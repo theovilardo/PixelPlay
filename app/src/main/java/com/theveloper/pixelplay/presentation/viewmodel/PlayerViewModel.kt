@@ -282,6 +282,7 @@ class PlayerViewModel @Inject constructor(
     private val _castSession = MutableStateFlow<CastSession?>(null)
     private val _remotePosition = MutableStateFlow(0L)
     val remotePosition: StateFlow<Long> = _remotePosition.asStateFlow()
+    private val isRemotelySeeking = MutableStateFlow(false)
     private var remoteMediaClientCallback: RemoteMediaClient.Callback? = null
     private var remoteProgressListener: RemoteMediaClient.ProgressListener? = null
 
@@ -707,7 +708,9 @@ class PlayerViewModel @Inject constructor(
         sessionManager = CastContext.getSharedInstance(context).sessionManager
 
         remoteProgressListener = RemoteMediaClient.ProgressListener { progress, _ ->
-            _remotePosition.value = progress
+            if (!isRemotelySeeking.value) {
+                _remotePosition.value = progress
+            }
         }
 
         remoteMediaClientCallback = object : RemoteMediaClient.Callback() {
@@ -782,10 +785,14 @@ class PlayerViewModel @Inject constructor(
                             .setContentType("audio/mpeg")
                             .setMetadata(mediaMetadata)
                             .build()
-                        MediaQueueItem.Builder(mediaInfo).build()
+                        MediaQueueItem.Builder(mediaInfo).setCustomData(org.json.JSONObject().put("songId", song.id)).build()
                     }
-
-                    session.remoteMediaClient?.queueLoad(mediaItems.toTypedArray(), currentSongIndex, localPlayer.repeatMode, currentPosition, null)
+                    val wasPlaying = localPlayer.isPlaying
+                    session.remoteMediaClient?.queueLoad(mediaItems.toTypedArray(), currentSongIndex, localPlayer.repeatMode, currentPosition, null)?.setResultCallback {
+                        if (it.status.isSuccess && wasPlaying) {
+                            session.remoteMediaClient?.play()
+                        }
+                    }
                     _castSession.value = session
                     session.remoteMediaClient?.registerCallback(remoteMediaClientCallback!!)
                     session.remoteMediaClient?.addProgressListener(remoteProgressListener!!, 1000)
@@ -811,30 +818,64 @@ class PlayerViewModel @Inject constructor(
             private fun stopServerAndTransferBack() {
                 remoteProgressObserverJob?.cancel()
                 val session = _castSession.value ?: return
-                val remoteMediaClient = session.remoteMediaClient
-                val lastKnownStatus = remoteMediaClient?.mediaStatus
-                val lastPosition = remoteMediaClient?.approximateStreamPosition ?: 0
+                val remoteMediaClient = session.remoteMediaClient ?: return
+
+                // Capture the full state BEFORE clearing it
+                val lastKnownStatus = remoteMediaClient.mediaStatus
+                val lastPosition = remoteMediaClient.approximateStreamPosition
                 val wasPlaying = lastKnownStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING
                 val lastItemId = lastKnownStatus?.currentItemId
+                val lastKnownQueue = _playerUiState.value.currentPlaybackQueue.toList()
+                val lastRepeatMode = lastKnownStatus?.queueRepeatMode ?: Player.REPEAT_MODE_OFF
+                val lastShuffleMode = lastRepeatMode == MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE
 
-                // First, completely tear down the remote session state from the ViewModel's perspective.
-                remoteMediaClient?.removeProgressListener(remoteProgressListener!!)
-                remoteMediaClient?.unregisterCallback(remoteMediaClientCallback!!)
+                // Tear down remote session
+                remoteMediaClient.removeProgressListener(remoteProgressListener!!)
+                remoteMediaClient.unregisterCallback(remoteMediaClientCallback!!)
                 _castSession.value = null
                 context.stopService(Intent(context, MediaFileHttpServerService::class.java))
                 disconnect()
 
-                // Now, with the cast session confirmed null, transfer playback to the local player.
-                if (mediaController != null && lastKnownStatus != null && lastItemId != null) {
-                    val queueItems = lastKnownStatus.queueItems
-                    if (queueItems != null && queueItems.isNotEmpty()) {
-                        val startIndex = queueItems.indexOfFirst { it.itemId == lastItemId }.coerceAtLeast(0)
-                        mediaController?.seekTo(startIndex, lastPosition)
-                        if (wasPlaying) {
-                            // This call will now correctly trigger startProgressUpdates
-                            // because _castSession.value is null.
-                            mediaController?.play()
-                        }
+                // Restore local playback
+                val localPlayer = mediaController ?: return
+                if (lastKnownQueue.isNotEmpty() && lastKnownStatus != null && lastItemId != null) {
+                    val remoteQueueItems = lastKnownStatus.queueItems ?: return
+                    val lastPlayedRemoteItem = remoteQueueItems.find { it.itemId == lastItemId } ?: return
+                    val lastPlayedSongId = lastPlayedRemoteItem.customData?.optString("songId")
+
+                    val startIndex = if (lastPlayedSongId != null) {
+                        lastKnownQueue.indexOfFirst { it.id == lastPlayedSongId }
+                    } else {
+                        remoteQueueItems.indexOf(lastPlayedRemoteItem)
+                    }.coerceAtLeast(0)
+
+                    val mediaItems = lastKnownQueue.map { song ->
+                        MediaItem.Builder()
+                            .setMediaId(song.id)
+                            .setUri(song.contentUriString.toUri())
+                            .setMediaMetadata(
+                                MediaMetadata.Builder()
+                                    .setTitle(song.title)
+                                    .setArtist(song.artist)
+                                    .setArtworkUri(song.albumArtUriString?.toUri())
+                                    .build()
+                            )
+                            .build()
+                    }
+
+                    // Set modes BEFORE setting items
+                    localPlayer.shuffleModeEnabled = lastShuffleMode
+                    // Translate Cast repeat mode to Media3 repeat mode
+                    localPlayer.repeatMode = when(lastRepeatMode) {
+                        MediaStatus.REPEAT_MODE_REPEAT_SINGLE -> Player.REPEAT_MODE_ONE
+                        MediaStatus.REPEAT_MODE_REPEAT_ALL, MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE -> Player.REPEAT_MODE_ALL
+                        else -> Player.REPEAT_MODE_OFF
+                    }
+
+                    localPlayer.setMediaItems(mediaItems, startIndex, lastPosition)
+                    localPlayer.prepare()
+                    if (wasPlaying) {
+                        localPlayer.play()
                     }
                 }
             }
@@ -1932,13 +1973,18 @@ class PlayerViewModel @Inject constructor(
         val castSession = _castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
             val remoteMediaClient = castSession.remoteMediaClient!!
+            isRemotelySeeking.value = true
             val wasPlaying = remoteMediaClient.isPlaying
             val seekOptions = MediaSeekOptions.Builder()
                 .setPosition(position)
                 .setResumeState(if (wasPlaying) MediaSeekOptions.RESUME_STATE_PLAY else MediaSeekOptions.RESUME_STATE_PAUSE)
                 .build()
             remoteMediaClient.seek(seekOptions)?.setResultCallback {
-                if (!it.status.isSuccess) Timber.e("Remote media client failed to seek: ${it.status.statusMessage}")
+                if (!it.status.isSuccess) {
+                    Timber.e("Remote media client failed to seek: ${it.status.statusMessage}")
+                }
+                // Whether seek succeeded or failed, we are no longer seeking.
+                isRemotelySeeking.value = false
             }
             // Optimistically update the UI state for remote seek as well.
             _playerUiState.update { it.copy(currentPosition = position) }
