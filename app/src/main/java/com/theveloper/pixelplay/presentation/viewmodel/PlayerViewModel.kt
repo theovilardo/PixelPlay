@@ -729,6 +729,15 @@ class PlayerViewModel @Inject constructor(
                     }
                 }
 
+                // Only trigger color update if the song has actually changed
+                if (currentSong?.id != _stablePlayerState.value.currentSong?.id) {
+                    viewModelScope.launch {
+                        currentSong?.albumArtUriString?.toUri()?.let { uri ->
+                            extractAndGenerateColorScheme(uri)
+                        }
+                    }
+                }
+
                 _stablePlayerState.update {
                     it.copy(
                         isPlaying = mediaStatus.playerState == MediaStatus.PLAYER_STATE_PLAYING,
@@ -1887,18 +1896,19 @@ class PlayerViewModel @Inject constructor(
                     if (!it.status.isSuccess) Timber.e("Remote media client failed to pause: ${it.status.statusMessage}")
                 }
             } else {
-                val mediaStatus = remoteMediaClient.mediaStatus
-                if (mediaStatus == null || mediaStatus.playerState == MediaStatus.PLAYER_STATE_IDLE) {
+                // If there are items in the remote queue, just play.
+                // Otherwise, load the current local queue to the remote player.
+                if (remoteMediaClient.mediaQueue != null && remoteMediaClient.mediaQueue.itemCount > 0) {
+                    remoteMediaClient.play().setResultCallback {
+                        if (!it.status.isSuccess) Timber.e("Remote media client failed to play: ${it.status.statusMessage}")
+                    }
+                } else {
                     val queue = _playerUiState.value.currentPlaybackQueue
                     if (queue.isNotEmpty()) {
                         val startSong = _stablePlayerState.value.currentSong ?: queue.first()
                         viewModelScope.launch {
                             internalPlaySongs(queue.toList(), startSong, _playerUiState.value.currentQueueSourceName)
                         }
-                    }
-                } else {
-                    remoteMediaClient.play().setResultCallback {
-                        if (!it.status.isSuccess) Timber.e("Remote media client failed to play: ${it.status.statusMessage}")
                     }
                 }
             }
