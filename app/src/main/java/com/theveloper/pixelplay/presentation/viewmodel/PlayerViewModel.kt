@@ -44,6 +44,7 @@ import com.google.android.gms.cast.framework.SessionManagerListener
 import com.google.android.gms.cast.framework.media.RemoteMediaClient
 import com.google.android.gms.cast.MediaInfo
 import com.google.android.gms.cast.MediaQueueItem
+import com.google.android.gms.cast.MediaSeekOptions
 import com.google.android.gms.cast.MediaStatus
 import com.google.android.gms.common.images.WebImage
 import coil.request.CachePolicy
@@ -1930,7 +1931,13 @@ class PlayerViewModel @Inject constructor(
     fun seekTo(position: Long) {
         val castSession = _castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
-            castSession.remoteMediaClient?.seek(position)?.setResultCallback {
+            val remoteMediaClient = castSession.remoteMediaClient!!
+            val wasPlaying = remoteMediaClient.isPlaying
+            val seekOptions = MediaSeekOptions.Builder()
+                .setPosition(position)
+                .setResumeState(if (wasPlaying) MediaSeekOptions.RESUME_STATE_PLAY else MediaSeekOptions.RESUME_STATE_PAUSE)
+                .build()
+            remoteMediaClient.seek(seekOptions)?.setResultCallback {
                 if (!it.status.isSuccess) Timber.e("Remote media client failed to seek: ${it.status.statusMessage}")
             }
         } else {
