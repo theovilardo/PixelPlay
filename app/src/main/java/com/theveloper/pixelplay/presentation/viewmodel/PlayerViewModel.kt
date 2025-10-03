@@ -845,21 +845,25 @@ class PlayerViewModel @Inject constructor(
             private fun stopServerAndTransferBack() {
                 val session = _castSession.value ?: return
                 val remoteMediaClient = session.remoteMediaClient ?: return
+
+                // Capture the full state BEFORE clearing it.
                 val lastKnownStatus = remoteMediaClient.mediaStatus
-                val lastPosition = _remotePosition.value
+                val lastPosition = _remotePosition.value // Use the precise, real-time position.
                 val wasPlaying = lastKnownStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING
                 val lastItemId = lastKnownStatus?.currentItemId
                 val lastKnownQueue = _playerUiState.value.currentPlaybackQueue.toList()
                 val lastRepeatMode = lastKnownStatus?.queueRepeatMode ?: Player.REPEAT_MODE_OFF
                 val lastShuffleMode = lastRepeatMode == MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE
 
+                // Tear down remote session first.
                 remoteProgressObserverJob?.cancel()
                 remoteMediaClient.removeProgressListener(remoteProgressListener!!)
                 remoteMediaClient.unregisterCallback(remoteMediaClientCallback!!)
                 _castSession.value = null
                 context.stopService(Intent(context, MediaFileHttpServerService::class.java))
-                disconnect()
+                disconnect() // This selects the default route.
 
+                // Restore local playback.
                 val localPlayer = mediaController ?: return
                 if (lastKnownQueue.isNotEmpty() && lastKnownStatus != null && lastItemId != null) {
                     val remoteQueueItems = lastKnownStatus.queueItems ?: return
@@ -869,6 +873,7 @@ class PlayerViewModel @Inject constructor(
                     val startIndex = if (lastPlayedSongId != null) {
                         lastKnownQueue.indexOfFirst { it.id == lastPlayedSongId }
                     } else {
+                        // Fallback in case customData is missing.
                         remoteQueueItems.indexOf(lastPlayedRemoteItem)
                     }.coerceAtLeast(0)
 
@@ -886,6 +891,7 @@ class PlayerViewModel @Inject constructor(
                             .build()
                     }
 
+                    // Set modes BEFORE setting items.
                     localPlayer.shuffleModeEnabled = lastShuffleMode
                     localPlayer.repeatMode = when(lastRepeatMode) {
                         MediaStatus.REPEAT_MODE_REPEAT_SINGLE -> Player.REPEAT_MODE_ONE
@@ -895,13 +901,17 @@ class PlayerViewModel @Inject constructor(
 
                     localPlayer.setMediaItems(mediaItems, startIndex, lastPosition)
                     localPlayer.prepare()
+
+                    // Immediately update the UI state to the final remote position to prevent lag.
+                    _playerUiState.update { it.copy(currentPosition = lastPosition) }
+
                     if (wasPlaying) {
+                        // This will trigger the onIsPlayingChanged listener, which correctly
+                        // calls startProgressUpdates() to keep the UI in sync.
                         localPlayer.play()
                     } else {
-                        _playerUiState.update { it.copy(currentPosition = lastPosition) }
-                        if (_stablePlayerState.value.isPlaying) {
-                            startProgressUpdates()
-                        }
+                        // If the remote was paused, ensure the local player's progress updates are stopped.
+                        stopProgressUpdates()
                     }
                 }
             }

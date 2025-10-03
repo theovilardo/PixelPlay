@@ -49,17 +49,12 @@ import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import android.provider.Settings
 import android.content.Intent
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.MediumFloatingActionButton
 import androidx.compose.material3.SliderDefaults
-import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 @androidx.annotation.OptIn(UnstableApi::class)
-@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun CastBottomSheet(
     playerViewModel: PlayerViewModel,
@@ -103,7 +98,7 @@ fun CastBottomSheet(
         Scaffold(
             containerColor = colors.surfaceContainer,
             floatingActionButton = {
-                MediumFloatingActionButton(onClick = { playerViewModel.refreshCastRoutes() }) {
+                FloatingActionButton(onClick = { playerViewModel.refreshCastRoutes() }) {
                     Icon(Icons.Default.Refresh, contentDescription = "Refresh devices")
                 }
             }
@@ -239,22 +234,11 @@ private fun DeviceItem(
     onDisconnect: () -> Unit,
     onVolumeChange: (Int) -> Unit
 ) {
-    val shape = AbsoluteSmoothCornerShape(
-        cornerRadiusTL = 18.dp,
-        smoothnessAsPercentBR = 60,
-        cornerRadiusTR = 18.dp,
-        smoothnessAsPercentBL = 60,
-        cornerRadiusBL = 18.dp,
-        smoothnessAsPercentTL = 60,
-        cornerRadiusBR = 18.dp,
-        smoothnessAsPercentTR = 60
-    )
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = shape,
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
         )
@@ -307,26 +291,12 @@ private fun DeviceItem(
                         }
 
                         if (connectionTypeRes != null) {
-                            Box(
-                                modifier = Modifier
-                                    .padding(top = 4.dp)
-                                    .height(22.dp)
-                                    .width(28.dp)
-                                    .background(
-                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.surfaceContainer,
-                                        shape = CircleShape
-                                    )
-                            ) {
-                                Icon(
-                                    painter = painterResource(id = connectionTypeRes),
-                                    contentDescription = "Connection Type",
-                                    modifier = Modifier
-                                        .align(Alignment.Center)
-                                        .size(18.dp)
-                                        .padding(2.dp),
-                                    tint = (if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.onSurface).copy(alpha = 0.85f)
-                                )
-                            }
+                            Icon(
+                                painter = painterResource(id = connectionTypeRes),
+                                contentDescription = "Connection Type",
+                                modifier = Modifier.size(16.dp),
+                                tint = (if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant).copy(alpha = 0.7f)
+                            )
                         }
                     }
                 }
@@ -335,8 +305,7 @@ private fun DeviceItem(
                     FilledTonalButton(
                         onClick = onDisconnect,
                         colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = MaterialTheme.colorScheme.tertiary,
-                            contentColor = MaterialTheme.colorScheme.onTertiary
+                            contentColor = MaterialTheme.colorScheme.primary
                         )
                     ) {
                         Text("Disconnect")

@@ -111,8 +111,6 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
 import androidx.compose.material3.carousel.rememberCarouselState
 import androidx.compose.ui.draw.drawWithContent
@@ -1112,53 +1110,118 @@ fun UnifiedPlayerSheet(
 }
 
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+//@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+//@Composable
+//fun AlbumCarouselSection(
+//    currentSong: Song?,
+//    queue: ImmutableList<Song>,
+//    expansionFraction: Float,
+//    onSongSelected: (Song) -> Unit,
+//    modifier: Modifier = Modifier,
+//    preferredItemWidth: Dp = 280.dp,
+//    itemSpacing: Dp = 8.dp
+//) {
+//    if (queue.isEmpty()) return
+//
+//    val carouselState = rememberCarouselState { queue.size }
+//    val currentSongIndex = remember(currentSong, queue) {
+//        queue.indexOf(currentSong).coerceAtLeast(0)
+//    }
+//
+//    // Player -> Carousel
+//    LaunchedEffect(currentSongIndex, queue) {
+//        if (carouselState.currentItem != currentSongIndex) {
+//            carouselState.animateScrollToItem(currentSongIndex)
+//        }
+//    }
+//
+//    // Carousel -> Player
+//    LaunchedEffect(carouselState) {
+//        snapshotFlow { carouselState.isScrollInProgress }
+//            .distinctUntilChanged()
+//            .filter { !it }
+//            .collect {
+//                val settled = carouselState.currentItem
+//                if (settled != currentSongIndex) {
+//                    queue.getOrNull(settled)?.let(onSongSelected)
+//                }
+//            }
+//    }
+//
+//    HorizontalMultiBrowseCarousel(
+//        state = carouselState,
+//        modifier = modifier,
+//        preferredItemWidth = preferredItemWidth,
+//        itemSpacing = itemSpacing
+//    ) { index ->
+//        val song = queue[index]
+//        val pageOffset = (carouselState.currentItem - index).absoluteValue.toFloat()
+//
+//        val targetScale = 1f - (pageOffset * 0.20f).coerceAtMost(0.20f)
+//        val targetAlpha = 1f - (pageOffset * 0.30f).coerceAtMost(0.60f)
+//
+//        val scale by animateFloatAsState(
+//            targetValue = targetScale,
+//            animationSpec = tween(300),
+//            label = "scale"
+//        )
+//        val contentAlpha by animateFloatAsState(
+//            targetValue = targetAlpha.coerceIn(0.85f, 1f),
+//            animationSpec = tween(300),
+//            label = "contentAlpha"
+//        )
+//
+//        val corner = lerp(16.dp, 24.dp, expansionFraction)
+//        val shape = remember(corner) { RoundedCornerShape(corner) }
+//
+//        Box(
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .aspectRatio(1f)
+//                .clip(shape)
+//        ) {
+//            Box(
+//                modifier = Modifier
+//                    .fillMaxSize()
+//                    .graphicsLayer {
+//                        scaleX = scale
+//                        scaleY = scale
+//                        alpha = contentAlpha
+//                        compositingStrategy = CompositingStrategy.Offscreen
+//                    }
+//                    .clip(shape)
+//            ) {
+//                OptimizedAlbumArt(
+//                    uri = song.albumArtUriString,
+//                    title = song.title,
+//                    modifier = Modifier
+//                        .fillMaxSize()
+//                        .clip(shape),
+//                    targetSize = coil.size.Size(600, 600)
+//                )
+//            }
+//        }
+//    }
+//}
+
+
 @Composable
 private fun SongMetadataDisplaySection( // Renamed for clarity
     song: Song?, // Nullable, comes from stablePlayerState
     expansionFraction: Float,
     textColor: Color,
     artistTextColor: Color,
-    onClickLyrics: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier
-            .fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Absolute.SpaceBetween
-    ) {
-        song?.let { currentSong ->
-            PlayerSongInfo(
-                title = currentSong.title,
-                artist = currentSong.artist,
-                expansionFraction = expansionFraction,
-                textColor = textColor,
-                artistTextColor = artistTextColor,
-                modifier = Modifier
-                    .weight(0.85f)
-                    .align(Alignment.CenterVertically)
-            )
-        }
-        Spacer(
-            modifier = Modifier
-                .width(8.dp)
+    song?.let { currentSong ->
+        PlayerSongInfo(
+            title = currentSong.title,
+            artist = currentSong.artist,
+            expansionFraction = expansionFraction,
+            textColor = textColor,
+            artistTextColor = artistTextColor,
+            modifier = modifier
         )
-        FilledIconButton(
-            modifier = Modifier
-                .weight(0.15f)
-                .size(width = 48.dp, height = 48.dp),
-            colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = LocalMaterialTheme.current.onPrimary,
-                contentColor = LocalMaterialTheme.current.primary
-            ),
-            onClick = onClickLyrics,
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.rounded_lyrics_24),
-                contentDescription = "Lyrics"
-            )
-        }
     }
 }
 
@@ -1575,7 +1638,8 @@ private fun FullPlayerContentInternal(
                 actions = {
                     Row(
                         modifier = Modifier
-                            .padding(end = 14.dp),
+                            .padding(end = 14.dp)
+                            .width(162.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         // Cast Button
@@ -1601,20 +1665,20 @@ private fun FullPlayerContentInternal(
                             )
                         }
                         // Lyrics Button
-//                        Box(
-//                            modifier = Modifier
-//                                .size(height = 42.dp, width = 50.dp)
-//                                .clip(RoundedCornerShape(6.dp))
-//                                .background(LocalMaterialTheme.current.onPrimary)
-//                                .clickable { onLyricsClick() },
-//                            contentAlignment = Alignment.Center
-//                        ) {
-//                            Icon(
-//                                painter = painterResource(R.drawable.rounded_lyrics_24),
-//                                contentDescription = "Lyrics",
-//                                tint = LocalMaterialTheme.current.primary
-//                            )
-//                        }
+                        Box(
+                            modifier = Modifier
+                                .size(height = 42.dp, width = 50.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(LocalMaterialTheme.current.onPrimary)
+                                .clickable { onLyricsClick() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.rounded_lyrics_24),
+                                contentDescription = "Lyrics",
+                                tint = LocalMaterialTheme.current.primary
+                            )
+                        }
 
                         // Queue Button
                         Box(
@@ -1689,8 +1753,7 @@ private fun FullPlayerContentInternal(
             SongMetadataDisplaySection(
                 modifier = Modifier
                     .align(Alignment.Start)
-                    .padding(start = 0.dp),
-                onClickLyrics = onLyricsClick,
+                    .padding(start = 4.dp),
                 song = currentSong, // currentSong is from stablePlayerState
                 expansionFraction = expansionFraction,
                 textColor = LocalMaterialTheme.current.onPrimaryContainer,
