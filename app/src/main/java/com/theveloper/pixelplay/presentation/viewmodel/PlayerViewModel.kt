@@ -846,7 +846,7 @@ class PlayerViewModel @Inject constructor(
 
                 // Capture the full state BEFORE clearing it
                 val lastKnownStatus = remoteMediaClient.mediaStatus
-                val lastPosition = remoteMediaClient.approximateStreamPosition
+                val lastPosition = _remotePosition.value // Use the precise, real-time position
                 val wasPlaying = lastKnownStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING
                 val lastItemId = lastKnownStatus?.currentItemId
                 val lastKnownQueue = _playerUiState.value.currentPlaybackQueue.toList()

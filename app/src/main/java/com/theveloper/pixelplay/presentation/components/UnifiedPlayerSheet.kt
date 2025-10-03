@@ -1255,8 +1255,7 @@ private fun PlayerProgressBarSection(
             .heightIn(min = 70.dp)
     ) {
         WavyMusicSlider(
-            // If the user is dragging, show their dragged position. Otherwise, show the actual playback progress.
-            valueProvider = { sliderDragValue ?: progressFractionValue },
+            value = sliderDragValue ?: progressFractionValue,
             onValueChange = { newValue ->
                 // When the user starts dragging, only update the local drag value.
                 // This provides immediate visual feedback without spamming the seek command.
