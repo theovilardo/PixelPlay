@@ -2102,6 +2102,8 @@ class PlayerViewModel @Inject constructor(
         val currentSong = _stablePlayerState.value.currentSong ?: return
 
         viewModelScope.launch {
+            // Reset UI State
+            _lyricsSearchUiState.value = LyricsSearchUiState.Idle
             // 1. Indicar que estamos cargando
             _stablePlayerState.update { it.copy(isLoadingLyrics = true, lyrics = null) }
 
