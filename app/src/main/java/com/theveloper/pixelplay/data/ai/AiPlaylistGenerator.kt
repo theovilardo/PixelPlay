@@ -28,7 +28,7 @@ class AiPlaylistGenerator @Inject constructor(
             }
 
             val generativeModel = GenerativeModel(
-                modelName = "gemini-1.5-flash",
+                modelName = "gemini-2.5-flash",
                 apiKey = apiKey
             )
 
