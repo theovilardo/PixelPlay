@@ -18,6 +18,8 @@ import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.preferences.dataStore
 import com.theveloper.pixelplay.data.media.SongMetadataEditor
 import com.theveloper.pixelplay.data.network.lyrics.LrcLibApiService
+import com.theveloper.pixelplay.data.repository.LyricsRepository
+import com.theveloper.pixelplay.data.repository.LyricsRepositoryImpl
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.data.repository.MusicRepositoryImpl
 import com.theveloper.pixelplay.data.repository.TransitionRepository
@@ -113,19 +115,33 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideLyricsRepository(
+        @ApplicationContext context: Context,
+        lrcLibApiService: LrcLibApiService,
+        musicDao: MusicDao
+    ): LyricsRepository {
+        return LyricsRepositoryImpl(
+            context = context,
+            lrcLibApiService = lrcLibApiService,
+            musicDao = musicDao
+        )
+    }
+
+    @Provides
+    @Singleton
     fun provideMusicRepository(
         @ApplicationContext context: Context,
         userPreferencesRepository: UserPreferencesRepository,
         searchHistoryDao: SearchHistoryDao,
         musicDao: MusicDao, // Añadir MusicDao como parámetro
-        lrcLibApiService: LrcLibApiService
+        lyricsRepository: LyricsRepository
     ): MusicRepository {
         return MusicRepositoryImpl(
             context = context,
             userPreferencesRepository = userPreferencesRepository,
             searchHistoryDao = searchHistoryDao,
             musicDao = musicDao,
-            lrcLibApiService = lrcLibApiService // Pasar MusicDao
+            lyricsRepository = lyricsRepository
         )
     }
 
