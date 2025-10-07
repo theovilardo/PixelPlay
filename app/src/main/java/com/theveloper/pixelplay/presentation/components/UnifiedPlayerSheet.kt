@@ -572,6 +572,7 @@ fun UnifiedPlayerSheet(
 
     var showQueueSheet by remember { mutableStateOf(false) }
     var showCastSheet by remember { mutableStateOf(false) }
+    var showTrackVolumeSheet by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
     var isDraggingPlayerArea by remember { mutableStateOf(false) }
     val velocityTracker = remember { VelocityTracker() }
@@ -1041,6 +1042,7 @@ fun UnifiedPlayerSheet(
                                                 currentSheetState = currentSheetContentState,
                                                 onShowQueueClicked = { showQueueSheet = true },
                                                 onShowCastClicked = { showCastSheet = true },
+                                                onShowTrackVolumeClicked = { showTrackVolumeSheet = true },
                                                 onShuffleToggle = { playerViewModel.toggleShuffle() },
                                                 onRepeatToggle = { playerViewModel.cycleRepeatMode() },
                                                 onFavoriteToggle = { playerViewModel.toggleFavorite() },
@@ -1107,6 +1109,17 @@ fun UnifiedPlayerSheet(
                 onDismiss = { showCastSheet = false }
             )
         }
+    }
+
+    if (showTrackVolumeSheet) {
+        val trackVolume by playerViewModel.trackVolume.collectAsState()
+        TrackVolumeBottomSheet(
+            initialVolume = trackVolume,
+            onDismiss = { showTrackVolumeSheet = false },
+            onVolumeChange = { newVolume ->
+                playerViewModel.setTrackVolume(newVolume)
+            }
+        )
     }
     Trace.endSection() // End UnifiedPlayerSheet.Composition
 }
@@ -1424,6 +1437,7 @@ private fun FullPlayerContentInternal(
     currentSheetState: PlayerSheetState,
     onShowQueueClicked: () -> Unit,
     onShowCastClicked: () -> Unit,
+    onShowTrackVolumeClicked: () -> Unit,
     onShuffleToggle: () -> Unit,
     onRepeatToggle: () -> Unit,
     onFavoriteToggle: () -> Unit,
@@ -1579,6 +1593,29 @@ private fun FullPlayerContentInternal(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         // Cast Button
+//                        Box(
+//                            modifier = Modifier
+//                                .size(height = 42.dp, width = 50.dp)
+//                                .clip(
+//                                    RoundedCornerShape(
+//                                        topStart = 50.dp,
+//                                        topEnd = 6.dp,
+//                                        bottomStart = 50.dp,
+//                                        bottomEnd = 6.dp
+//                                    )
+//                                )
+//                                .background(LocalMaterialTheme.current.onPrimary)
+//                                .clickable { onShowCastClicked() },
+//                            contentAlignment = Alignment.Center
+//                        ) {
+//                            Icon(
+//                                painter = painterResource(R.drawable.rounded_cast_24),
+//                                contentDescription = "Cast",
+//                                tint = LocalMaterialTheme.current.primary
+//                            )
+//                        }
+
+                        // Track Volume Button
                         Box(
                             modifier = Modifier
                                 .size(height = 42.dp, width = 50.dp)
@@ -1591,12 +1628,12 @@ private fun FullPlayerContentInternal(
                                     )
                                 )
                                 .background(LocalMaterialTheme.current.onPrimary)
-                                .clickable { onShowCastClicked() },
+                                .clickable { onShowTrackVolumeClicked() },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                painter = painterResource(R.drawable.rounded_cast_24),
-                                contentDescription = "Cast",
+                                painter = painterResource(R.drawable.rounded_volume_up_24),
+                                contentDescription = "Track Volume",
                                 tint = LocalMaterialTheme.current.primary
                             )
                         }

@@ -282,9 +282,19 @@ class PlayerViewModel @Inject constructor(
     private val _castSession = MutableStateFlow<CastSession?>(null)
     private val _remotePosition = MutableStateFlow(0L)
     val remotePosition: StateFlow<Long> = _remotePosition.asStateFlow()
+    private val _trackVolume = MutableStateFlow(1.0f)
+    val trackVolume: StateFlow<Float> = _trackVolume.asStateFlow()
     private val isRemotelySeeking = MutableStateFlow(false)
     private var remoteMediaClientCallback: RemoteMediaClient.Callback? = null
     private var remoteProgressListener: RemoteMediaClient.ProgressListener? = null
+
+    fun setTrackVolume(volume: Float) {
+        mediaController?.let {
+            val clampedVolume = volume.coerceIn(0f, 1f)
+            it.volume = clampedVolume
+            _trackVolume.value = clampedVolume
+        }
+    }
 
     fun sendToast(message: String) {
         viewModelScope.launch {
@@ -1378,6 +1388,7 @@ class PlayerViewModel @Inject constructor(
     private fun setupMediaControllerListeners() {
         Trace.beginSection("PlayerViewModel.setupMediaControllerListeners")
         val playerCtrl = mediaController ?: return Trace.endSection()
+        _trackVolume.value = playerCtrl.volume
         _stablePlayerState.update {
             it.copy(
                 isShuffleEnabled = playerCtrl.shuffleModeEnabled,
@@ -1415,6 +1426,10 @@ class PlayerViewModel @Inject constructor(
         }
 
         playerCtrl.addListener(object : Player.Listener {
+            override fun onVolumeChanged(volume: Float) {
+                _trackVolume.value = volume
+            }
+
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _stablePlayerState.update { it.copy(isPlaying = isPlaying) }
                 if (isPlaying) {
