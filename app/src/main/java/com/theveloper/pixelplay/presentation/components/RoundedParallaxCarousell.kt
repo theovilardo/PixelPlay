@@ -216,6 +216,7 @@ fun RoundedHorizontalMultiBrowseCarousel(
         flingBehavior = flingBehavior,
         userScrollEnabled = isScrollEnabled,
         itemCornerRadius = itemCornerRadius,
+        carouselStyle = carouselStyle, // Pass style down
         content = content
     )
 }
@@ -237,6 +238,7 @@ private fun RoundedCarousel(
     flingBehavior: TargetedFlingBehavior,
     userScrollEnabled: Boolean,
     itemCornerRadius: Dp,
+    carouselStyle: String,
     content: @Composable CarouselItemScope.(itemIndex: Int) -> Unit,
 ) {
     val beforeContentPadding = contentPadding.calculateBeforeContentPadding(orientation)
@@ -317,7 +319,8 @@ private fun RoundedCarousel(
                 state = state,
                 strategy = { pageSize.strategy },
                 carouselItemDrawInfo = carouselItemInfo,
-                clipShape = clipShape
+                clipShape = clipShape,
+                carouselStyle = carouselStyle
             )
         ) {
             scope.content(page)
@@ -434,6 +437,7 @@ private fun Modifier.carouselItem(
     strategy: () -> Strategy,
     carouselItemDrawInfo: CarouselItemDrawInfoImpl,
     clipShape: Shape,
+    carouselStyle: String,
 ): Modifier = layout { measurable, constraints ->
     val strategyResult = strategy()
     if (!strategyResult.isValid) return@layout layout(0, 0) {}
@@ -528,6 +532,13 @@ private fun Modifier.carouselItem(
             // --- CLIP: siempre activado con la forma redondeada
             clip = true
             shape = clipShape
+
+            // --- ALPHA: oculta items extra en modo ONE_PEEK
+            alpha = if (carouselStyle == CarouselStyle.ONE_PEEK && index > state.pagerState.currentPage + 1) {
+                0f
+            } else {
+                1f
+            }
 
             // --- traslación final (pegado de bordes)
             var translation = ik.offset - unadjustedCenter
