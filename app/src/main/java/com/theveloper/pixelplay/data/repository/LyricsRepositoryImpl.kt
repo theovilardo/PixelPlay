@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
+import retrofit2.HttpException
 import java.io.File
 import java.io.FileOutputStream
 import javax.inject.Inject
@@ -81,7 +82,13 @@ class LyricsRepositoryImpl @Inject constructor(
             }
         } catch (e: Exception) {
             LogUtils.e(this@LyricsRepositoryImpl, e, "Error fetching lyrics from remote")
-            Result.failure(LyricsException("Failed to fetch lyrics from remote", e))
+            // If no lyrics are found lrclib returns a 404 which also raises an exception.
+            // We still want to present that info nicely to the user.
+            if (e is HttpException && e.code() == 404) {
+                Result.failure(LyricsException("No lyrics found for this song", e))
+            } else {
+                Result.failure(LyricsException("Failed to fetch lyrics from remote", e))
+            }
         }
     }
 
