@@ -63,7 +63,7 @@ fun TrackVolumeBottomSheet(
             ) {
                 Text(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    text = "Track Volume",
+                    text = "Volume",
                     fontFamily = GoogleSansRounded,
                     style = MaterialTheme.typography.headlineMedium,
                     color = MaterialTheme.colorScheme.primary
@@ -87,13 +87,12 @@ fun TrackVolumeBottomSheet(
                 track = { sliderState ->
                     SliderDefaults.Track(
                         sliderState = sliderState,
-                        modifier = Modifier,
-                        trackHeight = 16.dp
+                        modifier = Modifier.height(38.dp)
                     )
                 }
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             Box(
                 modifier = Modifier
