@@ -106,6 +106,7 @@ import kotlinx.coroutines.delay
 import android.os.Trace // Import Trace
 import androidx.compose.material3.TopAppBar
 import androidx.media3.common.util.UnstableApi
+import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import android.net.Uri
 import android.widget.Toast
@@ -209,6 +210,7 @@ fun UnifiedPlayerSheet(
 
     val navBarCornerRadius by playerViewModel.navBarCornerRadius.collectAsState()
     val navBarStyle by playerViewModel.navBarStyle.collectAsState()
+    val carouselStyle by playerViewModel.carouselStyle.collectAsState()
 
     val density = LocalDensity.current
     val configuration = LocalConfiguration.current
@@ -1046,6 +1048,7 @@ fun UnifiedPlayerSheet(
                                                 onShuffleToggle = { playerViewModel.toggleShuffle() },
                                                 onRepeatToggle = { playerViewModel.cycleRepeatMode() },
                                                 onFavoriteToggle = { playerViewModel.toggleFavorite() },
+                                                carouselStyle = carouselStyle,
                                                 playerViewModel = playerViewModel // Keep passing ViewModel if FullPlayerContentInternal needs other parts of it
                                             )
                                         }
@@ -1441,6 +1444,7 @@ private fun FullPlayerContentInternal(
     onShuffleToggle: () -> Unit,
     onRepeatToggle: () -> Unit,
     onFavoriteToggle: () -> Unit,
+    carouselStyle: String,
     playerViewModel: PlayerViewModel // Kept for stablePlayerState access for totalDuration, or could pass totalDuration too
 ) {
     val song = currentSong ?: return // Early exit if no song
@@ -1719,6 +1723,7 @@ private fun FullPlayerContentInternal(
                         )
                     }
                 },
+                carouselStyle = carouselStyle,
                 modifier = albumArtContainerModifier
             )
 

@@ -62,6 +62,7 @@ class UserPreferencesRepository @Inject constructor(
         val DAILY_MIX_SONG_IDS = stringPreferencesKey("daily_mix_song_ids")
         val NAV_BAR_CORNER_RADIUS = intPreferencesKey("nav_bar_corner_radius")
         val NAV_BAR_STYLE = stringPreferencesKey("nav_bar_style")
+        val CAROUSEL_STYLE = stringPreferencesKey("carousel_style")
 
         // Transition Settings
         val GLOBAL_TRANSITION_SETTINGS = stringPreferencesKey("global_transition_settings_json")
@@ -361,6 +362,17 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setNavBarStyle(style: String) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.NAV_BAR_STYLE] = style
+        }
+    }
+
+    val carouselStyleFlow: Flow<String> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.CAROUSEL_STYLE] ?: CarouselStyle.ONE_PEEK
+        }
+
+    suspend fun setCarouselStyle(style: String) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.CAROUSEL_STYLE] = style
         }
     }
 }

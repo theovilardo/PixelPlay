@@ -3,6 +3,7 @@ package com.theveloper.pixelplay.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.theveloper.pixelplay.data.model.DirectoryItem
+import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.MusicRepository
@@ -20,7 +21,8 @@ data class SettingsUiState(
     val playerThemePreference: String = ThemePreference.ALBUM_ART,
     val mockGenresEnabled: Boolean = false,
     val navBarCornerRadius: Int = 32,
-    val navBarStyle: String = NavBarStyle.DEFAULT
+    val navBarStyle: String = NavBarStyle.DEFAULT,
+    val carouselStyle: String = CarouselStyle.ONE_PEEK
 )
 
 @HiltViewModel
@@ -58,6 +60,12 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferencesRepository.navBarStyleFlow.collect { style ->
                 _uiState.update { it.copy(navBarStyle = style) }
+            }
+        }
+
+        viewModelScope.launch {
+            userPreferencesRepository.carouselStyleFlow.collect { style ->
+                _uiState.update { it.copy(carouselStyle = style) }
             }
         }
 
@@ -126,6 +134,12 @@ class SettingsViewModel @Inject constructor(
     fun setNavBarStyle(style: String) {
         viewModelScope.launch {
             userPreferencesRepository.setNavBarStyle(style)
+        }
+    }
+
+    fun setCarouselStyle(style: String) {
+        viewModelScope.launch {
+            userPreferencesRepository.setCarouselStyle(style)
         }
     }
 }

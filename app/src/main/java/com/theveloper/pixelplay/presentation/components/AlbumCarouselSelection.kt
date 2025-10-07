@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import coil.size.Size
 import com.theveloper.pixelplay.data.model.Song
+import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import kotlinx.collections.immutable.ImmutableList
 
 // ====== TIPOS/STATE DEL CARRUSEL (wrapper para mantener compatibilidad) ======
@@ -34,7 +35,7 @@ fun AlbumCarouselSection(
     expansionFraction: Float,
     onSongSelected: (Song) -> Unit,
     modifier: Modifier = Modifier,
-    preferredItemWidth: Dp = 280.dp,
+    carouselStyle: String = CarouselStyle.ONE_PEEK,
     itemSpacing: Dp = 8.dp
 ) {
     if (queue.isEmpty()) return
@@ -71,30 +72,51 @@ fun AlbumCarouselSection(
             }
     }
 
-    // Radio animado (usa ui.util.lerp(Dp, Dp, Float))
     val corner = lerp(16.dp, 4.dp, expansionFraction.coerceIn(0f, 1f))
 
-    // Carrusel con scope receiver en el contenido
-    RoundedHorizontalMultiBrowseCarousel(
-        state = carouselState,
-        preferredItemWidth = preferredItemWidth,
-        modifier = modifier,
-        itemSpacing = itemSpacing,
-        contentPadding = PaddingValues(horizontal = 0.dp),
-        itemCornerRadius = corner,
-        //parallaxMaxOffsetPx = 36f
-    ) { index ->
-        // <<--- ESTA LAMBDA AHORA ES CON SCOPE (CarouselItemScope). Solo recibe index.
-        val song = queue[index]
+    BoxWithConstraints(modifier = modifier) {
+        val availableWidth = this.maxWidth
+        val preferredItemWidth: Dp
+        val contentPadding: PaddingValues
 
-        // Tu contenido ocupando toda la tarjeta/slide
-        Box(Modifier.fillMaxSize()) {
-            OptimizedAlbumArt(
-                uri = song.albumArtUriString,
-                title = song.title,
-                modifier = Modifier.fillMaxSize(),
-                targetSize = Size(600, 600) // Float para Size de compose-ui
-            )
+        when (carouselStyle) {
+            CarouselStyle.NO_PEEK -> {
+                preferredItemWidth = availableWidth
+                contentPadding = PaddingValues(0.dp)
+            }
+            CarouselStyle.ONE_PEEK -> {
+                preferredItemWidth = availableWidth * 0.8f
+                contentPadding = PaddingValues(horizontal = (availableWidth * 0.1f))
+            }
+            CarouselStyle.TWO_PEEK -> {
+                preferredItemWidth = availableWidth * 0.7f
+                contentPadding = PaddingValues(horizontal = (availableWidth * 0.15f))
+            }
+            else -> {
+                preferredItemWidth = availableWidth * 0.8f
+                contentPadding = PaddingValues(horizontal = (availableWidth * 0.1f))
+            }
+        }
+
+        val carouselHeight = preferredItemWidth
+
+        RoundedHorizontalMultiBrowseCarousel(
+            state = carouselState,
+            preferredItemWidth = preferredItemWidth,
+            modifier = Modifier.height(carouselHeight),
+            itemSpacing = itemSpacing,
+            contentPadding = contentPadding,
+            itemCornerRadius = corner
+        ) { index ->
+            val song = queue[index]
+            Box(Modifier.fillMaxSize()) {
+                OptimizedAlbumArt(
+                    uri = song.albumArtUriString,
+                    title = song.title,
+                    modifier = Modifier.fillMaxSize().aspectRatio(1f),
+                    targetSize = Size(600, 600)
+                )
+            }
         }
     }
 }
