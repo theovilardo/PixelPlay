@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.presentation.components
 
+import androidx.compose.ui.composed
 import androidx.annotation.FloatRange
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -438,7 +439,13 @@ private fun Modifier.carouselItem(
     carouselItemDrawInfo: CarouselItemDrawInfoImpl,
     clipShape: Shape,
     carouselStyle: String,
-): Modifier = layout { measurable, constraints ->
+): Modifier = composed {
+    val animatedAlpha by animateFloatAsState(
+        targetValue = if (carouselStyle == CarouselStyle.ONE_PEEK && index > state.pagerState.currentPage + 1) 0f else 1f,
+        animationSpec = tween(durationMillis = 200)
+    )
+
+    layout { measurable, constraints ->
     val strategyResult = strategy()
     if (!strategyResult.isValid) return@layout layout(0, 0) {}
 
@@ -534,11 +541,7 @@ private fun Modifier.carouselItem(
             shape = clipShape
 
             // --- ALPHA: oculta items extra en modo ONE_PEEK
-            alpha = if (carouselStyle == CarouselStyle.ONE_PEEK && index > state.pagerState.currentPage + 1) {
-                0f
-            } else {
-                1f
-            }
+            alpha = animatedAlpha
 
             // --- traslación final (pegado de bordes)
             var translation = ik.offset - unadjustedCenter
