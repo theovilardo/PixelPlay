@@ -170,7 +170,10 @@ fun RoundedHorizontalMultiBrowseCarousel(
                     preferredItemSize = carouselWidthPx * 0.8f,
                     itemSpacing = spacingPx,
                     itemCount = itemCount,
-                    alignment = CarouselAlignment.Start
+                    alignment = CarouselAlignment.Start,
+                    largeCounts = intArrayOf(1),
+                    mediumCounts = intArrayOf(0),
+                    smallCounts = intArrayOf(1)
                 )
                 CarouselStyle.TWO_PEEK -> multiBrowseKeylineList(
                     density = density,
