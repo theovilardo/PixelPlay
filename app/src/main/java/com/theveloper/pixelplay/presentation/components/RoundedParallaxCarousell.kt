@@ -53,6 +53,61 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 private fun Rect.inflate(p: Float) =
     Rect(left - p, top - p, right + p, bottom + p)
 
+private fun noPeekKeylineList(
+    carouselMainAxisSize: Float,
+    itemSpacing: Float,
+): KeylineList {
+    val largeSize = carouselMainAxisSize
+    return keylineListOf(
+        carouselMainAxisSize = carouselMainAxisSize,
+        itemSpacing = itemSpacing,
+        carouselAlignment = CarouselAlignment.Center
+    ) {
+        add(largeSize, isAnchor = false)
+    }
+}
+
+private fun onePeekKeylineList(
+    density: Density,
+    carouselMainAxisSize: Float,
+    itemSpacing: Float,
+): KeylineList {
+    val largeSize = carouselMainAxisSize * 0.8f
+    val smallSize = with(density) { 40.dp.toPx() }
+    val anchorSize = with(density) { 10.dp.toPx() }
+    return keylineListOf(
+        carouselMainAxisSize = carouselMainAxisSize,
+        itemSpacing = itemSpacing,
+        carouselAlignment = CarouselAlignment.Start,
+    ) {
+        add(anchorSize, isAnchor = true)
+        add(largeSize)
+        add(smallSize)
+        add(anchorSize, isAnchor = true)
+    }
+}
+
+private fun twoPeekKeylineList(
+    density: Density,
+    carouselMainAxisSize: Float,
+    itemSpacing: Float
+): KeylineList {
+    val largeSize = carouselMainAxisSize * 0.7f
+    val smallSize = with(density) { 56.dp.toPx() }
+    val anchorSize = with(density) { 10.dp.toPx() }
+    return keylineListOf(
+        carouselMainAxisSize = carouselMainAxisSize,
+        itemSpacing = itemSpacing,
+        carouselAlignment = CarouselAlignment.Center,
+    ) {
+        add(anchorSize, isAnchor = true)
+        add(smallSize)
+        add(largeSize)
+        add(smallSize)
+        add(anchorSize, isAnchor = true)
+    }
+}
+
 /* ================================================================================================
    PUBLIC API
    ================================================================================================ */
@@ -132,36 +187,48 @@ fun rememberCarouselState(initialItem: Int = 0, itemCount: () -> Int): CarouselS
 @Composable
 fun RoundedHorizontalMultiBrowseCarousel(
     state: CarouselState,
-    preferredItemWidth: Dp,
     modifier: Modifier = Modifier,
     itemSpacing: Dp = 0.dp,
-    flingBehavior: TargetedFlingBehavior =
-        PagerDefaults.flingBehavior(state = state.pagerState, pagerSnapDistance = PagerSnapDistance.atMost(1)),
+    flingBehavior: TargetedFlingBehavior = PagerDefaults.flingBehavior(
+        state = state.pagerState,
+        pagerSnapDistance = PagerSnapDistance.atMost(1)
+    ),
     userScrollEnabled: Boolean = true,
-    minSmallItemWidth: Dp = 40.dp,
-    maxSmallItemWidth: Dp = 56.dp,
-    contentPadding: PaddingValues = PaddingValues(0.dp),
     itemCornerRadius: Dp = 16.dp,
+    carouselStyle: String,
+    carouselWidth: Dp,
     content: @Composable CarouselItemScope.(itemIndex: Int) -> Unit,
 ) {
     val density = LocalDensity.current
+    val carouselWidthPx = with(density) { carouselWidth.toPx() }
+
     RoundedCarousel(
         state = state,
         orientation = Orientation.Horizontal,
-        keylineList = { space, spacingPx ->
-            with(density) {
-                multiBrowseKeylineList(
-                    density = this,
-                    carouselMainAxisSize = space,
-                    preferredItemSize = preferredItemWidth.toPx(),
-                    itemSpacing = spacingPx,
-                    itemCount = state.pagerState.pageCountState.value.invoke(),
-                    minSmallItemSize = minSmallItemWidth.toPx(),
-                    maxSmallItemSize = maxSmallItemWidth.toPx()
+        keylineList = { _, spacingPx ->
+            when (carouselStyle) {
+                CarouselStyle.NO_PEEK -> noPeekKeylineList(
+                    carouselMainAxisSize = carouselWidthPx,
+                    itemSpacing = spacingPx
+                )
+                CarouselStyle.ONE_PEEK -> onePeekKeylineList(
+                    density = density,
+                    carouselMainAxisSize = carouselWidthPx,
+                    itemSpacing = spacingPx
+                )
+                CarouselStyle.TWO_PEEK -> twoPeekKeylineList(
+                    density = density,
+                    carouselMainAxisSize = carouselWidthPx,
+                    itemSpacing = spacingPx
+                )
+                else -> onePeekKeylineList( // Default to one peek
+                    density = density,
+                    carouselMainAxisSize = carouselWidthPx,
+                    itemSpacing = spacingPx
                 )
             }
         },
-        contentPadding = contentPadding,
+        contentPadding = PaddingValues(0.dp),
         maxNonFocalVisibleItemCount = 2,
         modifier = modifier,
         itemSpacing = itemSpacing,
@@ -704,168 +771,6 @@ private fun lerp(start: Keyline, end: Keyline, fraction: Float) = Keyline(
 private fun lerp(from: KeylineList, to: KeylineList, fraction: Float): KeylineList {
     val list = from.fastMapIndexed { i, k -> lerp(k, to[i], fraction) }
     return KeylineList(list)
-}
-
-/* ================================================================================================
-   MULTI-BROWSE keyline list + Arrangement (versión compacta)
-   ================================================================================================ */
-
-/** Arreglo de tamaños para small/medium/large y sus cantidades. */
-private data class Arrangement(
-    val smallCount: Int,
-    val smallSize: Float,
-    val mediumCount: Int,
-    val mediumSize: Float,
-    val largeCount: Int,
-    val largeSize: Float,
-) {
-    fun itemCount() = smallCount + mediumCount + largeCount
-
-    companion object {
-        /** Búsqueda simple: prueba combinaciones y escoge la que mejor llena el espacio con menor “coste”. */
-        fun findLowestCostArrangement(
-            availableSpace: Float,
-            itemSpacing: Float,
-            targetSmallSize: Float,
-            minSmallSize: Float,
-            maxSmallSize: Float,
-            smallCounts: IntArray,
-            targetMediumSize: Float,
-            mediumCounts: IntArray,
-            targetLargeSize: Float,
-            largeCounts: IntArray,
-        ): Arrangement? {
-            var best: Arrangement? = null
-            var bestCost = Float.MAX_VALUE
-
-            fun cost(sz: Float, target: Float) = abs(sz - target) / (target.takeIf { it > 0f } ?: 1f)
-
-            for (lc in largeCounts) {
-                for (mc in mediumCounts) {
-                    for (sc in smallCounts) {
-                        // fijar tamaños (small acotado, medium entre small y large, large <= target)
-                        val large = min(targetLargeSize, availableSpace)
-                        val small = targetSmallSize.coerceIn(minSmallSize, maxSmallSize)
-                        val medium = if (targetMediumSize > 0f) {
-                            targetMediumSize.coerceIn(small, large)
-                        } else (large + small) / 2f
-
-                        val items = lc + mc + sc
-                        if (items == 0) continue
-                        val totalSpacing = itemSpacing * (items - 1)
-                        val total =
-                            (lc * large) + (mc * medium) + (sc * small) + totalSpacing
-
-                        // debe caber (o quedar muy cerca). Permitimos leve sobre/under-fill y penalizamos.
-                        val over = max(0f, total - availableSpace)
-                        val under = max(0f, availableSpace - total)
-
-                        // coste por desviación de targets + espacio mal usado
-                        val c =
-                            cost(large, targetLargeSize) * lc +
-                                    cost(medium, (large + small) / 2f) * mc +
-                                    cost(small, targetSmallSize) * sc +
-                                    (over * 3f + under) / (availableSpace + 1f)
-
-                        if (c < bestCost) {
-                            bestCost = c
-                            best = Arrangement(sc, small, mc, medium, lc, large)
-                        }
-                    }
-                }
-            }
-            return best
-        }
-    }
-}
-
-private fun multiBrowseKeylineList(
-    density: Density,
-    carouselMainAxisSize: Float,
-    preferredItemSize: Float,
-    itemSpacing: Float,
-    itemCount: Int,
-    minSmallItemSize: Float = with(density) { 40.dp.toPx() },
-    maxSmallItemSize: Float = with(density) { 56.dp.toPx() },
-): KeylineList {
-    if (carouselMainAxisSize == 0f || preferredItemSize == 0f) return emptyKeylineList()
-
-    var smallCounts: IntArray = intArrayOf(1)
-    val mediumCounts: IntArray = intArrayOf(1, 0)
-
-    val targetLargeSize = min(preferredItemSize, carouselMainAxisSize)
-    val targetSmallSize = (targetLargeSize / 3f).coerceIn(minSmallItemSize, maxSmallItemSize)
-    val targetMediumSize = (targetLargeSize + targetSmallSize) / 2f
-
-    if (carouselMainAxisSize < minSmallItemSize * 2) smallCounts = intArrayOf(0)
-
-    val minAvailableLargeSpace =
-        carouselMainAxisSize - targetMediumSize * mediumCounts.max() - maxSmallItemSize * smallCounts.max()
-    val minLargeCount = max(1, floor(minAvailableLargeSpace / targetLargeSize).toInt())
-    val maxLargeCount = ceil(carouselMainAxisSize / targetLargeSize).toInt()
-    val largeCounts = IntArray(maxLargeCount - minLargeCount + 1) { maxLargeCount - it }
-    val anchorSize = with(density) { 10.dp.toPx() }
-
-    var arrangement =
-        Arrangement.findLowestCostArrangement(
-            availableSpace = carouselMainAxisSize,
-            itemSpacing = itemSpacing,
-            targetSmallSize = targetSmallSize,
-            minSmallSize = minSmallItemSize,
-            maxSmallSize = maxSmallItemSize,
-            smallCounts = smallCounts,
-            targetMediumSize = targetMediumSize,
-            mediumCounts = mediumCounts,
-            targetLargeSize = targetLargeSize,
-            largeCounts = largeCounts,
-        ) ?: return emptyKeylineList()
-
-    if (arrangement.itemCount() > itemCount) {
-        var surplus = arrangement.itemCount() - itemCount
-        var sc = arrangement.smallCount
-        var mc = arrangement.mediumCount
-        while (surplus > 0) {
-            if (sc > 0) sc -= 1 else if (mc > 1) mc -= 1
-            surplus -= 1
-        }
-        arrangement =
-            Arrangement.findLowestCostArrangement(
-                availableSpace = carouselMainAxisSize,
-                itemSpacing = itemSpacing,
-                targetSmallSize = targetSmallSize,
-                minSmallSize = minSmallItemSize,
-                maxSmallSize = maxSmallItemSize,
-                smallCounts = intArrayOf(sc),
-                targetMediumSize = targetMediumSize,
-                mediumCounts = intArrayOf(mc),
-                targetLargeSize = targetLargeSize,
-                largeCounts = largeCounts,
-            ) ?: arrangement
-    }
-
-    return createLeftAlignedKeylineList(
-        carouselMainAxisSize = carouselMainAxisSize,
-        itemSpacing = itemSpacing,
-        leftAnchorSize = anchorSize,
-        rightAnchorSize = anchorSize,
-        arrangement = arrangement
-    )
-}
-
-private fun createLeftAlignedKeylineList(
-    carouselMainAxisSize: Float,
-    itemSpacing: Float,
-    leftAnchorSize: Float,
-    rightAnchorSize: Float,
-    arrangement: Arrangement,
-): KeylineList {
-    return keylineListOf(carouselMainAxisSize, itemSpacing, CarouselAlignment.Start) {
-        add(leftAnchorSize, isAnchor = true)
-        repeat(arrangement.largeCount) { add(arrangement.largeSize) }
-        repeat(arrangement.mediumCount) { add(arrangement.mediumSize) }
-        repeat(arrangement.smallCount) { add(arrangement.smallSize) }
-        add(rightAnchorSize, isAnchor = true)
-    }
 }
 
 /* ================================================================================================

@@ -76,44 +76,27 @@ fun AlbumCarouselSection(
 
     BoxWithConstraints(modifier = modifier) {
         val availableWidth = this.maxWidth
-        val preferredItemWidth: Dp
-        val contentPadding: PaddingValues
-
-        when (carouselStyle) {
-            CarouselStyle.NO_PEEK -> {
-                preferredItemWidth = availableWidth
-                contentPadding = PaddingValues(0.dp)
-            }
-            CarouselStyle.ONE_PEEK -> {
-                preferredItemWidth = availableWidth * 0.8f
-                contentPadding = PaddingValues(horizontal = (availableWidth * 0.1f))
-            }
-            CarouselStyle.TWO_PEEK -> {
-                preferredItemWidth = availableWidth * 0.7f
-                contentPadding = PaddingValues(horizontal = (availableWidth * 0.15f))
-            }
-            else -> {
-                preferredItemWidth = availableWidth * 0.8f
-                contentPadding = PaddingValues(horizontal = (availableWidth * 0.1f))
-            }
+        val carouselHeight = when (carouselStyle) {
+            CarouselStyle.NO_PEEK -> availableWidth
+            else -> availableWidth * 0.8f
         }
-
-        val carouselHeight = preferredItemWidth
 
         RoundedHorizontalMultiBrowseCarousel(
             state = carouselState,
-            preferredItemWidth = preferredItemWidth,
             modifier = Modifier.height(carouselHeight),
             itemSpacing = itemSpacing,
-            contentPadding = contentPadding,
-            itemCornerRadius = corner
+            itemCornerRadius = corner,
+            carouselStyle = carouselStyle,
+            carouselWidth = availableWidth
         ) { index ->
             val song = queue[index]
-            Box(Modifier.fillMaxSize()) {
+            Box(Modifier
+                .fillMaxSize()
+                .aspectRatio(1f)) {
                 OptimizedAlbumArt(
                     uri = song.albumArtUriString,
                     title = song.title,
-                    modifier = Modifier.fillMaxSize().aspectRatio(1f),
+                    modifier = Modifier.fillMaxSize(),
                     targetSize = Size(600, 600)
                 )
             }
