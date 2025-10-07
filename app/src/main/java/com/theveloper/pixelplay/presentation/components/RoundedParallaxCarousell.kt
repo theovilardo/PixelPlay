@@ -47,66 +47,12 @@ import androidx.compose.ui.util.fastMapIndexed
 import kotlin.math.*
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Path
+import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 // Utilidad para “inflar” un rect en px (evita hairlines)
 private fun Rect.inflate(p: Float) =
     Rect(left - p, top - p, right + p, bottom + p)
-
-private fun noPeekKeylineList(
-    carouselMainAxisSize: Float,
-    itemSpacing: Float,
-): KeylineList {
-    val largeSize = carouselMainAxisSize
-    return keylineListOf(
-        carouselMainAxisSize = carouselMainAxisSize,
-        itemSpacing = itemSpacing,
-        carouselAlignment = CarouselAlignment.Center
-    ) {
-        add(largeSize, isAnchor = false)
-    }
-}
-
-private fun onePeekKeylineList(
-    density: Density,
-    carouselMainAxisSize: Float,
-    itemSpacing: Float,
-): KeylineList {
-    val largeSize = carouselMainAxisSize * 0.8f
-    val smallSize = with(density) { 40.dp.toPx() }
-    val anchorSize = with(density) { 10.dp.toPx() }
-    return keylineListOf(
-        carouselMainAxisSize = carouselMainAxisSize,
-        itemSpacing = itemSpacing,
-        carouselAlignment = CarouselAlignment.Start,
-    ) {
-        add(anchorSize, isAnchor = true)
-        add(largeSize)
-        add(smallSize)
-        add(anchorSize, isAnchor = true)
-    }
-}
-
-private fun twoPeekKeylineList(
-    density: Density,
-    carouselMainAxisSize: Float,
-    itemSpacing: Float
-): KeylineList {
-    val largeSize = carouselMainAxisSize * 0.7f
-    val smallSize = with(density) { 56.dp.toPx() }
-    val anchorSize = with(density) { 10.dp.toPx() }
-    return keylineListOf(
-        carouselMainAxisSize = carouselMainAxisSize,
-        itemSpacing = itemSpacing,
-        carouselAlignment = CarouselAlignment.Center,
-    ) {
-        add(anchorSize, isAnchor = true)
-        add(smallSize)
-        add(largeSize)
-        add(smallSize)
-        add(anchorSize, isAnchor = true)
-    }
-}
 
 /* ================================================================================================
    PUBLIC API
@@ -206,25 +152,42 @@ fun RoundedHorizontalMultiBrowseCarousel(
         state = state,
         orientation = Orientation.Horizontal,
         keylineList = { _, spacingPx ->
+            val itemCount = state.pagerState.pageCountState.value.invoke()
             when (carouselStyle) {
-                CarouselStyle.NO_PEEK -> noPeekKeylineList(
-                    carouselMainAxisSize = carouselWidthPx,
-                    itemSpacing = spacingPx
-                )
-                CarouselStyle.ONE_PEEK -> onePeekKeylineList(
+                CarouselStyle.NO_PEEK -> multiBrowseKeylineList(
                     density = density,
                     carouselMainAxisSize = carouselWidthPx,
-                    itemSpacing = spacingPx
+                    preferredItemSize = carouselWidthPx,
+                    itemSpacing = spacingPx,
+                    itemCount = itemCount,
+                    largeCounts = intArrayOf(1),
+                    mediumCounts = intArrayOf(0),
+                    smallCounts = intArrayOf(0)
                 )
-                CarouselStyle.TWO_PEEK -> twoPeekKeylineList(
+                CarouselStyle.ONE_PEEK -> multiBrowseKeylineList(
                     density = density,
                     carouselMainAxisSize = carouselWidthPx,
-                    itemSpacing = spacingPx
+                    preferredItemSize = carouselWidthPx * 0.8f,
+                    itemSpacing = spacingPx,
+                    itemCount = itemCount,
+                    alignment = CarouselAlignment.Start
                 )
-                else -> onePeekKeylineList( // Default to one peek
+                CarouselStyle.TWO_PEEK -> multiBrowseKeylineList(
                     density = density,
                     carouselMainAxisSize = carouselWidthPx,
-                    itemSpacing = spacingPx
+                    preferredItemSize = carouselWidthPx * 0.8f,
+                    itemSpacing = spacingPx,
+                    itemCount = itemCount,
+                    smallCounts = intArrayOf(2),
+                    alignment = CarouselAlignment.Center
+                )
+                else -> multiBrowseKeylineList( // Default to one peek
+                    density = density,
+                    carouselMainAxisSize = carouselWidthPx,
+                    preferredItemSize = carouselWidthPx * 0.8f,
+                    itemSpacing = spacingPx,
+                    itemCount = itemCount,
+                    alignment = CarouselAlignment.Start
                 )
             }
         },
@@ -771,6 +734,174 @@ private fun lerp(start: Keyline, end: Keyline, fraction: Float) = Keyline(
 private fun lerp(from: KeylineList, to: KeylineList, fraction: Float): KeylineList {
     val list = from.fastMapIndexed { i, k -> lerp(k, to[i], fraction) }
     return KeylineList(list)
+}
+
+/* ================================================================================================
+   MULTI-BROWSE keyline list + Arrangement (versión compacta)
+   ================================================================================================ */
+
+/** Arreglo de tamaños para small/medium/large y sus cantidades. */
+private data class Arrangement(
+    val smallCount: Int,
+    val smallSize: Float,
+    val mediumCount: Int,
+    val mediumSize: Float,
+    val largeCount: Int,
+    val largeSize: Float,
+) {
+    fun itemCount() = smallCount + mediumCount + largeCount
+
+    companion object {
+        /** Búsqueda simple: prueba combinaciones y escoge la que mejor llena el espacio con menor “coste”. */
+        fun findLowestCostArrangement(
+            availableSpace: Float,
+            itemSpacing: Float,
+            targetSmallSize: Float,
+            minSmallSize: Float,
+            maxSmallSize: Float,
+            smallCounts: IntArray,
+            targetMediumSize: Float,
+            mediumCounts: IntArray,
+            targetLargeSize: Float,
+            largeCounts: IntArray,
+        ): Arrangement? {
+            var best: Arrangement? = null
+            var bestCost = Float.MAX_VALUE
+
+            fun cost(sz: Float, target: Float) = abs(sz - target) / (target.takeIf { it > 0f } ?: 1f)
+
+            for (lc in largeCounts) {
+                for (mc in mediumCounts) {
+                    for (sc in smallCounts) {
+                        // fijar tamaños (small acotado, medium entre small y large, large <= target)
+                        val large = min(targetLargeSize, availableSpace)
+                        val small = targetSmallSize.coerceIn(minSmallSize, maxSmallSize)
+                        val medium = if (targetMediumSize > 0f) {
+                            targetMediumSize.coerceIn(small, large)
+                        } else (large + small) / 2f
+
+                        val items = lc + mc + sc
+                        if (items == 0) continue
+                        val totalSpacing = itemSpacing * (items - 1)
+                        val total =
+                            (lc * large) + (mc * medium) + (sc * small) + totalSpacing
+
+                        // debe caber (o quedar muy cerca). Permitimos leve sobre/under-fill y penalizamos.
+                        val over = max(0f, total - availableSpace)
+                        val under = max(0f, availableSpace - total)
+
+                        // coste por desviación de targets + espacio mal usado
+                        val c =
+                            cost(large, targetLargeSize) * lc +
+                                    cost(medium, (large + small) / 2f) * mc +
+                                    cost(small, targetSmallSize) * sc +
+                                    (over * 3f + under) / (availableSpace + 1f)
+
+                        if (c < bestCost) {
+                            bestCost = c
+                            best = Arrangement(sc, small, mc, medium, lc, large)
+                        }
+                    }
+                }
+            }
+            return best
+        }
+    }
+}
+
+private fun multiBrowseKeylineList(
+    density: Density,
+    carouselMainAxisSize: Float,
+    preferredItemSize: Float,
+    itemSpacing: Float,
+    itemCount: Int,
+    minSmallItemSize: Float = with(density) { 40.dp.toPx() },
+    maxSmallItemSize: Float = with(density) { 56.dp.toPx() },
+    largeCounts: IntArray? = null,
+    mediumCounts: IntArray = intArrayOf(1, 0),
+    smallCounts: IntArray = intArrayOf(1),
+    alignment: CarouselAlignment = CarouselAlignment.Start
+): KeylineList {
+    if (carouselMainAxisSize == 0f || preferredItemSize == 0f) return emptyKeylineList()
+
+    var resolvedSmallCounts = smallCounts
+    val targetLargeSize = min(preferredItemSize, carouselMainAxisSize)
+    val targetSmallSize = (targetLargeSize / 3f).coerceIn(minSmallItemSize, maxSmallItemSize)
+    val targetMediumSize = (targetLargeSize + targetSmallSize) / 2f
+
+    if (carouselMainAxisSize < minSmallItemSize * 2) resolvedSmallCounts = intArrayOf(0)
+
+    val resolvedLargeCounts = largeCounts ?: run {
+        val minAvailableLargeSpace =
+            carouselMainAxisSize - targetMediumSize * mediumCounts.max() - maxSmallItemSize * resolvedSmallCounts.max()
+        val minLargeCount = max(1, floor(minAvailableLargeSpace / targetLargeSize).toInt())
+        val maxLargeCount = ceil(carouselMainAxisSize / targetLargeSize).toInt()
+        IntArray(maxLargeCount - minLargeCount + 1) { maxLargeCount - it }
+    }
+    val anchorSize = with(density) { 10.dp.toPx() }
+
+    var arrangement =
+        Arrangement.findLowestCostArrangement(
+            availableSpace = carouselMainAxisSize,
+            itemSpacing = itemSpacing,
+            targetSmallSize = targetSmallSize,
+            minSmallSize = minSmallItemSize,
+            maxSmallSize = maxSmallItemSize,
+            smallCounts = resolvedSmallCounts,
+            targetMediumSize = targetMediumSize,
+            mediumCounts = mediumCounts,
+            targetLargeSize = targetLargeSize,
+            largeCounts = resolvedLargeCounts,
+        ) ?: return emptyKeylineList()
+
+    if (arrangement.itemCount() > itemCount) {
+        var surplus = arrangement.itemCount() - itemCount
+        var sc = arrangement.smallCount
+        var mc = arrangement.mediumCount
+        while (surplus > 0) {
+            if (sc > 0) sc -= 1 else if (mc > 1) mc -= 1
+            surplus -= 1
+        }
+        arrangement =
+            Arrangement.findLowestCostArrangement(
+                availableSpace = carouselMainAxisSize,
+                itemSpacing = itemSpacing,
+                targetSmallSize = targetSmallSize,
+                minSmallSize = minSmallItemSize,
+                maxSmallSize = maxSmallItemSize,
+                smallCounts = intArrayOf(sc),
+                targetMediumSize = targetMediumSize,
+                mediumCounts = intArrayOf(mc),
+                targetLargeSize = targetLargeSize,
+                largeCounts = resolvedLargeCounts,
+            ) ?: arrangement
+    }
+
+    return createKeylineListFromArrangement(
+        carouselMainAxisSize = carouselMainAxisSize,
+        itemSpacing = itemSpacing,
+        leftAnchorSize = anchorSize,
+        rightAnchorSize = anchorSize,
+        arrangement = arrangement,
+        alignment = alignment
+    )
+}
+
+private fun createKeylineListFromArrangement(
+    carouselMainAxisSize: Float,
+    itemSpacing: Float,
+    leftAnchorSize: Float,
+    rightAnchorSize: Float,
+    arrangement: Arrangement,
+    alignment: CarouselAlignment
+): KeylineList {
+    return keylineListOf(carouselMainAxisSize, itemSpacing, alignment) {
+        add(leftAnchorSize, isAnchor = true)
+        repeat(arrangement.largeCount) { add(arrangement.largeSize) }
+        repeat(arrangement.mediumCount) { add(arrangement.mediumSize) }
+        repeat(arrangement.smallCount) { add(arrangement.smallSize) }
+        add(rightAnchorSize, isAnchor = true)
+    }
 }
 
 /* ================================================================================================
