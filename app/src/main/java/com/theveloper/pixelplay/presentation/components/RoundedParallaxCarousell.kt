@@ -148,6 +148,21 @@ fun RoundedHorizontalMultiBrowseCarousel(
     val density = LocalDensity.current
     val carouselWidthPx = with(density) { carouselWidth.toPx() }
 
+    val maxNonFocalItems = when (carouselStyle) {
+        CarouselStyle.NO_PEEK -> 0
+        CarouselStyle.ONE_PEEK -> 1
+        CarouselStyle.TWO_PEEK -> 2
+        else -> 1 // Default to one peek
+    }
+
+    val maxNonFocalItems = when (carouselStyle) {
+        CarouselStyle.NO_PEEK -> 0
+        CarouselStyle.ONE_PEEK -> 1
+        CarouselStyle.TWO_PEEK -> 2
+        else -> 1 // Default to one peek
+    }
+    val isScrollEnabled = carouselStyle != CarouselStyle.NO_PEEK
+
     RoundedCarousel(
         state = state,
         orientation = Orientation.Horizontal,
@@ -195,11 +210,11 @@ fun RoundedHorizontalMultiBrowseCarousel(
             }
         },
         contentPadding = PaddingValues(0.dp),
-        maxNonFocalVisibleItemCount = 2,
+        maxNonFocalVisibleItemCount = maxNonFocalItems,
         modifier = modifier,
         itemSpacing = itemSpacing,
         flingBehavior = flingBehavior,
-        userScrollEnabled = userScrollEnabled,
+        userScrollEnabled = isScrollEnabled,
         itemCornerRadius = itemCornerRadius,
         content = content
     )
