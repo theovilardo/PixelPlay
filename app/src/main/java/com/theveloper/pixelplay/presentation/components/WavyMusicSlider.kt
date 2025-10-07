@@ -59,7 +59,7 @@ import androidx.compose.ui.util.lerp
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
 fun WavyMusicSlider(
-    valueProvider: () -> Float,
+    value: Float,
     onValueChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
@@ -123,10 +123,10 @@ fun WavyMusicSlider(
     val hapticFeedback = LocalHapticFeedback.current
 
     BoxWithConstraints(modifier = modifier.clipToBounds()) {
-        val currentValue = valueProvider()
         val lastHapticStep = remember { mutableIntStateOf(-1) }
+
         Slider(
-            value = currentValue,
+            value = value,
             onValueChange = { newValue ->
                 val currentStep = (newValue * 100 / (valueRange.endInclusive - valueRange.start)).toInt()
                 if (currentStep != lastHapticStep.intValue) {
@@ -160,7 +160,7 @@ fun WavyMusicSlider(
                     val localTrackEnd = canvasWidth - thumbRadiusPx
                     val localTrackWidth = (localTrackEnd - localTrackStart).coerceAtLeast(0f)
 
-                    val normalizedValue = valueProvider().let { v ->
+                    val normalizedValue = value.let { v ->
                         if (valueRange.endInclusive == valueRange.start) 0f
                         else ((v - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(
                             0f,

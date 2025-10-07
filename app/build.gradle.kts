@@ -20,6 +20,7 @@ android {
         resources {
             excludes += "META-INF/INDEX.LIST"
             excludes += "META-INF/DEPENDENCIES"
+            excludes += "/META-INF/io.netty.versions.properties"
         }
     }
 
@@ -80,6 +81,8 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.generativeai)
+    implementation(libs.androidx.mediarouter)
+    implementation(libs.play.services.cast.framework)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -159,6 +162,8 @@ dependencies {
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.media3.session)
+    implementation(libs.androidx.media.router)
+    implementation(libs.google.play.services.cast.framework)
 //    implementation(libs.androidx.media3.exoplayer.ffmpeg)
 
     // Palette API for color extraction
@@ -229,6 +234,11 @@ dependencies {
     implementation(libs.converter.gson)
     implementation(libs.okhttp)
     implementation(libs.logging.interceptor)
+
+    // Ktor for HTTP Server
+    implementation(libs.ktor.server.core)
+    implementation(libs.ktor.server.netty)
+    implementation(libs.kotlinx.coroutines.core)
 
     implementation(libs.androidx.ui.text.google.fonts)
 
