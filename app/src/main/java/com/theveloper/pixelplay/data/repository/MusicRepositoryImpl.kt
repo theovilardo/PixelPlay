@@ -571,4 +571,8 @@ class MusicRepositoryImpl @Inject constructor(
     override suspend fun updateLyrics(songId: Long, lyrics: String) {
         lyricsRepository.updateLyrics(songId, lyrics)
     }
+
+    override suspend fun resetLyrics(songId: Long) {
+        lyricsRepository.resetLyrics(songId)
+    }
 }

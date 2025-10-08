@@ -8,5 +8,6 @@ interface LyricsRepository {
     suspend fun fetchFromRemote(song: Song): Result<Pair<Lyrics, String>>
     suspend fun searchRemote(song: Song): Result<List<LyricsSearchResult>>
     suspend fun updateLyrics(songId: Long, lyricsContent: String)
+    suspend fun resetLyrics(songId: Long)
     fun clearCache()
 }

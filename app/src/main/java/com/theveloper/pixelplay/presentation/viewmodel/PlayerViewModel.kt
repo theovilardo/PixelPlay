@@ -2756,6 +2756,14 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun resetLyricsForCurrentSong() {
+        resetLyricsSearchState()
+        viewModelScope.launch {
+            musicRepository.resetLyrics(stablePlayerState.value.currentSong!!.id.toLong())
+            loadLyricsForCurrentSong()
+        }
+    }
+
     /**
      * Procesa la letra importada de un archivo, la guarda y actualiza la UI.
      * @param songId El ID de la canción para la que se importa la letra.

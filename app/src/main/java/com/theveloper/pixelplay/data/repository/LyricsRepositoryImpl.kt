@@ -151,6 +151,13 @@ class LyricsRepositoryImpl @Inject constructor(
         LogUtils.d(this@LyricsRepositoryImpl, "Updated and cached lyrics for songId: $songId")
     }
 
+    override suspend fun resetLyrics(songId: Long): Unit = withContext(Dispatchers.IO) {
+        LogUtils.d(this, "Resetting lyrics for songId: $songId")
+        val cacheKey = generateCacheKey(songId.toString())
+        lyricsCache.remove(cacheKey)
+        musicDao.resetLyrics(songId)
+    }
+
     override fun clearCache() {
         LogUtils.d(this, "Clearing lyrics cache")
         lyricsCache.evictAll()

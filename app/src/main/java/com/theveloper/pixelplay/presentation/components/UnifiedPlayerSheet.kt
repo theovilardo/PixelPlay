@@ -1795,6 +1795,10 @@ private fun FullPlayerContentInternal(
         LyricsSheet(
             stablePlayerStateFlow = playerViewModel.stablePlayerState,
             playerUiStateFlow = playerViewModel.playerUiState,
+            resetLyricsForCurrentSong = {
+                showLyricsSheet = false
+                playerViewModel.resetLyricsForCurrentSong()
+            },
             lyricsTextStyle = MaterialTheme.typography.titleLarge,
             backgroundColor = LocalMaterialTheme.current.background,
             onBackgroundColor = LocalMaterialTheme.current.onBackground,
