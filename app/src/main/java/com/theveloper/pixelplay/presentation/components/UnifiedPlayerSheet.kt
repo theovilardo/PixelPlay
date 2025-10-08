@@ -1348,28 +1348,29 @@ private fun MiniPlayerContentInternal(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.Center
         ) {
-            Text(
-                text = song.title,
-                style = MaterialTheme.typography.titleSmall.copy(
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = (-0.2).sp
-                ),
+            val titleStyle = MaterialTheme.typography.titleSmall.copy(
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = (-0.2).sp,
                 fontFamily = GoogleSansRounded,
-                color = LocalMaterialTheme.current.onPrimaryContainer,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                color = LocalMaterialTheme.current.onPrimaryContainer
             )
-            Text(
-                text = song.artist,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontSize = 13.sp,
-                    letterSpacing = 0.sp
-                ),
+            val artistStyle = MaterialTheme.typography.bodySmall.copy(
+                fontSize = 13.sp,
+                letterSpacing = 0.sp,
                 fontFamily = GoogleSansRounded,
-                color = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                color = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f)
+            )
+
+            AutoScrollingText(
+                text = song.title,
+                style = titleStyle,
+                gradientEdgeColor = LocalMaterialTheme.current.primaryContainer
+            )
+            AutoScrollingText(
+                text = song.artist,
+                style = artistStyle,
+                gradientEdgeColor = LocalMaterialTheme.current.primaryContainer
             )
         }
         Spacer(modifier = Modifier.width(8.dp))
