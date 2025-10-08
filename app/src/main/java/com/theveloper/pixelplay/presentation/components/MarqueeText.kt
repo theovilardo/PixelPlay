@@ -1,7 +1,6 @@
 package com.theveloper.pixelplay.presentation.components
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.MarqueeSpacing
@@ -10,7 +9,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
@@ -24,7 +26,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -47,15 +48,19 @@ fun AutoScrollingText(
             if (isOverflowing) {
                 val initialDelayMillis = 1500
                 val fadeAnimationDuration = 500
-                val leftGradientAlpha = remember { Animatable(0f) }
 
+                var isScrolling by remember { mutableStateOf(false) }
                 LaunchedEffect(Unit) {
-                    delay(initialDelayMillis.toLong())
-                    leftGradientAlpha.animateTo(
-                        targetValue = 1f,
-                        animationSpec = tween(durationMillis = fadeAnimationDuration, easing = LinearEasing)
-                    )
+                    isScrolling = false // Ensure initial state
+                    kotlinx.coroutines.delay(initialDelayMillis.toLong())
+                    isScrolling = true
                 }
+
+                val animatedLeftGradientStartColor by animateColorAsState(
+                    targetValue = if (isScrolling) Color.Transparent else gradientEdgeColor,
+                    animationSpec = tween(durationMillis = fadeAnimationDuration),
+                    label = "LeftGradientStartColor"
+                )
 
                 Box(
                     modifier = Modifier
@@ -64,15 +69,14 @@ fun AutoScrollingText(
                             drawContent()
                             val gradientWidthPx = gradientWidth.toPx()
 
-                            // Left fade-in: Animates in as scroll starts
+                            // Left fade-in: Animates its color from opaque to transparent
                             drawRect(
                                 brush = Brush.horizontalGradient(
-                                    colors = listOf(Color.Transparent, gradientEdgeColor),
+                                    colors = listOf(animatedLeftGradientStartColor, gradientEdgeColor),
                                     startX = 0f,
                                     endX = gradientWidthPx
                                 ),
-                                blendMode = BlendMode.DstIn,
-                                alpha = leftGradientAlpha.value
+                                blendMode = BlendMode.DstIn
                             )
                             // Right fade-out: Always visible for overflow
                             drawRect(
