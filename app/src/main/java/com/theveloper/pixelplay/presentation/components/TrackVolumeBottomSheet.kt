@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -51,6 +52,7 @@ fun TrackVolumeBottomSheet(
 
     ModalBottomSheet(
         containerColor = theme.current.background,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = theme.current.primary) },
         onDismissRequest = onDismiss,
         sheetState = sheetState
     ) {
@@ -64,7 +66,7 @@ fun TrackVolumeBottomSheet(
             Box(
                 modifier = Modifier
                     .background(
-                        color = theme.current.surface,
+                        color = theme.current.secondaryContainer,
                         shape = CircleShape
                     )
             ) {
@@ -73,7 +75,7 @@ fun TrackVolumeBottomSheet(
                     text = "Volume",
                     fontFamily = GoogleSansRounded,
                     style = MaterialTheme.typography.headlineMedium,
-                    color = theme.current.primary
+                    color = theme.current.secondary
                 )
             }
             Spacer(modifier = Modifier.height(24.dp))
