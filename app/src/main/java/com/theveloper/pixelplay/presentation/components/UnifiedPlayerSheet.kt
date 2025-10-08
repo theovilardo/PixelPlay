@@ -1699,33 +1699,36 @@ private fun FullPlayerContentInternal(
             verticalArrangement = Arrangement.SpaceAround
         ) {
             // Album Cover section
-            val albumArtContainerModifier = Modifier
-                .fillMaxWidth() // Let the carousel manage its width
-                .padding(vertical = lerp(4.dp, 8.dp, expansionFraction))
-                .height(lerp(150.dp, 260.dp, expansionFraction)) // Adjust height for carousel
-                .graphicsLayer { alpha = expansionFraction }
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = lerp(4.dp, 8.dp, expansionFraction))
+                    .graphicsLayer { alpha = expansionFraction }
+            ) {
+                val carouselHeight = when (carouselStyle) {
+                    CarouselStyle.NO_PEEK -> maxWidth
+                    CarouselStyle.ONE_PEEK -> maxWidth * 0.8f
+                    CarouselStyle.TWO_PEEK -> maxWidth * 0.6f // Main item is 60% of width
+                    else -> maxWidth * 0.8f
+                }
 
-            // Album Cover section - uses new Composable
-            AlbumCarouselSection(
-                currentSong = currentSong,
-                queue = currentPlaybackQueue,
-                expansionFraction = expansionFraction,
-                onSongSelected = { newSong ->
-                    if (newSong.id != currentSong.id) {
-                // By calling showAndPlaySong, we leverage the ViewModel's logic to determine
-                // whether to seek within the current queue (preserving modifications) or
-                // to start a new playback context. This is the correct way to handle
-                // user interaction from the carousel.
-                playerViewModel.showAndPlaySong(
-                    song = newSong,
-                    contextSongs = currentPlaybackQueue,
-                    queueName = currentQueueSourceName
-                        )
-                    }
-                },
-                carouselStyle = carouselStyle,
-                modifier = albumArtContainerModifier
-            )
+                AlbumCarouselSection(
+                    currentSong = currentSong,
+                    queue = currentPlaybackQueue,
+                    expansionFraction = expansionFraction,
+                    onSongSelected = { newSong ->
+                        if (newSong.id != currentSong.id) {
+                            playerViewModel.showAndPlaySong(
+                                song = newSong,
+                                contextSongs = currentPlaybackQueue,
+                                queueName = currentQueueSourceName
+                            )
+                        }
+                    },
+                    carouselStyle = carouselStyle,
+                    modifier = Modifier.height(carouselHeight) // Apply calculated height
+                )
+            }
 
             // Song Info - uses new Composable
             SongMetadataDisplaySection(
