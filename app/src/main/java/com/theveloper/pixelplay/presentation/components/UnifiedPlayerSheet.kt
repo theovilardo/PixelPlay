@@ -106,11 +106,15 @@ import kotlinx.coroutines.delay
 import android.os.Trace // Import Trace
 import androidx.compose.material3.TopAppBar
 import androidx.media3.common.util.UnstableApi
+import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
 import androidx.compose.material3.carousel.rememberCarouselState
 import androidx.compose.ui.draw.drawWithContent
@@ -169,6 +173,11 @@ fun UnifiedPlayerSheet(
     val currentPosition by remember {
         playerViewModel.playerUiState.map { it.currentPosition }.distinctUntilChanged()
     }.collectAsState(initial = 0L)
+    val remotePosition by playerViewModel.remotePosition.collectAsState()
+    val selectedRoute by playerViewModel.selectedRoute.collectAsState()
+    val isCasting = selectedRoute?.isDefault == false
+    val positionToDisplay = if (isCasting) remotePosition else currentPosition
+
     val currentPlaybackQueue by remember {
         playerViewModel.playerUiState.map { it.currentPlaybackQueue }.distinctUntilChanged()
     }.collectAsState(initial = persistentListOf())
@@ -202,6 +211,7 @@ fun UnifiedPlayerSheet(
 
     val navBarCornerRadius by playerViewModel.navBarCornerRadius.collectAsState()
     val navBarStyle by playerViewModel.navBarStyle.collectAsState()
+    val carouselStyle by playerViewModel.carouselStyle.collectAsState()
 
     val density = LocalDensity.current
     val configuration = LocalConfiguration.current
@@ -564,6 +574,8 @@ fun UnifiedPlayerSheet(
     }
 
     var showQueueSheet by remember { mutableStateOf(false) }
+    var showCastSheet by remember { mutableStateOf(false) }
+    var showTrackVolumeSheet by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
     var isDraggingPlayerArea by remember { mutableStateOf(false) }
     val velocityTracker = remember { VelocityTracker() }
@@ -1017,7 +1029,7 @@ fun UnifiedPlayerSheet(
                                         }) {
                                             FullPlayerContentInternal(
                                                 currentSong = currentSongNonNull, // Use non-null version
-                                                currentPosition = currentPosition, // Pass granular currentPosition
+                                                currentPosition = positionToDisplay,
                                                 currentPlaybackQueue = currentPlaybackQueue,
                                                 currentQueueSourceName = currentQueueSourceName,
                                                 isPlaying = stablePlayerState.isPlaying,
@@ -1032,9 +1044,12 @@ fun UnifiedPlayerSheet(
                                                 expansionFraction = playerContentExpansionFraction.value,
                                                 currentSheetState = currentSheetContentState,
                                                 onShowQueueClicked = { showQueueSheet = true },
+                                                onShowCastClicked = { showCastSheet = true },
+                                                onShowTrackVolumeClicked = { showTrackVolumeSheet = true },
                                                 onShuffleToggle = { playerViewModel.toggleShuffle() },
                                                 onRepeatToggle = { playerViewModel.cycleRepeatMode() },
                                                 onFavoriteToggle = { playerViewModel.toggleFavorite() },
+                                                carouselStyle = carouselStyle,
                                                 playerViewModel = playerViewModel // Keep passing ViewModel if FullPlayerContentInternal needs other parts of it
                                             )
                                         }
@@ -1088,135 +1103,90 @@ fun UnifiedPlayerSheet(
             )
         }
     }
+
+    if (showCastSheet && !internalIsKeyboardVisible) {
+        CompositionLocalProvider(
+            LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
+        ) {
+            CastBottomSheet(
+                playerViewModel = playerViewModel,
+                onDismiss = { showCastSheet = false }
+            )
+        }
+    }
+
+    if (showTrackVolumeSheet) {
+        val trackVolume by playerViewModel.trackVolume.collectAsState()
+        CompositionLocalProvider(
+            LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
+        ) {
+            TrackVolumeBottomSheet(
+                theme = LocalMaterialTheme,
+                initialVolume = trackVolume,
+                onDismiss = { showTrackVolumeSheet = false },
+                onVolumeChange = { newVolume ->
+                    playerViewModel.setTrackVolume(newVolume)
+                }
+            )
+        }
+    }
     Trace.endSection() // End UnifiedPlayerSheet.Composition
 }
 
 
-//@OptIn(ExperimentalMaterial3Api::class)
-//@Composable
-//fun AlbumCarouselSection(
-//    currentSong: Song?,
-//    queue: ImmutableList<Song>,
-//    expansionFraction: Float,
-//    onSongSelected: (Song) -> Unit,
-//    modifier: Modifier = Modifier,
-//    preferredItemWidth: Dp = 280.dp,
-//    itemSpacing: Dp = 8.dp
-//) {
-//    if (queue.isEmpty()) return
-//
-//    val carouselState = rememberCarouselState { queue.size }
-//    val currentSongIndex = remember(currentSong, queue) {
-//        queue.indexOf(currentSong).coerceAtLeast(0)
-//    }
-//
-//    // Player -> Carousel
-//    LaunchedEffect(currentSongIndex) {
-//        if (carouselState.currentItem != currentSongIndex) {
-//            carouselState.animateScrollToItem(currentSongIndex)
-//        }
-//    }
-//
-//    // Carousel -> Player
-//    LaunchedEffect(carouselState) {
-//        snapshotFlow { carouselState.isScrollInProgress }
-//            .distinctUntilChanged()
-//            .filter { !it }
-//            .collect {
-//                val settled = carouselState.currentItem
-//                if (settled != currentSongIndex) {
-//                    queue.getOrNull(settled)?.let(onSongSelected)
-//                }
-//            }
-//    }
-//
-//    HorizontalMultiBrowseCarousel(
-//        state = carouselState,
-//        modifier = modifier,                  // sin clip aquí
-//        preferredItemWidth = preferredItemWidth,
-//        itemSpacing = itemSpacing
-//    ) { index ->
-//        val song = queue[index]
-//        val pageOffset = (carouselState.currentItem - index).absoluteValue
-//
-//        // Interpolaciones “visuales”
-//        val targetScale = 1f - (pageOffset * 0.20f).coerceAtMost(0.20f)
-//        val targetAlpha = 1f - (pageOffset * 0.30f).coerceAtMost(0.60f)
-//
-//        val scale by animateFloatAsState(
-//            targetValue = targetScale,
-//            animationSpec = tween(300),
-//            label = "scale"
-//        )
-//        val contentAlpha by animateFloatAsState(
-//            targetValue = targetAlpha.coerceIn(0.85f, 1f), // opcional: evitar alphas muy bajos
-//            animationSpec = tween(300),
-//            label = "contentAlpha"
-//        )
-//
-//        val corner = lerp(16.dp, 24.dp, expansionFraction)
-//        val shape = remember(corner) { RoundedCornerShape(corner) }
-//
-//        // ⬅️ Capa del ÍTEM del carrusel:
-//        // - NO tiene transforms
-//        // - SÍ tiene el clip redondeado que usa el maskRect del Carousel
-//        Box(
-//            modifier = Modifier
-//                .fillMaxWidth()
-//                .aspectRatio(1f)
-//                .maskClip(shape)   // clave: el peek respeta el redondeo SIEMPRE
-//        ) {
-//            // ⬇️ Capa interna (HIJO) con TODAS las transforms
-//            Box(
-//                modifier = Modifier
-//                    .fillMaxSize()
-//                    .graphicsLayer {
-//                        scaleX = scale
-//                        scaleY = scale
-//                        alpha = contentAlpha
-//                        compositingStrategy = CompositingStrategy.Offscreen
-//                        // Si aún vieses un “hairline” en tu device específico, prueba:
-//                        // translationY = if (pageOffset != 0) 0.3f else 0f
-//                    }
-//                    .maskClip(shape)
-//            ) {
-//                OptimizedAlbumArt(
-//                    uri = song.albumArtUriString,
-//                    title = song.title,
-//                    modifier = Modifier
-//                        .fillMaxSize()
-//                        .maskClip(shape),
-//                    targetSize = coil.size.Size(600, 600)
-//                )
-//            }
-//        }
-//    }
-//}
-
-
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun SongMetadataDisplaySection( // Renamed for clarity
     song: Song?, // Nullable, comes from stablePlayerState
     expansionFraction: Float,
     textColor: Color,
     artistTextColor: Color,
+    onClickLyrics: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    song?.let { currentSong ->
-        PlayerSongInfo(
-            title = currentSong.title,
-            artist = currentSong.artist,
-            expansionFraction = expansionFraction,
-            textColor = textColor,
-            artistTextColor = artistTextColor,
-            modifier = modifier
+    Row(
+        modifier
+            .fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Absolute.SpaceBetween
+    ) {
+        song?.let { currentSong ->
+            PlayerSongInfo(
+                title = currentSong.title,
+                artist = currentSong.artist,
+                expansionFraction = expansionFraction,
+                textColor = textColor,
+                artistTextColor = artistTextColor,
+                modifier = Modifier
+                    .weight(0.85f)
+                    .align(Alignment.CenterVertically)
+            )
+        }
+        Spacer(
+            modifier = Modifier
+                .width(8.dp)
         )
+        FilledIconButton(
+            modifier = Modifier
+                .weight(0.15f)
+                .size(width = 48.dp, height = 48.dp),
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = LocalMaterialTheme.current.onPrimary,
+                contentColor = LocalMaterialTheme.current.primary
+            ),
+            onClick = onClickLyrics,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.rounded_lyrics_24),
+                contentDescription = "Lyrics"
+            )
+        }
     }
 }
 
 @Composable
 private fun PlayerProgressBarSection(
-    currentPosition: Long, // Changed from currentPositionValue
+    currentPosition: Long,
     totalDurationValue: Long,
     progressFractionValue: Float,
     onSeek: (Long) -> Unit,
@@ -1229,22 +1199,30 @@ private fun PlayerProgressBarSection(
     timeTextColor: Color,
     modifier: Modifier = Modifier
 ) {
+    var sliderDragValue by remember { mutableStateOf<Float?>(null) }
+    val interactionSource = remember { MutableInteractionSource() }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = lerp(2.dp, 10.dp, expansionFraction))
+            .padding(vertical = lerp(2.dp, 0.dp, expansionFraction))
             .graphicsLayer {
                 alpha = expansionFraction
             }
             .heightIn(min = 70.dp)
     ) {
-        val onSliderValueChange = remember(onSeek, totalDurationValue) {
-            { frac: Float -> onSeek((frac * totalDurationValue).roundToLong()) }
-        }
         WavyMusicSlider(
-            valueProvider = { progressFractionValue },
-            onValueChange = onSliderValueChange,
-            onValueChangeFinished = { /* No specific action on finish needed for now */ },
+            value = sliderDragValue ?: progressFractionValue,
+            onValueChange = { newValue ->
+                sliderDragValue = newValue
+            },
+            onValueChangeFinished = {
+                sliderDragValue?.let { finalValue ->
+                    onSeek((finalValue * totalDurationValue).roundToLong())
+                }
+                sliderDragValue = null
+            },
+            interactionSource = interactionSource,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 8.dp),
@@ -1254,7 +1232,7 @@ private fun PlayerProgressBarSection(
             inactiveTrackColor = inactiveTrackColor,
             thumbColor = thumbColor,
             waveFrequency = 0.08f,
-            isPlaying = (isPlaying && currentSheetState == PlayerSheetState.EXPANDED) // Wave animation only when expanded and playing
+            isPlaying = (isPlaying && currentSheetState == PlayerSheetState.EXPANDED)
         )
 
         Row(
@@ -1263,8 +1241,9 @@ private fun PlayerProgressBarSection(
                 .padding(horizontal = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
+            val displayPosition = sliderDragValue?.let { (it * totalDurationValue).toLong() } ?: currentPosition
             Text(
-                formatDuration(currentPosition), // Use currentPosition
+                formatDuration(displayPosition),
                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                 color = timeTextColor,
                 fontSize = 12.sp
@@ -1466,9 +1445,12 @@ private fun FullPlayerContentInternal(
     expansionFraction: Float,
     currentSheetState: PlayerSheetState,
     onShowQueueClicked: () -> Unit,
+    onShowCastClicked: () -> Unit,
+    onShowTrackVolumeClicked: () -> Unit,
     onShuffleToggle: () -> Unit,
     onRepeatToggle: () -> Unit,
     onFavoriteToggle: () -> Unit,
+    carouselStyle: String,
     playerViewModel: PlayerViewModel // Kept for stablePlayerState access for totalDuration, or could pass totalDuration too
 ) {
     val song = currentSong ?: return // Early exit if no song
@@ -1620,16 +1602,36 @@ private fun FullPlayerContentInternal(
                 actions = {
                     Row(
                         modifier = Modifier
-                            .padding(end = 14.dp)
-                            .width(104.dp),
-                        // Ahora puedes controlar el espaciado exacto entre los elementos.
-                        // Prueba a cambiar 0.dp por el valor que necesites, por ejemplo: 2.dp
+                            .padding(end = 14.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        // Primer botón (Lyrics)
+                        // Cast Button
+//                        Box(
+//                            modifier = Modifier
+//                                .size(height = 42.dp, width = 50.dp)
+//                                .clip(
+//                                    RoundedCornerShape(
+//                                        topStart = 50.dp,
+//                                        topEnd = 6.dp,
+//                                        bottomStart = 50.dp,
+//                                        bottomEnd = 6.dp
+//                                    )
+//                                )
+//                                .background(LocalMaterialTheme.current.onPrimary)
+//                                .clickable { onShowCastClicked() },
+//                            contentAlignment = Alignment.Center
+//                        ) {
+//                            Icon(
+//                                painter = painterResource(R.drawable.rounded_cast_24),
+//                                contentDescription = "Cast",
+//                                tint = LocalMaterialTheme.current.primary
+//                            )
+//                        }
+
+                        // Track Volume Button
                         Box(
                             modifier = Modifier
-                                .size(height = 42.dp, width = 50.dp) // Define un tamaño fijo para el área de clic
+                                .size(height = 42.dp, width = 50.dp)
                                 .clip(
                                     RoundedCornerShape(
                                         topStart = 50.dp,
@@ -1639,22 +1641,20 @@ private fun FullPlayerContentInternal(
                                     )
                                 )
                                 .background(LocalMaterialTheme.current.onPrimary)
-                                .clickable {
-                                    onLyricsClick()
-                                },
+                                .clickable { onShowTrackVolumeClicked() },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                painter = painterResource(R.drawable.rounded_lyrics_24),
-                                contentDescription = "Lyrics",
+                                painter = painterResource(R.drawable.rounded_volume_up_24),
+                                contentDescription = "Track Volume",
                                 tint = LocalMaterialTheme.current.primary
                             )
                         }
 
-                        // Segundo botón (Queue)
+                        // Queue Button
                         Box(
                             modifier = Modifier
-                                .size(height = 42.dp, width = 50.dp) // Usa el mismo tamaño para mantener la consistencia
+                                .size(height = 42.dp, width = 50.dp)
                                 .clip(
                                     RoundedCornerShape(
                                         topStart = 6.dp,
@@ -1687,44 +1687,49 @@ private fun FullPlayerContentInternal(
                 .padding(paddingValues)
                 .padding(
                     horizontal = lerp(8.dp, 24.dp, expansionFraction),
-                    vertical = lerp(0.dp, 16.dp, expansionFraction)
+                    vertical = lerp(0.dp, 0.dp, expansionFraction)
                 ),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceAround
         ) {
             // Album Cover section
-            val albumArtContainerModifier = Modifier
-                .fillMaxWidth() // Let the carousel manage its width
-                .padding(vertical = lerp(4.dp, 8.dp, expansionFraction))
-                .height(lerp(150.dp, 260.dp, expansionFraction)) // Adjust height for carousel
-                .graphicsLayer { alpha = expansionFraction }
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = lerp(4.dp, 8.dp, expansionFraction))
+                    .graphicsLayer { alpha = expansionFraction }
+            ) {
+                val carouselHeight = when (carouselStyle) {
+                    CarouselStyle.NO_PEEK -> maxWidth
+                    CarouselStyle.ONE_PEEK -> maxWidth * 0.8f
+                    CarouselStyle.TWO_PEEK -> maxWidth * 0.6f // Main item is 60% of width
+                    else -> maxWidth * 0.8f
+                }
 
-            // Album Cover section - uses new Composable
-            AlbumCarouselSection(
-                currentSong = currentSong,
-                queue = currentPlaybackQueue,
-                expansionFraction = expansionFraction,
-                onSongSelected = { newSong ->
-                    if (newSong.id != currentSong.id) {
-                // By calling showAndPlaySong, we leverage the ViewModel's logic to determine
-                // whether to seek within the current queue (preserving modifications) or
-                // to start a new playback context. This is the correct way to handle
-                // user interaction from the carousel.
-                playerViewModel.showAndPlaySong(
-                    song = newSong,
-                    contextSongs = currentPlaybackQueue,
-                    queueName = currentQueueSourceName
-                        )
-                    }
-                },
-                modifier = albumArtContainerModifier
-            )
+                AlbumCarouselSection(
+                    currentSong = currentSong,
+                    queue = currentPlaybackQueue,
+                    expansionFraction = expansionFraction,
+                    onSongSelected = { newSong ->
+                        if (newSong.id != currentSong.id) {
+                            playerViewModel.showAndPlaySong(
+                                song = newSong,
+                                contextSongs = currentPlaybackQueue,
+                                queueName = currentQueueSourceName
+                            )
+                        }
+                    },
+                    carouselStyle = carouselStyle,
+                    modifier = Modifier.height(carouselHeight) // Apply calculated height
+                )
+            }
 
             // Song Info - uses new Composable
             SongMetadataDisplaySection(
                 modifier = Modifier
                     .align(Alignment.Start)
-                    .padding(start = 4.dp),
+                    .padding(start = 0.dp),
+                onClickLyrics = onLyricsClick,
                 song = currentSong, // currentSong is from stablePlayerState
                 expansionFraction = expansionFraction,
                 textColor = LocalMaterialTheme.current.onPrimaryContainer,
@@ -1769,8 +1774,9 @@ private fun FullPlayerContentInternal(
                 BottomToggleRow(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 58.dp, max = 88.dp)
-                        .padding(horizontal = 26.dp, vertical = 8.dp),
+                        .heightIn(min = 58.dp, max = 78.dp)
+                        .padding(horizontal = 26.dp, vertical = 0.dp)
+                        .padding(bottom = 6.dp),
                     isShuffleEnabled = isShuffleEnabled,
                     repeatMode = repeatMode,
                     isFavorite = isFavorite,

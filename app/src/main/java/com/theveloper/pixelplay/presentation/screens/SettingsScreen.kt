@@ -105,6 +105,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.DirectoryItem
+import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
@@ -419,6 +420,25 @@ fun SettingsScreen(
                                 onClick = { navController.navigate("nav_bar_corner_radius") }
                             )
                         }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        ThemeSelectorItem(
+                            label = "Carousel Style",
+                            description = "Choose the appearance for the album carousel.",
+                            options = mapOf(
+                                CarouselStyle.NO_PEEK to "No Peek",
+                                CarouselStyle.ONE_PEEK to "One Peek",
+                                //CarouselStyle.TWO_PEEK to "Two Peeks"
+                            ),
+                            selectedKey = uiState.carouselStyle,
+                            onSelectionChanged = { settingsViewModel.setCarouselStyle(it) },
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.rounded_view_carousel_24),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            }
+                        )
                     }
                 }
             }
