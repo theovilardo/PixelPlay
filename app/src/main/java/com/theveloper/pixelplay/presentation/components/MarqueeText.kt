@@ -47,11 +47,11 @@ fun AutoScrollingText(
             if (isOverflowing) {
                 val initialDelayMillis = 1500
                 val fadeAnimationDuration = 500
-                val gradientAlpha = remember { Animatable(0f) }
+                val leftGradientAlpha = remember { Animatable(0f) }
 
                 LaunchedEffect(Unit) {
                     delay(initialDelayMillis.toLong())
-                    gradientAlpha.animateTo(
+                    leftGradientAlpha.animateTo(
                         targetValue = 1f,
                         animationSpec = tween(durationMillis = fadeAnimationDuration, easing = LinearEasing)
                     )
@@ -63,7 +63,8 @@ fun AutoScrollingText(
                         .drawWithContent {
                             drawContent()
                             val gradientWidthPx = gradientWidth.toPx()
-                            // Left fade-in, drawn with animated alpha
+
+                            // Left fade-in: Animates in as scroll starts
                             drawRect(
                                 brush = Brush.horizontalGradient(
                                     colors = listOf(Color.Transparent, gradientEdgeColor),
@@ -71,17 +72,16 @@ fun AutoScrollingText(
                                     endX = gradientWidthPx
                                 ),
                                 blendMode = BlendMode.DstIn,
-                                alpha = gradientAlpha.value
+                                alpha = leftGradientAlpha.value
                             )
-                            // Right fade-out, drawn with animated alpha
+                            // Right fade-out: Always visible for overflow
                             drawRect(
                                 brush = Brush.horizontalGradient(
                                     colors = listOf(gradientEdgeColor, Color.Transparent),
                                     startX = size.width - gradientWidthPx,
                                     endX = size.width
                                 ),
-                                blendMode = BlendMode.DstIn,
-                                alpha = gradientAlpha.value
+                                blendMode = BlendMode.DstIn
                             )
                         }
                 ) {
