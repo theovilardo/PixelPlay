@@ -162,7 +162,6 @@ fun RoundedHorizontalMultiBrowseCarousel(
         CarouselStyle.TWO_PEEK -> 2
         else -> 1 // Default to one peek
     }
-    val isScrollEnabled = carouselStyle != CarouselStyle.NO_PEEK
 
     RoundedCarousel(
         state = state,
@@ -191,15 +190,20 @@ fun RoundedHorizontalMultiBrowseCarousel(
                     mediumCounts = intArrayOf(0),
                     smallCounts = intArrayOf(1)
                 )
-                CarouselStyle.TWO_PEEK -> multiBrowseKeylineList(
-                    density = density,
-                    carouselMainAxisSize = carouselWidthPx,
-                    preferredItemSize = carouselWidthPx * 0.8f,
-                    itemSpacing = spacingPx,
-                    itemCount = itemCount,
-                    smallCounts = intArrayOf(2),
-                    alignment = CarouselAlignment.Center
-                )
+                CarouselStyle.TWO_PEEK -> {
+                    // Manual keyline definition for [small, large, small]
+                    val largeSize = carouselWidthPx * 0.6f // Main item is 60% of width
+                    val smallSize = carouselWidthPx * 0.45f // Peek items are 45% of width
+                    keylineListOf(
+                        carouselMainAxisSize = carouselWidthPx,
+                        itemSpacing = spacingPx,
+                        carouselAlignment = CarouselAlignment.Center
+                    ) {
+                        add(smallSize) // Previous peek
+                        add(largeSize) // Focused item
+                        add(smallSize) // Next peek
+                    }
+                }
                 else -> multiBrowseKeylineList( // Default to one peek
                     density = density,
                     carouselMainAxisSize = carouselWidthPx,
@@ -215,7 +219,7 @@ fun RoundedHorizontalMultiBrowseCarousel(
         modifier = modifier,
         itemSpacing = itemSpacing,
         flingBehavior = flingBehavior,
-        userScrollEnabled = isScrollEnabled,
+        userScrollEnabled = true, // Always allow user scrolling
         itemCornerRadius = itemCornerRadius,
         carouselStyle = carouselStyle, // Pass style down
         content = content

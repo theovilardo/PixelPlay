@@ -76,25 +76,20 @@ fun AlbumCarouselSection(
     BoxWithConstraints(modifier = modifier) {
         val availableWidth = this.maxWidth
 
-        // The main item should be 80% of the container width for peek styles, and 100% for no-peek.
-        // This width dictates the height to maintain a 1:1 aspect ratio.
-        val carouselHeight = when (carouselStyle) {
-            CarouselStyle.NO_PEEK -> availableWidth
-            else -> availableWidth * 0.8f
-        }
-
         RoundedHorizontalMultiBrowseCarousel(
             state = carouselState,
-            modifier = Modifier.height(carouselHeight), // Enforce 1:1 aspect ratio for the container
+            modifier = Modifier.fillMaxSize(), // Fill the space provided by the parent's modifier
             itemSpacing = itemSpacing,
             itemCornerRadius = corner,
             carouselStyle = carouselStyle,
             carouselWidth = availableWidth // Pass the full width for layout calculations
         ) { index ->
             val song = queue[index]
-            Box(Modifier
-                .fillMaxSize()
-                .aspectRatio(1f)) { // Enforce 1:1 aspect ratio for the item itself
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .aspectRatio(1f)
+            ) { // Enforce 1:1 aspect ratio for the item itself
                 OptimizedAlbumArt(
                     uri = song.albumArtUriString,
                     title = song.title,

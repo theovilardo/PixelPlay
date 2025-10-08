@@ -112,6 +112,7 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
@@ -1116,13 +1117,18 @@ fun UnifiedPlayerSheet(
 
     if (showTrackVolumeSheet) {
         val trackVolume by playerViewModel.trackVolume.collectAsState()
-        TrackVolumeBottomSheet(
-            initialVolume = trackVolume,
-            onDismiss = { showTrackVolumeSheet = false },
-            onVolumeChange = { newVolume ->
-                playerViewModel.setTrackVolume(newVolume)
-            }
-        )
+        CompositionLocalProvider(
+            LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
+        ) {
+            TrackVolumeBottomSheet(
+                theme = LocalMaterialTheme,
+                initialVolume = trackVolume,
+                onDismiss = { showTrackVolumeSheet = false },
+                onVolumeChange = { newVolume ->
+                    playerViewModel.setTrackVolume(newVolume)
+                }
+            )
+        }
     }
     Trace.endSection() // End UnifiedPlayerSheet.Composition
 }
@@ -1199,7 +1205,7 @@ private fun PlayerProgressBarSection(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = lerp(2.dp, 10.dp, expansionFraction))
+            .padding(vertical = lerp(2.dp, 0.dp, expansionFraction))
             .graphicsLayer {
                 alpha = expansionFraction
             }
@@ -1641,21 +1647,6 @@ private fun FullPlayerContentInternal(
                                 tint = LocalMaterialTheme.current.primary
                             )
                         }
-                        // Lyrics Button
-//                        Box(
-//                            modifier = Modifier
-//                                .size(height = 42.dp, width = 50.dp)
-//                                .clip(RoundedCornerShape(6.dp))
-//                                .background(LocalMaterialTheme.current.onPrimary)
-//                                .clickable { onLyricsClick() },
-//                            contentAlignment = Alignment.Center
-//                        ) {
-//                            Icon(
-//                                painter = painterResource(R.drawable.rounded_lyrics_24),
-//                                contentDescription = "Lyrics",
-//                                tint = LocalMaterialTheme.current.primary
-//                            )
-//                        }
 
                         // Queue Button
                         Box(
@@ -1693,39 +1684,42 @@ private fun FullPlayerContentInternal(
                 .padding(paddingValues)
                 .padding(
                     horizontal = lerp(8.dp, 24.dp, expansionFraction),
-                    vertical = lerp(0.dp, 16.dp, expansionFraction)
+                    vertical = lerp(0.dp, 0.dp, expansionFraction)
                 ),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceAround
         ) {
             // Album Cover section
-            val albumArtContainerModifier = Modifier
-                .fillMaxWidth() // Let the carousel manage its width
-                .padding(vertical = lerp(4.dp, 8.dp, expansionFraction))
-                .height(lerp(150.dp, 260.dp, expansionFraction)) // Adjust height for carousel
-                .graphicsLayer { alpha = expansionFraction }
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = lerp(4.dp, 8.dp, expansionFraction))
+                    .graphicsLayer { alpha = expansionFraction }
+            ) {
+                val carouselHeight = when (carouselStyle) {
+                    CarouselStyle.NO_PEEK -> maxWidth
+                    CarouselStyle.ONE_PEEK -> maxWidth * 0.8f
+                    CarouselStyle.TWO_PEEK -> maxWidth * 0.6f // Main item is 60% of width
+                    else -> maxWidth * 0.8f
+                }
 
-            // Album Cover section - uses new Composable
-            AlbumCarouselSection(
-                currentSong = currentSong,
-                queue = currentPlaybackQueue,
-                expansionFraction = expansionFraction,
-                onSongSelected = { newSong ->
-                    if (newSong.id != currentSong.id) {
-                // By calling showAndPlaySong, we leverage the ViewModel's logic to determine
-                // whether to seek within the current queue (preserving modifications) or
-                // to start a new playback context. This is the correct way to handle
-                // user interaction from the carousel.
-                playerViewModel.showAndPlaySong(
-                    song = newSong,
-                    contextSongs = currentPlaybackQueue,
-                    queueName = currentQueueSourceName
-                        )
-                    }
-                },
-                carouselStyle = carouselStyle,
-                modifier = albumArtContainerModifier
-            )
+                AlbumCarouselSection(
+                    currentSong = currentSong,
+                    queue = currentPlaybackQueue,
+                    expansionFraction = expansionFraction,
+                    onSongSelected = { newSong ->
+                        if (newSong.id != currentSong.id) {
+                            playerViewModel.showAndPlaySong(
+                                song = newSong,
+                                contextSongs = currentPlaybackQueue,
+                                queueName = currentQueueSourceName
+                            )
+                        }
+                    },
+                    carouselStyle = carouselStyle,
+                    modifier = Modifier.height(carouselHeight) // Apply calculated height
+                )
+            }
 
             // Song Info - uses new Composable
             SongMetadataDisplaySection(
@@ -1777,8 +1771,9 @@ private fun FullPlayerContentInternal(
                 BottomToggleRow(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 58.dp, max = 88.dp)
-                        .padding(horizontal = 26.dp, vertical = 8.dp),
+                        .heightIn(min = 58.dp, max = 78.dp)
+                        .padding(horizontal = 26.dp, vertical = 0.dp)
+                        .padding(bottom = 6.dp),
                     isShuffleEnabled = isShuffleEnabled,
                     repeatMode = repeatMode,
                     isFavorite = isFavorite,
