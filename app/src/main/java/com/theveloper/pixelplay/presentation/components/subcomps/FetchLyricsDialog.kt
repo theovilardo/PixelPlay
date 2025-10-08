@@ -3,6 +3,7 @@ package com.theveloper.pixelplay.presentation.components.subcomps
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,11 +11,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.DoneOutline
 import androidx.compose.material.icons.rounded.ErrorOutline
-import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -30,10 +33,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.theveloper.pixelplay.R
+import com.theveloper.pixelplay.data.repository.LyricsSearchResult
 import com.theveloper.pixelplay.presentation.viewmodel.LyricsSearchUiState
 
 /**
@@ -44,6 +49,7 @@ import com.theveloper.pixelplay.presentation.viewmodel.LyricsSearchUiState
 fun FetchLyricsDialog(
     uiState: LyricsSearchUiState,
     onConfirm: () -> Unit,
+    onPickResult: (LyricsSearchResult) -> Unit,
     onDismiss: () -> Unit,
     onImport: () -> Unit
 ) {
@@ -125,6 +131,62 @@ fun FetchLyricsDialog(
                             )
                         }
                     }
+                    is LyricsSearchUiState.PickResult -> {
+                        Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.DoneOutline,
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp),
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = stringResource(R.string.found_n_matches_format).format(uiState.results.size),
+                                style = MaterialTheme.typography.headlineSmall,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            val scrollState = rememberScrollState()
+                            Column(
+                                modifier = Modifier.verticalScroll(scrollState),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                uiState.results.forEach { result ->
+                                    if (result != uiState.results.first()) {
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                    }
+
+                                    OutlinedButton (
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        contentPadding = PaddingValues(12.dp),
+                                        onClick = { onPickResult(result) },
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalAlignment = Alignment.Start
+                                        ) {
+                                            Text(
+                                                text = result.record.name,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = "${result.record.artistName} - ${result.record.albumName}",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     is LyricsSearchUiState.Error -> {
                         Column(
                             modifier = Modifier.padding(24.dp),
@@ -164,8 +226,10 @@ fun FetchLyricsDialog(
                     }
                 }
 
-                // Close button for Idle and Error states
-                if (uiState is LyricsSearchUiState.Idle || uiState is LyricsSearchUiState.Error) {
+                // Close button for Idle, PickResult and Error states
+                if (uiState is LyricsSearchUiState.Idle
+                    || uiState is LyricsSearchUiState.PickResult
+                    || uiState is LyricsSearchUiState.Error) {
                      IconButton(
                          onClick = onDismiss,
                          modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)

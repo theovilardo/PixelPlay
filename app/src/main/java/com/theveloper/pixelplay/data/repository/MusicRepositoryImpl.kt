@@ -564,6 +564,10 @@ class MusicRepositoryImpl @Inject constructor(
         return lyricsRepository.fetchFromRemote(song)
     }
 
+    override suspend fun searchRemoteLyrics(song: Song): Result<List<LyricsSearchResult>> {
+        return lyricsRepository.searchRemote(song)
+    }
+
     override suspend fun updateLyrics(songId: Long, lyrics: String) {
         lyricsRepository.updateLyrics(songId, lyrics)
     }

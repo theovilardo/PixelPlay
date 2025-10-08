@@ -23,4 +23,12 @@ interface LrcLibApiService {
         @Query("album_name") albumName: String,
         @Query("duration") duration: Int
     ): LrcLibResponse?
+
+    /**
+     * Search for lyrics for a song using a query.
+     * @param trackName The search query.
+     * @return An array of LrcLibResponse objects.
+     */
+    @GET("api/search")
+    suspend fun searchLyrics(@Query("track_name") trackName: String): Array<LrcLibResponse>?
 }

@@ -1542,6 +1542,9 @@ private fun FullPlayerContentInternal(
                 // El usuario confirma, iniciamos la búsqueda
                 playerViewModel.fetchLyricsForCurrentSong()
             },
+            onPickResult = { result ->
+                playerViewModel.acceptLyricsSearchResultForCurrentSong(result)
+            },
             onDismiss = {
                 // El usuario cancela o cierra el diálogo
                 showFetchLyricsDialog = false

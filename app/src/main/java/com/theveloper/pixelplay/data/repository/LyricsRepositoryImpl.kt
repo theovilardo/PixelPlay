@@ -5,10 +5,12 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.LruCache
 import androidx.core.net.toUri
+import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.database.MusicDao
 import com.theveloper.pixelplay.data.model.Lyrics
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.network.lyrics.LrcLibApiService
+import com.theveloper.pixelplay.data.network.lyrics.LrcLibResponse
 import com.theveloper.pixelplay.utils.LogUtils
 import com.theveloper.pixelplay.utils.LyricsUtils
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -21,6 +23,7 @@ import java.io.File
 import java.io.FileOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.abs
 
 private fun Lyrics.isValid(): Boolean = !synced.isNullOrEmpty() || !plain.isNullOrEmpty()
 
@@ -78,17 +81,57 @@ class LyricsRepositoryImpl @Inject constructor(
                 Result.success(Pair(parsedLyrics, rawLyricsToSave))
             } else {
                 LogUtils.d(this@LyricsRepositoryImpl, "No lyrics found remotely for: ${song.title}")
-                Result.failure(LyricsException("No lyrics found for this song"))
+                Result.failure(NoLyricsFoundException())
             }
         } catch (e: Exception) {
             LogUtils.e(this@LyricsRepositoryImpl, e, "Error fetching lyrics from remote")
             // If no lyrics are found lrclib returns a 404 which also raises an exception.
             // We still want to present that info nicely to the user.
             if (e is HttpException && e.code() == 404) {
-                Result.failure(LyricsException("No lyrics found for this song", e))
+                Result.failure(NoLyricsFoundException())
             } else {
                 Result.failure(LyricsException("Failed to fetch lyrics from remote", e))
             }
+        }
+    }
+
+    override suspend fun searchRemote(song: Song): Result<List<LyricsSearchResult>> = withContext(Dispatchers.IO) {
+        try {
+            LogUtils.d(this@LyricsRepositoryImpl, "Searching remote for lyrics for: ${song.title}")
+            val responses = lrcLibApiService.searchLyrics(song.title)
+            LogUtils.d(this@LyricsRepositoryImpl, "  Found ${responses?.size ?: 0} responses")
+
+            if (responses != null && responses.isNotEmpty()) {
+                val results = responses.map { response ->
+                    // check duration first
+                    if (abs(response.duration - song.duration / 1000) > 2) {
+                        return@map null
+                    }
+
+                    val rawLyrics = response.syncedLyrics ?: response.plainLyrics!!
+                    val parsedLyrics = LyricsUtils.parseLyrics(rawLyrics).copy(areFromRemote = true)
+                    if (!parsedLyrics.isValid()) {
+                        LogUtils.w(this@LyricsRepositoryImpl, "Parsed lyrics are empty for: ${song.title}")
+                        return@map null
+                    }
+                    LogUtils.d(this@LyricsRepositoryImpl, "  Found: ${response.name} (${response.id})")
+                    LyricsSearchResult(response, parsedLyrics, rawLyrics)
+                }.filterNotNull()
+
+                if (results.isNotEmpty()) {
+                    LogUtils.d(this@LyricsRepositoryImpl, "Found ${results.size} lyrics for: ${song.title}")
+                    Result.success(results)
+                } else {
+                    LogUtils.d(this@LyricsRepositoryImpl, "No lyrics found remotely for: ${song.title}")
+                    Result.failure(NoLyricsFoundException())
+                }
+            } else {
+                LogUtils.d(this@LyricsRepositoryImpl, "No lyrics found remotely for: ${song.title}")
+                Result.failure(NoLyricsFoundException())
+            }
+        } catch (e: Exception) {
+            LogUtils.e(this@LyricsRepositoryImpl, e, "Error searching remote for lyrics")
+            Result.failure(LyricsException(context.getString(R.string.failed_to_search_for_lyrics), e))
         }
     }
 
@@ -177,5 +220,9 @@ class LyricsRepositoryImpl @Inject constructor(
         }
     }
 }
+
+data class LyricsSearchResult(val record: LrcLibResponse, val lyrics: Lyrics, val rawLyrics: String)
+
+class NoLyricsFoundException() : Exception()
 
 class LyricsException(message: String, cause: Throwable? = null) : Exception(message, cause)
