@@ -729,7 +729,10 @@ fun UnifiedPlayerSheet(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .graphicsLayer { translationY = visualSheetTranslationY }
+                .graphicsLayer {
+                    translationY = visualSheetTranslationY
+                    compositingStrategy = CompositingStrategy.Offscreen
+                }
                 .height(animatedTotalSheetHeightWithShadowDp),
             shadowElevation = 0.dp,
             color = Color.Transparent
@@ -838,6 +841,7 @@ fun UnifiedPlayerSheet(
                                 translationX = offsetAnimatable.value
                                 scaleY = visualOvershootScaleY.value
                                 transformOrigin = TransformOrigin(0.5f, 1f)
+                                compositingStrategy = CompositingStrategy.Offscreen
                             }
                             .shadow(
                                 elevation = playerAreaElevation,
@@ -1005,7 +1009,10 @@ fun UnifiedPlayerSheet(
                                         Box(
                                             modifier = Modifier
                                                 .align(Alignment.TopCenter)
-                                                .graphicsLayer { alpha = miniPlayerAlpha }
+                                                .graphicsLayer {
+                                                    alpha = miniPlayerAlpha
+                                                    compositingStrategy = CompositingStrategy.Offscreen
+                                                }
                                         ) {
                                             MiniPlayerContentInternal(
                                                 song = currentSongNonNull, // Use non-null version
@@ -1026,6 +1033,7 @@ fun UnifiedPlayerSheet(
                                         Box(modifier = Modifier.graphicsLayer {
                                             alpha = fullPlayerContentAlpha
                                             translationY = fullPlayerTranslationY
+                                            compositingStrategy = CompositingStrategy.Offscreen
                                         }) {
                                             FullPlayerContentInternal(
                                                 currentSong = currentSongNonNull, // Use non-null version
@@ -1210,6 +1218,7 @@ private fun PlayerProgressBarSection(
             .padding(vertical = lerp(2.dp, 0.dp, expansionFraction))
             .graphicsLayer {
                 alpha = expansionFraction
+                compositingStrategy = CompositingStrategy.Offscreen
             }
             .heightIn(min = 70.dp)
     ) {
@@ -1278,6 +1287,7 @@ private fun PlayerSongInfo(
             .graphicsLayer {
                 alpha = expansionFraction
                 translationY = (1f - expansionFraction) * 24f
+                compositingStrategy = CompositingStrategy.Offscreen
             }
     ) {
         AutoScrollingText(
@@ -1698,7 +1708,10 @@ private fun FullPlayerContentInternal(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = lerp(4.dp, 8.dp, expansionFraction))
-                    .graphicsLayer { alpha = expansionFraction }
+                    .graphicsLayer {
+                        alpha = expansionFraction
+                        compositingStrategy = CompositingStrategy.Offscreen
+                    }
             ) {
                 val carouselHeight = when (carouselStyle) {
                     CarouselStyle.NO_PEEK -> maxWidth
