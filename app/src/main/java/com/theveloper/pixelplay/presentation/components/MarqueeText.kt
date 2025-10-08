@@ -48,17 +48,19 @@ fun AutoScrollingText(
             .drawWithContent {
                 drawContent()
                 val gradientWidthPx = gradientWidth.toPx()
+                // Left fade
                 drawRect(
                     brush = Brush.horizontalGradient(
-                        colors = listOf(gradientEdgeColor, Color.Transparent),
+                        colors = listOf(Color.Transparent, gradientEdgeColor),
                         startX = 0f,
                         endX = gradientWidthPx
                     ),
                     blendMode = BlendMode.DstIn
                 )
+                // Right fade
                 drawRect(
                     brush = Brush.horizontalGradient(
-                        colors = listOf(Color.Transparent, gradientEdgeColor),
+                        colors = listOf(gradientEdgeColor, Color.Transparent),
                         startX = size.width - gradientWidthPx,
                         endX = size.width
                     ),
