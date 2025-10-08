@@ -1141,6 +1141,7 @@ private fun SongMetadataDisplaySection( // Renamed for clarity
     expansionFraction: Float,
     textColor: Color,
     artistTextColor: Color,
+    gradientEdgeColor: Color,
     onClickLyrics: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1157,6 +1158,7 @@ private fun SongMetadataDisplaySection( // Renamed for clarity
                 expansionFraction = expansionFraction,
                 textColor = textColor,
                 artistTextColor = artistTextColor,
+                gradientEdgeColor = gradientEdgeColor,
                 modifier = Modifier
                     .weight(0.85f)
                     .align(Alignment.CenterVertically)
@@ -1265,6 +1267,7 @@ private fun PlayerSongInfo(
     expansionFraction: Float,
     textColor: Color,
     artistTextColor: Color,
+    gradientEdgeColor: Color,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -1277,25 +1280,25 @@ private fun PlayerSongInfo(
                 translationY = (1f - expansionFraction) * 24f
             }
     ) {
-        Text(
+        AutoScrollingText(
             text = title,
             style = MaterialTheme.typography.headlineSmall.copy(
                 fontWeight = FontWeight.Bold,
-                fontFamily = GoogleSansRounded
+                fontFamily = GoogleSansRounded,
+                color = textColor
             ),
-            color = textColor,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Start
+            textAlign = TextAlign.Start,
+            gradientEdgeColor = gradientEdgeColor
         )
         Spacer(modifier = Modifier.height(4.dp))
-        Text(
+        AutoScrollingText(
             text = artist,
-            style = MaterialTheme.typography.titleMedium.copy(letterSpacing = 0.sp),
-            color = artistTextColor,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Start
+            style = MaterialTheme.typography.titleMedium.copy(
+                letterSpacing = 0.sp,
+                color = artistTextColor
+            ),
+            textAlign = TextAlign.Start,
+            gradientEdgeColor = gradientEdgeColor
         )
     }
 }
@@ -1730,7 +1733,8 @@ private fun FullPlayerContentInternal(
                 song = currentSong, // currentSong is from stablePlayerState
                 expansionFraction = expansionFraction,
                 textColor = LocalMaterialTheme.current.onPrimaryContainer,
-                artistTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.8f)
+                artistTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.8f),
+                gradientEdgeColor = LocalMaterialTheme.current.primaryContainer
                 // modifier for PlayerSongInfo is internal to SongMetadataDisplaySection if needed, or pass one
             )
 
