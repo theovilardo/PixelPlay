@@ -57,29 +57,31 @@ fun AutoScrollingText(
                     )
                 }
 
-                val animatedGradientColor = gradientEdgeColor.copy(alpha = gradientAlpha.value)
-
                 Box(
                     modifier = Modifier
                         .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
                         .drawWithContent {
                             drawContent()
                             val gradientWidthPx = gradientWidth.toPx()
+                            // Left fade-in, drawn with animated alpha
                             drawRect(
                                 brush = Brush.horizontalGradient(
-                                    colors = listOf(Color.Transparent, animatedGradientColor),
+                                    colors = listOf(Color.Transparent, gradientEdgeColor),
                                     startX = 0f,
                                     endX = gradientWidthPx
                                 ),
-                                blendMode = BlendMode.DstIn
+                                blendMode = BlendMode.DstIn,
+                                alpha = gradientAlpha.value
                             )
+                            // Right fade-out, drawn with animated alpha
                             drawRect(
                                 brush = Brush.horizontalGradient(
-                                    colors = listOf(animatedGradientColor, Color.Transparent),
+                                    colors = listOf(gradientEdgeColor, Color.Transparent),
                                     startX = size.width - gradientWidthPx,
                                     endX = size.width
                                 ),
-                                blendMode = BlendMode.DstIn
+                                blendMode = BlendMode.DstIn,
+                                alpha = gradientAlpha.value
                             )
                         }
                 ) {
