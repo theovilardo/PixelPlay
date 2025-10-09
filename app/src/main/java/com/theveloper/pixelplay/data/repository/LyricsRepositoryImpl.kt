@@ -95,10 +95,11 @@ class LyricsRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun searchRemote(song: Song): Result<List<LyricsSearchResult>> = withContext(Dispatchers.IO) {
+    override suspend fun searchRemote(song: Song): Result<Pair<String, List<LyricsSearchResult>>> = withContext(Dispatchers.IO) {
         try {
-            LogUtils.d(this@LyricsRepositoryImpl, "Searching remote for lyrics for: ${song.title}")
-            val responses = lrcLibApiService.searchLyrics(song.title)
+            val query = song.title
+            LogUtils.d(this@LyricsRepositoryImpl, "Searching remote for lyrics for: $query")
+            val responses = lrcLibApiService.searchLyrics(query)
             LogUtils.d(this@LyricsRepositoryImpl, "  Found ${responses?.size ?: 0} responses")
 
             if (responses != null && responses.isNotEmpty()) {
@@ -120,14 +121,14 @@ class LyricsRepositoryImpl @Inject constructor(
 
                 if (results.isNotEmpty()) {
                     LogUtils.d(this@LyricsRepositoryImpl, "Found ${results.size} lyrics for: ${song.title}")
-                    Result.success(results)
+                    Result.success(Pair(query, results))
                 } else {
                     LogUtils.d(this@LyricsRepositoryImpl, "No lyrics found remotely for: ${song.title}")
-                    Result.failure(NoLyricsFoundException())
+                    Result.failure(NoLyricsFoundException(query))
                 }
             } else {
                 LogUtils.d(this@LyricsRepositoryImpl, "No lyrics found remotely for: ${song.title}")
-                Result.failure(NoLyricsFoundException())
+                Result.failure(NoLyricsFoundException(query))
             }
         } catch (e: Exception) {
             LogUtils.e(this@LyricsRepositoryImpl, e, "Error searching remote for lyrics")
@@ -156,6 +157,12 @@ class LyricsRepositoryImpl @Inject constructor(
         val cacheKey = generateCacheKey(songId.toString())
         lyricsCache.remove(cacheKey)
         musicDao.resetLyrics(songId)
+    }
+
+    override suspend fun resetAllLyrics(): Unit = withContext(Dispatchers.IO) {
+        LogUtils.d(this, "Resetting all lyrics")
+        lyricsCache.evictAll()
+        musicDao.resetAllLyrics()
     }
 
     override fun clearCache() {
@@ -230,6 +237,6 @@ class LyricsRepositoryImpl @Inject constructor(
 
 data class LyricsSearchResult(val record: LrcLibResponse, val lyrics: Lyrics, val rawLyrics: String)
 
-class NoLyricsFoundException() : Exception()
+data class NoLyricsFoundException(val query: String? = null) : Exception()
 
 class LyricsException(message: String, cause: Throwable? = null) : Exception(message, cause)

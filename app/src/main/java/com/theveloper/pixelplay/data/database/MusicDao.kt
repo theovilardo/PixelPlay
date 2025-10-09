@@ -264,6 +264,9 @@ interface MusicDao {
     @Query("UPDATE songs SET lyrics = NULL WHERE id = :songId")
     suspend fun resetLyrics(songId: Long)
 
+    @Query("UPDATE songs SET lyrics = NULL")
+    suspend fun resetAllLyrics()
+
     @Query("SELECT * FROM songs")
     suspend fun getAllSongsList(): List<SongEntity>
 }

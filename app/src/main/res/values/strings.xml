@@ -4,7 +4,7 @@
     <string name="close_lyrics_sheet">Close Lyrics Sheet</string>
     <string name="loading_lyrics">Loading lyrics…</string>
     <string name="cant_find_lyrics">Couldn\'t find lyrics for this song.</string>
-    <string name="lyrics_provided_by">Lyrics provided by LRCLIB</string>
+    <string name="lyrics_provided_by">Lyrics provided by</string>
     <string name="lrclib_uri">https://lrclib.net/</string>
     <string name="glance_widget_description">Control your music from the home screen.</string>
     <string name="all_files_access_title">Permiso Especial Requerido</string>
@@ -15,6 +15,7 @@
     <string name="search_lyrics_online_prompt">Would you like to search for lyrics online?</string>
     <string name="failed_to_search_for_lyrics">Failed to search for lyrics</string>
     <string name="found_n_matches_format">Found %d match(es)</string>
+    <string name="searched_for_x_format">Searched for \"%s\"</string>
     <string name="search">Search</string>
     <string name="searching_lyrics">Searching for lyrics…</string>
     <string name="error">Error</string>

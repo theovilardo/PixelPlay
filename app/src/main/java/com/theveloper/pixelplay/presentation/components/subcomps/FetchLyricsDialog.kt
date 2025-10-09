@@ -40,6 +40,7 @@ import androidx.compose.ui.window.Dialog
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.repository.LyricsSearchResult
 import com.theveloper.pixelplay.presentation.viewmodel.LyricsSearchUiState
+import com.theveloper.pixelplay.utils.ProviderText
 
 /**
  * Diálogo que gestiona la búsqueda de letras para una canción.
@@ -137,7 +138,7 @@ fun FetchLyricsDialog(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.DoneOutline,
+                                imageVector = Icons.Rounded.MusicNote,
                                 contentDescription = null,
                                 modifier = Modifier.size(24.dp),
                                 tint = MaterialTheme.colorScheme.secondary
@@ -149,6 +150,14 @@ fun FetchLyricsDialog(
                                 textAlign = TextAlign.Center
                             )
                             Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = stringResource(R.string.searched_for_x_format).format(uiState.query),
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+
                             val scrollState = rememberScrollState()
                             Column(
                                 modifier = Modifier.verticalScroll(scrollState),
@@ -185,6 +194,15 @@ fun FetchLyricsDialog(
                                     }
                                 }
                             }
+
+                            ProviderText(
+                                providerText = stringResource(R.string.lyrics_provided_by),
+                                uri = stringResource(R.string.lrclib_uri),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 16.dp)
+                            )
                         }
                     }
                     is LyricsSearchUiState.Error -> {
@@ -210,6 +228,15 @@ fun FetchLyricsDialog(
                                 textAlign = TextAlign.Center,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            if (uiState.query != null) {
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = stringResource(R.string.searched_for_x_format).format(uiState.query),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    textAlign = TextAlign.Center,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                             Spacer(modifier = Modifier.height(24.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),

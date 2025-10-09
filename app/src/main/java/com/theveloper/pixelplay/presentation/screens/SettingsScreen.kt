@@ -39,6 +39,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.outlined.ClearAll
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.FolderOff
 import androidx.compose.material.icons.outlined.PlayCircle
@@ -49,7 +50,9 @@ import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -64,6 +67,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -192,6 +196,7 @@ fun SettingsScreen(
     val playerSheetState by playerViewModel.sheetState.collectAsState()
     // Estado para controlar la visibilidad del diálogo de directorios
     var showDirectoryDialog by remember { mutableStateOf(false) }
+    var showClearLyricsDialog by remember { mutableStateOf(false) }
 
     BackHandler(enabled = playerSheetState == PlayerSheetState.EXPANDED) {
         playerViewModel.collapsePlayerSheet()
@@ -339,6 +344,19 @@ fun SettingsScreen(
                                 )
                             },
                             onClick = { settingsViewModel.refreshLibrary() }
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        SettingsItem(
+                            title = "Reset Imported Lyrics",
+                            subtitle = "Remove all imported lyrics from the database.",
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.ClearAll,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            },
+                            onClick = { showClearLyricsDialog = true }
                         )
                     }
                 }
@@ -559,6 +577,46 @@ fun SettingsScreen(
             onDismiss = { showDirectoryDialog = false },
             onItemToggle = { directoryItem ->
                 settingsViewModel.toggleDirectoryAllowed(directoryItem)
+            }
+        )
+    }
+
+    // Reset lyrics dialog
+    if (showClearLyricsDialog) {
+        AlertDialog(
+            icon = {
+                Icon(
+                    imageVector = Icons.Outlined.Warning,
+                    contentDescription = null
+                )
+            },
+            title = {
+                Text(text = "Reset imported lyrics?")
+            },
+            text = {
+                Text(text = "This action cannot be undone.")
+            },
+            onDismissRequest = {
+                showClearLyricsDialog = false
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearLyricsDialog = false
+                        playerViewModel.resetAllLyrics()
+                    }
+                ) {
+                    Text("Confirm")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showClearLyricsDialog = false
+                    }
+                ) {
+                    Text("Cancel")
+                }
             }
         )
     }

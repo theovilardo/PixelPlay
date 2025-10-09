@@ -172,9 +172,9 @@ data class PlayerUiState(
 sealed interface LyricsSearchUiState {
     object Idle : LyricsSearchUiState
     object Loading : LyricsSearchUiState
-    data class PickResult(val results: List<LyricsSearchResult>) : LyricsSearchUiState
+    data class PickResult(val query: String, val results: List<LyricsSearchResult>) : LyricsSearchUiState
     data class Success(val lyrics: Lyrics) : LyricsSearchUiState
-    data class Error(val message: String) : LyricsSearchUiState
+    data class Error(val message: String, val query: String? = null) : LyricsSearchUiState
 }
 
 @UnstableApi
@@ -2722,12 +2722,15 @@ class PlayerViewModel @Inject constructor(
                         if (error is NoLyricsFoundException) {
                             // Perform a generic search and let the user pick
                             musicRepository.searchRemoteLyrics(currentSong)
-                                .onSuccess { results ->
-                                    _lyricsSearchUiState.value = LyricsSearchUiState.PickResult(results)
+                                .onSuccess { (query, results) ->
+                                    _lyricsSearchUiState.value = LyricsSearchUiState.PickResult(query, results)
                                 }
                                 .onFailure { error ->
                                     if (error is NoLyricsFoundException) {
-                                        _lyricsSearchUiState.value = LyricsSearchUiState.Error(context.getString(R.string.lyrics_not_found))
+                                        _lyricsSearchUiState.value = LyricsSearchUiState.Error(
+                                            context.getString(R.string.lyrics_not_found),
+                                            error.query
+                                        )
                                     } else {
                                         _lyricsSearchUiState.value = LyricsSearchUiState.Error(error.message ?: "Unknown error")
                                     }
@@ -2760,7 +2763,16 @@ class PlayerViewModel @Inject constructor(
         resetLyricsSearchState()
         viewModelScope.launch {
             musicRepository.resetLyrics(stablePlayerState.value.currentSong!!.id.toLong())
-            loadLyricsForCurrentSong()
+            _stablePlayerState.update { state -> state.copy(lyrics = null) }
+            // loadLyricsForCurrentSong()
+        }
+    }
+
+    fun resetAllLyrics() {
+        resetLyricsSearchState()
+        viewModelScope.launch {
+            musicRepository.resetAllLyrics()
+            _stablePlayerState.update { state -> state.copy(lyrics = null) }
         }
     }
 

@@ -136,11 +136,13 @@ interface MusicRepository {
     /**
      * Search for lyrics remotely, less specific than `getLyricsFromRemote` but more lenient
      * @param song The song to search lyrics for
-     * @return The search results, if any
+     * @return The search query and the results
      */
-    suspend fun searchRemoteLyrics(song: Song): Result<List<LyricsSearchResult>>
+    suspend fun searchRemoteLyrics(song: Song): Result<Pair<String, List<LyricsSearchResult>>>
 
     suspend fun updateLyrics(songId: Long, lyrics: String)
 
     suspend fun resetLyrics(songId: Long)
+
+    suspend fun resetAllLyrics()
 }
