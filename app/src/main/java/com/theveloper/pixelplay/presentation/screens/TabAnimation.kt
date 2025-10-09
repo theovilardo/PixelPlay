@@ -19,6 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -37,6 +39,7 @@ fun TabAnimation(
     onClick: () -> Unit,
     content: @Composable () -> Unit
 ) {
+    val hapticFeedback = LocalHapticFeedback.current
     val isSelected = index == selectedIndex
     val scale = remember { Animatable(1f) }
     val offsetX = remember { Animatable(0f) }
@@ -105,8 +108,19 @@ fun TabAnimation(
                 shape = RoundedCornerShape(50)
             ),
         selected = isSelected,
-        onClick = onClick,
         text = content,
+        onClick = {
+            hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onClick()
+        },
+        text = {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                color = contentColor
+            )
+        },
         selectedContentColor = contentColor,
         unselectedContentColor = contentColor
     )
