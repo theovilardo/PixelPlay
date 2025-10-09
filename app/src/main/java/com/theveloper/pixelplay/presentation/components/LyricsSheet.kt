@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -172,12 +173,22 @@ fun LyricsSheet(
                                     contentDescription = "Lyrics options",
                                 )
                                 DropdownMenu(
+                                    shape = AbsoluteSmoothCornerShape(
+                                        cornerRadiusBL = 20.dp,
+                                        smoothnessAsPercentTL = 60,
+                                        cornerRadiusBR = 20.dp,
+                                        smoothnessAsPercentTR = 60,
+                                        cornerRadiusTL = 20.dp,
+                                        smoothnessAsPercentBL = 60,
+                                        cornerRadiusTR = 20.dp,
+                                        smoothnessAsPercentBR = 60
+                                    ),
                                     containerColor = backgroundColor,
                                     expanded = expanded,
                                     onDismissRequest = { expanded = false }
                                 ) {
                                     DropdownMenuItem(
-                                        leadingIcon = { Icon(imageVector = Icons.Filled.ClearAll, contentDescription = null) },
+                                        leadingIcon = { Icon(painter = painterResource(R.drawable.outline_restart_alt_24), contentDescription = null) },
                                         text = { Text(text = "Reset imported lyrics") },
                                         onClick = {
                                             expanded = false
