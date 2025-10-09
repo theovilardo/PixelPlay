@@ -113,14 +113,6 @@ fun TabAnimation(
             hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             onClick()
         },
-        text = {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                color = contentColor
-            )
-        },
         selectedContentColor = contentColor,
         unselectedContentColor = contentColor
     )
