@@ -208,7 +208,7 @@ fun DailyMixScreen(
                 contentPadding = PaddingValues(bottom = MiniPlayerHeight + 38.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                item {
+                item(key = "daily_mix_header") {
                     ExpressiveDailyMixHeader(
                         songs = dailyMixSongs,
                         scrollState = lazyListState,
@@ -216,7 +216,7 @@ fun DailyMixScreen(
                     )
                 }
 
-                item {
+                item(key = "play_shuffle_buttons") {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

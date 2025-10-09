@@ -203,7 +203,7 @@ fun ArtistDetailScreen(
                             )
                         }
 
-                        item { Spacer(modifier = Modifier.height(MiniPlayerHeight + 16.dp)) }
+                        item(key = "bottom_spacer") { Spacer(modifier = Modifier.height(MiniPlayerHeight + 16.dp)) }
                     }
 
                     CustomCollapsingTopBar(

@@ -295,7 +295,7 @@ fun SettingsScreen(
             contentPadding = PaddingValues(top = currentTopBarHeightDp),
             modifier = Modifier.fillMaxSize()
         ) {
-            item {
+            item(key = "music_management_section") {
                 // Sección de gestión de música
                 SettingsSection(
                     title = "Music Management",
@@ -344,9 +344,9 @@ fun SettingsScreen(
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(16.dp)) }
+            item(key = "spacer_1") { Spacer(modifier = Modifier.height(16.dp)) }
 
-            item {
+            item(key = "appearance_section") {
                 // Sección de apariencia
                 SettingsSection(
                     title = "Appearance",
@@ -443,9 +443,9 @@ fun SettingsScreen(
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(16.dp)) }
+            item(key = "spacer_2") { Spacer(modifier = Modifier.height(16.dp)) }
 
-            item {
+            item(key = "ai_section") {
                 SettingsSection(
                     title = "AI Integration (Beta)",
                     icon = {
@@ -465,9 +465,9 @@ fun SettingsScreen(
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(16.dp)) }
+            item(key = "spacer_3") { Spacer(modifier = Modifier.height(16.dp)) }
 
-            item {
+            item(key = "dev_options_section") {
                 // Sección de Opciones de Desarrollador
                 SettingsSection(
                     title = "Developer Options",
@@ -500,9 +500,9 @@ fun SettingsScreen(
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(16.dp)) }
+            item(key = "spacer_4") { Spacer(modifier = Modifier.height(16.dp)) }
 
-            item {
+            item(key = "about_section") {
                 // About section
                 SettingsSection(
                     title = "About",
@@ -542,7 +542,7 @@ fun SettingsScreen(
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(MiniPlayerHeight + 36.dp)) }
+            item(key = "bottom_spacer") { Spacer(modifier = Modifier.height(MiniPlayerHeight + 36.dp)) }
         }
         SettingsTopBar(
             collapseFraction = collapseFraction,

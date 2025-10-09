@@ -907,7 +907,7 @@ fun LibrarySongsTab(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + 30.dp)
                     ) {
-                        item { Spacer(Modifier.height(0.dp)) }
+                        item(key = "songs_top_spacer") { Spacer(Modifier.height(0.dp)) }
                         items(songs, key = { "song_${it.id}" }) { song ->
                             val isPlayingThisSong =
                                 song.id == stablePlayerState.currentSong?.id && stablePlayerState.isPlaying
@@ -1231,7 +1231,7 @@ fun LibraryAlbumsTab(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
+                item(key = "albums_top_spacer", span = { GridItemSpan(maxLineSpan) }) {
                     Spacer(Modifier.height(4.dp))
                 }
                 items(albums, key = { "album_${it.id}" }) { album ->
@@ -1435,7 +1435,7 @@ fun LibraryArtistsTab(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + ListExtraBottomGap)
             ) {
-                item {
+                item(key = "artists_top_spacer") {
                     Spacer(Modifier.height(4.dp))
                 }
                 items(artists, key = { "artist_${it.id}" }) { artist ->
