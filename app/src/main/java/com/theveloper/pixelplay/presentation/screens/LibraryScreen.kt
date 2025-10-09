@@ -42,6 +42,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.rounded.MoreVert
@@ -124,6 +125,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.asPaddingValues
 import com.theveloper.pixelplay.presentation.components.AiPlaylistSheet
 import com.theveloper.pixelplay.presentation.components.PlaylistArtCollage
+import com.theveloper.pixelplay.presentation.components.ReorderTabsSheet
 import com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet
 import com.theveloper.pixelplay.presentation.components.subcomps.LibraryActionRow
 import com.theveloper.pixelplay.presentation.components.subcomps.SineWaveLine
@@ -171,10 +173,11 @@ fun LibraryScreen(
     // Estados locales para dialogs/bottom sheets, etc.
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     val selectedSongForInfo by playerViewModel.selectedSongForInfo.collectAsState()
-    val tabTitles = listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "LIKED")
+    val tabTitles by playerViewModel.libraryTabsFlow.collectAsState()
     val pagerState = rememberPagerState(initialPage = lastTabIndex) { tabTitles.size }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) } // Mantener para la visibilidad del menú
+    var showReorderTabsSheet by remember { mutableStateOf(false) }
 
     // La lógica de carga diferida (lazy loading) se mantiene.
     LaunchedEffect(Unit) {
@@ -307,6 +310,11 @@ fun LibraryScreen(
                             scope.launch { pagerState.animateScrollToPage(index) }
                         }
                     }
+                    Tab(
+                        selected = false,
+                        onClick = { showReorderTabsSheet = true },
+                        text = { Icon(Icons.Default.Edit, contentDescription = "Reorder tabs") }
+                    )
                 }
 
                 Surface(
@@ -640,6 +648,16 @@ fun LibraryScreen(
                 }
             )
         }
+    }
+
+    if (showReorderTabsSheet) {
+        ReorderTabsSheet(
+            tabs = tabTitles,
+            onReorder = { newOrder ->
+                playerViewModel.saveLibraryTabsOrder(newOrder)
+            },
+            onDismiss = { showReorderTabsSheet = false }
+        )
     }
 }
 

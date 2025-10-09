@@ -66,6 +66,7 @@ class UserPreferencesRepository @Inject constructor(
 
         // Transition Settings
         val GLOBAL_TRANSITION_SETTINGS = stringPreferencesKey("global_transition_settings_json")
+        val LIBRARY_TABS_ORDER = stringPreferencesKey("library_tabs_order")
     }
 
     val globalTransitionSettingsFlow: Flow<TransitionSettings> = dataStore.data
@@ -373,6 +374,17 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setCarouselStyle(style: String) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.CAROUSEL_STYLE] = style
+        }
+    }
+
+    val libraryTabsOrderFlow: Flow<String?> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.LIBRARY_TABS_ORDER]
+        }
+
+    suspend fun saveLibraryTabsOrder(order: String) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.LIBRARY_TABS_ORDER] = order
         }
     }
 }
