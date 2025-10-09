@@ -729,7 +729,10 @@ fun UnifiedPlayerSheet(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .graphicsLayer { translationY = visualSheetTranslationY }
+                .graphicsLayer {
+                    translationY = visualSheetTranslationY
+                    compositingStrategy = CompositingStrategy.Offscreen
+                }
                 .height(animatedTotalSheetHeightWithShadowDp),
             shadowElevation = 0.dp,
             color = Color.Transparent
@@ -838,6 +841,7 @@ fun UnifiedPlayerSheet(
                                 translationX = offsetAnimatable.value
                                 scaleY = visualOvershootScaleY.value
                                 transformOrigin = TransformOrigin(0.5f, 1f)
+                                compositingStrategy = CompositingStrategy.Offscreen
                             }
                             .shadow(
                                 elevation = playerAreaElevation,
@@ -1005,7 +1009,10 @@ fun UnifiedPlayerSheet(
                                         Box(
                                             modifier = Modifier
                                                 .align(Alignment.TopCenter)
-                                                .graphicsLayer { alpha = miniPlayerAlpha }
+                                                .graphicsLayer {
+                                                    alpha = miniPlayerAlpha
+                                                    compositingStrategy = CompositingStrategy.Offscreen
+                                                }
                                         ) {
                                             MiniPlayerContentInternal(
                                                 song = currentSongNonNull, // Use non-null version
@@ -1026,6 +1033,7 @@ fun UnifiedPlayerSheet(
                                         Box(modifier = Modifier.graphicsLayer {
                                             alpha = fullPlayerContentAlpha
                                             translationY = fullPlayerTranslationY
+                                            compositingStrategy = CompositingStrategy.Offscreen
                                         }) {
                                             FullPlayerContentInternal(
                                                 currentSong = currentSongNonNull, // Use non-null version
@@ -1141,6 +1149,7 @@ private fun SongMetadataDisplaySection( // Renamed for clarity
     expansionFraction: Float,
     textColor: Color,
     artistTextColor: Color,
+    gradientEdgeColor: Color,
     onClickLyrics: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1157,6 +1166,7 @@ private fun SongMetadataDisplaySection( // Renamed for clarity
                 expansionFraction = expansionFraction,
                 textColor = textColor,
                 artistTextColor = artistTextColor,
+                gradientEdgeColor = gradientEdgeColor,
                 modifier = Modifier
                     .weight(0.85f)
                     .align(Alignment.CenterVertically)
@@ -1208,6 +1218,7 @@ private fun PlayerProgressBarSection(
             .padding(vertical = lerp(2.dp, 0.dp, expansionFraction))
             .graphicsLayer {
                 alpha = expansionFraction
+                compositingStrategy = CompositingStrategy.Offscreen
             }
             .heightIn(min = 70.dp)
     ) {
@@ -1265,6 +1276,7 @@ private fun PlayerSongInfo(
     expansionFraction: Float,
     textColor: Color,
     artistTextColor: Color,
+    gradientEdgeColor: Color,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -1275,27 +1287,28 @@ private fun PlayerSongInfo(
             .graphicsLayer {
                 alpha = expansionFraction
                 translationY = (1f - expansionFraction) * 24f
+                compositingStrategy = CompositingStrategy.Offscreen
             }
     ) {
-        Text(
+        AutoScrollingText(
             text = title,
             style = MaterialTheme.typography.headlineSmall.copy(
                 fontWeight = FontWeight.Bold,
-                fontFamily = GoogleSansRounded
+                fontFamily = GoogleSansRounded,
+                color = textColor
             ),
-            color = textColor,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Start
+            textAlign = TextAlign.Start,
+            gradientEdgeColor = gradientEdgeColor
         )
         Spacer(modifier = Modifier.height(4.dp))
-        Text(
+        AutoScrollingText(
             text = artist,
-            style = MaterialTheme.typography.titleMedium.copy(letterSpacing = 0.sp),
-            color = artistTextColor,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Start
+            style = MaterialTheme.typography.titleMedium.copy(
+                letterSpacing = 0.sp,
+                color = artistTextColor
+            ),
+            textAlign = TextAlign.Start,
+            gradientEdgeColor = gradientEdgeColor
         )
     }
 }
@@ -1345,28 +1358,29 @@ private fun MiniPlayerContentInternal(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.Center
         ) {
-            Text(
-                text = song.title,
-                style = MaterialTheme.typography.titleSmall.copy(
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = (-0.2).sp
-                ),
+            val titleStyle = MaterialTheme.typography.titleSmall.copy(
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = (-0.2).sp,
                 fontFamily = GoogleSansRounded,
-                color = LocalMaterialTheme.current.onPrimaryContainer,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                color = LocalMaterialTheme.current.onPrimaryContainer
             )
-            Text(
-                text = song.artist,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontSize = 13.sp,
-                    letterSpacing = 0.sp
-                ),
+            val artistStyle = MaterialTheme.typography.bodySmall.copy(
+                fontSize = 13.sp,
+                letterSpacing = 0.sp,
                 fontFamily = GoogleSansRounded,
-                color = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                color = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f)
+            )
+
+            AutoScrollingText(
+                text = song.title,
+                style = titleStyle,
+                gradientEdgeColor = LocalMaterialTheme.current.primaryContainer
+            )
+            AutoScrollingText(
+                text = song.artist,
+                style = artistStyle,
+                gradientEdgeColor = LocalMaterialTheme.current.primaryContainer
             )
         }
         Spacer(modifier = Modifier.width(8.dp))
@@ -1697,7 +1711,10 @@ private fun FullPlayerContentInternal(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = lerp(4.dp, 8.dp, expansionFraction))
-                    .graphicsLayer { alpha = expansionFraction }
+                    .graphicsLayer {
+                        alpha = expansionFraction
+                        compositingStrategy = CompositingStrategy.Offscreen
+                    }
             ) {
                 val carouselHeight = when (carouselStyle) {
                     CarouselStyle.NO_PEEK -> maxWidth
@@ -1733,7 +1750,8 @@ private fun FullPlayerContentInternal(
                 song = currentSong, // currentSong is from stablePlayerState
                 expansionFraction = expansionFraction,
                 textColor = LocalMaterialTheme.current.onPrimaryContainer,
-                artistTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.8f)
+                artistTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.8f),
+                gradientEdgeColor = LocalMaterialTheme.current.primaryContainer
                 // modifier for PlayerSongInfo is internal to SongMetadataDisplaySection if needed, or pass one
             )
 

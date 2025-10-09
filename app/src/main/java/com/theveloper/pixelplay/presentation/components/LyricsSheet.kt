@@ -400,7 +400,7 @@ fun LyricsSheet(
                             }
 
                             if (lyrics!!.areFromRemote) {
-                                item {
+                                item(key = "provider_text") {
                                     ProviderText(
                                         providerText = context.resources.getString(R.string.lyrics_provided_by),
                                         uri = context.resources.getString(R.string.lrclib_uri),

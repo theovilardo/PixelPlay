@@ -140,7 +140,7 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 // Your Mix
-                item {
+                item(key = "your_mix_header") {
                     YourMixHeader(
                         song = yourMixSong,
                         onPlayRandomSong = {
@@ -153,7 +153,7 @@ fun HomeScreen(
 
                 // Collage
                 if (yourMixSongs.isNotEmpty()) {
-                    item {
+                    item(key = "album_art_collage") {
                         AlbumArtCollage(
                             modifier = Modifier.fillMaxWidth(),
                             songs = yourMixSongs,
@@ -168,7 +168,7 @@ fun HomeScreen(
 
                 // Daily Mix
                 if (dailyMixSongs.isNotEmpty()) {
-                    item {
+                    item(key = "daily_mix_section") {
                         DailyMixSection(
                             songs = dailyMixSongs.take(4).toImmutableList(),
                             onClickOpen = {

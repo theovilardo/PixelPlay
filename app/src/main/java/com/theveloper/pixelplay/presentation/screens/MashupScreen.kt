@@ -315,7 +315,7 @@ private fun SongPickerSheet(songs: List<Song>, onSongSelected: (Song) -> Unit) {
         LazyColumn(modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp)) {
-            items(songs) { song ->
+            items(songs, key = { it.id }) { song ->
                 SongPickerItem(song = song, onClick = { onSongSelected(song) })
                 Divider()
             }
