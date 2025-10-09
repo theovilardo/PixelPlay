@@ -114,6 +114,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import timber.log.Timber
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -318,6 +320,20 @@ class PlayerViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = 0 // Default to Songs tab
         )
+
+    val libraryTabsFlow: StateFlow<List<String>> = userPreferencesRepository.libraryTabsOrderFlow
+        .map { orderJson ->
+            if (orderJson != null) {
+                try {
+                    Json.decodeFromString<List<String>>(orderJson)
+                } catch (e: Exception) {
+                    listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "LIKED")
+                }
+            } else {
+                listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "LIKED")
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "LIKED"))
 
 
     private val _loadedTabs = MutableStateFlow(emptySet<Int>())
@@ -2631,6 +2647,19 @@ class PlayerViewModel @Inject constructor(
             }
         }
         Trace.endSection()
+    }
+
+    fun saveLibraryTabsOrder(tabs: List<String>) {
+        viewModelScope.launch {
+            val orderJson = Json.encodeToString(tabs)
+            userPreferencesRepository.saveLibraryTabsOrder(orderJson)
+        }
+    }
+
+    fun resetLibraryTabsOrder() {
+        viewModelScope.launch {
+            userPreferencesRepository.resetLibraryTabsOrder()
+        }
     }
 
     fun selectSongForInfo(song: Song) {

@@ -42,6 +42,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.rounded.MoreVert
@@ -124,6 +125,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.asPaddingValues
 import com.theveloper.pixelplay.presentation.components.AiPlaylistSheet
 import com.theveloper.pixelplay.presentation.components.PlaylistArtCollage
+import com.theveloper.pixelplay.presentation.components.ReorderTabsSheet
 import com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet
 import com.theveloper.pixelplay.presentation.components.subcomps.LibraryActionRow
 import com.theveloper.pixelplay.presentation.components.subcomps.SineWaveLine
@@ -171,10 +173,11 @@ fun LibraryScreen(
     // Estados locales para dialogs/bottom sheets, etc.
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     val selectedSongForInfo by playerViewModel.selectedSongForInfo.collectAsState()
-    val tabTitles = listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "LIKED")
+    val tabTitles by playerViewModel.libraryTabsFlow.collectAsState()
     val pagerState = rememberPagerState(initialPage = lastTabIndex) { tabTitles.size }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) } // Mantener para la visibilidad del menú
+    var showReorderTabsSheet by remember { mutableStateOf(false) }
 
     // La lógica de carga diferida (lazy loading) se mantiene.
     LaunchedEffect(Unit) {
@@ -202,8 +205,8 @@ fun LibraryScreen(
             tween(durationMillis = 300, easing = FastOutSlowInEasing)
         }
     ) { page ->
-        when (page) {
-            3 -> 0f // Playlist icon (PlaylistAdd) usually doesn't rotate
+        when (tabTitles.getOrNull(page)) {
+            "PLAYLISTS" -> 0f // Playlist icon (PlaylistAdd) usually doesn't rotate
             else -> 360f // Shuffle icon animates
         }
     }
@@ -303,9 +306,31 @@ fun LibraryScreen(
                     divider = {}
                 ) {
                     tabTitles.forEachIndexed { index, title ->
-                        TabAnimation(index = index, title = title, selectedIndex = pagerState.currentPage) {
-                            scope.launch { pagerState.animateScrollToPage(index) }
+                        TabAnimation(
+                            index = index,
+                            title = title,
+                            selectedIndex = pagerState.currentPage,
+                            onClick = { scope.launch { pagerState.animateScrollToPage(index) } }
+                        ) {
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = if (pagerState.currentPage == index) FontWeight.Bold else FontWeight.Medium
+                            )
                         }
+                    }
+                    TabAnimation(
+//                        modifier = Modifier.aspectRatio(1f),
+                        index = -1, // A non-matching index to keep it unselected
+                        title = "Edit",
+                        selectedIndex = pagerState.currentPage,
+                        onClick = { showReorderTabsSheet = true }
+                    ) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Reorder tabs",
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
+                        )
                     }
                 }
 
@@ -331,34 +356,30 @@ fun LibraryScreen(
                         val availableSortOptions by playerViewModel.availableSortOptions.collectAsState()
 
                         // Recolectamos el estado de ordenación de forma más inteligente.
-                        // `distinctUntilChanged()` evita recomposiciones si la opción de ordenación no ha cambiado.
-                        val currentSelectedSortOption by remember(playerViewModel, pagerState.currentPage) { // pagerState.currentPage es clave aquí
+                        val currentSelectedSortOption by remember(playerViewModel, pagerState.currentPage, tabTitles) {
                             playerViewModel.playerUiState.map {
-                                when (pagerState.currentPage) {
-                                    0 -> it.currentSongSortOption
-                                    1 -> it.currentAlbumSortOption
-                                    2 -> it.currentArtistSortOption
-                                    4 -> it.currentFavoriteSortOption // Este es de PlayerViewModel
-                                    else -> SortOption.SongTitleAZ // Fallback para pestañas no cubiertas por PlayerViewModel directamente
+                                when (tabTitles.getOrNull(pagerState.currentPage)) {
+                                    "SONGS" -> it.currentSongSortOption
+                                    "ALBUMS" -> it.currentAlbumSortOption
+                                    "ARTIST" -> it.currentArtistSortOption
+                                    "LIKED" -> it.currentFavoriteSortOption
+                                    else -> SortOption.SongTitleAZ
                                 }
                             }.distinctUntilChanged()
-                        }.collectAsState(initial = SortOption.SongTitleAZ) // Un initialValue razonable
+                        }.collectAsState(initial = SortOption.SongTitleAZ)
 
-                        // Playlist sort option se maneja por separado ya que viene de otro ViewModel
-                        val playlistSortOption by remember(playlistViewModel) { // Solo depende de playlistViewModel
+                        val playlistSortOption by remember(playlistViewModel) {
                             playlistViewModel.uiState.map { it.currentPlaylistSortOption }.distinctUntilChanged()
-                        }.collectAsState(initial = SortOption.PlaylistNameAZ) // Un initialValue razonable
+                        }.collectAsState(initial = SortOption.PlaylistNameAZ)
 
-                        val finalSortOption = if (pagerState.currentPage == 3) playlistSortOption else currentSelectedSortOption
-
-                        val onSortOptionChanged: (SortOption) -> Unit = remember(playerViewModel, playlistViewModel, pagerState.currentPage) {
+                        val onSortOptionChanged: (SortOption) -> Unit = remember(playerViewModel, playlistViewModel, pagerState.currentPage, tabTitles) {
                             { option ->
-                                when (pagerState.currentPage) {
-                                    0 -> playerViewModel.sortSongs(option)
-                                    1 -> playerViewModel.sortAlbums(option)
-                                    2 -> playerViewModel.sortArtists(option)
-                                    3 -> playlistViewModel.sortPlaylists(option)
-                                    4 -> playerViewModel.sortFavoriteSongs(option)
+                                when (tabTitles.getOrNull(pagerState.currentPage)) {
+                                    "SONGS" -> playerViewModel.sortSongs(option)
+                                    "ALBUMS" -> playerViewModel.sortAlbums(option)
+                                    "ARTIST" -> playerViewModel.sortArtists(option)
+                                    "PLAYLISTS" -> playlistViewModel.sortPlaylists(option)
+                                    "LIKED" -> playerViewModel.sortFavoriteSongs(option)
                                 }
                             }
                         }
@@ -371,9 +392,9 @@ fun LibraryScreen(
                             ),
                             currentPage = pagerState.currentPage,
                             onMainActionClick = {
-                                when (pagerState.currentPage) {
-                                    3 -> showCreatePlaylistDialog = true
-                                    4 -> playerViewModel.shuffleFavoriteSongs()
+                                when (tabTitles.getOrNull(pagerState.currentPage)) {
+                                    "PLAYLISTS" -> showCreatePlaylistDialog = true
+                                    "LIKED" -> playerViewModel.shuffleFavoriteSongs()
                                     else -> playerViewModel.shuffleAllSongs()
                                 }
                             },
@@ -388,7 +409,7 @@ fun LibraryScreen(
                                 onSortOptionChanged(option)
                                 showSortMenu = false // Dismiss menu on selection
                             },
-                            isPlaylistTab = pagerState.currentPage == 3,
+                            isPlaylistTab = tabTitles.getOrNull(pagerState.currentPage) == "PLAYLISTS",
                             onGenerateWithAiClick = { playerViewModel.showAiPlaylistSheet() }
                         )
 
@@ -396,15 +417,12 @@ fun LibraryScreen(
                             state = pagerState,
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(top = 8.dp), // Ensure content is below ActionRow
-                            pageSpacing = 0.dp, // No pageSpacing as per original
+                                .padding(top = 8.dp),
+                            pageSpacing = 0.dp,
+                            key = { tabTitles[it] }
                         ) { page ->
-                            // El contenido de cada página ahora es más independiente.
-                            when (page) {
-                                0 -> {
-                                    // OPTIMIZACIÓN: Cada pestaña recolecta solo los datos que necesita.
-                                    // Usamos `map` para extraer solo la lista de canciones.
-                                    // `distinctUntilChanged` previene recomposiciones si la lista no cambia.
+                            when (tabTitles.getOrNull(page)) {
+                                "SONGS" -> {
                                     val songs by remember {
                                         playerViewModel.playerUiState
                                             .map { it.allSongs }
@@ -431,8 +449,7 @@ fun LibraryScreen(
                                         onMoreOptionsClick = stableOnMoreOptionsClickForSongs
                                     )
                                 }
-
-                                1 -> {
+                                "ALBUMS" -> {
                                     val albums by remember {
                                         playerViewModel.playerUiState
                                             .map { it.albums }
@@ -458,8 +475,7 @@ fun LibraryScreen(
                                         onAlbumClick = stableOnAlbumClick
                                     )
                                 }
-
-                                2 -> {
+                                "ARTIST" -> {
                                     val artists by remember {
                                         playerViewModel.playerUiState
                                             .map { it.artists }
@@ -482,7 +498,7 @@ fun LibraryScreen(
                                         }
                                     )
                                 }
-                                3 -> {
+                                "PLAYLISTS" -> {
                                     val currentPlaylistUiState by playlistViewModel.uiState.collectAsState()
                                     LibraryPlaylistsTab(
                                         playlistUiState = currentPlaylistUiState,
@@ -492,8 +508,7 @@ fun LibraryScreen(
                                         onGenerateWithAiClick = { playerViewModel.showAiPlaylistSheet() }
                                     )
                                 }
-
-                                4 -> {
+                                "LIKED" -> {
                                     val favoriteSongs by playerViewModel.favoriteSongs.collectAsState()
                                     LibraryFavoritesTab(
                                         favoriteSongs = favoriteSongs,
@@ -640,6 +655,19 @@ fun LibraryScreen(
                 }
             )
         }
+    }
+
+    if (showReorderTabsSheet) {
+        ReorderTabsSheet(
+            tabs = tabTitles,
+            onReorder = { newOrder ->
+                playerViewModel.saveLibraryTabsOrder(newOrder)
+            },
+            onReset = {
+                playerViewModel.resetLibraryTabsOrder()
+            },
+            onDismiss = { showReorderTabsSheet = false }
+        )
     }
 }
 

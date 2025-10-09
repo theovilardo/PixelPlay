@@ -36,7 +36,8 @@ fun TabAnimation(
     onUnselectedColor: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
     title: String,
     selectedIndex: Int,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    content: @Composable () -> Unit
 ) {
     val hapticFeedback = LocalHapticFeedback.current
     val isSelected = index == selectedIndex
@@ -107,6 +108,7 @@ fun TabAnimation(
                 shape = RoundedCornerShape(50)
             ),
         selected = isSelected,
+        text = content,
         onClick = {
             hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             onClick()

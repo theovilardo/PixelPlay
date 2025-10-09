@@ -240,6 +240,9 @@ fun LyricsSheet(
                                         selectedIndex = selectedTabIndex,
                                         onClick = {
                                             showSyncedLyrics = (index == 0)
+                                        },
+                                        content = {
+                                            Text(text = title)
                                         }
                                     )
                                 }
