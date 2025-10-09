@@ -1328,6 +1328,7 @@ private fun MiniPlayerContentInternal(
     onNext: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val hapticFeedback = LocalHapticFeedback.current
     val albumShape = AbsoluteSmoothCornerShape(
         cornerRadiusTL = cornerRadiusAlb,
         smoothnessAsPercentBL = 60,
@@ -1396,7 +1397,10 @@ private fun MiniPlayerContentInternal(
                         bounded = false,
                         color = LocalMaterialTheme.current.onPrimary
                     )
-                ) { onPlayPause() },
+                ) {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onPlayPause()
+                },
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -1862,6 +1866,7 @@ fun AnimatedPlaybackControls(
     iconSize: Dp = 32.dp
 ) {
     var lastClicked by remember { mutableStateOf<ButtonType?>(null) }
+    val hapticFeedback = LocalHapticFeedback.current
 
     LaunchedEffect(lastClicked) {
         if (lastClicked != null) {
@@ -1940,6 +1945,7 @@ fun AnimatedPlaybackControls(
                     .background(colorPlayPause)
                     .clickable {
                         lastClicked = ButtonType.PLAY_PAUSE
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onPlayPause()
                     },
                 contentAlignment = Alignment.Center
