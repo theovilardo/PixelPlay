@@ -277,17 +277,6 @@ fun QueueBottomSheet(
                                             scaleX = scale
                                             scaleY = scale
                                         }
-//                                        .clip(AbsoluteSmoothCornerShape(
-//                                            cornerRadiusTR = 22.dp,
-//                                            smoothnessAsPercentTL = 60,
-//                                            cornerRadiusTL = 22.dp,
-//                                            smoothnessAsPercentTR = 60,
-//                                            cornerRadiusBR = 22.dp,
-//                                            smoothnessAsPercentBL = 60,
-//                                            cornerRadiusBL = 22.dp,
-//                                            smoothnessAsPercentBR = 60
-//                                        ))
-                                        //.clickable { onPlaySong(song) }
                                     ,
                                     onClick = { onPlaySong(song) },
                                     song = song,
@@ -332,7 +321,6 @@ fun QueueBottomSheet(
                 }
             }
 
-            // Floating Toolbar remains the same
             HorizontalFloatingToolbar(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)

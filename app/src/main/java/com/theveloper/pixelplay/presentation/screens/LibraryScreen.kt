@@ -320,6 +320,7 @@ fun LibraryScreen(
                         }
                     }
                     TabAnimation(
+//                        modifier = Modifier.aspectRatio(1f),
                         index = -1, // A non-matching index to keep it unselected
                         title = "Edit",
                         selectedIndex = pagerState.currentPage,
