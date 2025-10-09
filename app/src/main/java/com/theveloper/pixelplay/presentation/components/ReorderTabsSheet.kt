@@ -3,6 +3,7 @@ package com.theveloper.pixelplay.presentation.components
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DragIndicator
@@ -15,7 +16,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
-import sh.calvin.reorderable.draggableHandle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,12 +27,16 @@ fun ReorderTabsSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var localTabs by remember { mutableStateOf(tabs) }
     val scope = rememberCoroutineScope()
-    val reorderableState = rememberReorderableLazyListState(onMove = { from, to ->
-        localTabs = localTabs.toMutableList().apply {
-            add(to.index, removeAt(from.index))
-        }
-    })
-    var isLoading by remember { mutableState of(false) }
+    val listState = rememberLazyListState()
+    val reorderableState = rememberReorderableLazyListState(
+        onMove = { from, to ->
+            localTabs = localTabs.toMutableList().apply {
+                add(to.index, removeAt(from.index))
+            }
+        },
+        lazyListState = listState
+    )
+    var isLoading by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
         onDismissRequest = { onDismiss() },
@@ -69,7 +73,7 @@ fun ReorderTabsSheet(
                     }
                 } else {
                     LazyColumn(
-                        state = reorderableState.listState,
+                        state = listState,
                         modifier = Modifier.fillMaxSize()
                     ) {
                         items(localTabs, key = { it }) { tab ->

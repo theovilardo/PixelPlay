@@ -60,6 +60,7 @@ import kotlin.math.roundToInt
 import androidx.core.net.toUri
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 
 // Data class to hold information about each person in the acknowledgements section
 data class Contributor(
@@ -241,7 +242,7 @@ fun AboutScreen(
         val currentTopBarHeightDp = with(density) { topBarHeight.value.toDp() }
         LazyColumn(
             state = lazyListState,
-            contentPadding = PaddingValues(top = currentTopBarHeightDp, bottom = 16.dp),
+            contentPadding = PaddingValues(top = currentTopBarHeightDp, bottom = MiniPlayerHeight + 16.dp),
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
