@@ -34,7 +34,8 @@ fun TabAnimation(
     onUnselectedColor: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
     title: String,
     selectedIndex: Int,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    content: @Composable () -> Unit
 ) {
     val isSelected = index == selectedIndex
     val scale = remember { Animatable(1f) }
@@ -105,14 +106,7 @@ fun TabAnimation(
             ),
         selected = isSelected,
         onClick = onClick,
-        text = {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                color = contentColor
-            )
-        },
+        text = content,
         selectedContentColor = contentColor,
         unselectedContentColor = contentColor
     )

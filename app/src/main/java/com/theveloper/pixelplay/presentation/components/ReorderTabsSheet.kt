@@ -1,8 +1,10 @@
 package com.theveloper.pixelplay.presentation.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DragIndicator
@@ -10,7 +12,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
@@ -38,18 +43,23 @@ fun ReorderTabsSheet(
     ModalBottomSheet(
         onDismissRequest = { onDismiss() },
         sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface
     ) {
         Scaffold(
             topBar = {
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 26.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
+                    Text("Reorder Library Tabs", style = MaterialTheme.typography.displaySmall, fontFamily = GoogleSansRounded)
                     TextButton(
                         onClick = {
                             onReset()
                             onDismiss()
-                        },
-                        modifier = Modifier.align(Alignment.CenterEnd)
+                        }
                     ) {
                         Text("Reset")
                     }
@@ -57,6 +67,8 @@ fun ReorderTabsSheet(
             },
             floatingActionButton = {
                 ExtendedFloatingActionButton(
+                    modifier = Modifier.padding(bottom = 18.dp, end = 8.dp),
+                    shape = CircleShape,
                     onClick = {
                         scope.launch {
                             isLoading = true
@@ -70,7 +82,8 @@ fun ReorderTabsSheet(
                     text = { Text("Done") }
                 )
             },
-            floatingActionButtonPosition = FabPosition.Center
+            floatingActionButtonPosition = FabPosition.Center,
+            containerColor = MaterialTheme.colorScheme.surface
         ) { paddingValues ->
             Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
                 if (isLoading) {
@@ -86,19 +99,21 @@ fun ReorderTabsSheet(
                 } else {
                     LazyColumn(
                         state = reorderableState.listState,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                        contentPadding = PaddingValues(bottom = 100.dp, top = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(localTabs, key = { it }) { tab ->
                             ReorderableItem(reorderableState, key = tab) { isDragging ->
                                 Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                                        .clip(CircleShape),
                                     shadowElevation = if (isDragging) 4.dp else 0.dp,
-                                    shape = MaterialTheme.shapes.medium
+                                    color = MaterialTheme.colorScheme.surfaceContainerLowest
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(16.dp),
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Icon(

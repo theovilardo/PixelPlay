@@ -306,15 +306,31 @@ fun LibraryScreen(
                     divider = {}
                 ) {
                     tabTitles.forEachIndexed { index, title ->
-                        TabAnimation(index = index, title = title, selectedIndex = pagerState.currentPage) {
-                            scope.launch { pagerState.animateScrollToPage(index) }
+                        TabAnimation(
+                            index = index,
+                            title = title,
+                            selectedIndex = pagerState.currentPage,
+                            onClick = { scope.launch { pagerState.animateScrollToPage(index) } }
+                        ) {
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = if (pagerState.currentPage == index) FontWeight.Bold else FontWeight.Medium
+                            )
                         }
                     }
-                    Tab(
-                        selected = false,
-                        onClick = { showReorderTabsSheet = true },
-                        text = { Icon(Icons.Default.Edit, contentDescription = "Reorder tabs") }
-                    )
+                    TabAnimation(
+                        index = -1, // A non-matching index to keep it unselected
+                        title = "Edit",
+                        selectedIndex = pagerState.currentPage,
+                        onClick = { showReorderTabsSheet = true }
+                    ) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Reorder tabs",
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
+                        )
+                    }
                 }
 
                 Surface(
