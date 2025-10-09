@@ -14,6 +14,9 @@ import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ClearAll
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -33,6 +36,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.SyncedLine
+import com.theveloper.pixelplay.data.repository.LyricsRepository
 import com.theveloper.pixelplay.presentation.screens.TabAnimation
 import com.theveloper.pixelplay.presentation.components.subcomps.PlayerSeekBar
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerUiState
@@ -51,6 +55,7 @@ import kotlin.math.abs
 fun LyricsSheet(
     stablePlayerStateFlow: StateFlow<StablePlayerState>,
     playerUiStateFlow: StateFlow<PlayerUiState>,
+    resetLyricsForCurrentSong: () -> Unit,
     lyricsTextStyle: TextStyle,
     backgroundColor: Color,
     onBackgroundColor: Color,
@@ -154,6 +159,35 @@ fun LyricsSheet(
                                 )
                             }
                         },
+                        actions = {
+                            var expanded by remember { mutableStateOf(false) }
+                            IconButton(
+                                colors = IconButtonDefaults.iconButtonColors(
+                                    contentColor = onBackgroundColor
+                                ),
+                                onClick = { expanded = !expanded }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.MoreVert,
+                                    contentDescription = "Lyrics options",
+                                )
+                                DropdownMenu(
+                                    containerColor = backgroundColor,
+                                    expanded = expanded,
+                                    onDismissRequest = { expanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        leadingIcon = { Icon(imageVector = Icons.Filled.ClearAll, contentDescription = null) },
+                                        text = { Text(text = "Reset imported lyrics") },
+                                        onClick = {
+                                            expanded = false
+                                            resetLyricsForCurrentSong()
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        ,
                         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                             containerColor = Color.Transparent
                         )

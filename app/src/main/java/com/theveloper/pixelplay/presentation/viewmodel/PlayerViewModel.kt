@@ -51,6 +51,7 @@ import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Size
 import com.google.common.util.concurrent.ListenableFuture
+import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.DailyMixManager
 import com.theveloper.pixelplay.data.EotStateHolder
 import com.theveloper.pixelplay.data.ai.AiMetadataGenerator
@@ -74,7 +75,9 @@ import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
+import com.theveloper.pixelplay.data.repository.LyricsSearchResult
 import com.theveloper.pixelplay.data.repository.MusicRepository
+import com.theveloper.pixelplay.data.repository.NoLyricsFoundException
 import com.theveloper.pixelplay.data.service.MusicService
 import com.theveloper.pixelplay.data.service.http.MediaFileHttpServerService
 import com.theveloper.pixelplay.data.worker.SyncManager
@@ -101,12 +104,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.count
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -114,7 +115,6 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
-import java.lang.Math.random
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlin.collections.map
@@ -172,8 +172,9 @@ data class PlayerUiState(
 sealed interface LyricsSearchUiState {
     object Idle : LyricsSearchUiState
     object Loading : LyricsSearchUiState
+    data class PickResult(val query: String, val results: List<LyricsSearchResult>) : LyricsSearchUiState
     data class Success(val lyrics: Lyrics) : LyricsSearchUiState
-    data class Error(val message: String) : LyricsSearchUiState
+    data class Error(val message: String, val query: String? = null) : LyricsSearchUiState
 }
 
 @UnstableApi
@@ -2718,9 +2719,60 @@ class PlayerViewModel @Inject constructor(
                         }
                     }
                     .onFailure { error ->
-                        _lyricsSearchUiState.value = LyricsSearchUiState.Error(error.message ?: "Unknown error")
+                        if (error is NoLyricsFoundException) {
+                            // Perform a generic search and let the user pick
+                            musicRepository.searchRemoteLyrics(currentSong)
+                                .onSuccess { (query, results) ->
+                                    _lyricsSearchUiState.value = LyricsSearchUiState.PickResult(query, results)
+                                }
+                                .onFailure { error ->
+                                    if (error is NoLyricsFoundException) {
+                                        _lyricsSearchUiState.value = LyricsSearchUiState.Error(
+                                            context.getString(R.string.lyrics_not_found),
+                                            error.query
+                                        )
+                                    } else {
+                                        _lyricsSearchUiState.value = LyricsSearchUiState.Error(error.message ?: "Unknown error")
+                                    }
+                                }
+                        } else {
+                            _lyricsSearchUiState.value = LyricsSearchUiState.Error(error.message ?: "Unknown error")
+                        }
                     }
             }
+        }
+    }
+
+    fun acceptLyricsSearchResultForCurrentSong(result: LyricsSearchResult) {
+        _lyricsSearchUiState.value = LyricsSearchUiState.Success(result.lyrics)
+        _stablePlayerState.update { state ->
+            state.copy(
+                lyrics = result.lyrics,
+                currentSong = state.currentSong?.copy(lyrics = result.rawLyrics)
+            )
+        }
+        viewModelScope.launch {
+            musicRepository.updateLyrics(
+                stablePlayerState.value.currentSong!!.id.toLong(),
+                result.rawLyrics
+            )
+        }
+    }
+
+    fun resetLyricsForCurrentSong() {
+        resetLyricsSearchState()
+        viewModelScope.launch {
+            musicRepository.resetLyrics(stablePlayerState.value.currentSong!!.id.toLong())
+            _stablePlayerState.update { state -> state.copy(lyrics = null) }
+            // loadLyricsForCurrentSong()
+        }
+    }
+
+    fun resetAllLyrics() {
+        resetLyricsSearchState()
+        viewModelScope.launch {
+            musicRepository.resetAllLyrics()
+            _stablePlayerState.update { state -> state.copy(lyrics = null) }
         }
     }
 

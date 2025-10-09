@@ -1538,6 +1538,9 @@ private fun FullPlayerContentInternal(
                 // El usuario confirma, iniciamos la búsqueda
                 playerViewModel.fetchLyricsForCurrentSong()
             },
+            onPickResult = { result ->
+                playerViewModel.acceptLyricsSearchResultForCurrentSong(result)
+            },
             onDismiss = {
                 // El usuario cancela o cierra el diálogo
                 showFetchLyricsDialog = false
@@ -1810,6 +1813,10 @@ private fun FullPlayerContentInternal(
         LyricsSheet(
             stablePlayerStateFlow = playerViewModel.stablePlayerState,
             playerUiStateFlow = playerViewModel.playerUiState,
+            resetLyricsForCurrentSong = {
+                showLyricsSheet = false
+                playerViewModel.resetLyricsForCurrentSong()
+            },
             lyricsTextStyle = MaterialTheme.typography.titleLarge,
             backgroundColor = LocalMaterialTheme.current.background,
             onBackgroundColor = LocalMaterialTheme.current.onBackground,
