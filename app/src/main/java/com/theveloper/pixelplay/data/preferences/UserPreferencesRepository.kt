@@ -387,4 +387,10 @@ class UserPreferencesRepository @Inject constructor(
             preferences[PreferencesKeys.LIBRARY_TABS_ORDER] = order
         }
     }
+
+    suspend fun resetLibraryTabsOrder() {
+        dataStore.edit { preferences ->
+            preferences.remove(PreferencesKeys.LIBRARY_TABS_ORDER)
+        }
+    }
 }

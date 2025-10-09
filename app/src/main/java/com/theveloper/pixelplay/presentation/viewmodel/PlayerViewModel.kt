@@ -2656,6 +2656,12 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun resetLibraryTabsOrder() {
+        viewModelScope.launch {
+            userPreferencesRepository.resetLibraryTabsOrder()
+        }
+    }
+
     fun selectSongForInfo(song: Song) {
         _selectedSongForInfo.value = song
     }
