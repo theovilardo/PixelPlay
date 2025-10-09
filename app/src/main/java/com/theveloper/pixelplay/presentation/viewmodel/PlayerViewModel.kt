@@ -114,6 +114,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import timber.log.Timber
@@ -336,7 +337,7 @@ class PlayerViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "LIKED"))
 
 
-    private val _loadedTabs = MutableStateFlow(emptySet<Int>())
+    private val _loadedTabs = MutableStateFlow(emptySet<String>())
 
     val availableSortOptions: StateFlow<List<SortOption>> =
         lastLibraryTabIndexFlow.map { tabIndex ->
@@ -2616,32 +2617,28 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    // CAMBIO 1: Nueva función para manejar la carga de datos de forma diferida (lazy).
     fun onLibraryTabSelected(tabIndex: Int) {
         Trace.beginSection("PlayerViewModel.onLibraryTabSelected")
         saveLastLibraryTabIndex(tabIndex)
 
-        // Si la pestaña ya fue cargada, no hacemos nada para evitar trabajo innecesario.
-        if (_loadedTabs.value.contains(tabIndex)) {
-            Log.d("PlayerViewModel", "Tab $tabIndex already loaded. Skipping data load.")
+        val tabIdentifier = libraryTabsFlow.value.getOrNull(tabIndex) ?: return
+        if (_loadedTabs.value.contains(tabIdentifier)) {
+            Log.d("PlayerViewModel", "Tab '$tabIdentifier' already loaded. Skipping data load.")
             Trace.endSection()
             return
         }
 
-        Log.d("PlayerViewModel", "Tab $tabIndex selected. Attempting to load data.")
-        // Inicia la carga de datos para la pestaña seleccionada en un hilo de fondo.
+        Log.d("PlayerViewModel", "Tab '$tabIdentifier' selected. Attempting to load data.")
         viewModelScope.launch {
             Trace.beginSection("PlayerViewModel.onLibraryTabSelected_coroutine_load")
             try {
-                when (tabIndex) {
-                    0 -> loadSongsIfNeeded()
-                    1 -> loadAlbumsIfNeeded()
-                    2 -> loadArtistsIfNeeded()
-
+                when (tabIdentifier) {
+                    "SONGS" -> loadSongsIfNeeded()
+                    "ALBUMS" -> loadAlbumsIfNeeded()
+                    "ARTIST" -> loadArtistsIfNeeded()
                 }
-                // Marca la pestaña como cargada para no volver a cargarla.
-                _loadedTabs.update { currentTabs -> currentTabs + tabIndex }
-                Log.d("PlayerViewModel", "Tab $tabIndex marked as loaded. Current loaded tabs: ${_loadedTabs.value}")
+                _loadedTabs.update { currentTabs -> currentTabs + tabIdentifier }
+                Log.d("PlayerViewModel", "Tab '$tabIdentifier' marked as loaded. Current loaded tabs: ${_loadedTabs.value}")
             } finally {
                 Trace.endSection()
             }
