@@ -224,7 +224,7 @@ fun GenreDetailScreen(
                             }
                         }
 
-                        item { Spacer(modifier = Modifier.height(MiniPlayerHeight + 36.dp)) }
+                        item(key = "bottom_spacer") { Spacer(modifier = Modifier.height(MiniPlayerHeight + 36.dp)) }
                     }
                 }
             }

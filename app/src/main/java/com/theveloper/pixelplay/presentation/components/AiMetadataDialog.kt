@@ -35,7 +35,10 @@ fun AiMetadataDialog(
                 Text("Select the fields you want to generate:")
                 Spacer(modifier = Modifier.height(16.dp))
                 LazyColumn {
-                    items(missingFields) { field ->
+                    items(
+                        items = missingFields,
+                        key = { it }
+                    ) { field ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier

@@ -245,7 +245,7 @@ fun AboutScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // App info section
-            item {
+            item(key = "app_info_header") {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.padding(top = 32.dp, bottom = 24.dp)
@@ -287,7 +287,7 @@ fun AboutScreen(
             }
 
             // Greeting section
-            item {
+            item(key = "greeting_card") {
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -316,7 +316,7 @@ fun AboutScreen(
             }
 
             // Author section
-            item {
+            item(key = "author_header") {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -331,16 +331,16 @@ fun AboutScreen(
                 }
             }
 
-            item{
+            item(key = authors[0].name) {
                 ContributorCard(authors[0])
             }
 
-            item {
+            item(key = "author_contributor_spacer") {
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
             // Contributors section
-            item {
+            item(key = "contributors_header") {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -355,7 +355,10 @@ fun AboutScreen(
                 }
             }
 
-            items(contributors) { contributor ->
+            items(
+                items = contributors,
+                key = { it.name }
+            ) { contributor ->
                 ContributorCard(contributor)
             }
         }

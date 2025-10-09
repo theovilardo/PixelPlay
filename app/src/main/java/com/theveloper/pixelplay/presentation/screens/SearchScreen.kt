@@ -562,7 +562,7 @@ fun SearchResultsList(
             val itemsForSection = groupedResults[filterType] ?: emptyList()
 
             if (itemsForSection.isNotEmpty()) {
-                item {
+                item(key = "header_${filterType.name}") {
                     SearchResultSectionHeader(
                         title = when (filterType) {
                             SearchFilterType.SONGS -> "Songs"
