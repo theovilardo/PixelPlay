@@ -38,8 +38,11 @@ import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.SyncedLine
 import com.theveloper.pixelplay.data.repository.LyricsRepository
+import com.theveloper.pixelplay.data.repository.LyricsSearchResult
 import com.theveloper.pixelplay.presentation.screens.TabAnimation
+import com.theveloper.pixelplay.presentation.components.subcomps.FetchLyricsDialog
 import com.theveloper.pixelplay.presentation.components.subcomps.PlayerSeekBar
+import com.theveloper.pixelplay.presentation.viewmodel.LyricsSearchUiState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerUiState
 import com.theveloper.pixelplay.presentation.viewmodel.StablePlayerState
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
@@ -57,7 +60,12 @@ import kotlin.math.abs
 fun LyricsSheet(
     stablePlayerStateFlow: StateFlow<StablePlayerState>,
     playerUiStateFlow: StateFlow<PlayerUiState>,
+    lyricsSearchUiState: LyricsSearchUiState,
     resetLyricsForCurrentSong: () -> Unit,
+    onSearchLyrics: () -> Unit,
+    onPickResult: (LyricsSearchResult) -> Unit,
+    onImportLyrics: () -> Unit,
+    onDismissLyricsSearch: () -> Unit,
     lyricsTextStyle: TextStyle,
     backgroundColor: Color,
     onBackgroundColor: Color,
@@ -78,8 +86,32 @@ fun LyricsSheet(
     val isLoadingLyrics by remember { derivedStateOf { stablePlayerState.isLoadingLyrics } }
     val lyrics by remember { derivedStateOf { stablePlayerState.lyrics } }
     val isPlaying by remember { derivedStateOf { stablePlayerState.isPlaying } }
+    val currentSong by remember { derivedStateOf { stablePlayerState.currentSong } }
 
     val context = LocalContext.current
+
+    var showFetchLyricsDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(currentSong, lyrics, isLoadingLyrics) {
+        if (currentSong != null && lyrics == null && !isLoadingLyrics) {
+            showFetchLyricsDialog = true
+        } else if (lyrics != null || isLoadingLyrics) {
+            showFetchLyricsDialog = false
+        }
+    }
+
+    if (showFetchLyricsDialog) {
+        FetchLyricsDialog(
+            uiState = lyricsSearchUiState,
+            onConfirm = onSearchLyrics,
+            onPickResult = onPickResult,
+            onDismiss = {
+                showFetchLyricsDialog = false
+                onDismissLyricsSearch()
+             },
+            onImport = onImportLyrics
+        )
+    }
 
     var showSyncedLyrics by remember(lyrics) {
         mutableStateOf(
@@ -389,8 +421,6 @@ fun LyricsSheet(
                                             modifier = Modifier.width(100.dp)
                                         )
                                     }
-                                } else {
-                                    Text(text = context.resources.getString(R.string.cant_find_lyrics))
                                 }
                             }
                         }
