@@ -37,33 +37,47 @@ class SyncWorker @AssistedInject constructor(
             Log.i(TAG, "Starting MediaStore synchronization...")
             val startTime = System.currentTimeMillis()
 
-            val songs = fetchAllMusicData()
-            Log.i(TAG, "Fetched ${songs.size} songs from MediaStore.")
+            val mediaStoreSongs = fetchAllMusicData()
+            Log.i(TAG, "Fetched ${mediaStoreSongs.size} songs from MediaStore.")
 
-            if (songs.isNotEmpty()) {
-                val existingLyricsMap = musicDao.getAllSongsList().associate { it.id to it.lyrics }
+            if (mediaStoreSongs.isNotEmpty()) {
+                // Fetch existing local songs to preserve their dateAdded and lyrics
+                val localSongsMap = musicDao.getAllSongsList().associate {
+                    it.id to Pair(it.dateAdded, it.lyrics)
+                }
 
-                val (correctedSongs, albums, artists) = preProcessAndDeduplicate(songs)
+                val newSongTimestamp = System.currentTimeMillis()
 
-                val songsWithPreservedLyrics = correctedSongs.map { songEntity ->
-                    val existingLyrics = existingLyricsMap[songEntity.id]
-                    if (!existingLyrics.isNullOrBlank()) {
-                        songEntity.copy(lyrics = existingLyrics)
+                // Prepare the final list of songs for insertion
+                val songsToInsert = mediaStoreSongs.map { mediaStoreSong ->
+                    val preservedData = localSongsMap[mediaStoreSong.id]
+                    if (preservedData != null) {
+                        // This song exists locally, so preserve its dateAdded and lyrics
+                        mediaStoreSong.copy(
+                            dateAdded = preservedData.first,
+                            lyrics = preservedData.second
+                        )
                     } else {
-                        songEntity
+                        // This is a new song. Assign the uniform timestamp for this sync batch.
+                        mediaStoreSong.copy(dateAdded = newSongTimestamp)
                     }
                 }
 
-                musicDao.clearAllMusicData()
-                musicDao.insertMusicData(songsWithPreservedLyrics, albums, artists)
+                val (correctedSongs, albums, artists) = preProcessAndDeduplicate(songsToInsert)
 
-                Log.i(TAG, "Music data insertion call completed.")
+                // Perform the "clear and insert" operation
+                musicDao.clearAllMusicData()
+                musicDao.insertMusicData(correctedSongs, albums, artists)
+
+                Log.i(TAG, "Music data synchronization completed. ${correctedSongs.size} songs processed.")
             } else {
-                Log.w(TAG, "MediaStore fetch resulted in empty list for songs. No data will be inserted.")
+                // MediaStore is empty, so clear the local database
+                musicDao.clearAllMusicData()
+                Log.w(TAG, "MediaStore fetch resulted in empty list. Local music data cleared.")
             }
 
             val endTime = System.currentTimeMillis()
-            Log.i(TAG, "MediaStore synchronization completed successfully in ${endTime - startTime}ms.")
+            Log.i(TAG, "MediaStore synchronization finished successfully in ${endTime - startTime}ms.")
             Result.success()
         } catch (e: Exception) {
             Log.e(TAG, "Error during MediaStore synchronization", e)

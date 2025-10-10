@@ -29,7 +29,9 @@ import com.theveloper.pixelplay.data.model.Playlist
 import com.theveloper.pixelplay.data.model.SearchFilterType
 import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import com.theveloper.pixelplay.data.model.SearchResultItem
+import com.theveloper.pixelplay.data.model.SortOption
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
+import androidx.sqlite.db.SimpleSQLiteQuery
 
 import com.theveloper.pixelplay.data.model.Genre
 import com.theveloper.pixelplay.data.database.SongEntity
