@@ -71,6 +71,49 @@ data class Contributor(
     val telegramUrl: String? = null
 )
 
+// Data class for a single changelog version
+data class ChangelogVersion(
+    val version: String,
+    val date: String,
+    val added: List<String> = emptyList(),
+    val changed: List<String> = emptyList(),
+    val fixed: List<String> = emptyList()
+)
+
+// The changelog data
+val changelog = listOf(
+    ChangelogVersion(
+        version = "0.2.0-beta",
+        date = "2024-09-15",
+        added = listOf(
+            "Chromecast support for casting audio from your device.",
+            "In-app changelog to keep you updated on the latest features.",
+            "Support for .LRC files, both embedded and external.",
+            "Offline lyrics support.",
+            "Synchronized lyrics (synced with the song).",
+            "New screen to view the full queue.",
+            "Reorder and remove songs from the queue.",
+            "Mini-player gestures (swipe down to close).",
+            "Added more material animations.",
+            "New settings to customize the look and feel.",
+            "New settings to clear the cache.",
+            "The app is now available in Spanish."
+        ),
+        changed = listOf(
+            "Complete redesign of the user interface.",
+            "Complete redesign of the player.",
+            "Performance improvements in the library.",
+            "Improved application startup speed.",
+            "The AI now provides better results."
+        ),
+        fixed = listOf(
+            "Fixed various bugs in the tag editor.",
+            "Fixed a bug where the playback notification was not clearing.",
+            "Fixed several bugs that caused the app to crash."
+        )
+    )
+)
+
 @Composable
 private fun AboutTopBar(
     collapseFraction: Float,
@@ -362,12 +405,80 @@ fun AboutScreen(
             ) { contributor ->
                 ContributorCard(contributor)
             }
+
+            item(key = "changelog_section") {
+                ChangelogSection(changelog = changelog)
+            }
         }
         AboutTopBar(
             collapseFraction = collapseFraction,
             headerHeight = currentTopBarHeightDp,
             onBackPressed = onNavigationIconClick
         )
+    }
+}
+
+@Composable
+fun ChangelogSection(changelog: List<ChangelogVersion>) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(top = 24.dp)
+    ) {
+        Text(
+            text = "Changelog",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        changelog.forEach { version ->
+            ChangelogVersionItem(version = version)
+        }
+    }
+}
+
+@Composable
+fun ChangelogVersionItem(version: ChangelogVersion) {
+    Column(modifier = Modifier.padding(bottom = 16.dp)) {
+        Text(
+            text = "Version ${version.version} (${version.date})",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        if (version.added.isNotEmpty()) {
+            ChangelogCategory(title = "Added", items = version.added)
+        }
+        if (version.changed.isNotEmpty()) {
+            ChangelogCategory(title = "Changed", items = version.changed)
+        }
+        if (version.fixed.isNotEmpty()) {
+            ChangelogCategory(title = "Fixed", items = version.fixed)
+        }
+    }
+}
+
+@Composable
+fun ChangelogCategory(title: String, items: List<String>) {
+    Column(modifier = Modifier.padding(start = 8.dp, top = 4.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+        items.forEach { item ->
+            Row(verticalAlignment = Alignment.Top) {
+                Text("• ", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = item,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 2.dp)
+                )
+            }
+        }
     }
 }
 
