@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0-beta] - 2024-09-15
+
+### Added
+- Chromecast support for casting audio from your device.
+- In-app changelog to keep you updated on the latest features.
+- Support for .LRC files, both embedded and external.
+- Offline lyrics support.
+- Synchronized lyrics (synced with the song).
+- New screen to view the full queue.
+- Reorder and remove songs from the queue.
+- Mini-player gestures (swipe down to close).
+- Added more material animations.
+- New settings to customize the look and feel.
+- New settings to clear the cache.
+
+### Changed
+- Complete redesign of the user interface.
+- Complete redesign of the player.
+- Performance improvements in the library.
+- Improved application startup speed.
+- The AI now provides better results.
+
+### Fixed
+- Fixed various bugs in the tag editor.
+- Fixed a bug where the playback notification was not clearing.
+- Fixed several bugs that caused the app to crash.
+
 ## [0.1.0-beta] - 2024-08-30
 
 ### Added
