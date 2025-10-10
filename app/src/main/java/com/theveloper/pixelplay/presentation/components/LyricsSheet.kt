@@ -42,6 +42,7 @@ import com.theveloper.pixelplay.presentation.screens.TabAnimation
 import com.theveloper.pixelplay.presentation.components.subcomps.PlayerSeekBar
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerUiState
 import com.theveloper.pixelplay.presentation.viewmodel.StablePlayerState
+import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import com.theveloper.pixelplay.utils.BubblesLine
 import com.theveloper.pixelplay.utils.ProviderText
 import kotlinx.coroutines.flow.Flow
@@ -144,7 +145,13 @@ fun LyricsSheet(
                     Modifier.align(Alignment.TopCenter)
                 ) {
                     CenterAlignedTopAppBar(
-                        title = { Text(text = "Lyrics", fontWeight = FontWeight.Bold) },
+                        title = {
+                            Text(
+                                text = "Lyrics",
+                                fontWeight = FontWeight.Bold,
+                                color = onBackgroundColor
+                            )
+                        },
                         navigationIcon = {
                             FilledIconButton(
                                 modifier = Modifier.padding(start = 12.dp),
@@ -171,6 +178,7 @@ fun LyricsSheet(
                                 Icon(
                                     imageVector = Icons.Filled.MoreVert,
                                     contentDescription = "Lyrics options",
+                                    tint = onBackgroundColor
                                 )
                                 DropdownMenu(
                                     shape = AbsoluteSmoothCornerShape(
@@ -242,7 +250,11 @@ fun LyricsSheet(
                                             showSyncedLyrics = (index == 0)
                                         },
                                         content = {
-                                            Text(text = title)
+                                            Text(
+                                                text = title,
+                                                fontWeight = FontWeight.Bold,
+                                                fontFamily = GoogleSansRounded
+                                            )
                                         }
                                     )
                                 }
