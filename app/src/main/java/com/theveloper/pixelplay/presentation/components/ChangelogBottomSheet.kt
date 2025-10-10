@@ -7,6 +7,7 @@ import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -80,7 +81,7 @@ fun ChangelogBottomSheet(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val changelogUrl = "https://github.com/theovilardo/PixelPlay/blob/main/CHANGELOG.md"
+    val changelogUrl = "https://github.com/theovilardo/PixelPlay/blob/master/CHANGELOG.md"
 
     Box(modifier = modifier.fillMaxWidth()) {
         Column(
@@ -115,7 +116,8 @@ fun ChangelogBottomSheet(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 16.dp)
+                    .padding(top = 16.dp),
+                contentPadding = PaddingValues(bottom = 60.dp)
             ) {
                 items(changelog) { version ->
                     ChangelogVersionItem(version = version)
