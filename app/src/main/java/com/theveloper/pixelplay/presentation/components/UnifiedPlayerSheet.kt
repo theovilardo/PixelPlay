@@ -1817,10 +1817,15 @@ private fun FullPlayerContentInternal(
         LyricsSheet(
             stablePlayerStateFlow = playerViewModel.stablePlayerState,
             playerUiStateFlow = playerViewModel.playerUiState,
+            lyricsSearchUiState = lyricsSearchUiState,
             resetLyricsForCurrentSong = {
                 showLyricsSheet = false
                 playerViewModel.resetLyricsForCurrentSong()
             },
+            onSearchLyrics = { playerViewModel.fetchLyricsForCurrentSong() },
+            onPickResult = { playerViewModel.acceptLyricsSearchResultForCurrentSong(it) },
+            onImportLyrics = { filePickerLauncher.launch("*/*") },
+            onDismissLyricsSearch = { playerViewModel.resetLyricsSearchState() },
             lyricsTextStyle = MaterialTheme.typography.titleLarge,
             backgroundColor = LocalMaterialTheme.current.background,
             onBackgroundColor = LocalMaterialTheme.current.onBackground,
