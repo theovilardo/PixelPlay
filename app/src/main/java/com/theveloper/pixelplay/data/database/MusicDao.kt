@@ -4,7 +4,9 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.RawQuery
 import androidx.room.Transaction
+import androidx.sqlite.db.SimpleSQLiteQuery
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -229,9 +231,6 @@ interface MusicDao {
     // E.g., Get all album art URIs from songs (could be useful for theme preloading from SSoT)
     @Query("SELECT DISTINCT album_art_uri_string FROM songs WHERE album_art_uri_string IS NOT NULL")
     fun getAllUniqueAlbumArtUrisFromSongs(): Flow<List<String>>
-
-    @Query("DELETE FROM songs WHERE id NOT IN (:currentSongIds)")
-    suspend fun deleteMissingSongs(currentSongIds: List<Long>)
 
     @Query("DELETE FROM albums WHERE id NOT IN (SELECT DISTINCT album_id FROM songs)")
     suspend fun deleteOrphanedAlbums()

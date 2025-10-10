@@ -1015,19 +1015,10 @@ class PlayerViewModel @Inject constructor(
                 _masterAllSongs.value = songsList.toImmutableList()
 
                 // Apply initial sort to the displayed list
-                val sortedSongs = when (_playerUiState.value.currentSongSortOption) {
-                    SortOption.SongTitleAZ -> songsList.sortedBy { it.title }
-                    SortOption.SongTitleZA -> songsList.sortedByDescending { it.title }
-                    SortOption.SongArtist -> songsList.sortedBy { it.artist }
-                    SortOption.SongAlbum -> songsList.sortedBy { it.album }
-                    SortOption.SongDateAdded -> songsList.sortedByDescending { it.albumId }
-                    SortOption.SongDuration -> songsList.sortedBy { it.duration }
-                    else -> songsList
-                }.toImmutableList()
+                sortSongs(_playerUiState.value.currentSongSortOption)
 
                 _playerUiState.update { currentState ->
                     currentState.copy(
-                        allSongs = sortedSongs,
                         isLoadingInitialSongs = false
                     )
                 }
@@ -2143,7 +2134,7 @@ class PlayerViewModel @Inject constructor(
             SortOption.SongTitleZA -> _masterAllSongs.value.sortedByDescending { it.title }
             SortOption.SongArtist -> _masterAllSongs.value.sortedBy { it.artist }
             SortOption.SongAlbum -> _masterAllSongs.value.sortedBy { it.album }
-            SortOption.SongDateAdded -> _masterAllSongs.value.sortedByDescending { it.albumId }
+            SortOption.SongDateAdded -> _masterAllSongs.value.sortedByDescending { it.dateAdded }
             SortOption.SongDuration -> _masterAllSongs.value.sortedBy { it.duration }
             else -> _masterAllSongs.value
         }.toImmutableList()
