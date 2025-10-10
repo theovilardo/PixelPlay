@@ -10,8 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0-beta] - 2024-09-15
 
 ### Added
-- Chromecast support for casting audio from your device.
+- Chromecast support for casting audio from your device (temporarily disabled).
 - In-app changelog to keep you updated on the latest features.
+- Improved lyrics search
 - Support for .LRC files, both embedded and external.
 - Offline lyrics support.
 - Synchronized lyrics (synced with the song).
