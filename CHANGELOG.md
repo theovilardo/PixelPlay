@@ -21,7 +21,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added more material animations.
 - New settings to customize the look and feel.
 - New settings to clear the cache.
-- The app is now available in Spanish.
 
 ### Changed
 - Complete redesign of the user interface.
