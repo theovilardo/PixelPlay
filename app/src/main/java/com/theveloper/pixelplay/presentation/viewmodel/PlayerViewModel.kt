@@ -2715,6 +2715,28 @@ class PlayerViewModel @Inject constructor(
         return aiMetadataGenerator.generate(song, fields)
     }
 
+    private fun updateSongInStates(updatedSong: Song, newLyrics: Lyrics? = null) {
+        // Update the queue first
+        val currentQueue = _playerUiState.value.currentPlaybackQueue
+        val songIndex = currentQueue.indexOfFirst { it.id == updatedSong.id }
+
+        if (songIndex != -1) {
+            val newQueue = currentQueue.toMutableList()
+            newQueue[songIndex] = updatedSong
+            _playerUiState.update { it.copy(currentPlaybackQueue = newQueue.toImmutableList()) }
+        }
+
+        // Then, update the stable state
+        _stablePlayerState.update { state ->
+            // Only update lyrics if they are explicitly passed
+            val finalLyrics = newLyrics ?: state.lyrics
+            state.copy(
+                currentSong = updatedSong,
+                lyrics = if (state.currentSong?.id == updatedSong.id) finalLyrics else state.lyrics
+            )
+        }
+    }
+
     /**
      * Busca la letra de la canción actual en el servicio remoto.
      */
@@ -2726,14 +2748,8 @@ class PlayerViewModel @Inject constructor(
                 musicRepository.getLyricsFromRemote(currentSong)
                     .onSuccess { (lyrics, rawLyrics) -> // Deconstruct the pair
                         _lyricsSearchUiState.value = LyricsSearchUiState.Success(lyrics)
-                        // Actualizamos la letra en el estado del reproductor
-                        // Y TAMBIÉN en la instancia de la canción actual para mantener la consistencia
-                        _stablePlayerState.update { state ->
-                            state.copy(
-                                lyrics = lyrics,
-                                currentSong = state.currentSong?.copy(lyrics = rawLyrics)
-                            )
-                        }
+                        val updatedSong = currentSong.copy(lyrics = rawLyrics)
+                        updateSongInStates(updatedSong, lyrics)
                     }
                     .onFailure { error ->
                         if (error is NoLyricsFoundException) {
@@ -2742,35 +2758,36 @@ class PlayerViewModel @Inject constructor(
                                 .onSuccess { (query, results) ->
                                     _lyricsSearchUiState.value = LyricsSearchUiState.PickResult(query, results)
                                 }
-                                .onFailure { error ->
-                                    if (error is NoLyricsFoundException) {
-                                        _lyricsSearchUiState.value = LyricsSearchUiState.Error(
+                                .onFailure { searchError ->
+                                    _lyricsSearchUiState.value = if (searchError is NoLyricsFoundException) {
+                                        LyricsSearchUiState.Error(
                                             context.getString(R.string.lyrics_not_found),
-                                            error.query
+                                            searchError.query
                                         )
                                     } else {
-                                        _lyricsSearchUiState.value = LyricsSearchUiState.Error(error.message ?: "Unknown error")
+                                        LyricsSearchUiState.Error(searchError.message ?: "Unknown error")
                                     }
                                 }
                         } else {
                             _lyricsSearchUiState.value = LyricsSearchUiState.Error(error.message ?: "Unknown error")
                         }
                     }
+            } else {
+                _lyricsSearchUiState.value = LyricsSearchUiState.Error("No song is currently playing.")
             }
         }
     }
 
     fun acceptLyricsSearchResultForCurrentSong(result: LyricsSearchResult) {
+        val currentSong = stablePlayerState.value.currentSong ?: return
         _lyricsSearchUiState.value = LyricsSearchUiState.Success(result.lyrics)
-        _stablePlayerState.update { state ->
-            state.copy(
-                lyrics = result.lyrics,
-                currentSong = state.currentSong?.copy(lyrics = result.rawLyrics)
-            )
-        }
+
+        val updatedSong = currentSong.copy(lyrics = result.rawLyrics)
+        updateSongInStates(updatedSong, result.lyrics)
+
         viewModelScope.launch {
             musicRepository.updateLyrics(
-                stablePlayerState.value.currentSong!!.id.toLong(),
+                currentSong.id.toLong(),
                 result.rawLyrics
             )
         }
@@ -2800,23 +2817,12 @@ class PlayerViewModel @Inject constructor(
      */
     fun importLyricsFromFile(songId: Long, lyricsContent: String) {
         viewModelScope.launch {
-            // 1. Guardar la nueva letra en la base de datos.
             musicRepository.updateLyrics(songId, lyricsContent)
-
-            // 2. Volver a cargar la letra para la canción actual para actualizar la UI.
             val currentSong = _stablePlayerState.value.currentSong
             if (currentSong != null && currentSong.id.toLong() == songId) {
-                // Actualizar la instancia de la canción en el estado estable con la nueva letra.
                 val updatedSong = currentSong.copy(lyrics = lyricsContent)
                 val parsedLyrics = LyricsUtils.parseLyrics(lyricsContent)
-
-                _stablePlayerState.update {
-                    it.copy(
-                        currentSong = updatedSong,
-                        lyrics = parsedLyrics,
-                        isLoadingLyrics = false
-                    )
-                }
+                updateSongInStates(updatedSong, parsedLyrics)
                 _lyricsSearchUiState.value = LyricsSearchUiState.Success(parsedLyrics)
                 _toastEvents.emit("Lyrics imported successfully!")
             } else {
