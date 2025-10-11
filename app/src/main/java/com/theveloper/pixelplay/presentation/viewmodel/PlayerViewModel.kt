@@ -412,9 +412,13 @@ class PlayerViewModel @Inject constructor(
                 }
             }
 
-            genreMap.toList().mapIndexed { index, (genreName, songs) ->
+            genreMap.toList().mapIndexedNotNull { index, (genreName, songs) ->
                 if (songs.isNotEmpty()) {
-                    val id = if (genreName.equals(unknownGenreName, ignoreCase = true)) "unknown" else genreName.lowercase().replace(" ", "_")
+                    val id = if (genreName.equals(unknownGenreName, ignoreCase = true)) {
+                        "unknown"
+                    } else {
+                        genreName.lowercase().replace(" ", "_").replace("/", "_")
+                    }
                     val color = GenreColors.colors[index % GenreColors.colors.size]
                     Genre(
                         id = id,
@@ -427,7 +431,8 @@ class PlayerViewModel @Inject constructor(
                 } else {
                     null
                 }
-            }.filterNotNull()
+            }
+                .distinctBy { it.id }
                 .sortedBy { it.name }
                 .toImmutableList()
         }
