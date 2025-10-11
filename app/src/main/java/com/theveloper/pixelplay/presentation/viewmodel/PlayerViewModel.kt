@@ -2728,10 +2728,19 @@ class PlayerViewModel @Inject constructor(
                         _lyricsSearchUiState.value = LyricsSearchUiState.Success(lyrics)
                         // Actualizamos la letra en el estado del reproductor
                         // Y TAMBIÉN en la instancia de la canción actual para mantener la consistencia
+                        val updatedSong = currentSong.copy(lyrics = rawLyrics)
+                        val currentQueue = _playerUiState.value.currentPlaybackQueue
+                        val songIndex = currentQueue.indexOfFirst { it.id == currentSong.id }
+
+                        if (songIndex != -1) {
+                            val newQueue = currentQueue.set(songIndex, updatedSong)
+                            _playerUiState.update { it.copy(currentPlaybackQueue = newQueue) }
+                        }
+
                         _stablePlayerState.update { state ->
                             state.copy(
                                 lyrics = lyrics,
-                                currentSong = state.currentSong?.copy(lyrics = rawLyrics)
+                                currentSong = updatedSong
                             )
                         }
                     }
@@ -2761,16 +2770,27 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun acceptLyricsSearchResultForCurrentSong(result: LyricsSearchResult) {
+        val currentSong = stablePlayerState.value.currentSong ?: return
         _lyricsSearchUiState.value = LyricsSearchUiState.Success(result.lyrics)
+
+        val updatedSong = currentSong.copy(lyrics = result.rawLyrics)
+        val currentQueue = _playerUiState.value.currentPlaybackQueue
+        val songIndex = currentQueue.indexOfFirst { it.id == currentSong.id }
+
+        if (songIndex != -1) {
+            val newQueue = currentQueue.set(songIndex, updatedSong)
+            _playerUiState.update { it.copy(currentPlaybackQueue = newQueue) }
+        }
+
         _stablePlayerState.update { state ->
             state.copy(
                 lyrics = result.lyrics,
-                currentSong = state.currentSong?.copy(lyrics = result.rawLyrics)
+                currentSong = updatedSong
             )
         }
         viewModelScope.launch {
             musicRepository.updateLyrics(
-                stablePlayerState.value.currentSong!!.id.toLong(),
+                currentSong.id.toLong(),
                 result.rawLyrics
             )
         }
@@ -2809,6 +2829,14 @@ class PlayerViewModel @Inject constructor(
                 // Actualizar la instancia de la canción en el estado estable con la nueva letra.
                 val updatedSong = currentSong.copy(lyrics = lyricsContent)
                 val parsedLyrics = LyricsUtils.parseLyrics(lyricsContent)
+
+                // ALSO update the queue
+                val currentQueue = _playerUiState.value.currentPlaybackQueue
+                val songIndex = currentQueue.indexOfFirst { it.id == currentSong.id }
+                if (songIndex != -1) {
+                    val newQueue = currentQueue.set(songIndex, updatedSong)
+                    _playerUiState.update { it.copy(currentPlaybackQueue = newQueue) }
+                }
 
                 _stablePlayerState.update {
                     it.copy(
