@@ -611,12 +611,10 @@ import android.os.Environment
             )
 
             val tempFolders = mutableMapOf<String, TempFolder>()
-            val allSongPaths = mutableSetOf<String>()
 
             for (song in songsToProcess) {
                 try {
                     val songFile = File(Uri.parse(song.contentUriString).path)
-                    allSongPaths.add(songFile.path)
                     var currentFile = songFile.parentFile
                     while (currentFile != null) {
                         val path = currentFile.path
@@ -633,7 +631,7 @@ import android.os.Environment
                         currentFile = currentFile.parentFile
                     }
                 } catch (e: Exception) {
-                    // Log error
+                     Log.e("MusicRepositoryImpl", "Error processing song URI for folders: ${song.contentUriString}", e)
                 }
             }
 
@@ -653,28 +651,22 @@ import android.os.Environment
                 )
             }
 
-            fun findCommonRoot(paths: Set<String>): String {
-                if (paths.isEmpty()) return Environment.getExternalStorageDirectory().path
-                var commonPrefix = paths.first()
-                paths.forEach { path ->
-                    while (!path.startsWith(commonPrefix)) {
-                        commonPrefix = commonPrefix.substring(0, commonPrefix.lastIndexOf('/'))
-                    }
-                }
-                // Go one level up from the most specific common folder if it's not a root
-                val osRoot = Environment.getExternalStorageDirectory().path
-                if (commonPrefix != osRoot && commonPrefix.count { it == '/' } > osRoot.count { it == '/' }) {
-                    return File(commonPrefix).parent ?: osRoot
-                }
-                return commonPrefix
-            }
-
-            val commonRootPath = findCommonRoot(allSongPaths)
-            val rootTempFolder = tempFolders[commonRootPath]
+            val storageRootPath = Environment.getExternalStorageDirectory().path
+            val rootTempFolder = tempFolders[storageRootPath]
 
             val result = rootTempFolder?.subFolderPaths?.mapNotNull { path ->
                 buildImmutableFolder(path, mutableSetOf())
             }?.filter { it.totalSongCount > 0 }?.sortedBy { it.name } ?: emptyList()
+
+            // Fallback for devices that might not use the standard storage root path
+            if (result.isEmpty()) {
+                val allSubFolderPaths = tempFolders.values.flatMap { it.subFolderPaths }.toSet()
+                val topLevelPaths = tempFolders.keys - allSubFolderPaths
+                return@combine topLevelPaths
+                    .mapNotNull { buildImmutableFolder(it, mutableSetOf()) }
+                    .filter { it.totalSongCount > 0 }
+                    .sortedBy { it.name }
+            }
 
             result
         }.flowOn(Dispatchers.IO)
