@@ -380,21 +380,7 @@ class UserPreferencesRepository @Inject constructor(
 
     val libraryTabsOrderFlow: Flow<String?> = dataStore.data
         .map { preferences ->
-            val orderJson = preferences[PreferencesKeys.LIBRARY_TABS_ORDER]
-            if (orderJson != null) {
-                try {
-                    val order = json.decodeFromString<MutableList<String>>(orderJson)
-                    if (!order.contains("FOLDERS")) {
-                        order.add("FOLDERS")
-                        saveLibraryTabsOrder(json.encodeToString(order))
-                    }
-                    orderJson
-                } catch (e: Exception) {
-                    null
-                }
-            } else {
-                null
-            }
+            preferences[PreferencesKeys.LIBRARY_TABS_ORDER]
         }
 
     suspend fun saveLibraryTabsOrder(order: String) {
@@ -406,6 +392,23 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun resetLibraryTabsOrder() {
         dataStore.edit { preferences ->
             preferences.remove(PreferencesKeys.LIBRARY_TABS_ORDER)
+        }
+    }
+
+    suspend fun migrateTabOrder() {
+        dataStore.edit { preferences ->
+            val orderJson = preferences[PreferencesKeys.LIBRARY_TABS_ORDER]
+            if (orderJson != null) {
+                try {
+                    val order = json.decodeFromString<MutableList<String>>(orderJson)
+                    if (!order.contains("FOLDERS")) {
+                        order.add("FOLDERS")
+                        preferences[PreferencesKeys.LIBRARY_TABS_ORDER] = json.encodeToString(order)
+                    }
+                } catch (e: Exception) {
+                    // Ignore
+                }
+            }
         }
     }
 

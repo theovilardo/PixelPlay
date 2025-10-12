@@ -164,8 +164,9 @@ data class PlayerUiState(
     val isSyncingLibrary: Boolean = false,
     val musicFolders: ImmutableList<com.theveloper.pixelplay.data.model.MusicFolder> = persistentListOf(),
     val currentFolderPath: String? = null,
-    val folderNavigationHistory: ImmutableList<String> = persistentListOf(),
     val isFolderFilterActive: Boolean = false,
+
+    val currentFolder: com.theveloper.pixelplay.data.model.MusicFolder? = null,
 
     // State for dismiss/undo functionality
     val showDismissUndoBar: Boolean = false,
@@ -615,6 +616,10 @@ class PlayerViewModel @Inject constructor(
 
     init {
         Log.i("PlayerViewModel", "init started.")
+
+        viewModelScope.launch {
+            userPreferencesRepository.migrateTabOrder()
+        }
 
         // Load initial sort options ONCE at startup.
         viewModelScope.launch {
@@ -2255,30 +2260,51 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun navigateToFolder(path: String) {
+        val folder = findFolder(path, _playerUiState.value.musicFolders)
         _playerUiState.update {
             it.copy(
                 currentFolderPath = path,
-                folderNavigationHistory = it.folderNavigationHistory.add(path)
+                currentFolder = folder
             )
         }
     }
 
     fun navigateBackFolder() {
         _playerUiState.update {
-            val history = it.folderNavigationHistory
-            if (history.size > 1) {
-                val newHistory = history.removeAt(history.lastIndex)
-                it.copy(
-                    currentFolderPath = newHistory.last(),
-                    folderNavigationHistory = newHistory
-                )
+            val currentPath = it.currentFolderPath
+            if (currentPath != null) {
+                val parentPath = File(currentPath).parent
+                val parentFolder = findFolder(parentPath, _playerUiState.value.musicFolders)
+                if (parentFolder != null) {
+                    it.copy(
+                        currentFolderPath = parentPath,
+                        currentFolder = parentFolder
+                    )
+                } else {
+                    it.copy(
+                        currentFolderPath = null,
+                        currentFolder = null
+                    )
+                }
             } else {
-                it.copy(
-                    currentFolderPath = null,
-                    folderNavigationHistory = persistentListOf()
-                )
+                it
             }
         }
+    }
+
+    private fun findFolder(path: String?, folders: List<com.theveloper.pixelplay.data.model.MusicFolder>): com.theveloper.pixelplay.data.model.MusicFolder? {
+        if (path == null) {
+            return null
+        }
+        val queue = java.util.ArrayDeque(folders)
+        while (queue.isNotEmpty()) {
+            val folder = queue.remove()
+            if (folder.path == path) {
+                return folder
+            }
+            queue.addAll(folder.subFolders)
+        }
+        return null
     }
 
     fun toggleFolderFilter() {

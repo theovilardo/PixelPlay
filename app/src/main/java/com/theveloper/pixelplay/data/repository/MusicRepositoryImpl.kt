@@ -589,55 +589,46 @@ class MusicRepositoryImpl @Inject constructor(
             userPreferencesRepository.allowedDirectoriesFlow,
             userPreferencesRepository.isFolderFilterActiveFlow
         ) { songs, allowedDirs, isFolderFilterActive ->
-            val songsByParent = songs.groupBy { File(it.contentUriString).parent }
-
-            fun buildFolders(currentPath: String, allPaths: Set<String?>): List<MusicFolder> {
-                val directSubFolders = allPaths
-                    .filter { it != null && it.startsWith(currentPath) && it != currentPath && !it.substring(currentPath.length + 1).contains(File.separator) }
-                    .map { it!! }
-
-                val subFolders = directSubFolders.mapNotNull { subFolderPath ->
-                    val subFolderName = File(subFolderPath).name
-                    val subFolderSongs = songsByParent[subFolderPath] ?: emptyList()
-                    val nestedSubFolders = buildFolders(subFolderPath, allPaths)
-                    if (subFolderSongs.isNotEmpty() || nestedSubFolders.isNotEmpty()) {
-                        MusicFolder(
-                            path = subFolderPath,
-                            name = subFolderName,
-                            songs = subFolderSongs,
-                            subFolders = nestedSubFolders
-                        )
-                    } else {
-                        null
+            val songsToProcess = if (isFolderFilterActive) {
+                songs.filter { song ->
+                    allowedDirs.any { dir ->
+                        File(song.contentUriString).parent?.startsWith(dir) == true
                     }
                 }
-                return subFolders
-            }
-
-            val rootPaths = if (isFolderFilterActive) {
-                allowedDirs
             } else {
-                songsByParent.keys.filterNotNull().map { File(it).path }.toSet()
+                songs
             }
 
-            val topLevelFolders = mutableListOf<MusicFolder>()
-            val allPaths = songsByParent.keys
-            for (rootPath in rootPaths) {
-                val rootName = File(rootPath).name
-                val rootSongs = songsByParent[rootPath] ?: emptyList()
-                val subFolders = buildFolders(rootPath, allPaths)
-                if (rootSongs.isNotEmpty() || subFolders.isNotEmpty()) {
-                    topLevelFolders.add(
-                        MusicFolder(
-                            path = rootPath,
-                            name = rootName,
-                            songs = rootSongs,
-                            subFolders = subFolders
-                        )
-                    )
+            val folderMap = mutableMapOf<String, MutableList<Song>>()
+            val allFolders = mutableMapOf<String, MusicFolder>()
+
+            for (song in songsToProcess) {
+                var currentFile = File(song.contentUriString).parentFile
+                while (currentFile != null) {
+                    if (!allFolders.containsKey(currentFile.path)) {
+                        allFolders[currentFile.path] = MusicFolder(currentFile.path, currentFile.name, mutableListOf(), mutableListOf())
+                    }
+                    if (currentFile.path == File(song.contentUriString).parent) {
+                        folderMap.getOrPut(currentFile.path) { mutableListOf() }.add(song)
+                    }
+                    currentFile = currentFile.parentFile
                 }
             }
-            topLevelFolders
+
+            for ((path, songList) in folderMap) {
+                allFolders[path]?.songs?.addAll(songList)
+            }
+
+            val rootFolders = mutableListOf<MusicFolder>()
+            for (folder in allFolders.values.sortedBy { it.path }) {
+                val parentPath = File(folder.path).parent
+                if (parentPath != null && allFolders.containsKey(parentPath)) {
+                    (allFolders[parentPath]?.subFolders as MutableList).add(folder)
+                } else {
+                    rootFolders.add(folder)
+                }
+            }
+            rootFolders
         }
     }
 }
