@@ -591,17 +591,18 @@ import kotlinx.collections.immutable.toImmutableList
             userPreferencesRepository.allowedDirectoriesFlow,
             userPreferencesRepository.isFolderFilterActiveFlow
         ) { songs, allowedDirs, isFolderFilterActive ->
+            Log.d("MusicRepositoryImpl", "[FolderDebug] getMusicFolders triggered. Total songs from DB: ${songs.size}. Filter active: $isFolderFilterActive")
+
             val songsToProcess = if (isFolderFilterActive) {
                 songs.filter { song ->
-                    // A song's parent directory must be a subdirectory of (or equal to) an allowed directory.
-                    val songDir = File(song.contentUriString).parentFile ?: return@filter false
+                    val songDir = File(song.path).parentFile ?: return@filter false
                     allowedDirs.any { allowedDir -> songDir.path.startsWith(allowedDir) }
                 }
             } else {
                 songs
             }
+            Log.d("MusicRepositoryImpl", "[FolderDebug] Songs to process after filtering: ${songsToProcess.size}")
 
-            // 1. Use a temporary, mutable data structure for processing.
             data class TempFolder(
                 val path: String,
                 val name: String,
@@ -611,20 +612,19 @@ import kotlinx.collections.immutable.toImmutableList
 
             val tempFolders = mutableMapOf<String, TempFolder>()
 
-            // 2. Populate the temporary map with all folders and their songs.
             for (song in songsToProcess) {
-                var currentFile = File(song.contentUriString).parentFile
+                // BUG FIX: Use song.path which is the direct file path, not contentUriString.
+                val songFile = File(song.path)
+                var currentFile = songFile.parentFile
                 while (currentFile != null) {
                     val path = currentFile.path
                     val name = currentFile.name
                     val tempFolder = tempFolders.getOrPut(path) { TempFolder(path, name) }
 
-                    // Add the song only to its direct parent folder.
-                    if (path == File(song.contentUriString).parent) {
+                    if (path == songFile.parent) {
                         tempFolder.songs.add(song)
                     }
 
-                    // Register subfolder relationship.
                     currentFile.parentFile?.let { parent ->
                         tempFolders.getOrPut(parent.path) { TempFolder(parent.path, parent.name) }
                             .subFolderPaths.add(path)
@@ -632,17 +632,20 @@ import kotlinx.collections.immutable.toImmutableList
                     currentFile = currentFile.parentFile
                 }
             }
+            Log.d("MusicRepositoryImpl", "[FolderDebug] Discovered ${tempFolders.size} total folders.")
 
-            // 3. Recursively build the final immutable structure.
-            fun buildImmutableFolder(path: String): MusicFolder {
+            fun buildImmutableFolder(path: String, visited: MutableSet<String>): MusicFolder? {
+                if (path in visited) {
+                    Log.e("MusicRepositoryImpl", "[FolderDebug] Circular dependency detected at path: $path")
+                    return null // Avoid infinite recursion
+                }
+                visited.add(path)
+
                 val tempFolder = tempFolders[path]!!
                 val subFolders = tempFolder.subFolderPaths
                     .mapNotNull { subPath ->
-                        // Only include subfolders that have songs or have their own subfolders with songs.
                         tempFolders[subPath]?.let {
-                            if (it.songs.isNotEmpty() || it.subFolderPaths.any { subSubPath -> tempFolders[subSubPath]?.songs?.isNotEmpty() == true }) {
-                                buildImmutableFolder(subPath)
-                            } else null
+                            buildImmutableFolder(subPath, visited.toMutableSet())
                         }
                     }
                     .sortedBy { it.name }
@@ -656,14 +659,17 @@ import kotlinx.collections.immutable.toImmutableList
                 )
             }
 
-            // 4. Find the root folders (those that are not subfolders of any other folder).
             val allSubFolderPaths = tempFolders.values.flatMap { it.subFolderPaths }.toSet()
             val rootFolderPaths = tempFolders.keys - allSubFolderPaths
+            Log.d("MusicRepositoryImpl", "[FolderDebug] Found ${rootFolderPaths.size} root folders: $rootFolderPaths")
 
-            rootFolderPaths
-                .map { buildImmutableFolder(it) }
-                .filter { it.songs.isNotEmpty() || it.subFolders.isNotEmpty() } // Final filter for roots
+            val result = rootFolderPaths
+                .mapNotNull { buildImmutableFolder(it, mutableSetOf()) }
+                .filter { it.songs.isNotEmpty() || it.subFolders.isNotEmpty() }
                 .sortedBy { it.name }
+
+            Log.d("MusicRepositoryImpl", "[FolderDebug] Final processed folders count: ${result.size}")
+            result
         }.flowOn(Dispatchers.IO)
     }
 }
