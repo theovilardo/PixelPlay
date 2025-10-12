@@ -295,7 +295,7 @@ fun SongInfoBottomSheet(
                         .clip(shape = listItemShape)
                         .clickable(onClick = onNavigateToAlbum),
                     headlineContent = { Text("Album") },
-                    supportingContent = { Text(song.album) },
+                    supportingContent = { Text("${song.album} • ${song.year}") },
                     leadingContent = { Icon(Icons.Rounded.Album, contentDescription = "Album icon") }
                 )
 

@@ -1342,7 +1342,7 @@ fun EnhancedSongListItem(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = song.artist,
+                        text = "${song.artist} • ${song.year}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = contentColor.copy(alpha = 0.7f),
                         maxLines = 1,
@@ -1618,7 +1618,7 @@ fun AlbumGridItemRedesigned(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Text(album.artist, style = MaterialTheme.typography.bodySmall, color = onGradientColor.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("${album.artist} • ${album.year}", style = MaterialTheme.typography.bodySmall, color = onGradientColor.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("${album.songCount} Songs", style = MaterialTheme.typography.bodySmall, color = onGradientColor.copy(alpha = 0.7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }

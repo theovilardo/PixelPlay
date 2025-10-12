@@ -299,6 +299,7 @@ fun SongListItemFavs(
     cardCorners: Dp = 12.dp,
     title: String,
     artist: String,
+    year: Int,
     albumArtUrl: String?,
     isPlaying: Boolean,
     isCurrentSong: Boolean,
@@ -345,7 +346,7 @@ fun SongListItemFavs(
                         maxLines = 1, overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = artist, style = MaterialTheme.typography.bodyMedium,
+                        text = "$artist • $year", style = MaterialTheme.typography.bodyMedium,
                         color = contentColor.copy(alpha = 0.7f),
                         maxLines = 1, overflow = TextOverflow.Ellipsis
                     )
@@ -389,6 +390,7 @@ fun SongListItemFavsWrapper(
         cardCorners = 0.dp,
         title = song.title,
         artist = song.artist,
+        year = song.year,
         albumArtUrl = song.albumArtUriString,
         isPlaying = stablePlayerState.isPlaying,
         isCurrentSong = song.id == stablePlayerState.currentSong?.id,
