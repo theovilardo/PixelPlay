@@ -801,6 +801,10 @@ fun CreatePlaylistDialogRedesigned(
     }
 }
 
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ChevronRight
+
 @Composable
 fun LibraryFoldersTab(
     folders: ImmutableList<MusicFolder>,
@@ -815,49 +819,49 @@ fun LibraryFoldersTab(
 ) {
     val itemsToShow = currentFolder?.subFolders ?: folders
     val songsToShow = currentFolder?.songs ?: emptyList()
-
     val listState = rememberLazyListState()
-    // Si estamos en la vista raíz Y está cargando Y no hay nada que mostrar
-    if (currentFolder == null && isLoading && itemsToShow.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-    } else if (itemsToShow.isEmpty() && songsToShow.isEmpty() && !isLoading) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp), contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_folder),
-                    contentDescription = null,
-                    Modifier.size(48.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                )
-                Text("No folders found.", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+
+    Column(modifier = Modifier.fillMaxSize()) { // Wrap in column to anchor content to top
+        if (currentFolder != null) {
+            Breadcrumbs(
+                currentFolder = currentFolder,
+                onFolderClick = onFolderClick,
+                onNavigateBack = onNavigateBack
+            )
         }
-    } else {
-        Column {
-            if (currentFolder != null) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, top = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+
+        if (currentFolder == null && isLoading && itemsToShow.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else if (itemsToShow.isEmpty() && songsToShow.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_folder),
+                        contentDescription = null,
+                        Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
                     Text(
-                        text = currentFolder.name,
+                        "No folders found.",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
+        } else {
             LazyColumn(
                 modifier = Modifier
-                    .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
+                    .padding(horizontal = 12.dp)
                     .clip(
                         RoundedCornerShape(
                             topStart = 26.dp,
@@ -868,15 +872,15 @@ fun LibraryFoldersTab(
                     ),
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + ListExtraBottomGap)
+                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + ListExtraBottomGap, top = 8.dp)
             ) {
                 if (itemsToShow.isNotEmpty()) {
-                    item {
+                    item(key = "folders_header") {
                         Text(
                             text = "Folders",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
+                            modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp)
                         )
                     }
                 }
@@ -886,7 +890,7 @@ fun LibraryFoldersTab(
                     })
                 }
                 if (songsToShow.isNotEmpty()) {
-                    item {
+                    item(key = "songs_header") {
                         Text(
                             text = "Songs",
                             style = MaterialTheme.typography.titleMedium,
@@ -900,9 +904,7 @@ fun LibraryFoldersTab(
                         song = song,
                         isPlaying = stablePlayerState.currentSong?.id == song.id && stablePlayerState.isPlaying,
                         isCurrentSong = stablePlayerState.currentSong?.id == song.id,
-                        onMoreOptionsClick = {
-                            onMoreOptionsClick(song)
-                        },
+                        onMoreOptionsClick = { onMoreOptionsClick(song) },
                         onClick = {
                             val songIndex = songsToShow.indexOf(song)
                             if (songIndex != -1) {
@@ -910,6 +912,63 @@ fun LibraryFoldersTab(
                                 onPlaySong(song, songsToPlay)
                             }
                         }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun Breadcrumbs(
+    currentFolder: MusicFolder,
+    onFolderClick: (String) -> Unit,
+    onNavigateBack: () -> Unit
+) {
+    val storageRootPath = Environment.getExternalStorageDirectory().path
+    val pathSegments = remember(currentFolder.path) {
+        val relativePath = currentFolder.path.removePrefix(storageRootPath).removePrefix("/")
+        if (relativePath.isEmpty()) {
+            listOf("Internal Storage" to storageRootPath)
+        } else {
+            listOf("Internal Storage" to storageRootPath) + relativePath.split("/").scan("") { acc, segment ->
+                "$acc/$segment"
+            }.drop(1).map {
+                val file = File(storageRootPath, it)
+                file.name to file.path
+            }
+        }
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onNavigateBack, modifier = Modifier.size(32.dp)) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+        }
+        Spacer(Modifier.width(8.dp))
+        LazyRow(verticalAlignment = Alignment.CenterVertically) {
+            items(pathSegments.size) { index ->
+                val (name, path) = pathSegments[index]
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = if (index == pathSegments.lastIndex) FontWeight.Bold else FontWeight.Normal,
+                    color = if (index == pathSegments.lastIndex) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(enabled = index < pathSegments.lastIndex) { onFolderClick(path) }
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+                if (index < pathSegments.lastIndex) {
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
