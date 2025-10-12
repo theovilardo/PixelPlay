@@ -117,9 +117,9 @@ fun LibraryActionRow(
                 ),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp) // Standard button padding
             ) {
-                val icon = if (currentPage == 3) Icons.Rounded.PlaylistAdd else Icons.Rounded.Shuffle
-                val text = if (currentPage == 3) "New" else "Shuffle"
-                val contentDesc = if (currentPage == 3) "Create New Playlist" else "Shuffle Play"
+                val icon = if (isPlaylistTab) Icons.Rounded.PlaylistAdd else Icons.Rounded.Shuffle
+                val text = if (isPlaylistTab) "New" else "Shuffle"
+                val contentDesc = if (isPlaylistTab) "Create New Playlist" else "Shuffle Play"
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
