@@ -11,6 +11,7 @@ data class Song(
     val artistId: Long,
     val album: String,
     val albumId: Long,
+    val path: String, // Added for direct file system access
     val contentUriString: String,
     val albumArtUriString: String?,
     val duration: Long,
@@ -29,6 +30,7 @@ data class Song(
                 artistId = -1L,
                 album = "",
                 albumId = -1L,
+                path = "",
                 contentUriString = "",
                 albumArtUriString = null,
                 duration = 0L,

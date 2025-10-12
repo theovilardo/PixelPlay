@@ -594,7 +594,7 @@ import android.os.Environment
         ) { songs, allowedDirs, isFolderFilterActive ->
             val songsToProcess = if (isFolderFilterActive) {
                 songs.filter { song ->
-                    val songDir = File(song.contentUriString).parentFile ?: return@filter false
+                    val songDir = File(song.path).parentFile ?: return@filter false
                     allowedDirs.any { allowedDir -> songDir.path.startsWith(allowedDir) }
                 }
             } else {
@@ -614,7 +614,7 @@ import android.os.Environment
 
             for (song in songsToProcess) {
                 try {
-                    val songFile = File(Uri.parse(song.contentUriString).path)
+                    val songFile = File(song.path)
                     var currentFile = songFile.parentFile
                     while (currentFile != null) {
                         val path = currentFile.path
@@ -631,7 +631,7 @@ import android.os.Environment
                         currentFile = currentFile.parentFile
                     }
                 } catch (e: Exception) {
-                     Log.e("MusicRepositoryImpl", "Error processing song URI for folders: ${song.contentUriString}", e)
+                     Log.e("MusicRepositoryImpl", "Error processing song path for folders: ${song.path}", e)
                 }
             }
 
@@ -659,14 +659,14 @@ import android.os.Environment
             }?.filter { it.totalSongCount > 0 }?.sortedBy { it.name } ?: emptyList()
 
             // Fallback for devices that might not use the standard storage root path
-            if (result.isEmpty()) {
-                val allSubFolderPaths = tempFolders.values.flatMap { it.subFolderPaths }.toSet()
-                val topLevelPaths = tempFolders.keys - allSubFolderPaths
-                return@combine topLevelPaths
-                    .mapNotNull { buildImmutableFolder(it, mutableSetOf()) }
-                    .filter { it.totalSongCount > 0 }
-                    .sortedBy { it.name }
-            }
+            if (result.isEmpty() && tempFolders.isNotEmpty()) {
+                 val allSubFolderPaths = tempFolders.values.flatMap { it.subFolderPaths }.toSet()
+                 val topLevelPaths = tempFolders.keys - allSubFolderPaths
+                 return@combine topLevelPaths
+                     .mapNotNull { buildImmutableFolder(it, mutableSetOf()) }
+                     .filter { it.totalSongCount > 0 }
+                     .sortedBy { it.name }
+             }
 
             result
         }.flowOn(Dispatchers.IO)

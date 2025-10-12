@@ -55,12 +55,13 @@ data class SongEntity(
 
 fun SongEntity.toSong(): Song {
     return Song(
-        id = this.id.toString(), // El modelo Song usa ID como String
+        id = this.id.toString(),
         title = this.title,
         artist = this.artistName,
         artistId = this.artistId,
         album = this.albumName,
         albumId = this.albumId,
+        path = this.filePath, // Map the file path
         contentUriString = this.contentUriString,
         albumArtUriString = this.albumArtUriString,
         duration = this.duration,
@@ -69,7 +70,6 @@ fun SongEntity.toSong(): Song {
         isFavorite = this.isFavorite,
         trackNumber = this.trackNumber,
         dateAdded = this.dateAdded
-        // filePath no está en el modelo Song, se usa internamente en el repo o SSoT
     )
 }
 
