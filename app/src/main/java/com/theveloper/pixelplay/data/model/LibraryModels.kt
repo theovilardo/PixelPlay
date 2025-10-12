@@ -9,6 +9,7 @@ data class Album(
     val title: String,
     val artist: String,
     val year: Int,
+    val yearString: String,
     val albumArtUriString: String?,
     val songCount: Int
 )

@@ -379,7 +379,7 @@ private fun CollapsingAlbumTopBar(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "${album.artist} • $songsCount songs • ${album.year}",
+                        text = "${album.artist} • $songsCount songs • ${album.yearString}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,

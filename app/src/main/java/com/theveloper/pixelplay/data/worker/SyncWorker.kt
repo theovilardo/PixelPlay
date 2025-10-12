@@ -121,7 +121,8 @@ class SyncWorker @AssistedInject constructor(
                 artistId = firstSong.artistId,
                 albumArtUriString = firstSong.albumArtUriString,
                 songCount = songsInAlbum.size,
-                year = firstSong.year
+                year = firstSong.year,
+                yearString = if (firstSong.year != 0) firstSong.year.toString() else "Unknown Year"
             )
         }
 
@@ -219,7 +220,8 @@ class SyncWorker @AssistedInject constructor(
                         filePath = filePath,
                         parentDirectoryPath = parentDir,
                         trackNumber = cursor.getInt(trackCol),
-                        year = cursor.getInt(yearCol)
+                        year = cursor.getInt(yearCol),
+                        yearString = if (yearCol != 0) cursor.getInt(yearCol).toString() else "Unknown Year"
                     )
                 )
             }
