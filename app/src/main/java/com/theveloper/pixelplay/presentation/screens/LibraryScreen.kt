@@ -403,6 +403,7 @@ fun LibraryScreen(
                             }
                         }
 
+                        val playerUiState by playerViewModel.playerUiState.collectAsState()
                         LibraryActionRow(
                             modifier = Modifier.padding(
                                 top = 10.dp,
@@ -431,7 +432,10 @@ fun LibraryScreen(
                             isPlaylistTab = tabTitles.getOrNull(pagerState.currentPage) == "PLAYLISTS",
                             isFoldersTab = tabTitles.getOrNull(pagerState.currentPage) == "FOLDERS",
                             onGenerateWithAiClick = { playerViewModel.showAiPlaylistSheet() },
-                            onFilterClick = { playerViewModel.toggleFolderFilter() }
+                            onFilterClick = { playerViewModel.toggleFolderFilter() },
+                            currentFolder = playerUiState.currentFolder,
+                            onFolderClick = { playerViewModel.navigateToFolder(it) },
+                            onNavigateBack = { playerViewModel.navigateBackFolder() }
                         )
 
                         HorizontalPager(
@@ -805,9 +809,10 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
@@ -824,168 +829,97 @@ fun LibraryFoldersTab(
 ) {
     val listState = rememberLazyListState()
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Breadcrumbs(
-            currentFolder = currentFolder,
-            onFolderClick = onFolderClick,
-            onNavigateBack = onNavigateBack
-        )
+    AnimatedContent(
+        targetState = currentFolder?.path ?: "root",
+        label = "FolderNavigation",
+        transitionSpec = {
+            slideInHorizontally { height -> height } togetherWith
+                    slideOutHorizontally { height -> -height }
+        }
+    ) { targetPath ->
+        val itemsToShow = currentFolder?.subFolders ?: folders
+        val songsToShow = currentFolder?.songs ?: emptyList()
 
-        AnimatedContent(
-            targetState = currentFolder?.path ?: "root",
-            label = "FolderNavigation",
-            transitionSpec = {
-                slideInHorizontally { height -> height } togetherWith
-                        slideOutHorizontally { height -> -height }
+        if (targetPath == "root" && isLoading && itemsToShow.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
             }
-        ) { targetPath ->
-            val itemsToShow = currentFolder?.subFolders ?: folders
-            val songsToShow = currentFolder?.songs ?: emptyList()
-
-            if (targetPath == "root" && isLoading && itemsToShow.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            } else if (itemsToShow.isEmpty() && songsToShow.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(16.dp),
-                    contentAlignment = Alignment.Center
+        } else if (itemsToShow.isEmpty() && songsToShow.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize().padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_folder),
-                            contentDescription = null,
-                            Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                        )
-                        Text(
-                            "No folders found.",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .padding(horizontal = 12.dp)
-                        .clip(
-                            RoundedCornerShape(
-                                topStart = 26.dp,
-                                topEnd = 26.dp,
-                                bottomStart = PlayerSheetCollapsedCornerRadius,
-                                bottomEnd = PlayerSheetCollapsedCornerRadius
-                            )
-                        ),
-                    state = listState,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + ListExtraBottomGap, top = 8.dp)
-                ) {
-                    if (itemsToShow.isNotEmpty()) {
-                        item(key = "folders_header") {
-                            Text(
-                                text = "Folders",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp)
-                            )
-                        }
-                    }
-                    items(itemsToShow, key = { "folder_${it.path}" }) { folder ->
-                        FolderListItem(folder = folder, onClick = {
-                            onFolderClick(folder.path)
-                        })
-                    }
-                    if (songsToShow.isNotEmpty()) {
-                        item(key = "songs_header") {
-                            Text(
-                                text = "Songs",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
-                            )
-                        }
-                    }
-                    items(songsToShow, key = { "song_${it.id}" }) { song ->
-                        EnhancedSongListItem(
-                            song = song,
-                            isPlaying = stablePlayerState.currentSong?.id == song.id && stablePlayerState.isPlaying,
-                            isCurrentSong = stablePlayerState.currentSong?.id == song.id,
-                            onMoreOptionsClick = { onMoreOptionsClick(song) },
-                            onClick = {
-                                val songIndex = songsToShow.indexOf(song)
-                                if (songIndex != -1) {
-                                    val songsToPlay = songsToShow.subList(songIndex, songsToShow.size).toList()
-                                    onPlaySong(song, songsToPlay)
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun Breadcrumbs(
-    currentFolder: MusicFolder?,
-    onFolderClick: (String) -> Unit,
-    onNavigateBack: () -> Unit
-) {
-    val storageRootPath = Environment.getExternalStorageDirectory().path
-    val pathSegments = remember(currentFolder?.path) {
-        val path = currentFolder?.path ?: storageRootPath
-        val relativePath = path.removePrefix(storageRootPath).removePrefix("/")
-        if (relativePath.isEmpty()) {
-            listOf("Internal Storage" to storageRootPath)
-        } else {
-            listOf("Internal Storage" to storageRootPath) + relativePath.split("/").scan("") { acc, segment ->
-                "$acc/$segment"
-            }.drop(1).map {
-                val file = File(storageRootPath, it)
-                file.name to file.path
-            }
-        }
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 8.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        FilledTonalIconButton(
-            onClick = onNavigateBack,
-            modifier = Modifier.size(36.dp),
-            enabled = currentFolder != null
-        ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-        }
-        Spacer(Modifier.width(8.dp))
-        LazyRow(verticalAlignment = Alignment.CenterVertically) {
-            items(pathSegments.size) { index ->
-                val (name, path) = pathSegments[index]
-                val isLast = index == pathSegments.lastIndex
-                Text(
-                    text = name,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal,
-                    color = if (isLast) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(enabled = !isLast) { onFolderClick(path) }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                )
-                if (!isLast) {
                     Icon(
-                        imageVector = Icons.Default.ChevronRight,
+                        painter = painterResource(id = R.drawable.ic_folder),
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.size(16.dp)
+                        Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                    Text(
+                        "No folders found.",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .clip(
+                        RoundedCornerShape(
+                            topStart = 26.dp,
+                            topEnd = 26.dp,
+                            bottomStart = PlayerSheetCollapsedCornerRadius,
+                            bottomEnd = PlayerSheetCollapsedCornerRadius
+                        )
+                    ),
+                state = listState,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + ListExtraBottomGap, top = 8.dp)
+            ) {
+                if (itemsToShow.isNotEmpty()) {
+                    item(key = "folders_header") {
+                        Text(
+                            text = "Folders",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp)
+                        )
+                    }
+                }
+                items(itemsToShow, key = { "folder_${it.path}" }) { folder ->
+                    FolderListItem(folder = folder, onClick = {
+                        onFolderClick(folder.path)
+                    })
+                }
+                if (songsToShow.isNotEmpty()) {
+                    item(key = "songs_header") {
+                        Text(
+                            text = "Songs",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
+                        )
+                    }
+                }
+                items(songsToShow, key = { "song_${it.id}" }) { song ->
+                    EnhancedSongListItem(
+                        song = song,
+                        isPlaying = stablePlayerState.currentSong?.id == song.id && stablePlayerState.isPlaying,
+                        isCurrentSong = stablePlayerState.currentSong?.id == song.id,
+                        onMoreOptionsClick = { onMoreOptionsClick(song) },
+                        onClick = {
+                            val songIndex = songsToShow.indexOf(song)
+                            if (songIndex != -1) {
+                                val songsToPlay = songsToShow.subList(songIndex, songsToShow.size).toList()
+                                onPlaySong(song, songsToPlay)
+                            }
+                        }
                     )
                 }
             }
