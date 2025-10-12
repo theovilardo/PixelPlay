@@ -368,7 +368,7 @@ private fun CustomCollapsingTopBar(
                     )
 
                     Text(
-                        text = "$songsCount canciones",
+                        text = "$songsCount songs",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
