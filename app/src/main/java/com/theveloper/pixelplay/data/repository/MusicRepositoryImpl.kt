@@ -7,6 +7,7 @@ import android.database.Cursor
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import com.theveloper.pixelplay.data.model.Song
@@ -43,6 +44,7 @@ import com.theveloper.pixelplay.data.model.SyncedLine
 import com.theveloper.pixelplay.utils.LogUtils
 import com.theveloper.pixelplay.data.model.MusicFolder
 import com.theveloper.pixelplay.utils.LyricsUtils
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first // Still needed for initialSetupDoneFlow.first() if used that way
@@ -582,9 +584,6 @@ class MusicRepositoryImpl @Inject constructor(
     override suspend fun resetAllLyrics() {
         lyricsRepository.resetAllLyrics()
     }
-
-import kotlinx.collections.immutable.toImmutableList
-import android.os.Environment
 
     override fun getMusicFolders(): Flow<List<MusicFolder>> {
         return combine(

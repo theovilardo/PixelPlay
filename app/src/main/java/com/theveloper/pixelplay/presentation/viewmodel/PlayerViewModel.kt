@@ -118,6 +118,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import timber.log.Timber
+import java.io.File
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlin.collections.map
@@ -1257,7 +1258,7 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    private fun loadFoldersFromRepository() {
+    fun loadFoldersFromRepository() {
         Log.d("PlayerViewModelPerformance", "loadFoldersFromRepository (All) called.")
 
         viewModelScope.launch {

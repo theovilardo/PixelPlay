@@ -141,10 +141,18 @@ import com.theveloper.pixelplay.presentation.screens.TabAnimation
 import com.theveloper.pixelplay.utils.formatDuration
 import com.google.accompanist.permissions.rememberPermissionState
 import android.content.Intent
+import android.os.Build
 import android.os.Environment
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import kotlinx.collections.immutable.ImmutableList
@@ -167,9 +175,9 @@ import com.theveloper.pixelplay.ui.theme.MontserratFamily
 val ListExtraBottomGap = 30.dp
 val PlayerSheetCollapsedCornerRadius = 32.dp
 
-@OptIn(ExperimentalPermissionsApi::class)
+@RequiresApi(Build.VERSION_CODES.R)
+@OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @androidx.annotation.OptIn(UnstableApi::class)
-@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
 fun LibraryScreen(
     navController: NavController,
@@ -532,7 +540,7 @@ fun LibraryScreen(
                                     LibraryFavoritesTab(
                                         favoriteSongs = favoriteSongs,
                                         playerViewModel = playerViewModel,
-                                        bottomBarHeight = bottomBarHeight,
+                                        bottomBarHeight = bottomBarHeightDp,
                                         onMoreOptionsClick = stableOnMoreOptionsClick
                                     )
                                 }
@@ -804,17 +812,6 @@ fun CreatePlaylistDialogRedesigned(
         }
     }
 }
-
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
