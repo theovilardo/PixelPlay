@@ -120,7 +120,8 @@ class SyncWorker @AssistedInject constructor(
                 artistName = firstSong.artistName,
                 artistId = firstSong.artistId,
                 albumArtUriString = firstSong.albumArtUriString,
-                songCount = songsInAlbum.size
+                songCount = songsInAlbum.size,
+                year = firstSong.year
             )
         }
 
@@ -153,7 +154,8 @@ class SyncWorker @AssistedInject constructor(
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.DATA,
             MediaStore.Audio.Media.GENRE,
-            MediaStore.Audio.Media.TRACK
+            MediaStore.Audio.Media.TRACK,
+            MediaStore.Audio.Media.YEAR
         )
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ?"
         val selectionArgs = arrayOf("10000")
@@ -176,6 +178,7 @@ class SyncWorker @AssistedInject constructor(
             val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
             val genreCol = cursor.getColumnIndex(MediaStore.Audio.Media.GENRE)
             val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
+            val yearCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
 
 
             while (cursor.moveToNext()) {
@@ -215,7 +218,8 @@ class SyncWorker @AssistedInject constructor(
                         genre = if (genreCol != -1) cursor.getString(genreCol) else null,
                         filePath = filePath,
                         parentDirectoryPath = parentDir,
-                        trackNumber = cursor.getInt(trackCol)
+                        trackNumber = cursor.getInt(trackCol),
+                        year = cursor.getInt(yearCol)
                     )
                 )
             }

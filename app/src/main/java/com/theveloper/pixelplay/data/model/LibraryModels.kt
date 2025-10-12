@@ -8,6 +8,7 @@ data class Album(
     val id: Long, // MediaStore.Audio.Albums._ID
     val title: String,
     val artist: String,
+    val year: Int,
     val albumArtUriString: String?,
     val songCount: Int
 )

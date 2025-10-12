@@ -18,6 +18,7 @@ data class Song(
     val lyrics: String? = null,
     val isFavorite: Boolean = false,
     val trackNumber: Int = 0,
+    val year: Int = 0,
     val dateAdded: Long = 0
 ) {
     companion object {
@@ -36,6 +37,7 @@ data class Song(
                 lyrics = null,
                 isFavorite = false,
                 trackNumber = 0,
+                year = 0,
                 dateAdded = 0
             )
         }
