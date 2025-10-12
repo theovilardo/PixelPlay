@@ -882,30 +882,10 @@ fun LibraryFoldersTab(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + ListExtraBottomGap, top = 8.dp)
                 ) {
-                    if (itemsToShow.isNotEmpty()) {
-                        item(key = "folders_header") {
-                            Text(
-                                text = "Folders",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp)
-                            )
-                        }
-                    }
                     items(itemsToShow, key = { "folder_${it.path}" }) { folder ->
                         FolderListItem(folder = folder, onClick = {
                             onFolderClick(folder.path)
                         })
-                    }
-                    if (songsToShow.isNotEmpty()) {
-                        item(key = "songs_header") {
-                            Text(
-                                text = "Songs",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
-                            )
-                        }
                     }
                     items(songsToShow, key = { "song_${it.id}" }) { song ->
                         EnhancedSongListItem(

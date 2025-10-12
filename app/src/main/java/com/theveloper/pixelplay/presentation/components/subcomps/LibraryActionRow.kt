@@ -6,6 +6,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
@@ -18,14 +19,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -33,6 +39,7 @@ import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.Shuffle
@@ -45,19 +52,36 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.MusicFolder
 import com.theveloper.pixelplay.data.model.SortOption
+import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
+import kotlinx.coroutines.launch
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import java.io.File
 
 val defaultShape = RoundedCornerShape(26.dp) // Fallback shape
@@ -112,7 +136,6 @@ fun LibraryActionRow(
                     onNavigateBack = onNavigateBack
                 )
             } else {
-                // This is the original button layout, preserved for other tabs
                 val newButtonEndCorner by animateDpAsState(
                     targetValue = if (isPlaylistTab) 6.dp else 26.dp,
                     label = "NewButtonEndCorner"
@@ -151,6 +174,7 @@ fun LibraryActionRow(
                             Text(
                                 modifier = Modifier.animateContentSize(),
                                 text = text,
+                                overflow = TextOverflow.Ellipsis,
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Medium
                             )
@@ -227,19 +251,58 @@ fun LibraryActionRow(
                 DropdownMenu(
                     expanded = showSortMenu,
                     onDismissRequest = onDismissSortMenu,
-                    properties = PopupProperties(clippingEnabled = true),
+                    properties = PopupProperties(
+                        clippingEnabled = true
+                    ),
+                    shape = AbsoluteSmoothCornerShape(
+                        cornerRadiusTL = 22.dp,
+                        smoothnessAsPercentBR = 60,
+                        cornerRadiusTR = 22.dp,
+                        smoothnessAsPercentTL = 60,
+                        cornerRadiusBL = 22.dp,
+                        smoothnessAsPercentTR = 60,
+                        cornerRadiusBR = 22.dp,
+                        smoothnessAsPercentBL = 60
+                    ),
+                    containerColor = Color.Transparent,
+                    shadowElevation = 0.dp,
                     modifier = Modifier.background(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(16.dp)
-                    )
+                        color = MaterialTheme.colorScheme.surfaceVariant
+                    ) // Custom background for dropdown
                 ) {
                     currentSortOptionsForTab.forEach { option ->
-                        val isSelected = option == selectedSortOption
+                        val enabled = option == selectedSortOption
                         DropdownMenuItem(
-                            text = { Text(option.displayName) },
-                            onClick = { onSortOptionSelected(option) },
-                            leadingIcon = if (isSelected) {
-                                { Icon(Icons.Default.Check, contentDescription = "Selected") }
+                            modifier = Modifier
+                                .padding(4.dp)
+                                .padding(horizontal = 8.dp)
+                                .background(
+                                    color = MaterialTheme.colorScheme.surfaceContainerLow, //if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainer,
+                                    shape = if (enabled) CircleShape else AbsoluteSmoothCornerShape(
+                                        cornerRadiusTL = 12.dp,
+                                        smoothnessAsPercentBR = 60,
+                                        cornerRadiusTR = 12.dp,
+                                        smoothnessAsPercentTL = 60,
+                                        cornerRadiusBL = 12.dp,
+                                        smoothnessAsPercentTR = 60,
+                                        cornerRadiusBR = 12.dp,
+                                        smoothnessAsPercentBL = 60
+                                    )
+                                )
+                                .clip(if (enabled) CircleShape else RoundedCornerShape(12.dp)),
+                            text = { Text(option.displayName, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                            onClick = {
+                                onSortOptionSelected(option)
+                                // onDismissSortMenu() // Already called in LibraryScreen's onSortOptionSelected lambda
+                            },
+                            leadingIcon = if (enabled) { // Check if it's the selected one
+                                {
+                                    Icon(
+                                        Icons.Rounded.CheckCircle,
+                                        contentDescription = "Selected",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                             } else null
                         )
                     }
@@ -255,6 +318,7 @@ fun Breadcrumbs(
     onFolderClick: (String) -> Unit,
     onNavigateBack: () -> Unit
 ) {
+    val rowState = rememberLazyListState()
     val storageRootPath = Environment.getExternalStorageDirectory().path
     val pathSegments = remember(currentFolder?.path) {
         val path = currentFolder?.path ?: storageRootPath
@@ -271,10 +335,19 @@ fun Breadcrumbs(
         }
     }
 
+    val showStartFade by remember { derivedStateOf { rowState.canScrollBackward } }
+    val showEndFade by remember { derivedStateOf { rowState.canScrollForward } }
+
+    LaunchedEffect(pathSegments.size) {
+        if (pathSegments.isNotEmpty()) {
+            rowState.animateScrollToItem(pathSegments.lastIndex)
+        }
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(end = 8.dp),
+            .padding(start = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         FilledTonalIconButton(
@@ -285,7 +358,49 @@ fun Breadcrumbs(
             Icon(Icons.Rounded.ArrowBack, contentDescription = "Back")
         }
         Spacer(Modifier.width(8.dp))
-        LazyRow(verticalAlignment = Alignment.CenterVertically) {
+
+        LazyRow(
+            state = rowState,
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .weight(1f)
+                // 1. Forzamos que el contenido se dibuje en una capa separada.
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    // 2. Dibujamos el contenido original (el LazyRow).
+                    drawContent()
+
+                    // 3. Dibujamos los gradientes que actúan como "máscaras de borrado".
+                    val gradientWidth = 24.dp.toPx()
+
+                    // Máscara para el borde IZQUIERDO
+                    if (showStartFade) {
+                        drawRect(
+                            brush = Brush.horizontalGradient(
+                                // Gradiente de transparente a opaco (negro)
+                                colors = listOf(Color.Transparent, Color.Black),
+                                endX = gradientWidth
+                            ),
+                            // DstIn mantiene el contenido del LazyRow solo donde esta capa es opaca.
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
+
+                    // Máscara para el borde DERECHO
+                    if (showEndFade) {
+                        drawRect(
+                            brush = Brush.horizontalGradient(
+                                // Gradiente de opaco (negro) a transparente
+                                colors = listOf(Color.Black, Color.Transparent),
+                                startX = this.size.width - gradientWidth
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
+                }
+        ) {
+            item { Spacer(modifier = Modifier.width(12.dp)) }
+
             items(pathSegments.size) { index ->
                 val (name, path) = pathSegments[index]
                 val isLast = index == pathSegments.lastIndex
@@ -293,6 +408,7 @@ fun Breadcrumbs(
                     text = name,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal,
+                    fontFamily = GoogleSansRounded,
                     color = if (isLast) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
@@ -304,10 +420,88 @@ fun Breadcrumbs(
                         imageVector = Icons.Rounded.ChevronRight,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
+
+            item { Spacer(modifier = Modifier.width(12.dp)) }
         }
     }
 }
+
+//@Composable
+//fun Breadcrumbs(
+//    currentFolder: MusicFolder?,
+//    onFolderClick: (String) -> Unit,
+//    onNavigateBack: () -> Unit
+//) {
+//    val rowState = rememberLazyListState()
+//    val storageRootPath = Environment.getExternalStorageDirectory().path
+//    val pathSegments = remember(currentFolder?.path) {
+//        val path = currentFolder?.path ?: storageRootPath
+//        val relativePath = path.removePrefix(storageRootPath).removePrefix("/")
+//        if (relativePath.isEmpty() || path == storageRootPath) {
+//            listOf("Internal Storage" to storageRootPath)
+//        } else {
+//            listOf("Internal Storage" to storageRootPath) + relativePath.split("/").scan("") { acc, segment ->
+//                "$acc/$segment"
+//            }.drop(1).map {
+//                val file = File(storageRootPath, it)
+//                file.name to file.path
+//            }
+//        }
+//    }
+//
+//    LaunchedEffect(pathSegments.size) {
+//        if (pathSegments.isNotEmpty()) {
+//            rowState.animateScrollToItem(pathSegments.lastIndex)
+//        }
+//    }
+//
+//    Row(
+//        modifier = Modifier
+//            .fillMaxWidth()
+//            .padding(end = 8.dp),
+//        verticalAlignment = Alignment.CenterVertically
+//    ) {
+//        FilledTonalIconButton(
+//            onClick = onNavigateBack,
+//            modifier = Modifier.size(36.dp),
+//            enabled = currentFolder != null
+//        ) {
+//            Icon(Icons.Rounded.ArrowBack, contentDescription = "Back")
+//        }
+//        Spacer(Modifier.width(8.dp))
+//        LazyRow(
+//            state = rowState,
+//            verticalAlignment = Alignment.CenterVertically
+//        ) {
+//            items(pathSegments.size) { index ->
+//                val (name, path) = pathSegments[index]
+//                val isLast = index == pathSegments.lastIndex
+//                Text(
+//                    text = name,
+//                    style = MaterialTheme.typography.titleSmall,
+//                    fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal,
+//                    fontFamily = GoogleSansRounded,
+//                    color = if (isLast) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+//                    modifier = Modifier
+//                        .clip(RoundedCornerShape(8.dp))
+//                        .clickable(enabled = !isLast) {
+//                            onFolderClick(path)
+//                        }
+//                        .padding(horizontal = 8.dp, vertical = 4.dp)
+//                )
+//                if (!isLast) {
+//                    Icon(
+//                        imageVector = Icons.Rounded.ChevronRight,
+//                        contentDescription = null,
+//                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+//                        modifier = Modifier.size(20.dp)
+//                    )
+//                }
+//            }
+//        }
+//    }
+//}
