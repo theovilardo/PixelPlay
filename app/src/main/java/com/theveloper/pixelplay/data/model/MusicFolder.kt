@@ -1,8 +1,11 @@
 package com.theveloper.pixelplay.data.model
 
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+
 data class MusicFolder(
     val path: String,
     val name: String,
-    val songs: List<Song>,
-    val subFolders: List<MusicFolder>
+    val songs: ImmutableList<Song> = persistentListOf(),
+    val subFolders: ImmutableList<MusicFolder> = persistentListOf()
 )

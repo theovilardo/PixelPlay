@@ -2271,21 +2271,14 @@ class PlayerViewModel @Inject constructor(
 
     fun navigateBackFolder() {
         _playerUiState.update {
-            val currentPath = it.currentFolderPath
-            if (currentPath != null) {
-                val parentPath = File(currentPath).parent
+            val currentFolder = it.currentFolder
+            if (currentFolder != null) {
+                val parentPath = File(currentFolder.path).parent
                 val parentFolder = findFolder(parentPath, _playerUiState.value.musicFolders)
-                if (parentFolder != null) {
-                    it.copy(
-                        currentFolderPath = parentPath,
-                        currentFolder = parentFolder
-                    )
-                } else {
-                    it.copy(
-                        currentFolderPath = null,
-                        currentFolder = null
-                    )
-                }
+                it.copy(
+                    currentFolderPath = parentPath,
+                    currentFolder = parentFolder
+                )
             } else {
                 it
             }

@@ -402,13 +402,20 @@ class UserPreferencesRepository @Inject constructor(
                 try {
                     val order = json.decodeFromString<MutableList<String>>(orderJson)
                     if (!order.contains("FOLDERS")) {
-                        order.add("FOLDERS")
+                        val likedIndex = order.indexOf("LIKED")
+                        if (likedIndex != -1) {
+                            order.add(likedIndex + 1, "FOLDERS")
+                        } else {
+                            order.add("FOLDERS") // Fallback
+                        }
                         preferences[PreferencesKeys.LIBRARY_TABS_ORDER] = json.encodeToString(order)
                     }
                 } catch (e: Exception) {
-                    // Ignore
+                    // Si la deserialización falla, no hacemos nada para evitar sobrescribir los datos del usuario.
                 }
             }
+            // Si orderJson es nulo, significa que el usuario nunca ha reordenado,
+            // por lo que se utilizará el orden predeterminado que ya incluye FOLDERS.
         }
     }
 

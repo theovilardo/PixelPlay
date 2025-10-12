@@ -140,6 +140,11 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 import com.theveloper.pixelplay.presentation.screens.TabAnimation
 import com.theveloper.pixelplay.utils.formatDuration
 import com.google.accompanist.permissions.rememberPermissionState
+import android.content.Intent
+import android.os.Environment
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import kotlinx.collections.immutable.ImmutableList
@@ -171,13 +176,11 @@ fun LibraryScreen(
     playerViewModel: PlayerViewModel = hiltViewModel(),
     playlistViewModel: PlaylistViewModel = hiltViewModel()
 ) {
-    val storagePermissionState = rememberPermissionState(android.Manifest.permission.MANAGE_EXTERNAL_STORAGE)
     // La recolección de estados de alto nivel se mantiene mínima.
     val lastTabIndex by playerViewModel.lastLibraryTabIndexFlow.collectAsState()
     val favoriteIds by playerViewModel.favoriteSongIds.collectAsState() // Reintroducir favoriteIds aquí
     val scope = rememberCoroutineScope() // Mantener si se usa para acciones de UI
 
-    // Estados locales para dialogs/bottom sheets, etc.
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     val selectedSongForInfo by playerViewModel.selectedSongForInfo.collectAsState()
     val tabTitles by playerViewModel.libraryTabsFlow.collectAsState()
@@ -185,6 +188,13 @@ fun LibraryScreen(
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) } // Mantener para la visibilidad del menú
     var showReorderTabsSheet by remember { mutableStateOf(false) }
+
+    val stableOnMoreOptionsClick: (Song) -> Unit = remember {
+        { song ->
+            playerViewModel.selectSongForInfo(song)
+            showSongInfoBottomSheet = true
+        }
+    }
 
     // La lógica de carga diferida (lazy loading) se mantiene.
     LaunchedEffect(Unit) {
@@ -446,18 +456,12 @@ fun LibraryScreen(
                                             .distinctUntilChanged()
                                     }.collectAsState(initial = songs.isEmpty())
 
-                                    val stableOnMoreOptionsClickForSongs = remember<(Song) -> Unit> {
-                                        { songClicked ->
-                                            playerViewModel.selectSongForInfo(songClicked)
-                                            showSongInfoBottomSheet = true
-                                        }
-                                    }
                                     LibrarySongsTab(
                                         songs = songs,
                                         isLoadingInitial = isLoading,
                                         playerViewModel = playerViewModel,
                                         bottomBarHeight = bottomBarHeightDp,
-                                        onMoreOptionsClick = stableOnMoreOptionsClickForSongs
+                                        onMoreOptionsClick = stableOnMoreOptionsClick
                                     )
                                 }
                                 "ALBUMS" -> {
@@ -524,31 +528,38 @@ fun LibraryScreen(
                                     LibraryFavoritesTab(
                                         favoriteSongs = favoriteSongs,
                                         playerViewModel = playerViewModel,
-                                        bottomBarHeight = bottomBarHeightDp
-                                    ) { song ->
-                                        playerViewModel.selectSongForInfo(song)
-                                        showSongInfoBottomSheet = true
-                                    }
+                                        bottomBarHeight = bottomBarHeight,
+                                        onMoreOptionsClick = stableOnMoreOptionsClick
+                                    )
                                 }
                                 "FOLDERS" -> {
-                                    if (storagePermissionState.status.isGranted) {
-                                        LaunchedEffect(Unit) {
-                                            playerViewModel.loadFoldersFromRepository()
-                                        }
+                                    val context = LocalContext.current
+                                    var hasPermission by remember { mutableStateOf(Environment.isExternalStorageManager()) }
+                                    val launcher = rememberLauncherForActivityResult(
+                                        ActivityResultContracts.StartActivityForResult()
+                                    ) {
+                                        hasPermission = Environment.isExternalStorageManager()
+                                    }
+
+                                    if (hasPermission) {
                                         val playerUiState by playerViewModel.playerUiState.collectAsState()
                                         val folders = playerUiState.musicFolders
+                                        val currentFolder = playerUiState.currentFolder
                                         val isLoading = playerUiState.isLoadingLibraryCategories
+                                        val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
 
                                         LibraryFoldersTab(
                                             folders = folders,
+                                            currentFolder = currentFolder,
                                             isLoading = isLoading,
-                                            playerViewModel = playerViewModel,
-                                            stablePlayerState = playerViewModel.stablePlayerState.collectAsState().value,
                                             bottomBarHeight = bottomBarHeightDp,
-                                            onMoreOptionsClick = {
-                                                playerViewModel.selectSongForInfo(it)
-                                                showSongInfoBottomSheet = true
-                                            }
+                                            stablePlayerState = stablePlayerState,
+                                            onNavigateBack = { playerViewModel.navigateBackFolder() },
+                                            onFolderClick = { folderPath -> playerViewModel.navigateToFolder(folderPath) },
+                                            onPlaySong = { song, queue ->
+                                                playerViewModel.showAndPlaySong(song, queue, currentFolder?.name ?: "Folder")
+                                            },
+                                            onMoreOptionsClick = stableOnMoreOptionsClick
                                         )
                                     } else {
                                         Column(
@@ -556,9 +567,13 @@ fun LibraryScreen(
                                             horizontalAlignment = Alignment.CenterHorizontally,
                                             verticalArrangement = Arrangement.Center
                                         ) {
-                                            Text("Storage permission is required to access folders.")
+                                            Text("All files access is required to browse folders.")
                                             Spacer(modifier = Modifier.height(8.dp))
-                                            Button(onClick = { storagePermissionState.launchPermissionRequest() }) {
+                                            Button(onClick = {
+                                                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                                                intent.data = android.net.Uri.fromParts("package", context.packageName, null)
+                                                launcher.launch(intent)
+                                            }) {
                                                 Text("Grant Permission")
                                             }
                                         }
@@ -789,21 +804,21 @@ fun CreatePlaylistDialogRedesigned(
 @Composable
 fun LibraryFoldersTab(
     folders: ImmutableList<MusicFolder>,
+    currentFolder: MusicFolder?,
     isLoading: Boolean,
-    playerViewModel: PlayerViewModel,
+    onNavigateBack: () -> Unit,
+    onFolderClick: (String) -> Unit,
+    onPlaySong: (Song, List<Song>) -> Unit,
     stablePlayerState: StablePlayerState,
     bottomBarHeight: Dp,
     onMoreOptionsClick: (Song) -> Unit
 ) {
-    val playerUiState by playerViewModel.playerUiState.collectAsState()
-    val currentFolderPath = playerUiState.currentFolderPath
-    val currentFolder = playerUiState.currentFolder
-
     val itemsToShow = currentFolder?.subFolders ?: folders
     val songsToShow = currentFolder?.songs ?: emptyList()
 
     val listState = rememberLazyListState()
-    if (isLoading && itemsToShow.isEmpty() && songsToShow.isEmpty()) {
+    // Si estamos en la vista raíz Y está cargando Y no hay nada que mostrar
+    if (currentFolder == null && isLoading && itemsToShow.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
     } else if (itemsToShow.isEmpty() && songsToShow.isEmpty() && !isLoading) {
         Box(
@@ -823,18 +838,18 @@ fun LibraryFoldersTab(
         }
     } else {
         Column {
-            if (currentFolderPath != null) {
+            if (currentFolder != null) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = 16.dp, end = 16.dp, top = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = { playerViewModel.navigateBackFolder() }) {
+                    IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                     Text(
-                        text = currentFolder?.name ?: "",
+                        text = currentFolder.name,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -867,7 +882,7 @@ fun LibraryFoldersTab(
                 }
                 items(itemsToShow, key = { "folder_${it.path}" }) { folder ->
                     FolderListItem(folder = folder, onClick = {
-                        playerViewModel.navigateToFolder(folder.path)
+                        onFolderClick(folder.path)
                     })
                 }
                 if (songsToShow.isNotEmpty()) {
@@ -886,14 +901,13 @@ fun LibraryFoldersTab(
                         isPlaying = stablePlayerState.currentSong?.id == song.id && stablePlayerState.isPlaying,
                         isCurrentSong = stablePlayerState.currentSong?.id == song.id,
                         onMoreOptionsClick = {
-                            playerViewModel.selectSongForInfo(song)
                             onMoreOptionsClick(song)
                         },
                         onClick = {
                             val songIndex = songsToShow.indexOf(song)
                             if (songIndex != -1) {
-                                val songsToPlay = songsToShow.subList(songIndex, songsToShow.size)
-                                playerViewModel.showAndPlaySong(song, songsToPlay, currentFolder?.name ?: "Folder")
+                                val songsToPlay = songsToShow.subList(songIndex, songsToShow.size).toList()
+                                onPlaySong(song, songsToPlay)
                             }
                         }
                     )
