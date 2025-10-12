@@ -8,4 +8,8 @@ data class MusicFolder(
     val name: String,
     val songs: ImmutableList<Song> = persistentListOf(),
     val subFolders: ImmutableList<MusicFolder> = persistentListOf()
-)
+) {
+    val totalSongCount: Int by lazy {
+        songs.size + subFolders.sumOf { it.totalSongCount }
+    }
+}
