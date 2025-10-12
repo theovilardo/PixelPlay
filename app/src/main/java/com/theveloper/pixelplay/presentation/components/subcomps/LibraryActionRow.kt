@@ -105,8 +105,13 @@ fun LibraryActionRow(
             targetState = isFoldersTab,
             label = "ActionRowContent",
             transitionSpec = {
-                (slideInVertically { height -> height } + fadeIn())
-                    .togetherWith(slideOutVertically { height -> -height } + fadeOut())
+                if (targetState) { // Transition to Folders (Breadcrumbs)
+                    slideInVertically { height -> height } + fadeIn() togetherWith
+                            slideOutVertically { height -> -height } + fadeOut()
+                } else { // Transition to other tabs (Buttons)
+                    slideInVertically { height -> -height } + fadeIn() togetherWith
+                            slideOutVertically { height -> height } + fadeOut()
+                }
             },
             modifier = Modifier.weight(1f)
         ) { isFolders ->
@@ -117,6 +122,7 @@ fun LibraryActionRow(
                     onNavigateBack = onNavigateBack
                 )
             } else {
+                // This is the original button layout, preserved for other tabs
                 val newButtonEndCorner by animateDpAsState(
                     targetValue = if (isPlaylistTab) 6.dp else 26.dp,
                     label = "NewButtonEndCorner"

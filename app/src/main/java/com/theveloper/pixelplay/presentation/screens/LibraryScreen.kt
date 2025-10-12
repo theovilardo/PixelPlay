@@ -806,6 +806,8 @@ fun CreatePlaylistDialogRedesigned(
 }
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -833,94 +835,96 @@ fun LibraryFoldersTab(
         targetState = currentFolder?.path ?: "root",
         label = "FolderNavigation",
         transitionSpec = {
-            slideInHorizontally { height -> height } togetherWith
-                    slideOutHorizontally { height -> -height }
+            (slideInHorizontally { width -> width } + fadeIn())
+                .togetherWith(slideOutHorizontally { width -> -width } + fadeOut())
         }
     ) { targetPath ->
         val itemsToShow = currentFolder?.subFolders ?: folders
         val songsToShow = currentFolder?.songs ?: emptyList()
 
-        if (targetPath == "root" && isLoading && itemsToShow.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else if (itemsToShow.isEmpty() && songsToShow.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+        Column(modifier = Modifier.fillMaxSize()) { // Ensures content is always at the top
+            if (targetPath == "root" && isLoading && itemsToShow.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (itemsToShow.isEmpty() && songsToShow.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_folder),
-                        contentDescription = null,
-                        Modifier.size(48.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-                    Text(
-                        "No folders found.",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp)
-                    .clip(
-                        RoundedCornerShape(
-                            topStart = 26.dp,
-                            topEnd = 26.dp,
-                            bottomStart = PlayerSheetCollapsedCornerRadius,
-                            bottomEnd = PlayerSheetCollapsedCornerRadius
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_folder),
+                            contentDescription = null,
+                            Modifier.size(48.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )
-                    ),
-                state = listState,
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + ListExtraBottomGap, top = 8.dp)
-            ) {
-                if (itemsToShow.isNotEmpty()) {
-                    item(key = "folders_header") {
                         Text(
-                            text = "Folders",
+                            "No folders found.",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
-                items(itemsToShow, key = { "folder_${it.path}" }) { folder ->
-                    FolderListItem(folder = folder, onClick = {
-                        onFolderClick(folder.path)
-                    })
-                }
-                if (songsToShow.isNotEmpty()) {
-                    item(key = "songs_header") {
-                        Text(
-                            text = "Songs",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
-                        )
-                    }
-                }
-                items(songsToShow, key = { "song_${it.id}" }) { song ->
-                    EnhancedSongListItem(
-                        song = song,
-                        isPlaying = stablePlayerState.currentSong?.id == song.id && stablePlayerState.isPlaying,
-                        isCurrentSong = stablePlayerState.currentSong?.id == song.id,
-                        onMoreOptionsClick = { onMoreOptionsClick(song) },
-                        onClick = {
-                            val songIndex = songsToShow.indexOf(song)
-                            if (songIndex != -1) {
-                                val songsToPlay = songsToShow.subList(songIndex, songsToShow.size).toList()
-                                onPlaySong(song, songsToPlay)
-                            }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                        .clip(
+                            RoundedCornerShape(
+                                topStart = 26.dp,
+                                topEnd = 26.dp,
+                                bottomStart = PlayerSheetCollapsedCornerRadius,
+                                bottomEnd = PlayerSheetCollapsedCornerRadius
+                            )
+                        ),
+                    state = listState,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + ListExtraBottomGap, top = 8.dp)
+                ) {
+                    if (itemsToShow.isNotEmpty()) {
+                        item(key = "folders_header") {
+                            Text(
+                                text = "Folders",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp)
+                            )
                         }
-                    )
+                    }
+                    items(itemsToShow, key = { "folder_${it.path}" }) { folder ->
+                        FolderListItem(folder = folder, onClick = {
+                            onFolderClick(folder.path)
+                        })
+                    }
+                    if (songsToShow.isNotEmpty()) {
+                        item(key = "songs_header") {
+                            Text(
+                                text = "Songs",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
+                            )
+                        }
+                    }
+                    items(songsToShow, key = { "song_${it.id}" }) { song ->
+                        EnhancedSongListItem(
+                            song = song,
+                            isPlaying = stablePlayerState.currentSong?.id == song.id && stablePlayerState.isPlaying,
+                            isCurrentSong = stablePlayerState.currentSong?.id == song.id,
+                            onMoreOptionsClick = { onMoreOptionsClick(song) },
+                            onClick = {
+                                val songIndex = songsToShow.indexOf(song)
+                                if (songIndex != -1) {
+                                    val songsToPlay = songsToShow.subList(songIndex, songsToShow.size).toList()
+                                    onPlaySong(song, songsToPlay)
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }
