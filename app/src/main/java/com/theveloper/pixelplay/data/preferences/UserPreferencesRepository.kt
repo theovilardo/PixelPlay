@@ -67,6 +67,7 @@ class UserPreferencesRepository @Inject constructor(
         // Transition Settings
         val GLOBAL_TRANSITION_SETTINGS = stringPreferencesKey("global_transition_settings_json")
         val LIBRARY_TABS_ORDER = stringPreferencesKey("library_tabs_order")
+        val IS_FOLDER_FILTER_ACTIVE = booleanPreferencesKey("is_folder_filter_active")
     }
 
     val globalTransitionSettingsFlow: Flow<TransitionSettings> = dataStore.data
@@ -379,7 +380,21 @@ class UserPreferencesRepository @Inject constructor(
 
     val libraryTabsOrderFlow: Flow<String?> = dataStore.data
         .map { preferences ->
-            preferences[PreferencesKeys.LIBRARY_TABS_ORDER]
+            val orderJson = preferences[PreferencesKeys.LIBRARY_TABS_ORDER]
+            if (orderJson != null) {
+                try {
+                    val order = json.decodeFromString<MutableList<String>>(orderJson)
+                    if (!order.contains("FOLDERS")) {
+                        order.add("FOLDERS")
+                        saveLibraryTabsOrder(json.encodeToString(order))
+                    }
+                    orderJson
+                } catch (e: Exception) {
+                    null
+                }
+            } else {
+                null
+            }
         }
 
     suspend fun saveLibraryTabsOrder(order: String) {
@@ -391,6 +406,17 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun resetLibraryTabsOrder() {
         dataStore.edit { preferences ->
             preferences.remove(PreferencesKeys.LIBRARY_TABS_ORDER)
+        }
+    }
+
+    val isFolderFilterActiveFlow: Flow<Boolean> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.IS_FOLDER_FILTER_ACTIVE] ?: false
+        }
+
+    suspend fun setFolderFilterActive(isActive: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.IS_FOLDER_FILTER_ACTIVE] = isActive
         }
     }
 }

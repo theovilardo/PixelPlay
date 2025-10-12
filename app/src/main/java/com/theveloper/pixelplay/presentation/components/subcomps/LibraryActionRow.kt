@@ -74,6 +74,8 @@ fun LibraryActionRow(
     onSortOptionSelected: (SortOption) -> Unit,
     isPlaylistTab: Boolean,
     onGenerateWithAiClick: () -> Unit,
+    onFilterClick: () -> Unit,
+    isFoldersTab: Boolean,
     modifier: Modifier = Modifier
 ) {
     val newButtonEndCorner by animateDpAsState(
@@ -99,7 +101,13 @@ fun LibraryActionRow(
         ) {
             FilledTonalButton(
                 //modifier = Modifier.animateContentSize(),
-                onClick = onMainActionClick,
+                onClick = {
+                    if (isFoldersTab) {
+                        onFilterClick()
+                    } else {
+                        onMainActionClick()
+                    }
+                },
                 shape = RoundedCornerShape(
                     topStart = 26.dp,
                     bottomStart = 26.dp,
@@ -117,9 +125,9 @@ fun LibraryActionRow(
                 ),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp) // Standard button padding
             ) {
-                val icon = if (isPlaylistTab) Icons.Rounded.PlaylistAdd else Icons.Rounded.Shuffle
-                val text = if (isPlaylistTab) "New" else "Shuffle"
-                val contentDesc = if (isPlaylistTab) "Create New Playlist" else "Shuffle Play"
+                val icon = if (isPlaylistTab) Icons.Rounded.PlaylistAdd else if (isFoldersTab) Icons.Default.AutoAwesome else Icons.Rounded.Shuffle
+                val text = if (isPlaylistTab) "New" else if (isFoldersTab) "Filter" else "Shuffle"
+                val contentDesc = if (isPlaylistTab) "Create New Playlist" else if (isFoldersTab) "Filter Folders" else "Shuffle Play"
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

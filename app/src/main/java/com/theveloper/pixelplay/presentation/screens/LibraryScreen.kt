@@ -112,6 +112,7 @@ import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.components.ShimmerBox // Added import for ShimmerBox
 import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Artist
+import com.theveloper.pixelplay.data.model.MusicFolder
 import com.theveloper.pixelplay.data.model.Playlist
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.model.SortOption
@@ -137,6 +138,8 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlaylistUiState
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 import com.theveloper.pixelplay.presentation.screens.TabAnimation
 import com.theveloper.pixelplay.utils.formatDuration
+import com.google.accompanist.permissions.rememberPermissionState
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -157,6 +160,7 @@ import com.theveloper.pixelplay.ui.theme.MontserratFamily
 val ListExtraBottomGap = 30.dp
 val PlayerSheetCollapsedCornerRadius = 32.dp
 
+@OptIn(ExperimentalPermissionsApi::class)
 @androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
@@ -165,6 +169,7 @@ fun LibraryScreen(
     playerViewModel: PlayerViewModel = hiltViewModel(),
     playlistViewModel: PlaylistViewModel = hiltViewModel()
 ) {
+    val storagePermissionState = rememberPermissionState(android.Manifest.permission.READ_MEDIA_AUDIO)
     // La recolección de estados de alto nivel se mantiene mínima.
     val lastTabIndex by playerViewModel.lastLibraryTabIndexFlow.collectAsState()
     val favoriteIds by playerViewModel.favoriteSongIds.collectAsState() // Reintroducir favoriteIds aquí
@@ -363,6 +368,7 @@ fun LibraryScreen(
                                     "ALBUMS" -> it.currentAlbumSortOption
                                     "ARTIST" -> it.currentArtistSortOption
                                     "LIKED" -> it.currentFavoriteSortOption
+                                    "FOLDERS" -> it.currentFolderSortOption
                                     else -> SortOption.SongTitleAZ
                                 }
                             }.distinctUntilChanged()
@@ -380,6 +386,7 @@ fun LibraryScreen(
                                     "ARTIST" -> playerViewModel.sortArtists(option)
                                     "PLAYLISTS" -> playlistViewModel.sortPlaylists(option)
                                     "LIKED" -> playerViewModel.sortFavoriteSongs(option)
+                                    "FOLDERS" -> playerViewModel.sortFolders(option)
                                 }
                             }
                         }
@@ -410,7 +417,9 @@ fun LibraryScreen(
                                 showSortMenu = false // Dismiss menu on selection
                             },
                             isPlaylistTab = tabTitles.getOrNull(pagerState.currentPage) == "PLAYLISTS",
-                            onGenerateWithAiClick = { playerViewModel.showAiPlaylistSheet() }
+                            isFoldersTab = tabTitles.getOrNull(pagerState.currentPage) == "FOLDERS",
+                            onGenerateWithAiClick = { playerViewModel.showAiPlaylistSheet() },
+                            onFilterClick = { playerViewModel.toggleFolderFilter() }
                         )
 
                         HorizontalPager(
@@ -517,6 +526,36 @@ fun LibraryScreen(
                                     ) { song ->
                                         playerViewModel.selectSongForInfo(song)
                                         showSongInfoBottomSheet = true
+                                    }
+                                }
+                                "FOLDERS" -> {
+                                    if (storagePermissionState.hasPermission) {
+                                        val playerUiState by playerViewModel.playerUiState.collectAsState()
+                                        val folders = playerUiState.musicFolders
+                                        val isLoading = playerUiState.isLoadingLibraryCategories
+
+                                        LibraryFoldersTab(
+                                            folders = folders,
+                                            isLoading = isLoading,
+                                            playerViewModel = playerViewModel,
+                                        bottomBarHeight = bottomBarHeightDp,
+                                        onMoreOptionsClick = {
+                                            playerViewModel.selectSongForInfo(it)
+                                            showSongInfoBottomSheet = true
+                                        }
+                                        )
+                                    } else {
+                                        Column(
+                                            modifier = Modifier.fillMaxSize().padding(16.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center
+                                        ) {
+                                            Text("Storage permission is required to access folders.")
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Button(onClick = { storagePermissionState.launchPermissionRequest() }) {
+                                                Text("Grant Permission")
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -736,6 +775,144 @@ fun CreatePlaylistDialogRedesigned(
                         Text("Create")
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun LibraryFoldersTab(
+    folders: ImmutableList<MusicFolder>,
+    isLoading: Boolean,
+    playerViewModel: PlayerViewModel,
+    bottomBarHeight: Dp,
+    onMoreOptionsClick: (Song) -> Unit
+) {
+    val playerUiState by playerViewModel.playerUiState.collectAsState()
+    val currentFolderPath = playerUiState.currentFolderPath
+    val currentFolder = if (currentFolderPath == null) {
+        null
+    } else {
+        val queue = java.util.ArrayDeque(folders)
+        var foundFolder: MusicFolder? = null
+        while (queue.isNotEmpty()) {
+            val folder = queue.remove()
+            if (folder.path == currentFolderPath) {
+                foundFolder = folder
+                break
+            }
+            queue.addAll(folder.subFolders)
+        }
+        foundFolder
+    }
+
+    val itemsToShow = currentFolder?.subFolders ?: folders
+    val songsToShow = currentFolder?.songs ?: emptyList()
+
+    val listState = rememberLazyListState()
+    if (isLoading && itemsToShow.isEmpty() && songsToShow.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+    } else if (itemsToShow.isEmpty() && songsToShow.isEmpty() && !isLoading) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp), contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_folder),
+                    contentDescription = null,
+                    Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+                Text("No folders found.", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    } else {
+        Column {
+            if (currentFolderPath != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { playerViewModel.navigateBackFolder() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                    Text(
+                        text = currentFolder?.name ?: "",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            LazyColumn(
+                modifier = Modifier
+                    .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
+                    .clip(
+                        RoundedCornerShape(
+                            topStart = 26.dp,
+                            topEnd = 26.dp,
+                            bottomStart = PlayerSheetCollapsedCornerRadius,
+                            bottomEnd = PlayerSheetCollapsedCornerRadius
+                        )
+                    ),
+                state = listState,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + ListExtraBottomGap)
+            ) {
+                items(itemsToShow, key = { "folder_${it.path}" }) { folder ->
+                    FolderListItem(folder = folder, onClick = {
+                        playerViewModel.navigateToFolder(folder.path)
+                    })
+                }
+                items(songsToShow, key = { "song_${it.id}" }) { song ->
+                    EnhancedSongListItem(
+                        song = song,
+                        isPlaying = playerUiState.currentSong?.id == song.id && playerUiState.isPlaying,
+                        isCurrentSong = playerUiState.currentSong?.id == song.id,
+                        onMoreOptionsClick = {
+                            playerViewModel.selectSongForInfo(song)
+                            onMoreOptionsClick(song)
+                        },
+                        onClick = {
+                            val songIndex = songsToShow.indexOf(song)
+                            if (songIndex != -1) {
+                                val songsToPlay = songsToShow.subList(songIndex, songsToShow.size)
+                                playerViewModel.showAndPlaySong(song, songsToPlay, currentFolder?.name ?: "Folder")
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun FolderListItem(folder: MusicFolder, onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_folder),
+                contentDescription = "Folder",
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                    .padding(8.dp),
+                tint = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text(folder.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("${folder.songs.size} Songs", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

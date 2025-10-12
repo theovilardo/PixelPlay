@@ -41,6 +41,7 @@ import com.theveloper.pixelplay.data.database.toSong
 import com.theveloper.pixelplay.data.model.Lyrics
 import com.theveloper.pixelplay.data.model.SyncedLine
 import com.theveloper.pixelplay.utils.LogUtils
+import com.theveloper.pixelplay.data.model.MusicFolder
 import com.theveloper.pixelplay.utils.LyricsUtils
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -580,5 +581,63 @@ class MusicRepositoryImpl @Inject constructor(
 
     override suspend fun resetAllLyrics() {
         lyricsRepository.resetAllLyrics()
+    }
+
+    override fun getMusicFolders(): Flow<List<MusicFolder>> {
+        return combine(
+            getAudioFiles(),
+            userPreferencesRepository.allowedDirectoriesFlow,
+            userPreferencesRepository.isFolderFilterActiveFlow
+        ) { songs, allowedDirs, isFolderFilterActive ->
+            val songsByParent = songs.groupBy { File(it.contentUriString).parent }
+
+            fun buildFolders(currentPath: String, allPaths: Set<String?>): List<MusicFolder> {
+                val directSubFolders = allPaths
+                    .filter { it != null && it.startsWith(currentPath) && it != currentPath && !it.substring(currentPath.length + 1).contains(File.separator) }
+                    .map { it!! }
+
+                val subFolders = directSubFolders.mapNotNull { subFolderPath ->
+                    val subFolderName = File(subFolderPath).name
+                    val subFolderSongs = songsByParent[subFolderPath] ?: emptyList()
+                    val nestedSubFolders = buildFolders(subFolderPath, allPaths)
+                    if (subFolderSongs.isNotEmpty() || nestedSubFolders.isNotEmpty()) {
+                        MusicFolder(
+                            path = subFolderPath,
+                            name = subFolderName,
+                            songs = subFolderSongs,
+                            subFolders = nestedSubFolders
+                        )
+                    } else {
+                        null
+                    }
+                }
+                return subFolders
+            }
+
+            val rootPaths = if (isFolderFilterActive) {
+                allowedDirs
+            } else {
+                songsByParent.keys.filterNotNull().map { File(it).path }.toSet()
+            }
+
+            val topLevelFolders = mutableListOf<MusicFolder>()
+            val allPaths = songsByParent.keys
+            for (rootPath in rootPaths) {
+                val rootName = File(rootPath).name
+                val rootSongs = songsByParent[rootPath] ?: emptyList()
+                val subFolders = buildFolders(rootPath, allPaths)
+                if (rootSongs.isNotEmpty() || subFolders.isNotEmpty()) {
+                    topLevelFolders.add(
+                        MusicFolder(
+                            path = rootPath,
+                            name = rootName,
+                            songs = rootSongs,
+                            subFolders = subFolders
+                        )
+                    )
+                }
+            }
+            topLevelFolders
+        }
     }
 }

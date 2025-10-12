@@ -145,4 +145,6 @@ interface MusicRepository {
     suspend fun resetLyrics(songId: Long)
 
     suspend fun resetAllLyrics()
+
+    fun getMusicFolders(): Flow<List<com.theveloper.pixelplay.data.model.MusicFolder>>
 }

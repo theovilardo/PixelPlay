@@ -36,4 +36,8 @@ sealed class SortOption(val displayName: String) {
     object LikedSongArtist : SortOption("Artist")
     object LikedSongAlbum : SortOption("Album")
     object LikedSongDateLiked : SortOption("Date Liked")
+
+    // Folder Sort Options
+    object FolderNameAZ : SortOption("Name (A-Z)")
+    object FolderNameZA : SortOption("Name (Z-A)")
 }
