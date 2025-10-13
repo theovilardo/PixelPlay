@@ -50,6 +50,7 @@ data class SongEntity(
     @ColumnInfo(name = "is_favorite", defaultValue = "0") val isFavorite: Boolean = false,
     @ColumnInfo(name = "lyrics", defaultValue = "null") val lyrics: String? = null,
     @ColumnInfo(name = "track_number", defaultValue = "0") val trackNumber: Int = 0,
+    @ColumnInfo(name = "year", defaultValue = "0") val year: Int = 0,
     @ColumnInfo(name = "date_added", defaultValue = "0") val dateAdded: Long = System.currentTimeMillis()
 )
 
@@ -69,7 +70,9 @@ fun SongEntity.toSong(): Song {
         lyrics = this.lyrics,
         isFavorite = this.isFavorite,
         trackNumber = this.trackNumber,
-        dateAdded = this.dateAdded
+        dateAdded = this.dateAdded,
+        year = this.year
+        // filePath no está en el modelo Song, se usa internamente en el repo o SSoT
     )
 }
 
@@ -95,7 +98,8 @@ fun Song.toEntity(filePathFromMediaStore: String, parentDirFromMediaStore: Strin
         lyrics = this.lyrics,
         filePath = filePathFromMediaStore,
         parentDirectoryPath = parentDirFromMediaStore,
-        dateAdded = this.dateAdded
+        dateAdded = this.dateAdded,
+        year = this.year
     )
 }
 
@@ -116,6 +120,7 @@ fun Song.toEntityWithoutPaths(): SongEntity {
         lyrics = this.lyrics,
         filePath = "", // Default o manejar como no disponible
         parentDirectoryPath = "", // Default o manejar como no disponible
-        dateAdded = this.dateAdded
+        dateAdded = this.dateAdded,
+        year = this.year
     )
 }
