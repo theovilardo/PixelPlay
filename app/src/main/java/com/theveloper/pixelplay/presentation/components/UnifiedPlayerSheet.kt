@@ -731,7 +731,6 @@ fun UnifiedPlayerSheet(
                 .fillMaxWidth()
                 .graphicsLayer {
                     translationY = visualSheetTranslationY
-                    compositingStrategy = CompositingStrategy.Offscreen
                 }
                 .height(animatedTotalSheetHeightWithShadowDp),
             shadowElevation = 0.dp,
@@ -1011,7 +1010,6 @@ fun UnifiedPlayerSheet(
                                                 .align(Alignment.TopCenter)
                                                 .graphicsLayer {
                                                     alpha = miniPlayerAlpha
-                                                    compositingStrategy = CompositingStrategy.Offscreen
                                                 }
                                         ) {
                                             MiniPlayerContentInternal(
@@ -1218,7 +1216,6 @@ private fun PlayerProgressBarSection(
             .padding(vertical = lerp(2.dp, 0.dp, expansionFraction))
             .graphicsLayer {
                 alpha = expansionFraction
-                compositingStrategy = CompositingStrategy.Offscreen
             }
             .heightIn(min = 70.dp)
     ) {
@@ -1287,7 +1284,6 @@ private fun PlayerSongInfo(
             .graphicsLayer {
                 alpha = expansionFraction
                 translationY = (1f - expansionFraction) * 24f
-                compositingStrategy = CompositingStrategy.Offscreen
             }
     ) {
         AutoScrollingText(
