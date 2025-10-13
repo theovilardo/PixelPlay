@@ -95,8 +95,6 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import timber.log.Timber
 import kotlin.math.roundToLong
 
-private val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error("No ColorScheme provided") }
-
 @androidx.annotation.OptIn(UnstableApi::class)
 @SuppressLint("StateFlowValueCalledInComposition")
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -131,12 +129,12 @@ fun FullPlayerContent(
     val song = currentSong ?: return // Early exit if no song
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     var showLyricsSheet by remember { mutableStateOf(false) }
-    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
-    val lyricsSearchUiState by playerViewModel.lyricsSearchUiState.collectAsState()
+        val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
+        val lyricsSearchUiState by playerViewModel.lyricsSearchUiState.collectAsState()
 
-    var showFetchLyricsDialog by remember { mutableStateOf(false) }
+        var showFetchLyricsDialog by remember { mutableStateOf(false) }
 
-    val context = LocalContext.current
+        val context = LocalContext.current
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
         onResult = { uri: Uri? ->

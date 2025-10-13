@@ -141,7 +141,7 @@ import kotlin.math.absoluteValue
 import kotlin.math.roundToLong
 import kotlin.math.sign
 
-private val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error("No ColorScheme provided") }
+internal val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error("No ColorScheme provided") }
 
 private enum class DragPhase { IDLE, TENSION, SNAPPING, FREE_DRAG }
 
