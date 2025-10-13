@@ -340,7 +340,7 @@ fun Breadcrumbs(
 
     LaunchedEffect(pathSegments.size) {
         if (pathSegments.isNotEmpty()) {
-            rowState.animateScrollToItem(pathSegments.lastIndex)
+            rowState.animateScrollToItem(pathSegments.lastIndex + 1)
         }
     }
 
