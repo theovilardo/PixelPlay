@@ -118,6 +118,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import timber.log.Timber
+import java.io.File
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlin.collections.map
@@ -157,10 +158,16 @@ data class PlayerUiState(
     val currentAlbumSortOption: SortOption = SortOption.AlbumTitleAZ,
     val currentArtistSortOption: SortOption = SortOption.ArtistNameAZ,
     val currentFavoriteSortOption: SortOption = SortOption.LikedSongTitleAZ,
+    val currentFolderSortOption: SortOption = SortOption.FolderNameAZ,
     val searchResults: ImmutableList<SearchResultItem> = persistentListOf(),
     val selectedSearchFilter: SearchFilterType = SearchFilterType.ALL,
     val searchHistory: ImmutableList<SearchHistoryItem> = persistentListOf(),
     val isSyncingLibrary: Boolean = false,
+    val musicFolders: ImmutableList<com.theveloper.pixelplay.data.model.MusicFolder> = persistentListOf(),
+    val currentFolderPath: String? = null,
+    val isFolderFilterActive: Boolean = false,
+
+    val currentFolder: com.theveloper.pixelplay.data.model.MusicFolder? = null,
 
     // State for dismiss/undo functionality
     val showDismissUndoBar: Boolean = false,
@@ -328,13 +335,13 @@ class PlayerViewModel @Inject constructor(
                 try {
                     Json.decodeFromString<List<String>>(orderJson)
                 } catch (e: Exception) {
-                    listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "LIKED")
+                    listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "FOLDERS", "LIKED")
                 }
             } else {
-                listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "LIKED")
+                listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "FOLDERS", "LIKED")
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "LIKED"))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "FOLDERS", "LIKED"))
 
 
     private val _loadedTabs = MutableStateFlow(emptySet<String>())
@@ -364,6 +371,10 @@ class PlayerViewModel @Inject constructor(
                     SortOption.PlaylistDateCreated
                 )
                 4 -> listOf(
+                    SortOption.FolderNameAZ,
+                    SortOption.FolderNameZA
+                )
+                5 -> listOf(
                     SortOption.LikedSongTitleAZ,
                     SortOption.LikedSongTitleZA,
                     SortOption.LikedSongArtist,
@@ -606,6 +617,10 @@ class PlayerViewModel @Inject constructor(
 
     init {
         Log.i("PlayerViewModel", "init started.")
+
+        viewModelScope.launch {
+            userPreferencesRepository.migrateTabOrder()
+        }
 
         // Load initial sort options ONCE at startup.
         viewModelScope.launch {
@@ -1240,6 +1255,35 @@ class PlayerViewModel @Inject constructor(
             if (!artistsEmpty) reason += "Artists not empty. "
             if (!notLoading) reason += "Currently loading library categories. "
             Log.w("PlayerViewModel", "loadArtistsIfNeeded: Conditions NOT met. Skipping load. Reason: $reason")
+        }
+    }
+
+    fun loadFoldersFromRepository() {
+        Log.d("PlayerViewModelPerformance", "loadFoldersFromRepository (All) called.")
+
+        viewModelScope.launch {
+            val functionStartTime = System.currentTimeMillis()
+            Log.d("PlayerViewModelPerformance", "loadFoldersFromRepository (All) START")
+
+            _playerUiState.update { it.copy(isLoadingLibraryCategories = true) }
+
+            try {
+                val repoCallFoldersStartTime = System.currentTimeMillis()
+                val allFoldersList: List<com.theveloper.pixelplay.data.model.MusicFolder> = musicRepository.getMusicFolders().first()
+                val foldersLoadDuration = System.currentTimeMillis() - repoCallFoldersStartTime
+                Log.d("PlayerViewModelPerformance", "musicRepository.getMusicFolders (All) took $foldersLoadDuration ms for ${allFoldersList.size} folders.")
+
+                _playerUiState.update { currentState ->
+                    currentState.copy(
+                        musicFolders = allFoldersList.toImmutableList(),
+                        isLoadingLibraryCategories = false
+                    )
+                }
+                 Log.d("PlayerViewModelPerformance", "loadFoldersFromRepository (All) END. Total time: ${System.currentTimeMillis() - functionStartTime} ms. Folders loaded: ${allFoldersList.size}")
+            } catch (e: Exception) {
+                Log.e("PlayerViewModel", "Error loading all folders from getMusicFolders", e)
+                _playerUiState.update { it.copy(isLoadingLibraryCategories = false) }
+            }
         }
     }
 
@@ -2202,6 +2246,70 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun sortFolders(sortOption: SortOption) {
+        val sortedFolders = when (sortOption) {
+            SortOption.FolderNameAZ -> _playerUiState.value.musicFolders.sortedBy { it.name }
+            SortOption.FolderNameZA -> _playerUiState.value.musicFolders.sortedByDescending { it.name }
+            else -> _playerUiState.value.musicFolders
+        }.toImmutableList()
+        _playerUiState.update {
+            it.copy(
+                musicFolders = sortedFolders,
+                currentFolderSortOption = sortOption
+            )
+        }
+    }
+
+    fun navigateToFolder(path: String) {
+        val folder = findFolder(path, _playerUiState.value.musicFolders)
+        _playerUiState.update {
+            it.copy(
+                currentFolderPath = path,
+                currentFolder = folder
+            )
+        }
+    }
+
+    fun navigateBackFolder() {
+        _playerUiState.update {
+            val currentFolder = it.currentFolder
+            if (currentFolder != null) {
+                val parentPath = File(currentFolder.path).parent
+                val parentFolder = findFolder(parentPath, _playerUiState.value.musicFolders)
+                it.copy(
+                    currentFolderPath = parentPath,
+                    currentFolder = parentFolder
+                )
+            } else {
+                it
+            }
+        }
+    }
+
+    private fun findFolder(path: String?, folders: List<com.theveloper.pixelplay.data.model.MusicFolder>): com.theveloper.pixelplay.data.model.MusicFolder? {
+        if (path == null) {
+            return null
+        }
+        val queue = java.util.ArrayDeque(folders)
+        while (queue.isNotEmpty()) {
+            val folder = queue.remove()
+            if (folder.path == path) {
+                return folder
+            }
+            queue.addAll(folder.subFolders)
+        }
+        return null
+    }
+
+    fun toggleFolderFilter() {
+        viewModelScope.launch {
+            val newFilterState = !_playerUiState.value.isFolderFilterActive
+            userPreferencesRepository.setFolderFilterActive(newFilterState)
+            _playerUiState.update { it.copy(isFolderFilterActive = newFilterState) }
+            loadFoldersFromRepository()
+        }
+    }
+
     fun updateSearchFilter(filterType: SearchFilterType) {
         _playerUiState.update { it.copy(selectedSearchFilter = filterType) }
     }
@@ -2632,6 +2740,7 @@ class PlayerViewModel @Inject constructor(
                     "SONGS" -> loadSongsIfNeeded()
                     "ALBUMS" -> loadAlbumsIfNeeded()
                     "ARTIST" -> loadArtistsIfNeeded()
+                    "FOLDERS" -> loadFoldersFromRepository()
                 }
                 _loadedTabs.update { currentTabs -> currentTabs + tabIdentifier }
                 Log.d("PlayerViewModel", "Tab '$tabIdentifier' marked as loaded. Current loaded tabs: ${_loadedTabs.value}")

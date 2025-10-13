@@ -56,12 +56,13 @@ data class SongEntity(
 
 fun SongEntity.toSong(): Song {
     return Song(
-        id = this.id.toString(), // El modelo Song usa ID como String
+        id = this.id.toString(),
         title = this.title,
         artist = this.artistName,
         artistId = this.artistId,
         album = this.albumName,
         albumId = this.albumId,
+        path = this.filePath, // Map the file path
         contentUriString = this.contentUriString,
         albumArtUriString = this.albumArtUriString,
         duration = this.duration,

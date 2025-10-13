@@ -7,6 +7,7 @@ import android.database.Cursor
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import com.theveloper.pixelplay.data.model.Song
@@ -41,7 +42,9 @@ import com.theveloper.pixelplay.data.database.toSong
 import com.theveloper.pixelplay.data.model.Lyrics
 import com.theveloper.pixelplay.data.model.SyncedLine
 import com.theveloper.pixelplay.utils.LogUtils
+import com.theveloper.pixelplay.data.model.MusicFolder
 import com.theveloper.pixelplay.utils.LyricsUtils
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first // Still needed for initialSetupDoneFlow.first() if used that way
@@ -580,5 +583,91 @@ class MusicRepositoryImpl @Inject constructor(
 
     override suspend fun resetAllLyrics() {
         lyricsRepository.resetAllLyrics()
+    }
+
+    override fun getMusicFolders(): Flow<List<MusicFolder>> {
+        return combine(
+            getAudioFiles(),
+            userPreferencesRepository.allowedDirectoriesFlow,
+            userPreferencesRepository.isFolderFilterActiveFlow
+        ) { songs, allowedDirs, isFolderFilterActive ->
+            val songsToProcess = if (isFolderFilterActive) {
+                songs.filter { song ->
+                    val songDir = File(song.path).parentFile ?: return@filter false
+                    allowedDirs.any { allowedDir -> songDir.path.startsWith(allowedDir) }
+                }
+            } else {
+                songs
+            }
+
+            if (songsToProcess.isEmpty()) return@combine emptyList()
+
+            data class TempFolder(
+                val path: String,
+                val name: String,
+                val songs: MutableList<Song> = mutableListOf(),
+                val subFolderPaths: MutableSet<String> = mutableSetOf()
+            )
+
+            val tempFolders = mutableMapOf<String, TempFolder>()
+
+            for (song in songsToProcess) {
+                try {
+                    val songFile = File(song.path)
+                    var currentFile = songFile.parentFile
+                    while (currentFile != null) {
+                        val path = currentFile.path
+                        val name = currentFile.name
+                        val tempFolder = tempFolders.getOrPut(path) { TempFolder(path, name) }
+
+                        if (path == songFile.parent) {
+                            tempFolder.songs.add(song)
+                        }
+                        currentFile.parentFile?.let { parent ->
+                            tempFolders.getOrPut(parent.path) { TempFolder(parent.path, parent.name) }
+                                .subFolderPaths.add(path)
+                        }
+                        currentFile = currentFile.parentFile
+                    }
+                } catch (e: Exception) {
+                     Log.e("MusicRepositoryImpl", "Error processing song path for folders: ${song.path}", e)
+                }
+            }
+
+            fun buildImmutableFolder(path: String, visited: MutableSet<String>): MusicFolder? {
+                if (path in visited) return null
+                visited.add(path)
+                val tempFolder = tempFolders[path] ?: return null
+                val subFolders = tempFolder.subFolderPaths
+                    .mapNotNull { subPath -> buildImmutableFolder(subPath, visited.toMutableSet()) }
+                    .sortedBy { it.name }
+                    .toImmutableList()
+                return MusicFolder(
+                    path = tempFolder.path,
+                    name = tempFolder.name,
+                    songs = tempFolder.songs.sortedBy { it.title }.toImmutableList(),
+                    subFolders = subFolders
+                )
+            }
+
+            val storageRootPath = Environment.getExternalStorageDirectory().path
+            val rootTempFolder = tempFolders[storageRootPath]
+
+            val result = rootTempFolder?.subFolderPaths?.mapNotNull { path ->
+                buildImmutableFolder(path, mutableSetOf())
+            }?.filter { it.totalSongCount > 0 }?.sortedBy { it.name } ?: emptyList()
+
+            // Fallback for devices that might not use the standard storage root path
+            if (result.isEmpty() && tempFolders.isNotEmpty()) {
+                 val allSubFolderPaths = tempFolders.values.flatMap { it.subFolderPaths }.toSet()
+                 val topLevelPaths = tempFolders.keys - allSubFolderPaths
+                 return@combine topLevelPaths
+                     .mapNotNull { buildImmutableFolder(it, mutableSetOf()) }
+                     .filter { it.totalSongCount > 0 }
+                     .sortedBy { it.name }
+             }
+
+            result
+        }.flowOn(Dispatchers.IO)
     }
 }

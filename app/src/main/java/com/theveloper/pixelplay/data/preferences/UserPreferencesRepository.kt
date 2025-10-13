@@ -67,6 +67,7 @@ class UserPreferencesRepository @Inject constructor(
         // Transition Settings
         val GLOBAL_TRANSITION_SETTINGS = stringPreferencesKey("global_transition_settings_json")
         val LIBRARY_TABS_ORDER = stringPreferencesKey("library_tabs_order")
+        val IS_FOLDER_FILTER_ACTIVE = booleanPreferencesKey("is_folder_filter_active")
     }
 
     val globalTransitionSettingsFlow: Flow<TransitionSettings> = dataStore.data
@@ -391,6 +392,41 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun resetLibraryTabsOrder() {
         dataStore.edit { preferences ->
             preferences.remove(PreferencesKeys.LIBRARY_TABS_ORDER)
+        }
+    }
+
+    suspend fun migrateTabOrder() {
+        dataStore.edit { preferences ->
+            val orderJson = preferences[PreferencesKeys.LIBRARY_TABS_ORDER]
+            if (orderJson != null) {
+                try {
+                    val order = json.decodeFromString<MutableList<String>>(orderJson)
+                    if (!order.contains("FOLDERS")) {
+                        val likedIndex = order.indexOf("LIKED")
+                        if (likedIndex != -1) {
+                            order.add(likedIndex + 1, "FOLDERS")
+                        } else {
+                            order.add("FOLDERS") // Fallback
+                        }
+                        preferences[PreferencesKeys.LIBRARY_TABS_ORDER] = json.encodeToString(order)
+                    }
+                } catch (e: Exception) {
+                    // Si la deserialización falla, no hacemos nada para evitar sobrescribir los datos del usuario.
+                }
+            }
+            // Si orderJson es nulo, significa que el usuario nunca ha reordenado,
+            // por lo que se utilizará el orden predeterminado que ya incluye FOLDERS.
+        }
+    }
+
+    val isFolderFilterActiveFlow: Flow<Boolean> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.IS_FOLDER_FILTER_ACTIVE] ?: false
+        }
+
+    suspend fun setFolderFilterActive(isActive: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.IS_FOLDER_FILTER_ACTIVE] = isActive
         }
     }
 }
