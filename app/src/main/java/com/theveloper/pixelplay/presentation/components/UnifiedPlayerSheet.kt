@@ -178,6 +178,7 @@ fun UnifiedPlayerSheet(
     val selectedRoute by playerViewModel.selectedRoute.collectAsState()
     val isCasting = selectedRoute?.isDefault == false
     val positionToDisplay = if (isCasting) remotePosition else currentPosition
+    val isFavorite by playerViewModel.isCurrentSongFavorite.collectAsState()
 
     val currentPlaybackQueue by remember {
         playerViewModel.playerUiState.map { it.currentPlaybackQueue }.distinctUntilChanged()
@@ -1045,7 +1046,7 @@ fun UnifiedPlayerSheet(
                                                 // State Providers
                                                 currentPositionProvider = { positionToDisplay },
                                                 isPlayingProvider = { stablePlayerState.isPlaying },
-                                                isFavoriteProvider = { playerViewModel.isCurrentSongFavorite.collectAsState().value },
+                                                isFavoriteProvider = { isFavorite },
                                                 // Event Handlers
                                                 onPlayPause = playerViewModel::playPause,
                                                 onSeek = playerViewModel::seekTo,
