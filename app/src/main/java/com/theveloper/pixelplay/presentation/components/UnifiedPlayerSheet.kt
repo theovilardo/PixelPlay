@@ -1,23 +1,22 @@
 package com.theveloper.pixelplay.presentation.components
 
-import android.annotation.SuppressLint
+// Coil imports for FullPlayerContentInternal
+
+import android.os.Trace
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -31,13 +30,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -45,16 +41,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -65,80 +57,47 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
-import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import coil.size.Size
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
-import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
-import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
-import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
-import com.theveloper.pixelplay.presentation.components.player.FullPlayerContent
-// Coil imports for FullPlayerContentInternal
-
-import com.theveloper.pixelplay.utils.formatDuration
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.coroutines.delay
-import android.os.Trace // Import Trace
-import androidx.compose.material3.TopAppBar
-import androidx.media3.common.util.UnstableApi
-import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
-import android.net.Uri
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
-import androidx.compose.material3.carousel.rememberCarouselState
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.RoundRect
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.clipPath
-import coil.size.Size
-import com.theveloper.pixelplay.presentation.components.subcomps.FetchLyricsDialog
-import com.theveloper.pixelplay.presentation.viewmodel.LyricsSearchUiState
+import com.theveloper.pixelplay.presentation.components.player.FullPlayerContent
+import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
+import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import timber.log.Timber
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
-import kotlin.math.absoluteValue
-import kotlin.math.roundToLong
 import kotlin.math.sign
 
 internal val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error("No ColorScheme provided") }
@@ -146,7 +105,7 @@ internal val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error(
 private enum class DragPhase { IDLE, TENSION, SNAPPING, FREE_DRAG }
 
 val MiniPlayerHeight = 64.dp
-val PlayerSheetExpandedCornerRadius = 32.dp
+//val PlayerSheetExpandedCornerRadius = 32.dp
 const val ANIMATION_DURATION_MS = 255
 
 val MiniPlayerBottomSpacer = 8.dp
@@ -189,23 +148,23 @@ fun UnifiedPlayerSheet(
     val showDismissUndoBar by remember {
         playerViewModel.playerUiState.map { it.showDismissUndoBar }.distinctUntilChanged()
     }.collectAsState(initial = false)
-    val dismissedSong by remember {
-        playerViewModel.playerUiState.map { it.dismissedSong }.distinctUntilChanged()
-    }.collectAsState(initial = null)
-    val dismissedQueue by remember {
-        playerViewModel.playerUiState.map { it.dismissedQueue }.distinctUntilChanged()
-    }.collectAsState(initial = persistentListOf())
-    val dismissedQueueName by remember {
-        playerViewModel.playerUiState.map { it.dismissedQueueName }.distinctUntilChanged()
-    }.collectAsState(initial = "")
-    val dismissedPosition by remember {
-        playerViewModel.playerUiState.map { it.dismissedPosition }.distinctUntilChanged()
-    }.collectAsState(initial = 0L)
-    val undoBarVisibleDuration by remember { // Assuming this doesn't change often, mapping for consistency
-        playerViewModel.playerUiState.map { it.undoBarVisibleDuration }.distinctUntilChanged()
-    }.collectAsState(initial = 4000L)
+//    val dismissedSong by remember {
+//        playerViewModel.playerUiState.map { it.dismissedSong }.distinctUntilChanged()
+//    }.collectAsState(initial = null)
+//    val dismissedQueue by remember {
+//        playerViewModel.playerUiState.map { it.dismissedQueue }.distinctUntilChanged()
+//    }.collectAsState(initial = persistentListOf())
+//    val dismissedQueueName by remember {
+//        playerViewModel.playerUiState.map { it.dismissedQueueName }.distinctUntilChanged()
+//    }.collectAsState(initial = "")
+//    val dismissedPosition by remember {
+//        playerViewModel.playerUiState.map { it.dismissedPosition }.distinctUntilChanged()
+//    }.collectAsState(initial = 0L)
+//    val undoBarVisibleDuration by remember { // Assuming this doesn't change often, mapping for consistency
+//        playerViewModel.playerUiState.map { it.undoBarVisibleDuration }.distinctUntilChanged()
+//    }.collectAsState(initial = 4000L)
 
-    val isPlayerVisible = stablePlayerState.isPlaying
+//    val isPlayerVisible = stablePlayerState.isPlaying
 
 
     val currentSheetContentState by playerViewModel.sheetState.collectAsState()
@@ -433,12 +392,12 @@ fun UnifiedPlayerSheet(
         label = "SheetTopCornerRadius"
     )
 
-    val sheetShape = RoundedCornerShape(
-        topStart = overallSheetTopCornerRadius,
-        topEnd = overallSheetTopCornerRadius,
-        bottomStart = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp,
-        bottomEnd = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp
-    )
+//    val sheetShape = RoundedCornerShape(
+//        topStart = overallSheetTopCornerRadius,
+//        topEnd = overallSheetTopCornerRadius,
+//        bottomStart = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp,
+//        bottomEnd = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp
+//    )
 
     val playerContentActualBottomRadiusTargetValue by remember(
         navBarStyle,
@@ -502,43 +461,43 @@ fun UnifiedPlayerSheet(
         label = "PlayerContentBottomRadius"
     )
 
-    val navBarActualTopRadiusTarget by remember(
-        showPlayerContentArea, playerContentExpansionFraction,
-        currentSheetContentState, swipeDismissProgress.value
-    ) {
-        derivedStateOf {
-            val calculatedNormally = if (showPlayerContentArea) {
-                val fraction = playerContentExpansionFraction.value
-                if (fraction < 0.2f) {
-                    lerp(12.dp, 18.dp, (fraction / 0.2f).coerceIn(0f, 1f))
-                } else {
-                    18.dp
-                }
-            } else {
-                12.dp
-            }
+//    val navBarActualTopRadiusTarget by remember(
+//        showPlayerContentArea, playerContentExpansionFraction,
+//        currentSheetContentState, swipeDismissProgress.value
+//    ) {
+//        derivedStateOf {
+//            val calculatedNormally = if (showPlayerContentArea) {
+//                val fraction = playerContentExpansionFraction.value
+//                if (fraction < 0.2f) {
+//                    lerp(12.dp, 18.dp, (fraction / 0.2f).coerceIn(0f, 1f))
+//                } else {
+//                    18.dp
+//                }
+//            } else {
+//                12.dp
+//            }
+//
+//            if (currentSheetContentState == PlayerSheetState.COLLAPSED &&
+//                swipeDismissProgress.value > 0f &&
+//                showPlayerContentArea &&
+//                playerContentExpansionFraction.value < 0.01f
+//            ) {
+//                val baseCollapsedRadius = 12.dp
+//                lerp(baseCollapsedRadius, navBarCornerRadius.dp, swipeDismissProgress.value)
+//            } else {
+//                calculatedNormally
+//            }
+//        }
+//    }
 
-            if (currentSheetContentState == PlayerSheetState.COLLAPSED &&
-                swipeDismissProgress.value > 0f &&
-                showPlayerContentArea &&
-                playerContentExpansionFraction.value < 0.01f
-            ) {
-                val baseCollapsedRadius = 12.dp
-                lerp(baseCollapsedRadius, navBarCornerRadius.dp, swipeDismissProgress.value)
-            } else {
-                calculatedNormally
-            }
-        }
-    }
-
-    val navBarActualTopRadius by animateDpAsState(
-        targetValue = navBarActualTopRadiusTarget.value.dp,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
-        label = "NavBarTopRadius"
-    )
+//    val navBarActualTopRadius by animateDpAsState(
+//        targetValue = navBarActualTopRadiusTarget.value.dp,
+//        animationSpec = spring(
+//            dampingRatio = Spring.DampingRatioNoBouncy,
+//            stiffness = Spring.StiffnessMedium
+//        ),
+//        label = "NavBarTopRadius"
+//    )
 
     val actualCollapsedStateHorizontalPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 14.dp else collapsedStateHorizontalPadding
 
@@ -1157,16 +1116,16 @@ private fun MiniPlayerContentInternal(
     modifier: Modifier = Modifier
 ) {
     val hapticFeedback = LocalHapticFeedback.current
-    val albumShape = AbsoluteSmoothCornerShape(
-        cornerRadiusTL = cornerRadiusAlb,
-        smoothnessAsPercentBL = 60,
-        cornerRadiusTR = cornerRadiusAlb,
-        smoothnessAsPercentBR = 60,
-        cornerRadiusBR = cornerRadiusAlb,
-        smoothnessAsPercentTL = 60,
-        cornerRadiusBL = cornerRadiusAlb,
-        smoothnessAsPercentTR = 60
-    )
+//    val albumShape = AbsoluteSmoothCornerShape(
+//        cornerRadiusTL = cornerRadiusAlb,
+//        smoothnessAsPercentBL = 60,
+//        cornerRadiusTR = cornerRadiusAlb,
+//        smoothnessAsPercentBR = 60,
+//        cornerRadiusBR = cornerRadiusAlb,
+//        smoothnessAsPercentTL = 60,
+//        cornerRadiusBL = cornerRadiusAlb,
+//        smoothnessAsPercentTR = 60
+//    )
     Row(
         modifier = modifier
             .fillMaxWidth()
