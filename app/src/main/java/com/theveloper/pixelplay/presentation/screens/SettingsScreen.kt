@@ -57,7 +57,11 @@ import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuBoxScope
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -1108,6 +1112,18 @@ fun GeminiApiKeyItem(
     title: String,
     subtitle: String
 ) {
+    val settingsViewModel: SettingsViewModel = hiltViewModel()
+    val uiState by settingsViewModel.uiState.collectAsState()
+    val selectedModel by settingsViewModel.geminiModel.collectAsState()
+    var isModelDropdownExpanded by remember { mutableStateOf(false) }
+
+    // Fetch models when API key becomes available
+    LaunchedEffect(apiKey) {
+        if (apiKey.isNotBlank() && uiState.availableModels.isEmpty() && !uiState.isLoadingModels) {
+            settingsViewModel.fetchAvailableModels(apiKey)
+        }
+    }
+
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
         modifier = Modifier
@@ -1174,7 +1190,7 @@ fun GeminiApiKeyItem(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            if (apiKey == "") {
+            if (apiKey.isBlank()) {
                 val context = LocalContext.current
                 val url = "https://aistudio.google.com/app/apikey"
                 val annotatedString = buildAnnotatedString {
@@ -1196,6 +1212,87 @@ fun GeminiApiKeyItem(
                         context.startActivity(intent)
                     }
                 )
+            } else {
+                // Show model selector when API key is present
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = "Model",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                ExposedDropdownMenuBox(
+                    expanded = isModelDropdownExpanded,
+                    onExpandedChange = {
+                        if (!uiState.isLoadingModels && uiState.availableModels.isNotEmpty()) {
+                            isModelDropdownExpanded = !isModelDropdownExpanded
+                        }
+                    }
+                ) {
+                    OutlinedTextField(
+                        value = uiState.availableModels.find { it.name == selectedModel }?.displayName
+                            ?: selectedModel.ifEmpty { "Select a model" },
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Gemini Model") },
+                        trailingIcon = {
+                            if (uiState.isLoadingModels) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = isModelDropdownExpanded)
+                            }
+                        },
+                        modifier = Modifier
+                            .menuAnchor(),
+//                            .menuAnchor(ExposedDropdownMenuBoxScope.MenuAnchorType.PrimaryNotEditable),
+                        shape = RoundedCornerShape(10.dp),
+                        enabled = !uiState.isLoadingModels && uiState.availableModels.isNotEmpty()
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = isModelDropdownExpanded,
+                        onDismissRequest = { isModelDropdownExpanded = false }
+                    ) {
+                        uiState.availableModels.forEach { model ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = model.displayName,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                },
+                                onClick = {
+                                    settingsViewModel.onGeminiModelChange(model.name)
+                                    isModelDropdownExpanded = false
+                                },
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                            )
+                        }
+                    }
+                }
+
+                if (uiState.isLoadingModels) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Fetching available models...",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                if (uiState.modelsFetchError != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Error: ${uiState.modelsFetchError}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
             }
         }
     }

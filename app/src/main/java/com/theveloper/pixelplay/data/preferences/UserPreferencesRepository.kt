@@ -41,6 +41,7 @@ class UserPreferencesRepository @Inject constructor(
 
     private object PreferencesKeys {
         val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
+        val GEMINI_MODEL = stringPreferencesKey("gemini_model")
         val ALLOWED_DIRECTORIES = stringSetPreferencesKey("allowed_directories")
         val INITIAL_SETUP_DONE = booleanPreferencesKey("initial_setup_done")
         // val GLOBAL_THEME_PREFERENCE = stringPreferencesKey("global_theme_preference_v2") // Removed
@@ -342,6 +343,16 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setGeminiApiKey(apiKey: String) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.GEMINI_API_KEY] = apiKey
+        }
+    }
+
+    val geminiModel: Flow<String> = dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.GEMINI_MODEL] ?: ""
+    }
+
+    suspend fun setGeminiModel(model: String) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.GEMINI_MODEL] = model
         }
     }
 

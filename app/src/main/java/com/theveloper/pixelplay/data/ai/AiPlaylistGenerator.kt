@@ -1,12 +1,15 @@
 package com.theveloper.pixelplay.data.ai
 
+import android.util.Log
 import com.google.ai.client.generativeai.GenerativeModel
 import com.theveloper.pixelplay.data.DailyMixManager
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
+import com.theveloper.pixelplay.utils.LogUtils
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import timber.log.Timber
 import javax.inject.Inject
 import kotlin.Result
 
@@ -27,8 +30,11 @@ class AiPlaylistGenerator @Inject constructor(
                 return Result.failure(Exception("API Key not configured."))
             }
 
+            val selectedModel = userPreferencesRepository.geminiModel.first()
+            val modelName = selectedModel.ifEmpty { "" }
+
             val generativeModel = GenerativeModel(
-                modelName = "gemini-2.5-flash",
+                modelName = modelName,
                 apiKey = apiKey
             )
 
