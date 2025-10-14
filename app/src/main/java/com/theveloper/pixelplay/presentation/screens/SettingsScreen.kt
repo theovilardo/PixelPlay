@@ -1293,6 +1293,152 @@ fun GeminiApiKeyItem(
                         color = MaterialTheme.colorScheme.error
                     )
                 }
+
+                // System Prompt Section
+                Spacer(modifier = Modifier.height(16.dp))
+
+                val systemPrompt by settingsViewModel.geminiSystemPrompt.collectAsState()
+                var showSystemPromptDialog by remember { mutableStateOf(false) }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "System Prompt",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    TextButton(
+                        onClick = { showSystemPromptDialog = true }
+                    ) {
+                        Text("Modify")
+                    }
+                }
+
+                if (showSystemPromptDialog) {
+                    SystemPromptDialog(
+                        currentPrompt = systemPrompt,
+                        onDismiss = { showSystemPromptDialog = false },
+                        onSave = { newPrompt ->
+                            settingsViewModel.onGeminiSystemPromptChange(newPrompt)
+                            showSystemPromptDialog = false
+                        },
+                        onReset = {
+                            settingsViewModel.resetGeminiSystemPrompt()
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SystemPromptDialog(
+    currentPrompt: String,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit,
+    onReset: () -> Unit
+) {
+    var editedPrompt by remember { mutableStateOf(currentPrompt) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    LaunchedEffect(currentPrompt) {
+        editedPrompt = currentPrompt
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxHeight(0.85f),
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "System Prompt",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                TextButton(onClick = onReset) {
+                    Text("Reset")
+                }
+            }
+
+            Text(
+                text = "Customize the AI's behavior and personality by modifying the system prompt.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+
+            // Text field for editing prompt
+            OutlinedTextField(
+                value = editedPrompt,
+                onValueChange = { editedPrompt = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                placeholder = { Text("Enter system prompt...") },
+                shape = RoundedCornerShape(16.dp),
+                minLines = 8,
+                maxLines = 20,
+                textStyle = MaterialTheme.typography.bodyMedium
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Action buttons
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Cancel")
+                }
+
+                FilledIconButton(
+                    onClick = { onSave(editedPrompt) },
+                    modifier = Modifier.weight(1f),
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    ) {
+                        Text(
+                            text = "Save",
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                }
             }
         }
     }

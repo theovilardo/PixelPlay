@@ -47,9 +47,9 @@ class SettingsViewModel @Inject constructor(
     val geminiModel: StateFlow<String> = userPreferencesRepository.geminiModel
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
-    init {
-        viewModelScope.launch {
-            userPreferencesRepository.playerThemePreferenceFlow.collect { preference ->
+    val geminiSystemPrompt: StateFlow<String> = userPreferencesRepository.geminiSystemPrompt
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferencesRepository.DEFAULT_SYSTEM_PROMPT)
+
                 _uiState.update { it.copy(playerThemePreference = preference) }
             }
         }
@@ -188,18 +188,18 @@ class SettingsViewModel @Inject constructor(
     fun setNavBarCornerRadius(radius: Int) {
         viewModelScope.launch {
             userPreferencesRepository.setNavBarCornerRadius(radius)
+    fun onGeminiSystemPromptChange(prompt: String) {
+        viewModelScope.launch {
+            userPreferencesRepository.setGeminiSystemPrompt(prompt)
         }
     }
 
-    fun setNavBarStyle(style: String) {
+    fun resetGeminiSystemPrompt() {
         viewModelScope.launch {
-            userPreferencesRepository.setNavBarStyle(style)
+            userPreferencesRepository.resetGeminiSystemPrompt()
         }
     }
 
-    fun setCarouselStyle(style: String) {
-        viewModelScope.launch {
-            userPreferencesRepository.setCarouselStyle(style)
         }
     }
 }

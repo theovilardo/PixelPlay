@@ -55,8 +55,12 @@ class AiPlaylistGenerator @Inject constructor(
                 """.trimIndent()
             }
 
-            val systemPrompt = """
-            You are a world-class DJ and music expert. Your task is to create a playlist for a user based on their prompt.
+            // Get the custom system prompt from user preferences
+            val customSystemPrompt = userPreferencesRepository.geminiSystemPrompt.first()
+
+            // Build the task-specific instructions
+            val taskInstructions = """
+            Your task is to create a playlist for a user based on their prompt.
             You will be given a user's request, a desired playlist length range, and a list of available songs with their metadata.
 
             Instructions:
@@ -71,7 +75,9 @@ class AiPlaylistGenerator @Inject constructor(
             """.trimIndent()
 
             val fullPrompt = """
-            $systemPrompt
+            $customSystemPrompt
+
+            $taskInstructions
 
             User's request: "$userPrompt"
             Minimum playlist length: $minLength

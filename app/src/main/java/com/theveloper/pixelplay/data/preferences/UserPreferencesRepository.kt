@@ -42,6 +42,7 @@ class UserPreferencesRepository @Inject constructor(
     private object PreferencesKeys {
         val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
         val GEMINI_MODEL = stringPreferencesKey("gemini_model")
+        val GEMINI_SYSTEM_PROMPT = stringPreferencesKey("gemini_system_prompt")
         val ALLOWED_DIRECTORIES = stringSetPreferencesKey("allowed_directories")
         val INITIAL_SETUP_DONE = booleanPreferencesKey("initial_setup_done")
         // val GLOBAL_THEME_PREFERENCE = stringPreferencesKey("global_theme_preference_v2") // Removed
@@ -356,6 +357,26 @@ class UserPreferencesRepository @Inject constructor(
         }
     }
 
+    companion object {
+        const val DEFAULT_SYSTEM_PROMPT = "You are a helpful AI assistant integrated into a music player app. You help users create perfect playlists based on their request."
+    }
+
+    val geminiSystemPrompt: Flow<String> = dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.GEMINI_SYSTEM_PROMPT] ?: DEFAULT_SYSTEM_PROMPT
+    }
+
+    suspend fun setGeminiSystemPrompt(prompt: String) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.GEMINI_SYSTEM_PROMPT] = prompt
+        }
+    }
+
+    suspend fun resetGeminiSystemPrompt() {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.GEMINI_SYSTEM_PROMPT] = DEFAULT_SYSTEM_PROMPT
+        }
+    }
+
     val navBarCornerRadiusFlow: Flow<Int> = dataStore.data
         .map { preferences ->
             preferences[PreferencesKeys.NAV_BAR_CORNER_RADIUS] ?: 32
@@ -441,3 +462,4 @@ class UserPreferencesRepository @Inject constructor(
         }
     }
 }
+
