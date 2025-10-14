@@ -1355,7 +1355,7 @@ fun SystemPromptDialog(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.fillMaxHeight(0.85f),
+        modifier = Modifier.fillMaxHeight(1f),
         dragHandle = { BottomSheetDefaults.DragHandle() }
     ) {
         Column(
