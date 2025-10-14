@@ -1346,6 +1346,8 @@ fun SystemPromptDialog(
 ) {
     var editedPrompt by remember { mutableStateOf(currentPrompt) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     LaunchedEffect(currentPrompt) {
         editedPrompt = currentPrompt
@@ -1378,7 +1380,11 @@ fun SystemPromptDialog(
                     color = MaterialTheme.colorScheme.onSurface
                 )
 
-                TextButton(onClick = onReset) {
+                TextButton(onClick = {
+                    onReset()
+                    // Reset the edited prompt to the default value immediately
+                    editedPrompt = com.theveloper.pixelplay.data.preferences.UserPreferencesRepository.DEFAULT_SYSTEM_PROMPT
+                }) {
                     Text("Reset")
                 }
             }
@@ -1414,14 +1420,32 @@ fun SystemPromptDialog(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 TextButton(
-                    onClick = onDismiss,
+                    onClick = {
+                        scope.launch {
+                            sheetState.hide()
+                            onDismiss()
+                        }
+                    },
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("Cancel")
                 }
 
                 FilledIconButton(
-                    onClick = { onSave(editedPrompt) },
+                    onClick = {
+                        scope.launch {
+                            onSave(editedPrompt)
+                            // Show toast
+                            android.widget.Toast.makeText(
+                                context,
+                                "System prompt saved successfully",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                            // Smooth dismiss animation
+                            sheetState.hide()
+                            onDismiss()
+                        }
+                    },
                     modifier = Modifier.weight(1f),
                     colors = IconButtonDefaults.filledIconButtonColors(
                         containerColor = MaterialTheme.colorScheme.primary
