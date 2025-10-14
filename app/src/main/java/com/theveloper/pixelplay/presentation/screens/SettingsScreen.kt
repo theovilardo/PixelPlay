@@ -40,6 +40,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.outlined.ClearAll
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.FolderOff
 import androidx.compose.material.icons.outlined.PlayCircle
@@ -1380,11 +1381,13 @@ fun SystemPromptDialog(
                     color = MaterialTheme.colorScheme.onSurface
                 )
 
-                TextButton(onClick = {
-                    onReset()
-                    // Reset the edited prompt to the default value immediately
-                    editedPrompt = com.theveloper.pixelplay.data.preferences.UserPreferencesRepository.DEFAULT_SYSTEM_PROMPT
-                }) {
+                TextButton(
+                    onClick = {
+                        onReset()
+                        // Reset the edited prompt to the default value immediately
+                        editedPrompt = com.theveloper.pixelplay.data.preferences.UserPreferencesRepository.DEFAULT_SYSTEM_PROMPT
+                    }
+                ) {
                     Text("Reset")
                 }
             }
@@ -1396,19 +1399,41 @@ fun SystemPromptDialog(
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            // Text field for editing prompt
-            OutlinedTextField(
-                value = editedPrompt,
-                onValueChange = { editedPrompt = it },
+            // Text field for editing prompt with floating clear button
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f),
-                placeholder = { Text("Enter system prompt...") },
-                shape = RoundedCornerShape(16.dp),
-                minLines = 8,
-                maxLines = 20,
-                textStyle = MaterialTheme.typography.bodyMedium
-            )
+                    .weight(1f)
+            ) {
+                OutlinedTextField(
+                    value = editedPrompt,
+                    onValueChange = { editedPrompt = it },
+                    modifier = Modifier.fillMaxSize(),
+                    placeholder = { Text("Enter system prompt...") },
+                    shape = RoundedCornerShape(16.dp),
+                    minLines = 8,
+                    maxLines = 20,
+                    textStyle = MaterialTheme.typography.bodyMedium
+                )
+
+                // Floating clear button
+                if (editedPrompt.isNotEmpty()) {
+                    FloatingActionButton(
+                        onClick = { editedPrompt = "" },
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(16.dp)
+                            .size(48.dp),
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Delete,
+                            contentDescription = "Clear all text"
+                        )
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 

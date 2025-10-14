@@ -75,10 +75,11 @@ class AiPlaylistGenerator @Inject constructor(
             """.trimIndent()
 
             val fullPrompt = """
-            $customSystemPrompt
-
+            
             $taskInstructions
-
+            
+            $customSystemPrompt
+            
             User's request: "$userPrompt"
             Minimum playlist length: $minLength
             Maximum playlist length: $maxLength
