@@ -49,6 +49,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -75,11 +76,17 @@ import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.presentation.components.AlbumCarouselSection
 import com.theveloper.pixelplay.presentation.components.AutoScrollingText
+import com.theveloper.pixelplay.presentation.components.AutoScrollingTextOnDemand
 import com.theveloper.pixelplay.presentation.components.LocalMaterialTheme
 import com.theveloper.pixelplay.presentation.components.LyricsSheet
 import com.theveloper.pixelplay.presentation.components.WavyMusicSlider
+import com.theveloper.pixelplay.presentation.components.scoped.DeferAt
+import com.theveloper.pixelplay.presentation.components.scoped.PrefetchAlbumNeighbors
+import com.theveloper.pixelplay.presentation.components.scoped.PrefetchAlbumNeighborsImg
+import com.theveloper.pixelplay.presentation.components.scoped.rememberSmoothProgress
 import com.theveloper.pixelplay.presentation.components.subcomps.FetchLyricsDialog
 import com.theveloper.pixelplay.presentation.viewmodel.LyricsSearchUiState
+import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import com.theveloper.pixelplay.utils.formatDuration
@@ -125,12 +132,12 @@ fun FullPlayerContent(
     val song = currentSong ?: return // Early exit if no song
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     var showLyricsSheet by remember { mutableStateOf(false) }
-        val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
-        val lyricsSearchUiState by playerViewModel.lyricsSearchUiState.collectAsState()
+    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
+    val lyricsSearchUiState by playerViewModel.lyricsSearchUiState.collectAsState()
 
-        var showFetchLyricsDialog by remember { mutableStateOf(false) }
+    var showFetchLyricsDialog by remember { mutableStateOf(false) }
 
-        val context = LocalContext.current
+    val context = LocalContext.current
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
         onResult = { uri: Uri? ->
@@ -355,6 +362,15 @@ fun FullPlayerContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceAround
         ) {
+            DeferAt(expansionFraction, 0.08f) {
+                PrefetchAlbumNeighborsImg(
+                    current = currentSong,
+                    queue = currentPlaybackQueue,
+                    radius = 2 // prev/next 2
+                )
+            }
+
+
             // Album Cover section
             BoxWithConstraints(
                 modifier = Modifier
@@ -371,22 +387,26 @@ fun FullPlayerContent(
                     else -> maxWidth * 0.8f
                 }
 
-                AlbumCarouselSection(
-                    currentSong = currentSong,
-                    queue = currentPlaybackQueue,
-                    expansionFraction = expansionFraction,
-                    onSongSelected = { newSong ->
-                        if (newSong.id != currentSong.id) {
-                            playerViewModel.showAndPlaySong(
-                                song = newSong,
-                                contextSongs = currentPlaybackQueue,
-                                queueName = currentQueueSourceName
-                            )
-                        }
-                    },
-                    carouselStyle = carouselStyle,
-                    modifier = Modifier.height(carouselHeight) // Apply calculated height
-                )
+                DeferAt(expansionFraction, 0.12f) {
+                    key(currentSong.id) {
+                        AlbumCarouselSection(
+                            currentSong = currentSong,
+                            queue = currentPlaybackQueue,
+                            expansionFraction = expansionFraction,
+                            onSongSelected = { newSong ->
+                                if (newSong.id != currentSong.id) {
+                                    playerViewModel.showAndPlaySong(
+                                        song = newSong,
+                                        contextSongs = currentPlaybackQueue,
+                                        queueName = currentQueueSourceName
+                                    )
+                                }
+                            },
+                            carouselStyle = carouselStyle,
+                            modifier = Modifier.height(carouselHeight) // Apply calculated height
+                        )
+                    }
+                }
             }
 
             // Song Info - uses new Composable
@@ -506,17 +526,19 @@ private fun SongMetadataDisplaySection( // Renamed for clarity
         horizontalArrangement = Arrangement.Absolute.SpaceBetween
     ) {
         song?.let { currentSong ->
-            PlayerSongInfo(
-                title = currentSong.title,
-                artist = currentSong.artist,
-                expansionFraction = expansionFraction,
-                textColor = textColor,
-                artistTextColor = artistTextColor,
-                gradientEdgeColor = gradientEdgeColor,
-                modifier = Modifier
-                    .weight(0.85f)
-                    .align(Alignment.CenterVertically)
-            )
+            DeferAt(expansionFraction, 0.20f) {
+                PlayerSongInfo(
+                    title = currentSong.title,
+                    artist = currentSong.artist,
+                    expansionFraction = expansionFraction,
+                    textColor = textColor,
+                    artistTextColor = artistTextColor,
+                    gradientEdgeColor = gradientEdgeColor,
+                    modifier = Modifier
+                        .weight(0.85f)
+                        .align(Alignment.CenterVertically)
+                )
+            }
         }
         Spacer(
             modifier = Modifier
@@ -541,80 +563,90 @@ private fun SongMetadataDisplaySection( // Renamed for clarity
 }
 
 @Composable
-private fun PlayerProgressBarSection(
+fun PlayerProgressBarSection(
     currentPositionProvider: () -> Long,
     totalDurationValue: Long,
     onSeek: (Long) -> Unit,
     expansionFraction: Float,
     isPlayingProvider: () -> Boolean,
-    currentSheetState: com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState,
+    currentSheetState: PlayerSheetState,
     activeTrackColor: Color,
     inactiveTrackColor: Color,
     thumbColor: Color,
     timeTextColor: Color,
     modifier: Modifier = Modifier
 ) {
-    val currentPosition = currentPositionProvider()
-    val isPlaying = isPlayingProvider()
-    val progressFractionValue = remember(currentPosition, totalDurationValue) {
-        (currentPosition.coerceAtLeast(0).toFloat() /
-                totalDurationValue.coerceAtLeast(1).toFloat())
-    }.coerceIn(0f, 1f)
+    val isExpanded = currentSheetState == PlayerSheetState.EXPANDED &&
+            expansionFraction >= 0.995f
+
+    val rawPosition = currentPositionProvider()
+    val rawProgress = (rawPosition.coerceAtLeast(0) / totalDurationValue.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
+
+    val (smoothProgress, sampledPosition) = rememberSmoothProgress(
+        isPlayingProvider = isPlayingProvider,
+        currentPositionProvider = currentPositionProvider,
+        totalDuration = totalDurationValue,
+        sampleWhilePlayingMs = 200L,
+        sampleWhilePausedMs = 800L
+    )
+
 
     var sliderDragValue by remember { mutableStateOf<Float?>(null) }
     val interactionSource = remember { MutableInteractionSource() }
+
+    val effectiveProgress = sliderDragValue ?: if (isExpanded) rawProgress else smoothProgress
+    val effectivePosition = sliderDragValue?.let { (it * totalDurationValue).roundToLong() }
+        ?: if (isExpanded) rawPosition else sampledPosition
+
 
     Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = lerp(2.dp, 0.dp, expansionFraction))
-            .graphicsLayer {
-                alpha = expansionFraction
-            }
+            .graphicsLayer { alpha = expansionFraction }
             .heightIn(min = 70.dp)
     ) {
-        WavyMusicSlider(
-            value = sliderDragValue ?: progressFractionValue,
-            onValueChange = { newValue ->
-                sliderDragValue = newValue
-            },
-            onValueChangeFinished = {
-                sliderDragValue?.let { finalValue ->
-                    onSeek((finalValue * totalDurationValue).roundToLong())
-                }
-                sliderDragValue = null
-            },
-            interactionSource = interactionSource,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            trackHeight = 6.dp,
-            thumbRadius = 8.dp,
-            activeTrackColor = activeTrackColor,
-            inactiveTrackColor = inactiveTrackColor,
-            thumbColor = thumbColor,
-            waveFrequency = 0.08f,
-            isPlaying = (isPlaying && currentSheetState == com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState.EXPANDED)
-        )
+        DeferAt(expansionFraction = expansionFraction, threshold = 0.08f) {
+            WavyMusicSlider(
+                value = effectiveProgress,
+                onValueChange = { newValue -> sliderDragValue = newValue },
+                onValueChangeFinished = {
+                    sliderDragValue?.let { finalValue ->
+                        onSeek((finalValue * totalDurationValue).roundToLong())
+                    }
+                    sliderDragValue = null
+                },
+                interactionSource = interactionSource,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                trackHeight = 6.dp,
+                thumbRadius = 8.dp,
+                activeTrackColor = activeTrackColor,
+                inactiveTrackColor = inactiveTrackColor,
+                thumbColor = thumbColor,
+                waveFrequency = 0.08f,
+                isPlaying = (isPlayingProvider() && isExpanded),
+                isWaveEligible = isExpanded
+            )
+        }
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            val displayPosition = sliderDragValue?.let { (it * totalDurationValue).toLong() } ?: currentPosition
             Text(
-                formatDuration(displayPosition),
-                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                color = timeTextColor,
-                fontSize = 12.sp
+                formatDuration(effectivePosition),
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                color = timeTextColor
             )
             Text(
                 formatDuration(totalDurationValue),
-                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                color = timeTextColor,
-                fontSize = 12.sp
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                color = timeTextColor
             )
         }
     }
@@ -630,6 +662,17 @@ private fun PlayerSongInfo(
     gradientEdgeColor: Color,
     modifier: Modifier = Modifier
 ) {
+    val titleStyle = MaterialTheme.typography.headlineSmall.copy(
+        fontWeight = FontWeight.Bold,
+        fontFamily = GoogleSansRounded,
+        color = textColor
+    )
+
+    val artistStyle = MaterialTheme.typography.titleMedium.copy(
+        letterSpacing = 0.sp,
+        color = artistTextColor
+    )
+
     Column(
         horizontalAlignment = Alignment.Start,
         modifier = modifier
@@ -640,26 +683,9 @@ private fun PlayerSongInfo(
                 translationY = (1f - expansionFraction) * 24f
             }
     ) {
-        AutoScrollingText(
-            text = title,
-            style = MaterialTheme.typography.headlineSmall.copy(
-                fontWeight = FontWeight.Bold,
-                fontFamily = GoogleSansRounded,
-                color = textColor
-            ),
-            textAlign = TextAlign.Start,
-            gradientEdgeColor = gradientEdgeColor
-        )
+        AutoScrollingTextOnDemand(title, titleStyle, gradientEdgeColor, expansionFraction)
         Spacer(modifier = Modifier.height(4.dp))
-        AutoScrollingText(
-            text = artist,
-            style = MaterialTheme.typography.titleMedium.copy(
-                letterSpacing = 0.sp,
-                color = artistTextColor
-            ),
-            textAlign = TextAlign.Start,
-            gradientEdgeColor = gradientEdgeColor
-        )
+        AutoScrollingTextOnDemand(artist, artistStyle, gradientEdgeColor, expansionFraction)
     }
 }
 

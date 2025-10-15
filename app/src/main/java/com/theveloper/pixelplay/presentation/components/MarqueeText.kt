@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,10 +23,44 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+
+@Composable
+fun AutoScrollingTextOnDemand(
+    text: String,
+    style: TextStyle,
+    gradientEdgeColor: Color,
+    expansionFraction: Float,
+    modifier: Modifier = Modifier
+) {
+    var overflow by remember { mutableStateOf(false) }
+    val canStart by remember { derivedStateOf { expansionFraction > 0.20f && overflow } }
+
+
+// Usamos un Text "medidor" sólo la primera composición para detectar overflow.
+    if (!canStart) {
+        Text(
+            text = text,
+            style = style,
+            maxLines = 1,
+            softWrap = false,
+            onTextLayout = { res: TextLayoutResult -> overflow = res.hasVisualOverflow },
+            modifier = modifier
+        )
+    } else {
+        AutoScrollingText(
+            text = text,
+            style = style,
+            textAlign = TextAlign.Start,
+            gradientEdgeColor = gradientEdgeColor,
+            modifier = modifier
+        )
+    }
+}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
