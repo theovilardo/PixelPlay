@@ -1,7 +1,5 @@
 package com.theveloper.pixelplay.presentation.components
 
-// Coil imports for FullPlayerContentInternal
-
 import android.os.Trace
 import android.util.Log
 import android.widget.Toast
@@ -17,6 +15,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Indication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -40,6 +39,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -55,6 +55,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -105,7 +106,6 @@ internal val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error(
 private enum class DragPhase { IDLE, TENSION, SNAPPING, FREE_DRAG }
 
 val MiniPlayerHeight = 64.dp
-//val PlayerSheetExpandedCornerRadius = 32.dp
 const val ANIMATION_DURATION_MS = 255
 
 val MiniPlayerBottomSpacer = 8.dp
@@ -148,23 +148,6 @@ fun UnifiedPlayerSheet(
     val showDismissUndoBar by remember {
         playerViewModel.playerUiState.map { it.showDismissUndoBar }.distinctUntilChanged()
     }.collectAsState(initial = false)
-//    val dismissedSong by remember {
-//        playerViewModel.playerUiState.map { it.dismissedSong }.distinctUntilChanged()
-//    }.collectAsState(initial = null)
-//    val dismissedQueue by remember {
-//        playerViewModel.playerUiState.map { it.dismissedQueue }.distinctUntilChanged()
-//    }.collectAsState(initial = persistentListOf())
-//    val dismissedQueueName by remember {
-//        playerViewModel.playerUiState.map { it.dismissedQueueName }.distinctUntilChanged()
-//    }.collectAsState(initial = "")
-//    val dismissedPosition by remember {
-//        playerViewModel.playerUiState.map { it.dismissedPosition }.distinctUntilChanged()
-//    }.collectAsState(initial = 0L)
-//    val undoBarVisibleDuration by remember { // Assuming this doesn't change often, mapping for consistency
-//        playerViewModel.playerUiState.map { it.undoBarVisibleDuration }.distinctUntilChanged()
-//    }.collectAsState(initial = 4000L)
-
-//    val isPlayerVisible = stablePlayerState.isPlaying
 
 
     val currentSheetContentState by playerViewModel.sheetState.collectAsState()
@@ -392,13 +375,6 @@ fun UnifiedPlayerSheet(
         label = "SheetTopCornerRadius"
     )
 
-//    val sheetShape = RoundedCornerShape(
-//        topStart = overallSheetTopCornerRadius,
-//        topEnd = overallSheetTopCornerRadius,
-//        bottomStart = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp,
-//        bottomEnd = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp
-//    )
-
     val playerContentActualBottomRadiusTargetValue by remember(
         navBarStyle,
         showPlayerContentArea,
@@ -460,44 +436,6 @@ fun UnifiedPlayerSheet(
         ),
         label = "PlayerContentBottomRadius"
     )
-
-//    val navBarActualTopRadiusTarget by remember(
-//        showPlayerContentArea, playerContentExpansionFraction,
-//        currentSheetContentState, swipeDismissProgress.value
-//    ) {
-//        derivedStateOf {
-//            val calculatedNormally = if (showPlayerContentArea) {
-//                val fraction = playerContentExpansionFraction.value
-//                if (fraction < 0.2f) {
-//                    lerp(12.dp, 18.dp, (fraction / 0.2f).coerceIn(0f, 1f))
-//                } else {
-//                    18.dp
-//                }
-//            } else {
-//                12.dp
-//            }
-//
-//            if (currentSheetContentState == PlayerSheetState.COLLAPSED &&
-//                swipeDismissProgress.value > 0f &&
-//                showPlayerContentArea &&
-//                playerContentExpansionFraction.value < 0.01f
-//            ) {
-//                val baseCollapsedRadius = 12.dp
-//                lerp(baseCollapsedRadius, navBarCornerRadius.dp, swipeDismissProgress.value)
-//            } else {
-//                calculatedNormally
-//            }
-//        }
-//    }
-
-//    val navBarActualTopRadius by animateDpAsState(
-//        targetValue = navBarActualTopRadiusTarget.value.dp,
-//        animationSpec = spring(
-//            dampingRatio = Spring.DampingRatioNoBouncy,
-//            stiffness = Spring.StiffnessMedium
-//        ),
-//        label = "NavBarTopRadius"
-//    )
 
     val actualCollapsedStateHorizontalPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 14.dp else collapsedStateHorizontalPadding
 
@@ -666,6 +604,8 @@ fun UnifiedPlayerSheet(
         )
     }
 
+    val isCollapsedState = rememberUpdatedState(currentSheetContentState == PlayerSheetState.COLLAPSED)
+
     AnimatedVisibility(
         visible = showPlayerContentArea && playerContentExpansionFraction.value > 0f && !internalIsKeyboardVisible,
         enter = fadeIn(animationSpec = tween(ANIMATION_DURATION_MS)),
@@ -707,11 +647,13 @@ fun UnifiedPlayerSheet(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .pointerInput(playerViewModel, showPlayerContentArea, currentSheetContentState, configuration, density, scope) {
-                                if (!showPlayerContentArea || currentSheetContentState != PlayerSheetState.COLLAPSED) {
-                                    scope.launch { offsetAnimatable.snapTo(0f) }
-                                    return@pointerInput
-                                }
+                            //.pointerInput(playerViewModel, showPlayerContentArea, currentSheetContentState, configuration, density, scope) {
+                            .pointerInput(Unit){
+//                                if (!showPlayerContentArea || currentSheetContentState != PlayerSheetState.COLLAPSED) {
+//                                    scope.launch { offsetAnimatable.snapTo(0f) }
+//                                    return@pointerInput
+//                                }
+                                if (!isCollapsedState.value) return@pointerInput
                                 var accumulatedDragX by mutableFloatStateOf(0f)
                                 var dragPhase by mutableStateOf(DragPhase.IDLE)
 
@@ -1116,16 +1058,9 @@ private fun MiniPlayerContentInternal(
     modifier: Modifier = Modifier
 ) {
     val hapticFeedback = LocalHapticFeedback.current
-//    val albumShape = AbsoluteSmoothCornerShape(
-//        cornerRadiusTL = cornerRadiusAlb,
-//        smoothnessAsPercentBL = 60,
-//        cornerRadiusTR = cornerRadiusAlb,
-//        smoothnessAsPercentBR = 60,
-//        cornerRadiusBR = cornerRadiusAlb,
-//        smoothnessAsPercentTL = 60,
-//        cornerRadiusBL = cornerRadiusAlb,
-//        smoothnessAsPercentTR = 60
-//    )
+
+    val interaction = remember { MutableInteractionSource() }
+    val indication: Indication = ripple(bounded = false)
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -1179,11 +1114,8 @@ private fun MiniPlayerContentInternal(
                 .clip(CircleShape)
                 .background(LocalMaterialTheme.current.primary)
                 .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = ripple(
-                        bounded = false,
-                        color = LocalMaterialTheme.current.onPrimary
-                    )
+                    interactionSource = interaction,
+                    indication = indication
                 ) {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onPlayPause()
@@ -1206,11 +1138,8 @@ private fun MiniPlayerContentInternal(
                 .clip(CircleShape)
                 .background(LocalMaterialTheme.current.primary.copy(alpha = 0.2f))
                 .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = ripple(
-                        bounded = false,
-                        color = LocalMaterialTheme.current.onPrimary
-                    )
+                    interactionSource = interaction,
+                    indication = indication
                 ) { onNext() },
             contentAlignment = Alignment.Center
         ) {
