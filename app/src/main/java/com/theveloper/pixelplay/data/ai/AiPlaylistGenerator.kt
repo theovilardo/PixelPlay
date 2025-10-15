@@ -1,12 +1,15 @@
 package com.theveloper.pixelplay.data.ai
 
+import android.util.Log
 import com.google.ai.client.generativeai.GenerativeModel
 import com.theveloper.pixelplay.data.DailyMixManager
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
+import com.theveloper.pixelplay.utils.LogUtils
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import timber.log.Timber
 import javax.inject.Inject
 import kotlin.Result
 
@@ -27,8 +30,11 @@ class AiPlaylistGenerator @Inject constructor(
                 return Result.failure(Exception("API Key not configured."))
             }
 
+            val selectedModel = userPreferencesRepository.geminiModel.first()
+            val modelName = selectedModel.ifEmpty { "" }
+
             val generativeModel = GenerativeModel(
-                modelName = "gemini-2.5-flash",
+                modelName = modelName,
                 apiKey = apiKey
             )
 
@@ -49,8 +55,12 @@ class AiPlaylistGenerator @Inject constructor(
                 """.trimIndent()
             }
 
-            val systemPrompt = """
-            You are a world-class DJ and music expert. Your task is to create a playlist for a user based on their prompt.
+            // Get the custom system prompt from user preferences
+            val customSystemPrompt = userPreferencesRepository.geminiSystemPrompt.first()
+
+            // Build the task-specific instructions
+            val taskInstructions = """
+            Your task is to create a playlist for a user based on their prompt.
             You will be given a user's request, a desired playlist length range, and a list of available songs with their metadata.
 
             Instructions:
@@ -65,8 +75,11 @@ class AiPlaylistGenerator @Inject constructor(
             """.trimIndent()
 
             val fullPrompt = """
-            $systemPrompt
-
+            
+            $taskInstructions
+            
+            $customSystemPrompt
+            
             User's request: "$userPrompt"
             Minimum playlist length: $minLength
             Maximum playlist length: $maxLength

@@ -14,6 +14,8 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
+import com.theveloper.pixelplay.data.ai.GeminiModelService
+import com.theveloper.pixelplay.data.ai.GeminiModel
 
 data class SettingsUiState(
     val directoryItems: List<DirectoryItem> = emptyList(),
@@ -22,14 +24,18 @@ data class SettingsUiState(
     val mockGenresEnabled: Boolean = false,
     val navBarCornerRadius: Int = 32,
     val navBarStyle: String = NavBarStyle.DEFAULT,
-    val carouselStyle: String = CarouselStyle.ONE_PEEK
+    val carouselStyle: String = CarouselStyle.ONE_PEEK,
+    val availableModels: List<GeminiModel> = emptyList(),
+    val isLoadingModels: Boolean = false,
+    val modelsFetchError: String? = null
 )
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val musicRepository: MusicRepository,
-    private val syncManager: SyncManager
+    private val syncManager: SyncManager,
+    private val geminiModelService: GeminiModelService
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -38,10 +44,16 @@ class SettingsViewModel @Inject constructor(
     val geminiApiKey: StateFlow<String> = userPreferencesRepository.geminiApiKey
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
+    val geminiModel: StateFlow<String> = userPreferencesRepository.geminiModel
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+
+    val geminiSystemPrompt: StateFlow<String> = userPreferencesRepository.geminiSystemPrompt
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferencesRepository.DEFAULT_SYSTEM_PROMPT)
+
     init {
         viewModelScope.launch {
             userPreferencesRepository.playerThemePreferenceFlow.collect { preference ->
-                _uiState.update { it.copy(playerThemePreference = preference) }
+                _uiState.update{ it.copy(playerThemePreference = preference) }
             }
         }
 
@@ -113,24 +125,6 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun refreshLibrary() {
-        viewModelScope.launch {
-            syncManager.forceRefresh()
-        }
-    }
-
-    fun onGeminiApiKeyChange(apiKey: String) {
-        viewModelScope.launch {
-            userPreferencesRepository.setGeminiApiKey(apiKey)
-        }
-    }
-
-    fun setNavBarCornerRadius(radius: Int) {
-        viewModelScope.launch {
-            userPreferencesRepository.setNavBarCornerRadius(radius)
-        }
-    }
-
     fun setNavBarStyle(style: String) {
         viewModelScope.launch {
             userPreferencesRepository.setNavBarStyle(style)
@@ -140,6 +134,87 @@ class SettingsViewModel @Inject constructor(
     fun setCarouselStyle(style: String) {
         viewModelScope.launch {
             userPreferencesRepository.setCarouselStyle(style)
+        }
+    }
+
+    fun refreshLibrary() {
+        viewModelScope.launch {
+            syncManager.forceRefresh()
+        }
+    }
+
+    fun onGeminiApiKeyChange(apiKey: String) {
+        viewModelScope.launch {
+            userPreferencesRepository.setGeminiApiKey(apiKey)
+
+            // Fetch models when API key changes and is not empty
+            if (apiKey.isNotBlank()) {
+                fetchAvailableModels(apiKey)
+            } else {
+                // Clear models if API key is empty
+                _uiState.update {
+                    it.copy(
+                        availableModels = emptyList(),
+                        modelsFetchError = null
+                    )
+                }
+                userPreferencesRepository.setGeminiModel("")
+            }
+        }
+    }
+
+    fun fetchAvailableModels(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingModels = true, modelsFetchError = null) }
+
+            val result = geminiModelService.fetchAvailableModels(apiKey)
+
+            result.onSuccess { models ->
+                _uiState.update {
+                    it.copy(
+                        availableModels = models,
+                        isLoadingModels = false,
+                        modelsFetchError = null
+                    )
+                }
+
+                // Auto-select first model if none is selected
+                val currentModel = userPreferencesRepository.geminiModel.first()
+                if (currentModel.isEmpty() && models.isNotEmpty()) {
+                    userPreferencesRepository.setGeminiModel(models.first().name)
+                }
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        isLoadingModels = false,
+                        modelsFetchError = error.message ?: "Failed to fetch models"
+                    )
+                }
+            }
+        }
+    }
+
+    fun onGeminiModelChange(modelName: String) {
+        viewModelScope.launch {
+            userPreferencesRepository.setGeminiModel(modelName)
+        }
+    }
+
+    fun setNavBarCornerRadius(radius: Int) {
+        viewModelScope.launch {
+            userPreferencesRepository.setNavBarCornerRadius(radius)
+        }
+    }
+
+    fun onGeminiSystemPromptChange(prompt: String) {
+        viewModelScope.launch {
+            userPreferencesRepository.setGeminiSystemPrompt(prompt)
+        }
+    }
+
+    fun resetGeminiSystemPrompt() {
+        viewModelScope.launch {
+            userPreferencesRepository.resetGeminiSystemPrompt()
         }
     }
 }
