@@ -76,7 +76,9 @@ fun WavyMusicSlider(
     waveAnimationDuration: Int = 2000,
     hideInactiveTrackPortion: Boolean = true,
     isPlaying: Boolean = true,
-    thumbLineHeightWhenInteracting: Dp = 24.dp
+    thumbLineHeightWhenInteracting: Dp = 24.dp,
+    // NUEVO: permite desactivar la onda si el sheet no está expandido
+    isWaveEligible: Boolean = true
 ) {
     val isDragged by interactionSource.collectIsDraggedAsState()
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -84,29 +86,33 @@ fun WavyMusicSlider(
 
     val thumbInteractionFraction by animateFloatAsState(
         targetValue = if (isInteracting) 1f else 0f,
-        animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
+        animationSpec = tween(250, easing = FastOutSlowInEasing),
         label = "ThumbInteractionAnim"
     )
 
-    val shouldShowWave = isPlaying && !isInteracting
+    // La onda sólo si: el track está reproduciendo, no hay interacción y el contexto lo permite
+    val shouldShowWave = isWaveEligible && isPlaying && !isInteracting
 
-    val currentWaveAmplitudeTarget = if (shouldShowWave) waveAmplitudeWhenPlaying else 0.dp
     val animatedWaveAmplitude by animateDpAsState(
-        targetValue = currentWaveAmplitudeTarget,
-        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
+        targetValue = if (shouldShowWave) waveAmplitudeWhenPlaying else 0.dp,
+        animationSpec = tween(300, easing = FastOutSlowInEasing),
         label = "WaveAmplitudeAnim"
     )
 
-    val infiniteTransition = rememberInfiniteTransition(label = "WavePhaseInfiniteAnim")
-    val phaseShift by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 2 * PI.toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = waveAnimationDuration, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "WavePhaseShiftAnim"
-    )
+    // FASE CONDICIONAL: si la onda no se muestra, no hay transición infinita ni invalidaciones.
+    val phaseShift: Float = if (shouldShowWave) {
+        val infinite = rememberInfiniteTransition(label = "WavePhaseInfiniteAnim")
+        val p by infinite.animateFloat(
+            initialValue = 0f,
+            targetValue = (2 * PI).toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = waveAnimationDuration, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "WavePhaseShiftAnim"
+        )
+        p
+    } else 0f
 
     val trackHeightPx = with(LocalDensity.current) { trackHeight.toPx() }
     val thumbRadiusPx = with(LocalDensity.current) { thumbRadius.toPx() }
@@ -196,41 +202,56 @@ fun WavyMusicSlider(
                             val activeTrackVisualEnd =
                                 currentProgressPxEndVisual - (thumbGapPx * thumbInteractionFraction)
 
-                            if (waveAmplitudePxInternal > 0.01f) {
+                            if (waveAmplitudePxInternal > 0.01f && waveFrequency > 0f) {
                                 wavePath.reset()
                                 val waveStartDrawX = localTrackStart
-                                val waveEndDrawX =
-                                    activeTrackVisualEnd.coerceAtLeast(waveStartDrawX)
-
+                                val waveEndDrawX = activeTrackVisualEnd.coerceAtLeast(waveStartDrawX)
                                 if (waveEndDrawX > waveStartDrawX) {
-                                    wavePath.moveTo(
-                                        waveStartDrawX,
-                                        localCenterY + waveAmplitudePxInternal * sin(waveFrequency * waveStartDrawX + phaseShift)
-                                    )
-                                    val waveStep = 2f // Aumentado de 1f a 2f para reducir cálculos
-                                    var x = waveStartDrawX + waveStep
+                                    val periodPx = ((2 * PI) / waveFrequency).toFloat()
+                                    val samplesPerCycle = 20f
+                                    val waveStep = (periodPx / samplesPerCycle)
+                                        .coerceAtLeast(1.2f)
+                                        .coerceAtMost(trackHeightPx)
+
+                                    fun yAt(x: Float): Float {
+                                        val s = sin(waveFrequency * x + phaseShift)
+                                        return (localCenterY + waveAmplitudePxInternal * s)
+                                            .coerceIn(
+                                                localCenterY - waveAmplitudePxInternal - trackHeightPx / 2f,
+                                                localCenterY + waveAmplitudePxInternal + trackHeightPx / 2f
+                                            )
+                                    }
+
+                                    var prevX = waveStartDrawX
+                                    var prevY = yAt(prevX)
+                                    wavePath.moveTo(prevX, prevY)
+
+                                    var x = prevX + waveStep
                                     while (x < waveEndDrawX) {
-                                        val wavePhase = waveFrequency * x + phaseShift
-                                        val waveY =
-                                            localCenterY + waveAmplitudePxInternal * sin(wavePhase)
-                                        val clampedY = waveY.coerceIn(
-                                            localCenterY - waveAmplitudePxInternal - trackHeightPx / 2f,
-                                            localCenterY + waveAmplitudePxInternal + trackHeightPx / 2f
-                                        )
-                                        wavePath.lineTo(x, clampedY)
+                                        val y = yAt(x)
+                                        val midX = (prevX + x) * 0.5f
+                                        val midY = (prevY + y) * 0.5f
+                                        // Compose Path: quadraticBezierTo(controlX, controlY, endX, endY)
+                                        wavePath.quadraticBezierTo(prevX, prevY, midX, midY)
+                                        prevX = x
+                                        prevY = y
                                         x += waveStep
                                     }
-                                    wavePath.lineTo(
-                                        waveEndDrawX,
-                                        localCenterY + waveAmplitudePxInternal * sin(waveFrequency * waveEndDrawX + phaseShift)
-                                    )
+                                    val endY = yAt(waveEndDrawX)
+                                    wavePath.quadraticBezierTo(prevX, prevY, waveEndDrawX, endY)
+
                                     drawPath(
                                         path = wavePath,
                                         color = activeTrackColor,
-                                        style = Stroke(width = trackHeightPx, cap = StrokeCap.Round)
+                                        style = Stroke(
+                                            width = trackHeightPx,
+                                            cap = StrokeCap.Round,
+                                            join = StrokeJoin.Round, // <- importante para suavizar uniones
+                                            miter = 1f
+                                        )
                                     )
                                 }
-                            } else { // Dibujar línea recta
+                            } else {
                                 if (activeTrackVisualEnd > localTrackStart) {
                                     drawLine(
                                         color = activeTrackColor,
@@ -242,6 +263,7 @@ fun WavyMusicSlider(
                                 }
                             }
                         }
+
 
                         // --- Dibujar Thumb ---
                         val currentThumbCenterX =
@@ -268,3 +290,215 @@ fun WavyMusicSlider(
         )
     }
 }
+
+//@Composable
+//fun WavyMusicSlider(
+//    value: Float,
+//    onValueChange: (Float) -> Unit,
+//    modifier: Modifier = Modifier,
+//    enabled: Boolean = true,
+//    valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
+//    onValueChangeFinished: (() -> Unit)? = null,
+//    interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
+//    trackHeight: Dp = 6.dp,
+//    thumbRadius: Dp = 8.dp,
+//    activeTrackColor: Color = MaterialTheme.colorScheme.primary,
+//    inactiveTrackColor: Color = MaterialTheme.colorScheme.surfaceVariant,
+//    thumbColor: Color = MaterialTheme.colorScheme.primary,
+//    waveAmplitudeWhenPlaying: Dp = 3.dp,
+//    waveFrequency: Float = 0.08f,
+//    waveAnimationDuration: Int = 2000,
+//    hideInactiveTrackPortion: Boolean = true,
+//    isPlaying: Boolean = true,
+//    thumbLineHeightWhenInteracting: Dp = 24.dp
+//) {
+//    val isDragged by interactionSource.collectIsDraggedAsState()
+//    val isPressed by interactionSource.collectIsPressedAsState()
+//    val isInteracting = isDragged || isPressed
+//
+//    val thumbInteractionFraction by animateFloatAsState(
+//        targetValue = if (isInteracting) 1f else 0f,
+//        animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
+//        label = "ThumbInteractionAnim"
+//    )
+//
+//    val shouldShowWave = isPlaying && !isInteracting
+//
+//    val currentWaveAmplitudeTarget = if (shouldShowWave) waveAmplitudeWhenPlaying else 0.dp
+//    val animatedWaveAmplitude by animateDpAsState(
+//        targetValue = currentWaveAmplitudeTarget,
+//        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
+//        label = "WaveAmplitudeAnim"
+//    )
+//
+//    val infiniteTransition = rememberInfiniteTransition(label = "WavePhaseInfiniteAnim")
+//    val phaseShift by infiniteTransition.animateFloat(
+//        initialValue = 0f,
+//        targetValue = 2 * PI.toFloat(),
+//        animationSpec = infiniteRepeatable(
+//            animation = tween(durationMillis = waveAnimationDuration, easing = LinearEasing),
+//            repeatMode = RepeatMode.Restart
+//        ),
+//        label = "WavePhaseShiftAnim"
+//    )
+//
+//    val trackHeightPx = with(LocalDensity.current) { trackHeight.toPx() }
+//    val thumbRadiusPx = with(LocalDensity.current) { thumbRadius.toPx() }
+//    val waveAmplitudePxInternal = with(LocalDensity.current) { animatedWaveAmplitude.toPx() }
+//    val thumbLineHeightPxInternal = with(LocalDensity.current) { thumbLineHeightWhenInteracting.toPx() }
+//    val thumbGapPx = with(LocalDensity.current) { 4.dp.toPx() }
+//
+//    val wavePath = remember { Path() }
+//
+//    val sliderVisualHeight = remember(trackHeight, thumbRadius, thumbLineHeightWhenInteracting) {
+//        max(trackHeight * 2, max(thumbRadius * 2, thumbLineHeightWhenInteracting) + 8.dp)
+//    }
+//
+//    val hapticFeedback = LocalHapticFeedback.current
+//
+//    BoxWithConstraints(modifier = modifier.clipToBounds()) {
+//        val lastHapticStep = remember { mutableIntStateOf(-1) }
+//
+//        Slider(
+//            value = value,
+//            onValueChange = { newValue ->
+//                val currentStep = (newValue * 100 / (valueRange.endInclusive - valueRange.start)).toInt()
+//                if (currentStep != lastHapticStep.intValue) {
+//                    hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+//                    lastHapticStep.intValue = currentStep
+//                }
+//                onValueChange(newValue)
+//            },
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .height(sliderVisualHeight),
+//            enabled = enabled,
+//            valueRange = valueRange,
+//            onValueChangeFinished = onValueChangeFinished,
+//            interactionSource = interactionSource,
+//            colors = SliderDefaults.colors(
+//                thumbColor = Color.Transparent,
+//                activeTrackColor = Color.Transparent,
+//                inactiveTrackColor = Color.Transparent
+//            )
+//        )
+//
+//        Spacer(
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .height(sliderVisualHeight)
+//                .drawWithCache {
+//                    val canvasWidth = size.width
+//                    val localCenterY = size.height / 2f
+//                    val localTrackStart = thumbRadiusPx
+//                    val localTrackEnd = canvasWidth - thumbRadiusPx
+//                    val localTrackWidth = (localTrackEnd - localTrackStart).coerceAtLeast(0f)
+//
+//                    val normalizedValue = value.let { v ->
+//                        if (valueRange.endInclusive == valueRange.start) 0f
+//                        else ((v - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(
+//                            0f,
+//                            1f
+//                        )
+//                    }
+//                    onDrawWithContent {
+//                        // --- Dibujar Pista Inactiva ---
+//                        val currentProgressPxEndVisual =
+//                            localTrackStart + localTrackWidth * normalizedValue
+//                        if (hideInactiveTrackPortion) {
+//                            if (currentProgressPxEndVisual < localTrackEnd) {
+//                                drawLine(
+//                                    color = inactiveTrackColor,
+//                                    start = Offset(currentProgressPxEndVisual, localCenterY),
+//                                    end = Offset(localTrackEnd, localCenterY),
+//                                    strokeWidth = trackHeightPx,
+//                                    cap = StrokeCap.Round
+//                                )
+//                            }
+//                        } else {
+//                            drawLine(
+//                                color = inactiveTrackColor,
+//                                start = Offset(localTrackStart, localCenterY),
+//                                end = Offset(localTrackEnd, localCenterY),
+//                                strokeWidth = trackHeightPx,
+//                                cap = StrokeCap.Round
+//                            )
+//                        }
+//
+//                        // --- Dibujar Pista Activa (Onda o Línea) ---
+//                        if (normalizedValue > 0f) {
+//                            val activeTrackVisualEnd =
+//                                currentProgressPxEndVisual - (thumbGapPx * thumbInteractionFraction)
+//
+//                            if (waveAmplitudePxInternal > 0.01f) {
+//                                wavePath.reset()
+//                                val waveStartDrawX = localTrackStart
+//                                val waveEndDrawX =
+//                                    activeTrackVisualEnd.coerceAtLeast(waveStartDrawX)
+//
+//                                if (waveEndDrawX > waveStartDrawX) {
+//                                    wavePath.moveTo(
+//                                        waveStartDrawX,
+//                                        localCenterY + waveAmplitudePxInternal * sin(waveFrequency * waveStartDrawX + phaseShift)
+//                                    )
+//                                    val waveStep = 2f // Aumentado de 1f a 2f para reducir cálculos
+//                                    var x = waveStartDrawX + waveStep
+//                                    while (x < waveEndDrawX) {
+//                                        val wavePhase = waveFrequency * x + phaseShift
+//                                        val waveY =
+//                                            localCenterY + waveAmplitudePxInternal * sin(wavePhase)
+//                                        val clampedY = waveY.coerceIn(
+//                                            localCenterY - waveAmplitudePxInternal - trackHeightPx / 2f,
+//                                            localCenterY + waveAmplitudePxInternal + trackHeightPx / 2f
+//                                        )
+//                                        wavePath.lineTo(x, clampedY)
+//                                        x += waveStep
+//                                    }
+//                                    wavePath.lineTo(
+//                                        waveEndDrawX,
+//                                        localCenterY + waveAmplitudePxInternal * sin(waveFrequency * waveEndDrawX + phaseShift)
+//                                    )
+//                                    drawPath(
+//                                        path = wavePath,
+//                                        color = activeTrackColor,
+//                                        style = Stroke(width = trackHeightPx, cap = StrokeCap.Round)
+//                                    )
+//                                }
+//                            } else { // Dibujar línea recta
+//                                if (activeTrackVisualEnd > localTrackStart) {
+//                                    drawLine(
+//                                        color = activeTrackColor,
+//                                        start = Offset(localTrackStart, localCenterY),
+//                                        end = Offset(activeTrackVisualEnd, localCenterY),
+//                                        strokeWidth = trackHeightPx,
+//                                        cap = StrokeCap.Round
+//                                    )
+//                                }
+//                            }
+//                        }
+//
+//                        // --- Dibujar Thumb ---
+//                        val currentThumbCenterX =
+//                            localTrackStart + localTrackWidth * normalizedValue
+//                        val thumbCurrentWidthPx =
+//                            lerp(thumbRadiusPx * 2f, trackHeightPx * 1.2f, thumbInteractionFraction)
+//                        val thumbCurrentHeightPx = lerp(
+//                            thumbRadiusPx * 2f,
+//                            thumbLineHeightPxInternal,
+//                            thumbInteractionFraction
+//                        )
+//
+//                        drawRoundRect(
+//                            color = thumbColor,
+//                            topLeft = Offset(
+//                                currentThumbCenterX - thumbCurrentWidthPx / 2f,
+//                                localCenterY - thumbCurrentHeightPx / 2f
+//                            ),
+//                            size = Size(thumbCurrentWidthPx, thumbCurrentHeightPx),
+//                            cornerRadius = CornerRadius(thumbCurrentWidthPx / 2f)
+//                        )
+//                    }
+//                }
+//        )
+//    }
+//}

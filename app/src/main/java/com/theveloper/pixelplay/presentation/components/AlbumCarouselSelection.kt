@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import coil.size.Size
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
+import com.theveloper.pixelplay.presentation.components.scoped.PrefetchAlbumNeighbors
 import kotlinx.collections.immutable.ImmutableList
 
 // ====== TIPOS/STATE DEL CARRUSEL (wrapper para mantener compatibilidad) ======
@@ -44,6 +45,14 @@ fun AlbumCarouselSection(
     val carouselState = rememberRoundedParallaxCarouselState(
         initialPage = queue.indexOf(currentSong).coerceAtLeast(0),
         pageCount = { queue.size }
+    )
+
+    PrefetchAlbumNeighbors(
+        isActive = expansionFraction > 0.08f,
+        pagerState = carouselState.pagerState,
+        queue = queue,
+        radius = 1,
+        targetSize = Size(600, 600)
     )
 
     // Player -> Carousel
@@ -85,17 +94,19 @@ fun AlbumCarouselSection(
             carouselWidth = availableWidth // Pass the full width for layout calculations
         ) { index ->
             val song = queue[index]
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .aspectRatio(1f)
-            ) { // Enforce 1:1 aspect ratio for the item itself
-                OptimizedAlbumArt(
-                    uri = song.albumArtUriString,
-                    title = song.title,
-                    modifier = Modifier.fillMaxSize(),
-                    targetSize = Size(600, 600)
-                )
+            key(song.id) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .aspectRatio(1f)
+                ) { // Enforce 1:1 aspect ratio for the item itself
+                    OptimizedAlbumArt(
+                        uri = song.albumArtUriString,
+                        title = song.title,
+                        modifier = Modifier.fillMaxSize(),
+                        targetSize = Size(600, 600)
+                    )
+                }
             }
         }
     }

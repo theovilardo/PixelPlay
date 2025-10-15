@@ -49,6 +49,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -80,6 +81,8 @@ import com.theveloper.pixelplay.presentation.components.LocalMaterialTheme
 import com.theveloper.pixelplay.presentation.components.LyricsSheet
 import com.theveloper.pixelplay.presentation.components.WavyMusicSlider
 import com.theveloper.pixelplay.presentation.components.scoped.DeferAt
+import com.theveloper.pixelplay.presentation.components.scoped.PrefetchAlbumNeighbors
+import com.theveloper.pixelplay.presentation.components.scoped.PrefetchAlbumNeighborsImg
 import com.theveloper.pixelplay.presentation.components.scoped.rememberSmoothProgress
 import com.theveloper.pixelplay.presentation.components.subcomps.FetchLyricsDialog
 import com.theveloper.pixelplay.presentation.viewmodel.LyricsSearchUiState
@@ -129,12 +132,12 @@ fun FullPlayerContent(
     val song = currentSong ?: return // Early exit if no song
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     var showLyricsSheet by remember { mutableStateOf(false) }
-        val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
-        val lyricsSearchUiState by playerViewModel.lyricsSearchUiState.collectAsState()
+    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
+    val lyricsSearchUiState by playerViewModel.lyricsSearchUiState.collectAsState()
 
-        var showFetchLyricsDialog by remember { mutableStateOf(false) }
+    var showFetchLyricsDialog by remember { mutableStateOf(false) }
 
-        val context = LocalContext.current
+    val context = LocalContext.current
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
         onResult = { uri: Uri? ->
@@ -359,6 +362,15 @@ fun FullPlayerContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceAround
         ) {
+            DeferAt(expansionFraction, 0.08f) {
+                PrefetchAlbumNeighborsImg(
+                    current = currentSong,
+                    queue = currentPlaybackQueue,
+                    radius = 2 // prev/next 2
+                )
+            }
+
+
             // Album Cover section
             BoxWithConstraints(
                 modifier = Modifier
@@ -376,22 +388,24 @@ fun FullPlayerContent(
                 }
 
                 DeferAt(expansionFraction, 0.12f) {
-                    AlbumCarouselSection(
-                        currentSong = currentSong,
-                        queue = currentPlaybackQueue,
-                        expansionFraction = expansionFraction,
-                        onSongSelected = { newSong ->
-                            if (newSong.id != currentSong.id) {
-                                playerViewModel.showAndPlaySong(
-                                    song = newSong,
-                                    contextSongs = currentPlaybackQueue,
-                                    queueName = currentQueueSourceName
-                                )
-                            }
-                        },
-                        carouselStyle = carouselStyle,
-                        modifier = Modifier.height(carouselHeight) // Apply calculated height
-                    )
+                    key(currentSong.id) {
+                        AlbumCarouselSection(
+                            currentSong = currentSong,
+                            queue = currentPlaybackQueue,
+                            expansionFraction = expansionFraction,
+                            onSongSelected = { newSong ->
+                                if (newSong.id != currentSong.id) {
+                                    playerViewModel.showAndPlaySong(
+                                        song = newSong,
+                                        contextSongs = currentPlaybackQueue,
+                                        queueName = currentQueueSourceName
+                                    )
+                                }
+                            },
+                            carouselStyle = carouselStyle,
+                            modifier = Modifier.height(carouselHeight) // Apply calculated height
+                        )
+                    }
                 }
             }
 
@@ -612,7 +626,8 @@ fun PlayerProgressBarSection(
                 inactiveTrackColor = inactiveTrackColor,
                 thumbColor = thumbColor,
                 waveFrequency = 0.08f,
-                isPlaying = (isPlayingProvider() && isExpanded)
+                isPlaying = (isPlayingProvider() && isExpanded),
+                isWaveEligible = isExpanded
             )
         }
 
