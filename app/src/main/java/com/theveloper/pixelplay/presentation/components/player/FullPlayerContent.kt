@@ -387,7 +387,7 @@ fun FullPlayerContent(
                     else -> maxWidth * 0.8f
                 }
 
-                DeferAt(expansionFraction, 0.12f) {
+                DeferAt(expansionFraction, 0.34f) {
                     key(currentSong.id) {
                         AlbumCarouselSection(
                             currentSong = currentSong,
@@ -424,51 +424,55 @@ fun FullPlayerContent(
             )
 
             // Progress Bar and Times - this section *will* recompose with currentPosition
-            PlayerProgressBarSection(
-                currentPositionProvider = currentPositionProvider,
-                totalDurationValue = totalDurationValue,
-                onSeek = onSeek,
-                expansionFraction = expansionFraction,
-                isPlayingProvider = isPlayingProvider,
-                currentSheetState = currentSheetState,
-                activeTrackColor = LocalMaterialTheme.current.primary,
-                inactiveTrackColor = LocalMaterialTheme.current.primary.copy(alpha = 0.2f),
-                thumbColor = LocalMaterialTheme.current.primary,
-                timeTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f)
-            )
-
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                AnimatedPlaybackControls(
-                    modifier = Modifier
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+            DeferAt(expansionFraction, 0.32f) {
+                PlayerProgressBarSection(
+                    currentPositionProvider = currentPositionProvider,
+                    totalDurationValue = totalDurationValue,
+                    onSeek = onSeek,
+                    expansionFraction = expansionFraction,
                     isPlayingProvider = isPlayingProvider,
-                    onPrevious = onPrevious,
-                    onPlayPause = onPlayPause,
-                    onNext = onNext,
-                    height = 80.dp,
-                    pressAnimationSpec = stableControlAnimationSpec,
-                    releaseDelay = 220L,
-                    colorOtherButtons = controlOtherButtonsColor,
-                    colorPlayPause = controlPlayPauseColor,
-                    tintPlayPauseIcon = controlTintPlayPauseIcon,
-                    tintOtherIcons = controlTintOtherIcons
+                    currentSheetState = currentSheetState,
+                    activeTrackColor = LocalMaterialTheme.current.primary,
+                    inactiveTrackColor = LocalMaterialTheme.current.primary.copy(alpha = 0.2f),
+                    thumbColor = LocalMaterialTheme.current.primary,
+                    timeTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f)
                 )
+            }
 
-                Spacer(modifier = Modifier.height(14.dp))
+            DeferAt(expansionFraction, 0.42f) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    AnimatedPlaybackControls(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        isPlayingProvider = isPlayingProvider,
+                        onPrevious = onPrevious,
+                        onPlayPause = onPlayPause,
+                        onNext = onNext,
+                        height = 80.dp,
+                        pressAnimationSpec = stableControlAnimationSpec,
+                        releaseDelay = 220L,
+                        colorOtherButtons = controlOtherButtonsColor,
+                        colorPlayPause = controlPlayPauseColor,
+                        tintPlayPauseIcon = controlTintPlayPauseIcon,
+                        tintOtherIcons = controlTintOtherIcons
+                    )
 
-                BottomToggleRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 58.dp, max = 78.dp)
-                        .padding(horizontal = 26.dp, vertical = 0.dp)
-                        .padding(bottom = 6.dp),
-                    isShuffleEnabled = isShuffleEnabled,
-                    repeatMode = repeatMode,
-                    isFavoriteProvider = isFavoriteProvider,
-                    onShuffleToggle = onShuffleToggle,
-                    onRepeatToggle = onRepeatToggle,
-                    onFavoriteToggle = onFavoriteToggle
-                )
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    BottomToggleRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 58.dp, max = 78.dp)
+                            .padding(horizontal = 26.dp, vertical = 0.dp)
+                            .padding(bottom = 6.dp),
+                        isShuffleEnabled = isShuffleEnabled,
+                        repeatMode = repeatMode,
+                        isFavoriteProvider = isFavoriteProvider,
+                        onShuffleToggle = onShuffleToggle,
+                        onRepeatToggle = onRepeatToggle,
+                        onFavoriteToggle = onFavoriteToggle
+                    )
+                }
             }
         }
     }
