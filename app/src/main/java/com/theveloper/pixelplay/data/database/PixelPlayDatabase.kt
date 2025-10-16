@@ -15,7 +15,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ArtistEntity::class,
         TransitionRuleEntity::class
     ],
-    version = 8, // Incremented version for year column
+    version = 9, // Incremented version for yearString column
     exportSchema = false
 )
 abstract class PixelPlayDatabase : RoomDatabase() {
