@@ -79,6 +79,8 @@ class MusicService : MediaSessionService() {
     companion object {
         private const val TAG = "MusicService_PixelPlay"
         const val NOTIFICATION_ID = 101
+        const val CUSTOM_COMMAND_GET_POSITION = "GET_POSITION"
+        const val CUSTOM_COMMAND_GET_POSITION_KEY = "POSITION"
     }
 
     override fun onCreate() {
@@ -97,6 +99,11 @@ class MusicService : MediaSessionService() {
                 Timber.tag("MusicService")
                     .d("onCustomCommand received: ${customCommand.customAction}")
                 when (customCommand.customAction) {
+                    CUSTOM_COMMAND_GET_POSITION -> {
+                        val position = engine.masterPlayer.currentPosition
+                        val resultBundle = Bundle().apply { putLong(CUSTOM_COMMAND_GET_POSITION_KEY, position) }
+                        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, resultBundle))
+                    }
                     MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_ON -> {
                         Timber.tag("MusicService")
                             .d("Executing SHUFFLE_ON. Current shuffleMode: ${session.player.shuffleModeEnabled}")

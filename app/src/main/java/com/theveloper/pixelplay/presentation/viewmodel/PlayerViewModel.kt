@@ -2124,17 +2124,30 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun startProgressUpdates() {
-        // Do not start local progress polling if we are casting
         if (_castSession.value != null) return
 
         stopProgressUpdates()
         progressJob = viewModelScope.launch {
             while (isActive && _stablePlayerState.value.isPlaying) {
-                val newPosition = mediaController?.currentPosition?.coerceAtLeast(0L) ?: 0L
-                if (newPosition != _playerUiState.value.currentPosition) {
-                    _playerUiState.update { it.copy(currentPosition = newPosition) }
+                mediaController?.let { controller ->
+                    val command = SessionCommand(MusicService.CUSTOM_COMMAND_GET_POSITION, Bundle.EMPTY)
+                    val future = controller.sendCustomCommand(command, Bundle.EMPTY)
+                    future.addListener(
+                        {
+                            try {
+                                val result = future.get()
+                                val position = result.extras.getLong(MusicService.CUSTOM_COMMAND_GET_POSITION_KEY)
+                                if (position != _playerUiState.value.currentPosition) {
+                                    _playerUiState.update { it.copy(currentPosition = position) }
+                                }
+                            } catch (e: Exception) {
+                                Timber.e(e, "Error getting position from custom command")
+                            }
+                        },
+                        ContextCompat.getMainExecutor(context)
+                    )
                 }
-                delay(40)
+                delay(200) // Polling interval
             }
         }
     }
