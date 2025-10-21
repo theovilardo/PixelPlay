@@ -4,12 +4,10 @@ import androidx.compose.runtime.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.*
-import androidx.compose.ui.util.lerp
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import coil.size.Size
 import com.theveloper.pixelplay.data.model.Song
@@ -90,7 +88,7 @@ fun AlbumCarouselSection(
             modifier = Modifier.fillMaxSize(), // Fill the space provided by the parent's modifier
             itemSpacing = itemSpacing,
             itemCornerRadius = corner,
-            carouselStyle = carouselStyle,
+            carouselStyle = if (carouselState.pagerState.pageCount == 1) CarouselStyle.NO_PEEK else carouselStyle, // Handle single-item case
             carouselWidth = availableWidth // Pass the full width for layout calculations
         ) { index ->
             val song = queue[index]
