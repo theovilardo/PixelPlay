@@ -53,6 +53,7 @@ class UserPreferencesRepository @Inject constructor(
 
         // Sort Option Keys
         val SONGS_SORT_OPTION = stringPreferencesKey("songs_sort_option")
+        val SONGS_SORT_OPTION_MIGRATED = booleanPreferencesKey("songs_sort_option_migrated_v2")
         val ALBUMS_SORT_OPTION = stringPreferencesKey("albums_sort_option")
         val ARTISTS_SORT_OPTION = stringPreferencesKey("artists_sort_option")
         val PLAYLISTS_SORT_OPTION = stringPreferencesKey("playlists_sort_option")
@@ -308,6 +309,7 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setSongsSortOption(optionKey: String) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.SONGS_SORT_OPTION] = optionKey
+            preferences[PreferencesKeys.SONGS_SORT_OPTION_MIGRATED] = true
         }
     }
 
@@ -337,6 +339,28 @@ class UserPreferencesRepository @Inject constructor(
 
     suspend fun ensureLibrarySortDefaults() {
         dataStore.edit { preferences ->
+            val songsMigrated = preferences[PreferencesKeys.SONGS_SORT_OPTION_MIGRATED] ?: false
+            val rawSongSort = preferences[PreferencesKeys.SONGS_SORT_OPTION]
+            val resolvedSongSort = SortOption.fromStorageKey(
+                rawSongSort,
+                SortOption.SONGS,
+                SortOption.SongTitleAZ
+            )
+            val shouldForceSongDefault = !songsMigrated && (
+                rawSongSort.isNullOrBlank() ||
+                    rawSongSort == SortOption.SongTitleZA.storageKey ||
+                    rawSongSort == SortOption.SongTitleZA.displayName
+                )
+
+            preferences[PreferencesKeys.SONGS_SORT_OPTION] = if (shouldForceSongDefault) {
+                SortOption.SongTitleAZ.storageKey
+            } else {
+                resolvedSongSort.storageKey
+            }
+            if (!songsMigrated) {
+                preferences[PreferencesKeys.SONGS_SORT_OPTION_MIGRATED] = true
+            }
+
             migrateSortPreference(
                 preferences,
                 PreferencesKeys.SONGS_SORT_OPTION,
