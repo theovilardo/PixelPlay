@@ -85,9 +85,18 @@ sealed class SortOption(val storageKey: String, val displayName: String) {
             if (rawValue.isNullOrBlank()) {
                 return fallback
             }
-            allowed.firstOrNull { it.storageKey == rawValue }?.let { return it }
+
+            val sanitized = allowed.filterIsInstance<SortOption>()
+            if (sanitized.isEmpty()) {
+                return fallback
+            }
+
+            sanitized.firstOrNull { option -> option.storageKey == rawValue }?.let { matched ->
+                return matched
+            }
+
             // Legacy values used display names; fall back to matching within the allowed group.
-            return allowed.firstOrNull { it.displayName == rawValue } ?: fallback
+            return sanitized.firstOrNull { option -> option.displayName == rawValue } ?: fallback
         }
     }
 }

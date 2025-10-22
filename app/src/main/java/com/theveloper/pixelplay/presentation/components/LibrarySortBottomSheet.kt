@@ -60,7 +60,7 @@ fun LibrarySortBottomSheet(
             )
 
             options.forEach { option ->
-                val isSelected = option == selectedOption
+                val isSelected = option.storageKey == selectedOption.storageKey
                 val containerColor = remember(isSelected) {
                     if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow
                 }

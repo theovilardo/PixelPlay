@@ -435,10 +435,18 @@ fun LibraryScreen(
                         )
 
                         if (isSortSheetVisible && availableSortOptions.isNotEmpty()) {
+                            val selectedOptionForSheet = availableSortOptions.firstOrNull { option ->
+                                option.storageKey == currentSelectedSortOption.storageKey
+                            }
+                                ?: availableSortOptions.firstOrNull { option ->
+                                    option.storageKey == currentTabId.defaultSort.storageKey
+                                }
+                                ?: availableSortOptions.first()
+
                             LibrarySortBottomSheet(
                                 title = "Sort by",
                                 options = availableSortOptions,
-                                selectedOption = currentSelectedSortOption,
+                                selectedOption = selectedOptionForSheet,
                                 onDismiss = { playerViewModel.hideSortingSheet() },
                                 onOptionSelected = { option ->
                                     onSortOptionChanged(option)
