@@ -116,10 +116,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import com.theveloper.pixelplay.presentation.library.LibraryTabId
-import com.theveloper.pixelplay.presentation.library.decodeLibraryTabOrder
 import timber.log.Timber
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -332,47 +331,41 @@ class PlayerViewModel @Inject constructor(
             initialValue = 0 // Default to Songs tab
         )
 
-    val libraryTabsFlow: StateFlow<List<LibraryTabId>> = userPreferencesRepository.libraryTabsOrderFlow
-        .map { orderJson -> decodeLibraryTabOrder(orderJson) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LibraryTabId.defaultOrder)
+    val libraryTabsFlow: StateFlow<List<String>> = userPreferencesRepository.libraryTabsOrderFlow
+        .map { orderJson ->
+            if (orderJson != null) {
+                try {
+                    Json.decodeFromString<List<String>>(orderJson)
+                } catch (e: Exception) {
+                    listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "FOLDERS", "LIKED")
+                }
+            } else {
+                listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "FOLDERS", "LIKED")
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "FOLDERS", "LIKED"))
 
-    private val _currentLibraryTabId = MutableStateFlow(LibraryTabId.Songs)
-    val currentLibraryTabId: StateFlow<LibraryTabId> = _currentLibraryTabId.asStateFlow()
 
-    private val _isSortingVisible = MutableStateFlow(false)
-    val isSortingVisible: StateFlow<Boolean> = _isSortingVisible.asStateFlow()
-
-    private val _loadedTabs = MutableStateFlow(emptySet<LibraryTabId>())
+    private val _loadedTabs = MutableStateFlow(emptySet<String>())
 
     val availableSortOptions: StateFlow<List<SortOption>> =
         currentLibraryTabId.map { tabId ->
             Trace.beginSection("PlayerViewModel.availableSortOptionsMapping")
-            val options = tabId.sortOptions
+            val options = when (tabId) {
+                LibraryTabId.SONGS -> SortOption.SONGS
+                LibraryTabId.ALBUMS -> SortOption.ALBUMS
+                LibraryTabId.ARTISTS -> SortOption.ARTISTS
+                LibraryTabId.PLAYLISTS -> SortOption.PLAYLISTS
+                LibraryTabId.FOLDERS -> SortOption.FOLDERS
+                LibraryTabId.LIKED -> SortOption.LIKED
+            }
             Trace.endSection()
             options
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = LibraryTabId.Songs.sortOptions
+            initialValue = SortOption.SONGS
         )
-
-    val currentSortOption: StateFlow<SortOption?> = combine(
-        currentLibraryTabId,
-        playerUiState
-    ) { tabId, uiState ->
-        when (tabId) {
-            LibraryTabId.Songs -> uiState.currentSongSortOption
-            LibraryTabId.Albums -> uiState.currentAlbumSortOption
-            LibraryTabId.Artists -> uiState.currentArtistSortOption
-            LibraryTabId.Liked -> uiState.currentFavoriteSortOption
-            LibraryTabId.Folders -> uiState.currentFolderSortOption
-            LibraryTabId.Playlists -> null
-        }
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = SortOption.SongTitleAZ
-    )
 
     val isSyncingStateFlow: StateFlow<Boolean> = syncManager.isSyncing
         .stateIn(
@@ -597,29 +590,6 @@ class PlayerViewModel @Inject constructor(
 
     init {
         Log.i("PlayerViewModel", "init started.")
-
-        viewModelScope.launch {
-            combine(libraryTabsFlow, lastLibraryTabIndexFlow) { tabs, index -> tabs to index }
-                .collect { (tabs, index) ->
-                    val resolved = tabs.getOrNull(index)
-                        ?: _currentLibraryTabId.value.takeIf { it in tabs }
-                        ?: tabs.firstOrNull()
-                        ?: LibraryTabId.Songs
-                    updateCurrentLibraryTab(resolved, persistSelection = false)
-                }
-        }
-
-        viewModelScope.launch {
-            libraryTabsFlow.collect { tabs ->
-                val current = _currentLibraryTabId.value
-                if (current in tabs) {
-                    val currentIndex = tabs.indexOf(current)
-                    if (currentIndex != lastLibraryTabIndexFlow.value) {
-                        saveLastLibraryTabIndex(currentIndex)
-                    }
-                }
-            }
-        }
 
         viewModelScope.launch {
             userPreferencesRepository.migrateTabOrder()
@@ -2732,84 +2702,47 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    private fun saveLastLibraryTabIndex(tabIndex: Int) {
+    fun saveLastLibraryTabIndex(tabIndex: Int) {
         viewModelScope.launch {
             userPreferencesRepository.saveLastLibraryTabIndex(tabIndex)
         }
     }
 
-    private fun updateCurrentLibraryTab(tabId: LibraryTabId, persistSelection: Boolean) {
-        if (_currentLibraryTabId.value == tabId) return
-        _currentLibraryTabId.value = tabId
-        if (persistSelection) {
-            val index = libraryTabsFlow.value.indexOf(tabId).takeIf { it >= 0 } ?: 0
-            if (index != lastLibraryTabIndexFlow.value) {
-                saveLastLibraryTabIndex(index)
-            }
-        }
+    fun showSortingSheet() {
+        _isSortingSheetVisible.value = true
     }
 
-    fun showSorting() {
-        _isSortingVisible.value = true
+    fun hideSortingSheet() {
+        _isSortingSheetVisible.value = false
     }
 
-    fun hideSorting() {
-        _isSortingVisible.value = false
-    }
-
-    fun selectSort(option: SortOption): Boolean {
-        val handled = when (val tabId = _currentLibraryTabId.value) {
-            LibraryTabId.Songs -> {
-                sortSongs(option)
-                true
-            }
-            LibraryTabId.Albums -> {
-                sortAlbums(option)
-                true
-            }
-            LibraryTabId.Artists -> {
-                sortArtists(option)
-                true
-            }
-            LibraryTabId.Liked -> {
-                sortFavoriteSongs(option)
-                true
-            }
-            LibraryTabId.Folders -> {
-                sortFolders(option)
-                true
-            }
-            LibraryTabId.Playlists -> false
-        }
-        if (handled) {
-            hideSorting()
-        }
-        return handled
-    }
-
-    fun onLibraryTabSelected(tabId: LibraryTabId) {
+    fun onLibraryTabSelected(tabIndex: Int) {
         Trace.beginSection("PlayerViewModel.onLibraryTabSelected")
-        updateCurrentLibraryTab(tabId, persistSelection = true)
+        saveLastLibraryTabIndex(tabIndex)
 
-        if (_loadedTabs.value.contains(tabId)) {
-            Log.d("PlayerViewModel", "Tab '${tabId.stableKey}' already loaded. Skipping data load.")
+        val tabIdentifier = libraryTabsFlow.value.getOrNull(tabIndex) ?: return
+        val tabId = tabIdentifier.toLibraryTabIdOrNull() ?: LibraryTabId.SONGS
+        _currentLibraryTabId.value = tabId
+
+        if (_loadedTabs.value.contains(tabIdentifier)) {
+            Log.d("PlayerViewModel", "Tab '$tabIdentifier' already loaded. Skipping data load.")
             Trace.endSection()
             return
         }
 
-        Log.d("PlayerViewModel", "Tab '${tabId.stableKey}' selected. Attempting to load data.")
+        Log.d("PlayerViewModel", "Tab '$tabIdentifier' selected. Attempting to load data.")
         viewModelScope.launch {
             Trace.beginSection("PlayerViewModel.onLibraryTabSelected_coroutine_load")
             try {
                 when (tabId) {
-                    LibraryTabId.Songs -> loadSongsIfNeeded()
-                    LibraryTabId.Albums -> loadAlbumsIfNeeded()
-                    LibraryTabId.Artists -> loadArtistsIfNeeded()
-                    LibraryTabId.Folders -> loadFoldersFromRepository()
-                    LibraryTabId.Playlists, LibraryTabId.Liked -> Unit
+                    LibraryTabId.SONGS -> loadSongsIfNeeded()
+                    LibraryTabId.ALBUMS -> loadAlbumsIfNeeded()
+                    LibraryTabId.ARTISTS -> loadArtistsIfNeeded()
+                    LibraryTabId.FOLDERS -> loadFoldersFromRepository()
+                    else -> Unit
                 }
-                _loadedTabs.update { currentTabs -> currentTabs + tabId }
-                Log.d("PlayerViewModel", "Tab '${tabId.stableKey}' marked as loaded. Current loaded tabs: ${_loadedTabs.value}")
+                _loadedTabs.update { currentTabs -> currentTabs + tabIdentifier }
+                Log.d("PlayerViewModel", "Tab '$tabIdentifier' marked as loaded. Current loaded tabs: ${_loadedTabs.value}")
             } finally {
                 Trace.endSection()
             }
@@ -2817,9 +2750,9 @@ class PlayerViewModel @Inject constructor(
         Trace.endSection()
     }
 
-    fun saveLibraryTabsOrder(tabs: List<LibraryTabId>) {
+    fun saveLibraryTabsOrder(tabs: List<String>) {
         viewModelScope.launch {
-            val orderJson = Json.encodeToString(tabs.map { it.stableKey })
+            val orderJson = Json.encodeToString(tabs)
             userPreferencesRepository.saveLibraryTabsOrder(orderJson)
         }
     }

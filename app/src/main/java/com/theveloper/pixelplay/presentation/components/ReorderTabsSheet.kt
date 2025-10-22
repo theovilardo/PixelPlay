@@ -45,7 +45,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.R
-import com.theveloper.pixelplay.presentation.library.LibraryTabId
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -56,8 +55,8 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReorderTabsSheet(
-    tabs: List<LibraryTabId>,
-    onReorder: (List<LibraryTabId>) -> Unit,
+    tabs: List<String>,
+    onReorder: (List<String>) -> Unit,
     onReset: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -156,7 +155,7 @@ fun ReorderTabsSheet(
                         contentPadding = PaddingValues(bottom = 100.dp, top = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(localTabs, key = { it.stableKey }) { tab ->
+                        items(localTabs, key = { it }) { tab ->
                             ReorderableItem(reorderableState, key = tab) { isDragging ->
                                 Surface(
                                     modifier = Modifier
@@ -175,7 +174,7 @@ fun ReorderTabsSheet(
                                             modifier = Modifier.draggableHandle()
                                         )
                                         Spacer(modifier = Modifier.width(16.dp))
-                                        Text(text = tab.label, style = MaterialTheme.typography.bodyLarge)
+                                        Text(text = tab, style = MaterialTheme.typography.bodyLarge)
                                     }
                                 }
                             }
