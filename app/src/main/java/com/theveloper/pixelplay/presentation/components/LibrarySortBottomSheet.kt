@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -20,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -37,6 +39,9 @@ fun LibrarySortBottomSheet(
     onOptionSelected: (SortOption) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    val selectedColor = MaterialTheme.colorScheme.secondaryContainer
+    val unselectedColor = MaterialTheme.colorScheme.surfaceContainerLow
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -62,7 +67,7 @@ fun LibrarySortBottomSheet(
             options.forEach { option ->
                 val isSelected = option.storageKey == selectedOption.storageKey
                 val containerColor = remember(isSelected) {
-                    if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow
+                    if (isSelected) selectedColor else unselectedColor
                 }
 
                 Surface(
@@ -70,13 +75,14 @@ fun LibrarySortBottomSheet(
                     color = containerColor,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .clip(shape = CircleShape)
                         .selectable(
                             selected = isSelected,
                             onClick = { onOptionSelected(option) },
                             role = Role.RadioButton
                         )
                         .semantics { this.selected = isSelected }
-                        .padding(vertical = 4.dp)
                 ) {
                     androidx.compose.foundation.layout.Row(
                         modifier = Modifier
