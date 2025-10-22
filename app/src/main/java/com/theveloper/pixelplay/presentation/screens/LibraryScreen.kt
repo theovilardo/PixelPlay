@@ -109,16 +109,13 @@ import coil.imageLoader
 import coil.request.ImageRequest
 import coil.size.Size
 import com.theveloper.pixelplay.R
+import com.theveloper.pixelplay.presentation.components.ShimmerBox // Added import for ShimmerBox
 import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.data.model.MusicFolder
 import com.theveloper.pixelplay.data.model.Playlist
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.model.SortOption
-import com.theveloper.pixelplay.data.model.LibraryTabId
-import com.theveloper.pixelplay.data.model.toLibraryTabIdOrNull
-import com.theveloper.pixelplay.presentation.components.LibrarySortBottomSheet
-import com.theveloper.pixelplay.presentation.components.ShimmerBox // Added import for ShimmerBox
 // import com.theveloper.pixelplay.presentation.components.InfiniteGridHandler // Removed
 // import com.theveloper.pixelplay.presentation.components.InfiniteListHandler // Removed
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
@@ -389,23 +386,13 @@ fun LibraryScreen(
                     // shape = AbsoluteSmoothCornerShape(cornerRadiusTL = 24.dp, smoothnessAsPercentTR = 60, /*...*/) // Your custom shape
                 ) {
                     Column(Modifier.fillMaxSize()) {
+                        // OPTIMIZACIÓN: La lógica de ordenamiento ahora es más eficiente.
                         val availableSortOptions by playerViewModel.availableSortOptions.collectAsState()
                         val currentSortOptionFromPlayer by playerViewModel.currentSortOption.collectAsState()
 
-                            val distinctByKey = ensured.distinctBy { it.storageKey }
-                            if (distinctByKey.isNotEmpty()) distinctByKey else listOf(currentTabId.defaultSort)
-                        }
-                        val playerUiState by playerViewModel.playerUiState.collectAsState()
-                        val playlistUiState by playlistViewModel.uiState.collectAsState()
-
-                        val currentSelectedSortOption: SortOption? = when (currentTabId) {
-                            LibraryTabId.SONGS -> playerUiState.currentSongSortOption
-                            LibraryTabId.ALBUMS -> playerUiState.currentAlbumSortOption
-                            LibraryTabId.ARTISTS -> playerUiState.currentArtistSortOption
-                            LibraryTabId.PLAYLISTS -> playlistUiState.currentPlaylistSortOption
-                            LibraryTabId.LIKED -> playerUiState.currentFavoriteSortOption
-                            LibraryTabId.FOLDERS -> playerUiState.currentFolderSortOption
-                        }
+                        val playlistSortOption by remember(playlistViewModel) {
+                            playlistViewModel.uiState.map { it.currentPlaylistSortOption }.distinctUntilChanged()
+                        }.collectAsState(initial = SortOption.PlaylistNameAZ)
 
                         val isSortingVisible by playerViewModel.isSortingVisible.collectAsState()
 
@@ -424,6 +411,7 @@ fun LibraryScreen(
                             }
                         }
 
+                        val playerUiState by playerViewModel.playerUiState.collectAsState()
                         LibraryActionRow(
                             modifier = Modifier.padding(
                                 top = 10.dp,
@@ -454,28 +442,6 @@ fun LibraryScreen(
                             onFolderClick = { playerViewModel.navigateToFolder(it) },
                             onNavigateBack = { playerViewModel.navigateBackFolder() }
                         )
-
-                        if (isSortSheetVisible && sanitizedSortOptions.isNotEmpty()) {
-                            val currentSelectionKey = currentSelectedSortOption?.storageKey
-                            val selectedOptionForSheet = sanitizedSortOptions.firstOrNull { option ->
-                                option.storageKey == currentSelectionKey
-                            }
-                                ?: sanitizedSortOptions.firstOrNull { option ->
-                                    option.storageKey == currentTabId.defaultSort.storageKey
-                                }
-                                ?: sanitizedSortOptions.first()
-
-                            LibrarySortBottomSheet(
-                                title = "Sort by",
-                                options = sanitizedSortOptions,
-                                selectedOption = selectedOptionForSheet,
-                                onDismiss = { playerViewModel.hideSortingSheet() },
-                                onOptionSelected = { option ->
-                                    onSortOptionChanged(option)
-                                    playerViewModel.hideSortingSheet()
-                                }
-                            )
-                        }
 
                         HorizontalPager(
                             state = pagerState,
@@ -622,7 +588,6 @@ fun LibraryScreen(
                                         }
                                     }
                                 }
-                                null -> Unit
                             }
                         }
                     }

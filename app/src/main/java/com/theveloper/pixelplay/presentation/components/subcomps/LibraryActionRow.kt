@@ -44,6 +44,8 @@ import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -73,8 +75,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.PopupProperties
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.MusicFolder
+import com.theveloper.pixelplay.data.model.SortOption
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
@@ -88,7 +92,12 @@ fun LibraryActionRow(
     onMainActionClick: () -> Unit,
     iconRotation: Float,
     showSortButton: Boolean,
-    onSortClick: () -> Unit,
+    onSortIconClick: () -> Unit,
+    showSortMenu: Boolean,
+    onDismissSortMenu: () -> Unit,
+    currentSortOptionsForTab: List<SortOption>,
+    selectedSortOption: SortOption,
+    onSortOptionSelected: (SortOption) -> Unit,
     isPlaylistTab: Boolean,
     onGenerateWithAiClick: () -> Unit,
     onFilterClick: () -> Unit,
@@ -232,11 +241,72 @@ fun LibraryActionRow(
         Spacer(modifier = Modifier.width(8.dp))
 
         if (showSortButton) {
-            FilledTonalIconButton(onClick = onSortClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.Sort,
-                    contentDescription = "Sort Options",
-                )
+            Box {
+                FilledTonalIconButton(onClick = onSortIconClick) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.Sort,
+                        contentDescription = "Sort Options",
+                    )
+                }
+                DropdownMenu(
+                    expanded = showSortMenu,
+                    onDismissRequest = onDismissSortMenu,
+                    properties = PopupProperties(
+                        clippingEnabled = true
+                    ),
+                    shape = AbsoluteSmoothCornerShape(
+                        cornerRadiusTL = 22.dp,
+                        smoothnessAsPercentBR = 60,
+                        cornerRadiusTR = 22.dp,
+                        smoothnessAsPercentTL = 60,
+                        cornerRadiusBL = 22.dp,
+                        smoothnessAsPercentTR = 60,
+                        cornerRadiusBR = 22.dp,
+                        smoothnessAsPercentBL = 60
+                    ),
+                    containerColor = Color.Transparent,
+                    shadowElevation = 0.dp,
+                    modifier = Modifier.background(
+                        color = MaterialTheme.colorScheme.surfaceVariant
+                    ) // Custom background for dropdown
+                ) {
+                    currentSortOptionsForTab.forEach { option ->
+                        val enabled = option == selectedSortOption
+                        DropdownMenuItem(
+                            modifier = Modifier
+                                .padding(4.dp)
+                                .padding(horizontal = 8.dp)
+                                .background(
+                                    color = MaterialTheme.colorScheme.surfaceContainerLow, //if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainer,
+                                    shape = if (enabled) CircleShape else AbsoluteSmoothCornerShape(
+                                        cornerRadiusTL = 12.dp,
+                                        smoothnessAsPercentBR = 60,
+                                        cornerRadiusTR = 12.dp,
+                                        smoothnessAsPercentTL = 60,
+                                        cornerRadiusBL = 12.dp,
+                                        smoothnessAsPercentTR = 60,
+                                        cornerRadiusBR = 12.dp,
+                                        smoothnessAsPercentBL = 60
+                                    )
+                                )
+                                .clip(if (enabled) CircleShape else RoundedCornerShape(12.dp)),
+                            text = { Text(option.displayName, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                            onClick = {
+                                onSortOptionSelected(option)
+                                // onDismissSortMenu() // Already called in LibraryScreen's onSortOptionSelected lambda
+                            },
+                            leadingIcon = if (enabled) { // Check if it's the selected one
+                                {
+                                    Icon(
+                                        Icons.Rounded.CheckCircle,
+                                        contentDescription = "Selected",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            } else null
+                        )
+                    }
+                }
             }
         }
     }

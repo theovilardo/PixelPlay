@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey // Added import
 import androidx.datastore.preferences.core.longPreferencesKey
@@ -53,7 +52,6 @@ class UserPreferencesRepository @Inject constructor(
 
         // Sort Option Keys
         val SONGS_SORT_OPTION = stringPreferencesKey("songs_sort_option")
-        val SONGS_SORT_OPTION_MIGRATED = booleanPreferencesKey("songs_sort_option_migrated_v2")
         val ALBUMS_SORT_OPTION = stringPreferencesKey("albums_sort_option")
         val ARTISTS_SORT_OPTION = stringPreferencesKey("artists_sort_option")
         val PLAYLISTS_SORT_OPTION = stringPreferencesKey("playlists_sort_option")
@@ -262,147 +260,57 @@ class UserPreferencesRepository @Inject constructor(
     // Flows for Sort Options
     val songsSortOptionFlow: Flow<String> = dataStore.data
         .map { preferences ->
-            SortOption.fromStorageKey(
-                preferences[PreferencesKeys.SONGS_SORT_OPTION],
-                SortOption.SONGS,
-                SortOption.SongTitleAZ
-            ).storageKey
+            preferences[PreferencesKeys.SONGS_SORT_OPTION] ?: SortOption.SongTitleAZ.displayName
         }
 
     val albumsSortOptionFlow: Flow<String> = dataStore.data
         .map { preferences ->
-            SortOption.fromStorageKey(
-                preferences[PreferencesKeys.ALBUMS_SORT_OPTION],
-                SortOption.ALBUMS,
-                SortOption.AlbumTitleAZ
-            ).storageKey
+            preferences[PreferencesKeys.ALBUMS_SORT_OPTION] ?: SortOption.AlbumTitleAZ.displayName
         }
 
     val artistsSortOptionFlow: Flow<String> = dataStore.data
         .map { preferences ->
-            SortOption.fromStorageKey(
-                preferences[PreferencesKeys.ARTISTS_SORT_OPTION],
-                SortOption.ARTISTS,
-                SortOption.ArtistNameAZ
-            ).storageKey
+            preferences[PreferencesKeys.ARTISTS_SORT_OPTION] ?: SortOption.ArtistNameAZ.displayName
         }
 
     val playlistsSortOptionFlow: Flow<String> = dataStore.data
         .map { preferences ->
-            SortOption.fromStorageKey(
-                preferences[PreferencesKeys.PLAYLISTS_SORT_OPTION],
-                SortOption.PLAYLISTS,
-                SortOption.PlaylistNameAZ
-            ).storageKey
+            preferences[PreferencesKeys.PLAYLISTS_SORT_OPTION] ?: SortOption.PlaylistNameAZ.displayName
         }
 
     val likedSongsSortOptionFlow: Flow<String> = dataStore.data
         .map { preferences ->
-            SortOption.fromStorageKey(
-                preferences[PreferencesKeys.LIKED_SONGS_SORT_OPTION],
-                SortOption.LIKED,
-                SortOption.LikedSongDateLiked
-            ).storageKey
+            preferences[PreferencesKeys.LIKED_SONGS_SORT_OPTION] ?: SortOption.LikedSongTitleAZ.displayName
         }
 
     // Functions to update Sort Options
-    suspend fun setSongsSortOption(optionKey: String) {
+    suspend fun setSongsSortOption(optionName: String) {
         dataStore.edit { preferences ->
-            preferences[PreferencesKeys.SONGS_SORT_OPTION] = optionKey
-            preferences[PreferencesKeys.SONGS_SORT_OPTION_MIGRATED] = true
+            preferences[PreferencesKeys.SONGS_SORT_OPTION] = optionName
         }
     }
 
-    suspend fun setAlbumsSortOption(optionKey: String) {
+    suspend fun setAlbumsSortOption(optionName: String) {
         dataStore.edit { preferences ->
-            preferences[PreferencesKeys.ALBUMS_SORT_OPTION] = optionKey
+            preferences[PreferencesKeys.ALBUMS_SORT_OPTION] = optionName
         }
     }
 
-    suspend fun setArtistsSortOption(optionKey: String) {
+    suspend fun setArtistsSortOption(optionName: String) {
         dataStore.edit { preferences ->
-            preferences[PreferencesKeys.ARTISTS_SORT_OPTION] = optionKey
+            preferences[PreferencesKeys.ARTISTS_SORT_OPTION] = optionName
         }
     }
 
-    suspend fun setPlaylistsSortOption(optionKey: String) {
+    suspend fun setPlaylistsSortOption(optionName: String) {
         dataStore.edit { preferences ->
-            preferences[PreferencesKeys.PLAYLISTS_SORT_OPTION] = optionKey
+            preferences[PreferencesKeys.PLAYLISTS_SORT_OPTION] = optionName
         }
     }
 
-    suspend fun setLikedSongsSortOption(optionKey: String) {
+    suspend fun setLikedSongsSortOption(optionName: String) {
         dataStore.edit { preferences ->
-            preferences[PreferencesKeys.LIKED_SONGS_SORT_OPTION] = optionKey
-        }
-    }
-
-    suspend fun ensureLibrarySortDefaults() {
-        dataStore.edit { preferences ->
-            val songsMigrated = preferences[PreferencesKeys.SONGS_SORT_OPTION_MIGRATED] ?: false
-            val rawSongSort = preferences[PreferencesKeys.SONGS_SORT_OPTION]
-            val resolvedSongSort = SortOption.fromStorageKey(
-                rawSongSort,
-                SortOption.SONGS,
-                SortOption.SongTitleAZ
-            )
-            val shouldForceSongDefault = !songsMigrated && (
-                rawSongSort.isNullOrBlank() ||
-                    rawSongSort == SortOption.SongTitleZA.storageKey ||
-                    rawSongSort == SortOption.SongTitleZA.displayName
-                )
-
-            preferences[PreferencesKeys.SONGS_SORT_OPTION] = if (shouldForceSongDefault) {
-                SortOption.SongTitleAZ.storageKey
-            } else {
-                resolvedSongSort.storageKey
-            }
-            if (!songsMigrated) {
-                preferences[PreferencesKeys.SONGS_SORT_OPTION_MIGRATED] = true
-            }
-
-            migrateSortPreference(
-                preferences,
-                PreferencesKeys.SONGS_SORT_OPTION,
-                SortOption.SONGS,
-                SortOption.SongTitleAZ
-            )
-            migrateSortPreference(
-                preferences,
-                PreferencesKeys.ALBUMS_SORT_OPTION,
-                SortOption.ALBUMS,
-                SortOption.AlbumTitleAZ
-            )
-            migrateSortPreference(
-                preferences,
-                PreferencesKeys.ARTISTS_SORT_OPTION,
-                SortOption.ARTISTS,
-                SortOption.ArtistNameAZ
-            )
-            migrateSortPreference(
-                preferences,
-                PreferencesKeys.PLAYLISTS_SORT_OPTION,
-                SortOption.PLAYLISTS,
-                SortOption.PlaylistNameAZ
-            )
-            migrateSortPreference(
-                preferences,
-                PreferencesKeys.LIKED_SONGS_SORT_OPTION,
-                SortOption.LIKED,
-                SortOption.LikedSongDateLiked
-            )
-        }
-    }
-
-    private fun migrateSortPreference(
-        preferences: MutablePreferences,
-        key: Preferences.Key<String>,
-        allowed: Collection<SortOption>,
-        fallback: SortOption
-    ) {
-        val resolved = SortOption.fromStorageKey(preferences[key], allowed, fallback)
-        if (preferences[key] != resolved.storageKey) {
-            preferences[key] = resolved.storageKey
+            preferences[PreferencesKeys.LIKED_SONGS_SORT_OPTION] = optionName
         }
     }
 
