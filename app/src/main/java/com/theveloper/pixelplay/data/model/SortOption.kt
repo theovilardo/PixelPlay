@@ -4,40 +4,90 @@ import androidx.compose.runtime.Immutable
 
 // Sealed class for Sort Options
 @Immutable
-sealed class SortOption(val displayName: String) {
+sealed class SortOption(val storageKey: String, val displayName: String) {
     // Song Sort Options
-    object SongTitleAZ : SortOption("Title (A-Z)")
-    object SongTitleZA : SortOption("Title (Z-A)")
-    object SongArtist : SortOption("Artist")
-    object SongAlbum : SortOption("Album")
-    object SongDateAdded : SortOption("Date Added")
-    object SongDuration : SortOption("Duration")
+    object SongTitleAZ : SortOption("song_title_az", "Title (A-Z)")
+    object SongTitleZA : SortOption("song_title_za", "Title (Z-A)")
+    object SongArtist : SortOption("song_artist", "Artist")
+    object SongAlbum : SortOption("song_album", "Album")
+    object SongDateAdded : SortOption("song_date_added", "Date Added")
+    object SongDuration : SortOption("song_duration", "Duration")
 
     // Album Sort Options
-    object AlbumTitleAZ : SortOption("Title (A-Z)")
-    object AlbumTitleZA : SortOption("Title (Z-A)")
-    object AlbumArtist : SortOption("Artist")
-    object AlbumReleaseYear : SortOption("Release Year")
+    object AlbumTitleAZ : SortOption("album_title_az", "Title (A-Z)")
+    object AlbumTitleZA : SortOption("album_title_za", "Title (Z-A)")
+    object AlbumArtist : SortOption("album_artist", "Artist")
+    object AlbumReleaseYear : SortOption("album_release_year", "Release Year")
 
     // Artist Sort Options
-    object ArtistNameAZ : SortOption("Name (A-Z)")
-    object ArtistNameZA : SortOption("Name (Z-A)")
-    // object ArtistNumSongs : SortOption("Number of Songs") // Requires ViewModel change & data
+    object ArtistNameAZ : SortOption("artist_name_az", "Name (A-Z)")
+    object ArtistNameZA : SortOption("artist_name_za", "Name (Z-A)")
+    // object ArtistNumSongs : SortOption("artist_num_songs", "Number of Songs") // Requires ViewModel change & data
 
     // Playlist Sort Options
-    object PlaylistNameAZ : SortOption("Name (A-Z)")
-    object PlaylistNameZA : SortOption("Name (Z-A)")
-    object PlaylistDateCreated : SortOption("Date Created")
-    // object PlaylistNumSongs : SortOption("Number of Songs") // Requires ViewModel change & data
+    object PlaylistNameAZ : SortOption("playlist_name_az", "Name (A-Z)")
+    object PlaylistNameZA : SortOption("playlist_name_za", "Name (Z-A)")
+    object PlaylistDateCreated : SortOption("playlist_date_created", "Date Created")
+    // object PlaylistNumSongs : SortOption("playlist_num_songs", "Number of Songs") // Requires ViewModel change & data
 
     // Liked Sort Options (similar to Songs)
-    object LikedSongTitleAZ : SortOption("Title (A-Z)")
-    object LikedSongTitleZA : SortOption("Title (Z-A)")
-    object LikedSongArtist : SortOption("Artist")
-    object LikedSongAlbum : SortOption("Album")
-    object LikedSongDateLiked : SortOption("Date Liked")
+    object LikedSongTitleAZ : SortOption("liked_title_az", "Title (A-Z)")
+    object LikedSongTitleZA : SortOption("liked_title_za", "Title (Z-A)")
+    object LikedSongArtist : SortOption("liked_artist", "Artist")
+    object LikedSongAlbum : SortOption("liked_album", "Album")
+    object LikedSongDateLiked : SortOption("liked_date_liked", "Date Liked")
 
     // Folder Sort Options
-    object FolderNameAZ : SortOption("Name (A-Z)")
-    object FolderNameZA : SortOption("Name (Z-A)")
+    object FolderNameAZ : SortOption("folder_name_az", "Name (A-Z)")
+    object FolderNameZA : SortOption("folder_name_za", "Name (Z-A)")
+
+    companion object {
+        val SONGS: List<SortOption> = listOf(
+            SongTitleAZ,
+            SongTitleZA,
+            SongArtist,
+            SongAlbum,
+            SongDateAdded,
+            SongDuration
+        )
+        val ALBUMS: List<SortOption> = listOf(
+            AlbumTitleAZ,
+            AlbumTitleZA,
+            AlbumArtist,
+            AlbumReleaseYear
+        )
+        val ARTISTS: List<SortOption> = listOf(
+            ArtistNameAZ,
+            ArtistNameZA
+        )
+        val PLAYLISTS: List<SortOption> = listOf(
+            PlaylistNameAZ,
+            PlaylistNameZA,
+            PlaylistDateCreated
+        )
+        val FOLDERS: List<SortOption> = listOf(
+            FolderNameAZ,
+            FolderNameZA
+        )
+        val LIKED: List<SortOption> = listOf(
+            LikedSongTitleAZ,
+            LikedSongTitleZA,
+            LikedSongArtist,
+            LikedSongAlbum,
+            LikedSongDateLiked
+        )
+
+        fun fromStorageKey(
+            rawValue: String?,
+            allowed: Collection<SortOption>,
+            fallback: SortOption
+        ): SortOption {
+            if (rawValue.isNullOrBlank()) {
+                return fallback
+            }
+            allowed.firstOrNull { it.storageKey == rawValue }?.let { return it }
+            // Legacy values used display names; fall back to matching within the allowed group.
+            return allowed.firstOrNull { it.displayName == rawValue } ?: fallback
+        }
+    }
 }

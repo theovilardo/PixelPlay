@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey // Added import
 import androidx.datastore.preferences.core.longPreferencesKey
@@ -260,71 +261,124 @@ class UserPreferencesRepository @Inject constructor(
     // Flows for Sort Options
     val songsSortOptionFlow: Flow<String> = dataStore.data
         .map { preferences ->
-            preferences[PreferencesKeys.SONGS_SORT_OPTION] ?: SortOption.SongTitleAZ.displayName
+            SortOption.fromStorageKey(
+                preferences[PreferencesKeys.SONGS_SORT_OPTION],
+                SortOption.SONGS,
+                SortOption.SongTitleAZ
+            ).storageKey
         }
 
     val albumsSortOptionFlow: Flow<String> = dataStore.data
         .map { preferences ->
-            preferences[PreferencesKeys.ALBUMS_SORT_OPTION] ?: SortOption.AlbumTitleAZ.displayName
+            SortOption.fromStorageKey(
+                preferences[PreferencesKeys.ALBUMS_SORT_OPTION],
+                SortOption.ALBUMS,
+                SortOption.AlbumTitleAZ
+            ).storageKey
         }
 
     val artistsSortOptionFlow: Flow<String> = dataStore.data
         .map { preferences ->
-            preferences[PreferencesKeys.ARTISTS_SORT_OPTION] ?: SortOption.ArtistNameAZ.displayName
+            SortOption.fromStorageKey(
+                preferences[PreferencesKeys.ARTISTS_SORT_OPTION],
+                SortOption.ARTISTS,
+                SortOption.ArtistNameAZ
+            ).storageKey
         }
 
     val playlistsSortOptionFlow: Flow<String> = dataStore.data
         .map { preferences ->
-            preferences[PreferencesKeys.PLAYLISTS_SORT_OPTION] ?: SortOption.PlaylistNameAZ.displayName
+            SortOption.fromStorageKey(
+                preferences[PreferencesKeys.PLAYLISTS_SORT_OPTION],
+                SortOption.PLAYLISTS,
+                SortOption.PlaylistNameAZ
+            ).storageKey
         }
 
     val likedSongsSortOptionFlow: Flow<String> = dataStore.data
         .map { preferences ->
-            preferences[PreferencesKeys.LIKED_SONGS_SORT_OPTION] ?: SortOption.LikedSongDateLiked.displayName
+            SortOption.fromStorageKey(
+                preferences[PreferencesKeys.LIKED_SONGS_SORT_OPTION],
+                SortOption.LIKED,
+                SortOption.LikedSongDateLiked
+            ).storageKey
         }
 
     // Functions to update Sort Options
-    suspend fun setSongsSortOption(optionName: String) {
+    suspend fun setSongsSortOption(optionKey: String) {
         dataStore.edit { preferences ->
-            preferences[PreferencesKeys.SONGS_SORT_OPTION] = optionName
+            preferences[PreferencesKeys.SONGS_SORT_OPTION] = optionKey
         }
     }
 
-    suspend fun setAlbumsSortOption(optionName: String) {
+    suspend fun setAlbumsSortOption(optionKey: String) {
         dataStore.edit { preferences ->
-            preferences[PreferencesKeys.ALBUMS_SORT_OPTION] = optionName
+            preferences[PreferencesKeys.ALBUMS_SORT_OPTION] = optionKey
         }
     }
 
-    suspend fun setArtistsSortOption(optionName: String) {
+    suspend fun setArtistsSortOption(optionKey: String) {
         dataStore.edit { preferences ->
-            preferences[PreferencesKeys.ARTISTS_SORT_OPTION] = optionName
+            preferences[PreferencesKeys.ARTISTS_SORT_OPTION] = optionKey
         }
     }
 
-    suspend fun setPlaylistsSortOption(optionName: String) {
+    suspend fun setPlaylistsSortOption(optionKey: String) {
         dataStore.edit { preferences ->
-            preferences[PreferencesKeys.PLAYLISTS_SORT_OPTION] = optionName
+            preferences[PreferencesKeys.PLAYLISTS_SORT_OPTION] = optionKey
         }
     }
 
-    suspend fun setLikedSongsSortOption(optionName: String) {
+    suspend fun setLikedSongsSortOption(optionKey: String) {
         dataStore.edit { preferences ->
-            preferences[PreferencesKeys.LIKED_SONGS_SORT_OPTION] = optionName
+            preferences[PreferencesKeys.LIKED_SONGS_SORT_OPTION] = optionKey
         }
     }
 
     suspend fun ensureLibrarySortDefaults() {
         dataStore.edit { preferences ->
-            if (preferences[PreferencesKeys.ALBUMS_SORT_OPTION].isNullOrBlank()) {
-                preferences[PreferencesKeys.ALBUMS_SORT_OPTION] = SortOption.AlbumTitleAZ.displayName
-            }
-            if (preferences[PreferencesKeys.PLAYLISTS_SORT_OPTION].isNullOrBlank()) {
-                preferences[PreferencesKeys.PLAYLISTS_SORT_OPTION] = SortOption.PlaylistNameAZ.displayName
-            }
-            if (preferences[PreferencesKeys.LIKED_SONGS_SORT_OPTION].isNullOrBlank()) {
-                preferences[PreferencesKeys.LIKED_SONGS_SORT_OPTION] = SortOption.LikedSongDateLiked.displayName
-            }
+            migrateSortPreference(
+                preferences,
+                PreferencesKeys.SONGS_SORT_OPTION,
+                SortOption.SONGS,
+                SortOption.SongTitleAZ
+            )
+            migrateSortPreference(
+                preferences,
+                PreferencesKeys.ALBUMS_SORT_OPTION,
+                SortOption.ALBUMS,
+                SortOption.AlbumTitleAZ
+            )
+            migrateSortPreference(
+                preferences,
+                PreferencesKeys.ARTISTS_SORT_OPTION,
+                SortOption.ARTISTS,
+                SortOption.ArtistNameAZ
+            )
+            migrateSortPreference(
+                preferences,
+                PreferencesKeys.PLAYLISTS_SORT_OPTION,
+                SortOption.PLAYLISTS,
+                SortOption.PlaylistNameAZ
+            )
+            migrateSortPreference(
+                preferences,
+                PreferencesKeys.LIKED_SONGS_SORT_OPTION,
+                SortOption.LIKED,
+                SortOption.LikedSongDateLiked
+            )
+        }
+    }
+
+    private fun migrateSortPreference(
+        preferences: MutablePreferences,
+        key: Preferences.Key<String>,
+        allowed: Collection<SortOption>,
+        fallback: SortOption
+    ) {
+        val resolved = SortOption.fromStorageKey(preferences[key], allowed, fallback)
+        if (preferences[key] != resolved.storageKey) {
+            preferences[key] = resolved.storageKey
         }
     }
 

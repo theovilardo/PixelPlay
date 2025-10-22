@@ -41,13 +41,28 @@ class UserPreferencesRepositoryTest {
 
         repository.ensureLibrarySortDefaults()
 
-        assertThat(repository.albumsSortOptionFlow.first()).isEqualTo(SortOption.AlbumTitleAZ.displayName)
-        assertThat(repository.playlistsSortOptionFlow.first()).isEqualTo(SortOption.PlaylistNameAZ.displayName)
-        assertThat(repository.likedSongsSortOptionFlow.first()).isEqualTo(SortOption.LikedSongDateLiked.displayName)
+        assertThat(repository.albumsSortOptionFlow.first()).isEqualTo(SortOption.AlbumTitleAZ.storageKey)
+        assertThat(repository.playlistsSortOptionFlow.first()).isEqualTo(SortOption.PlaylistNameAZ.storageKey)
+        assertThat(repository.likedSongsSortOptionFlow.first()).isEqualTo(SortOption.LikedSongDateLiked.storageKey)
     }
 
     @Test
     fun ensureLibrarySortDefaults_preserves_existing_values() = runTest {
+        val repository = createRepository(this)
+
+        repository.setAlbumsSortOption(SortOption.AlbumTitleZA.storageKey)
+        repository.setPlaylistsSortOption(SortOption.PlaylistDateCreated.storageKey)
+        repository.setLikedSongsSortOption(SortOption.LikedSongArtist.storageKey)
+
+        repository.ensureLibrarySortDefaults()
+
+        assertThat(repository.albumsSortOptionFlow.first()).isEqualTo(SortOption.AlbumTitleZA.storageKey)
+        assertThat(repository.playlistsSortOptionFlow.first()).isEqualTo(SortOption.PlaylistDateCreated.storageKey)
+        assertThat(repository.likedSongsSortOptionFlow.first()).isEqualTo(SortOption.LikedSongArtist.storageKey)
+    }
+
+    @Test
+    fun ensureLibrarySortDefaults_migrates_legacy_display_names() = runTest {
         val repository = createRepository(this)
 
         repository.setAlbumsSortOption(SortOption.AlbumTitleZA.displayName)
@@ -56,8 +71,8 @@ class UserPreferencesRepositoryTest {
 
         repository.ensureLibrarySortDefaults()
 
-        assertThat(repository.albumsSortOptionFlow.first()).isEqualTo(SortOption.AlbumTitleZA.displayName)
-        assertThat(repository.playlistsSortOptionFlow.first()).isEqualTo(SortOption.PlaylistDateCreated.displayName)
-        assertThat(repository.likedSongsSortOptionFlow.first()).isEqualTo(SortOption.LikedSongArtist.displayName)
+        assertThat(repository.albumsSortOptionFlow.first()).isEqualTo(SortOption.AlbumTitleZA.storageKey)
+        assertThat(repository.playlistsSortOptionFlow.first()).isEqualTo(SortOption.PlaylistDateCreated.storageKey)
+        assertThat(repository.likedSongsSortOptionFlow.first()).isEqualTo(SortOption.LikedSongArtist.storageKey)
     }
 }
