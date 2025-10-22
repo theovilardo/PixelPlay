@@ -47,13 +47,14 @@ class PlaylistViewModel @Inject constructor(
         private const val SONG_SELECTION_PAGE_SIZE = 100 // Cargar 100 canciones a la vez para el selector
     }
 
-    // Helper function to resolve stored playlist sort keys
-    private fun resolvePlaylistSortOption(optionKey: String?): SortOption {
-        return SortOption.fromStorageKey(
-            optionKey,
-            SortOption.PLAYLISTS,
-            SortOption.PlaylistNameAZ
-        )
+    // Helper function to convert SortOption name string to SortOption object for playlists
+    private fun getPlaylistSortOptionFromString(optionName: String?): SortOption {
+        return when (optionName) {
+            SortOption.PlaylistNameAZ.displayName -> SortOption.PlaylistNameAZ
+            SortOption.PlaylistNameZA.displayName -> SortOption.PlaylistNameZA
+            SortOption.PlaylistDateCreated.displayName -> SortOption.PlaylistDateCreated
+            else -> SortOption.PlaylistNameAZ // Default if unknown or null
+        }
     }
 
     init {
@@ -65,7 +66,7 @@ class PlaylistViewModel @Inject constructor(
         viewModelScope.launch {
             // First, get the initial sort option
             val initialSortOptionName = userPreferencesRepository.playlistsSortOptionFlow.first()
-            val initialSortOption = resolvePlaylistSortOption(initialSortOptionName)
+            val initialSortOption = getPlaylistSortOptionFromString(initialSortOptionName)
             _uiState.update { it.copy(currentPlaylistSortOption = initialSortOption) }
 
             // Then, collect playlists and apply the sort option
@@ -83,7 +84,7 @@ class PlaylistViewModel @Inject constructor(
         // Collect subsequent changes to sort option from preferences
         viewModelScope.launch {
             userPreferencesRepository.playlistsSortOptionFlow.collect { optionName ->
-                val newSortOption = resolvePlaylistSortOption(optionName)
+                val newSortOption = getPlaylistSortOptionFromString(optionName)
                 if (_uiState.value.currentPlaylistSortOption != newSortOption) {
                     // If the option from preferences is different, re-sort the current list
                     sortPlaylists(newSortOption)
@@ -271,7 +272,7 @@ class PlaylistViewModel @Inject constructor(
         _uiState.update { it.copy(playlists = sortedPlaylists) }
 
         viewModelScope.launch {
-            userPreferencesRepository.setPlaylistsSortOption(sortOption.storageKey)
+            userPreferencesRepository.setPlaylistsSortOption(sortOption.displayName)
         }
     }
 }
