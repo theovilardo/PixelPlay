@@ -67,12 +67,14 @@ import com.theveloper.pixelplay.data.media.SongMetadataEditor
 import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.data.model.Genre
+import com.theveloper.pixelplay.data.model.LibraryTabId
 import com.theveloper.pixelplay.data.model.Lyrics
 import com.theveloper.pixelplay.data.model.SearchFilterType
 import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import com.theveloper.pixelplay.data.model.SearchResultItem
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.model.SortOption
+import com.theveloper.pixelplay.data.model.toLibraryTabIdOrNull
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.data.preferences.ThemePreference
@@ -159,7 +161,7 @@ data class PlayerUiState(
     val currentSongSortOption: SortOption = SortOption.SongTitleAZ,
     val currentAlbumSortOption: SortOption = SortOption.AlbumTitleAZ,
     val currentArtistSortOption: SortOption = SortOption.ArtistNameAZ,
-    val currentFavoriteSortOption: SortOption = SortOption.LikedSongTitleAZ,
+    val currentFavoriteSortOption: SortOption = SortOption.LikedSongDateLiked,
     val currentFolderSortOption: SortOption = SortOption.FolderNameAZ,
     val searchResults: ImmutableList<SearchResultItem> = persistentListOf(),
     val selectedSearchFilter: SearchFilterType = SearchFilterType.ALL,
@@ -348,11 +350,17 @@ class PlayerViewModel @Inject constructor(
 
     private val _loadedTabs = MutableStateFlow(emptySet<String>())
 
+    private val _currentLibraryTabId = MutableStateFlow(LibraryTabId.SONGS)
+    val currentLibraryTabId: StateFlow<LibraryTabId> = _currentLibraryTabId.asStateFlow()
+
+    private val _isSortingSheetVisible = MutableStateFlow(false)
+    val isSortingSheetVisible: StateFlow<Boolean> = _isSortingSheetVisible.asStateFlow()
+
     val availableSortOptions: StateFlow<List<SortOption>> =
-        lastLibraryTabIndexFlow.map { tabIndex ->
+        currentLibraryTabId.map { tabId ->
             Trace.beginSection("PlayerViewModel.availableSortOptionsMapping")
-            val options = when (tabIndex) {
-                0 -> listOf(
+            val options = when (tabId) {
+                LibraryTabId.SONGS -> listOf(
                     SortOption.SongTitleAZ,
                     SortOption.SongTitleZA,
                     SortOption.SongArtist,
@@ -360,39 +368,42 @@ class PlayerViewModel @Inject constructor(
                     SortOption.SongDateAdded,
                     SortOption.SongDuration
                 )
-                1 -> listOf(
+                LibraryTabId.ALBUMS -> listOf(
                     SortOption.AlbumTitleAZ,
                     SortOption.AlbumTitleZA,
                     SortOption.AlbumArtist,
                     SortOption.AlbumReleaseYear
                 )
-                2 -> listOf(SortOption.ArtistNameAZ, SortOption.ArtistNameZA)
-                3 -> listOf(
+                LibraryTabId.ARTISTS -> listOf(SortOption.ArtistNameAZ, SortOption.ArtistNameZA)
+                LibraryTabId.PLAYLISTS -> listOf(
                     SortOption.PlaylistNameAZ,
                     SortOption.PlaylistNameZA,
                     SortOption.PlaylistDateCreated
                 )
-                4 -> listOf(
+                LibraryTabId.FOLDERS -> listOf(
                     SortOption.FolderNameAZ,
                     SortOption.FolderNameZA
                 )
-                5 -> listOf(
+                LibraryTabId.LIKED -> listOf(
                     SortOption.LikedSongTitleAZ,
                     SortOption.LikedSongTitleZA,
                     SortOption.LikedSongArtist,
                     SortOption.LikedSongAlbum,
                     SortOption.LikedSongDateLiked
                 )
-                else -> emptyList()
             }
             Trace.endSection()
             options
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = listOf( // Provide a default initial value based on initialTab index 0
-                SortOption.SongTitleAZ, SortOption.SongTitleZA, SortOption.SongArtist,
-                SortOption.SongAlbum, SortOption.SongDateAdded, SortOption.SongDuration
+            initialValue = listOf(
+                SortOption.SongTitleAZ,
+                SortOption.SongTitleZA,
+                SortOption.SongArtist,
+                SortOption.SongAlbum,
+                SortOption.SongDateAdded,
+                SortOption.SongDuration
             )
         )
 
@@ -487,7 +498,7 @@ class PlayerViewModel @Inject constructor(
         state.currentSong?.id?.let { ids.contains(it) } ?: false
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    private val _currentFavoriteSortOptionStateFlow = MutableStateFlow<SortOption>(SortOption.LikedSongTitleAZ) // Default. Especificar el tipo general SortOption.
+    private val _currentFavoriteSortOptionStateFlow = MutableStateFlow<SortOption>(SortOption.LikedSongDateLiked) // Default aligned with LibraryTabId default.
     val currentFavoriteSortOptionStateFlow: StateFlow<SortOption> = _currentFavoriteSortOptionStateFlow.asStateFlow()
 
     val favoriteSongs: StateFlow<ImmutableList<Song>> = combine(
@@ -624,12 +635,24 @@ class PlayerViewModel @Inject constructor(
             userPreferencesRepository.migrateTabOrder()
         }
 
+        viewModelScope.launch {
+            userPreferencesRepository.ensureLibrarySortDefaults()
+        }
+
+        viewModelScope.launch {
+            combine(libraryTabsFlow, lastLibraryTabIndexFlow) { tabs, index ->
+                tabs.getOrNull(index)?.toLibraryTabIdOrNull() ?: LibraryTabId.SONGS
+            }.collect { tabId ->
+                _currentLibraryTabId.value = tabId
+            }
+        }
+
         // Load initial sort options ONCE at startup.
         viewModelScope.launch {
             val initialSongSort = getSortOptionFromString(userPreferencesRepository.songsSortOptionFlow.first()) ?: SortOption.SongTitleAZ
             val initialAlbumSort = getSortOptionFromString(userPreferencesRepository.albumsSortOptionFlow.first()) ?: SortOption.AlbumTitleAZ
             val initialArtistSort = getSortOptionFromString(userPreferencesRepository.artistsSortOptionFlow.first()) ?: SortOption.ArtistNameAZ
-            val initialLikedSort = getSortOptionFromString(userPreferencesRepository.likedSongsSortOptionFlow.first()) ?: SortOption.LikedSongTitleAZ
+            val initialLikedSort = getSortOptionFromString(userPreferencesRepository.likedSongsSortOptionFlow.first()) ?: SortOption.LikedSongDateLiked
 
             _playerUiState.update {
                 it.copy(
@@ -2737,11 +2760,22 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun showSortingSheet() {
+        _isSortingSheetVisible.value = true
+    }
+
+    fun hideSortingSheet() {
+        _isSortingSheetVisible.value = false
+    }
+
     fun onLibraryTabSelected(tabIndex: Int) {
         Trace.beginSection("PlayerViewModel.onLibraryTabSelected")
         saveLastLibraryTabIndex(tabIndex)
 
         val tabIdentifier = libraryTabsFlow.value.getOrNull(tabIndex) ?: return
+        val tabId = tabIdentifier.toLibraryTabIdOrNull() ?: LibraryTabId.SONGS
+        _currentLibraryTabId.value = tabId
+
         if (_loadedTabs.value.contains(tabIdentifier)) {
             Log.d("PlayerViewModel", "Tab '$tabIdentifier' already loaded. Skipping data load.")
             Trace.endSection()
@@ -2752,11 +2786,12 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             Trace.beginSection("PlayerViewModel.onLibraryTabSelected_coroutine_load")
             try {
-                when (tabIdentifier) {
-                    "SONGS" -> loadSongsIfNeeded()
-                    "ALBUMS" -> loadAlbumsIfNeeded()
-                    "ARTIST" -> loadArtistsIfNeeded()
-                    "FOLDERS" -> loadFoldersFromRepository()
+                when (tabId) {
+                    LibraryTabId.SONGS -> loadSongsIfNeeded()
+                    LibraryTabId.ALBUMS -> loadAlbumsIfNeeded()
+                    LibraryTabId.ARTISTS -> loadArtistsIfNeeded()
+                    LibraryTabId.FOLDERS -> loadFoldersFromRepository()
+                    else -> Unit
                 }
                 _loadedTabs.update { currentTabs -> currentTabs + tabIdentifier }
                 Log.d("PlayerViewModel", "Tab '$tabIdentifier' marked as loaded. Current loaded tabs: ${_loadedTabs.value}")

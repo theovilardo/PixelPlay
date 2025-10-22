@@ -280,7 +280,7 @@ class UserPreferencesRepository @Inject constructor(
 
     val likedSongsSortOptionFlow: Flow<String> = dataStore.data
         .map { preferences ->
-            preferences[PreferencesKeys.LIKED_SONGS_SORT_OPTION] ?: SortOption.LikedSongTitleAZ.displayName
+            preferences[PreferencesKeys.LIKED_SONGS_SORT_OPTION] ?: SortOption.LikedSongDateLiked.displayName
         }
 
     // Functions to update Sort Options
@@ -311,6 +311,20 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setLikedSongsSortOption(optionName: String) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.LIKED_SONGS_SORT_OPTION] = optionName
+        }
+    }
+
+    suspend fun ensureLibrarySortDefaults() {
+        dataStore.edit { preferences ->
+            if (preferences[PreferencesKeys.ALBUMS_SORT_OPTION].isNullOrBlank()) {
+                preferences[PreferencesKeys.ALBUMS_SORT_OPTION] = SortOption.AlbumTitleAZ.displayName
+            }
+            if (preferences[PreferencesKeys.PLAYLISTS_SORT_OPTION].isNullOrBlank()) {
+                preferences[PreferencesKeys.PLAYLISTS_SORT_OPTION] = SortOption.PlaylistNameAZ.displayName
+            }
+            if (preferences[PreferencesKeys.LIKED_SONGS_SORT_OPTION].isNullOrBlank()) {
+                preferences[PreferencesKeys.LIKED_SONGS_SORT_OPTION] = SortOption.LikedSongDateLiked.displayName
+            }
         }
     }
 
