@@ -385,7 +385,20 @@ fun LibraryScreen(
                         val availableSortOptions by playerViewModel.availableSortOptions.collectAsState()
                         val sanitizedSortOptions = remember(availableSortOptions, currentTabId) {
                             val cleaned = availableSortOptions.filterIsInstance<SortOption>()
-                            if (cleaned.isNotEmpty()) cleaned else listOf(currentTabId.defaultSort)
+                            val ensured = if (cleaned.any { option ->
+                                    option.storageKey == currentTabId.defaultSort.storageKey
+                                }
+                            ) {
+                                cleaned
+                            } else {
+                                buildList {
+                                    add(currentTabId.defaultSort)
+                                    addAll(cleaned)
+                                }
+                            }
+
+                            val distinctByKey = ensured.distinctBy { it.storageKey }
+                            if (distinctByKey.isNotEmpty()) distinctByKey else listOf(currentTabId.defaultSort)
                         }
                         val playerUiState by playerViewModel.playerUiState.collectAsState()
                         val playlistUiState by playlistViewModel.uiState.collectAsState()
