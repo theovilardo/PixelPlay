@@ -383,10 +383,14 @@ fun LibraryScreen(
                 ) {
                     Column(Modifier.fillMaxSize()) {
                         val availableSortOptions by playerViewModel.availableSortOptions.collectAsState()
+                        val sanitizedSortOptions = remember(availableSortOptions, currentTabId) {
+                            val cleaned = availableSortOptions.filterIsInstance<SortOption>()
+                            if (cleaned.isNotEmpty()) cleaned else listOf(currentTabId.defaultSort)
+                        }
                         val playerUiState by playerViewModel.playerUiState.collectAsState()
                         val playlistUiState by playlistViewModel.uiState.collectAsState()
 
-                        val currentSelectedSortOption = when (currentTabId) {
+                        val currentSelectedSortOption: SortOption? = when (currentTabId) {
                             LibraryTabId.SONGS -> playerUiState.currentSongSortOption
                             LibraryTabId.ALBUMS -> playerUiState.currentAlbumSortOption
                             LibraryTabId.ARTISTS -> playerUiState.currentArtistSortOption
@@ -423,7 +427,7 @@ fun LibraryScreen(
                                 }
                             },
                             iconRotation = iconRotation,
-                            showSortButton = availableSortOptions.isNotEmpty(),
+                            showSortButton = sanitizedSortOptions.isNotEmpty(),
                             onSortClick = { playerViewModel.showSortingSheet() },
                             isPlaylistTab = currentTabId == LibraryTabId.PLAYLISTS,
                             isFoldersTab = currentTabId == LibraryTabId.FOLDERS,
@@ -434,18 +438,19 @@ fun LibraryScreen(
                             onNavigateBack = { playerViewModel.navigateBackFolder() }
                         )
 
-                        if (isSortSheetVisible && availableSortOptions.isNotEmpty()) {
-                            val selectedOptionForSheet = availableSortOptions.firstOrNull { option ->
-                                option.storageKey == currentSelectedSortOption.storageKey
+                        if (isSortSheetVisible && sanitizedSortOptions.isNotEmpty()) {
+                            val currentSelectionKey = currentSelectedSortOption?.storageKey
+                            val selectedOptionForSheet = sanitizedSortOptions.firstOrNull { option ->
+                                option.storageKey == currentSelectionKey
                             }
-                                ?: availableSortOptions.firstOrNull { option ->
+                                ?: sanitizedSortOptions.firstOrNull { option ->
                                     option.storageKey == currentTabId.defaultSort.storageKey
                                 }
-                                ?: availableSortOptions.first()
+                                ?: sanitizedSortOptions.first()
 
                             LibrarySortBottomSheet(
                                 title = "Sort by",
-                                options = availableSortOptions,
+                                options = sanitizedSortOptions,
                                 selectedOption = selectedOptionForSheet,
                                 onDismiss = { playerViewModel.hideSortingSheet() },
                                 onOptionSelected = { option ->
