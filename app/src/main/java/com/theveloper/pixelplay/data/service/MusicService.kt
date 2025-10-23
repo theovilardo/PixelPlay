@@ -43,6 +43,7 @@ import com.theveloper.pixelplay.ui.glancewidget.PlayerInfoStateDefinition
 import com.theveloper.pixelplay.utils.LogUtils
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -148,14 +149,20 @@ class MusicService : MediaSessionService() {
                     MusicNotificationProvider.CUSTOM_COMMAND_LIKE -> {
                         val songId = session.player.currentMediaItem?.mediaId ?: return@onCustomCommand Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_UNKNOWN))
                         Timber.tag("MusicService").d("Executing LIKE for songId: $songId")
-                        serviceScope.launch {
+                        serviceScope.launch(start = CoroutineStart.UNDISPATCHED) {
                             Timber.tag("MusicService").d("Toggling favorite status for $songId")
+                            val wasFavorite = favoriteSongIds.contains(songId)
+                            favoriteSongIds = if (wasFavorite) {
+                                favoriteSongIds - songId
+                            } else {
+                                favoriteSongIds + songId
+                            }
+                            Timber.tag("MusicService")
+                                .d("Updated favorite cache. wasFavorite=$wasFavorite")
+                            onUpdateNotification(session)
                             userPreferencesRepository.toggleFavoriteSong(songId)
                             Timber.tag("MusicService")
-                                .d("Toggled favorite status. Updating notification.")
-                            // The flow collector will handle the notification update,
-                            // but for instant feedback, we trigger it here too.
-                            onUpdateNotification(session)
+                                .d("Persisted favorite change for $songId")
                         }
                     }
                 }
