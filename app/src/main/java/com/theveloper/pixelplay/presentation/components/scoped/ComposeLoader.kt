@@ -5,14 +5,16 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberUpdatedState
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlin.math.roundToInt
 
 // ------------------------------------------------------------
 // 1) Phase loader: compose a subtree only after a threshold, then keep it alive
@@ -56,24 +58,29 @@ fun rememberSmoothProgress(
     sampleWhilePlayingMs: Long = 200L,
     sampleWhilePausedMs: Long = 800L,
 ): Pair<Float, Long> {
-    val isPlaying by remember { derivedStateOf { isPlayingProvider() } }
     var sampledPosition by remember { mutableLongStateOf(0L) }
 
+    val latestPositionProvider by rememberUpdatedState(newValue = currentPositionProvider)
+    val latestIsPlayingProvider by rememberUpdatedState(newValue = isPlayingProvider)
 
-// Sample the provider sparsely and animate in between.
-    LaunchedEffect(isPlaying, totalDuration) {
-        while (true) {
-            sampledPosition = currentPositionProvider()
-            delay(if (isPlaying) sampleWhilePlayingMs else sampleWhilePausedMs)
+    LaunchedEffect(totalDuration, sampleWhilePlayingMs, sampleWhilePausedMs) {
+        while (isActive) {
+            sampledPosition = latestPositionProvider()
+            val nextDelay = if (latestIsPlayingProvider()) sampleWhilePlayingMs else sampleWhilePausedMs
+            val safeDelay = nextDelay.coerceAtLeast(1L)
+            delay(safeDelay)
         }
     }
 
-
+    val isPlaying = latestIsPlayingProvider()
     val target = (sampledPosition.coerceAtLeast(0) / totalDuration.coerceAtLeast(1).toFloat())
         .coerceIn(0f, 1f)
+    val animationDuration = ((if (isPlaying) sampleWhilePlayingMs else sampleWhilePausedMs) * 0.9f)
+        .roundToInt()
+        .coerceAtLeast(1)
     val smooth by animateFloatAsState(
         targetValue = target,
-        animationSpec = tween(durationMillis = (sampleWhilePlayingMs * 0.9f).toInt(), easing = LinearEasing),
+        animationSpec = tween(durationMillis = animationDuration, easing = LinearEasing),
         label = "SmoothProgressAnim"
     )
     return smooth to sampledPosition
