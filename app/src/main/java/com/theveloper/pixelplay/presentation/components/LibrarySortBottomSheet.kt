@@ -1,16 +1,26 @@
 package com.theveloper.pixelplay.presentation.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
@@ -20,6 +30,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,7 +40,10 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.fastMaxOf
 import com.theveloper.pixelplay.data.model.SortOption
+import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,6 +62,18 @@ fun LibrarySortBottomSheet(
     val selectedColor = MaterialTheme.colorScheme.secondaryContainer
     val unselectedColor = MaterialTheme.colorScheme.surfaceContainerLow
 
+    // Animate background color
+    val boxBackgroundColor by animateColorAsState(
+        targetValue = if (viewToggleChecked) MaterialTheme.colorScheme.tertiary else unselectedColor,
+        label = "boxBackgroundColorAnimation"
+    )
+
+    // Animate corner radius
+    val boxCornerRadius by animateDpAsState(
+        targetValue = if (viewToggleChecked) 18.dp else 50.dp,
+        label = "boxCornerRadiusAnimation"
+    )
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -64,9 +90,10 @@ fun LibrarySortBottomSheet(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.headlineMedium,
+                fontFamily = GoogleSansRounded,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 8.dp, bottom = 16.dp)
+                modifier = Modifier.padding(start = 2.dp, top = 8.dp, bottom = 16.dp)
             )
 
             options.forEach { option ->
@@ -89,10 +116,10 @@ fun LibrarySortBottomSheet(
                         )
                         .semantics { this.selected = isSelected }
                 ) {
-                    androidx.compose.foundation.layout.Row(
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                            .padding(start = 20.dp, end = 14.dp, top = 14.dp, bottom = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -113,50 +140,117 @@ fun LibrarySortBottomSheet(
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = "View",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontFamily = GoogleSansRounded,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(vertical = 8.dp)
+                    modifier = Modifier.padding(start = 2.dp, top = 8.dp, bottom = 8.dp)
                 )
 
                 val viewContainerColor = remember(viewToggleChecked) {
                     if (viewToggleChecked) selectedColor else unselectedColor
                 }
 
-                Surface(
-                    shape = MaterialTheme.shapes.extraLarge,
-                    color = viewContainerColor,
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp)
+                        .padding(horizontal = 0.dp)
+                        .clip(
+                            AbsoluteSmoothCornerShape(
+                                cornerRadiusBL = boxCornerRadius,
+                                smoothnessAsPercentBR = 60,
+                                cornerRadiusTR = boxCornerRadius,
+                                smoothnessAsPercentTL = 60,
+                                cornerRadiusTL = boxCornerRadius,
+                                smoothnessAsPercentBL = 60,
+                                cornerRadiusBR = boxCornerRadius,
+                                smoothnessAsPercentTR = 60
+                            )
+                        ) // Apply animated corner radius for clipping
+                        .background(color = boxBackgroundColor)   // Apply animated background color
+                        .clickable(
+                            onClick = {
+                                onViewToggleChange(!viewToggleChecked)
+                            }
+                        )
                 ) {
-                    androidx.compose.foundation.layout.Row(
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .padding(vertical = 8.dp, horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = "Playlist View",
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(start = 6.dp, end = 8.dp),
                             style = MaterialTheme.typography.bodyLarge,
-                            color = if (viewToggleChecked) {
-                                MaterialTheme.colorScheme.onSecondaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurface
-                            }
+                            color = if (viewToggleChecked) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onSurface // Adjust text color for contrast
                         )
                         Switch(
                             checked = viewToggleChecked,
-                            onCheckedChange = onViewToggleChange,
+                            onCheckedChange = {
+                                onViewToggleChange(it)
+                            },
                             colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                                checkedThumbColor = MaterialTheme.colorScheme.tertiary,
+                                checkedTrackColor = MaterialTheme.colorScheme.tertiaryContainer,
                                 uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
+                            ),
+                            thumbContent = if (viewToggleChecked) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Check,
+                                        contentDescription = "Switch is on",
+                                        tint = MaterialTheme.colorScheme.tertiaryContainer,
+                                        modifier = Modifier.size(SwitchDefaults.IconSize),
+                                    )
+                                }
+                            } else {
+                                null
+                            }
                         )
                     }
                 }
+
+                //old
+
+//                Surface(
+//                    shape = MaterialTheme.shapes.extraLarge,
+//                    color = viewContainerColor,
+//                    modifier = Modifier
+//                        .fillMaxWidth()
+//                        .padding(vertical = 4.dp)
+//                ) {
+//                    Row(
+//                        modifier = Modifier
+//                            .fillMaxWidth()
+//                            .padding(horizontal = 20.dp, vertical = 14.dp),
+//                        verticalAlignment = Alignment.CenterVertically,
+//                        horizontalArrangement = Arrangement.SpaceBetween
+//                    ) {
+//                        Text(
+//                            text = "Playlist View",
+//                            style = MaterialTheme.typography.bodyLarge,
+//                            color = if (viewToggleChecked) {
+//                                MaterialTheme.colorScheme.onSecondaryContainer
+//                            } else {
+//                                MaterialTheme.colorScheme.onSurface
+//                            }
+//                        )
+//                        Switch(
+//                            checked = viewToggleChecked,
+//                            onCheckedChange = onViewToggleChange,
+//                            colors = SwitchDefaults.colors(
+//                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+//                                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+//                                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+//                                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+//                            )
+//                        )
+//                    }
+//                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
