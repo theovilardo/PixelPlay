@@ -578,6 +578,14 @@ fun LibraryScreen(
                                             stablePlayerState = stablePlayerState,
                                             onNavigateBack = { playerViewModel.navigateBackFolder() },
                                             onFolderClick = { folderPath -> playerViewModel.navigateToFolder(folderPath) },
+                                            onFolderAsPlaylistClick = { folder ->
+                                                val encodedPath = Uri.encode(folder.path)
+                                                navController.navigate(
+                                                    Screen.PlaylistDetail.createRoute(
+                                                        "${PlaylistViewModel.FOLDER_PLAYLIST_PREFIX}$encodedPath"
+                                                    )
+                                                )
+                                            },
                                             onPlaySong = { song, queue ->
                                                 playerViewModel.showAndPlaySong(song, queue, currentFolder?.name ?: "Folder")
                                             },
@@ -835,6 +843,7 @@ fun LibraryFoldersTab(
     isLoading: Boolean,
     onNavigateBack: () -> Unit,
     onFolderClick: (String) -> Unit,
+    onFolderAsPlaylistClick: (MusicFolder) -> Unit,
     onPlaySong: (Song, List<Song>) -> Unit,
     stablePlayerState: StablePlayerState,
     bottomBarHeight: Dp,
@@ -927,7 +936,7 @@ fun LibraryFoldersTab(
                             items(itemsToShow, key = { "folder_${it.path}" }) { folder ->
                                 FolderPlaylistItem(
                                     folder = folder,
-                                    onClick = { onFolderClick(folder.path) }
+                                    onClick = { onFolderAsPlaylistClick(folder) }
                                 )
                             }
                         } else {

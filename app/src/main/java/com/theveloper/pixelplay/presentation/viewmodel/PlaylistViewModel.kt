@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.presentation.viewmodel
 
+import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -45,6 +46,7 @@ class PlaylistViewModel @Inject constructor(
 
     companion object {
         private const val SONG_SELECTION_PAGE_SIZE = 100 // Cargar 100 canciones a la vez para el selector
+        const val FOLDER_PLAYLIST_PREFIX = "folder_playlist:"
     }
 
     // Helper function to resolve stored playlist sort keys
@@ -165,27 +167,53 @@ class PlaylistViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, currentPlaylistDetails = null, currentPlaylistSongs = emptyList()) } // Resetear detalles y canciones
             try {
-                // Obtener la playlist de las preferencias del usuario
-                val playlist = userPreferencesRepository.userPlaylistsFlow.first()
-                    .find { it.id == playlistId }
+                if (isFolderPlaylistId(playlistId)) {
+                    val folderPath = Uri.decode(playlistId.removePrefix(FOLDER_PLAYLIST_PREFIX))
+                    val folders = musicRepository.getMusicFolders().first()
+                    val folder = findFolder(folderPath, folders)
 
-                if (playlist != null) {
-                    // Colectar la lista de canciones del Flow devuelto por el repositorio en un hilo de IO
-                    val songsList: List<Song> = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        musicRepository.getSongsByIds(playlist.songIds).first()
-                    }
-                    // La actualización del UI se hace en el hilo principal
-                    _uiState.update {
-                        it.copy(
-                            currentPlaylistDetails = playlist,
-                            currentPlaylistSongs = songsList, // Asignar la List<Song>
-                            isLoading = false
+                    if (folder != null) {
+                        val songsList = folder.collectAllSongs()
+                        val pseudoPlaylist = Playlist(
+                            id = playlistId,
+                            name = folder.name,
+                            songIds = songsList.map { it.id }
                         )
+
+                        _uiState.update {
+                            it.copy(
+                                currentPlaylistDetails = pseudoPlaylist,
+                                currentPlaylistSongs = songsList,
+                                isLoading = false
+                            )
+                        }
+                    } else {
+                        Log.w("PlaylistVM", "Folder playlist with path $folderPath not found.")
+                        _uiState.update { it.copy(isLoading = false) }
                     }
                 } else {
-                    Log.w("PlaylistVM", "Playlist with id $playlistId not found.")
-                    _uiState.update { it.copy(isLoading = false) } // Mantener isLoading en false
-                    // Opcional: podrías establecer un error o un estado específico de "no encontrado"
+                    // Obtener la playlist de las preferencias del usuario
+                    val playlist = userPreferencesRepository.userPlaylistsFlow.first()
+                        .find { it.id == playlistId }
+
+                    if (playlist != null) {
+                        // Colectar la lista de canciones del Flow devuelto por el repositorio en un hilo de IO
+                        val songsList: List<Song> = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            musicRepository.getSongsByIds(playlist.songIds).first()
+                        }
+                        // La actualización del UI se hace en el hilo principal
+                        _uiState.update {
+                            it.copy(
+                                currentPlaylistDetails = playlist,
+                                currentPlaylistSongs = songsList, // Asignar la List<Song>
+                                isLoading = false
+                            )
+                        }
+                    } else {
+                        Log.w("PlaylistVM", "Playlist with id $playlistId not found.")
+                        _uiState.update { it.copy(isLoading = false) } // Mantener isLoading en false
+                        // Opcional: podrías establecer un error o un estado específico de "no encontrado"
+                    }
                 }
             } catch (e: Exception) {
                 Log.e("PlaylistVM", "Error loading playlist details for id $playlistId", e)
@@ -209,12 +237,14 @@ class PlaylistViewModel @Inject constructor(
     }
 
     fun deletePlaylist(playlistId: String) {
+        if (isFolderPlaylistId(playlistId)) return
         viewModelScope.launch {
             userPreferencesRepository.deletePlaylist(playlistId)
         }
     }
 
     fun renamePlaylist(playlistId: String, newName: String) {
+        if (isFolderPlaylistId(playlistId)) return
         viewModelScope.launch {
             userPreferencesRepository.renamePlaylist(playlistId, newName)
             if (_uiState.value.currentPlaylistDetails?.id == playlistId) {
@@ -224,6 +254,7 @@ class PlaylistViewModel @Inject constructor(
     }
 
     fun addSongsToPlaylist(playlistId: String, songIdsToAdd: List<String>) {
+        if (isFolderPlaylistId(playlistId)) return
         viewModelScope.launch {
             userPreferencesRepository.addSongsToPlaylist(playlistId, songIdsToAdd)
             if (_uiState.value.currentPlaylistDetails?.id == playlistId) {
@@ -233,6 +264,7 @@ class PlaylistViewModel @Inject constructor(
     }
 
     fun removeSongFromPlaylist(playlistId: String, songIdToRemove: String) {
+        if (isFolderPlaylistId(playlistId)) return
         viewModelScope.launch {
             userPreferencesRepository.removeSongFromPlaylist(playlistId, songIdToRemove)
             if (_uiState.value.currentPlaylistDetails?.id == playlistId) {
@@ -244,6 +276,7 @@ class PlaylistViewModel @Inject constructor(
     }
 
     fun reorderSongsInPlaylist(playlistId: String, fromIndex: Int, toIndex: Int) {
+        if (isFolderPlaylistId(playlistId)) return
         viewModelScope.launch {
             val currentSongs = _uiState.value.currentPlaylistSongs.toMutableList()
             if (fromIndex in currentSongs.indices && toIndex in currentSongs.indices) {
@@ -273,5 +306,26 @@ class PlaylistViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferencesRepository.setPlaylistsSortOption(sortOption.storageKey)
         }
+    }
+
+    private fun isFolderPlaylistId(playlistId: String): Boolean = playlistId.startsWith(FOLDER_PLAYLIST_PREFIX)
+
+    private fun findFolder(
+        targetPath: String,
+        folders: List<com.theveloper.pixelplay.data.model.MusicFolder>
+    ): com.theveloper.pixelplay.data.model.MusicFolder? {
+        val queue: ArrayDeque<com.theveloper.pixelplay.data.model.MusicFolder> = ArrayDeque(folders)
+        while (queue.isNotEmpty()) {
+            val folder = queue.removeFirst()
+            if (folder.path == targetPath) {
+                return folder
+            }
+            folder.subFolders.forEach { queue.addLast(it) }
+        }
+        return null
+    }
+
+    private fun com.theveloper.pixelplay.data.model.MusicFolder.collectAllSongs(): List<Song> {
+        return songs + subFolders.flatMap { it.collectAllSongs() }
     }
 }
