@@ -6,7 +6,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
@@ -15,37 +14,25 @@ import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Sort
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -56,51 +43,36 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.PopupProperties
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.MusicFolder
 import com.theveloper.pixelplay.data.model.SortOption
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
-import kotlinx.coroutines.launch
-import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import java.io.File
 
 val defaultShape = RoundedCornerShape(26.dp) // Fallback shape
 
 @Composable
 fun LibraryActionRow(
-    currentPage: Int,
     onMainActionClick: () -> Unit,
     iconRotation: Float,
+    onSortClick: () -> Unit,
     showSortButton: Boolean,
-    onSortIconClick: () -> Unit,
-    showSortMenu: Boolean,
-    onDismissSortMenu: () -> Unit,
-    currentSortOptionsForTab: List<SortOption>,
-    selectedSortOption: SortOption,
-    onSortOptionSelected: (SortOption) -> Unit,
     isPlaylistTab: Boolean,
     onGenerateWithAiClick: () -> Unit,
-    onFilterClick: () -> Unit,
     isFoldersTab: Boolean,
     modifier: Modifier = Modifier,
     // Breadcrumb parameters
@@ -241,72 +213,11 @@ fun LibraryActionRow(
         Spacer(modifier = Modifier.width(8.dp))
 
         if (showSortButton) {
-            Box {
-                FilledTonalIconButton(onClick = onSortIconClick) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.Sort,
-                        contentDescription = "Sort Options",
-                    )
-                }
-                DropdownMenu(
-                    expanded = showSortMenu,
-                    onDismissRequest = onDismissSortMenu,
-                    properties = PopupProperties(
-                        clippingEnabled = true
-                    ),
-                    shape = AbsoluteSmoothCornerShape(
-                        cornerRadiusTL = 22.dp,
-                        smoothnessAsPercentBR = 60,
-                        cornerRadiusTR = 22.dp,
-                        smoothnessAsPercentTL = 60,
-                        cornerRadiusBL = 22.dp,
-                        smoothnessAsPercentTR = 60,
-                        cornerRadiusBR = 22.dp,
-                        smoothnessAsPercentBL = 60
-                    ),
-                    containerColor = Color.Transparent,
-                    shadowElevation = 0.dp,
-                    modifier = Modifier.background(
-                        color = MaterialTheme.colorScheme.surfaceVariant
-                    ) // Custom background for dropdown
-                ) {
-                    currentSortOptionsForTab.forEach { option ->
-                        val enabled = option == selectedSortOption
-                        DropdownMenuItem(
-                            modifier = Modifier
-                                .padding(4.dp)
-                                .padding(horizontal = 8.dp)
-                                .background(
-                                    color = MaterialTheme.colorScheme.surfaceContainerLow, //if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainer,
-                                    shape = if (enabled) CircleShape else AbsoluteSmoothCornerShape(
-                                        cornerRadiusTL = 12.dp,
-                                        smoothnessAsPercentBR = 60,
-                                        cornerRadiusTR = 12.dp,
-                                        smoothnessAsPercentTL = 60,
-                                        cornerRadiusBL = 12.dp,
-                                        smoothnessAsPercentTR = 60,
-                                        cornerRadiusBR = 12.dp,
-                                        smoothnessAsPercentBL = 60
-                                    )
-                                )
-                                .clip(if (enabled) CircleShape else RoundedCornerShape(12.dp)),
-                            text = { Text(option.displayName, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                            onClick = {
-                                onSortOptionSelected(option)
-                                // onDismissSortMenu() // Already called in LibraryScreen's onSortOptionSelected lambda
-                            },
-                            leadingIcon = if (enabled) { // Check if it's the selected one
-                                {
-                                    Icon(
-                                        Icons.Rounded.CheckCircle,
-                                        contentDescription = "Selected",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            } else null
-                        )
-                    }
-                }
+            FilledTonalIconButton(onClick = onSortClick) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.Sort,
+                    contentDescription = "Sort Options",
+                )
             }
         }
     }

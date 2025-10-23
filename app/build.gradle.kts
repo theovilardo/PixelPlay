@@ -243,6 +243,7 @@ dependencies {
     implementation(libs.androidx.ui.text.google.fonts)
 
     implementation(libs.accompanist.drawablepainter)
+    implementation(kotlin("test"))
 }
 
 
