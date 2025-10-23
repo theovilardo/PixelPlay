@@ -34,7 +34,6 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.os.Bundle
-import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 import androidx.mediarouter.media.MediaControlIntent
 import androidx.mediarouter.media.MediaRouteSelector
@@ -301,6 +300,8 @@ class PlayerViewModel @Inject constructor(
     private val sessionManager: SessionManager
     private var castSessionManagerListener: SessionManagerListener<CastSession>? = null
     private val _castSession = MutableStateFlow<CastSession?>(null)
+    private val _isRemotePlaybackActive = MutableStateFlow(false)
+    val isRemotePlaybackActive: StateFlow<Boolean> = _isRemotePlaybackActive.asStateFlow()
     private val _remotePosition = MutableStateFlow(0L)
     val remotePosition: StateFlow<Long> = _remotePosition.asStateFlow()
     private val _trackVolume = MutableStateFlow(1.0f)
@@ -868,6 +869,7 @@ class PlayerViewModel @Inject constructor(
                         }
                     }
                     _castSession.value = session
+                    _isRemotePlaybackActive.value = true
                     session.remoteMediaClient?.registerCallback(remoteMediaClientCallback!!)
                     session.remoteMediaClient?.addProgressListener(remoteProgressListener!!, 1000)
 
@@ -901,6 +903,7 @@ class PlayerViewModel @Inject constructor(
                 remoteMediaClient.removeProgressListener(remoteProgressListener!!)
                 remoteMediaClient.unregisterCallback(remoteMediaClientCallback!!)
                 _castSession.value = null
+                _isRemotePlaybackActive.value = false
                 context.stopService(Intent(context, MediaFileHttpServerService::class.java))
                 disconnect()
                 val localPlayer = mediaController ?: return
@@ -963,6 +966,7 @@ class PlayerViewModel @Inject constructor(
         }
         sessionManager.addSessionManagerListener(castSessionManagerListener as SessionManagerListener<CastSession>, CastSession::class.java)
         _castSession.value = sessionManager.currentCastSession
+        _isRemotePlaybackActive.value = _castSession.value != null
         _castSession.value?.remoteMediaClient?.registerCallback(remoteMediaClientCallback!!)
         _castSession.value?.remoteMediaClient?.addProgressListener(remoteProgressListener!!, 1000)
 
@@ -1505,6 +1509,10 @@ class PlayerViewModel @Inject constructor(
                     startProgressUpdates()
                 } else {
                     stopProgressUpdates()
+                    val pausedPosition = playerCtrl.currentPosition.coerceAtLeast(0L)
+                    if (pausedPosition != _playerUiState.value.currentPosition) {
+                        _playerUiState.update { it.copy(currentPosition = pausedPosition) }
+                    }
                 }
             }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -2127,26 +2135,23 @@ class PlayerViewModel @Inject constructor(
 
         stopProgressUpdates()
         progressJob = viewModelScope.launch {
-            while (isActive && _stablePlayerState.value.isPlaying) {
-                mediaController?.let { controller ->
-                    val command = SessionCommand(MusicService.CUSTOM_COMMAND_GET_POSITION, Bundle.EMPTY)
-                    val future = controller.sendCustomCommand(command, Bundle.EMPTY)
-                    future.addListener(
-                        {
-                            try {
-                                val result = future.get()
-                                val position = result.extras.getLong(MusicService.CUSTOM_COMMAND_GET_POSITION_KEY)
-                                if (position != _playerUiState.value.currentPosition) {
-                                    _playerUiState.update { it.copy(currentPosition = position) }
-                                }
-                            } catch (e: Exception) {
-                                Timber.e(e, "Error getting position from custom command")
-                            }
-                        },
-                        ContextCompat.getMainExecutor(context)
-                    )
+            var lastPublishedPosition = Long.MIN_VALUE
+            while (isActive) {
+                if (_castSession.value != null) break
+                val controller = mediaController ?: break
+
+                val position = controller.currentPosition.coerceAtLeast(0L)
+                if (position != lastPublishedPosition) {
+                    _playerUiState.update { it.copy(currentPosition = position) }
+                    lastPublishedPosition = position
                 }
-                delay(200) // Polling interval
+
+                val isActivelyPlaying = controller.isPlaying
+                val shouldKeepPolling = isActivelyPlaying || controller.playWhenReady
+                if (!shouldKeepPolling) break
+
+                val delayMillis = if (isActivelyPlaying || controller.playWhenReady) 200L else 500L
+                delay(delayMillis)
             }
         }
     }
@@ -2478,6 +2483,7 @@ class PlayerViewModel @Inject constructor(
 
     fun disconnect() {
         mediaRouter.selectRoute(mediaRouter.defaultRoute)
+        _isRemotePlaybackActive.value = false
     }
 
     fun setRouteVolume(volume: Int) {
