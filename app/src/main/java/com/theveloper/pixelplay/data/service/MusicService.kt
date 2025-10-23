@@ -90,6 +90,26 @@ class MusicService : MediaSessionService() {
         controller.initialize()
 
         val callback = object : MediaSession.Callback {
+            override fun onConnect(
+                session: MediaSession,
+                controller: MediaSession.ControllerInfo
+            ): MediaSession.ConnectionResult {
+                val sessionCommandsBuilder = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS
+                    .buildUpon()
+                    .add(SessionCommand(CUSTOM_COMMAND_GET_POSITION, Bundle.EMPTY))
+                    .add(SessionCommand(MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_ON, Bundle.EMPTY))
+                    .add(SessionCommand(MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_OFF, Bundle.EMPTY))
+                    .add(SessionCommand(MusicNotificationProvider.CUSTOM_COMMAND_CYCLE_REPEAT_MODE, Bundle.EMPTY))
+                    .add(SessionCommand(MusicNotificationProvider.CUSTOM_COMMAND_LIKE, Bundle.EMPTY))
+
+                val playerCommands = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS
+
+                return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                    .setAvailableSessionCommands(sessionCommandsBuilder.build())
+                    .setAvailablePlayerCommands(playerCommands)
+                    .build()
+            }
+
             override fun onCustomCommand(
                 session: MediaSession,
                 controller: MediaSession.ControllerInfo,

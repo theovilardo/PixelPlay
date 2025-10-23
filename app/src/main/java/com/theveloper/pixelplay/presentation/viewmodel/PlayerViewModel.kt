@@ -34,6 +34,7 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.os.Bundle
 import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
 import androidx.mediarouter.media.MediaControlIntent
 import androidx.mediarouter.media.MediaRouteSelector
@@ -2109,9 +2110,23 @@ class PlayerViewModel @Inject constructor(
                         {
                             try {
                                 val result = future.get()
-                                val position = result.extras.getLong(MusicService.CUSTOM_COMMAND_GET_POSITION_KEY)
-                                if (position != _playerUiState.value.currentPosition) {
-                                    _playerUiState.update { it.copy(currentPosition = position) }
+                                val extras = result.extras
+                                val positionFromCommand = extras?.getLong(
+                                    MusicService.CUSTOM_COMMAND_GET_POSITION_KEY,
+                                    -1L
+                                ) ?: -1L
+
+                                val resolvedPosition = if (
+                                    result.resultCode == SessionResult.RESULT_SUCCESS &&
+                                    positionFromCommand >= 0
+                                ) {
+                                    positionFromCommand
+                                } else {
+                                    controller.currentPosition
+                                }
+
+                                if (resolvedPosition != _playerUiState.value.currentPosition) {
+                                    _playerUiState.update { it.copy(currentPosition = resolvedPosition) }
                                 }
                             } catch (e: Exception) {
                                 Timber.e(e, "Error getting position from custom command")
