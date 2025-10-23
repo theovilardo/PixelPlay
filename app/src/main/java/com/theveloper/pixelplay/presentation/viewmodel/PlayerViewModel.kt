@@ -34,7 +34,6 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.os.Bundle
-import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 import androidx.mediarouter.media.MediaControlIntent
 import androidx.mediarouter.media.MediaRouteSelector
@@ -1510,6 +1509,10 @@ class PlayerViewModel @Inject constructor(
                     startProgressUpdates()
                 } else {
                     stopProgressUpdates()
+                    val pausedPosition = playerCtrl.currentPosition.coerceAtLeast(0L)
+                    if (pausedPosition != _playerUiState.value.currentPosition) {
+                        _playerUiState.update { it.copy(currentPosition = pausedPosition) }
+                    }
                 }
             }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -2132,26 +2135,23 @@ class PlayerViewModel @Inject constructor(
 
         stopProgressUpdates()
         progressJob = viewModelScope.launch {
-            while (isActive && _stablePlayerState.value.isPlaying) {
-                mediaController?.let { controller ->
-                    val command = SessionCommand(MusicService.CUSTOM_COMMAND_GET_POSITION, Bundle.EMPTY)
-                    val future = controller.sendCustomCommand(command, Bundle.EMPTY)
-                    future.addListener(
-                        {
-                            try {
-                                val result = future.get()
-                                val position = result.extras.getLong(MusicService.CUSTOM_COMMAND_GET_POSITION_KEY)
-                                if (position != _playerUiState.value.currentPosition) {
-                                    _playerUiState.update { it.copy(currentPosition = position) }
-                                }
-                            } catch (e: Exception) {
-                                Timber.e(e, "Error getting position from custom command")
-                            }
-                        },
-                        ContextCompat.getMainExecutor(context)
-                    )
+            var lastPublishedPosition = Long.MIN_VALUE
+            while (isActive) {
+                if (_castSession.value != null) break
+                val controller = mediaController ?: break
+
+                val position = controller.currentPosition.coerceAtLeast(0L)
+                if (position != lastPublishedPosition) {
+                    _playerUiState.update { it.copy(currentPosition = position) }
+                    lastPublishedPosition = position
                 }
-                delay(200) // Polling interval
+
+                val isActivelyPlaying = controller.isPlaying
+                val shouldKeepPolling = isActivelyPlaying || controller.playWhenReady
+                if (!shouldKeepPolling) break
+
+                val delayMillis = if (isActivelyPlaying || controller.playWhenReady) 200L else 500L
+                delay(delayMillis)
             }
         }
     }
