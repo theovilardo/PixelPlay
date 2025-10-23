@@ -21,6 +21,7 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.concurrent.TimeUnit
 
 @HiltWorker
 class SyncWorker @AssistedInject constructor(
@@ -46,8 +47,6 @@ class SyncWorker @AssistedInject constructor(
                     it.id to Pair(it.dateAdded, it.lyrics)
                 }
 
-                val newSongTimestamp = System.currentTimeMillis()
-
                 // Prepare the final list of songs for insertion
                 val songsToInsert = mediaStoreSongs.map { mediaStoreSong ->
                     val preservedData = localSongsMap[mediaStoreSong.id]
@@ -58,8 +57,8 @@ class SyncWorker @AssistedInject constructor(
                             lyrics = preservedData.second
                         )
                     } else {
-                        // This is a new song. Assign the uniform timestamp for this sync batch.
-                        mediaStoreSong.copy(dateAdded = newSongTimestamp)
+                        // This is a new song. Keep the MediaStore provided timestamp.
+                        mediaStoreSong
                     }
                 }
 
@@ -155,7 +154,8 @@ class SyncWorker @AssistedInject constructor(
             MediaStore.Audio.Media.DATA,
             MediaStore.Audio.Media.GENRE,
             MediaStore.Audio.Media.TRACK,
-            MediaStore.Audio.Media.YEAR
+            MediaStore.Audio.Media.YEAR,
+            MediaStore.Audio.Media.DATE_ADDED
         )
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ?"
         val selectionArgs = arrayOf("10000")
@@ -179,6 +179,7 @@ class SyncWorker @AssistedInject constructor(
             val genreCol = cursor.getColumnIndex(MediaStore.Audio.Media.GENRE)
             val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
             val yearCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
+            val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
 
 
             while (cursor.moveToNext()) {
@@ -219,7 +220,10 @@ class SyncWorker @AssistedInject constructor(
                         filePath = filePath,
                         parentDirectoryPath = parentDir,
                         trackNumber = cursor.getInt(trackCol),
-                        year = cursor.getInt(yearCol)
+                        year = cursor.getInt(yearCol),
+                        dateAdded = cursor.getLong(dateAddedCol).let { seconds ->
+                            if (seconds > 0) TimeUnit.SECONDS.toMillis(seconds) else System.currentTimeMillis()
+                        }
                     )
                 )
             }
