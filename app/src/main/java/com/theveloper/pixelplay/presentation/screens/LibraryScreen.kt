@@ -421,7 +421,7 @@ fun LibraryScreen(
                             showSortButton = sanitizedSortOptions.isNotEmpty(),
                             onSortClick = { playerViewModel.showSortingSheet() },
                             isPlaylistTab = currentTabId == LibraryTabId.PLAYLISTS,
-                            isFoldersTab = currentTabId == LibraryTabId.FOLDERS,
+                            isFoldersTab = currentTabId == LibraryTabId.FOLDERS && (!playerUiState.isFoldersPlaylistView || playerUiState.currentFolder != null),
                             onGenerateWithAiClick = { playerViewModel.showAiPlaylistSheet() },
                             //onFilterClick = { playerViewModel.toggleFolderFilter() },
                             currentFolder = playerUiState.currentFolder,
@@ -447,6 +447,11 @@ fun LibraryScreen(
                                 onOptionSelected = { option ->
                                     onSortOptionChanged(option)
                                     playerViewModel.hideSortingSheet()
+                                },
+                                showViewToggle = currentTabId == LibraryTabId.FOLDERS,
+                                viewToggleChecked = playerUiState.isFoldersPlaylistView,
+                                onViewToggleChange = { isChecked ->
+                                    playerViewModel.setFoldersPlaylistView(isChecked)
                                 }
                             )
                         }
@@ -573,10 +578,20 @@ fun LibraryScreen(
                                             stablePlayerState = stablePlayerState,
                                             onNavigateBack = { playerViewModel.navigateBackFolder() },
                                             onFolderClick = { folderPath -> playerViewModel.navigateToFolder(folderPath) },
+                                            onFolderAsPlaylistClick = { folder ->
+                                                val encodedPath = Uri.encode(folder.path)
+                                                navController.navigate(
+                                                    Screen.PlaylistDetail.createRoute(
+                                                        "${PlaylistViewModel.FOLDER_PLAYLIST_PREFIX}$encodedPath"
+                                                    )
+                                                )
+                                            },
                                             onPlaySong = { song, queue ->
                                                 playerViewModel.showAndPlaySong(song, queue, currentFolder?.name ?: "Folder")
                                             },
-                                            onMoreOptionsClick = stableOnMoreOptionsClick
+                                            onMoreOptionsClick = stableOnMoreOptionsClick,
+                                            isPlaylistView = playerUiState.isFoldersPlaylistView,
+                                            currentSortOption = playerUiState.currentFolderSortOption
                                         )
                                     } else {
                                         Column(
@@ -828,88 +843,168 @@ fun LibraryFoldersTab(
     isLoading: Boolean,
     onNavigateBack: () -> Unit,
     onFolderClick: (String) -> Unit,
+    onFolderAsPlaylistClick: (MusicFolder) -> Unit,
     onPlaySong: (Song, List<Song>) -> Unit,
     stablePlayerState: StablePlayerState,
     bottomBarHeight: Dp,
-    onMoreOptionsClick: (Song) -> Unit
+    onMoreOptionsClick: (Song) -> Unit,
+    isPlaylistView: Boolean = false,
+    currentSortOption: SortOption = SortOption.FolderNameAZ
 ) {
     val listState = rememberLazyListState()
+    val flattenedFolders = remember(folders, currentSortOption) {
+        val flattened = flattenFolders(folders)
+        when (currentSortOption) {
+            SortOption.FolderNameZA -> flattened.sortedByDescending { it.name }
+            else -> flattened.sortedBy { it.name }
+        }
+    }
 
     AnimatedContent(
-        targetState = currentFolder?.path ?: "root",
+        targetState = Pair(isPlaylistView, currentFolder?.path ?: "root"),
         label = "FolderNavigation",
         transitionSpec = {
             (slideInHorizontally { width -> width } + fadeIn())
                 .togetherWith(slideOutHorizontally { width -> -width } + fadeOut())
         }
-    ) { targetPath ->
-        val itemsToShow = currentFolder?.subFolders ?: folders
-        val songsToShow = currentFolder?.songs ?: emptyList()
+    ) { (playlistMode, targetPath) ->
+        val isRoot = targetPath == "root"
+        val activeFolder = if (isRoot) null else currentFolder
+        val showPlaylistCards = playlistMode && activeFolder == null
+        val itemsToShow = when {
+            showPlaylistCards -> flattenedFolders
+            activeFolder != null -> activeFolder.subFolders
+            else -> folders
+        }
+        val songsToShow = activeFolder?.songs ?: emptyList()
+        val shouldShowLoading = isLoading && itemsToShow.isEmpty() && songsToShow.isEmpty() && isRoot
 
-        Column(modifier = Modifier.fillMaxSize()) { // Ensures content is always at the top
-            if (targetPath == "root" && isLoading && itemsToShow.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+        Column(modifier = Modifier.fillMaxSize()) {
+            when {
+                shouldShowLoading -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
                 }
-            } else if (itemsToShow.isEmpty() && songsToShow.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+
+                itemsToShow.isEmpty() && songsToShow.isEmpty() -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_folder),
-                            contentDescription = null,
-                            Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                        )
-                        Text(
-                            "No folders found.",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .padding(horizontal = 12.dp)
-                        .clip(
-                            RoundedCornerShape(
-                                topStart = 26.dp,
-                                topEnd = 26.dp,
-                                bottomStart = PlayerSheetCollapsedCornerRadius,
-                                bottomEnd = PlayerSheetCollapsedCornerRadius
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_folder),
+                                contentDescription = null,
+                                Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                             )
-                        ),
-                    state = listState,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(bottom = bottomBarHeight + MiniPlayerHeight + ListExtraBottomGap, top = 8.dp)
-                ) {
-                    items(itemsToShow, key = { "folder_${it.path}" }) { folder ->
-                        FolderListItem(folder = folder, onClick = {
-                            onFolderClick(folder.path)
-                        })
-                    }
-                    items(songsToShow, key = { "song_${it.id}" }) { song ->
-                        EnhancedSongListItem(
-                            song = song,
-                            isPlaying = stablePlayerState.currentSong?.id == song.id && stablePlayerState.isPlaying,
-                            isCurrentSong = stablePlayerState.currentSong?.id == song.id,
-                            onMoreOptionsClick = { onMoreOptionsClick(song) },
-                            onClick = {
-                                val songIndex = songsToShow.indexOf(song)
-                                if (songIndex != -1) {
-                                    val songsToPlay = songsToShow.subList(songIndex, songsToShow.size).toList()
-                                    onPlaySong(song, songsToPlay)
-                                }
-                            }
-                        )
+                            Text(
+                                "No folders found.",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
+
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp)
+                            .clip(
+                                RoundedCornerShape(
+                                    topStart = 26.dp,
+                                    topEnd = 26.dp,
+                                    bottomStart = PlayerSheetCollapsedCornerRadius,
+                                    bottomEnd = PlayerSheetCollapsedCornerRadius
+                                )
+                            ),
+                        state = listState,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(
+                            bottom = bottomBarHeight + MiniPlayerHeight + ListExtraBottomGap,
+                            top = 8.dp
+                        )
+                    ) {
+                        if (showPlaylistCards) {
+                            items(itemsToShow, key = { "folder_${it.path}" }) { folder ->
+                                FolderPlaylistItem(
+                                    folder = folder,
+                                    onClick = { onFolderAsPlaylistClick(folder) }
+                                )
+                            }
+                        } else {
+                            items(itemsToShow, key = { "folder_${it.path}" }) { folder ->
+                                FolderListItem(
+                                    folder = folder,
+                                    onClick = { onFolderClick(folder.path) }
+                                )
+                            }
+                        }
+
+                        items(songsToShow, key = { "song_${it.id}" }) { song ->
+                            EnhancedSongListItem(
+                                song = song,
+                                isPlaying = stablePlayerState.currentSong?.id == song.id && stablePlayerState.isPlaying,
+                                isCurrentSong = stablePlayerState.currentSong?.id == song.id,
+                                onMoreOptionsClick = { onMoreOptionsClick(song) },
+                                onClick = {
+                                    val songIndex = songsToShow.indexOf(song)
+                                    if (songIndex != -1) {
+                                        val songsToPlay = songsToShow.subList(songIndex, songsToShow.size).toList()
+                                        onPlaySong(song, songsToPlay)
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun FolderPlaylistItem(folder: MusicFolder, onClick: () -> Unit) {
+    val previewSongs = remember(folder) { folder.collectAllSongs().take(9) }
+
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            PlaylistArtCollage(
+                songs = previewSongs,
+                modifier = Modifier.size(48.dp)
+            )
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    folder.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    "${folder.totalSongCount} Songs",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
@@ -941,6 +1036,16 @@ fun FolderListItem(folder: MusicFolder, onClick: () -> Unit) {
             }
         }
     }
+}
+
+private fun flattenFolders(folders: List<MusicFolder>): List<MusicFolder> {
+    return folders.flatMap { folder ->
+        listOf(folder) + flattenFolders(folder.subFolders)
+    }
+}
+
+private fun MusicFolder.collectAllSongs(): List<Song> {
+    return songs + subFolders.flatMap { it.collectAllSongs() }
 }
 
 // NUEVA Pestaña para Favoritos
