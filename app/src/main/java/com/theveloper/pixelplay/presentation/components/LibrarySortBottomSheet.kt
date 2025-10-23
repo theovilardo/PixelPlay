@@ -213,44 +213,6 @@ fun LibrarySortBottomSheet(
                         )
                     }
                 }
-
-                //old
-
-//                Surface(
-//                    shape = MaterialTheme.shapes.extraLarge,
-//                    color = viewContainerColor,
-//                    modifier = Modifier
-//                        .fillMaxWidth()
-//                        .padding(vertical = 4.dp)
-//                ) {
-//                    Row(
-//                        modifier = Modifier
-//                            .fillMaxWidth()
-//                            .padding(horizontal = 20.dp, vertical = 14.dp),
-//                        verticalAlignment = Alignment.CenterVertically,
-//                        horizontalArrangement = Arrangement.SpaceBetween
-//                    ) {
-//                        Text(
-//                            text = "Playlist View",
-//                            style = MaterialTheme.typography.bodyLarge,
-//                            color = if (viewToggleChecked) {
-//                                MaterialTheme.colorScheme.onSecondaryContainer
-//                            } else {
-//                                MaterialTheme.colorScheme.onSurface
-//                            }
-//                        )
-//                        Switch(
-//                            checked = viewToggleChecked,
-//                            onCheckedChange = onViewToggleChange,
-//                            colors = SwitchDefaults.colors(
-//                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-//                                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-//                                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
-//                                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
-//                            )
-//                        )
-//                    }
-//                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))

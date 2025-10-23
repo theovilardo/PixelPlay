@@ -1040,7 +1040,8 @@ fun FolderListItem(folder: MusicFolder, onClick: () -> Unit) {
 
 private fun flattenFolders(folders: List<MusicFolder>): List<MusicFolder> {
     return folders.flatMap { folder ->
-        listOf(folder) + flattenFolders(folder.subFolders)
+        val current = if (folder.songs.isNotEmpty()) listOf(folder) else emptyList()
+        current + flattenFolders(folder.subFolders)
     }
 }
 
