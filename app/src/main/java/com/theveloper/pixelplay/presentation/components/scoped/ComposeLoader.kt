@@ -13,10 +13,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.isActive
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -71,21 +69,17 @@ fun rememberSmoothProgress(
     val safeDuration = totalDuration.coerceAtLeast(1L)
 
     LaunchedEffect(totalDuration, sampleWhilePlayingMs, sampleWhilePausedMs) {
-        val initialPosition = latestPositionProvider().coerceIn(0L, totalDuration)
-        sampledPosition = initialPosition
-        targetFraction = (initialPosition / safeDuration.toFloat()).coerceIn(0f, 1f)
+        while (isActive) {
+            val isPlaying = latestIsPlayingProvider()
+            val rawPosition = latestPositionProvider()
+            val clampedPosition = rawPosition.coerceIn(0L, totalDuration)
 
-        snapshotFlow { latestIsPlayingProvider() to latestPositionProvider() }
-            .distinctUntilChanged()
-            .collectLatest { (isPlaying, rawPosition) ->
-                val clampedPosition = rawPosition.coerceIn(0L, totalDuration)
-                sampledPosition = clampedPosition
-                targetFraction = (clampedPosition / safeDuration.toFloat()).coerceIn(0f, 1f)
+            sampledPosition = clampedPosition
+            targetFraction = (clampedPosition / safeDuration.toFloat()).coerceIn(0f, 1f)
 
-                val delayMillis = if (isPlaying) sampleWhilePlayingMs else sampleWhilePausedMs
-                val safeDelay = delayMillis.coerceAtLeast(1L)
-                delay(safeDelay)
-            }
+            val delayMillis = if (isPlaying) sampleWhilePlayingMs else sampleWhilePausedMs
+            delay(delayMillis.coerceAtLeast(1L))
+        }
     }
 
     val isPlaying = latestIsPlayingProvider()
