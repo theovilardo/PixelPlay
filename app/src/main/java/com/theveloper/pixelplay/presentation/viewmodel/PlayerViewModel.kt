@@ -169,6 +169,7 @@ data class PlayerUiState(
     val isFolderFilterActive: Boolean = false,
 
     val currentFolder: com.theveloper.pixelplay.data.model.MusicFolder? = null,
+    val isFoldersPlaylistView: Boolean = false,
 
     // State for dismiss/undo functionality
     val showDismissUndoBar: Boolean = false,
@@ -587,6 +588,12 @@ class PlayerViewModel @Inject constructor(
 
         viewModelScope.launch {
             userPreferencesRepository.ensureLibrarySortDefaults()
+        }
+
+        viewModelScope.launch {
+            userPreferencesRepository.isFoldersPlaylistViewFlow.collect { isPlaylistView ->
+                setFoldersPlaylistViewState(isPlaylistView)
+            }
         }
 
         viewModelScope.launch {
@@ -2286,13 +2293,22 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun setFoldersPlaylistView(isPlaylistView: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setFoldersPlaylistView(isPlaylistView)
+            setFoldersPlaylistViewState(isPlaylistView)
+        }
+    }
+
     fun navigateToFolder(path: String) {
         val folder = findFolder(path, _playerUiState.value.musicFolders)
-        _playerUiState.update {
-            it.copy(
-                currentFolderPath = path,
-                currentFolder = folder
-            )
+        if (folder != null) {
+            _playerUiState.update {
+                it.copy(
+                    currentFolderPath = path,
+                    currentFolder = folder
+                )
+            }
         }
     }
 
@@ -2325,6 +2341,16 @@ class PlayerViewModel @Inject constructor(
             queue.addAll(folder.subFolders)
         }
         return null
+    }
+
+    private fun setFoldersPlaylistViewState(isPlaylistView: Boolean) {
+        _playerUiState.update { currentState ->
+            currentState.copy(
+                isFoldersPlaylistView = isPlaylistView,
+                currentFolderPath = null,
+                currentFolder = null
+            )
+        }
     }
 
     fun toggleFolderFilter() {
