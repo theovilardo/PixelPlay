@@ -301,6 +301,8 @@ class PlayerViewModel @Inject constructor(
     private val sessionManager: SessionManager
     private var castSessionManagerListener: SessionManagerListener<CastSession>? = null
     private val _castSession = MutableStateFlow<CastSession?>(null)
+    private val _isRemotePlaybackActive = MutableStateFlow(false)
+    val isRemotePlaybackActive: StateFlow<Boolean> = _isRemotePlaybackActive.asStateFlow()
     private val _remotePosition = MutableStateFlow(0L)
     val remotePosition: StateFlow<Long> = _remotePosition.asStateFlow()
     private val _trackVolume = MutableStateFlow(1.0f)
@@ -868,6 +870,7 @@ class PlayerViewModel @Inject constructor(
                         }
                     }
                     _castSession.value = session
+                    _isRemotePlaybackActive.value = true
                     session.remoteMediaClient?.registerCallback(remoteMediaClientCallback!!)
                     session.remoteMediaClient?.addProgressListener(remoteProgressListener!!, 1000)
 
@@ -901,6 +904,7 @@ class PlayerViewModel @Inject constructor(
                 remoteMediaClient.removeProgressListener(remoteProgressListener!!)
                 remoteMediaClient.unregisterCallback(remoteMediaClientCallback!!)
                 _castSession.value = null
+                _isRemotePlaybackActive.value = false
                 context.stopService(Intent(context, MediaFileHttpServerService::class.java))
                 disconnect()
                 val localPlayer = mediaController ?: return
@@ -963,6 +967,7 @@ class PlayerViewModel @Inject constructor(
         }
         sessionManager.addSessionManagerListener(castSessionManagerListener as SessionManagerListener<CastSession>, CastSession::class.java)
         _castSession.value = sessionManager.currentCastSession
+        _isRemotePlaybackActive.value = _castSession.value != null
         _castSession.value?.remoteMediaClient?.registerCallback(remoteMediaClientCallback!!)
         _castSession.value?.remoteMediaClient?.addProgressListener(remoteProgressListener!!, 1000)
 
@@ -2478,6 +2483,7 @@ class PlayerViewModel @Inject constructor(
 
     fun disconnect() {
         mediaRouter.selectRoute(mediaRouter.defaultRoute)
+        _isRemotePlaybackActive.value = false
     }
 
     fun setRouteVolume(volume: Int) {

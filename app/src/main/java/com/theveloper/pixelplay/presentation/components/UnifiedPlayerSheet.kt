@@ -137,9 +137,8 @@ fun UnifiedPlayerSheet(
         playerViewModel.playerUiState.map { it.currentPosition }.distinctUntilChanged()
     }.collectAsState(initial = 0L)
     val remotePosition by playerViewModel.remotePosition.collectAsState()
-    val selectedRoute by playerViewModel.selectedRoute.collectAsState()
-    val isCasting = selectedRoute?.isDefault == false
-    val positionToDisplay = if (isCasting) remotePosition else currentPosition
+    val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
+    val positionToDisplay = if (isRemotePlaybackActive) remotePosition else currentPosition
     val isFavorite by playerViewModel.isCurrentSongFavorite.collectAsState()
 
     val currentPlaybackQueue by remember {
