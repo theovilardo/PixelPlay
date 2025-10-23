@@ -29,6 +29,7 @@ import coil.request.ImageRequest
 import coil.size.Size
 import android.os.Bundle
 import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionCommands
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.theveloper.pixelplay.MainActivity
@@ -88,6 +89,27 @@ class MusicService : MediaSessionService() {
         controller.initialize()
 
         val callback = object : MediaSession.Callback {
+            override fun onConnect(
+                session: MediaSession,
+                controller: MediaSession.ControllerInfo
+            ): MediaSession.ConnectionResult {
+                val connectionResult = super.onConnect(session, controller)
+                if (!connectionResult.isAccepted) {
+                    return connectionResult
+                }
+
+                val sessionCommandsBuilder = SessionCommands.Builder(connectionResult.availableSessionCommands)
+                    .add(SessionCommand(MusicNotificationProvider.CUSTOM_COMMAND_LIKE, Bundle.EMPTY))
+                    .add(SessionCommand(MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_ON, Bundle.EMPTY))
+                    .add(SessionCommand(MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_OFF, Bundle.EMPTY))
+                    .add(SessionCommand(MusicNotificationProvider.CUSTOM_COMMAND_CYCLE_REPEAT_MODE, Bundle.EMPTY))
+
+                return MediaSession.ConnectionResult.accepted(
+                    sessionCommandsBuilder.build(),
+                    connectionResult.availablePlayerCommands
+                )
+            }
+
             override fun onCustomCommand(
                 session: MediaSession,
                 controller: MediaSession.ControllerInfo,
