@@ -98,13 +98,13 @@ class MusicService : MediaSessionService() {
                     return connectionResult
                 }
 
-                val sessionCommandsBuilder = SessionCommands.Builder(connectionResult.availableSessionCommands)
+                val sessionCommandsBuilder = connectionResult.availableSessionCommands.buildUpon()
                     .add(SessionCommand(MusicNotificationProvider.CUSTOM_COMMAND_LIKE, Bundle.EMPTY))
                     .add(SessionCommand(MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_ON, Bundle.EMPTY))
                     .add(SessionCommand(MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_OFF, Bundle.EMPTY))
                     .add(SessionCommand(MusicNotificationProvider.CUSTOM_COMMAND_CYCLE_REPEAT_MODE, Bundle.EMPTY))
 
-                return MediaSession.ConnectionResult.accepted(
+                return MediaSession.ConnectionResult.accept(
                     sessionCommandsBuilder.build(),
                     connectionResult.availablePlayerCommands
                 )
