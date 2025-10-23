@@ -72,6 +72,7 @@ class UserPreferencesRepository @Inject constructor(
         val GLOBAL_TRANSITION_SETTINGS = stringPreferencesKey("global_transition_settings_json")
         val LIBRARY_TABS_ORDER = stringPreferencesKey("library_tabs_order")
         val IS_FOLDER_FILTER_ACTIVE = booleanPreferencesKey("is_folder_filter_active")
+        val IS_FOLDERS_PLAYLIST_VIEW = booleanPreferencesKey("is_folders_playlist_view")
     }
 
     val globalTransitionSettingsFlow: Flow<TransitionSettings> = dataStore.data
@@ -551,6 +552,17 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setFolderFilterActive(isActive: Boolean) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.IS_FOLDER_FILTER_ACTIVE] = isActive
+        }
+    }
+
+    val isFoldersPlaylistViewFlow: Flow<Boolean> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.IS_FOLDERS_PLAYLIST_VIEW] ?: false
+        }
+
+    suspend fun setFoldersPlaylistView(isPlaylistView: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.IS_FOLDERS_PLAYLIST_VIEW] = isPlaylistView
         }
     }
 }

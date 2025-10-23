@@ -15,6 +15,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -36,7 +38,10 @@ fun LibrarySortBottomSheet(
     options: List<SortOption>,
     selectedOption: SortOption,
     onDismiss: () -> Unit,
-    onOptionSelected: (SortOption) -> Unit
+    onOptionSelected: (SortOption) -> Unit,
+    showViewToggle: Boolean = false,
+    viewToggleChecked: Boolean = false,
+    onViewToggleChange: (Boolean) -> Unit = {}
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -99,6 +104,56 @@ fun LibrarySortBottomSheet(
                         RadioButton(
                             selected = isSelected,
                             onClick = null
+                        )
+                    }
+                }
+            }
+
+            if (showViewToggle) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "View",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+
+                val viewContainerColor = remember(viewToggleChecked) {
+                    if (viewToggleChecked) selectedColor else unselectedColor
+                }
+
+                Surface(
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = viewContainerColor,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                ) {
+                    androidx.compose.foundation.layout.Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Playlist View",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = if (viewToggleChecked) {
+                                MaterialTheme.colorScheme.onSecondaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            }
+                        )
+                        Switch(
+                            checked = viewToggleChecked,
+                            onCheckedChange = onViewToggleChange,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
                         )
                     }
                 }
