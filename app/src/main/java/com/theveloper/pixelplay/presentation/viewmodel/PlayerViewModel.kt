@@ -2894,6 +2894,12 @@ class PlayerViewModel @Inject constructor(
                     _playerUiState.update { it.copy(allSongs = currentSongs.toImmutableList()) }
                 }
 
+                _masterAllSongs.update { songs ->
+                    songs.map { existing ->
+                        if (existing.id == song.id) updatedSong else existing
+                    }.toImmutableList()
+                }
+
                 if (_stablePlayerState.value.currentSong?.id == song.id) {
                     _stablePlayerState.update { it.copy(currentSong = updatedSong) }
                 }

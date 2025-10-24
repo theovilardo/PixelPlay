@@ -515,7 +515,7 @@ private fun CoverArtEditorCard(
             }
 
             Text(
-                text = "Selecciona una imagen cuadrada y ajústala para que tu portada se vea increíble en toda la app.",
+                text = "Select a square image and fine-tune it so your cover art looks great across the app.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -528,14 +528,14 @@ private fun CoverArtEditorCard(
                 FilledTonalButton(onClick = onPickNewArt) {
                     Icon(Icons.Rounded.Image, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Cambiar portada")
+                    Text("Change cover art")
                 }
 
                 if (preview != null) {
                     TextButton(onClick = onReset) {
                         Icon(Icons.Rounded.Restore, contentDescription = null)
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Restablecer")
+                        Text("Reset")
                     }
                 }
             }
@@ -573,7 +573,7 @@ private fun CoverArtCropperDialog(
         if (bitmap != null) {
             loadedBitmap = bitmap.asImageBitmap()
         } else {
-            loadError = "No pudimos cargar la imagen seleccionada"
+            loadError = "Unable to load the selected image"
         }
         isLoading = false
         scale = 1f
@@ -608,7 +608,7 @@ private fun CoverArtCropperDialog(
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 Text(
-                    text = "Ajusta tu portada",
+                    text = "Adjust your cover art",
                     style = MaterialTheme.typography.headlineSmall,
                     textAlign = TextAlign.Center
                 )
@@ -709,7 +709,7 @@ private fun CoverArtCropperDialog(
                 }
 
                 Text(
-                    text = "Usa gestos para acercar o mover la imagen y encontrar el encuadre perfecto.",
+                    text = "Use pinch and drag gestures to find the perfect framing.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
@@ -723,7 +723,7 @@ private fun CoverArtCropperDialog(
                         enabled = !isSaving,
                         onClick = onDismiss
                     ) {
-                        Text("Cancelar")
+                        Text("Cancel")
                     }
 
                     val canConfirm = !isLoading && loadError == null && loadedBitmap != null
@@ -762,7 +762,7 @@ private fun CoverArtCropperDialog(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                         }
-                        Text("Usar portada")
+                        Text("Apply cover art")
                     }
                 }
             }
