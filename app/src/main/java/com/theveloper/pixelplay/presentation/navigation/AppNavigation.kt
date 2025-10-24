@@ -26,6 +26,7 @@ import com.theveloper.pixelplay.presentation.screens.NavBarCornerRadiusScreen
 import com.theveloper.pixelplay.presentation.screens.PlaylistDetailScreen
 import com.theveloper.pixelplay.presentation.screens.AboutScreen
 import com.theveloper.pixelplay.presentation.screens.SearchScreen
+import com.theveloper.pixelplay.presentation.screens.StatsScreen
 import com.theveloper.pixelplay.presentation.screens.SettingsScreen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
@@ -94,6 +95,18 @@ fun AppNavigation(
                 DailyMixScreen(
                     playerViewModel = playerViewModel,
                     navController = navController
+                )
+            }
+            composable(
+                Screen.Stats.route,
+                enterTransition = { enterTransition() },
+                exitTransition = { exitTransition() },
+                popEnterTransition = { enterTransition() },
+                popExitTransition = { exitTransition() },
+            ) {
+                StatsScreen(
+                    navController = navController,
+                    playerViewModel = playerViewModel
                 )
             }
             composable(

@@ -34,6 +34,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,6 +68,7 @@ import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.components.subcomps.PlayingEqIcon
 import com.theveloper.pixelplay.presentation.navigation.Screen
+import com.theveloper.pixelplay.presentation.screens.StatsPreviewCard
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
 import kotlinx.collections.immutable.toImmutableList
@@ -87,6 +89,7 @@ fun HomeScreen(
     val allSongs by playerViewModel.allSongsFlow.collectAsState(initial = emptyList())
     val dailyMixSongs by playerViewModel.dailyMixSongs.collectAsState()
     val curatedYourMixSongs by playerViewModel.yourMixSongs.collectAsState()
+    val statsState by playerViewModel.playbackStatsUiState.collectAsState()
 
     val yourMixSongs = remember(curatedYourMixSongs, dailyMixSongs, allSongs) {
         when {
@@ -97,6 +100,10 @@ fun HomeScreen(
     }
 
     val yourMixSong: String = "Today's Mix for you"
+
+    LaunchedEffect(Unit) {
+        playerViewModel.refreshPlaybackStats()
+    }
 
     // 2) Observar sólo el currentSong (o null) para saber si mostrar padding
     val currentSong by remember(playerViewModel.stablePlayerState) {
@@ -178,6 +185,16 @@ fun HomeScreen(
                             playerViewModel = playerViewModel
                         )
                     }
+                }
+
+                item(key = "stats_preview_card") {
+                    StatsPreviewCard(
+                        state = statsState,
+                        onClick = { navController.navigate(Screen.Stats.route) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                    )
                 }
             }
         }

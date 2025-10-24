@@ -55,6 +55,8 @@ import coil.size.Size
 import com.google.common.util.concurrent.ListenableFuture
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.DailyMixManager
+import com.theveloper.pixelplay.data.PlaybackStatsOverview
+import com.theveloper.pixelplay.data.StatsTimeframe
 import com.theveloper.pixelplay.data.EotStateHolder
 import com.theveloper.pixelplay.data.ai.AiMetadataGenerator
 import com.theveloper.pixelplay.data.ai.AiPlaylistGenerator
@@ -106,6 +108,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -179,6 +182,12 @@ data class PlayerUiState(
     val dismissedPosition: Long = 0L,
     val undoBarVisibleDuration: Long = 4000L,
     val preparingSongId: String? = null
+)
+
+data class PlaybackStatsUiState(
+    val isLoading: Boolean = true,
+    val timeframe: StatsTimeframe = StatsTimeframe.WEEK,
+    val stats: PlaybackStatsOverview? = null
 )
 
 sealed interface LyricsSearchUiState {
@@ -433,6 +442,9 @@ class PlayerViewModel @Inject constructor(
             initialValue = persistentListOf()
         )
 
+    private val _playbackStatsUiState = MutableStateFlow(PlaybackStatsUiState())
+    val playbackStatsUiState: StateFlow<PlaybackStatsUiState> = _playbackStatsUiState.asStateFlow()
+
     val activePlayerColorSchemePair: StateFlow<ColorSchemePair?> = combine(
         playerThemePreference, _currentAlbumArtColorSchemePair
     ) { playerPref, albumScheme ->
@@ -492,6 +504,7 @@ class PlayerViewModel @Inject constructor(
     private val _yourMixSongs = MutableStateFlow<ImmutableList<Song>>(persistentListOf())
     val yourMixSongs: StateFlow<ImmutableList<Song>> = _yourMixSongs.asStateFlow()
 
+    private var playbackStatsJob: Job? = null
     private var dailyMixJob: Job? = null
 
     private fun updateDailyMix() {
@@ -511,6 +524,40 @@ class PlayerViewModel @Inject constructor(
                 _yourMixSongs.value = yourMix.toImmutableList()
             } else {
                 _yourMixSongs.value = persistentListOf()
+            }
+        }
+    }
+
+    private fun observeLibraryForStats() {
+        viewModelScope.launch {
+            allSongsFlow.collectLatest { songs ->
+                if (songs.isNotEmpty() || _playbackStatsUiState.value.stats != null) {
+                    schedulePlaybackStatsRefresh(_playbackStatsUiState.value.timeframe, songs)
+                }
+            }
+        }
+    }
+
+    fun setStatsTimeframe(timeframe: StatsTimeframe) {
+        if (_playbackStatsUiState.value.timeframe == timeframe && !_playbackStatsUiState.value.isLoading) {
+            return
+        }
+        schedulePlaybackStatsRefresh(timeframe, allSongsFlow.value)
+    }
+
+    fun refreshPlaybackStats() {
+        schedulePlaybackStatsRefresh(_playbackStatsUiState.value.timeframe, allSongsFlow.value)
+    }
+
+    private fun schedulePlaybackStatsRefresh(timeframe: StatsTimeframe, songsSnapshot: List<Song>) {
+        playbackStatsJob?.cancel()
+        _playbackStatsUiState.update { it.copy(isLoading = true, timeframe = timeframe) }
+        playbackStatsJob = viewModelScope.launch(Dispatchers.IO) {
+            val stats = dailyMixManager.getPlaybackStats(timeframe, songsSnapshot)
+            withContext(Dispatchers.Main) {
+                _playbackStatsUiState.update {
+                    it.copy(isLoading = false, timeframe = timeframe, stats = stats)
+                }
             }
         }
     }
@@ -571,6 +618,9 @@ class PlayerViewModel @Inject constructor(
     private fun incrementSongScore(song: Song) {
         viewModelScope.launch(Dispatchers.IO) {
             dailyMixManager.recordPlay(songId = song.id, songDurationMs = song.duration)
+            withContext(Dispatchers.Main) {
+                refreshPlaybackStats()
+            }
         }
     }
 
@@ -655,6 +705,7 @@ class PlayerViewModel @Inject constructor(
 
         launchColorSchemeProcessor()
         loadPersistedDailyMix()
+        observeLibraryForStats()
         loadSearchHistory()
 
         viewModelScope.launch {
