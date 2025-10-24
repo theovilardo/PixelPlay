@@ -2,6 +2,10 @@ package com.theveloper.pixelplay.data
 
 import android.content.Context
 import com.google.gson.Gson
+import com.theveloper.pixelplay.data.PlaybackStatsOverview
+import com.theveloper.pixelplay.data.PlaybackTrendEntry
+import com.theveloper.pixelplay.data.SongPlaybackSummary
+import com.theveloper.pixelplay.data.StatsTimeframe
 import com.theveloper.pixelplay.data.model.Song
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -9,6 +13,12 @@ import java.util.Calendar
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.max
+import java.time.DayOfWeek
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.format.TextStyle
+import java.util.Locale
 
 @Singleton
 class DailyMixManager @Inject constructor(
@@ -17,11 +27,18 @@ class DailyMixManager @Inject constructor(
 
     private val gson = Gson()
     private val scoresFile = File(context.filesDir, "song_scores.json")
+    private val playbackHistoryFile = File(context.filesDir, "playback_history.json")
 
     data class SongEngagementStats(
         val playCount: Int = 0,
         val totalPlayDurationMs: Long = 0L,
         val lastPlayedTimestamp: Long = 0L
+    )
+
+    data class PlaybackEvent(
+        val songId: String,
+        val durationMs: Long,
+        val timestamp: Long
     )
 
     private fun readEngagements(): MutableMap<String, SongEngagementStats> {
@@ -64,10 +81,215 @@ class DailyMixManager @Inject constructor(
         )
         engagements[songId] = updatedStats
         saveEngagements(engagements)
+        recordPlaybackEvent(songId, songDurationMs, timestamp)
     }
 
     fun incrementScore(songId: String) {
         recordPlay(songId)
+    }
+
+    private fun readPlaybackHistory(): MutableList<PlaybackEvent> {
+        if (!playbackHistoryFile.exists()) {
+            return mutableListOf()
+        }
+
+        val jsonText = playbackHistoryFile.readText()
+        return try {
+            val type = object : com.google.gson.reflect.TypeToken<MutableList<PlaybackEvent>>() {}.type
+            gson.fromJson<MutableList<PlaybackEvent>>(jsonText, type) ?: mutableListOf()
+        } catch (ignored: Exception) {
+            mutableListOf()
+        }
+    }
+
+    private fun savePlaybackHistory(events: List<PlaybackEvent>) {
+        playbackHistoryFile.writeText(gson.toJson(events))
+    }
+
+    private fun recordPlaybackEvent(songId: String, songDurationMs: Long, timestamp: Long) {
+        val sanitizedDuration = songDurationMs.coerceAtLeast(TimeUnit.SECONDS.toMillis(5))
+        val events = readPlaybackHistory()
+        events.add(
+            PlaybackEvent(
+                songId = songId,
+                durationMs = sanitizedDuration,
+                timestamp = timestamp
+            )
+        )
+
+        val cutoff = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(550)
+        val pruned = events.filter { it.timestamp >= cutoff }
+        savePlaybackHistory(pruned)
+    }
+
+    fun getPlaybackStats(timeframe: StatsTimeframe, allSongs: List<Song>): PlaybackStatsOverview {
+        val zoneId = ZoneId.systemDefault()
+        val now = ZonedDateTime.now(zoneId)
+
+        val buckets = createBuckets(timeframe, now)
+        val songById = allSongs.associateBy { it.id }
+        val events = readPlaybackHistory()
+
+        val filteredEvents = when (timeframe) {
+            StatsTimeframe.ALL -> events
+            else -> {
+                val startMillis = buckets.minOfOrNull { it.startEpochMillis } ?: 0L
+                events.filter { it.timestamp >= startMillis }
+            }
+        }
+
+        val totalDuration = filteredEvents.sumOf { it.durationMs }
+        val totalPlays = filteredEvents.size
+
+        val chartDurations = buckets.map { bucket ->
+            val bucketDuration = filteredEvents
+                .asSequence()
+                .filter { it.timestamp in bucket.startEpochMillis..bucket.endEpochMillis }
+                .sumOf { it.durationMs }
+            PlaybackTrendEntry(
+                label = bucket.label,
+                durationMs = bucketDuration,
+                startEpochMillis = bucket.startEpochMillis,
+                endEpochMillis = bucket.endEpochMillis,
+                isCurrentPeriod = bucket.isCurrent,
+                isPeak = false
+            )
+        }
+
+        val maxChartDuration = chartDurations.maxOfOrNull { it.durationMs } ?: 0L
+        val enrichedChart = chartDurations.map {
+            if (maxChartDuration == 0L) {
+                it
+            } else {
+                it.copy(isPeak = it.durationMs == maxChartDuration)
+            }
+        }
+
+        val topSongs = filteredEvents
+            .groupBy { it.songId }
+            .mapNotNull { (songId, plays) ->
+                val song = songById[songId] ?: return@mapNotNull null
+                SongPlaybackSummary(
+                    song = song,
+                    playCount = plays.size,
+                    totalDurationMs = plays.sumOf { it.durationMs }
+                )
+            }
+            .sortedWith(
+                compareByDescending<SongPlaybackSummary> { it.totalDurationMs }
+                    .thenByDescending { it.playCount }
+            )
+            .take(5)
+
+        val averagePerBucket = if (enrichedChart.isEmpty()) 0L else totalDuration / max(enrichedChart.size, 1)
+
+        return PlaybackStatsOverview(
+            timeframe = timeframe,
+            totalDurationMs = totalDuration,
+            totalPlayCount = totalPlays,
+            averageDurationPerBucketMs = averagePerBucket,
+            chartEntries = enrichedChart,
+            topSongs = topSongs
+        )
+    }
+
+    private data class TimeBucket(
+        val label: String,
+        val startEpochMillis: Long,
+        val endEpochMillis: Long,
+        val isCurrent: Boolean
+    )
+
+    private fun createBuckets(timeframe: StatsTimeframe, now: ZonedDateTime): List<TimeBucket> {
+        val locale = Locale.getDefault()
+        val zoneId = now.zone
+        return when (timeframe) {
+            StatsTimeframe.DAY -> {
+                val startOfDay = now.toLocalDate().atStartOfDay(zoneId)
+                (0 until 6).map { blockIndex ->
+                    val startHour = blockIndex * 4
+                    val endHour = startHour + 4
+                    val start = startOfDay.plusHours(startHour.toLong())
+                    val end = startOfDay.plusHours(endHour.toLong()).minusNanos(1)
+                    TimeBucket(
+                        label = String.format(locale, "%02d-%02dh", startHour, endHour),
+                        startEpochMillis = start.toInstant().toEpochMilli(),
+                        endEpochMillis = end.toInstant().toEpochMilli(),
+                        isCurrent = now.isAfter(start) && now.isBefore(end.plusNanos(1))
+                    )
+                }
+            }
+
+            StatsTimeframe.WEEK -> {
+                val startOfWeek = now.toLocalDate().with(DayOfWeek.MONDAY).atStartOfDay(zoneId)
+                (0 until 7).map { offset ->
+                    val start = startOfWeek.plusDays(offset.toLong())
+                    val end = start.plusDays(1).minusNanos(1)
+                    val label = start.dayOfWeek.getDisplayName(TextStyle.SHORT, locale).take(3)
+                    TimeBucket(
+                        label = label,
+                        startEpochMillis = start.toInstant().toEpochMilli(),
+                        endEpochMillis = end.toInstant().toEpochMilli(),
+                        isCurrent = now.isAfter(start) && now.isBefore(end.plusNanos(1))
+                    )
+                }
+            }
+
+            StatsTimeframe.MONTH -> {
+                val startOfMonth = now.toLocalDate().withDayOfMonth(1).atStartOfDay(zoneId)
+                val endOfMonth = startOfMonth.plusMonths(1).minusNanos(1)
+                val totalDays = now.toLocalDate().lengthOfMonth()
+                val bucketSize = max(1, totalDays / 4)
+                var currentStart = startOfMonth
+                val buckets = mutableListOf<TimeBucket>()
+                var index = 1
+                while (!currentStart.isAfter(endOfMonth)) {
+                    val tentativeEnd = currentStart.plusDays(bucketSize.toLong()).minusNanos(1)
+                    val endDate = if (tentativeEnd.isAfter(endOfMonth)) endOfMonth else tentativeEnd
+                    val label = String.format(locale, "Sem %d", index)
+                    val isCurrent = now.isAfter(currentStart) && now.isBefore(endDate.plusNanos(1))
+                    buckets += TimeBucket(
+                        label = label,
+                        startEpochMillis = currentStart.toInstant().toEpochMilli(),
+                        endEpochMillis = endDate.toInstant().toEpochMilli(),
+                        isCurrent = isCurrent
+                    )
+                    currentStart = endDate.plusNanos(1)
+                    index++
+                }
+                buckets
+            }
+
+            StatsTimeframe.YEAR -> {
+                val startOfYear = now.toLocalDate().withDayOfYear(1).atStartOfDay(zoneId)
+                (0 until 12).map { monthIndex ->
+                    val monthStart = startOfYear.plusMonths(monthIndex.toLong())
+                    val monthEnd = monthStart.plusMonths(1).minusNanos(1)
+                    val label = monthStart.month.getDisplayName(TextStyle.SHORT, locale)
+                    TimeBucket(
+                        label = label,
+                        startEpochMillis = monthStart.toInstant().toEpochMilli(),
+                        endEpochMillis = monthEnd.toInstant().toEpochMilli(),
+                        isCurrent = now.isAfter(monthStart) && now.isBefore(monthEnd.plusNanos(1))
+                    )
+                }
+            }
+
+            StatsTimeframe.ALL -> {
+                val startOfMonth = now.toLocalDate().withDayOfMonth(1).atStartOfDay(zoneId)
+                (11 downTo 0).map { monthsAgo ->
+                    val monthStart = startOfMonth.minusMonths(monthsAgo.toLong())
+                    val monthEnd = monthStart.plusMonths(1).minusNanos(1)
+                    val label = monthStart.month.getDisplayName(TextStyle.SHORT, locale)
+                    TimeBucket(
+                        label = label,
+                        startEpochMillis = monthStart.toInstant().toEpochMilli(),
+                        endEpochMillis = monthEnd.toInstant().toEpochMilli(),
+                        isCurrent = now.isAfter(monthStart) && now.isBefore(monthEnd.plusNanos(1))
+                    )
+                }
+            }
+        }
     }
 
     fun getScore(songId: String): Int {

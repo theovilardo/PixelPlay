@@ -22,4 +22,26 @@
     <string name="ok">OK</string>
     <string name="cancel">Cancel</string>
     <string name="import_file">Import</string>
+    <string name="back">Atrás</string>
+    <string name="stats_title">Estadísticas</string>
+    <string name="stats_empty_title">Aún no hay datos</string>
+    <string name="stats_empty_message">Reproduce tus canciones favoritas para comenzar a generar estadísticas.</string>
+    <string name="stats_timeframe_label">Período</string>
+    <string name="stats_header_average">Promedio de %1$s por período</string>
+    <string name="stats_header_total">%1$s escuchados</string>
+    <string name="stats_header_plays">%1$d reproducciones</string>
+    <string name="stats_chart_title">Actividad de escucha</string>
+    <string name="stats_chart_subtitle">Objetivo: %1$s</string>
+    <string name="stats_top_tracks_title">Canciones destacadas</string>
+    <string name="stats_top_tracks_empty">Cuando escuches más música, tus canciones favoritas aparecerán aquí.</string>
+    <string name="stats_top_tracks_percentage">%1$d%% del tiempo total · %2$d reproducciones</string>
+    <string name="stats_preview_title">Tu escucha</string>
+    <string name="stats_preview_empty">Reproduce algunas canciones para comenzar a ver estadísticas.</string>
+    <string name="stats_preview_top_song">Canción destacada</string>
+    <string name="stats_preview_view_details">Ver detalles completos</string>
+    <string name="stats_timeframe_day">Hoy</string>
+    <string name="stats_timeframe_week">Semana</string>
+    <string name="stats_timeframe_month">Mes</string>
+    <string name="stats_timeframe_year">Año</string>
+    <string name="stats_timeframe_all">Siempre</string>
 </resources>
