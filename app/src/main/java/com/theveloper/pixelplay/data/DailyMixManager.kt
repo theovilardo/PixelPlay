@@ -1,7 +1,9 @@
 package com.theveloper.pixelplay.data
 
 import android.content.Context
+import android.util.Log
 import com.google.gson.Gson
+import com.google.gson.JsonElement
 import com.google.gson.reflect.TypeToken
 import com.theveloper.pixelplay.data.model.Song
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -17,13 +19,66 @@ class DailyMixManager @Inject constructor(
 
     private val gson = Gson()
     private val scoresFile = File(context.filesDir, "song_scores.json")
+    private val scoresType = object : TypeToken<MutableMap<String, Int>>() {}.type
 
     private fun getScores(): MutableMap<String, Int> {
         if (!scoresFile.exists()) {
             return mutableMapOf()
         }
-        val type = object : TypeToken<MutableMap<String, Int>>() {}.type
-        return gson.fromJson(scoresFile.readText(), type)
+
+        val raw = scoresFile.readText()
+        if (raw.isBlank()) {
+            return mutableMapOf()
+        }
+
+        return runCatching {
+            val element = gson.fromJson(raw, JsonElement::class.java)
+
+            if (element == null || element.isJsonNull) {
+                mutableMapOf()
+            } else if (element.isJsonObject) {
+                val result = mutableMapOf<String, Int>()
+                for ((key, value) in element.asJsonObject.entrySet()) {
+                    val score = extractScore(value)
+                    if (score != null) {
+                        result[key] = score
+                    } else {
+                        Log.w(TAG, "Skipping song score entry for \"$key\" because it does not contain a numeric score: $value")
+                    }
+                }
+                result
+            } else {
+                gson.fromJson<MutableMap<String, Int>>(raw, scoresType)
+            }
+        }.getOrElse { throwable ->
+            Log.e(TAG, "Failed to parse song scores file, ignoring its contents", throwable)
+            mutableMapOf()
+        }
+    }
+
+    private fun extractScore(value: JsonElement): Int? {
+        if (value.isJsonPrimitive) {
+            val primitive = value.asJsonPrimitive
+            if (primitive.isNumber) {
+                return primitive.asNumber.toInt()
+            }
+            return null
+        }
+
+        if (value.isJsonObject) {
+            val obj = value.asJsonObject
+            for (key in SCORE_KEY_CANDIDATES) {
+                val candidate = obj.get(key)
+                if (candidate != null && candidate.isJsonPrimitive) {
+                    val primitive = candidate.asJsonPrimitive
+                    if (primitive.isNumber) {
+                        return primitive.asNumber.toInt()
+                    }
+                }
+            }
+        }
+
+        return null
     }
 
     private fun saveScores(scores: Map<String, Int>) {
@@ -75,5 +130,10 @@ class DailyMixManager @Inject constructor(
 
         // Take the top 'limit' songs based on score.
         return scoredSongs.take(limit)
+    }
+
+    companion object {
+        private const val TAG = "DailyMixManager"
+        private val SCORE_KEY_CANDIDATES = listOf("score", "count", "value")
     }
 }
