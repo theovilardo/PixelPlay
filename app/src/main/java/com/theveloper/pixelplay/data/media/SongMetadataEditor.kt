@@ -11,7 +11,9 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import androidx.core.net.toUri
 import com.theveloper.pixelplay.data.database.MusicDao
+import org.jaudiotagger.tag.images.Artwork
 import org.jaudiotagger.tag.images.ArtworkFactory
+import org.jaudiotagger.tag.reference.PictureTypes
 import kotlinx.coroutines.runBlocking
 import timber.log.Timber
 import java.io.ByteArrayInputStream
@@ -56,7 +58,11 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
                 } catch (ignore: Exception) {
                     Timber.v(ignore, "No previous artwork to delete for URI: $contentUri")
                 }
-                val artwork = ArtworkFactory.createArtworkFromByteArray(update.bytes, update.mimeType)
+                val artwork: Artwork = ArtworkFactory.getNew().apply {
+                    binaryData = update.bytes
+                    mimeType = update.mimeType
+                    pictureType = PictureTypes.DEFAULT_ID
+                }
                 tag.setField(artwork)
             }
             Timber.d("Committing changes to temp file.")
