@@ -1,5 +1,8 @@
 package com.theveloper.pixelplay.presentation.screens
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -9,11 +12,15 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -36,31 +43,35 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.TopAppBarScrollBehavior
-import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
@@ -72,7 +83,8 @@ import com.theveloper.pixelplay.presentation.viewmodel.StatsViewModel
 import com.theveloper.pixelplay.utils.formatListeningDurationCompact
 import com.theveloper.pixelplay.utils.formatListeningDurationLong
 import java.util.Locale
-
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun StatsScreen(
@@ -81,49 +93,87 @@ fun StatsScreen(
 ) {
     val uiState by statsViewModel.uiState.collectAsState()
     val summary = uiState.summary
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
-    val listState = rememberLazyListState()
+    val lazyListState = rememberLazyListState()
+    val density = LocalDensity.current
+    val coroutineScope = rememberCoroutineScope()
 
-    Scaffold(
+    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val minTopBarHeight = 72.dp + statusBarHeight
+    val maxTopBarHeight = 188.dp
+
+    val minTopBarHeightPx = with(density) { minTopBarHeight.toPx() }
+    val maxTopBarHeightPx = with(density) { maxTopBarHeight.toPx() }
+
+    val topBarHeight = remember { Animatable(maxTopBarHeightPx) }
+    var collapseFraction by remember { mutableStateOf(0f) }
+
+    LaunchedEffect(topBarHeight.value) {
+        collapseFraction = 1f - ((topBarHeight.value - minTopBarHeightPx) / (maxTopBarHeightPx - minTopBarHeightPx)).coerceIn(0f, 1f)
+    }
+
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                val delta = available.y
+                val scrollingDown = delta < 0
+
+                if (!scrollingDown && (lazyListState.firstVisibleItemIndex > 0 || lazyListState.firstVisibleItemScrollOffset > 0)) {
+                    return Offset.Zero
+                }
+
+                val previousHeight = topBarHeight.value
+                val newHeight = (previousHeight + delta).coerceIn(minTopBarHeightPx, maxTopBarHeightPx)
+                val consumed = newHeight - previousHeight
+
+                if (consumed.roundToInt() != 0) {
+                    coroutineScope.launch {
+                        topBarHeight.snapTo(newHeight)
+                    }
+                }
+
+                val canConsume = !(scrollingDown && newHeight == minTopBarHeightPx)
+                return if (canConsume) Offset(0f, consumed) else Offset.Zero
+            }
+        }
+    }
+
+    LaunchedEffect(lazyListState.isScrollInProgress) {
+        if (!lazyListState.isScrollInProgress) {
+            val shouldExpand = topBarHeight.value > (minTopBarHeightPx + maxTopBarHeightPx) / 2
+            val canExpand = lazyListState.firstVisibleItemIndex == 0 && lazyListState.firstVisibleItemScrollOffset == 0
+            val target = if (shouldExpand && canExpand) maxTopBarHeightPx else minTopBarHeightPx
+
+            if (topBarHeight.value != target) {
+                coroutineScope.launch {
+                    topBarHeight.animateTo(target, spring(stiffness = Spring.StiffnessMedium))
+                }
+            }
+        }
+    }
+
+    val currentTopBarHeightDp = with(density) { topBarHeight.value.toDp() }
+    val tabsHeight = 56.dp
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surface)
-            .nestedScroll(scrollBehavior.nestedScrollConnection),
-        topBar = {
-            StatsTopBar(
-                summary = summary,
-                selectedRange = uiState.selectedRange,
-                onBackClick = { navController.popBackStack() },
-                scrollBehavior = scrollBehavior
-            )
-        },
-        containerColor = MaterialTheme.colorScheme.surface
-    ) { paddingValues ->
+            .nestedScroll(nestedScrollConnection)
+    ) {
         if (uiState.isLoading && summary == null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
         } else {
             LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentPadding = PaddingValues(bottom = 32.dp),
+                state = lazyListState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    top = currentTopBarHeightDp + tabsHeight + 24.dp,
+                    bottom = 32.dp
+                ),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                stickyHeader {
-                    RangeTabsHeader(
-                        ranges = uiState.availableRanges,
-                        selected = uiState.selectedRange,
-                        onRangeSelected = statsViewModel::onRangeSelected
-                    )
-                }
                 item {
                     StatsSummaryCard(
                         summary = summary,
@@ -163,43 +213,71 @@ fun StatsScreen(
                 }
             }
         }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(currentTopBarHeightDp + tabsHeight)
+        ) {
+            StatsTopBar(
+                collapseFraction = collapseFraction,
+                height = currentTopBarHeightDp,
+                onBackClick = { navController.popBackStack() }
+            )
+
+            RangeTabsHeader(
+                ranges = uiState.availableRanges,
+                selected = uiState.selectedRange,
+                onRangeSelected = statsViewModel::onRangeSelected,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun StatsTopBar(
-    summary: PlaybackStatsRepository.PlaybackStatsSummary?,
-    selectedRange: StatsTimeRange,
-    onBackClick: () -> Unit,
-    scrollBehavior: TopAppBarScrollBehavior
+    collapseFraction: Float,
+    height: Dp,
+    onBackClick: () -> Unit
 ) {
-    val collapseFraction = scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
-    androidx.compose.material3.LargeTopAppBar(
-        title = {
-            ExpressiveTopBarContent(
-                title = "Listening insights",
-                subtitle = summary?.range?.displayName ?: selectedRange.displayName,
-                collapseFraction = collapseFraction
-            )
-        },
-        navigationIcon = {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(height)
+            .background(MaterialTheme.colorScheme.surface)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .padding(horizontal = 12.dp)
+        ) {
             FilledIconButton(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(top = 4.dp),
                 onClick = onBackClick,
                 colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
                     contentColor = MaterialTheme.colorScheme.onSurface
                 )
             ) {
                 Icon(imageVector = Icons.Filled.ArrowBack, contentDescription = "Back")
             }
-        },
-        scrollBehavior = scrollBehavior,
-        colors = TopAppBarDefaults.largeTopAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            scrolledContainerColor = MaterialTheme.colorScheme.surface
-        )
-    )
+
+            ExpressiveTopBarContent(
+                title = "Listening Stats",
+                collapseFraction = collapseFraction,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(start = 16.dp, end = 16.dp)
+            )
+        }
+    }
+}
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -452,11 +530,12 @@ private fun SummaryProgressRow(
 private fun RangeTabsHeader(
     ranges: List<StatsTimeRange>,
     selected: StatsTimeRange,
-    onRangeSelected: (StatsTimeRange) -> Unit
+    onRangeSelected: (StatsTimeRange) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val selectedIndex = remember(ranges, selected) { ranges.indexOf(selected).coerceAtLeast(0) }
     Surface(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .zIndex(1f),
         color = MaterialTheme.colorScheme.surface,
