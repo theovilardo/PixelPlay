@@ -10,6 +10,7 @@ import com.theveloper.pixelplay.data.model.Song
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.util.Calendar
+import java.util.LinkedHashSet
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -415,6 +416,27 @@ class DailyMixManager @Inject constructor(
             else -> 1.0
         }
     }
+
+    private fun computeNoveltyScore(dateAdded: Long, now: Long): Double {
+        if (dateAdded <= 0L) return 0.0
+        val dateAddedMillis = if (dateAdded < 10_000_000_000L) {
+            TimeUnit.SECONDS.toMillis(dateAdded)
+        } else {
+            dateAdded
+        }
+        val daysSinceAdded = ((now - dateAddedMillis).coerceAtLeast(0L) / TimeUnit.DAYS.toMillis(1)).toDouble()
+        return (1.0 - (daysSinceAdded / 60.0)).coerceIn(0.0, 1.0)
+    }
+
+    private data class RankedSong(
+        val song: Song,
+        val finalScore: Double,
+        val discoveryScore: Double,
+        val affinityScore: Double,
+        val recencyScore: Double,
+        val noveltyScore: Double,
+        val favoriteScore: Double
+    )
 
     companion object {
         private const val TAG = "DailyMixManager"
