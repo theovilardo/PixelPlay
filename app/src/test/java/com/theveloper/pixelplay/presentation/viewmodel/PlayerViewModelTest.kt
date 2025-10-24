@@ -68,6 +68,8 @@ class PlayerViewModelTest {
         coEvery { mockMusicRepository.getAlbums(any(), any()) } returns emptyList() // For initial album load
         coEvery { mockMusicRepository.getArtists(any(), any()) } returns emptyList() // For initial artist load
 
+        coEvery { mockAlbumArtThemeDao.deleteThemesByUris(any()) } just runs
+
 
         playerViewModel = PlayerViewModel(
             context = mockContext,

@@ -2912,6 +2912,17 @@ class PlayerViewModel @Inject constructor(
                     _selectedSongForInfo.value = updatedSong
                 }
 
+                if (coverArtUpdate != null) {
+                    purgeAlbumArtThemes(previousAlbumArt, updatedSong.albumArtUriString)
+                    val paletteTargetUri = updatedSong.albumArtUriString
+                    if (paletteTargetUri != null) {
+                        getAlbumColorSchemeFlow(paletteTargetUri)
+                        extractAndGenerateColorScheme(paletteTargetUri.toUri(), isPreload = false)
+                    } else {
+                        extractAndGenerateColorScheme(null, isPreload = false)
+                    }
+                }
+
                 syncManager.sync()
                 _toastEvents.emit("Metadata updated successfully")
             } else {
@@ -2933,6 +2944,22 @@ class PlayerViewModel @Inject constructor(
                 val cacheKey = suffix?.let { "${baseUri}_${it}" } ?: baseUri
                 memoryCache?.remove(MemoryCache.Key(cacheKey))
                 diskCache?.remove(cacheKey)
+            }
+        }
+    }
+
+    private suspend fun purgeAlbumArtThemes(vararg uriStrings: String?) {
+        val uris = uriStrings.mapNotNull { it?.takeIf(String::isNotBlank) }.distinct()
+        if (uris.isEmpty()) return
+
+        withContext(Dispatchers.IO) {
+            albumArtThemeDao.deleteThemesByUris(uris)
+        }
+
+        uris.forEach { uri ->
+            individualAlbumColorSchemes.remove(uri)?.value = null
+            synchronized(urisBeingProcessed) {
+                urisBeingProcessed.remove(uri)
             }
         }
     }
