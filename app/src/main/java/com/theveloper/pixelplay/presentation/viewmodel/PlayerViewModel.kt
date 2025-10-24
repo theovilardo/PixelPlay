@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.net.Uri
+import android.os.SystemClock
 import android.os.Trace
 import android.util.Log
 import androidx.compose.animation.core.Animatable
@@ -571,20 +572,169 @@ class PlayerViewModel @Inject constructor(
     private var progressJob: Job? = null
     private var remoteProgressObserverJob: Job? = null
     private var transitionSchedulerJob: Job? = null
+    private val listeningStatsTracker = ListeningStatsTracker()
+    private var lastKnownRemoteIsPlaying = false
 
     private fun incrementSongScore(song: Song) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val timestamp = System.currentTimeMillis()
-            dailyMixManager.recordPlay(
+        listeningStatsTracker.onVoluntarySelection(song.id)
+    }
+
+
+    private inner class ListeningStatsTracker {
+        private var currentSession: ActiveSession? = null
+        private var pendingVoluntarySongId: String? = null
+
+        fun onVoluntarySelection(songId: String) {
+            pendingVoluntarySongId = songId
+        }
+
+        fun onSongChanged(
+            song: Song?,
+            positionMs: Long,
+            durationMs: Long,
+            isPlaying: Boolean
+        ) {
+            finalizeCurrentSession()
+            if (song == null) {
+                return
+            }
+
+            val nowRealtime = SystemClock.elapsedRealtime()
+            val nowEpoch = System.currentTimeMillis()
+            val normalizedDuration = when {
+                durationMs > 0 && durationMs != C.TIME_UNSET -> durationMs
+                song.duration > 0 -> song.duration
+                else -> 0L
+            }
+
+            currentSession = ActiveSession(
                 songId = song.id,
-                songDurationMs = song.duration,
-                timestamp = timestamp
+                totalDurationMs = normalizedDuration,
+                startedAtEpochMs = nowEpoch,
+                lastKnownPositionMs = positionMs.coerceAtLeast(0L),
+                accumulatedListeningMs = 0L,
+                lastRealtimeMs = nowRealtime,
+                lastUpdateEpochMs = nowEpoch,
+                isPlaying = isPlaying,
+                isVoluntary = pendingVoluntarySongId == song.id
             )
-            playbackStatsRepository.recordPlayback(
-                songId = song.id,
-                durationMs = song.duration,
-                timestamp = timestamp
-            )
+            if (pendingVoluntarySongId == song.id) {
+                pendingVoluntarySongId = null
+            }
+        }
+
+        fun onPlayStateChanged(isPlaying: Boolean, positionMs: Long) {
+            val session = currentSession ?: return
+            val nowRealtime = SystemClock.elapsedRealtime()
+            if (session.isPlaying) {
+                session.accumulatedListeningMs += (nowRealtime - session.lastRealtimeMs).coerceAtLeast(0L)
+            }
+            session.isPlaying = isPlaying
+            session.lastRealtimeMs = nowRealtime
+            session.lastKnownPositionMs = positionMs.coerceAtLeast(0L)
+            session.lastUpdateEpochMs = System.currentTimeMillis()
+        }
+
+        fun onProgress(positionMs: Long, isPlaying: Boolean) {
+            val session = currentSession ?: return
+            val nowRealtime = SystemClock.elapsedRealtime()
+            if (session.isPlaying) {
+                val delta = (nowRealtime - session.lastRealtimeMs).coerceAtLeast(0L)
+                if (delta > 0) {
+                    session.accumulatedListeningMs += delta
+                }
+            }
+            session.isPlaying = isPlaying
+            session.lastRealtimeMs = nowRealtime
+            session.lastKnownPositionMs = positionMs.coerceAtLeast(0L)
+            session.lastUpdateEpochMs = System.currentTimeMillis()
+        }
+
+        fun ensureSession(
+            song: Song?,
+            positionMs: Long,
+            durationMs: Long,
+            isPlaying: Boolean
+        ) {
+            if (song == null) {
+                finalizeCurrentSession()
+                return
+            }
+            val existing = currentSession
+            if (existing?.songId == song.id) {
+                updateDuration(durationMs)
+                val nowRealtime = SystemClock.elapsedRealtime()
+                if (existing.isPlaying) {
+                    existing.accumulatedListeningMs += (nowRealtime - existing.lastRealtimeMs).coerceAtLeast(0L)
+                }
+                existing.isPlaying = isPlaying
+                existing.lastRealtimeMs = nowRealtime
+                existing.lastKnownPositionMs = positionMs.coerceAtLeast(0L)
+                existing.lastUpdateEpochMs = System.currentTimeMillis()
+                return
+            }
+            onSongChanged(song, positionMs, durationMs, isPlaying)
+        }
+
+        fun updateDuration(durationMs: Long) {
+            val session = currentSession ?: return
+            if (durationMs > 0 && durationMs != C.TIME_UNSET) {
+                session.totalDurationMs = durationMs
+            }
+        }
+
+        fun finalizeCurrentSession() {
+            val session = currentSession ?: return
+            val nowRealtime = SystemClock.elapsedRealtime()
+            if (session.isPlaying) {
+                session.accumulatedListeningMs += (nowRealtime - session.lastRealtimeMs).coerceAtLeast(0L)
+            }
+            val totalCap = if (session.totalDurationMs > 0) session.totalDurationMs else Long.MAX_VALUE
+            val listened = session.accumulatedListeningMs.coerceAtMost(totalCap).coerceAtLeast(0L)
+            if (listened >= MIN_SESSION_LISTEN_MS) {
+                val timestamp = System.currentTimeMillis()
+                val songId = session.songId
+                viewModelScope.launch(Dispatchers.IO) {
+                    dailyMixManager.recordPlay(
+                        songId = songId,
+                        songDurationMs = listened,
+                        timestamp = timestamp
+                    )
+                    playbackStatsRepository.recordPlayback(
+                        songId = songId,
+                        durationMs = listened,
+                        timestamp = timestamp
+                    )
+                }
+            }
+            currentSession = null
+            if (pendingVoluntarySongId == session.songId) {
+                pendingVoluntarySongId = null
+            }
+        }
+
+        fun onPlaybackStopped() {
+            finalizeCurrentSession()
+        }
+
+        fun onCleared() {
+            finalizeCurrentSession()
+        }
+
+        private data class ActiveSession(
+            val songId: String,
+            var totalDurationMs: Long,
+            val startedAtEpochMs: Long,
+            var lastKnownPositionMs: Long,
+            var accumulatedListeningMs: Long,
+            var lastRealtimeMs: Long,
+            var lastUpdateEpochMs: Long,
+            var isPlaying: Boolean,
+            val isVoluntary: Boolean
+        )
+
+        companion object {
+            private val MIN_SESSION_LISTEN_MS = TimeUnit.SECONDS.toMillis(5)
         }
     }
 
@@ -792,6 +942,7 @@ class PlayerViewModel @Inject constructor(
         remoteProgressListener = RemoteMediaClient.ProgressListener { progress, _ ->
             if (!isRemotelySeeking.value) {
                 _remotePosition.value = progress
+                listeningStatsTracker.onProgress(progress, lastKnownRemoteIsPlaying)
             }
         }
 
@@ -819,9 +970,22 @@ class PlayerViewModel @Inject constructor(
                 _playerUiState.update {
                     it.copy(currentPlaybackQueue = newQueue)
                 }
+                val isPlaying = mediaStatus.playerState == MediaStatus.PLAYER_STATE_PLAYING
+                lastKnownRemoteIsPlaying = isPlaying
+                val streamPosition = mediaStatus.streamPosition
+                val streamDuration = remoteMediaClient.streamDuration.takeIf { it > 0 } ?: currentSong?.duration ?: 0L
+                listeningStatsTracker.ensureSession(
+                    song = currentSong,
+                    positionMs = streamPosition,
+                    durationMs = streamDuration,
+                    isPlaying = isPlaying
+                )
+                if (mediaStatus.playerState == MediaStatus.PLAYER_STATE_IDLE && mediaStatus.queueItemCount == 0) {
+                    listeningStatsTracker.onPlaybackStopped()
+                }
                 _stablePlayerState.update {
                     it.copy(
-                        isPlaying = mediaStatus.playerState == MediaStatus.PLAYER_STATE_PLAYING,
+                        isPlaying = isPlaying,
                         isShuffleEnabled = mediaStatus.queueRepeatMode == MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE,
                         repeatMode = mediaStatus.queueRepeatMode,
                         currentSong = currentSong,
@@ -1515,6 +1679,12 @@ class PlayerViewModel @Inject constructor(
                         extractAndGenerateColorScheme(uri)
                     }
                 }
+                listeningStatsTracker.onSongChanged(
+                    song = song,
+                    positionMs = playerCtrl.currentPosition.coerceAtLeast(0L),
+                    durationMs = playerCtrl.duration.coerceAtLeast(0L),
+                    isPlaying = playerCtrl.isPlaying
+                )
                 if (playerCtrl.isPlaying) {
                     startProgressUpdates()
                 }
@@ -1531,6 +1701,10 @@ class PlayerViewModel @Inject constructor(
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _stablePlayerState.update { it.copy(isPlaying = isPlaying) }
+                listeningStatsTracker.onPlayStateChanged(
+                    isPlaying = isPlaying,
+                    positionMs = playerCtrl.currentPosition.coerceAtLeast(0L)
+                )
                 if (isPlaying) {
                     _isSheetVisible.value = true
                     if (_playerUiState.value.preparingSongId != null) {
@@ -1567,10 +1741,8 @@ class PlayerViewModel @Inject constructor(
                     }
 
                     mediaItem?.mediaId?.let { songId ->
+                        listeningStatsTracker.finalizeCurrentSession()
                         val song = _masterAllSongs.value.find { s -> s.id == songId }
-                        if (song != null && (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT)) {
-                            incrementSongScore(song)
-                        }
                         resetLyricsSearchState()
                         _stablePlayerState.update {
                             it.copy(
@@ -1581,6 +1753,12 @@ class PlayerViewModel @Inject constructor(
                         _playerUiState.update { it.copy(currentPosition = 0L) }
 
                         song?.let { currentSongValue ->
+                            listeningStatsTracker.onSongChanged(
+                                song = currentSongValue,
+                                positionMs = 0L,
+                                durationMs = playerCtrl.duration.coerceAtLeast(0L),
+                                isPlaying = playerCtrl.isPlaying
+                            )
                             viewModelScope.launch {
                                 currentSongValue.albumArtUriString?.toUri()?.let { uri ->
                                     extractAndGenerateColorScheme(uri)
@@ -1597,9 +1775,14 @@ class PlayerViewModel @Inject constructor(
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_READY) {
                     _stablePlayerState.update { it.copy(totalDuration = playerCtrl.duration.coerceAtLeast(0L)) }
+                    listeningStatsTracker.updateDuration(playerCtrl.duration.coerceAtLeast(0L))
                     startProgressUpdates()
                 }
+                if (playbackState == Player.STATE_ENDED) {
+                    listeningStatsTracker.finalizeCurrentSession()
+                }
                 if (playbackState == Player.STATE_IDLE && playerCtrl.mediaItemCount == 0) {
+                    listeningStatsTracker.onPlaybackStopped()
                     _stablePlayerState.update { it.copy(currentSong = null, isPlaying = false) }
                     _playerUiState.update { it.copy(currentPosition = 0L) }
                 }
@@ -2174,6 +2357,7 @@ class PlayerViewModel @Inject constructor(
                 val controller = mediaController ?: break
 
                 val position = controller.currentPosition.coerceAtLeast(0L)
+                listeningStatsTracker.onProgress(position, controller.isPlaying)
                 if (position != lastPublishedPosition) {
                     _playerUiState.update { it.copy(currentPosition = position) }
                     lastPublishedPosition = position
@@ -2581,6 +2765,7 @@ class PlayerViewModel @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         stopProgressUpdates()
+        listeningStatsTracker.onCleared()
         mediaRouter.removeCallback(mediaRouterCallback)
         networkCallback?.let { connectivityManager.unregisterNetworkCallback(it) }
         bluetoothStateReceiver?.let { context.unregisterReceiver(it) }

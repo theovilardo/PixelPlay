@@ -66,6 +66,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.theveloper.pixelplay.data.stats.PlaybackStatsRepository
 import com.theveloper.pixelplay.data.stats.StatsTimeRange
+import com.theveloper.pixelplay.presentation.components.ExpressiveTopBarContent
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.viewmodel.StatsViewModel
 import com.theveloper.pixelplay.utils.formatListeningDurationCompact
@@ -116,18 +117,18 @@ fun StatsScreen(
                 contentPadding = PaddingValues(bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                item {
-                    StatsSummaryCard(
-                        summary = summary,
-                        isLoading = uiState.isLoading,
-                        modifier = Modifier.padding(horizontal = 20.dp)
-                    )
-                }
                 stickyHeader {
                     RangeTabsHeader(
                         ranges = uiState.availableRanges,
                         selected = uiState.selectedRange,
                         onRangeSelected = statsViewModel::onRangeSelected
+                    )
+                }
+                item {
+                    StatsSummaryCard(
+                        summary = summary,
+                        isLoading = uiState.isLoading,
+                        modifier = Modifier.padding(horizontal = 20.dp)
                     )
                 }
                 item {
@@ -174,86 +175,31 @@ private fun StatsTopBar(
     scrollBehavior: TopAppBarScrollBehavior
 ) {
     val collapseFraction = scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
-    val gradientColors = listOf(
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f),
-        MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.65f),
-        MaterialTheme.colorScheme.surface
-    )
-
-    Box(
-        modifier = Modifier
-            .background(Brush.verticalGradient(gradientColors))
-    ) {
-        androidx.compose.material3.LargeTopAppBar(
-            title = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "Listening insights",
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = summary?.range?.displayName ?: selectedRange.displayName,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    val detailAlpha = 1f - collapseFraction
-                    if (summary != null) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.alpha(detailAlpha)
-                        ) {
-                            TopBarChip(
-                                label = "Total time",
-                                value = formatListeningDurationCompact(summary.totalDurationMs)
-                            )
-                            TopBarChip(
-                                label = "Total plays",
-                                value = summary.totalPlayCount.toString()
-                            )
-                        }
-                    }
-                }
-            },
-            navigationIcon = {
-                FilledIconButton(
-                    onClick = onBackClick,
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        contentColor = MaterialTheme.colorScheme.onSurface
-                    )
-                ) {
-                    Icon(imageVector = Icons.Filled.ArrowBack, contentDescription = "Back")
-                }
-            },
-            scrollBehavior = scrollBehavior,
-            colors = TopAppBarDefaults.largeTopAppBarColors(
-                containerColor = Color.Transparent,
-                scrolledContainerColor = MaterialTheme.colorScheme.surface
+    androidx.compose.material3.LargeTopAppBar(
+        title = {
+            ExpressiveTopBarContent(
+                title = "Listening insights",
+                subtitle = summary?.range?.displayName ?: selectedRange.displayName,
+                collapseFraction = collapseFraction
             )
+        },
+        navigationIcon = {
+            FilledIconButton(
+                onClick = onBackClick,
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                )
+            ) {
+                Icon(imageVector = Icons.Filled.ArrowBack, contentDescription = "Back")
+            }
+        },
+        scrollBehavior = scrollBehavior,
+        colors = TopAppBarDefaults.largeTopAppBarColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            scrolledContainerColor = MaterialTheme.colorScheme.surface
         )
-    }
-}
-
-@Composable
-private fun TopBarChip(
-    label: String,
-    value: String
-) {
-    Column {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-    }
+    )
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -281,29 +227,63 @@ private fun StatsSummaryCard(
                 )
                 .padding(horizontal = 28.dp, vertical = 26.dp)
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                Text(
-                    text = summary?.range?.displayName ?: "No listening yet",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = formatListeningDurationLong(summary?.totalDurationMs ?: 0L),
-                    style = MaterialTheme.typography.displaySmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                if (summary != null) {
+            Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "Across ${summary.totalPlayCount} plays",
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = summary?.range?.displayName ?: "No listening yet",
+                        style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Text(
+                        text = formatListeningDurationLong(summary?.totalDurationMs ?: 0L),
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    if (summary != null) {
+                        Text(
+                            text = "Across ${summary.totalPlayCount} plays",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                if (summary != null) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        SummaryHeroTile(
+                            title = "Total plays",
+                            value = summary.totalPlayCount.toString(),
+                            supporting = "Logged in this range"
+                        )
+                        SummaryHeroTile(
+                            title = "Unique songs",
+                            value = summary.uniqueSongs.toString(),
+                            supporting = "Different tracks"
+                        )
+                    }
+
+                    SummaryProgressRow(
+                        title = "Peak day",
+                        label = summary.peakDayLabel,
+                        supporting = if (summary.peakDayDurationMs > 0L) {
+                            formatListeningDurationCompact(summary.peakDayDurationMs)
+                        } else {
+                            "No standout day yet"
+                        },
+                        progress = if (summary.totalDurationMs > 0L) {
+                            (summary.peakDayDurationMs.toFloat() / summary.totalDurationMs.toFloat()).coerceIn(0f, 1f)
+                        } else {
+                            0f
+                        }
+                    )
+
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        SummaryPill(label = "Unique tracks", value = summary.uniqueSongs.toString())
                         SummaryPill(label = "Active days", value = summary.activeDays.toString())
                         SummaryPill(
                             label = "Avg per day",
@@ -316,6 +296,15 @@ private fun StatsSummaryCard(
                         SummaryPill(
                             label = "Sessions/day",
                             value = String.format(Locale.US, "%.1f", summary.averageSessionsPerDay)
+                        )
+                        SummaryPill(label = "Total sessions", value = summary.totalSessions.toString())
+                        SummaryPill(
+                            label = "Longest session",
+                            value = if (summary.longestSessionDurationMs > 0L) {
+                                formatListeningDurationCompact(summary.longestSessionDurationMs)
+                            } else {
+                                "—"
+                            }
                         )
                         SummaryPill(
                             label = "Longest streak",
@@ -362,6 +351,99 @@ private fun SummaryPill(
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Composable
+private fun SummaryHeroTile(
+    title: String,
+    value: String,
+    supporting: String,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(24.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+                        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.22f)
+                    )
+                )
+            )
+            .padding(horizontal = 24.dp, vertical = 20.dp)
+            .widthIn(min = 160.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = supporting,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun SummaryProgressRow(
+    title: String,
+    label: String?,
+    supporting: String,
+    progress: Float,
+    modifier: Modifier = Modifier
+) {
+    val displayLabel = label ?: "—"
+    val progressValue = progress.coerceIn(0f, 1f)
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(24.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.9f))
+            .padding(horizontal = 20.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = displayLabel,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        LinearProgressIndicator(
+            progress = { progressValue },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(50)),
+            color = MaterialTheme.colorScheme.primary,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+        Text(
+            text = supporting,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
