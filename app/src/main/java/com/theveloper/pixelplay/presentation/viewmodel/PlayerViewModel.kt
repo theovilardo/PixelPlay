@@ -39,6 +39,7 @@ import androidx.mediarouter.media.MediaControlIntent
 import androidx.mediarouter.media.MediaRouteSelector
 import androidx.mediarouter.media.MediaRouter
 import coil.imageLoader
+import coil.memory.MemoryCache
 import com.google.android.gms.cast.framework.CastContext
 import com.google.android.gms.cast.framework.CastSession
 import com.google.android.gms.cast.framework.SessionManager
@@ -63,6 +64,7 @@ import com.theveloper.pixelplay.data.database.AlbumArtThemeDao
 import com.theveloper.pixelplay.data.database.AlbumArtThemeEntity
 import com.theveloper.pixelplay.data.database.StoredColorSchemeValues
 import com.theveloper.pixelplay.data.database.toComposeColor
+import com.theveloper.pixelplay.data.media.CoverArtUpdate
 import com.theveloper.pixelplay.data.media.SongMetadataEditor
 import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Artist
@@ -2857,23 +2859,56 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    fun editSongMetadata(song: Song, newTitle: String, newArtist: String, newAlbum: String, newGenre: String, newLyrics: String, newTrackNumber: Int) {
+    fun editSongMetadata(
+        song: Song,
+        newTitle: String,
+        newArtist: String,
+        newAlbum: String,
+        newGenre: String,
+        newLyrics: String,
+        newTrackNumber: Int,
+        coverArtUpdate: CoverArtUpdate?,
+    ) {
         viewModelScope.launch {
             Timber.d("Editing metadata for song: ${song.title} with URI: ${song.contentUriString}")
             Timber.d("New metadata: title=$newTitle, artist=$newArtist, album=$newAlbum, genre=$newGenre, lyrics=$newLyrics, trackNumber=$newTrackNumber")
-            val success = withContext(Dispatchers.IO) {
-                songMetadataEditor.editSongMetadata(song.contentUriString, newTitle, newArtist, newAlbum, newGenre, newLyrics, newTrackNumber)
+            val previousAlbumArt = song.albumArtUriString
+            val result = withContext(Dispatchers.IO) {
+                songMetadataEditor.editSongMetadata(
+                    contentUri = song.contentUriString,
+                    newTitle = newTitle,
+                    newArtist = newArtist,
+                    newAlbum = newAlbum,
+                    newGenre = newGenre,
+                    newLyrics = newLyrics,
+                    newTrackNumber = newTrackNumber,
+                    coverArtUpdate = coverArtUpdate,
+                )
             }
 
-            if (success) {
+            if (result.success) {
+                val refreshedAlbumArtUri = result.updatedAlbumArtUri ?: song.albumArtUriString
+                invalidateCoverArtCaches(previousAlbumArt, refreshedAlbumArtUri)
                 val updatedSong = song.copy(
                     title = newTitle,
                     artist = newArtist,
                     album = newAlbum,
                     genre = newGenre,
                     lyrics = newLyrics,
-                    trackNumber = newTrackNumber
+                    trackNumber = newTrackNumber,
+                    albumArtUriString = refreshedAlbumArtUri,
                 )
+
+                _playerUiState.update { state ->
+                    val queueIndex = state.currentPlaybackQueue.indexOfFirst { it.id == song.id }
+                    if (queueIndex == -1) {
+                        state
+                    } else {
+                        val newQueue = state.currentPlaybackQueue.toMutableList()
+                        newQueue[queueIndex] = updatedSong
+                        state.copy(currentPlaybackQueue = newQueue.toImmutableList())
+                    }
+                }
 
                 // Manually update the song in the UI state
                 val currentSongs = _playerUiState.value.allSongs.toMutableList()
@@ -2881,6 +2916,12 @@ class PlayerViewModel @Inject constructor(
                 if (index != -1) {
                     currentSongs[index] = updatedSong
                     _playerUiState.update { it.copy(allSongs = currentSongs.toImmutableList()) }
+                }
+
+                _masterAllSongs.update { songs ->
+                    songs.map { existing ->
+                        if (existing.id == song.id) updatedSong else existing
+                    }.toImmutableList()
                 }
 
                 if (_stablePlayerState.value.currentSong?.id == song.id) {
@@ -2891,10 +2932,54 @@ class PlayerViewModel @Inject constructor(
                     _selectedSongForInfo.value = updatedSong
                 }
 
+                if (coverArtUpdate != null) {
+                    purgeAlbumArtThemes(previousAlbumArt, updatedSong.albumArtUriString)
+                    val paletteTargetUri = updatedSong.albumArtUriString
+                    if (paletteTargetUri != null) {
+                        getAlbumColorSchemeFlow(paletteTargetUri)
+                        extractAndGenerateColorScheme(paletteTargetUri.toUri(), isPreload = false)
+                    } else {
+                        extractAndGenerateColorScheme(null, isPreload = false)
+                    }
+                }
+
                 syncManager.sync()
                 _toastEvents.emit("Metadata updated successfully")
             } else {
                 _toastEvents.emit("Failed to update metadata")
+            }
+        }
+    }
+
+    private fun invalidateCoverArtCaches(vararg uriStrings: String?) {
+        val imageLoader = context.imageLoader
+        val memoryCache = imageLoader.memoryCache
+        val diskCache = imageLoader.diskCache
+        if (memoryCache == null && diskCache == null) return
+
+        val knownSizeSuffixes = listOf(null, "128x128", "150x150", "168x168", "256x256", "300x300", "512x512", "600x600")
+
+        uriStrings.mapNotNull { it?.takeIf(String::isNotBlank) }.forEach { baseUri ->
+            knownSizeSuffixes.forEach { suffix ->
+                val cacheKey = suffix?.let { "${baseUri}_${it}" } ?: baseUri
+                memoryCache?.remove(MemoryCache.Key(cacheKey))
+                diskCache?.remove(cacheKey)
+            }
+        }
+    }
+
+    private suspend fun purgeAlbumArtThemes(vararg uriStrings: String?) {
+        val uris = uriStrings.mapNotNull { it?.takeIf(String::isNotBlank) }.distinct()
+        if (uris.isEmpty()) return
+
+        withContext(Dispatchers.IO) {
+            albumArtThemeDao.deleteThemesByUris(uris)
+        }
+
+        uris.forEach { uri ->
+            individualAlbumColorSchemes.remove(uri)?.value = null
+            synchronized(urisBeingProcessed) {
+                urisBeingProcessed.remove(uri)
             }
         }
     }

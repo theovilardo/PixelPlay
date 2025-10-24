@@ -1,7 +1,10 @@
 package com.theveloper.pixelplay.data
 
 import android.content.Context
+import android.util.Log
 import com.google.gson.Gson
+import com.google.gson.JsonElement
+import com.google.gson.reflect.TypeToken
 import com.theveloper.pixelplay.data.model.Song
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -17,6 +20,7 @@ class DailyMixManager @Inject constructor(
 
     private val gson = Gson()
     private val scoresFile = File(context.filesDir, "song_scores.json")
+    private val scoresType = object : TypeToken<MutableMap<String, Int>>() {}.type
 
     data class SongEngagementStats(
         val playCount: Int = 0,
@@ -29,21 +33,59 @@ class DailyMixManager @Inject constructor(
             return mutableMapOf()
         }
 
-        val jsonText = scoresFile.readText()
-        return try {
-            val type = object : com.google.gson.reflect.TypeToken<MutableMap<String, SongEngagementStats>>() {}.type
-            gson.fromJson<MutableMap<String, SongEngagementStats>>(jsonText, type) ?: mutableMapOf()
-        } catch (statsException: Exception) {
-            try {
-                val legacyType = object : com.google.gson.reflect.TypeToken<MutableMap<String, Int>>() {}.type
-                val legacyMap: MutableMap<String, Int> = gson.fromJson(jsonText, legacyType) ?: mutableMapOf()
-                legacyMap.mapValuesTo(mutableMapOf()) { (_, playCount) ->
-                    SongEngagementStats(playCount = playCount)
-                }
-            } catch (ignored: Exception) {
+        val raw = scoresFile.readText()
+        if (raw.isBlank()) {
+            return mutableMapOf()
+        }
+
+        return runCatching {
+            val element = gson.fromJson(raw, JsonElement::class.java)
+
+            if (element == null || element.isJsonNull) {
                 mutableMapOf()
+            } else if (element.isJsonObject) {
+                val result = mutableMapOf<String, Int>()
+                for ((key, value) in element.asJsonObject.entrySet()) {
+                    val score = extractScore(value)
+                    if (score != null) {
+                        result[key] = score
+                    } else {
+                        Log.w(TAG, "Skipping song score entry for \"$key\" because it does not contain a numeric score: $value")
+                    }
+                }
+                result
+            } else {
+                gson.fromJson<MutableMap<String, Int>>(raw, scoresType)
+            }
+        }.getOrElse { throwable ->
+            Log.e(TAG, "Failed to parse song scores file, ignoring its contents", throwable)
+            mutableMapOf()
+        }
+    }
+
+    private fun extractScore(value: JsonElement): Int? {
+        if (value.isJsonPrimitive) {
+            val primitive = value.asJsonPrimitive
+            if (primitive.isNumber) {
+                return primitive.asNumber.toInt()
+            }
+            return null
+        }
+
+        if (value.isJsonObject) {
+            val obj = value.asJsonObject
+            for (key in SCORE_KEY_CANDIDATES) {
+                val candidate = obj.get(key)
+                if (candidate != null && candidate.isJsonPrimitive) {
+                    val primitive = candidate.asJsonPrimitive
+                    if (primitive.isNumber) {
+                        return primitive.asNumber.toInt()
+                    }
+                }
             }
         }
+
+        return null
     }
 
     private fun saveEngagements(engagements: Map<String, SongEngagementStats>) {
@@ -288,19 +330,8 @@ class DailyMixManager @Inject constructor(
         }
     }
 
-    private fun computeNoveltyScore(dateAdded: Long, now: Long): Double {
-        if (dateAdded <= 0L) return 0.0
-        val daysSinceAdded = ((now - dateAdded).coerceAtLeast(0L) / TimeUnit.DAYS.toMillis(1)).toDouble()
-        return (1.0 - (daysSinceAdded / 60.0)).coerceIn(0.0, 1.0)
+    companion object {
+        private const val TAG = "DailyMixManager"
+        private val SCORE_KEY_CANDIDATES = listOf("score", "count", "value")
     }
-
-    private data class RankedSong(
-        val song: Song,
-        val finalScore: Double,
-        val discoveryScore: Double,
-        val affinityScore: Double,
-        val recencyScore: Double,
-        val noveltyScore: Double,
-        val favoriteScore: Double
-    )
 }

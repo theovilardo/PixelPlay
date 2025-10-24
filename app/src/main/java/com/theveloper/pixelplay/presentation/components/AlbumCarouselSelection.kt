@@ -40,8 +40,17 @@ fun AlbumCarouselSection(
     if (queue.isEmpty()) return
 
     // Mantiene compatibilidad con tu llamada actual
+    val initialIndex = remember(currentSong?.id, queue) {
+        val songId = currentSong?.id ?: return@remember 0
+        queue.indexOfFirst { it.id == songId }
+            .takeIf { it >= 0 }
+            ?: queue.indexOf(currentSong)
+                .takeIf { it >= 0 }
+                ?: 0
+    }
+
     val carouselState = rememberRoundedParallaxCarouselState(
-        initialPage = queue.indexOf(currentSong).coerceAtLeast(0),
+        initialPage = initialIndex,
         pageCount = { queue.size }
     )
 
@@ -54,8 +63,13 @@ fun AlbumCarouselSection(
     )
 
     // Player -> Carousel
-    val currentSongIndex = remember(currentSong, queue) {
-        queue.indexOf(currentSong).coerceAtLeast(0)
+    val currentSongIndex = remember(currentSong?.id, queue) {
+        val songId = currentSong?.id ?: return@remember 0
+        queue.indexOfFirst { it.id == songId }
+            .takeIf { it >= 0 }
+            ?: queue.indexOf(currentSong)
+                .takeIf { it >= 0 }
+                ?: 0
     }
     LaunchedEffect(currentSongIndex, queue) {
         if (carouselState.pagerState.currentPage != currentSongIndex) {

@@ -47,6 +47,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.theveloper.pixelplay.data.media.CoverArtUpdate
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.subcomps.AutoSizingTextToFill
 import com.theveloper.pixelplay.utils.formatDuration
@@ -66,7 +67,7 @@ fun SongInfoBottomSheet(
     onAddToQueue: () -> Unit,
     onNavigateToAlbum: () -> Unit,
     onNavigateToArtist: () -> Unit,
-    onEditSong: (title: String, artist: String, album: String, genre: String, lyrics: String, trackNumber: Int) -> Unit,
+    onEditSong: (title: String, artist: String, album: String, genre: String, lyrics: String, trackNumber: Int, coverArtUpdate: CoverArtUpdate?) -> Unit,
     generateAiMetadata: suspend (List<String>) -> Result<com.theveloper.pixelplay.data.ai.SongMetadata>
 ) {
     val context = LocalContext.current
@@ -315,8 +316,8 @@ fun SongInfoBottomSheet(
         EditSongSheet(
             song = song,
             onDismiss = { showEditSheet = false },
-            onSave = { title, artist, album, genre, lyrics, trackNumber ->
-                onEditSong(title, artist, album, genre, lyrics, trackNumber)
+            onSave = { title, artist, album, genre, lyrics, trackNumber, coverArt ->
+                onEditSong(title, artist, album, genre, lyrics, trackNumber, coverArt)
                 showEditSheet = false
             },
             generateAiMetadata = generateAiMetadata
