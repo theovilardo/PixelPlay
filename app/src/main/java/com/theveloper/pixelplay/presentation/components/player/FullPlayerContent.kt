@@ -629,7 +629,7 @@ fun PlayerProgressBarSection(
                 activeTrackColor = activeTrackColor,
                 inactiveTrackColor = inactiveTrackColor,
                 thumbColor = thumbColor,
-                waveFrequency = 0.08f,
+                waveLength = 30.dp,
                 isPlaying = (isPlayingProvider() && isExpanded),
                 isWaveEligible = isExpanded
             )
