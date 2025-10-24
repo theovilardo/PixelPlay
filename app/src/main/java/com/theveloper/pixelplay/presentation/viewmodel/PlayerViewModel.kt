@@ -84,6 +84,7 @@ import com.theveloper.pixelplay.data.repository.LyricsSearchResult
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.data.repository.NoLyricsFoundException
 import com.theveloper.pixelplay.data.service.MusicService
+import com.theveloper.pixelplay.data.stats.PlaybackStatsRepository
 import com.theveloper.pixelplay.data.service.http.MediaFileHttpServerService
 import com.theveloper.pixelplay.data.worker.SyncManager
 import com.theveloper.pixelplay.ui.theme.DarkColorScheme
@@ -202,6 +203,7 @@ class PlayerViewModel @Inject constructor(
     private val syncManager: SyncManager, // Inyectar SyncManager
     private val songMetadataEditor: SongMetadataEditor,
     private val dailyMixManager: DailyMixManager,
+    private val playbackStatsRepository: PlaybackStatsRepository,
     private val aiPlaylistGenerator: AiPlaylistGenerator,
     private val aiMetadataGenerator: AiMetadataGenerator
 ) : ViewModel() {
@@ -572,7 +574,17 @@ class PlayerViewModel @Inject constructor(
 
     private fun incrementSongScore(song: Song) {
         viewModelScope.launch(Dispatchers.IO) {
-            dailyMixManager.recordPlay(songId = song.id, songDurationMs = song.duration)
+            val timestamp = System.currentTimeMillis()
+            dailyMixManager.recordPlay(
+                songId = song.id,
+                songDurationMs = song.duration,
+                timestamp = timestamp
+            )
+            playbackStatsRepository.recordPlayback(
+                songId = song.id,
+                durationMs = song.duration,
+                timestamp = timestamp
+            )
         }
     }
 
@@ -1556,6 +1568,9 @@ class PlayerViewModel @Inject constructor(
 
                     mediaItem?.mediaId?.let { songId ->
                         val song = _masterAllSongs.value.find { s -> s.id == songId }
+                        if (song != null && (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT)) {
+                            incrementSongScore(song)
+                        }
                         resetLyricsSearchState()
                         _stablePlayerState.update {
                             it.copy(
