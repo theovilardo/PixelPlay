@@ -229,6 +229,9 @@ dependencies {
     implementation("org.jflac:jflac-codec:1.5.2")
     implementation(libs.jaudiotagger)
 
+    //Capturable
+    implementation(libs.capturable)
+
     // Retrofit & OkHttp
     implementation(libs.retrofit)
     implementation(libs.converter.gson)
