@@ -659,6 +659,7 @@ private fun CoverArtEditorCard(
 
             Column(
                 modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically)
             ) {
                 FilledTonalButton(onClick = onPickNewArt) {
