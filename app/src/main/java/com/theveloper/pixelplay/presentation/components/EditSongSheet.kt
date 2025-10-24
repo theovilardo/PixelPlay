@@ -43,6 +43,8 @@ import android.net.Uri
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.rounded.Repeat
+import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -61,16 +63,20 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import dev.shreyaspatil.capturable.capturable
-import dev.shreyaspatil.capturable.rememberCaptureController
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.material.icons.rounded.Restore
+import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.text.font.FontWeight
 import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.media3.common.Player
+import dev.shreyaspatil.capturable.controller.rememberCaptureController
 import java.io.ByteArrayOutputStream
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun EditSongSheet(
     song: Song,
@@ -192,6 +198,10 @@ fun EditSongSheet(
         smoothnessAsPercentTR = 60
     )
 
+    val scrollBehavior = FloatingToolbarDefaults.exitAlwaysScrollBehavior(
+        exitDirection = FloatingToolbarExitDirection.Bottom
+    )
+
     // --- Diálogo de Información ---
     if (showInfoDialog) {
         AlertDialog(
@@ -210,212 +220,338 @@ fun EditSongSheet(
     ModalBottomSheet(
         sheetState = sheetState,
         onDismissRequest = onDismiss,
-        contentWindowInsets = { WindowInsets.ime.add(WindowInsets(bottom = 16.dp)) }
+        //contentWindowInsets = { WindowInsets.ime.add(WindowInsets(bottom = 16.dp)) }
     ) {
-        Column(
-            modifier = Modifier
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // --- Cabecera con Título y Botón de Información ---
-            Row(
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .padding(end = 16.dp, start = 16.dp, top = 8.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    text = "Edit Song",
-                    fontFamily = GoogleSansRounded,
-                    style = MaterialTheme.typography.displaySmall
-                )
+                // --- Cabecera con Título y Botón de Información ---
                 Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(
-                                        MaterialTheme.colorScheme.primary,
-                                        MaterialTheme.colorScheme.secondary,
-                                        MaterialTheme.colorScheme.tertiary
+                    Text(
+                        text = "Edit Song",
+                        fontFamily = GoogleSansRounded,
+                        style = MaterialTheme.typography.displaySmall
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    brush = Brush.horizontalGradient(
+                                        colors = listOf(
+                                            MaterialTheme.colorScheme.primary,
+                                            MaterialTheme.colorScheme.secondary,
+                                            MaterialTheme.colorScheme.tertiary
+                                        )
                                     )
                                 )
-                            )
+                        ) {
+                            IconButton(onClick = { showAiDialog = true }) {
+                                Icon(
+                                    modifier = Modifier
+                                        .size(20.dp),
+                                    painter = painterResource(id = R.drawable.gemini_ai),
+                                    contentDescription = "Use Gemini AI",
+                                    tint = MaterialTheme.colorScheme.onPrimary
+                                )
+                            }
+                        }
+                        FilledTonalIconButton(
+                            onClick = { showInfoDialog = true },
+                            shape = CircleShape
+                        ) {
+                            Icon(Icons.Rounded.Info, contentDescription = "Show info dialog")
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                CoverArtEditorCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    albumArtUri = song.albumArtUriString,
+                    preview = coverArtPreview,
+                    onPickNewArt = {
+                        pickCoverArtLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
+                    onReset = {
+                        coverArtPreview = null
+                        editedCoverArt = null
+                    }
+                )
+
+                // --- Campo de Título ---
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        modifier = Modifier.padding(start = 4.dp),
+                        text = "Title",
+                        color = MaterialTheme.colorScheme.tertiary,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    OutlinedTextField(
+                        value = title,
+                        shape = textFieldShape,
+                        colors = textFieldColors,
+                        onValueChange = { title = it },
+                        placeholder = { Text("Title") },
+                        leadingIcon = { Icon(Icons.Rounded.MusicNote, tint = MaterialTheme.colorScheme.tertiary,contentDescription = "Title Icon") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        modifier = Modifier.padding(start = 4.dp),
+                        text = "Track Number",
+                        color = MaterialTheme.colorScheme.secondary,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    OutlinedTextField(
+                        value = trackNumber,
+                        shape = textFieldShape,
+                        colors = textFieldColors,
+                        onValueChange = { trackNumber = it },
+                        placeholder = { Text("Track Number") },
+                        leadingIcon = { Icon(Icons.Rounded.FormatListNumbered, tint = MaterialTheme.colorScheme.secondary, contentDescription = "Track Number Icon") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                }
+
+                // --- Campo de Artista ---
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        modifier = Modifier.padding(start = 4.dp),
+                        text = "Artist",
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    OutlinedTextField(
+                        value = artist,
+                        colors = textFieldColors,
+                        shape = textFieldShape,
+                        onValueChange = { artist = it },
+                        placeholder = { Text("Artist") },
+                        leadingIcon = { Icon(Icons.Rounded.Person, tint = MaterialTheme.colorScheme.primary, contentDescription = "Artist Icon") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+
+                // --- Campo de Álbum ---
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        modifier = Modifier.padding(start = 4.dp),
+                        text = "Album",
+                        color = MaterialTheme.colorScheme.tertiary,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    OutlinedTextField(
+                        value = album,
+                        colors = textFieldColors,
+                        shape = textFieldShape,
+                        onValueChange = { album = it },
+                        placeholder = { Text("Album") },
+                        leadingIcon = { Icon(Icons.Rounded.Album, tint = MaterialTheme.colorScheme.tertiary, contentDescription = "Album Icon") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+
+                // --- Campo de Género ---
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        modifier = Modifier.padding(start = 4.dp),
+                        text = "Genre",
+                        color = MaterialTheme.colorScheme.secondary,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    OutlinedTextField(
+                        value = genre,
+                        colors = textFieldColors,
+                        shape = textFieldShape,
+                        onValueChange = { genre = it },
+                        placeholder = { Text("Genre") },
+                        leadingIcon = { Icon(Icons.Rounded.Category, tint = MaterialTheme.colorScheme.secondary, contentDescription = "Genre Icon") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+
+                // --- Campo de Letra ---
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        modifier = Modifier.padding(start = 4.dp),
+                        text = "Lyrics",
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = { showAiDialog = true }) {
+                        OutlinedTextField(
+                            value = lyrics,
+                            colors = textFieldColors,
+                            shape = textFieldShape,
+                            onValueChange = { lyrics = it },
+                            placeholder = { Text("Lyrics") },
+                            leadingIcon = { Icon(Icons.Rounded.Notes, tint = MaterialTheme.colorScheme.primary, contentDescription = "Lyrics Icon") },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(150.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        FilledTonalIconButton(
+                            onClick = {
+                                val encodedTitle = URLEncoder.encode(title, "UTF-8")
+                                val encodedArtist = URLEncoder.encode(artist, "UTF-8")
+                                val url = "https://lrclib.net/search/$encodedTitle%20$encodedArtist"
+                                val intent = Intent(Intent.ACTION_VIEW).setData(Uri.parse(url))
+                                context.startActivity(intent)
+                            },
+                        ) {
                             Icon(
-                                modifier = Modifier
-                                    .size(20.dp),
-                                painter = painterResource(id = R.drawable.gemini_ai),
-                                contentDescription = "Use Gemini AI",
-                                tint = MaterialTheme.colorScheme.onPrimary
+                                painter = painterResource(id = R.drawable.rounded_search_24),
+                                contentDescription = "Search lyrics on lrclib.net"
                             )
                         }
                     }
-                    FilledTonalIconButton(
-                        onClick = { showInfoDialog = true },
-                        shape = CircleShape
+                }
+
+                // --- Botones de acción ---
+//                Row(
+//                    modifier = Modifier
+//                        .fillMaxWidth()
+//                        .padding(top = 8.dp, end = 4.dp),
+//                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+//                    verticalAlignment = Alignment.CenterVertically
+//                ) {
+//                    FilledTonalButton(
+//                        onClick = onDismiss,
+//                        modifier = Modifier.height(48.dp),
+//                        colors = ButtonDefaults.filledTonalButtonColors(
+//                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+//                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+//                        )
+//                    ) {
+//                        Text("Cancel")
+//                    }
+//                    Button(
+//                        onClick = {
+//                            val resolvedTrackNumber = trackNumber.toIntOrNull() ?: song.trackNumber
+//                            onSave(
+//                                title.trim(),
+//                                artist.trim(),
+//                                album.trim(),
+//                                genre.trim(),
+//                                lyrics,
+//                                resolvedTrackNumber,
+//                                editedCoverArt
+//                            )
+//                        },
+//                        modifier = Modifier.height(48.dp)
+//                    ) {
+//                        Text("Save")
+//                    }
+//                }
+
+                Spacer(
+                    modifier = Modifier.height(86.dp)
+                )
+            }
+
+            HorizontalFloatingToolbar(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 24.dp),
+                expandedShadowElevation = 0.dp,
+                colors = FloatingToolbarDefaults.standardFloatingToolbarColors(
+                    toolbarContainerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                ),
+                expanded = true,
+                scrollBehavior = scrollBehavior,
+                content = {
+                    FilledTonalButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.height(48.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
                     ) {
-                        Icon(Icons.Rounded.Info, contentDescription = "Show info dialog")
+                        Text("Cancel")
+                    }
+                    Spacer(
+                        modifier = Modifier.width(8.dp)
+                    )
+                    Button(
+                        onClick = {
+                            val resolvedTrackNumber = trackNumber.toIntOrNull() ?: song.trackNumber
+                            onSave(
+                                title.trim(),
+                                artist.trim(),
+                                album.trim(),
+                                genre.trim(),
+                                lyrics,
+                                resolvedTrackNumber,
+                                editedCoverArt
+                            )
+                        },
+                        modifier = Modifier.height(48.dp)
+                    ) {
+                        Text("Save")
                     }
                 }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            CoverArtEditorCard(
-                modifier = Modifier.fillMaxWidth(),
-                albumArtUri = song.albumArtUriString,
-                preview = coverArtPreview,
-                onPickNewArt = {
-                    pickCoverArtLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                    )
-                },
-                onReset = {
-                    coverArtPreview = null
-                    editedCoverArt = null
-                }
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // --- Campo de Título ---
-            OutlinedTextField(
-                value = title,
-                shape = textFieldShape,
-                colors = textFieldColors,
-                onValueChange = { title = it },
-                placeholder = { Text("Title") },
-                leadingIcon = { Icon(Icons.Rounded.MusicNote, contentDescription = "Title Icon") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-
-            OutlinedTextField(
-                value = trackNumber,
-                shape = textFieldShape,
-                colors = textFieldColors,
-                onValueChange = { trackNumber = it },
-                placeholder = { Text("Track Number") },
-                leadingIcon = { Icon(Icons.Rounded.FormatListNumbered, contentDescription = "Track Number Icon") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-            )
-
-            // --- Campo de Artista ---
-            OutlinedTextField(
-                value = artist,
-                colors = textFieldColors,
-                shape = textFieldShape,
-                onValueChange = { artist = it },
-                placeholder = { Text("Artist") },
-                leadingIcon = { Icon(Icons.Rounded.Person, contentDescription = "Artist Icon") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-
-            // --- Campo de Álbum ---
-            OutlinedTextField(
-                value = album,
-                colors = textFieldColors,
-                shape = textFieldShape,
-                onValueChange = { album = it },
-                placeholder = { Text("Album") },
-                leadingIcon = { Icon(Icons.Rounded.Album, contentDescription = "Album Icon") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-
-            // --- Campo de Género ---
-            OutlinedTextField(
-                value = genre,
-                colors = textFieldColors,
-                shape = textFieldShape,
-                onValueChange = { genre = it },
-                placeholder = { Text("Genre") },
-                leadingIcon = { Icon(Icons.Rounded.Category, contentDescription = "Genre Icon") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-
-            // --- Campo de Letra ---
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = lyrics,
-                    colors = textFieldColors,
-                    shape = textFieldShape,
-                    onValueChange = { lyrics = it },
-                    placeholder = { Text("Lyrics") },
-                    leadingIcon = { Icon(Icons.Rounded.Notes, contentDescription = "Lyrics Icon") },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(150.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                FilledTonalIconButton(
-                    onClick = {
-                        val encodedTitle = URLEncoder.encode(title, "UTF-8")
-                        val encodedArtist = URLEncoder.encode(artist, "UTF-8")
-                        val url = "https://lrclib.net/search/$encodedTitle%20$encodedArtist"
-                        val intent = Intent(Intent.ACTION_VIEW).setData(Uri.parse(url))
-                        context.startActivity(intent)
-                    },
-                ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.rounded_search_24),
-                        contentDescription = "Search lyrics on lrclib.net"
-                    )
-                }
-            }
-
-            // --- Botones de acción ---
-            Row(
+            Box(
                 modifier = Modifier
+                    .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(top = 8.dp, end = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                FilledTonalButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.height(48.dp),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                ) {
-                    Text("Cancel")
-                }
-                Button(
-                    onClick = {
-                        val resolvedTrackNumber = trackNumber.toIntOrNull() ?: song.trackNumber
-                        onSave(
-                            title.trim(),
-                            artist.trim(),
-                            album.trim(),
-                            genre.trim(),
-                            lyrics,
-                            resolvedTrackNumber,
-                            editedCoverArt
+                    .height(30.dp)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            listOf(
+                                Color.Transparent,
+                                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.5f),
+                                MaterialTheme.colorScheme.surfaceContainerLow
+                            )
                         )
-                    },
-                    modifier = Modifier.height(48.dp)
-                ) {
-                    Text("Save")
-                }
+                    )
+            ) {
+
             }
         }
     }
@@ -432,13 +568,13 @@ private fun CoverArtEditorCard(
     Surface(
         modifier = modifier,
         shape = AbsoluteSmoothCornerShape(
-            cornerRadiusTL = 18.dp,
+            cornerRadiusTL = 12.dp,
             smoothnessAsPercentBL = 60,
-            cornerRadiusTR = 18.dp,
+            cornerRadiusTR = 12.dp,
             smoothnessAsPercentBR = 60,
-            cornerRadiusBL = 18.dp,
+            cornerRadiusBL = 12.dp,
             smoothnessAsPercentTL = 60,
-            cornerRadiusBR = 18.dp,
+            cornerRadiusBR = 12.dp,
             smoothnessAsPercentTR = 60,
         ),
         tonalElevation = 6.dp,
@@ -465,7 +601,7 @@ private fun CoverArtEditorCard(
                 Box(
                     modifier = Modifier
                         .size(cropSize)
-                        .clip(RoundedCornerShape(28.dp))
+                        .clip(RoundedCornerShape(22.dp))
                         .background(MaterialTheme.colorScheme.surfaceContainerHighest),
                     contentAlignment = Alignment.Center
                 ) {
@@ -521,9 +657,9 @@ private fun CoverArtEditorCard(
                 textAlign = TextAlign.Center
             )
 
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+                verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically)
             ) {
                 FilledTonalButton(onClick = onPickNewArt) {
                     Icon(Icons.Rounded.Image, contentDescription = null)
@@ -548,7 +684,7 @@ private data class CoverArtCropResult(
     val update: CoverArtUpdate,
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 private fun CoverArtCropperDialog(
     sourceUri: Uri,
@@ -589,6 +725,8 @@ private fun CoverArtCropperDialog(
         scale = newScale
         offset = clampOffset(offset + panChange, newScale, containerSize)
     }
+
+    val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)
 
     BasicAlertDialog(
         onDismissRequest = {
@@ -683,7 +821,6 @@ private fun CoverArtCropperDialog(
                                     }
 
                                     Canvas(modifier = Modifier.matchParentSize()) {
-                                        val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)
                                         val step = size.width / 3f
                                         for (index in 1 until 3) {
                                             val lineOffset = step * index
