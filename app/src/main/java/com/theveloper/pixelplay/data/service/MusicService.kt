@@ -30,6 +30,7 @@ import coil.size.Size
 import android.os.Bundle
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionCommands
+import androidx.media3.session.SessionError
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.theveloper.pixelplay.MainActivity
@@ -147,7 +148,8 @@ class MusicService : MediaSessionService() {
                         onUpdateNotification(session)
                     }
                     MusicNotificationProvider.CUSTOM_COMMAND_LIKE -> {
-                        val songId = session.player.currentMediaItem?.mediaId ?: return@onCustomCommand Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_UNKNOWN))
+                        val songId = session.player.currentMediaItem?.mediaId ?: return@onCustomCommand Futures.immediateFuture(SessionResult(
+                            SessionError.ERROR_UNKNOWN))
                         Timber.tag("MusicService").d("Executing LIKE for songId: $songId")
                         val isCurrentlyFavorite = favoriteSongIds.contains(songId)
                         favoriteSongIds = if (isCurrentlyFavorite) {
