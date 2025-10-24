@@ -2890,6 +2890,17 @@ class PlayerViewModel @Inject constructor(
                     albumArtUriString = refreshedAlbumArtUri,
                 )
 
+                _playerUiState.update { state ->
+                    val queueIndex = state.currentPlaybackQueue.indexOfFirst { it.id == song.id }
+                    if (queueIndex == -1) {
+                        state
+                    } else {
+                        val newQueue = state.currentPlaybackQueue.toMutableList()
+                        newQueue[queueIndex] = updatedSong
+                        state.copy(currentPlaybackQueue = newQueue.toImmutableList())
+                    }
+                }
+
                 // Manually update the song in the UI state
                 val currentSongs = _playerUiState.value.allSongs.toMutableList()
                 val index = currentSongs.indexOfFirst { it.id == song.id }
