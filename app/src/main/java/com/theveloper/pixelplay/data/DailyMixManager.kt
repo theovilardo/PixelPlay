@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.JsonElement
+import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
 import com.theveloper.pixelplay.data.model.Song
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -20,7 +21,8 @@ class DailyMixManager @Inject constructor(
 
     private val gson = Gson()
     private val scoresFile = File(context.filesDir, "song_scores.json")
-    private val scoresType = object : TypeToken<MutableMap<String, Int>>() {}.type
+    private val fileLock = Any()
+    private val statsType = object : TypeToken<MutableMap<String, SongEngagementStats>>() {}.type
 
     data class SongEngagementStats(
         val playCount: Int = 0,
@@ -28,48 +30,93 @@ class DailyMixManager @Inject constructor(
         val lastPlayedTimestamp: Long = 0L
     )
 
-    private fun readEngagements(): MutableMap<String, SongEngagementStats> {
+    private fun readEngagements(): MutableMap<String, SongEngagementStats> =
+        synchronized(fileLock) { readEngagementsLocked() }
+
+    private fun readEngagementsLocked(): MutableMap<String, SongEngagementStats> {
         if (!scoresFile.exists()) {
             return mutableMapOf()
         }
 
-        val raw = scoresFile.readText()
-        if (raw.isBlank()) {
-            return mutableMapOf()
-        }
+        val raw = runCatching { scoresFile.readText() }
+            .onFailure { Log.e(TAG, "Failed to read song scores file", it) }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: return mutableMapOf()
 
         return runCatching {
             val element = gson.fromJson(raw, JsonElement::class.java)
-
-            if (element == null || element.isJsonNull) {
-                mutableMapOf()
-            } else if (element.isJsonObject) {
-                val result = mutableMapOf<String, Int>()
-                for ((key, value) in element.asJsonObject.entrySet()) {
-                    val score = extractScore(value)
-                    if (score != null) {
-                        result[key] = score
-                    } else {
-                        Log.w(TAG, "Skipping song score entry for \"$key\" because it does not contain a numeric score: $value")
-                    }
-                }
-                result
-            } else {
-                gson.fromJson<MutableMap<String, Int>>(raw, scoresType)
-            }
+            parseEngagementElement(element)
         }.getOrElse { throwable ->
             Log.e(TAG, "Failed to parse song scores file, ignoring its contents", throwable)
             mutableMapOf()
         }
     }
 
+    private fun parseEngagementElement(element: JsonElement?): MutableMap<String, SongEngagementStats> {
+        if (element == null || element.isJsonNull) {
+            return mutableMapOf()
+        }
+
+        if (element.isJsonObject) {
+            return parseEngagementObject(element.asJsonObject)
+        }
+
+        return runCatching {
+            val parsed: MutableMap<String, SongEngagementStats> = gson.fromJson(element, statsType)
+            parsed.mapValuesTo(mutableMapOf()) { (_, stats) -> sanitizeStats(stats) }
+        }.getOrElse {
+            Log.w(TAG, "Unsupported song engagement format, ignoring it")
+            mutableMapOf()
+        }
+    }
+
+    private fun parseEngagementObject(obj: JsonObject): MutableMap<String, SongEngagementStats> {
+        val result = mutableMapOf<String, SongEngagementStats>()
+        for ((key, value) in obj.entrySet()) {
+            val stats = parseStatsValue(key, value)
+            if (stats != null) {
+                result[key] = stats
+            } else {
+                Log.w(TAG, "Skipping song engagement entry for \"$key\" because it could not be parsed: $value")
+            }
+        }
+        return result
+    }
+
+    private fun parseStatsValue(key: String, value: JsonElement): SongEngagementStats? {
+        if (value.isJsonObject) {
+            val parsedStats = runCatching {
+                gson.fromJson(value, SongEngagementStats::class.java)
+            }.getOrNull()
+
+            if (parsedStats != null) {
+                return sanitizeStats(parsedStats)
+            }
+
+            val extracted = extractScore(value)
+            if (extracted != null) {
+                return SongEngagementStats(playCount = extracted)
+            }
+        } else {
+            val extracted = extractScore(value)
+            if (extracted != null) {
+                return SongEngagementStats(playCount = extracted)
+            }
+        }
+
+        Log.w(TAG, "Encountered unsupported engagement value for \"$key\": $value")
+        return null
+    }
+
     private fun extractScore(value: JsonElement): Int? {
         if (value.isJsonPrimitive) {
             val primitive = value.asJsonPrimitive
-            if (primitive.isNumber) {
-                return primitive.asNumber.toInt()
+            return when {
+                primitive.isNumber -> primitive.asNumber.toInt()
+                primitive.isString -> primitive.asString.toIntOrNull()
+                else -> null
             }
-            return null
         }
 
         if (value.isJsonObject) {
@@ -78,8 +125,13 @@ class DailyMixManager @Inject constructor(
                 val candidate = obj.get(key)
                 if (candidate != null && candidate.isJsonPrimitive) {
                     val primitive = candidate.asJsonPrimitive
-                    if (primitive.isNumber) {
-                        return primitive.asNumber.toInt()
+                    val parsed = when {
+                        primitive.isNumber -> primitive.asNumber.toInt()
+                        primitive.isString -> primitive.asString.toIntOrNull()
+                        else -> null
+                    }
+                    if (parsed != null) {
+                        return parsed
                     }
                 }
             }
@@ -88,8 +140,32 @@ class DailyMixManager @Inject constructor(
         return null
     }
 
+    private fun sanitizeStats(stats: SongEngagementStats): SongEngagementStats {
+        return stats.copy(
+            playCount = stats.playCount.coerceAtLeast(0),
+            totalPlayDurationMs = stats.totalPlayDurationMs.coerceAtLeast(0L),
+            lastPlayedTimestamp = stats.lastPlayedTimestamp.coerceAtLeast(0L)
+        )
+    }
+
     private fun saveEngagements(engagements: Map<String, SongEngagementStats>) {
-        scoresFile.writeText(gson.toJson(engagements))
+        synchronized(fileLock) {
+            saveEngagementsLocked(engagements)
+        }
+    }
+
+    private fun saveEngagementsLocked(engagements: Map<String, SongEngagementStats>) {
+        val sanitized = engagements.mapValues { (_, stats) -> sanitizeStats(stats) }
+        runCatching {
+            scoresFile.parentFile?.let { parent ->
+                if (!parent.exists()) {
+                    parent.mkdirs()
+                }
+            }
+            scoresFile.writeText(gson.toJson(sanitized))
+        }.onFailure {
+            Log.e(TAG, "Failed to persist song engagements", it)
+        }
     }
 
     fun recordPlay(
@@ -97,15 +173,17 @@ class DailyMixManager @Inject constructor(
         songDurationMs: Long = 0L,
         timestamp: Long = System.currentTimeMillis()
     ) {
-        val engagements = readEngagements()
-        val currentStats = engagements[songId] ?: SongEngagementStats()
-        val updatedStats = currentStats.copy(
-            playCount = currentStats.playCount + 1,
-            totalPlayDurationMs = currentStats.totalPlayDurationMs + songDurationMs.coerceAtLeast(0L),
-            lastPlayedTimestamp = timestamp
-        )
-        engagements[songId] = updatedStats
-        saveEngagements(engagements)
+        synchronized(fileLock) {
+            val engagements = readEngagementsLocked()
+            val currentStats = engagements[songId] ?: SongEngagementStats()
+            val updatedStats = currentStats.copy(
+                playCount = (currentStats.playCount + 1).coerceAtLeast(1),
+                totalPlayDurationMs = currentStats.totalPlayDurationMs + songDurationMs.coerceAtLeast(0L),
+                lastPlayedTimestamp = timestamp.coerceAtLeast(0L)
+            )
+            engagements[songId] = sanitizeStats(updatedStats)
+            saveEngagementsLocked(engagements)
+        }
     }
 
     fun incrementScore(songId: String) {
@@ -114,6 +192,14 @@ class DailyMixManager @Inject constructor(
 
     fun getScore(songId: String): Int {
         return readEngagements()[songId]?.playCount ?: 0
+    }
+
+    fun getEngagementStats(songId: String): SongEngagementStats? {
+        return readEngagements()[songId]
+    }
+
+    fun getAllEngagementStats(): Map<String, SongEngagementStats> {
+        return readEngagements().toMap()
     }
 
     private fun computeRankedSongs(
