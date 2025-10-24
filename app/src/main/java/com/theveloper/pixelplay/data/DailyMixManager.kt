@@ -37,7 +37,7 @@ class DailyMixManager @Inject constructor(
             try {
                 val legacyType = object : com.google.gson.reflect.TypeToken<MutableMap<String, Int>>() {}.type
                 val legacyMap: MutableMap<String, Int> = gson.fromJson(jsonText, legacyType) ?: mutableMapOf()
-                legacyMap.mapValuesTo(mutableMapOf()) { (playCount) ->
+                legacyMap.mapValuesTo(mutableMapOf()) { (_, playCount) ->
                     SongEngagementStats(playCount = playCount)
                 }
             } catch (ignored: Exception) {
