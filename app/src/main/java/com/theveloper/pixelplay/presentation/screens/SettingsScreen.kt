@@ -83,7 +83,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -105,9 +104,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.util.lerp
 import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
@@ -118,6 +115,7 @@ import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
+import com.theveloper.pixelplay.presentation.components.ExpressiveTopBarContent
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.SettingsViewModel
@@ -135,11 +133,6 @@ private fun SettingsTopBar(
     onBackPressed: () -> Unit
 ) {
     val surfaceColor = MaterialTheme.colorScheme.surface
-    val titleScale = lerp(1.2f, 0.8f, collapseFraction)
-    val titlePaddingStart = lerp(32.dp, 58.dp, collapseFraction)
-    val titleVerticalBias = lerp(1f, -1f, collapseFraction)
-    val animatedTitleAlignment = BiasAlignment(horizontalBias = -1f, verticalBias = titleVerticalBias)
-    val titleContainerHeight = lerp(88.dp, 56.dp, collapseFraction)
 
     Box(
         modifier = Modifier
@@ -162,26 +155,13 @@ private fun SettingsTopBar(
                 Icon(painterResource(R.drawable.rounded_arrow_back_24), contentDescription = "Back")
             }
 
-            Box(
+            ExpressiveTopBarContent(
+                title = "Settings",
+                collapseFraction = collapseFraction,
                 modifier = Modifier
-                    .align(animatedTitleAlignment)
-                    .height(titleContainerHeight)
-                    .fillMaxWidth()
-                    .padding(start = titlePaddingStart, end = 24.dp)
-            ) {
-                Text(
-                    text = "Settings",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .graphicsLayer {
-                            scaleX = titleScale
-                            scaleY = titleScale
-                        }
-                )
-            }
+                    .fillMaxSize()
+                    .padding(start = 0.dp, end = 0.dp)
+            )
         }
     }
 }

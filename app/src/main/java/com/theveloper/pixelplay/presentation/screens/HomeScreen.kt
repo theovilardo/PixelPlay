@@ -65,9 +65,11 @@ import com.theveloper.pixelplay.presentation.components.HomeOptionsBottomSheet
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
+import com.theveloper.pixelplay.presentation.components.StatsOverviewCard
 import com.theveloper.pixelplay.presentation.components.subcomps.PlayingEqIcon
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import com.theveloper.pixelplay.presentation.viewmodel.StatsViewModel
 import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.map
@@ -83,6 +85,7 @@ fun HomeScreen(
     paddingValuesParent: PaddingValues,
     playerViewModel: PlayerViewModel = hiltViewModel()
 ) {
+    val statsViewModel: StatsViewModel = hiltViewModel()
     // 1) Observar sólo la lista de canciones, que cambia con poca frecuencia
     val allSongs by playerViewModel.allSongsFlow.collectAsState(initial = emptyList())
     val dailyMixSongs by playerViewModel.dailyMixSongs.collectAsState()
@@ -111,6 +114,8 @@ fun HomeScreen(
     val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    val weeklyStats by statsViewModel.weeklyOverview.collectAsState()
 
     Box(
         modifier = Modifier.fillMaxSize()
@@ -178,6 +183,13 @@ fun HomeScreen(
                             playerViewModel = playerViewModel
                         )
                     }
+                }
+
+                item(key = "listening_stats_preview") {
+                    StatsOverviewCard(
+                        summary = weeklyStats,
+                        onClick = { navController.navigate(Screen.Stats.route) }
+                    )
                 }
             }
         }
