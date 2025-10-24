@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -57,6 +59,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -273,11 +276,10 @@ private fun StatsTopBar(
                 collapseFraction = collapseFraction,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(start = 16.dp, end = 16.dp)
+                    .padding(start = 0.dp, end = 0.dp)
             )
         }
     }
-}
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -336,27 +338,27 @@ private fun StatsSummaryCard(
                             value = summary.totalPlayCount.toString(),
                             supporting = "Logged in this range"
                         )
-                        SummaryHeroTile(
-                            title = "Unique songs",
-                            value = summary.uniqueSongs.toString(),
-                            supporting = "Different tracks"
-                        )
+//                        SummaryHeroTile(
+//                            title = "Unique songs",
+//                            value = summary.uniqueSongs.toString(),
+//                            supporting = "Different tracks"
+//                        )
                     }
 
-                    SummaryProgressRow(
-                        title = "Peak day",
-                        label = summary.peakDayLabel,
-                        supporting = if (summary.peakDayDurationMs > 0L) {
-                            formatListeningDurationCompact(summary.peakDayDurationMs)
-                        } else {
-                            "No standout day yet"
-                        },
-                        progress = if (summary.totalDurationMs > 0L) {
-                            (summary.peakDayDurationMs.toFloat() / summary.totalDurationMs.toFloat()).coerceIn(0f, 1f)
-                        } else {
-                            0f
-                        }
-                    )
+//                    SummaryProgressRow(
+//                        title = "Peak day",
+//                        label = summary.peakDayLabel,
+//                        supporting = if (summary.peakDayDurationMs > 0L) {
+//                            formatListeningDurationCompact(summary.peakDayDurationMs)
+//                        } else {
+//                            "No standout day yet"
+//                        },
+//                        progress = if (summary.totalDurationMs > 0L) {
+//                            (summary.peakDayDurationMs.toFloat() / summary.totalDurationMs.toFloat()).coerceIn(0f, 1f)
+//                        } else {
+//                            0f
+//                        }
+//                    )
 
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -764,13 +766,15 @@ private fun TimelineCard(
                 )
             } else {
                 ListeningTimelineChart(timeline = timeline)
-                summary.peakTimeline?.let { peak ->
-                    HighlightRow(
-                        title = "Peak segment",
-                        value = peak.label,
-                        supporting = formatListeningDurationCompact(peak.totalDurationMs),
-                        icon = Icons.Outlined.AutoGraph
-                    )
+                if (summary != null) {
+                    summary.peakTimeline?.let { peak ->
+                        HighlightRow(
+                            title = "Peak segment",
+                            value = peak.label,
+                            supporting = formatListeningDurationCompact(peak.totalDurationMs),
+                            icon = Icons.Outlined.AutoGraph
+                        )
+                    }
                 }
             }
         }

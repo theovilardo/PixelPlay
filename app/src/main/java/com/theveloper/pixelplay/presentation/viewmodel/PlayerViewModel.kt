@@ -193,6 +193,18 @@ sealed interface LyricsSearchUiState {
     data class Error(val message: String, val query: String? = null) : LyricsSearchUiState
 }
 
+private data class ActiveSession(
+    val songId: String,
+    var totalDurationMs: Long,
+    val startedAtEpochMs: Long,
+    var lastKnownPositionMs: Long,
+    var accumulatedListeningMs: Long,
+    var lastRealtimeMs: Long,
+    var lastUpdateEpochMs: Long,
+    var isPlaying: Boolean,
+    val isVoluntary: Boolean
+)
+
 @UnstableApi
 @SuppressLint("LogNotTimber")
 @HiltViewModel
@@ -579,6 +591,10 @@ class PlayerViewModel @Inject constructor(
         listeningStatsTracker.onVoluntarySelection(song.id)
     }
 
+    companion object {
+        private val MIN_SESSION_LISTEN_MS = TimeUnit.SECONDS.toMillis(5)
+    }
+
 
     private inner class ListeningStatsTracker {
         private var currentSession: ActiveSession? = null
@@ -719,22 +735,6 @@ class PlayerViewModel @Inject constructor(
 
         fun onCleared() {
             finalizeCurrentSession()
-        }
-
-        private data class ActiveSession(
-            val songId: String,
-            var totalDurationMs: Long,
-            val startedAtEpochMs: Long,
-            var lastKnownPositionMs: Long,
-            var accumulatedListeningMs: Long,
-            var lastRealtimeMs: Long,
-            var lastUpdateEpochMs: Long,
-            var isPlaying: Boolean,
-            val isVoluntary: Boolean
-        )
-
-        companion object {
-            private val MIN_SESSION_LISTEN_MS = TimeUnit.SECONDS.toMillis(5)
         }
     }
 
