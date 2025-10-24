@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.presentation.screens
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -8,41 +9,59 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.outlined.AutoGraph
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Hearing
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.theveloper.pixelplay.data.stats.PlaybackStatsRepository
@@ -51,8 +70,9 @@ import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.viewmodel.StatsViewModel
 import com.theveloper.pixelplay.utils.formatListeningDurationCompact
 import com.theveloper.pixelplay.utils.formatListeningDurationLong
+import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun StatsScreen(
     navController: NavController,
@@ -61,33 +81,22 @@ fun StatsScreen(
     val uiState by statsViewModel.uiState.collectAsState()
     val summary = uiState.summary
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
+    val listState = rememberLazyListState()
 
     Scaffold(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surface)
+            .nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            androidx.compose.material3.LargeTopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = "Listening insights",
-                            style = MaterialTheme.typography.headlineSmall,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = summary?.range?.displayName ?: uiState.selectedRange.displayName,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(imageVector = Icons.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
+            StatsTopBar(
+                summary = summary,
+                selectedRange = uiState.selectedRange,
+                onBackClick = { navController.popBackStack() },
                 scrollBehavior = scrollBehavior
             )
-        }
+        },
+        containerColor = MaterialTheme.colorScheme.surface
     ) { paddingValues ->
         if (uiState.isLoading && summary == null) {
             Box(
@@ -100,115 +109,257 @@ fun StatsScreen(
             }
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
-                    .background(MaterialTheme.colorScheme.surface),
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
+                    .padding(paddingValues),
+                contentPadding = PaddingValues(bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 item {
-                    StatsSummaryCard(summary = summary, isLoading = uiState.isLoading)
+                    StatsSummaryCard(
+                        summary = summary,
+                        isLoading = uiState.isLoading,
+                        modifier = Modifier.padding(horizontal = 20.dp)
+                    )
                 }
-                item {
-                    RangeSelector(
+                stickyHeader {
+                    RangeTabsHeader(
                         ranges = uiState.availableRanges,
                         selected = uiState.selectedRange,
                         onRangeSelected = statsViewModel::onRangeSelected
                     )
                 }
                 item {
-                    TimelineCard(summary = summary)
+                    ListeningHabitsCard(
+                        summary = summary,
+                        modifier = Modifier.padding(horizontal = 20.dp)
+                    )
                 }
                 item {
-                    TopSongsCard(summary = summary)
+                    TimelineCard(
+                        summary = summary,
+                        modifier = Modifier.padding(horizontal = 20.dp)
+                    )
+                }
+                item {
+                    TopArtistsCard(
+                        summary = summary,
+                        modifier = Modifier.padding(horizontal = 20.dp)
+                    )
+                }
+                item {
+                    TopAlbumsCard(
+                        summary = summary,
+                        modifier = Modifier.padding(horizontal = 20.dp)
+                    )
+                }
+                item {
+                    TopSongsCard(
+                        summary = summary,
+                        modifier = Modifier.padding(horizontal = 20.dp)
+                    )
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun StatsTopBar(
+    summary: PlaybackStatsRepository.PlaybackStatsSummary?,
+    selectedRange: StatsTimeRange,
+    onBackClick: () -> Unit,
+    scrollBehavior: TopAppBarScrollBehavior
+) {
+    val collapseFraction = scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
+    val gradientColors = listOf(
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f),
+        MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.65f),
+        MaterialTheme.colorScheme.surface
+    )
+
+    Box(
+        modifier = Modifier
+            .background(Brush.verticalGradient(gradientColors))
+    ) {
+        androidx.compose.material3.LargeTopAppBar(
+            title = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Listening insights",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = summary?.range?.displayName ?: selectedRange.displayName,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    val detailAlpha = 1f - collapseFraction
+                    if (summary != null) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.alpha(detailAlpha)
+                        ) {
+                            TopBarChip(
+                                label = "Total time",
+                                value = formatListeningDurationCompact(summary.totalDurationMs)
+                            )
+                            TopBarChip(
+                                label = "Total plays",
+                                value = summary.totalPlayCount.toString()
+                            )
+                        }
+                    }
+                }
+            },
+            navigationIcon = {
+                FilledIconButton(
+                    onClick = onBackClick,
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    )
+                ) {
+                    Icon(imageVector = Icons.Filled.ArrowBack, contentDescription = "Back")
+                }
+            },
+            scrollBehavior = scrollBehavior,
+            colors = TopAppBarDefaults.largeTopAppBarColors(
+                containerColor = Color.Transparent,
+                scrolledContainerColor = MaterialTheme.colorScheme.surface
+            )
+        )
+    }
+}
+
+@Composable
+private fun TopBarChip(
+    label: String,
+    value: String
+) {
+    Column {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun RangeSelector(
-    ranges: List<StatsTimeRange>,
-    selected: StatsTimeRange,
-    onRangeSelected: (StatsTimeRange) -> Unit
-) {
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        ranges.forEach { range ->
-            FilterChip(
-                selected = range == selected,
-                onClick = { onRangeSelected(range) },
-                label = { Text(range.displayName) },
-                leadingIcon = if (range == selected) {
-                    { Icon(imageVector = Icons.Filled.Check, contentDescription = null) }
-                } else {
-                    null
-                }
-            )
-        }
-    }
-}
-
-@Composable
 private fun StatsSummaryCard(
     summary: PlaybackStatsRepository.PlaybackStatsSummary?,
-    isLoading: Boolean
+    isLoading: Boolean,
+    modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(32.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest)
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(36.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
     ) {
-        Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-            Text(
-                text = summary?.range?.displayName ?: "No listening yet",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = formatListeningDurationLong(summary?.totalDurationMs ?: 0L),
-                style = MaterialTheme.typography.displayMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(24.dp), modifier = Modifier.fillMaxWidth()) {
-                SummaryTile(
-                    title = "Total plays",
-                    value = summary?.totalPlayCount?.toString() ?: "0"
+        Box(
+            modifier = Modifier
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+                            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.14f),
+                            MaterialTheme.colorScheme.surface
+                        )
+                    )
                 )
-                SummaryTile(
-                    title = "Unique tracks",
-                    value = summary?.uniqueSongs?.toString() ?: "0"
+                .padding(horizontal = 28.dp, vertical = 26.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                Text(
+                    text = summary?.range?.displayName ?: "No listening yet",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                SummaryTile(
-                    title = "Avg per day",
-                    value = formatListeningDurationCompact(summary?.averageDailyDurationMs ?: 0L)
+                Text(
+                    text = formatListeningDurationLong(summary?.totalDurationMs ?: 0L),
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
-            }
-            if (isLoading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                if (summary != null) {
+                    Text(
+                        text = "Across ${summary.totalPlayCount} plays",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        SummaryPill(label = "Unique tracks", value = summary.uniqueSongs.toString())
+                        SummaryPill(label = "Active days", value = summary.activeDays.toString())
+                        SummaryPill(
+                            label = "Avg per day",
+                            value = formatListeningDurationCompact(summary.averageDailyDurationMs)
+                        )
+                        SummaryPill(
+                            label = "Avg session",
+                            value = formatListeningDurationCompact(summary.averageSessionDurationMs)
+                        )
+                        SummaryPill(
+                            label = "Sessions/day",
+                            value = String.format(Locale.US, "%.1f", summary.averageSessionsPerDay)
+                        )
+                        SummaryPill(
+                            label = "Longest streak",
+                            value = if (summary.longestStreakDays > 0) "${summary.longestStreakDays} days" else "—"
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "Start playing music to unlock your insights.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (isLoading) {
+                    LinearProgressIndicator(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun SummaryTile(title: String, value: String) {
-    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+private fun SummaryPill(
+    label: String,
+    value: String
+) {
+    Column(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.85f))
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
         Text(
-            text = title,
-            style = MaterialTheme.typography.labelMedium,
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
             text = value,
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onSurface
         )
@@ -216,76 +367,309 @@ private fun SummaryTile(title: String, value: String) {
 }
 
 @Composable
-private fun TimelineCard(summary: PlaybackStatsRepository.PlaybackStatsSummary?) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-        shape = RoundedCornerShape(32.dp)
+private fun RangeTabsHeader(
+    ranges: List<StatsTimeRange>,
+    selected: StatsTimeRange,
+    onRangeSelected: (StatsTimeRange) -> Unit
+) {
+    val selectedIndex = remember(ranges, selected) { ranges.indexOf(selected).coerceAtLeast(0) }
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .zIndex(1f),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 6.dp
     ) {
-        Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-            Text(
-                text = "Timeline",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            if (summary == null) {
-                Text(
-                    text = "Press play to start building your history.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+        ScrollableTabRow(
+            selectedTabIndex = selectedIndex,
+            edgePadding = 20.dp,
+            divider = {},
+            containerColor = Color.Transparent,
+            indicator = { positions ->
+                if (selectedIndex in positions.indices) {
+                    TabRowDefaults.PrimaryIndicator(
+                        modifier = Modifier.tabIndicatorOffset(positions[selectedIndex]),
+                        color = MaterialTheme.colorScheme.primary,
+                        height = 3.dp
+                    )
+                }
+            }
+        ) {
+            ranges.forEachIndexed { index, range ->
+                val isSelected by rememberUpdatedState(newValue = index == selectedIndex)
+                Tab(
+                    selected = isSelected,
+                    onClick = { onRangeSelected(range) },
+                    selectedContentColor = MaterialTheme.colorScheme.onSurface,
+                    unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = {
+                        Text(
+                            text = range.displayName,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
+                        )
+                    }
                 )
-            } else {
-                ListeningTimeline(timeline = summary.timeline)
             }
         }
     }
 }
 
 @Composable
-private fun ListeningTimeline(timeline: List<PlaybackStatsRepository.TimelineEntry>) {
-    val maxValue = timeline.maxOfOrNull { it.totalDurationMs }?.takeIf { it > 0 } ?: 1L
+private fun ListeningHabitsCard(
+    summary: PlaybackStatsRepository.PlaybackStatsSummary?,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(32.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            Text(
+                text = "Listening habits",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (summary == null) {
+                Text(
+                    text = "We will surface your habits once we know you better.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    HabitMetric(
+                        icon = Icons.Outlined.History,
+                        label = "Total sessions",
+                        value = summary.totalSessions.toString()
+                    )
+                    HabitMetric(
+                        icon = Icons.Outlined.Hearing,
+                        label = "Avg session",
+                        value = formatListeningDurationCompact(summary.averageSessionDurationMs)
+                    )
+                    HabitMetric(
+                        icon = Icons.Outlined.Bolt,
+                        label = "Longest session",
+                        value = if (summary.longestSessionDurationMs > 0L) {
+                            formatListeningDurationCompact(summary.longestSessionDurationMs)
+                        } else {
+                            "—"
+                        }
+                    )
+                    HabitMetric(
+                        icon = Icons.Outlined.AutoGraph,
+                        label = "Sessions/day",
+                        value = String.format(Locale.US, "%.1f", summary.averageSessionsPerDay)
+                    )
+                }
+                Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                HighlightRow(
+                    title = "Most active day",
+                    value = summary.peakDayLabel ?: "—",
+                    supporting = if (summary.peakDayDurationMs > 0L) {
+                        formatListeningDurationCompact(summary.peakDayDurationMs)
+                    } else {
+                        "No playback yet"
+                    },
+                    icon = Icons.Outlined.CalendarMonth
+                )
+                summary.peakTimeline?.let { peak ->
+                    HighlightRow(
+                        title = "Peak timeline slot",
+                        value = peak.label,
+                        supporting = formatListeningDurationCompact(peak.totalDurationMs),
+                        icon = Icons.Outlined.AutoGraph
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HabitMetric(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary
+        )
+        Column {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
+private fun HighlightRow(
+    title: String,
+    value: String,
+    supporting: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = supporting,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun TimelineCard(
+    summary: PlaybackStatsRepository.PlaybackStatsSummary?,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(32.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            Text(
+                text = "Listening timeline",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            val timeline = summary?.timeline.orEmpty()
+            if (timeline.isEmpty() || timeline.all { it.totalDurationMs == 0L }) {
+                Text(
+                    text = "Press play to build your listening timeline.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                ListeningTimelineChart(timeline = timeline)
+                summary.peakTimeline?.let { peak ->
+                    HighlightRow(
+                        title = "Peak segment",
+                        value = peak.label,
+                        supporting = formatListeningDurationCompact(peak.totalDurationMs),
+                        icon = Icons.Outlined.AutoGraph
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ListeningTimelineChart(
+    timeline: List<PlaybackStatsRepository.TimelineEntry>
+) {
+    val maxValue = timeline.maxOf { it.totalDurationMs }.coerceAtLeast(1L)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(220.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.Bottom
+            .height(220.dp)
+            .background(
+                color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                shape = RoundedCornerShape(28.dp)
+            )
+            .padding(horizontal = 20.dp, vertical = 20.dp),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         timeline.forEach { entry ->
-            val heightFraction = (entry.totalDurationMs.toFloat() / maxValue.toFloat()).coerceIn(0f, 1f)
             Column(
                 modifier = Modifier.weight(1f),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Bottom
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                if (entry.totalDurationMs > 0L) {
-                    Text(
-                        text = formatListeningDurationCompact(entry.totalDurationMs),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                } else {
-                    Spacer(modifier = Modifier.height(28.dp))
-                }
+                Text(
+                    text = formatListeningDurationCompact(entry.totalDurationMs),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height((160.dp * heightFraction).coerceAtLeast(12.dp))
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    MaterialTheme.colorScheme.primary,
-                                    MaterialTheme.colorScheme.tertiary
+                        .weight(1f)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.BottomCenter
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight(entry.totalDurationMs.toFloat() / maxValue.toFloat())
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(
+                                        MaterialTheme.colorScheme.primary,
+                                        MaterialTheme.colorScheme.tertiary
+                                    )
                                 )
-                            ),
-                            shape = RoundedCornerShape(18.dp)
-                        )
-                )
-                Spacer(modifier = Modifier.height(12.dp))
+                            )
+                    )
+                }
                 Text(
                     text = entry.label,
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -296,42 +680,227 @@ private fun ListeningTimeline(timeline: List<PlaybackStatsRepository.TimelineEnt
 }
 
 @Composable
-private fun TopSongsCard(summary: PlaybackStatsRepository.PlaybackStatsSummary?) {
+private fun TopArtistsCard(
+    summary: PlaybackStatsRepository.PlaybackStatsSummary?,
+    modifier: Modifier = Modifier
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-        shape = RoundedCornerShape(32.dp)
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(32.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
     ) {
-        Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Column(
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            Text(
+                text = "Top artists",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            val artists = summary?.topArtists.orEmpty()
+            if (artists.isEmpty()) {
+                Text(
+                    text = "Keep listening and your favorite artists will show up here.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                val maxDuration = artists.maxOf { it.totalDurationMs }.coerceAtLeast(1L)
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    artists.forEachIndexed { index, artistSummary ->
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                ArtistAvatar(name = artistSummary.artist)
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "${index + 1}. ${artistSummary.artist}",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "${artistSummary.playCount} plays • ${artistSummary.uniqueSongs} tracks",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Text(
+                                    text = formatListeningDurationCompact(artistSummary.totalDurationMs),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            LinearProgressIndicator(
+                                progress = (artistSummary.totalDurationMs.toFloat() / maxDuration.toFloat()).coerceIn(0f, 1f),
+                                modifier = Modifier.fillMaxWidth(),
+                                color = MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ArtistAvatar(name: String) {
+    val initials = remember(name) {
+        name.split(" ")
+            .filter { it.isNotBlank() }
+            .take(2)
+            .joinToString(separator = "") { it.first().uppercaseChar().toString() }
+            .ifBlank { "?" }
+    }
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = initials,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun TopAlbumsCard(
+    summary: PlaybackStatsRepository.PlaybackStatsSummary?,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(32.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            Text(
+                text = "Top albums",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            val albums = summary?.topAlbums.orEmpty()
+            if (albums.isEmpty()) {
+                Text(
+                    text = "Albums you revisit often will appear soon.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                val maxDuration = albums.maxOf { it.totalDurationMs }.coerceAtLeast(1L)
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    albums.forEachIndexed { index, albumSummary ->
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                SmartImage(
+                                    model = albumSummary.albumArtUri,
+                                    contentDescription = albumSummary.album,
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .clip(RoundedCornerShape(16.dp)),
+                                    shape = RoundedCornerShape(16.dp)
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "${index + 1}. ${albumSummary.album}",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "${albumSummary.playCount} plays • ${albumSummary.uniqueSongs} tracks",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Text(
+                                    text = formatListeningDurationCompact(albumSummary.totalDurationMs),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            LinearProgressIndicator(
+                                progress = (albumSummary.totalDurationMs.toFloat() / maxDuration.toFloat()).coerceIn(0f, 1f),
+                                modifier = Modifier.fillMaxWidth(),
+                                color = MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TopSongsCard(
+    summary: PlaybackStatsRepository.PlaybackStatsSummary?,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(32.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
             Text(
                 text = "Top tracks",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            if (summary == null || summary.topSongs.isEmpty()) {
+            val songs = summary?.topSongs.orEmpty()
+            if (songs.isEmpty()) {
                 Text(
-                    text = "No tracked songs yet. Listen to your music to see insights here.",
+                    text = "Listen to your favorites to see them highlighted here.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             } else {
-                val maxDuration = summary.topSongs.maxOfOrNull { it.totalDurationMs }?.takeIf { it > 0 } ?: 1L
+                val maxDuration = songs.maxOf { it.totalDurationMs }.coerceAtLeast(1L)
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    summary.topSongs.forEach { songSummary ->
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                    songs.forEachIndexed { index, songSummary ->
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
                                 SmartImage(
                                     model = songSummary.albumArtUri,
                                     contentDescription = songSummary.title,
                                     modifier = Modifier
                                         .size(56.dp)
-                                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp)),
+                                        .clip(RoundedCornerShape(16.dp)),
                                     shape = RoundedCornerShape(16.dp)
                                 )
-                                Spacer(modifier = Modifier.width(16.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = songSummary.title,
+                                        text = "${index + 1}. ${songSummary.title}",
                                         style = MaterialTheme.typography.titleMedium,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,
@@ -354,8 +923,8 @@ private fun TopSongsCard(summary: PlaybackStatsRepository.PlaybackStatsSummary?)
                             LinearProgressIndicator(
                                 progress = (songSummary.totalDurationMs.toFloat() / maxDuration.toFloat()).coerceIn(0f, 1f),
                                 modifier = Modifier.fillMaxWidth(),
-                                trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                                color = MaterialTheme.colorScheme.primary
+                                color = MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant
                             )
                         }
                     }
@@ -364,4 +933,3 @@ private fun TopSongsCard(summary: PlaybackStatsRepository.PlaybackStatsSummary?)
         }
     }
 }
-

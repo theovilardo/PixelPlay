@@ -33,6 +33,8 @@ class PlaybackStatsRepository @Inject constructor(
     private val fileLock = Any()
     private val eventsType = object : TypeToken<MutableList<PlaybackEvent>>() {}.type
 
+    private val sessionGapThresholdMs = TimeUnit.MINUTES.toMillis(30)
+
     data class PlaybackEvent(
         val songId: String,
         val timestamp: Long,
@@ -46,6 +48,21 @@ class PlaybackStatsRepository @Inject constructor(
         val albumArtUri: String?,
         val totalDurationMs: Long,
         val playCount: Int
+    )
+
+    data class ArtistPlaybackSummary(
+        val artist: String,
+        val totalDurationMs: Long,
+        val playCount: Int,
+        val uniqueSongs: Int
+    )
+
+    data class AlbumPlaybackSummary(
+        val album: String,
+        val albumArtUri: String?,
+        val totalDurationMs: Long,
+        val playCount: Int,
+        val uniqueSongs: Int
     )
 
     data class TimelineEntry(
@@ -63,7 +80,18 @@ class PlaybackStatsRepository @Inject constructor(
         val uniqueSongs: Int,
         val averageDailyDurationMs: Long,
         val topSongs: List<SongPlaybackSummary>,
-        val timeline: List<TimelineEntry>
+        val timeline: List<TimelineEntry>,
+        val topArtists: List<ArtistPlaybackSummary>,
+        val topAlbums: List<AlbumPlaybackSummary>,
+        val activeDays: Int,
+        val longestStreakDays: Int,
+        val totalSessions: Int,
+        val averageSessionDurationMs: Long,
+        val longestSessionDurationMs: Long,
+        val averageSessionsPerDay: Double,
+        val peakTimeline: TimelineEntry?,
+        val peakDayLabel: String?,
+        val peakDayDurationMs: Long
     )
 
     fun recordPlayback(
@@ -133,16 +161,44 @@ class PlaybackStatsRepository @Inject constructor(
             )
             .take(5)
 
+        var daySpan = 1L
         val averageDailyDuration = if (effectiveStart != null) {
             val startInstant = Instant.ofEpochMilli(effectiveStart)
             val endInstant = Instant.ofEpochMilli(effectiveEnd)
             val startDate = startInstant.atZone(zoneId).toLocalDate()
             val endDate = endInstant.atZone(zoneId).toLocalDate()
-            val daySpan = max(1L, java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate) + 1)
+            daySpan = max(1L, java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate) + 1)
             if (daySpan > 0) totalDuration / daySpan else totalDuration
         } else {
             totalDuration
         }
+
+        val eventsByDay = filteredEvents.groupBy {
+            Instant.ofEpochMilli(it.timestamp).atZone(zoneId).toLocalDate()
+        }
+        val activeDays = eventsByDay.size
+        val sortedDays = eventsByDay.keys.sorted()
+        var longestStreak = 0
+        var currentStreak = 0
+        var lastDay: java.time.LocalDate? = null
+        sortedDays.forEach { day ->
+            if (lastDay == null || day == lastDay?.plusDays(1)) {
+                currentStreak += 1
+            } else {
+                currentStreak = 1
+            }
+            if (currentStreak > longestStreak) {
+                longestStreak = currentStreak
+            }
+            lastDay = day
+        }
+
+        val sessions = computeListeningSessions(filteredEvents)
+        val totalSessions = sessions.size
+        val totalSessionDuration = sessions.sumOf { it.totalDuration }
+        val averageSessionDuration = if (totalSessions > 0) totalSessionDuration / totalSessions else 0L
+        val longestSessionDuration = sessions.maxOfOrNull { it.totalDuration } ?: 0L
+        val averageSessionsPerDay = if (daySpan > 0) totalSessions.toDouble() / daySpan else 0.0
 
         val timelineBuckets = createTimelineBuckets(
             range = range,
@@ -153,6 +209,63 @@ class PlaybackStatsRepository @Inject constructor(
         )
         val timelineEntries = accumulateTimelineEntries(timelineBuckets, filteredEvents)
 
+        val topArtists = filteredEvents
+            .groupBy { event ->
+                songMap[event.songId]?.artist?.takeIf { it.isNotBlank() } ?: "Unknown Artist"
+            }
+            .map { (artist, eventsForArtist) ->
+                val uniqueSongCount = eventsForArtist.map { it.songId }.toSet().size
+                ArtistPlaybackSummary(
+                    artist = artist,
+                    totalDurationMs = eventsForArtist.sumOf { it.durationMs },
+                    playCount = eventsForArtist.size,
+                    uniqueSongs = uniqueSongCount
+                )
+            }
+            .sortedWith(
+                compareByDescending<ArtistPlaybackSummary> { it.totalDurationMs }
+                    .thenByDescending { it.playCount }
+            )
+            .take(5)
+
+        val topAlbums = filteredEvents
+            .groupBy { event ->
+                val song = songMap[event.songId]
+                song?.album?.takeIf { it.isNotBlank() } ?: "Unknown Album"
+            }
+            .map { (album, eventsForAlbum) ->
+                val uniqueSongCount = eventsForAlbum.map { it.songId }.toSet().size
+                val firstSong = eventsForAlbum
+                    .asSequence()
+                    .mapNotNull { songMap[it.songId] }
+                    .firstOrNull()
+                AlbumPlaybackSummary(
+                    album = album,
+                    albumArtUri = firstSong?.albumArtUriString,
+                    totalDurationMs = eventsForAlbum.sumOf { it.durationMs },
+                    playCount = eventsForAlbum.size,
+                    uniqueSongs = uniqueSongCount
+                )
+            }
+            .sortedWith(
+                compareByDescending<AlbumPlaybackSummary> { it.totalDurationMs }
+                    .thenByDescending { it.playCount }
+            )
+            .take(5)
+
+        val peakTimeline = timelineEntries
+            .filter { it.totalDurationMs > 0L }
+            .maxByOrNull { it.totalDurationMs }
+
+        val durationsByDayOfWeek = filteredEvents.groupBy {
+            Instant.ofEpochMilli(it.timestamp).atZone(zoneId).dayOfWeek
+        }
+        val peakDay = durationsByDayOfWeek.maxByOrNull { entry ->
+            entry.value.sumOf { it.durationMs }
+        }
+        val peakDayLabel = peakDay?.key?.getDisplayName(TextStyle.FULL, Locale.US)
+        val peakDayDuration = peakDay?.value?.sumOf { it.durationMs } ?: 0L
+
         return PlaybackStatsSummary(
             range = range,
             startTimestamp = startBound,
@@ -162,7 +275,18 @@ class PlaybackStatsRepository @Inject constructor(
             uniqueSongs = uniqueSongs,
             averageDailyDurationMs = averageDailyDuration,
             topSongs = topSongs,
-            timeline = timelineEntries
+            timeline = timelineEntries,
+            topArtists = topArtists,
+            topAlbums = topAlbums,
+            activeDays = activeDays,
+            longestStreakDays = longestStreak,
+            totalSessions = totalSessions,
+            averageSessionDurationMs = averageSessionDuration,
+            longestSessionDurationMs = longestSessionDuration,
+            averageSessionsPerDay = averageSessionsPerDay,
+            peakTimeline = peakTimeline,
+            peakDayLabel = peakDayLabel,
+            peakDayDurationMs = peakDayDuration
         )
     }
 
@@ -198,6 +322,48 @@ class PlaybackStatsRepository @Inject constructor(
             timestamp = event.timestamp.coerceAtLeast(0L),
             durationMs = event.durationMs.coerceAtLeast(0L)
         )
+    }
+
+    private data class ListeningSessionAggregate(
+        var start: Long,
+        var end: Long,
+        var totalDuration: Long,
+        var playCount: Int
+    )
+
+    private fun computeListeningSessions(events: List<PlaybackEvent>): List<ListeningSessionAggregate> {
+        if (events.isEmpty()) return emptyList()
+        val sorted = events.sortedBy { it.timestamp }
+        val sessions = mutableListOf<ListeningSessionAggregate>()
+
+        var current = ListeningSessionAggregate(
+            start = sorted.first().timestamp,
+            end = sorted.first().timestamp + sorted.first().durationMs,
+            totalDuration = sorted.first().durationMs,
+            playCount = 1
+        )
+
+        for (index in 1 until sorted.size) {
+            val event = sorted[index]
+            val eventEnd = event.timestamp + event.durationMs
+            val gap = event.timestamp - current.end
+            if (gap <= sessionGapThresholdMs) {
+                current.end = max(current.end, eventEnd)
+                current.totalDuration += event.durationMs
+                current.playCount += 1
+            } else {
+                sessions += current
+                current = ListeningSessionAggregate(
+                    start = event.timestamp,
+                    end = eventEnd,
+                    totalDuration = event.durationMs,
+                    playCount = 1
+                )
+            }
+        }
+
+        sessions += current
+        return sessions
     }
 
     private fun writeEventsLocked(events: MutableList<PlaybackEvent>) {
