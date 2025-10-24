@@ -60,14 +60,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
-import dev.shreyaspatil.capturable.Capturable
-import dev.shreyaspatil.capturable.rememberCaptureController
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.text.font.FontWeight
 import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.graphicsLayer
+import dev.shreyaspatil.capturable.controller.rememberCaptureController
 import java.io.ByteArrayOutputStream
 
 @OptIn(ExperimentalMaterial3Api::class)
