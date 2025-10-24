@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.AbsoluteRoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -88,6 +89,8 @@ import com.theveloper.pixelplay.utils.formatListeningDurationLong
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun StatsScreen(
@@ -223,18 +226,20 @@ fun StatsScreen(
                 .fillMaxWidth()
                 .height(currentTopBarHeightDp + tabsHeight)
         ) {
-            StatsTopBar(
-                collapseFraction = collapseFraction,
-                height = currentTopBarHeightDp,
-                onBackClick = { navController.popBackStack() }
-            )
+            Column {
+                StatsTopBar(
+                    collapseFraction = collapseFraction,
+                    height = currentTopBarHeightDp,
+                    onBackClick = { navController.popBackStack() }
+                )
 
-            RangeTabsHeader(
-                ranges = uiState.availableRanges,
-                selected = uiState.selectedRange,
-                onRangeSelected = statsViewModel::onRangeSelected,
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
+                RangeTabsHeader(
+                    ranges = uiState.availableRanges,
+                    selected = uiState.selectedRange,
+                    onRangeSelected = statsViewModel::onRangeSelected,
+                    //modifier = Modifier.align(Alignment.BottomCenter)
+                )
+            }
         }
     }
 }
@@ -289,19 +294,30 @@ private fun StatsSummaryCard(
     isLoading: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val shape = AbsoluteSmoothCornerShape(
+        cornerRadiusTL = 20.dp,
+        smoothnessAsPercentBR = 60,
+        cornerRadiusTR = 20.dp,
+        smoothnessAsPercentBL = 60,
+        cornerRadiusBL = 20.dp,
+        smoothnessAsPercentTR = 60,
+        cornerRadiusBR = 20.dp,
+        smoothnessAsPercentTL = 60
+    )
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(36.dp),
+        shape = shape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
     ) {
         Box(
             modifier = Modifier
+                .fillMaxWidth()
                 .background(
                     Brush.verticalGradient(
                         listOf(
                             MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
-                            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.14f),
-                            MaterialTheme.colorScheme.surface
+                            //MaterialTheme.colorScheme.tertiary.copy(alpha = 0.14f),
+                            MaterialTheme.colorScheme.surfaceContainerLow
                         )
                     )
                 )
@@ -333,11 +349,11 @@ private fun StatsSummaryCard(
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        SummaryHeroTile(
-                            title = "Total plays",
-                            value = summary.totalPlayCount.toString(),
-                            supporting = "Logged in this range"
-                        )
+//                        SummaryHeroTile(
+//                            title = "Total plays",
+//                            value = summary.totalPlayCount.toString(),
+//                            supporting = "Logged in this range"
+//                        )
 //                        SummaryHeroTile(
 //                            title = "Unique songs",
 //                            value = summary.uniqueSongs.toString(),
@@ -360,37 +376,37 @@ private fun StatsSummaryCard(
 //                        }
 //                    )
 
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        SummaryPill(label = "Active days", value = summary.activeDays.toString())
-                        SummaryPill(
-                            label = "Avg per day",
-                            value = formatListeningDurationCompact(summary.averageDailyDurationMs)
-                        )
-                        SummaryPill(
-                            label = "Avg session",
-                            value = formatListeningDurationCompact(summary.averageSessionDurationMs)
-                        )
-                        SummaryPill(
-                            label = "Sessions/day",
-                            value = String.format(Locale.US, "%.1f", summary.averageSessionsPerDay)
-                        )
-                        SummaryPill(label = "Total sessions", value = summary.totalSessions.toString())
-                        SummaryPill(
-                            label = "Longest session",
-                            value = if (summary.longestSessionDurationMs > 0L) {
-                                formatListeningDurationCompact(summary.longestSessionDurationMs)
-                            } else {
-                                "—"
-                            }
-                        )
-                        SummaryPill(
-                            label = "Longest streak",
-                            value = if (summary.longestStreakDays > 0) "${summary.longestStreakDays} days" else "—"
-                        )
-                    }
+//                    FlowRow(
+//                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+//                        verticalArrangement = Arrangement.spacedBy(12.dp)
+//                    ) {
+//                        SummaryPill(label = "Active days", value = summary.activeDays.toString())
+//                        SummaryPill(
+//                            label = "Avg per day",
+//                            value = formatListeningDurationCompact(summary.averageDailyDurationMs)
+//                        )
+//                        SummaryPill(
+//                            label = "Avg session",
+//                            value = formatListeningDurationCompact(summary.averageSessionDurationMs)
+//                        )
+//                        SummaryPill(
+//                            label = "Sessions/day",
+//                            value = String.format(Locale.US, "%.1f", summary.averageSessionsPerDay)
+//                        )
+//                        SummaryPill(label = "Total sessions", value = summary.totalSessions.toString())
+//                        SummaryPill(
+//                            label = "Longest session",
+//                            value = if (summary.longestSessionDurationMs > 0L) {
+//                                formatListeningDurationCompact(summary.longestSessionDurationMs)
+//                            } else {
+//                                "—"
+//                            }
+//                        )
+//                        SummaryPill(
+//                            label = "Longest streak",
+//                            value = if (summary.longestStreakDays > 0) "${summary.longestStreakDays} days" else "—"
+//                        )
+//                    }
                 } else {
                     Text(
                         text = "Start playing music to unlock your insights.",
@@ -541,7 +557,7 @@ private fun RangeTabsHeader(
             .fillMaxWidth()
             .zIndex(1f),
         color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 6.dp
+        //shadowElevation = 6.dp
     ) {
         ScrollableTabRow(
             selectedTabIndex = selectedIndex,
@@ -604,8 +620,8 @@ private fun ListeningHabitsCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             } else {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     HabitMetric(
@@ -665,6 +681,7 @@ private fun HabitMetric(
 ) {
     Row(
         modifier = Modifier
+            .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerLowest)
             .padding(horizontal = 16.dp, vertical = 12.dp),
