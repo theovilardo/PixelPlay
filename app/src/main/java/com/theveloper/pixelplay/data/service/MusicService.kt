@@ -102,7 +102,7 @@ class MusicService : MediaSessionService() {
                 ).map { SessionCommand(it, Bundle.EMPTY) }
 
                 val sessionCommandsBuilder = SessionCommands.Builder()
-                    .addAll(defaultResult.availableSessionCommands)
+                    .addSessionCommands(defaultResult.availableSessionCommands.commands)
                 customCommands.forEach { sessionCommandsBuilder.add(it) }
 
                 return MediaSession.ConnectionResult.accept(
