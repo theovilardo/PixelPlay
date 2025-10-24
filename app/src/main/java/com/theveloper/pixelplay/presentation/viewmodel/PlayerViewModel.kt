@@ -39,6 +39,7 @@ import androidx.mediarouter.media.MediaControlIntent
 import androidx.mediarouter.media.MediaRouteSelector
 import androidx.mediarouter.media.MediaRouter
 import coil.imageLoader
+import coil.memory.MemoryCache
 import com.google.android.gms.cast.framework.CastContext
 import com.google.android.gms.cast.framework.CastSession
 import com.google.android.gms.cast.framework.SessionManager
@@ -2862,6 +2863,7 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             Timber.d("Editing metadata for song: ${song.title} with URI: ${song.contentUriString}")
             Timber.d("New metadata: title=$newTitle, artist=$newArtist, album=$newAlbum, genre=$newGenre, lyrics=$newLyrics, trackNumber=$newTrackNumber")
+            val previousAlbumArt = song.albumArtUriString
             val result = withContext(Dispatchers.IO) {
                 songMetadataEditor.editSongMetadata(
                     contentUri = song.contentUriString,
@@ -2876,6 +2878,8 @@ class PlayerViewModel @Inject constructor(
             }
 
             if (result.success) {
+                val refreshedAlbumArtUri = result.updatedAlbumArtUri ?: song.albumArtUriString
+                invalidateCoverArtCaches(previousAlbumArt, refreshedAlbumArtUri)
                 val updatedSong = song.copy(
                     title = newTitle,
                     artist = newArtist,
@@ -2883,7 +2887,7 @@ class PlayerViewModel @Inject constructor(
                     genre = newGenre,
                     lyrics = newLyrics,
                     trackNumber = newTrackNumber,
-                    albumArtUriString = result.updatedAlbumArtUri ?: song.albumArtUriString,
+                    albumArtUriString = refreshedAlbumArtUri,
                 )
 
                 // Manually update the song in the UI state
@@ -2912,6 +2916,23 @@ class PlayerViewModel @Inject constructor(
                 _toastEvents.emit("Metadata updated successfully")
             } else {
                 _toastEvents.emit("Failed to update metadata")
+            }
+        }
+    }
+
+    private fun invalidateCoverArtCaches(vararg uriStrings: String?) {
+        val imageLoader = context.imageLoader
+        val memoryCache = imageLoader.memoryCache
+        val diskCache = imageLoader.diskCache
+        if (memoryCache == null && diskCache == null) return
+
+        val knownSizeSuffixes = listOf(null, "128x128", "150x150", "168x168", "256x256", "300x300", "512x512", "600x600")
+
+        uriStrings.mapNotNull { it?.takeIf(String::isNotBlank) }.forEach { baseUri ->
+            knownSizeSuffixes.forEach { suffix ->
+                val cacheKey = suffix?.let { "${baseUri}_${it}" } ?: baseUri
+                memoryCache?.remove(MemoryCache.Key(cacheKey))
+                diskCache?.remove(cacheKey)
             }
         }
     }
