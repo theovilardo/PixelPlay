@@ -63,6 +63,7 @@ import com.theveloper.pixelplay.data.database.AlbumArtThemeDao
 import com.theveloper.pixelplay.data.database.AlbumArtThemeEntity
 import com.theveloper.pixelplay.data.database.StoredColorSchemeValues
 import com.theveloper.pixelplay.data.database.toComposeColor
+import com.theveloper.pixelplay.data.media.CoverArtUpdate
 import com.theveloper.pixelplay.data.media.SongMetadataEditor
 import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Artist
@@ -2848,22 +2849,41 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    fun editSongMetadata(song: Song, newTitle: String, newArtist: String, newAlbum: String, newGenre: String, newLyrics: String, newTrackNumber: Int) {
+    fun editSongMetadata(
+        song: Song,
+        newTitle: String,
+        newArtist: String,
+        newAlbum: String,
+        newGenre: String,
+        newLyrics: String,
+        newTrackNumber: Int,
+        coverArtUpdate: CoverArtUpdate?,
+    ) {
         viewModelScope.launch {
             Timber.d("Editing metadata for song: ${song.title} with URI: ${song.contentUriString}")
             Timber.d("New metadata: title=$newTitle, artist=$newArtist, album=$newAlbum, genre=$newGenre, lyrics=$newLyrics, trackNumber=$newTrackNumber")
-            val success = withContext(Dispatchers.IO) {
-                songMetadataEditor.editSongMetadata(song.contentUriString, newTitle, newArtist, newAlbum, newGenre, newLyrics, newTrackNumber)
+            val result = withContext(Dispatchers.IO) {
+                songMetadataEditor.editSongMetadata(
+                    contentUri = song.contentUriString,
+                    newTitle = newTitle,
+                    newArtist = newArtist,
+                    newAlbum = newAlbum,
+                    newGenre = newGenre,
+                    newLyrics = newLyrics,
+                    newTrackNumber = newTrackNumber,
+                    coverArtUpdate = coverArtUpdate,
+                )
             }
 
-            if (success) {
+            if (result.success) {
                 val updatedSong = song.copy(
                     title = newTitle,
                     artist = newArtist,
                     album = newAlbum,
                     genre = newGenre,
                     lyrics = newLyrics,
-                    trackNumber = newTrackNumber
+                    trackNumber = newTrackNumber,
+                    albumArtUriString = result.updatedAlbumArtUri ?: song.albumArtUriString,
                 )
 
                 // Manually update the song in the UI state

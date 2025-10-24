@@ -3,7 +3,6 @@ package com.theveloper.pixelplay.data.media
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
-import android.util.Log
 import org.jaudiotagger.audio.AudioFile
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
@@ -12,8 +11,10 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import androidx.core.net.toUri
 import com.theveloper.pixelplay.data.database.MusicDao
+import org.jaudiotagger.tag.images.ArtworkFactory
 import kotlinx.coroutines.runBlocking
 import timber.log.Timber
+import java.io.ByteArrayInputStream
 
 class SongMetadataEditor(private val context: Context, private val musicDao: MusicDao) {
 
@@ -24,8 +25,9 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
         newAlbum: String,
         newGenre: String,
         newLyrics: String,
-        newTrackNumber: Int
-    ): Boolean {
+        newTrackNumber: Int,
+        coverArtUpdate: CoverArtUpdate? = null,
+    ): SongMetadataEditResult {
         Timber.d("Editing metadata for URI: $contentUri")
         val uri = contentUri.toUri()
         var tempFile: File? = null
@@ -34,7 +36,7 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
             tempFile = createTempFileFromUri(uri)
             if (tempFile == null) {
                 Timber.tag("SongMetadataEditor").e("Failed to create temp file from URI.")
-                return false
+                return SongMetadataEditResult(success = false, updatedAlbumArtUri = null)
             }
 
             // 2. Leer el archivo de audio y modificar los metadatos
@@ -46,6 +48,17 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
             tag.setField(FieldKey.GENRE, newGenre)
             tag.setField(FieldKey.LYRICS, newLyrics)
             tag.setField(FieldKey.TRACK, newTrackNumber.toString())
+
+            coverArtUpdate?.let { update ->
+                Timber.d("Updating embedded cover art for URI: $contentUri")
+                try {
+                    tag.deleteArtworkField()
+                } catch (ignore: Exception) {
+                    Timber.v(ignore, "No previous artwork to delete for URI: $contentUri")
+                }
+                val artwork = ArtworkFactory.createArtworkFromByteArray(update.bytes, update.mimeType)
+                tag.setField(artwork)
+            }
             Timber.d("Committing changes to temp file.")
             audioFile.commit() // Esto guarda los cambios en el archivo temporal
 
@@ -59,27 +72,58 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
                 }
             } ?: run {
                 Timber.tag("SongMetadataEditor").e("Failed to open FileDescriptor for writing.")
-                return false
+                return SongMetadataEditResult(success = false, updatedAlbumArtUri = null)
             }
 
             val songId = uri.lastPathSegment?.toLongOrNull()
+            var storedCoverArtUri: String? = null
             if (songId != null) {
                 Timber.d("Updating database for songId: $songId")
                 runBlocking {
                     musicDao.updateSongMetadata(songId, newTitle, newArtist, newAlbum, newGenre, newLyrics, newTrackNumber)
+                    if (coverArtUpdate != null) {
+                        storedCoverArtUri = saveCoverArtPreview(songId, coverArtUpdate)
+                        storedCoverArtUri?.let { newUri ->
+                            musicDao.updateSongAlbumArt(songId, newUri)
+                        }
+                    }
                 }
             }
 
             Timber.tag("SongMetadataEditor")
                 .d("Successfully edited and saved metadata for URI: $contentUri")
-            return true
+            return SongMetadataEditResult(success = true, updatedAlbumArtUri = storedCoverArtUri)
 
         } catch (e: Exception) {
             Timber.tag("SongMetadataEditor").e(e, "Error editing metadata for URI: $contentUri")
-            return false
+            return SongMetadataEditResult(success = false, updatedAlbumArtUri = null)
         } finally {
             // 4. Limpiar el archivo temporal
             tempFile?.delete()
+        }
+    }
+
+    private fun saveCoverArtPreview(songId: Long, coverArtUpdate: CoverArtUpdate): String? {
+        return try {
+            val extension = when (coverArtUpdate.mimeType) {
+                "image/png" -> "png"
+                "image/webp" -> "webp"
+                else -> "jpg"
+            }
+            val directory = File(context.filesDir, "cover_art").apply { if (!exists()) mkdirs() }
+            val file = File(directory, "song_$songId.$extension")
+            if (file.exists()) {
+                file.delete()
+            }
+            FileOutputStream(file).use { outputStream ->
+                ByteArrayInputStream(coverArtUpdate.bytes).use { inputStream ->
+                    inputStream.copyTo(outputStream)
+                }
+            }
+            file.toUri().toString()
+        } catch (e: Exception) {
+            Timber.tag("SongMetadataEditor").e(e, "Error saving cover art preview for songId=$songId")
+            null
         }
     }
 
@@ -119,3 +163,8 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
         return extension
     }
 }
+
+data class SongMetadataEditResult(
+    val success: Boolean,
+    val updatedAlbumArtUri: String?,
+)
