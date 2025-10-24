@@ -21,6 +21,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionResult
@@ -105,10 +106,20 @@ class MusicService : MediaSessionService() {
                     .add(SessionCommand(MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_OFF, Bundle.EMPTY))
                     .add(SessionCommand(MusicNotificationProvider.CUSTOM_COMMAND_CYCLE_REPEAT_MODE, Bundle.EMPTY))
 
+                updateSessionCustomLayout(session)
+
                 return MediaSession.ConnectionResult.accept(
                     sessionCommandsBuilder.build(),
                     connectionResult.availablePlayerCommands
                 )
+            }
+
+            override fun onPostConnect(
+                session: MediaSession,
+                controller: MediaSession.ControllerInfo
+            ) {
+                super.onPostConnect(session, controller)
+                updateSessionCustomLayout(session)
             }
 
             override fun onCustomCommand(
@@ -126,7 +137,7 @@ class MusicService : MediaSessionService() {
                         session.player.shuffleModeEnabled = true
                         Timber.tag("MusicService")
                             .d("Executed SHUFFLE_ON. New shuffleMode: ${session.player.shuffleModeEnabled}")
-                        onUpdateNotification(session)
+                        refreshSessionNotification(session)
                     }
                     MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_OFF -> {
                         Timber.tag("MusicService")
@@ -134,7 +145,7 @@ class MusicService : MediaSessionService() {
                         session.player.shuffleModeEnabled = false
                         Timber.tag("MusicService")
                             .d("Executed SHUFFLE_OFF. New shuffleMode: ${session.player.shuffleModeEnabled}")
-                        onUpdateNotification(session)
+                        refreshSessionNotification(session)
                     }
                     MusicNotificationProvider.CUSTOM_COMMAND_CYCLE_REPEAT_MODE -> {
                         val currentMode = session.player.repeatMode
@@ -144,7 +155,7 @@ class MusicService : MediaSessionService() {
                             else -> Player.REPEAT_MODE_OFF
                         }
                         session.player.repeatMode = newMode
-                        onUpdateNotification(session)
+                        refreshSessionNotification(session)
                     }
                     MusicNotificationProvider.CUSTOM_COMMAND_LIKE -> {
                         val songId = session.player.currentMediaItem?.mediaId ?: return@onCustomCommand Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_UNKNOWN))
@@ -159,7 +170,7 @@ class MusicService : MediaSessionService() {
                             }
                             Timber.tag("MusicService")
                                 .d("Updated favorite cache. wasFavorite=$wasFavorite")
-                            onUpdateNotification(session)
+                            refreshSessionNotification(session)
                             userPreferencesRepository.toggleFavoriteSong(songId)
                             Timber.tag("MusicService")
                                 .d("Persisted favorite change for $songId")
@@ -177,6 +188,8 @@ class MusicService : MediaSessionService() {
 
         setMediaNotificationProvider(MusicNotificationProvider(this, this))
 
+        mediaSession?.let { updateSessionCustomLayout(it) }
+
         serviceScope.launch {
             userPreferencesRepository.favoriteSongIdsFlow.collect { ids ->
                 Timber.tag("MusicService")
@@ -190,7 +203,7 @@ class MusicService : MediaSessionService() {
                     if (wasFavorite != isFavorite) {
                         Timber.tag("MusicService")
                             .d("Favorite status changed for current song. Updating notification.")
-                        mediaSession?.let { onUpdateNotification(it) }
+                        mediaSession?.let { refreshSessionNotification(it) }
                     }
                 }
             }
@@ -229,22 +242,22 @@ class MusicService : MediaSessionService() {
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             requestWidgetFullUpdate()
-            mediaSession?.let { onUpdateNotification(it) }
+            mediaSession?.let { refreshSessionNotification(it) }
         }
 
         override fun onMediaItemTransition(item: MediaItem?, reason: Int) {
             requestWidgetFullUpdate(force = true)
-            mediaSession?.let { onUpdateNotification(it) }
+            mediaSession?.let { refreshSessionNotification(it) }
         }
 
         override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
             Timber.tag("MusicService")
                 .d("playerListener.onShuffleModeEnabledChanged: $shuffleModeEnabled")
-            mediaSession?.let { onUpdateNotification(it) }
+            mediaSession?.let { refreshSessionNotification(it) }
         }
 
         override fun onRepeatModeChanged(repeatMode: Int) {
-            mediaSession?.let { onUpdateNotification(it) }
+            mediaSession?.let { refreshSessionNotification(it) }
         }
 
         override fun onPlayerError(error: PlaybackException) {
@@ -427,6 +440,69 @@ class MusicService : MediaSessionService() {
 
     fun isSongFavorite(songId: String?): Boolean {
         return songId != null && favoriteSongIds.contains(songId)
+    }
+
+    private fun refreshSessionNotification(session: MediaSession) {
+        updateSessionCustomLayout(session)
+        super.onUpdateNotification(session)
+    }
+
+    private fun updateSessionCustomLayout(session: MediaSession) {
+        session.setCustomLayout(buildCustomLayout(session))
+    }
+
+    private fun buildCustomLayout(session: MediaSession): List<CommandButton> {
+        return listOf(
+            buildLikeCommandButton(session),
+            buildShuffleCommandButton(session),
+            buildRepeatCommandButton(session)
+        )
+    }
+
+    private fun buildLikeCommandButton(session: MediaSession): CommandButton {
+        val isFavorite = isSongFavorite(session.player.currentMediaItem?.mediaId)
+        val likeIcon = if (isFavorite) {
+            R.drawable.round_favorite_24
+        } else {
+            R.drawable.round_favorite_border_24
+        }
+
+        return CommandButton.Builder()
+            .setIconResId(likeIcon)
+            .setSessionCommand(SessionCommand(MusicNotificationProvider.CUSTOM_COMMAND_LIKE, Bundle.EMPTY))
+            .build()
+    }
+
+    private fun buildShuffleCommandButton(session: MediaSession): CommandButton {
+        val shuffleEnabled = session.player.shuffleModeEnabled
+        val shuffleCommandAction = if (shuffleEnabled) {
+            MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_OFF
+        } else {
+            MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_ON
+        }
+        val shuffleIcon = if (shuffleEnabled) {
+            R.drawable.rounded_shuffle_on_24
+        } else {
+            R.drawable.rounded_shuffle_24
+        }
+
+        return CommandButton.Builder()
+            .setIconResId(shuffleIcon)
+            .setSessionCommand(SessionCommand(shuffleCommandAction, Bundle.EMPTY))
+            .build()
+    }
+
+    private fun buildRepeatCommandButton(session: MediaSession): CommandButton {
+        val repeatIcon = when (session.player.repeatMode) {
+            Player.REPEAT_MODE_ONE -> R.drawable.rounded_repeat_one_on_24
+            Player.REPEAT_MODE_ALL -> R.drawable.rounded_repeat_on_24
+            else -> R.drawable.rounded_repeat_24
+        }
+
+        return CommandButton.Builder()
+            .setIconResId(repeatIcon)
+            .setSessionCommand(SessionCommand(MusicNotificationProvider.CUSTOM_COMMAND_CYCLE_REPEAT_MODE, Bundle.EMPTY))
+            .build()
     }
 }
 
