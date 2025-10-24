@@ -86,12 +86,13 @@ fun HomeScreen(
     // 1) Observar sólo la lista de canciones, que cambia con poca frecuencia
     val allSongs by playerViewModel.allSongsFlow.collectAsState(initial = emptyList())
     val dailyMixSongs by playerViewModel.dailyMixSongs.collectAsState()
+    val curatedYourMixSongs by playerViewModel.yourMixSongs.collectAsState()
 
-    val yourMixSongs = remember(dailyMixSongs, allSongs) {
-        if (dailyMixSongs.isNotEmpty()) {
-            dailyMixSongs
-        } else {
-            allSongs.toImmutableList()
+    val yourMixSongs = remember(curatedYourMixSongs, dailyMixSongs, allSongs) {
+        when {
+            curatedYourMixSongs.isNotEmpty() -> curatedYourMixSongs
+            dailyMixSongs.isNotEmpty() -> dailyMixSongs
+            else -> allSongs.toImmutableList()
         }
     }
 
