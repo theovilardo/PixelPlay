@@ -29,6 +29,8 @@ import coil.request.ImageRequest
 import coil.size.Size
 import android.os.Bundle
 import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionCommands
+import androidx.media3.session.SessionError
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.theveloper.pixelplay.MainActivity
@@ -88,6 +90,28 @@ class MusicService : MediaSessionService() {
         controller.initialize()
 
         val callback = object : MediaSession.Callback {
+            override fun onConnect(
+                session: MediaSession,
+                controller: MediaSession.ControllerInfo
+            ): MediaSession.ConnectionResult {
+                val defaultResult = super.onConnect(session, controller)
+                val customCommands = listOf(
+                    MusicNotificationProvider.CUSTOM_COMMAND_LIKE,
+                    MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_ON,
+                    MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_OFF,
+                    MusicNotificationProvider.CUSTOM_COMMAND_CYCLE_REPEAT_MODE
+                ).map { SessionCommand(it, Bundle.EMPTY) }
+
+                val sessionCommandsBuilder = SessionCommands.Builder()
+                    .addSessionCommands(defaultResult.availableSessionCommands.commands)
+                customCommands.forEach { sessionCommandsBuilder.add(it) }
+
+                return MediaSession.ConnectionResult.accept(
+                    sessionCommandsBuilder.build(),
+                    defaultResult.availablePlayerCommands
+                )
+            }
+
             override fun onCustomCommand(
                 session: MediaSession,
                 controller: MediaSession.ControllerInfo,
@@ -124,15 +148,23 @@ class MusicService : MediaSessionService() {
                         onUpdateNotification(session)
                     }
                     MusicNotificationProvider.CUSTOM_COMMAND_LIKE -> {
-                        val songId = session.player.currentMediaItem?.mediaId ?: return@onCustomCommand Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_UNKNOWN))
+                        val songId = session.player.currentMediaItem?.mediaId ?: return@onCustomCommand Futures.immediateFuture(SessionResult(
+                            SessionError.ERROR_UNKNOWN))
                         Timber.tag("MusicService").d("Executing LIKE for songId: $songId")
+                        val isCurrentlyFavorite = favoriteSongIds.contains(songId)
+                        favoriteSongIds = if (isCurrentlyFavorite) {
+                            favoriteSongIds - songId
+                        } else {
+                            favoriteSongIds + songId
+                        }
+        
+                        onUpdateNotification(session)
+
                         serviceScope.launch {
                             Timber.tag("MusicService").d("Toggling favorite status for $songId")
                             userPreferencesRepository.toggleFavoriteSong(songId)
                             Timber.tag("MusicService")
                                 .d("Toggled favorite status. Updating notification.")
-                            // The flow collector will handle the notification update,
-                            // but for instant feedback, we trigger it here too.
                             onUpdateNotification(session)
                         }
                     }
