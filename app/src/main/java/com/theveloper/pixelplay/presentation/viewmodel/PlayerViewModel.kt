@@ -489,6 +489,9 @@ class PlayerViewModel @Inject constructor(
     private val _dailyMixSongs = MutableStateFlow<ImmutableList<Song>>(persistentListOf())
     val dailyMixSongs: StateFlow<ImmutableList<Song>> = _dailyMixSongs.asStateFlow()
 
+    private val _yourMixSongs = MutableStateFlow<ImmutableList<Song>>(persistentListOf())
+    val yourMixSongs: StateFlow<ImmutableList<Song>> = _yourMixSongs.asStateFlow()
+
     private var dailyMixJob: Job? = null
 
     private fun updateDailyMix() {
@@ -498,10 +501,16 @@ class PlayerViewModel @Inject constructor(
             // We need all songs to generate the mix
             val allSongs = allSongsFlow.first()
             if (allSongs.isNotEmpty()) {
-                val mix = dailyMixManager.generateDailyMix(allSongs)
+                val favoriteIds = userPreferencesRepository.favoriteSongIdsFlow.first()
+                val mix = dailyMixManager.generateDailyMix(allSongs, favoriteIds)
                 _dailyMixSongs.value = mix.toImmutableList()
                 // Save the new mix
                 userPreferencesRepository.saveDailyMixSongIds(mix.map { it.id })
+
+                val yourMix = dailyMixManager.generateYourMix(allSongs, favoriteIds)
+                _yourMixSongs.value = yourMix.toImmutableList()
+            } else {
+                _yourMixSongs.value = persistentListOf()
             }
         }
     }
@@ -559,9 +568,9 @@ class PlayerViewModel @Inject constructor(
     private var remoteProgressObserverJob: Job? = null
     private var transitionSchedulerJob: Job? = null
 
-    private fun incrementSongScore(songId: String) {
+    private fun incrementSongScore(song: Song) {
         viewModelScope.launch(Dispatchers.IO) {
-            dailyMixManager.incrementScore(songId)
+            dailyMixManager.recordPlay(songId = song.id, songDurationMs = song.duration)
         }
     }
 
@@ -1317,12 +1326,12 @@ class PlayerViewModel @Inject constructor(
                         // If jumping fails, fall back to reloading the queue
                         playSongs(contextSongs, song, queueName, null)
                     } else {
-                        if (isVoluntaryPlay) incrementSongScore(song.id)
+                        if (isVoluntaryPlay) incrementSongScore(song)
                     }
                 }
             } else {
                 // Song not in remote queue, so start a new playback session.
-                if (isVoluntaryPlay) incrementSongScore(song.id)
+                if (isVoluntaryPlay) incrementSongScore(song)
                 playSongs(contextSongs, song, queueName, null)
             }
         } else {
@@ -1338,9 +1347,9 @@ class PlayerViewModel @Inject constructor(
                         controller.seekTo(songIndexInQueue, 0L)
                         controller.play()
                     }
-                    if (isVoluntaryPlay) incrementSongScore(song.id)
+                    if (isVoluntaryPlay) incrementSongScore(song)
                 } else {
-                    if (isVoluntaryPlay) incrementSongScore(song.id)
+                    if (isVoluntaryPlay) incrementSongScore(song)
                     playSongs(contextSongs, song, queueName, null)
                 }
             }
