@@ -84,7 +84,7 @@ fun PlayerSeekBar(
             activeTrackColor = primaryColor,
             inactiveTrackColor = primaryColor.copy(alpha = 0.2f),
             thumbColor = primaryColor,
-            waveFrequency = 0.08f,
+            waveLength = 80.dp,
             isPlaying = isPlaying
         )
         Text(

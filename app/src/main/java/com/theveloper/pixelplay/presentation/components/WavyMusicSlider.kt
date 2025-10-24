@@ -50,7 +50,8 @@ import androidx.compose.ui.util.lerp
  * @param inactiveTrackColor Color de la parte inactiva de la pista
  * @param thumbColor Color del thumb
  * @param waveAmplitude Amplitud de la onda
- * @param waveFrequency Frecuencia de la onda (mayor valor = más oscilaciones)
+ * @param waveLength Longitud de la onda expresada en Dp. Controla la distancia entre los picos
+ *                   de la onda a lo largo de la pista.
  * @param animationDuration Duración de la animación de la onda en milisegundos
  * @param hideInactiveTrack Si se debe ocultar la parte inactiva del track que ya ha sido recorrida
  * @param isPlaying Si el contenido asociado está reproduciéndose actualmente
@@ -72,7 +73,7 @@ fun WavyMusicSlider(
     inactiveTrackColor: Color = MaterialTheme.colorScheme.surfaceVariant,
     thumbColor: Color = MaterialTheme.colorScheme.primary,
     waveAmplitudeWhenPlaying: Dp = 3.dp,
-    waveFrequency: Float = 0.08f,
+    waveLength: Dp = 80.dp,
     waveAnimationDuration: Int = 2000,
     hideInactiveTrackPortion: Boolean = true,
     isPlaying: Boolean = true,
@@ -117,6 +118,12 @@ fun WavyMusicSlider(
     val trackHeightPx = with(LocalDensity.current) { trackHeight.toPx() }
     val thumbRadiusPx = with(LocalDensity.current) { thumbRadius.toPx() }
     val waveAmplitudePxInternal = with(LocalDensity.current) { animatedWaveAmplitude.toPx() }
+    val waveLengthPx = with(LocalDensity.current) { waveLength.toPx() }
+    val waveFrequency = if (waveLengthPx > 0f) {
+        ((2 * PI) / waveLengthPx).toFloat()
+    } else {
+        0f
+    }
     val thumbLineHeightPxInternal = with(LocalDensity.current) { thumbLineHeightWhenInteracting.toPx() }
     val thumbGapPx = with(LocalDensity.current) { 4.dp.toPx() }
 
@@ -306,7 +313,7 @@ fun WavyMusicSlider(
 //    inactiveTrackColor: Color = MaterialTheme.colorScheme.surfaceVariant,
 //    thumbColor: Color = MaterialTheme.colorScheme.primary,
 //    waveAmplitudeWhenPlaying: Dp = 3.dp,
-//    waveFrequency: Float = 0.08f,
+//    waveLength: Dp = 80.dp,
 //    waveAnimationDuration: Int = 2000,
 //    hideInactiveTrackPortion: Boolean = true,
 //    isPlaying: Boolean = true,
@@ -347,6 +354,8 @@ fun WavyMusicSlider(
 //    val waveAmplitudePxInternal = with(LocalDensity.current) { animatedWaveAmplitude.toPx() }
 //    val thumbLineHeightPxInternal = with(LocalDensity.current) { thumbLineHeightWhenInteracting.toPx() }
 //    val thumbGapPx = with(LocalDensity.current) { 4.dp.toPx() }
+//    val waveLengthPx = with(LocalDensity.current) { waveLength.toPx() }
+//    val waveFrequency = if (waveLengthPx > 0f) ((2 * PI) / waveLengthPx).toFloat() else 0f
 //
 //    val wavePath = remember { Path() }
 //
