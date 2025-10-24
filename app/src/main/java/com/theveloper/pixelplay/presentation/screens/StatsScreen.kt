@@ -53,6 +53,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.PlaybackStatsOverview
@@ -65,6 +66,7 @@ import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
 import java.util.Locale
 import kotlin.math.roundToInt
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun StatsScreen(
@@ -103,7 +105,7 @@ fun StatsScreen(
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 }
 
-                statsState.stats == null || statsState.stats.totalPlayCount == 0 -> {
+                statsState.stats == null || statsState.stats!!.totalPlayCount == 0 -> {
                     EmptyStatsState(modifier = Modifier.align(Alignment.Center))
                 }
 
@@ -185,10 +187,12 @@ private fun StatsSummaryCard(
     timeframe: StatsTimeframe,
     modifier: Modifier = Modifier
 ) {
+    val prim = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
+    val sec = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
     val gradient = remember {
         listOf(
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f),
-            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+            prim,
+            sec
         )
     }
     val averageLabel = stringResource(
@@ -505,11 +509,13 @@ fun StatsPreviewCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val prim = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
+    val sec = MaterialTheme.colorScheme.secondary.copy(alpha = 0.75f)
     val stats = state.stats
     val gradient = remember {
         listOf(
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
-            MaterialTheme.colorScheme.secondary.copy(alpha = 0.75f)
+            prim,
+            sec
         )
     }
 
