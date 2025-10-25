@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -67,8 +68,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -183,6 +186,12 @@ fun StatsScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
+                item {
+                    DailyListeningDistributionSection(
+                        summary = summary,
+                        modifier = Modifier.padding(horizontal = 20.dp)
+                    )
+                }
                 item {
                     ListeningTimelineSection(
                         summary = summary,
@@ -716,6 +725,19 @@ private fun HabitMetric(
     }
 }
 
+private fun formatMinutesWindowLabel(startMinute: Int, endMinute: Int): String {
+    val safeStart = startMinute.coerceIn(0, 24 * 60)
+    val safeEnd = endMinute.coerceIn(0, 24 * 60)
+    return "${formatHourLabel(safeStart)} – ${formatHourLabel(safeEnd)}"
+}
+
+private fun formatHourLabel(minute: Int): String {
+    val normalized = minute.coerceIn(0, 24 * 60)
+    val hours = normalized / 60
+    val mins = normalized % 60
+    return String.format(Locale.getDefault(), "%02d:%02d", hours % 24, mins)
+}
+
 @Composable
 private fun HighlightRow(
     title: String,
@@ -791,6 +813,103 @@ private enum class TimelineMetric(
             formatListeningDurationCompact(average)
         }
     )
+}
+
+@Composable
+private fun DailyListeningDistributionSection(
+    summary: PlaybackStatsRepository.PlaybackStatsSummary?,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = "Daily rhythm",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = "See when you listen most across the day.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        val distribution = summary?.dayListeningDistribution
+        if (distribution == null || distribution.buckets.isEmpty()) {
+            Text(
+                text = "Press play to build your daily listening fingerprint.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            val peakBucket = distribution.buckets.maxByOrNull { it.totalDurationMs }
+            if (peakBucket != null) {
+                HighlightRow(
+                    title = "Peak window",
+                    value = formatMinutesWindowLabel(peakBucket.startMinute, peakBucket.endMinuteExclusive),
+                    supporting = formatListeningDurationCompact(peakBucket.totalDurationMs),
+                    icon = Icons.Outlined.Bolt
+                )
+            }
+            DailyListeningTimeline(
+                distribution = distribution,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                listOf(0, 6 * 60, 12 * 60, 18 * 60, 24 * 60).forEach { minute ->
+                    Text(
+                        text = formatHourLabel(minute),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DailyListeningTimeline(
+    distribution: PlaybackStatsRepository.DayListeningDistribution,
+    modifier: Modifier = Modifier
+) {
+    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+    val gradientStart = MaterialTheme.colorScheme.primary
+    val gradientEnd = MaterialTheme.colorScheme.tertiary
+    Box(
+        modifier = modifier
+            .height(52.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .background(trackColor)
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val totalMinutes = 24f * 60f
+            val maxDuration = distribution.maxBucketDurationMs.coerceAtLeast(1L).toFloat()
+            distribution.buckets.forEach { bucket ->
+                val startFraction = bucket.startMinute.coerceIn(0, 24 * 60).toFloat() / totalMinutes
+                val endFraction = bucket.endMinuteExclusive.coerceIn(0, 24 * 60).toFloat() / totalMinutes
+                val left = size.width * startFraction
+                val right = size.width * endFraction
+                if (right <= left) return@forEach
+                val intensity = (bucket.totalDurationMs.toFloat() / maxDuration).coerceIn(0f, 1f)
+                val color = lerp(
+                    gradientStart.copy(alpha = 0.3f),
+                    gradientEnd.copy(alpha = 0.9f),
+                    intensity
+                )
+                drawRect(
+                    color = color,
+                    topLeft = Offset(left, 0f),
+                    size = Size(right - left, size.height)
+                )
+            }
+        }
+    }
 }
 
 @Composable

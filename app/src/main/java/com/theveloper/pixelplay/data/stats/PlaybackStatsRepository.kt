@@ -10,6 +10,7 @@ import java.io.File
 import java.time.DayOfWeek
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
 import java.time.Year
 import java.time.YearMonth
 import java.time.ZoneId
@@ -75,6 +76,35 @@ class PlaybackStatsRepository @Inject constructor(
         val playCount: Int
     )
 
+    data class PlaybackSegment(
+        val songId: String,
+        val startMillis: Long,
+        val endMillis: Long
+    ) {
+        val durationMs: Long
+            get() = (endMillis - startMillis).coerceAtLeast(0L)
+    }
+
+    data class PlaybackSpan(
+        val startMillis: Long,
+        val endMillis: Long
+    ) {
+        val durationMs: Long
+            get() = (endMillis - startMillis).coerceAtLeast(0L)
+    }
+
+    data class DayListeningDistribution(
+        val bucketSizeMinutes: Int,
+        val buckets: List<DailyListeningBucket>,
+        val maxBucketDurationMs: Long
+    )
+
+    data class DailyListeningBucket(
+        val startMinute: Int,
+        val endMinuteExclusive: Int,
+        val totalDurationMs: Long
+    )
+
     data class PlaybackStatsSummary(
         val range: StatsTimeRange,
         val startTimestamp: Long?,
@@ -94,6 +124,7 @@ class PlaybackStatsRepository @Inject constructor(
         val averageSessionDurationMs: Long,
         val longestSessionDurationMs: Long,
         val averageSessionsPerDay: Double,
+        val dayListeningDistribution: DayListeningDistribution?,
         val peakTimeline: TimelineEntry?,
         val peakDayLabel: String?,
         val peakDayDurationMs: Long
@@ -168,26 +199,32 @@ class PlaybackStatsRepository @Inject constructor(
             normalizeEventDuration(event, songMap[event.songId])
         }
 
+        val segmentsBySong = normalizedEvents
+            .groupBy { it.songId }
+            .mapValues { (_, eventsForSong) -> mergeSongEvents(eventsForSong) }
+
+        val overallSpans = mergeSpans(segmentsBySong.values.flatten().map { PlaybackSpan(it.startMillis, it.endMillis) })
+
         val effectiveStart = startBound
+            ?: overallSpans.minOfOrNull { it.startMillis }
             ?: normalizedEvents.minOfOrNull { it.startMillis() }
             ?: allEvents.minOfOrNull { it.startMillis() }
-        val effectiveEnd = normalizedEvents.maxOfOrNull { it.endMillis() } ?: endBound
+        val effectiveEnd = overallSpans.maxOfOrNull { it.endMillis } ?: endBound
 
-        val totalDuration = normalizedEvents.sumOf { it.durationMs }
-        val totalPlays = normalizedEvents.size
-        val uniqueSongs = normalizedEvents.map { it.songId }.toSet().size
+        val totalDuration = overallSpans.sumOf { it.durationMs }
+        val totalPlays = segmentsBySong.values.sumOf { it.size }
+        val uniqueSongs = segmentsBySong.keys.size
 
-        val allSongs = normalizedEvents
-            .groupBy { it.songId }
-            .map { (songId, eventsForSong) ->
+        val allSongs = segmentsBySong
+            .map { (songId, segmentsForSong) ->
                 val song = songMap[songId]
                 SongPlaybackSummary(
                     songId = songId,
                     title = song?.title ?: "Unknown Track",
                     artist = song?.artist ?: "Unknown Artist",
                     albumArtUri = song?.albumArtUriString,
-                    totalDurationMs = eventsForSong.sumOf { it.durationMs },
-                    playCount = eventsForSong.size
+                    totalDurationMs = segmentsForSong.sumOf { it.durationMs },
+                    playCount = segmentsForSong.size
                 )
             }
             .sortedWith(
@@ -208,9 +245,8 @@ class PlaybackStatsRepository @Inject constructor(
             totalDuration
         }
 
-        val eventsByDay = normalizedEvents.groupBy {
-            Instant.ofEpochMilli(it.endMillis()).atZone(zoneId).toLocalDate()
-        }
+        val daySlices = overallSpans.flatMap { sliceSpanByDay(it, zoneId) }
+        val eventsByDay = daySlices.groupBy { it.date }
         val activeDays = eventsByDay.size
         val sortedDays = eventsByDay.keys.sorted()
         var longestStreak = 0
@@ -228,7 +264,7 @@ class PlaybackStatsRepository @Inject constructor(
             lastDay = day
         }
 
-        val sessions = computeListeningSessions(normalizedEvents)
+        val sessions = computeListeningSessions(overallSpans)
         val totalSessions = sessions.size
         val totalSessionDuration = sessions.sumOf { it.totalDuration }
         val averageSessionDuration = if (totalSessions > 0) totalSessionDuration / totalSessions else 0L
@@ -239,21 +275,22 @@ class PlaybackStatsRepository @Inject constructor(
             range = range,
             zoneId = zoneId,
             now = Instant.ofEpochMilli(endBound),
-            events = normalizedEvents,
+            spans = overallSpans,
             fallbackStart = effectiveStart ?: endBound
         )
-        val timelineEntries = accumulateTimelineEntries(timelineBuckets, normalizedEvents)
+        val timelineEntries = accumulateTimelineEntries(timelineBuckets, overallSpans)
 
-        val topArtists = normalizedEvents
-            .groupBy { event ->
-                songMap[event.songId]?.artist?.takeIf { it.isNotBlank() } ?: "Unknown Artist"
+        val topArtists = segmentsBySong.entries
+            .groupBy { (songId, _) ->
+                songMap[songId]?.artist?.takeIf { it.isNotBlank() } ?: "Unknown Artist"
             }
-            .map { (artist, eventsForArtist) ->
-                val uniqueSongCount = eventsForArtist.map { it.songId }.toSet().size
+            .map { (artist, groupedSongs) ->
+                val flattened = groupedSongs.flatMap { it.value }
+                val uniqueSongCount = groupedSongs.size
                 ArtistPlaybackSummary(
                     artist = artist,
-                    totalDurationMs = eventsForArtist.sumOf { it.durationMs },
-                    playCount = eventsForArtist.size,
+                    totalDurationMs = flattened.sumOf { it.durationMs },
+                    playCount = flattened.size,
                     uniqueSongs = uniqueSongCount
                 )
             }
@@ -263,22 +300,23 @@ class PlaybackStatsRepository @Inject constructor(
             )
             .take(5)
 
-        val topAlbums = normalizedEvents
-            .groupBy { event ->
-                val song = songMap[event.songId]
+        val topAlbums = segmentsBySong.entries
+            .groupBy { (songId, _) ->
+                val song = songMap[songId]
                 song?.album?.takeIf { it.isNotBlank() } ?: "Unknown Album"
             }
-            .map { (album, eventsForAlbum) ->
-                val uniqueSongCount = eventsForAlbum.map { it.songId }.toSet().size
-                val firstSong = eventsForAlbum
+            .map { (album, groupedSongs) ->
+                val flattened = groupedSongs.flatMap { it.value }
+                val uniqueSongCount = groupedSongs.size
+                val firstSong = groupedSongs
                     .asSequence()
-                    .mapNotNull { songMap[it.songId] }
+                    .mapNotNull { songMap[it.key] }
                     .firstOrNull()
                 AlbumPlaybackSummary(
                     album = album,
                     albumArtUri = firstSong?.albumArtUriString,
-                    totalDurationMs = eventsForAlbum.sumOf { it.durationMs },
-                    playCount = eventsForAlbum.size,
+                    totalDurationMs = flattened.sumOf { it.durationMs },
+                    playCount = flattened.size,
                     uniqueSongs = uniqueSongCount
                 )
             }
@@ -292,14 +330,15 @@ class PlaybackStatsRepository @Inject constructor(
             .filter { it.totalDurationMs > 0L }
             .maxByOrNull { it.totalDurationMs }
 
-        val durationsByDayOfWeek = normalizedEvents.groupBy {
-            Instant.ofEpochMilli(it.endMillis()).atZone(zoneId).dayOfWeek
+        val durationsByDayOfWeek = daySlices.groupBy { slice ->
+            slice.date.dayOfWeek
         }
         val peakDay = durationsByDayOfWeek.maxByOrNull { entry ->
             entry.value.sumOf { it.durationMs }
         }
         val peakDayLabel = peakDay?.key?.getDisplayName(TextStyle.FULL, Locale.US)
         val peakDayDuration = peakDay?.value?.sumOf { it.durationMs } ?: 0L
+        val dayListeningDistribution = computeDayListeningDistribution(overallSpans, zoneId)
 
         return PlaybackStatsSummary(
             range = range,
@@ -320,6 +359,7 @@ class PlaybackStatsRepository @Inject constructor(
             averageSessionDurationMs = averageSessionDuration,
             longestSessionDurationMs = longestSessionDuration,
             averageSessionsPerDay = averageSessionsPerDay,
+            dayListeningDistribution = dayListeningDistribution,
             peakTimeline = peakTimeline,
             peakDayLabel = peakDayLabel,
             peakDayDurationMs = peakDayDuration
@@ -399,6 +439,126 @@ class PlaybackStatsRepository @Inject constructor(
         )
     }
 
+    private fun mergeSongEvents(events: List<PlaybackEvent>): List<PlaybackSegment> {
+        if (events.isEmpty()) return emptyList()
+        val sorted = events.sortedBy { it.startMillis() }
+        val songId = sorted.first().songId
+        val segments = mutableListOf<PlaybackSegment>()
+        var currentStart = sorted.first().startMillis()
+        var currentEnd = sorted.first().endMillis()
+        for (index in 1 until sorted.size) {
+            val event = sorted[index]
+            val start = event.startMillis()
+            val end = event.endMillis()
+            if (start <= currentEnd + SEGMENT_JOIN_TOLERANCE_MS) {
+                currentEnd = max(currentEnd, end)
+            } else {
+                segments += PlaybackSegment(songId, currentStart, currentEnd)
+                currentStart = start
+                currentEnd = end
+            }
+        }
+        segments += PlaybackSegment(songId, currentStart, currentEnd)
+        return segments
+    }
+
+    private fun mergeSpans(spans: List<PlaybackSpan>): List<PlaybackSpan> {
+        if (spans.isEmpty()) return emptyList()
+        val sorted = spans.sortedBy { it.startMillis }
+        val merged = mutableListOf<PlaybackSpan>()
+        var currentStart = sorted.first().startMillis
+        var currentEnd = sorted.first().endMillis
+        for (index in 1 until sorted.size) {
+            val span = sorted[index]
+            val start = span.startMillis
+            val end = span.endMillis
+            if (start <= currentEnd + SEGMENT_JOIN_TOLERANCE_MS) {
+                currentEnd = max(currentEnd, end)
+            } else {
+                merged += PlaybackSpan(currentStart, currentEnd)
+                currentStart = start
+                currentEnd = end
+            }
+        }
+        merged += PlaybackSpan(currentStart, currentEnd)
+        return merged
+    }
+
+    private data class DaySlice(
+        val date: LocalDate,
+        val durationMs: Long
+    )
+
+    private fun sliceSpanByDay(span: PlaybackSpan, zoneId: ZoneId): List<DaySlice> {
+        if (span.durationMs <= 0L) return emptyList()
+        val slices = mutableListOf<DaySlice>()
+        var cursor = span.startMillis
+        val end = span.endMillis
+        while (cursor < end) {
+            val zoned = Instant.ofEpochMilli(cursor).atZone(zoneId)
+            val dayStart = zoned.toLocalDate().atStartOfDay(zoneId).toInstant().toEpochMilli()
+            val nextDayStart = zoned.toLocalDate().plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
+            val sliceEnd = min(end, nextDayStart)
+            val sliceDuration = (sliceEnd - cursor).coerceAtLeast(0L)
+            if (sliceDuration > 0L) {
+                slices += DaySlice(zoned.toLocalDate(), sliceDuration)
+            }
+            cursor = sliceEnd
+        }
+        return slices
+    }
+
+    private fun computeDayListeningDistribution(
+        spans: List<PlaybackSpan>,
+        zoneId: ZoneId,
+        bucketSizeMinutes: Int = 5
+    ): DayListeningDistribution? {
+        if (spans.isEmpty()) return null
+        val bucketDurationMs = TimeUnit.MINUTES.toMillis(bucketSizeMinutes.toLong())
+        val minutesPerDay = TimeUnit.DAYS.toMinutes(1)
+        val bucketCount = (minutesPerDay / bucketSizeMinutes).toInt().coerceAtLeast(1)
+        val totals = LongArray(bucketCount)
+        spans.forEach { span ->
+            var cursor = span.startMillis
+            val end = span.endMillis
+            while (cursor < end) {
+                val zoned = Instant.ofEpochMilli(cursor).atZone(zoneId)
+                val dayStart = zoned.toLocalDate().atStartOfDay(zoneId).toInstant().toEpochMilli()
+                var bucketIndex = ((cursor - dayStart) / bucketDurationMs).toInt()
+                if (bucketIndex >= bucketCount) {
+                    bucketIndex = bucketCount - 1
+                } else if (bucketIndex < 0) {
+                    bucketIndex = 0
+                }
+                val bucketStart = dayStart + bucketIndex * bucketDurationMs
+                val bucketEnd = min(end, bucketStart + bucketDurationMs)
+                totals[bucketIndex] += bucketEnd - cursor
+                cursor = bucketEnd
+            }
+        }
+        val buckets = buildList {
+            for (index in 0 until bucketCount) {
+                val durationMs = totals[index]
+                if (durationMs > 0L) {
+                    add(
+                        DailyListeningBucket(
+                            startMinute = index * bucketSizeMinutes,
+                            endMinuteExclusive = (index + 1) * bucketSizeMinutes,
+                            totalDurationMs = durationMs
+                        )
+                    )
+                }
+            }
+        }
+        if (buckets.isEmpty()) return null
+        val maxBucketDuration = buckets.maxOf { it.totalDurationMs }.coerceAtLeast(0L)
+        return DayListeningDistribution(
+            bucketSizeMinutes = bucketSizeMinutes,
+            buckets = buckets,
+            maxBucketDurationMs = maxBucketDuration
+        )
+    }
+
     private data class ListeningSessionAggregate(
         var start: Long,
         var end: Long,
@@ -406,33 +566,33 @@ class PlaybackStatsRepository @Inject constructor(
         var playCount: Int
     )
 
-    private fun computeListeningSessions(events: List<PlaybackEvent>): List<ListeningSessionAggregate> {
-        if (events.isEmpty()) return emptyList()
-        val sorted = events.sortedBy { it.startMillis() }
+    private fun computeListeningSessions(spans: List<PlaybackSpan>): List<ListeningSessionAggregate> {
+        if (spans.isEmpty()) return emptyList()
+        val sorted = spans.sortedBy { it.startMillis }
         val sessions = mutableListOf<ListeningSessionAggregate>()
 
         var current = ListeningSessionAggregate(
-            start = sorted.first().startMillis(),
-            end = sorted.first().endMillis(),
+            start = sorted.first().startMillis,
+            end = sorted.first().endMillis,
             totalDuration = sorted.first().durationMs,
             playCount = 1
         )
 
         for (index in 1 until sorted.size) {
-            val event = sorted[index]
-            val eventStart = event.startMillis()
-            val eventEnd = event.endMillis()
-            val gap = eventStart - current.end
+            val span = sorted[index]
+            val spanStart = span.startMillis
+            val spanEnd = span.endMillis
+            val gap = spanStart - current.end
             if (gap <= sessionGapThresholdMs) {
-                current.end = max(current.end, eventEnd)
-                current.totalDuration += event.durationMs
+                current.end = max(current.end, spanEnd)
+                current.totalDuration += span.durationMs
                 current.playCount += 1
             } else {
                 sessions += current
                 current = ListeningSessionAggregate(
-                    start = eventStart,
-                    end = eventEnd,
-                    totalDuration = event.durationMs,
+                    start = spanStart,
+                    end = spanEnd,
+                    totalDuration = span.durationMs,
                     playCount = 1
                 )
             }
@@ -454,24 +614,24 @@ class PlaybackStatsRepository @Inject constructor(
 
     private fun accumulateTimelineEntries(
         buckets: List<TimelineBucket>,
-        events: List<PlaybackEvent>
+        spans: List<PlaybackSpan>
     ): List<TimelineEntry> {
         if (buckets.isEmpty()) return emptyList()
         val durationByBucket = LongArray(buckets.size)
         val playCountByBucket = DoubleArray(buckets.size)
-        events.forEach { event ->
-            val eventStart = event.startMillis()
-            val eventEnd = event.endMillis()
-            val eventDuration = (event.durationMs.takeIf { it > 0 } ?: (eventEnd - eventStart)).coerceAtLeast(0L)
-            if (eventDuration <= 0L) return@forEach
+        spans.forEach { span ->
+            val spanStart = span.startMillis
+            val spanEnd = span.endMillis
+            val spanDuration = span.durationMs
+            if (spanDuration <= 0L) return@forEach
             buckets.forEachIndexed { index, bucket ->
                 val bucketEndExclusive = if (bucket.inclusiveEnd) bucket.endMillis + 1 else bucket.endMillis
-                val overlapStart = max(eventStart, bucket.startMillis)
-                val overlapEnd = min(eventEnd, bucketEndExclusive)
+                val overlapStart = max(spanStart, bucket.startMillis)
+                val overlapEnd = min(spanEnd, bucketEndExclusive)
                 val overlap = (overlapEnd - overlapStart).coerceAtLeast(0L)
                 if (overlap > 0) {
                     durationByBucket[index] += overlap
-                    playCountByBucket[index] += overlap.toDouble() / eventDuration.toDouble()
+                    playCountByBucket[index] += overlap.toDouble() / spanDuration.toDouble()
                 }
             }
         }
@@ -488,7 +648,7 @@ class PlaybackStatsRepository @Inject constructor(
         range: StatsTimeRange,
         zoneId: ZoneId,
         now: Instant,
-        events: List<PlaybackEvent>,
+        spans: List<PlaybackSpan>,
         fallbackStart: Long
     ): List<TimelineBucket> {
         return when (range) {
@@ -496,7 +656,7 @@ class PlaybackStatsRepository @Inject constructor(
             StatsTimeRange.WEEK -> createWeekBuckets(zoneId, now)
             StatsTimeRange.MONTH -> createMonthBuckets(zoneId, now)
             StatsTimeRange.YEAR -> createYearBuckets(zoneId, now)
-            StatsTimeRange.ALL -> createAllTimeBuckets(zoneId, events, fallbackStart, now)
+            StatsTimeRange.ALL -> createAllTimeBuckets(zoneId, spans, fallbackStart, now)
         }
     }
 
@@ -577,13 +737,13 @@ class PlaybackStatsRepository @Inject constructor(
 
     private fun createAllTimeBuckets(
         zoneId: ZoneId,
-        events: List<PlaybackEvent>,
+        spans: List<PlaybackSpan>,
         fallbackStart: Long,
         now: Instant
     ): List<TimelineBucket> {
-        val allEvents = if (events.isEmpty()) listOf(PlaybackEvent("", fallbackStart, 0)) else events
-        val minTimestamp = allEvents.minOfOrNull { it.startMillis() } ?: fallbackStart
-        val maxTimestamp = allEvents.maxOfOrNull { it.endMillis() } ?: now.toEpochMilli()
+        val allSpans = if (spans.isEmpty()) listOf(PlaybackSpan(fallbackStart, fallbackStart)) else spans
+        val minTimestamp = allSpans.minOfOrNull { it.startMillis } ?: fallbackStart
+        val maxTimestamp = allSpans.maxOfOrNull { it.endMillis } ?: now.toEpochMilli()
         val startYear = Instant.ofEpochMilli(minTimestamp).atZone(zoneId).year
         val endYear = Instant.ofEpochMilli(maxTimestamp).atZone(zoneId).year
         if (startYear > endYear) return emptyList()
@@ -666,6 +826,7 @@ class PlaybackStatsRepository @Inject constructor(
     companion object {
         private val MAX_HISTORY_AGE_MS = TimeUnit.DAYS.toMillis(730) // Keep roughly two years of history
         private val MAX_REASONABLE_EVENT_DURATION_MS = TimeUnit.HOURS.toMillis(8)
+        private val SEGMENT_JOIN_TOLERANCE_MS = TimeUnit.SECONDS.toMillis(2)
     }
 }
 
