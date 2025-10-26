@@ -27,11 +27,12 @@ fun ExpressiveTopBarContent(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     containerHeightRange: Pair<Dp, Dp> = 88.dp to 56.dp,
+    titlePaddingRange: Pair<Dp, Dp> = 32.dp to 58.dp,
     supportingContent: (@Composable () -> Unit)? = null
 ) {
     val clampedFraction = collapseFraction.coerceIn(0f, 1f)
     val titleScale = lerp(1.2f, 0.8f, clampedFraction)
-    val titlePaddingStart = lerp(32.dp, 58.dp, clampedFraction)
+    val titlePaddingStart = lerp(titlePaddingRange.first, titlePaddingRange.second, clampedFraction)
     val titleVerticalBias = lerp(1f, -1f, clampedFraction)
     val animatedTitleAlignment = BiasAlignment(horizontalBias = -1f, verticalBias = titleVerticalBias)
     val titleContainerHeight = lerp(containerHeightRange.first, containerHeightRange.second, clampedFraction)
