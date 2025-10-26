@@ -112,7 +112,7 @@ fun StatsScreen(
     val coroutineScope = rememberCoroutineScope()
 
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val minTopBarHeight = 68.dp + statusBarHeight
+    val minTopBarHeight = 62.dp + statusBarHeight
     val maxTopBarHeight = 176.dp
 
     val minTopBarHeightPx = with(density) { minTopBarHeight.toPx() }
@@ -314,7 +314,8 @@ private fun StatsTopBar(
                     .fillMaxSize()
                     .padding(start = 0.dp, end = 0.dp),
                 containerHeightRange = 80.dp to 56.dp,
-                titlePaddingRange = 28.dp to 44.dp
+                titlePaddingRange = 28.dp to 44.dp,
+                collapsedTitleVerticalBias = -0.4f
             )
         }
     }
