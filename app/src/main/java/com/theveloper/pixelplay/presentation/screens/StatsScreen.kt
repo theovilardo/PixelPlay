@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -166,6 +167,7 @@ fun StatsScreen(
 
     val currentTopBarHeightDp = with(density) { topBarHeight.value.toDp() }
     val tabsHeight = 56.dp
+    val tabContentSpacing = 20.dp
     var selectedTimelineMetric by rememberSaveable { mutableStateOf(TimelineMetric.ListeningTime) }
 
     Box(
@@ -185,7 +187,7 @@ fun StatsScreen(
                 state = lazyListState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
-                    top = currentTopBarHeightDp + tabsHeight + 24.dp,
+                    top = currentTopBarHeightDp + tabsHeight + tabContentSpacing,
                     bottom = 32.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
@@ -244,7 +246,7 @@ fun StatsScreen(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
-                .height(currentTopBarHeightDp + tabsHeight)
+                .height(currentTopBarHeightDp + tabsHeight + tabContentSpacing)
         ) {
             Column {
                 StatsTopBar(
@@ -258,6 +260,13 @@ fun StatsScreen(
                     selected = uiState.selectedRange,
                     onRangeSelected = statsViewModel::onRangeSelected,
                     //modifier = Modifier.align(Alignment.BottomCenter)
+                )
+
+                Spacer(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(tabContentSpacing)
+                        .background(MaterialTheme.colorScheme.surface)
                 )
             }
         }
