@@ -96,12 +96,19 @@ class PlaybackStatsRepository @Inject constructor(
     data class DayListeningDistribution(
         val bucketSizeMinutes: Int,
         val buckets: List<DailyListeningBucket>,
-        val maxBucketDurationMs: Long
+        val maxBucketDurationMs: Long,
+        val days: List<DailyListeningDay>
     )
 
     data class DailyListeningBucket(
         val startMinute: Int,
         val endMinuteExclusive: Int,
+        val totalDurationMs: Long
+    )
+
+    data class DailyListeningDay(
+        val date: LocalDate,
+        val buckets: List<DailyListeningBucket>,
         val totalDurationMs: Long
     )
 
@@ -338,7 +345,13 @@ class PlaybackStatsRepository @Inject constructor(
         }
         val peakDayLabel = peakDay?.key?.getDisplayName(TextStyle.FULL, Locale.US)
         val peakDayDuration = peakDay?.value?.sumOf { it.durationMs } ?: 0L
-        val dayListeningDistribution = computeDayListeningDistribution(overallSpans, zoneId)
+        val dayListeningDistribution = computeDayListeningDistribution(
+            spans = overallSpans,
+            zoneId = zoneId,
+            range = range,
+            startBound = startBound,
+            endBound = endBound
+        )
 
         return PlaybackStatsSummary(
             range = range,
@@ -511,6 +524,9 @@ class PlaybackStatsRepository @Inject constructor(
     private fun computeDayListeningDistribution(
         spans: List<PlaybackSpan>,
         zoneId: ZoneId,
+        range: StatsTimeRange,
+        startBound: Long?,
+        endBound: Long,
         bucketSizeMinutes: Int = 5
     ): DayListeningDistribution? {
         if (spans.isEmpty()) return null
@@ -518,12 +534,14 @@ class PlaybackStatsRepository @Inject constructor(
         val minutesPerDay = TimeUnit.DAYS.toMinutes(1)
         val bucketCount = (minutesPerDay / bucketSizeMinutes).toInt().coerceAtLeast(1)
         val totals = LongArray(bucketCount)
+        val totalsByDay = mutableMapOf<LocalDate, LongArray>()
         spans.forEach { span ->
             var cursor = span.startMillis
             val end = span.endMillis
             while (cursor < end) {
                 val zoned = Instant.ofEpochMilli(cursor).atZone(zoneId)
-                val dayStart = zoned.toLocalDate().atStartOfDay(zoneId).toInstant().toEpochMilli()
+                val day = zoned.toLocalDate()
+                val dayStart = day.atStartOfDay(zoneId).toInstant().toEpochMilli()
                 var bucketIndex = ((cursor - dayStart) / bucketDurationMs).toInt()
                 if (bucketIndex >= bucketCount) {
                     bucketIndex = bucketCount - 1
@@ -532,8 +550,13 @@ class PlaybackStatsRepository @Inject constructor(
                 }
                 val bucketStart = dayStart + bucketIndex * bucketDurationMs
                 val bucketEnd = min(end, bucketStart + bucketDurationMs)
-                totals[bucketIndex] += bucketEnd - cursor
-                cursor = bucketEnd
+                val contribution = (bucketEnd - cursor).coerceAtLeast(0L)
+                if (contribution > 0L) {
+                    totals[bucketIndex] += contribution
+                    val dayTotals = totalsByDay.getOrPut(day) { LongArray(bucketCount) }
+                    dayTotals[bucketIndex] += contribution
+                }
+                cursor = if (bucketEnd > cursor) bucketEnd else end
             }
         }
         val buckets = buildList {
@@ -552,10 +575,55 @@ class PlaybackStatsRepository @Inject constructor(
         }
         if (buckets.isEmpty()) return null
         val maxBucketDuration = buckets.maxOf { it.totalDurationMs }.coerceAtLeast(0L)
+
+        val daySequence: List<LocalDate> = when (range) {
+            StatsTimeRange.DAY -> {
+                val anchor = startBound?.let { Instant.ofEpochMilli(it) }
+                    ?: spans.minOfOrNull { Instant.ofEpochMilli(it.startMillis) }
+                    ?: Instant.ofEpochMilli(endBound)
+                listOf(anchor.atZone(zoneId).toLocalDate())
+            }
+            StatsTimeRange.WEEK -> {
+                val anchor = startBound?.let { Instant.ofEpochMilli(it) }
+                    ?: spans.minOfOrNull { Instant.ofEpochMilli(it.startMillis) }
+                    ?: Instant.ofEpochMilli(endBound)
+                val startDate = anchor.atZone(zoneId).toLocalDate()
+                (0 until 7).map { offset -> startDate.plusDays(offset.toLong()) }
+            }
+            else -> totalsByDay.keys.sorted()
+        }
+
+        val days = daySequence.map { date ->
+            val bucketTotals = totalsByDay[date]
+            val dayBuckets = buildList {
+                if (bucketTotals != null) {
+                    for (index in 0 until bucketCount) {
+                        val duration = bucketTotals[index]
+                        if (duration > 0L) {
+                            add(
+                                DailyListeningBucket(
+                                    startMinute = index * bucketSizeMinutes,
+                                    endMinuteExclusive = (index + 1) * bucketSizeMinutes,
+                                    totalDurationMs = duration
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+            val totalDuration = bucketTotals?.sumOf { it } ?: 0L
+            DailyListeningDay(
+                date = date,
+                buckets = dayBuckets,
+                totalDurationMs = totalDuration
+            )
+        }
+
         return DayListeningDistribution(
             bucketSizeMinutes = bucketSizeMinutes,
             buckets = buckets,
-            maxBucketDurationMs = maxBucketDuration
+            maxBucketDurationMs = maxBucketDuration,
+            days = days
         )
     }
 

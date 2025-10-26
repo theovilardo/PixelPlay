@@ -91,6 +91,8 @@ import com.theveloper.pixelplay.presentation.screens.TabAnimation
 import com.theveloper.pixelplay.presentation.viewmodel.StatsViewModel
 import com.theveloper.pixelplay.utils.formatListeningDurationCompact
 import com.theveloper.pixelplay.utils.formatListeningDurationLong
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
@@ -841,6 +843,7 @@ private fun DailyListeningDistributionSection(
         )
 
         val distribution = summary?.dayListeningDistribution
+        val isWeeklyRange = summary?.range == StatsTimeRange.WEEK
         if (distribution == null || distribution.buckets.isEmpty()) {
             Text(
                 text = "Press play to build your daily listening fingerprint.",
@@ -857,21 +860,53 @@ private fun DailyListeningDistributionSection(
                     icon = Icons.Outlined.Bolt
                 )
             }
-            DailyListeningTimeline(
-                distribution = distribution,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                listOf(0, 6 * 60, 12 * 60, 18 * 60, 24 * 60).forEach { minute ->
-                    Text(
-                        text = formatHourLabel(minute),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+            if (isWeeklyRange) {
+                WeeklyDailyListeningTimeline(
+                    distribution = distribution,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else {
+                DailyListeningTimeline(
+                    buckets = distribution.buckets,
+                    maxBucketDurationMs = distribution.maxBucketDurationMs,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            HourMarkersRow()
+        }
+    }
+}
+
+@Composable
+private fun WeeklyDailyListeningTimeline(
+    distribution: PlaybackStatsRepository.DayListeningDistribution,
+    modifier: Modifier = Modifier
+) {
+    val locale = Locale.getDefault()
+    val dateFormatter = remember(locale) { DateTimeFormatter.ofPattern("MMM d", locale) }
+    val perDayMax = remember(distribution.days) {
+        distribution.days.maxOfOrNull { day ->
+            day.buckets.maxOfOrNull { it.totalDurationMs } ?: 0L
+        }?.coerceAtLeast(1L) ?: 1L
+    }
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        distribution.days.forEach { day ->
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val dayOfWeek = day.date.dayOfWeek.getDisplayName(TextStyle.SHORT, locale)
+                val formattedDate = day.date.format(dateFormatter)
+                Text(
+                    text = "$dayOfWeek · $formattedDate",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                DailyListeningTimeline(
+                    buckets = day.buckets,
+                    maxBucketDurationMs = perDayMax,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }
@@ -879,7 +914,8 @@ private fun DailyListeningDistributionSection(
 
 @Composable
 private fun DailyListeningTimeline(
-    distribution: PlaybackStatsRepository.DayListeningDistribution,
+    buckets: List<PlaybackStatsRepository.DailyListeningBucket>,
+    maxBucketDurationMs: Long,
     modifier: Modifier = Modifier
 ) {
     val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
@@ -893,8 +929,8 @@ private fun DailyListeningTimeline(
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val totalMinutes = 24f * 60f
-            val maxDuration = distribution.maxBucketDurationMs.coerceAtLeast(1L).toFloat()
-            distribution.buckets.forEach { bucket ->
+            val maxDuration = maxBucketDurationMs.coerceAtLeast(1L).toFloat()
+            buckets.forEach { bucket ->
                 val startFraction = bucket.startMinute.coerceIn(0, 24 * 60).toFloat() / totalMinutes
                 val endFraction = bucket.endMinuteExclusive.coerceIn(0, 24 * 60).toFloat() / totalMinutes
                 val left = size.width * startFraction
@@ -912,6 +948,22 @@ private fun DailyListeningTimeline(
                     size = Size(right - left, size.height)
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun HourMarkersRow(modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        listOf(0, 6 * 60, 12 * 60, 18 * 60, 24 * 60).forEach { minute ->
+            Text(
+                text = formatHourLabel(minute),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
