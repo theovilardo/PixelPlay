@@ -167,6 +167,7 @@ fun StatsScreen(
 
     val currentTopBarHeightDp = with(density) { topBarHeight.value.toDp() }
     val tabsHeight = 56.dp
+    val tabIndicatorExtraSpacing = 6.dp
     val tabContentSpacing = 20.dp
     var selectedTimelineMetric by rememberSaveable { mutableStateOf(TimelineMetric.ListeningTime) }
 
@@ -187,7 +188,7 @@ fun StatsScreen(
                 state = lazyListState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
-                    top = currentTopBarHeightDp + tabsHeight + tabContentSpacing,
+                    top = currentTopBarHeightDp + tabsHeight + tabIndicatorExtraSpacing + tabContentSpacing,
                     bottom = 32.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
@@ -246,7 +247,7 @@ fun StatsScreen(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
-                .height(currentTopBarHeightDp + tabsHeight + tabContentSpacing)
+                .height(currentTopBarHeightDp + tabsHeight + tabIndicatorExtraSpacing + tabContentSpacing)
         ) {
             Column {
                 StatsTopBar(
@@ -259,6 +260,7 @@ fun StatsScreen(
                     ranges = uiState.availableRanges,
                     selected = uiState.selectedRange,
                     onRangeSelected = statsViewModel::onRangeSelected,
+                    indicatorSpacing = tabIndicatorExtraSpacing,
                     //modifier = Modifier.align(Alignment.BottomCenter)
                 )
 
@@ -578,6 +580,7 @@ private fun RangeTabsHeader(
     ranges: List<StatsTimeRange>,
     selected: StatsTimeRange,
     onRangeSelected: (StatsTimeRange) -> Unit,
+    indicatorSpacing: Dp,
     modifier: Modifier = Modifier
 ) {
     val selectedIndex = remember(ranges, selected) { ranges.indexOf(selected).coerceAtLeast(0) }
@@ -589,6 +592,7 @@ private fun RangeTabsHeader(
         //shadowElevation = 6.dp
     ) {
         ScrollableTabRow(
+            modifier = Modifier.padding(bottom = indicatorSpacing),
             selectedTabIndex = selectedIndex,
             edgePadding = 20.dp,
             divider = {},
