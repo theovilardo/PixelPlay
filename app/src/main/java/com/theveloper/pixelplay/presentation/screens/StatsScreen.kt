@@ -177,6 +177,8 @@ fun StatsScreen(
                 CircularProgressIndicator()
             }
         } else {
+            val showDailyRhythm = summary?.range == StatsTimeRange.DAY || summary?.range == StatsTimeRange.WEEK
+
             LazyColumn(
                 state = lazyListState,
                 modifier = Modifier.fillMaxSize(),
@@ -186,11 +188,13 @@ fun StatsScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                item {
-                    DailyListeningDistributionSection(
-                        summary = summary,
-                        modifier = Modifier.padding(horizontal = 20.dp)
-                    )
+                if (showDailyRhythm) {
+                    item {
+                        DailyListeningDistributionSection(
+                            summary = summary,
+                            modifier = Modifier.padding(horizontal = 20.dp)
+                        )
+                    }
                 }
                 item {
                     ListeningTimelineSection(
