@@ -73,6 +73,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -87,6 +88,7 @@ import androidx.navigation.NavController
 import com.theveloper.pixelplay.data.stats.PlaybackStatsRepository
 import com.theveloper.pixelplay.data.stats.StatsTimeRange
 import com.theveloper.pixelplay.presentation.components.ExpressiveTopBarContent
+import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.screens.TabAnimation
 import com.theveloper.pixelplay.presentation.viewmodel.StatsViewModel
@@ -166,8 +168,8 @@ fun StatsScreen(
     }
 
     val currentTopBarHeightDp = with(density) { topBarHeight.value.toDp() }
-    val tabsHeight = 56.dp
-    val tabIndicatorExtraSpacing = 6.dp
+    val tabsHeight = 62.dp
+    val tabIndicatorExtraSpacing = 8.dp
     val tabContentSpacing = 20.dp
     var selectedTimelineMetric by rememberSaveable { mutableStateOf(TimelineMetric.ListeningTime) }
 
@@ -186,10 +188,11 @@ fun StatsScreen(
 
             LazyColumn(
                 state = lazyListState,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize(),
                 contentPadding = PaddingValues(
-                    top = currentTopBarHeightDp + tabsHeight + tabIndicatorExtraSpacing + tabContentSpacing,
-                    bottom = 32.dp
+                    top = currentTopBarHeightDp + tabsHeight + tabIndicatorExtraSpacing + tabContentSpacing + 20.dp,
+                    bottom = 32.dp + MiniPlayerHeight
                 ),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
@@ -252,7 +255,7 @@ fun StatsScreen(
             Column {
                 StatsTopBar(
                     collapseFraction = collapseFraction,
-                    height = currentTopBarHeightDp,
+                    height = currentTopBarHeightDp + 8.dp,
                     onBackClick = { navController.popBackStack() }
                 )
 
@@ -261,7 +264,7 @@ fun StatsScreen(
                     selected = uiState.selectedRange,
                     onRangeSelected = statsViewModel::onRangeSelected,
                     indicatorSpacing = tabIndicatorExtraSpacing,
-                    //modifier = Modifier.align(Alignment.BottomCenter)
+                    //modifier = Modifier.padding(bottom = 8.dp)
                 )
 
                 Spacer(
@@ -713,7 +716,7 @@ private fun ListeningHabitsCard(
 
 @Composable
 private fun HabitMetric(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     label: String,
     value: String
 ) {
@@ -765,7 +768,7 @@ private fun HighlightRow(
     title: String,
     value: String,
     supporting: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector
+    icon: ImageVector
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -1003,7 +1006,7 @@ private fun ListeningTimelineSection(
         )
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             TimelineMetric.entries.forEach { metric ->
                 val isSelected = metric == selectedMetric
@@ -1025,7 +1028,9 @@ private fun ListeningTimelineSection(
                     ),
                     border = FilterChipDefaults.filterChipBorder(
                         borderColor = if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outlineVariant,
-                        selectedBorderColor = Color.Transparent
+                        selectedBorderColor = Color.Transparent,
+                        enabled = true,
+                        selected = isSelected
                     )
                 )
             }
