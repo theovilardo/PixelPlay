@@ -7,17 +7,20 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,6 +36,7 @@ import com.theveloper.pixelplay.data.stats.PlaybackStatsRepository
 import com.theveloper.pixelplay.data.stats.StatsTimeRange
 import com.theveloper.pixelplay.utils.formatListeningDurationCompact
 import com.theveloper.pixelplay.utils.formatListeningDurationLong
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,11 +46,22 @@ fun StatsOverviewCard(
     onClick: () -> Unit
 ) {
     val containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+    val shape = AbsoluteSmoothCornerShape(
+        cornerRadiusTL = 28.dp,
+        smoothnessAsPercentTR = 60,
+        cornerRadiusBR = 28.dp,
+        smoothnessAsPercentTL = 60,
+        cornerRadiusBL = 28.dp,
+        smoothnessAsPercentBR = 60,
+        cornerRadiusTR = 28.dp,
+        smoothnessAsPercentBL = 60,
+    )
+
     Card(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(28.dp),
+        shape = shape,
         colors = CardDefaults.cardColors(containerColor = containerColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         onClick = onClick
@@ -57,20 +72,24 @@ fun StatsOverviewCard(
                     Brush.linearGradient(
                         listOf(
                             MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
-                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f),
+                            //MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f),
                             MaterialTheme.colorScheme.surface
                         )
                     )
                 )
-                .padding(24.dp)
+                //.padding(24.dp)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(color = MaterialTheme.colorScheme.surfaceContainer),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column {
+                    Column(
+                        Modifier.padding(start = 24.dp, top = 24.dp, bottom = 24.dp)
+                    ) {
                         Text(
                             text = "Listening stats",
                             style = MaterialTheme.typography.titleMedium,
@@ -84,12 +103,13 @@ fun StatsOverviewCard(
                     }
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(12.dp))
+                            .padding(end = 24.dp)
+                            .size(40.dp)
+                            .clip(CircleShape)//RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.primaryContainer),
                         contentAlignment = Alignment.Center
                     ) {
-                        androidx.compose.material3.Icon(
+                        Icon(
                             imageVector = Icons.Filled.ArrowForward,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onPrimaryContainer
@@ -97,7 +117,10 @@ fun StatsOverviewCard(
                     }
                 }
 
-                Crossfade(targetState = summary) { currentSummary ->
+                Crossfade(
+                    modifier = Modifier.padding(24.dp),
+                    targetState = summary
+                ) { currentSummary ->
                     if (currentSummary == null) {
                         PlaceholderOverviewContent()
                     } else {
@@ -214,7 +237,7 @@ private fun MiniListeningTimeline(summary: PlaybackStatsRepository.PlaybackStats
                     modifier = Modifier
                         .fillMaxWidth()
                         .height((70.dp * heightFraction).coerceAtLeast(10.dp))
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(CircleShape)
                         .background(
                             Brush.verticalGradient(
                                 listOf(

@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -25,7 +27,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.AbsoluteRoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -44,14 +45,16 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -59,15 +62,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -82,10 +88,14 @@ import androidx.navigation.NavController
 import com.theveloper.pixelplay.data.stats.PlaybackStatsRepository
 import com.theveloper.pixelplay.data.stats.StatsTimeRange
 import com.theveloper.pixelplay.presentation.components.ExpressiveTopBarContent
+import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
+import com.theveloper.pixelplay.presentation.screens.TabAnimation
 import com.theveloper.pixelplay.presentation.viewmodel.StatsViewModel
 import com.theveloper.pixelplay.utils.formatListeningDurationCompact
 import com.theveloper.pixelplay.utils.formatListeningDurationLong
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
@@ -104,8 +114,8 @@ fun StatsScreen(
     val coroutineScope = rememberCoroutineScope()
 
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val minTopBarHeight = 72.dp + statusBarHeight
-    val maxTopBarHeight = 188.dp
+    val minTopBarHeight = 62.dp + statusBarHeight
+    val maxTopBarHeight = 176.dp
 
     val minTopBarHeightPx = with(density) { minTopBarHeight.toPx() }
     val maxTopBarHeightPx = with(density) { maxTopBarHeight.toPx() }
@@ -158,7 +168,10 @@ fun StatsScreen(
     }
 
     val currentTopBarHeightDp = with(density) { topBarHeight.value.toDp() }
-    val tabsHeight = 56.dp
+    val tabsHeight = 62.dp
+    val tabIndicatorExtraSpacing = 8.dp
+    val tabContentSpacing = 20.dp
+    var selectedTimelineMetric by rememberSaveable { mutableStateOf(TimelineMetric.ListeningTime) }
 
     Box(
         modifier = Modifier
@@ -171,15 +184,34 @@ fun StatsScreen(
                 CircularProgressIndicator()
             }
         } else {
+            val showDailyRhythm = summary?.range == StatsTimeRange.DAY || summary?.range == StatsTimeRange.WEEK
+
             LazyColumn(
                 state = lazyListState,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize(),
                 contentPadding = PaddingValues(
-                    top = currentTopBarHeightDp + tabsHeight + 24.dp,
-                    bottom = 32.dp
+                    top = currentTopBarHeightDp + tabsHeight + tabIndicatorExtraSpacing + tabContentSpacing + 20.dp,
+                    bottom = 32.dp + MiniPlayerHeight
                 ),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
+                if (showDailyRhythm) {
+                    item {
+                        DailyListeningDistributionSection(
+                            summary = summary,
+                            modifier = Modifier.padding(horizontal = 20.dp)
+                        )
+                    }
+                }
+                item {
+                    ListeningTimelineSection(
+                        summary = summary,
+                        selectedMetric = selectedTimelineMetric,
+                        onMetricSelected = { selectedTimelineMetric = it },
+                        modifier = Modifier.padding(horizontal = 20.dp)
+                    )
+                }
                 item {
                     StatsSummaryCard(
                         summary = summary,
@@ -189,12 +221,6 @@ fun StatsScreen(
                 }
                 item {
                     ListeningHabitsCard(
-                        summary = summary,
-                        modifier = Modifier.padding(horizontal = 20.dp)
-                    )
-                }
-                item {
-                    TimelineCard(
                         summary = summary,
                         modifier = Modifier.padding(horizontal = 20.dp)
                     )
@@ -212,7 +238,7 @@ fun StatsScreen(
                     )
                 }
                 item {
-                    TopSongsCard(
+                    SongStatsCard(
                         summary = summary,
                         modifier = Modifier.padding(horizontal = 20.dp)
                     )
@@ -224,12 +250,12 @@ fun StatsScreen(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
-                .height(currentTopBarHeightDp + tabsHeight)
+                .height(currentTopBarHeightDp + tabsHeight + tabIndicatorExtraSpacing + tabContentSpacing)
         ) {
             Column {
                 StatsTopBar(
                     collapseFraction = collapseFraction,
-                    height = currentTopBarHeightDp,
+                    height = currentTopBarHeightDp + 8.dp,
                     onBackClick = { navController.popBackStack() }
                 )
 
@@ -237,7 +263,15 @@ fun StatsScreen(
                     ranges = uiState.availableRanges,
                     selected = uiState.selectedRange,
                     onRangeSelected = statsViewModel::onRangeSelected,
-                    //modifier = Modifier.align(Alignment.BottomCenter)
+                    indicatorSpacing = tabIndicatorExtraSpacing,
+                    //modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                Spacer(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(tabContentSpacing)
+                        .background(MaterialTheme.colorScheme.surface)
                 )
             }
         }
@@ -281,7 +315,10 @@ private fun StatsTopBar(
                 collapseFraction = collapseFraction,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(start = 0.dp, end = 0.dp)
+                    .padding(start = 0.dp, end = 0.dp),
+                containerHeightRange = 80.dp to 56.dp,
+                titlePaddingRange = 28.dp to 44.dp,
+                collapsedTitleVerticalBias = -0.4f
             )
         }
     }
@@ -549,6 +586,7 @@ private fun RangeTabsHeader(
     ranges: List<StatsTimeRange>,
     selected: StatsTimeRange,
     onRangeSelected: (StatsTimeRange) -> Unit,
+    indicatorSpacing: Dp,
     modifier: Modifier = Modifier
 ) {
     val selectedIndex = remember(ranges, selected) { ranges.indexOf(selected).coerceAtLeast(0) }
@@ -560,6 +598,7 @@ private fun RangeTabsHeader(
         //shadowElevation = 6.dp
     ) {
         ScrollableTabRow(
+            modifier = Modifier.padding(bottom = indicatorSpacing),
             selectedTabIndex = selectedIndex,
             edgePadding = 20.dp,
             divider = {},
@@ -575,20 +614,22 @@ private fun RangeTabsHeader(
             }
         ) {
             ranges.forEachIndexed { index, range ->
-                val isSelected by rememberUpdatedState(newValue = index == selectedIndex)
-                Tab(
-                    selected = isSelected,
+                TabAnimation(
+                    index = index,
+                    selectedIndex = selectedIndex,
                     onClick = { onRangeSelected(range) },
-                    selectedContentColor = MaterialTheme.colorScheme.onSurface,
-                    unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    text = {
-                        Text(
-                            text = range.displayName,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
-                        )
-                    }
-                )
+                    selectedColor = MaterialTheme.colorScheme.primary,
+                    onSelectedColor = MaterialTheme.colorScheme.onPrimary,
+                    unselectedColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                    onUnselectedColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    title = range.displayName
+                ) {
+                    Text(
+                        text = range.displayName,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = if (index == selectedIndex) FontWeight.Bold else FontWeight.Medium
+                    )
+                }
             }
         }
     }
@@ -675,7 +716,7 @@ private fun ListeningHabitsCard(
 
 @Composable
 private fun HabitMetric(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     label: String,
     value: String
 ) {
@@ -709,12 +750,25 @@ private fun HabitMetric(
     }
 }
 
+private fun formatMinutesWindowLabel(startMinute: Int, endMinute: Int): String {
+    val safeStart = startMinute.coerceIn(0, 24 * 60)
+    val safeEnd = endMinute.coerceIn(0, 24 * 60)
+    return "${formatHourLabel(safeStart)} – ${formatHourLabel(safeEnd)}"
+}
+
+private fun formatHourLabel(minute: Int): String {
+    val normalized = minute.coerceIn(0, 24 * 60)
+    val hours = normalized / 60
+    val mins = normalized % 60
+    return String.format(Locale.getDefault(), "%02d:%02d", hours % 24, mins)
+}
+
 @Composable
 private fun HighlightRow(
     title: String,
     value: String,
     supporting: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector
+    icon: ImageVector
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -755,92 +809,322 @@ private fun HighlightRow(
     }
 }
 
+private enum class TimelineMetric(
+    val displayName: String,
+    val description: String,
+    val extractValue: (PlaybackStatsRepository.TimelineEntry) -> Double,
+    val formatValue: (PlaybackStatsRepository.TimelineEntry) -> String
+) {
+    ListeningTime(
+        displayName = "Listening time",
+        description = "Total listening captured in the selected range.",
+        extractValue = { it.totalDurationMs.toDouble() },
+        formatValue = { formatListeningDurationCompact(it.totalDurationMs) }
+    ),
+    PlayCount(
+        displayName = "Play count",
+        description = "How many sessions you completed per segment.",
+        extractValue = { it.playCount.toDouble() },
+        formatValue = { "${it.playCount} plays" }
+    ),
+    AverageSession(
+        displayName = "Avg. session",
+        description = "Average listening length for each segment.",
+        extractValue = { entry ->
+            if (entry.playCount > 0) entry.totalDurationMs.toDouble() / entry.playCount.toDouble() else 0.0
+        },
+        formatValue = { entry ->
+            val average = if (entry.playCount > 0) entry.totalDurationMs / entry.playCount else 0L
+            formatListeningDurationCompact(average)
+        }
+    )
+}
+
 @Composable
-private fun TimelineCard(
+private fun DailyListeningDistributionSection(
     summary: PlaybackStatsRepository.PlaybackStatsSummary?,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(32.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
+        Text(
+            text = "Daily rhythm",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = "See when you listen most across the day.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        val distribution = summary?.dayListeningDistribution
+        val isWeeklyRange = summary?.range == StatsTimeRange.WEEK
+        if (distribution == null || distribution.buckets.isEmpty()) {
             Text(
-                text = "Listening timeline",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
+                text = "Press play to build your daily listening fingerprint.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            val timeline = summary?.timeline.orEmpty()
-            if (timeline.isEmpty() || timeline.all { it.totalDurationMs == 0L }) {
-                Text(
-                    text = "Press play to build your listening timeline.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+        } else {
+            val peakBucket = distribution.buckets.maxByOrNull { it.totalDurationMs }
+            if (peakBucket != null) {
+                HighlightRow(
+                    title = "Peak window",
+                    value = formatMinutesWindowLabel(peakBucket.startMinute, peakBucket.endMinuteExclusive),
+                    supporting = formatListeningDurationCompact(peakBucket.totalDurationMs),
+                    icon = Icons.Outlined.Bolt
+                )
+            }
+            if (isWeeklyRange) {
+                WeeklyDailyListeningTimeline(
+                    distribution = distribution,
+                    modifier = Modifier.fillMaxWidth()
                 )
             } else {
-                ListeningTimelineChart(timeline = timeline)
-                if (summary != null) {
-                    summary.peakTimeline?.let { peak ->
-                        HighlightRow(
-                            title = "Peak segment",
-                            value = peak.label,
-                            supporting = formatListeningDurationCompact(peak.totalDurationMs),
-                            icon = Icons.Outlined.AutoGraph
-                        )
-                    }
-                }
+                DailyListeningTimeline(
+                    buckets = distribution.buckets,
+                    maxBucketDurationMs = distribution.maxBucketDurationMs,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            HourMarkersRow()
+        }
+    }
+}
+
+@Composable
+private fun WeeklyDailyListeningTimeline(
+    distribution: PlaybackStatsRepository.DayListeningDistribution,
+    modifier: Modifier = Modifier
+) {
+    val locale = Locale.getDefault()
+    val dateFormatter = remember(locale) { DateTimeFormatter.ofPattern("MMM d", locale) }
+    val perDayMax = remember(distribution.days) {
+        distribution.days.maxOfOrNull { day ->
+            day.buckets.maxOfOrNull { it.totalDurationMs } ?: 0L
+        }?.coerceAtLeast(1L) ?: 1L
+    }
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        distribution.days.forEach { day ->
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val dayOfWeek = day.date.dayOfWeek.getDisplayName(TextStyle.SHORT, locale)
+                val formattedDate = day.date.format(dateFormatter)
+                Text(
+                    text = "$dayOfWeek · $formattedDate",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                DailyListeningTimeline(
+                    buckets = day.buckets,
+                    maxBucketDurationMs = perDayMax,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }
 }
 
 @Composable
-private fun ListeningTimelineChart(
-    timeline: List<PlaybackStatsRepository.TimelineEntry>
+private fun DailyListeningTimeline(
+    buckets: List<PlaybackStatsRepository.DailyListeningBucket>,
+    maxBucketDurationMs: Long,
+    modifier: Modifier = Modifier
 ) {
-    val maxValue = timeline.maxOf { it.totalDurationMs }.coerceAtLeast(1L)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(220.dp)
-            .background(
-                color = MaterialTheme.colorScheme.surfaceContainerLowest,
-                shape = RoundedCornerShape(28.dp)
-            )
-            .padding(horizontal = 20.dp, vertical = 20.dp),
-        verticalAlignment = Alignment.Bottom,
-        horizontalArrangement = Arrangement.spacedBy(20.dp)
+    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+    val gradientStart = MaterialTheme.colorScheme.primary
+    val gradientEnd = MaterialTheme.colorScheme.tertiary
+    Box(
+        modifier = modifier
+            .height(52.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .background(trackColor)
     ) {
-        timeline.forEach { entry ->
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text(
-                    text = formatListeningDurationCompact(entry.totalDurationMs),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val totalMinutes = 24f * 60f
+            val maxDuration = maxBucketDurationMs.coerceAtLeast(1L).toFloat()
+            buckets.forEach { bucket ->
+                val startFraction = bucket.startMinute.coerceIn(0, 24 * 60).toFloat() / totalMinutes
+                val endFraction = bucket.endMinuteExclusive.coerceIn(0, 24 * 60).toFloat() / totalMinutes
+                val left = size.width * startFraction
+                val right = size.width * endFraction
+                if (right <= left) return@forEach
+                val intensity = (bucket.totalDurationMs.toFloat() / maxDuration).coerceIn(0f, 1f)
+                val color = lerp(
+                    gradientStart.copy(alpha = 0.3f),
+                    gradientEnd.copy(alpha = 0.9f),
+                    intensity
                 )
+                drawRect(
+                    color = color,
+                    topLeft = Offset(left, 0f),
+                    size = Size(right - left, size.height)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HourMarkersRow(modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        listOf(0, 6 * 60, 12 * 60, 18 * 60, 24 * 60).forEach { minute ->
+            Text(
+                text = formatHourLabel(minute),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun ListeningTimelineSection(
+    summary: PlaybackStatsRepository.PlaybackStatsSummary?,
+    selectedMetric: TimelineMetric,
+    onMetricSelected: (TimelineMetric) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = "Listening timeline",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp)
+        ) {
+            TimelineMetric.entries.forEach { metric ->
+                val isSelected = metric == selectedMetric
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onMetricSelected(metric) },
+                    label = {
+                        Text(
+                            text = metric.displayName,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                        labelColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        borderColor = if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outlineVariant,
+                        selectedBorderColor = Color.Transparent,
+                        enabled = true,
+                        selected = isSelected
+                    )
+                )
+            }
+        }
+        Text(
+            text = selectedMetric.description,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        val timeline = summary?.timeline.orEmpty()
+        if (timeline.isEmpty() || timeline.all { it.totalDurationMs == 0L && it.playCount == 0 }) {
+            Text(
+                text = "Press play to build your listening timeline.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(32.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    .padding(horizontal = 20.dp, vertical = 24.dp)
+            ) {
+                TimelineBarChart(entries = timeline, metric = selectedMetric)
+            }
+            summary?.peakTimeline?.let { peak ->
+                HighlightRow(
+                    title = "Peak segment",
+                    value = peak.label,
+                    supporting = when (selectedMetric) {
+                        TimelineMetric.ListeningTime -> formatListeningDurationCompact(peak.totalDurationMs)
+                        TimelineMetric.PlayCount -> "${peak.playCount} plays"
+                        TimelineMetric.AverageSession -> {
+                            val average = if (peak.playCount > 0) peak.totalDurationMs / peak.playCount else 0L
+                            formatListeningDurationCompact(average)
+                        }
+                    },
+                    icon = Icons.Outlined.AutoGraph
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimelineBarChart(
+    entries: List<PlaybackStatsRepository.TimelineEntry>,
+    metric: TimelineMetric,
+    modifier: Modifier = Modifier
+) {
+    val maxMetricValue = entries.maxOfOrNull { metric.extractValue(it) }?.coerceAtLeast(0.0) ?: 0.0
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        entries.forEach { entry ->
+            val value = metric.extractValue(entry)
+            val progress = if (maxMetricValue > 0) (value / maxMetricValue).toFloat().coerceIn(0f, 1f) else 0f
+            val formattedValue = metric.formatValue(entry)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = entry.label,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = formattedValue,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.BottomCenter
+                        .height(14.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerLowest)
                 ) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .fillMaxHeight(entry.totalDurationMs.toFloat() / maxValue.toFloat())
-                            .clip(RoundedCornerShape(18.dp))
+                            .fillMaxHeight()
+                            .fillMaxWidth(progress)
+                            .clip(RoundedCornerShape(999.dp))
                             .background(
-                                Brush.verticalGradient(
+                                Brush.horizontalGradient(
                                     listOf(
                                         MaterialTheme.colorScheme.primary,
                                         MaterialTheme.colorScheme.tertiary
@@ -849,13 +1133,6 @@ private fun ListeningTimelineChart(
                             )
                     )
                 }
-                Text(
-                    text = entry.label,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
             }
         }
     }
@@ -1038,7 +1315,7 @@ private fun TopAlbumsCard(
 }
 
 @Composable
-private fun TopSongsCard(
+private fun SongStatsCard(
     summary: PlaybackStatsRepository.PlaybackStatsSummary?,
     modifier: Modifier = Modifier
 ) {
@@ -1051,12 +1328,35 @@ private fun TopSongsCard(
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            Text(
-                text = "Top tracks",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            val songs = summary?.topSongs.orEmpty()
+            val songs = summary?.songs.orEmpty()
+            var showAll by rememberSaveable(songs) { mutableStateOf(songs.size <= 8) }
+            val displayedSongs = remember(songs, showAll) {
+                if (showAll || songs.size <= 8) songs else songs.take(8)
+            }
+            val maxDuration = songs.maxOfOrNull { it.totalDurationMs }?.coerceAtLeast(1L) ?: 1L
+            val positions = remember(songs) { songs.mapIndexed { index, song -> song.songId to index }.toMap() }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Tracks in this range",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (songs.size > 8) {
+                    TextButton(onClick = { showAll = !showAll }) {
+                        Text(
+                            text = if (showAll || songs.size <= 8) "Show top" else "Show all",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+
             if (songs.isEmpty()) {
                 Text(
                     text = "Listen to your favorites to see them highlighted here.",
@@ -1064,9 +1364,9 @@ private fun TopSongsCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             } else {
-                val maxDuration = songs.maxOf { it.totalDurationMs }.coerceAtLeast(1L)
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    songs.forEachIndexed { index, songSummary ->
+                    displayedSongs.forEach { songSummary ->
+                        val position = positions[songSummary.songId] ?: songs.indexOf(songSummary)
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -1082,25 +1382,27 @@ private fun TopSongsCard(
                                 )
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "${index + 1}. ${songSummary.title}",
+                                        text = "${position + 1}. ${songSummary.title}",
                                         style = MaterialTheme.typography.titleMedium,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
-                                        text = "${songSummary.artist} • ${songSummary.playCount} plays",
+                                        text = songSummary.artist,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
+                                    Text(
+                                        text = "${songSummary.playCount} plays • ${formatListeningDurationCompact(songSummary.totalDurationMs)}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                 }
-                                Text(
-                                    text = formatListeningDurationCompact(songSummary.totalDurationMs),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
                             }
                             LinearProgressIndicator(
                                 progress = (songSummary.totalDurationMs.toFloat() / maxDuration.toFloat()).coerceIn(0f, 1f),
