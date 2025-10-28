@@ -9,7 +9,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -514,8 +513,8 @@ fun FullPlayerContent(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun SongMetadataDisplaySection( // Renamed for clarity
-    song: Song?, // Nullable, comes from stablePlayerState
+private fun SongMetadataDisplaySection(
+    song: Song?,
     expansionFraction: Float,
     textColor: Color,
     artistTextColor: Color,
@@ -567,7 +566,7 @@ private fun SongMetadataDisplaySection( // Renamed for clarity
 }
 
 @Composable
-fun PlayerProgressBarSection(
+private fun PlayerProgressBarSection(
     currentPositionProvider: () -> Long,
     totalDurationValue: Long,
     onSeek: (Long) -> Unit,
@@ -581,7 +580,7 @@ fun PlayerProgressBarSection(
     modifier: Modifier = Modifier
 ) {
     val isExpanded = currentSheetState == PlayerSheetState.EXPANDED &&
-            expansionFraction >= 0.995f
+        expansionFraction >= 0.995f
 
     val rawPosition = currentPositionProvider()
     val rawProgress = (rawPosition.coerceAtLeast(0) / totalDurationValue.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
@@ -594,14 +593,12 @@ fun PlayerProgressBarSection(
         sampleWhilePausedMs = 800L
     )
 
-
     var sliderDragValue by remember { mutableStateOf<Float?>(null) }
     val interactionSource = remember { MutableInteractionSource() }
 
     val effectiveProgress = sliderDragValue ?: if (isExpanded) rawProgress else smoothProgress
     val effectivePosition = sliderDragValue?.let { (it * totalDurationValue).roundToLong() }
         ?: if (isExpanded) rawPosition else sampledPosition
-
 
     Column(
         modifier = modifier
@@ -690,161 +687,6 @@ private fun PlayerSongInfo(
         AutoScrollingTextOnDemand(title, titleStyle, gradientEdgeColor, expansionFraction)
         Spacer(modifier = Modifier.height(4.dp))
         AutoScrollingTextOnDemand(artist, artistStyle, gradientEdgeColor, expansionFraction)
-    }
-}
-
-private enum class ButtonType {
-    NONE, PREVIOUS, PLAY_PAUSE, NEXT
-}
-
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun AnimatedPlaybackControls(
-    isPlayingProvider: () -> Boolean,
-    onPrevious: () -> Unit,
-    onPlayPause: () -> Unit,
-    onNext: () -> Unit,
-    modifier: Modifier = Modifier,
-    height: Dp = 90.dp,
-    baseWeight: Float = 1f,
-    expansionWeight: Float = 1.1f,
-    compressionWeight: Float = 0.65f,
-    pressAnimationSpec: AnimationSpec<Float>,
-    releaseDelay: Long = 220L,
-    playPauseCornerPlaying: Dp = 60.dp,
-    playPauseCornerPaused: Dp = 26.dp,
-    colorOtherButtons: Color = LocalMaterialTheme.current.primary.copy(alpha = 0.15f),
-    colorPlayPause: Color = LocalMaterialTheme.current.primary,
-    tintPlayPauseIcon: Color = LocalMaterialTheme.current.onPrimary,
-    tintOtherIcons: Color = LocalMaterialTheme.current.primary,
-    playPauseIconSize: Dp = 36.dp,
-    iconSize: Dp = 32.dp
-) {
-    val isPlaying = isPlayingProvider()
-    var lastClicked by remember { mutableStateOf<ButtonType?>(null) }
-    val hapticFeedback = LocalHapticFeedback.current
-
-    LaunchedEffect(lastClicked) {
-        if (lastClicked != null) {
-            delay(releaseDelay)
-            lastClicked = null
-        }
-    }
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(height)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            fun weightFor(button: ButtonType): Float = when (lastClicked) {
-                button   -> expansionWeight
-                null     -> baseWeight
-                else     -> compressionWeight
-            }
-
-            val prevWeight by animateFloatAsState(
-                targetValue = weightFor(ButtonType.PREVIOUS),
-                animationSpec = pressAnimationSpec,
-                label = ""
-            )
-            Box(
-                modifier = Modifier
-                    .weight(prevWeight)
-                    .fillMaxHeight()
-                    .clip(CircleShape)
-                    .background(colorOtherButtons)
-                    .clickable {
-                        lastClicked = ButtonType.PREVIOUS
-                        onPrevious()
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.rounded_skip_previous_24),
-                    contentDescription = "Anterior",
-                    tint = tintOtherIcons,
-                    modifier = Modifier.size(iconSize)
-                )
-            }
-
-            val playWeight by animateFloatAsState(
-                targetValue = weightFor(ButtonType.PLAY_PAUSE),
-                animationSpec = pressAnimationSpec,
-                label = ""
-            )
-            val playCorner by animateDpAsState(
-                targetValue = if (!isPlaying) playPauseCornerPlaying else playPauseCornerPaused,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioNoBouncy,
-                    stiffness = Spring.StiffnessMedium
-                ),
-                label = "PlayCornerRadiusAnim"
-            )
-            val playShape = AbsoluteSmoothCornerShape(
-                cornerRadiusTL = playCorner,
-                smoothnessAsPercentTR = 60,
-                cornerRadiusBL = playCorner,
-                smoothnessAsPercentTL = 60,
-                cornerRadiusTR = playCorner,
-                smoothnessAsPercentBL = 60,
-                cornerRadiusBR = playCorner,
-                smoothnessAsPercentBR = 60
-            )
-            Box(
-                modifier = Modifier
-                    .weight(playWeight)
-                    .fillMaxHeight()
-                    .clip(playShape)
-                    .background(colorPlayPause)
-                    .clickable {
-                        lastClicked = ButtonType.PLAY_PAUSE
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onPlayPause()
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = if (isPlaying)
-                        painterResource(R.drawable.rounded_pause_24)
-                    else
-                        painterResource(R.drawable.rounded_play_arrow_24),
-                    contentDescription = if (isPlaying) "Pausar" else "Reproducir",
-                    tint = tintPlayPauseIcon,
-                    modifier = Modifier.size(playPauseIconSize)
-                )
-            }
-
-            val nextWeight by animateFloatAsState(
-                targetValue = weightFor(ButtonType.NEXT),
-                animationSpec = pressAnimationSpec,
-                label = ""
-            )
-            Box(
-                modifier = Modifier
-                    .weight(nextWeight)
-                    .fillMaxHeight()
-                    .clip(CircleShape)
-                    .background(colorOtherButtons)
-                    .clickable {
-                        lastClicked = ButtonType.NEXT
-                        onNext()
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.rounded_skip_next_24),
-                    contentDescription = "Siguiente",
-                    tint = tintOtherIcons,
-                    modifier = Modifier.size(iconSize)
-                )
-            }
-        }
     }
 }
 

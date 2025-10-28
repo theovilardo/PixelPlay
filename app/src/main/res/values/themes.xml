@@ -7,6 +7,16 @@
         <item name="windowNoTitle">true</item>
     </style>
 
+    <style name="Theme.PixelPlay.ExternalPlayer" parent="Theme.Material3.DynamicColors.DayNight">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:enforceStatusBarContrast">false</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+    </style>
+
     <!-- Splash screen theme can still extend Theme.SplashScreen -->
     <style name="Theme.App.Starting" parent="Theme.SplashScreen">
 <!--        <item name="windowSplashScreenBackground">@color/light_background</item>-->

@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -203,9 +204,71 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
-        if (intent?.getBooleanExtra("ACTION_SHOW_PLAYER", false) == true) {
-            playerViewModel.showPlayer()
+        if (intent == null) return
+
+        when {
+            intent.getBooleanExtra("ACTION_SHOW_PLAYER", false) -> {
+                playerViewModel.showPlayer()
+            }
+
+            intent.action == Intent.ACTION_VIEW && intent.data != null -> {
+                intent.data?.let { uri ->
+                    persistUriPermissionIfNeeded(intent, uri)
+                    playerViewModel.playExternalUri(uri)
+                }
+                clearExternalIntentPayload(intent)
+            }
+
+            intent.action == Intent.ACTION_SEND && intent.type?.startsWith("audio/") == true -> {
+                resolveStreamUri(intent)?.let { uri ->
+                    persistUriPermissionIfNeeded(intent, uri)
+                    playerViewModel.playExternalUri(uri)
+                }
+                clearExternalIntentPayload(intent)
+            }
         }
+    }
+
+    private fun resolveStreamUri(intent: Intent): Uri? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)?.let { return it }
+        } else {
+            @Suppress("DEPRECATION")
+            val legacyUri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+            if (legacyUri != null) return legacyUri
+        }
+
+        intent.clipData?.let { clipData ->
+            if (clipData.itemCount > 0) {
+                return clipData.getItemAt(0).uri
+            }
+        }
+
+        return intent.data
+    }
+
+    private fun persistUriPermissionIfNeeded(intent: Intent, uri: Uri) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            val hasPersistablePermission = intent.flags and Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION != 0
+            if (hasPersistablePermission) {
+                val takeFlags = intent.flags and (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                if (takeFlags != 0) {
+                    try {
+                        contentResolver.takePersistableUriPermission(uri, takeFlags)
+                    } catch (securityException: SecurityException) {
+                        Log.w("MainActivity", "Unable to persist URI permission for $uri", securityException)
+                    } catch (illegalArgumentException: IllegalArgumentException) {
+                        Log.w("MainActivity", "Persistable URI permission not granted for $uri", illegalArgumentException)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun clearExternalIntentPayload(intent: Intent) {
+        intent.data = null
+        intent.clipData = null
+        intent.removeExtra(Intent.EXTRA_STREAM)
     }
 
     @OptIn(ExperimentalPermissionsApi::class)
