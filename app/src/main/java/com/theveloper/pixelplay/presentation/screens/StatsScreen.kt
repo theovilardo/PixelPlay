@@ -48,6 +48,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ScrollableTabRow
@@ -173,7 +174,7 @@ fun StatsScreen(
     val tabIndicatorExtraSpacing = 8.dp
     val tabContentSpacing = 20.dp
     var selectedTimelineMetric by rememberSaveable { mutableStateOf(TimelineMetric.ListeningTime) }
-    var selectedCategoryDimension by rememberSaveable { mutableStateOf(CategoryDimension.Genre) }
+    var selectedCategoryDimension by rememberSaveable { mutableStateOf(CategoryDimension.Song) }
 
     Box(
         modifier = Modifier
@@ -390,83 +391,6 @@ private fun StatsSummaryCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                }
-                if (summary != null) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-//                        SummaryHeroTile(
-//                            title = "Total plays",
-//                            value = summary.totalPlayCount.toString(),
-//                            supporting = "Logged in this range"
-//                        )
-//                        SummaryHeroTile(
-//                            title = "Unique songs",
-//                            value = summary.uniqueSongs.toString(),
-//                            supporting = "Different tracks"
-//                        )
-                    }
-
-//                    SummaryProgressRow(
-//                        title = "Peak day",
-//                        label = summary.peakDayLabel,
-//                        supporting = if (summary.peakDayDurationMs > 0L) {
-//                            formatListeningDurationCompact(summary.peakDayDurationMs)
-//                        } else {
-//                            "No standout day yet"
-//                        },
-//                        progress = if (summary.totalDurationMs > 0L) {
-//                            (summary.peakDayDurationMs.toFloat() / summary.totalDurationMs.toFloat()).coerceIn(0f, 1f)
-//                        } else {
-//                            0f
-//                        }
-//                    )
-
-//                    FlowRow(
-//                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-//                        verticalArrangement = Arrangement.spacedBy(12.dp)
-//                    ) {
-//                        SummaryPill(label = "Active days", value = summary.activeDays.toString())
-//                        SummaryPill(
-//                            label = "Avg per day",
-//                            value = formatListeningDurationCompact(summary.averageDailyDurationMs)
-//                        )
-//                        SummaryPill(
-//                            label = "Avg session",
-//                            value = formatListeningDurationCompact(summary.averageSessionDurationMs)
-//                        )
-//                        SummaryPill(
-//                            label = "Sessions/day",
-//                            value = String.format(Locale.US, "%.1f", summary.averageSessionsPerDay)
-//                        )
-//                        SummaryPill(label = "Total sessions", value = summary.totalSessions.toString())
-//                        SummaryPill(
-//                            label = "Longest session",
-//                            value = if (summary.longestSessionDurationMs > 0L) {
-//                                formatListeningDurationCompact(summary.longestSessionDurationMs)
-//                            } else {
-//                                "—"
-//                            }
-//                        )
-//                        SummaryPill(
-//                            label = "Longest streak",
-//                            value = if (summary.longestStreakDays > 0) "${summary.longestStreakDays} days" else "—"
-//                        )
-//                    }
-                } else {
-                    Text(
-                        text = "Start playing music to unlock your insights.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                if (isLoading) {
-                    LinearProgressIndicator(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
                 }
             }
         }
@@ -1148,7 +1072,7 @@ private fun CategoryMetricsSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
-            CategoryDimension.entries.forEach { dimension ->
+            CategoryDimension.entries.reversed().forEach { dimension ->
                 val isSelected = dimension == selectedDimension
                 FilterChip(
                     selected = isSelected,
@@ -1240,22 +1164,6 @@ private fun CategoryMetricsSection(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     CategoryVerticalBarChart(entries = entries)
-
-                    val topEntry = remember(entries) { entries.maxByOrNull { it.durationMs } }
-                    if (topEntry != null) {
-                        val supportingPieces = buildList {
-                            add(formatListeningDurationCompact(topEntry.durationMs))
-                            if (topEntry.supporting.isNotBlank()) {
-                                add(topEntry.supporting)
-                            }
-                        }
-                        HighlightRow(
-                            title = selectedDimension.highlightTitle,
-                            value = topEntry.label,
-                            supporting = supportingPieces.joinToString(separator = " • "),
-                            icon = Icons.Outlined.Hearing
-                        )
-                    }
                 }
             }
         }
@@ -1279,7 +1187,7 @@ private fun CategoryVerticalBarChart(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(200.dp),
+                .height(220.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.Bottom
         ) {
@@ -1305,15 +1213,15 @@ private fun CategoryVerticalBarChart(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(140.dp)
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(MaterialTheme.colorScheme.surfaceContainerLowest),
+                            .clip(CircleShape)
+                            .background(Color.Transparent),//.background(MaterialTheme.colorScheme.surfaceContainerLowest),
                         contentAlignment = Alignment.BottomCenter
                     ) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .fillMaxHeight(progress)
-                                .clip(RoundedCornerShape(999.dp))
+                                .clip(CircleShape)
                                 .background(
                                     if (isHighlight) {
                                         Brush.verticalGradient(
@@ -1334,12 +1242,21 @@ private fun CategoryVerticalBarChart(
                         )
                     }
                     CategoryMetricIndicator(
+                        //modifier = Modifier.height(40.dp),
                         index = index,
                         highlighted = isHighlight
                     )
                 }
             }
         }
+
+        HorizontalDivider(
+            modifier = Modifier
+                .height(2.dp)
+                .clip(shape = CircleShape),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
+        )
+
         CategoryMetricsLegend(entries = entries, highlightIndex = highlightIndex)
     }
 }
