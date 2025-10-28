@@ -21,7 +21,6 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -799,14 +798,18 @@ class PlaybackStatsRepository @Inject constructor(
     private fun createMonthBuckets(zoneId: ZoneId, now: Instant): List<TimelineBucket> {
         val yearMonth = YearMonth.from(now.atZone(zoneId))
         val daysInMonth = yearMonth.lengthOfMonth()
-        val bucketCount = ceil(daysInMonth / 7.0).toInt().coerceAtLeast(1)
+        val bucketCount = 4
         return buildList {
-            for (index in 0 until bucketCount) {
+            repeat(bucketCount) { index ->
                 val startDay = index * 7 + 1
                 if (startDay > daysInMonth) {
-                    break
+                    return@repeat
                 }
-                val endDay = minOf(startDay + 6, daysInMonth)
+                val endDay = if (index == bucketCount - 1) {
+                    daysInMonth
+                } else {
+                    minOf(startDay + 6, daysInMonth)
+                }
                 val start = yearMonth.atDay(startDay).atStartOfDay(zoneId).toInstant()
                 val end = yearMonth.atDay(endDay).plusDays(1).atStartOfDay(zoneId).toInstant()
                 add(

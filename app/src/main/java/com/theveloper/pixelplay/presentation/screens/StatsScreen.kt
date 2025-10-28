@@ -79,7 +79,6 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -309,7 +308,8 @@ private fun StatsTopBar(
         ) {
             FilledIconButton(
                 modifier = Modifier
-                    .align(Alignment.CenterStart),
+                    .align(Alignment.TopStart)
+                    .padding(top = 8.dp),
                 onClick = onBackClick,
                 colors = IconButtonDefaults.filledIconButtonColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
@@ -1269,6 +1269,7 @@ private fun CategoryVerticalBarChart(
     if (entries.isEmpty()) return
     val maxDuration = entries.maxOf { it.durationMs }.coerceAtLeast(1L)
     val highlightDuration = entries.maxOf { it.durationMs }
+    val highlightIndex = entries.indexOfFirst { it.durationMs == highlightDuration }.coerceAtLeast(0)
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -1330,30 +1331,86 @@ private fun CategoryVerticalBarChart(
                                 )
                         )
                     }
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
+                    CategoryMetricIndicator(
+                        index = index,
+                        highlighted = isHighlight
+                    )
+                }
+            }
+        }
+        CategoryMetricsLegend(entries = entries, highlightIndex = highlightIndex)
+    }
+}
+
+@Composable
+private fun CategoryMetricIndicator(
+    index: Int,
+    highlighted: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val containerColor = if (highlighted) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.secondaryContainer
+    }
+    val contentColor = if (highlighted) {
+        MaterialTheme.colorScheme.onPrimary
+    } else {
+        MaterialTheme.colorScheme.onSecondaryContainer
+    }
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.extraLarge,
+        color = containerColor,
+        contentColor = contentColor,
+        tonalElevation = if (highlighted) 4.dp else 0.dp
+    ) {
+        Text(
+            text = "${index + 1}",
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun CategoryMetricsLegend(
+    entries: List<CategoryMetricEntry>,
+    highlightIndex: Int
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        entries.forEachIndexed { index, entry ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CategoryMetricIndicator(index = index, highlighted = index == highlightIndex)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = entry.label,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (entry.supporting.isNotBlank()) {
                         Text(
-                            text = entry.label,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            text = entry.supporting,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        if (entry.supporting.isNotBlank()) {
-                            Text(
-                                text = entry.supporting,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = TextAlign.Center
-                            )
-                        }
                     }
                 }
+                Text(
+                    text = formatListeningDurationCompact(entry.durationMs),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
