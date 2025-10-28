@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.net.Uri
+import android.media.MediaMetadataRetriever
 import android.os.SystemClock
 import android.os.Trace
 import android.util.Log
@@ -35,6 +36,7 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.os.Bundle
+import android.provider.OpenableColumns
 import androidx.media3.session.SessionToken
 import androidx.mediarouter.media.MediaControlIntent
 import androidx.mediarouter.media.MediaRouteSelector
@@ -121,6 +123,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import kotlinx.serialization.json.Json
 import timber.log.Timber
 import java.io.File
@@ -1825,10 +1828,124 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun playExternalUri(uri: Uri) {
+        viewModelScope.launch {
+            val externalSong = buildExternalSongFromUri(uri)
+            if (externalSong == null) {
+                sendToast(context.getString(R.string.external_playback_error))
+                return@launch
+            }
+
+            transitionSchedulerJob?.cancel()
+
+            _playerUiState.update { state ->
+                state.copy(
+                    currentPosition = 0L,
+                    currentPlaybackQueue = persistentListOf(externalSong),
+                    currentQueueSourceName = context.getString(R.string.external_queue_label),
+                    showDismissUndoBar = false,
+                    dismissedSong = null,
+                    dismissedQueue = persistentListOf(),
+                    dismissedQueueName = "",
+                    dismissedPosition = 0L
+                )
+            }
+
+            _stablePlayerState.update { state ->
+                state.copy(
+                    currentSong = externalSong,
+                    isPlaying = false,
+                    totalDuration = externalSong.duration,
+                    lyrics = null,
+                    isLoadingLyrics = false
+                )
+            }
+
+            _sheetState.value = PlayerSheetState.COLLAPSED
+            _isSheetVisible.value = true
+
+            loadAndPlaySong(externalSong)
+            showPlayer()
+        }
+    }
+
     fun showPlayer() {
         if (stablePlayerState.value.currentSong != null) {
             _isSheetVisible.value = true
         }
+    }
+
+    private suspend fun buildExternalSongFromUri(uri: Uri): Song? = withContext(Dispatchers.IO) {
+        val resolver = context.contentResolver
+
+        var displayName: String? = null
+        resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (nameIndex >= 0) {
+                    displayName = cursor.getString(nameIndex)
+                }
+            }
+        }
+
+        val metadataRetriever = MediaMetadataRetriever()
+        return@withContext try {
+            metadataRetriever.setDataSource(context, uri)
+
+            val title = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)?.takeIf { it.isNotBlank() }
+            val artist = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)?.takeIf { it.isNotBlank() }
+            val album = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)?.takeIf { it.isNotBlank() }
+            val duration = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+            val trackNumber = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)?.toIntOrNull() ?: 0
+            val year = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR)?.toIntOrNull() ?: 0
+            val genre = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE)
+            val embeddedArt = metadataRetriever.embeddedPicture?.takeIf { it.isNotEmpty() }
+            val albumArtUriString = embeddedArt?.let { persistExternalAlbumArt(uri, it) }
+
+            Song(
+                id = "external:${uri}",
+                title = title ?: displayName?.substringBeforeLast('.')?.takeIf { it.isNotBlank() }
+                ?: displayName?.takeIf { it.isNotBlank() }
+                ?: uri.lastPathSegment?.takeIf { it.isNotBlank() }
+                ?: context.getString(R.string.unknown_song_title),
+                artist = artist ?: context.getString(R.string.unknown_artist),
+                artistId = -1L,
+                album = album ?: context.getString(R.string.unknown_album),
+                albumId = -1L,
+                path = uri.toString(),
+                contentUriString = uri.toString(),
+                albumArtUriString = albumArtUriString,
+                duration = duration,
+                genre = genre,
+                lyrics = null,
+                isFavorite = false,
+                trackNumber = trackNumber,
+                year = year,
+                dateAdded = System.currentTimeMillis()
+            )
+        } catch (error: Exception) {
+            Timber.e(error, "Failed to read metadata for external uri: $uri")
+            null
+        } finally {
+            runCatching { metadataRetriever.release() }
+        }
+    }
+
+    private fun persistExternalAlbumArt(uri: Uri, data: ByteArray): String? {
+        return runCatching {
+            val directory = File(context.cacheDir, "external_artwork")
+            if (!directory.exists()) {
+                directory.mkdirs()
+            }
+            val fileName = "art_${uri.toString().hashCode()}.jpg"
+            val file = File(directory, fileName)
+            file.outputStream().use { output ->
+                output.write(data)
+            }
+            Uri.fromFile(file).toString()
+        }.onFailure { throwable ->
+            Timber.w(throwable, "Unable to persist album art for external uri: $uri")
+        }.getOrNull()
     }
 
     private suspend fun internalPlaySongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None", playlistId: String? = null) {

@@ -43,9 +43,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -77,6 +80,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -93,6 +97,7 @@ import com.theveloper.pixelplay.presentation.components.scoped.rememberExpansion
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
+import com.theveloper.pixelplay.utils.formatDuration
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -103,12 +108,13 @@ import timber.log.Timber
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
 import kotlin.math.sign
+import kotlin.math.roundToLong
 
 internal val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error("No ColorScheme provided") }
 
 private enum class DragPhase { IDLE, TENSION, SNAPPING, FREE_DRAG }
 
-val MiniPlayerHeight = 64.dp
+val MiniPlayerHeight = 176.dp
 const val ANIMATION_DURATION_MS = 255
 
 val MiniPlayerBottomSpacer = 8.dp
@@ -1042,11 +1048,15 @@ fun UnifiedPlayerSheet(
                                         ) {
                                             MiniPlayerContentInternal(
                                                 song = currentSongNonNull, // Use non-null version
-                                                cornerRadiusAlb = (overallSheetTopCornerRadius.value * 0.5).dp,
                                                 isPlaying = stablePlayerState.isPlaying, // from top-level stablePlayerState
+                                                currentPosition = positionToDisplay,
+                                                totalDuration = stablePlayerState.totalDuration,
                                                 onPlayPause = { playerViewModel.playPause() },
+                                                onSeek = playerViewModel::seekTo,
+                                                onPrevious = { playerViewModel.previousSong() },
                                                 onNext = { playerViewModel.nextSong() },
-                                                modifier = Modifier.fillMaxSize()
+                                                onExpand = { playerViewModel.expandPlayerSheet() },
+                                                modifier = Modifier.fillMaxWidth()
                                             )
                                         }
                                     }
@@ -1178,103 +1188,226 @@ fun getNavigationBarHeight(): Dp {
 private fun MiniPlayerContentInternal(
     song: Song,
     isPlaying: Boolean,
+    currentPosition: Long,
+    totalDuration: Long,
     onPlayPause: () -> Unit,
-    cornerRadiusAlb: Dp,
+    onSeek: (Long) -> Unit,
+    onPrevious: () -> Unit,
     onNext: () -> Unit,
+    onExpand: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val hapticFeedback = LocalHapticFeedback.current
-
     val interaction = remember { MutableInteractionSource() }
-    val indication: Indication = ripple(bounded = false)
-    Row(
+    val progressFraction = remember(currentPosition, totalDuration) {
+        if (totalDuration > 0) {
+            (currentPosition.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f)
+        } else {
+            0f
+        }
+    }
+
+    Surface(
         modifier = modifier
-            .fillMaxWidth()
-            .height(MiniPlayerHeight)
-            .padding(start = 10.dp, end = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        SmartImage(
-            model = song.albumArtUriString ?: R.drawable.rounded_album_24,
-            contentDescription = "Carátula de ${song.title}",
-            shape = CircleShape,
-            targetSize = Size(150, 150),
-            modifier = Modifier
-                .size(44.dp)
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        color = LocalMaterialTheme.current.surfaceContainerHighest,
+        tonalElevation = 6.dp,
+        shadowElevation = 16.dp,
+        shape = AbsoluteSmoothCornerShape(
+            cornerRadiusTL = 28.dp,
+            cornerRadiusTR = 28.dp,
+            cornerRadiusBL = 24.dp,
+            cornerRadiusBR = 24.dp,
+            smoothnessAsPercentTL = 60,
+            smoothnessAsPercentTR = 60,
+            smoothnessAsPercentBL = 45,
+            smoothnessAsPercentBR = 45
         )
-        Spacer(modifier = Modifier.width(12.dp))
+    ) {
         Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.Center
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            val titleStyle = MaterialTheme.typography.titleSmall.copy(
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = (-0.2).sp,
-                fontFamily = GoogleSansRounded,
-                color = LocalMaterialTheme.current.onPrimaryContainer
-            )
-            val artistStyle = MaterialTheme.typography.bodySmall.copy(
-                fontSize = 13.sp,
-                letterSpacing = 0.sp,
-                fontFamily = GoogleSansRounded,
-                color = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                SmartImage(
+                    model = song.albumArtUriString ?: R.drawable.rounded_album_24,
+                    contentDescription = song.title,
+                    shape = AbsoluteSmoothCornerShape(20.dp, 20.dp, 20.dp, 20.dp, 55, 55, 55, 55),
+                    targetSize = Size(160, 160),
+                    modifier = Modifier.size(46.dp)
+                )
 
-            AutoScrollingText(
-                text = song.title,
-                style = titleStyle,
-                gradientEdgeColor = LocalMaterialTheme.current.primaryContainer
-            )
-            AutoScrollingText(
-                text = song.artist,
-                style = artistStyle,
-                gradientEdgeColor = LocalMaterialTheme.current.primaryContainer
-            )
-        }
-        Spacer(modifier = Modifier.width(8.dp))
-
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(LocalMaterialTheme.current.primary)
-                .clickable(
-                    interactionSource = interaction,
-                    indication = indication
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onPlayPause()
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                painter = if (isPlaying) painterResource(R.drawable.rounded_pause_24) else painterResource(R.drawable.rounded_play_arrow_24),
-                contentDescription = if (isPlaying) "Pausar" else "Reproducir",
-                tint = LocalMaterialTheme.current.onPrimary,
-                modifier = Modifier.size(22.dp)
-            )
-        }
+                    AutoScrollingText(
+                        text = song.title,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = GoogleSansRounded,
+                            color = LocalMaterialTheme.current.onSurface
+                        ),
+                        gradientEdgeColor = LocalMaterialTheme.current.surfaceContainerHighest
+                    )
+                    AutoScrollingText(
+                        text = song.artist,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 12.sp,
+                            fontFamily = GoogleSansRounded,
+                            color = LocalMaterialTheme.current.onSurfaceVariant
+                        ),
+                        gradientEdgeColor = LocalMaterialTheme.current.surfaceContainerHighest
+                    )
 
-        Spacer(modifier = Modifier.width(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = formatDuration(currentPosition),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = FontWeight.Medium,
+                                color = LocalMaterialTheme.current.onSurfaceVariant
+                            )
+                        )
 
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(LocalMaterialTheme.current.primary.copy(alpha = 0.2f))
-                .clickable(
-                    interactionSource = interaction,
-                    indication = indication
-                ) { onNext() },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.rounded_skip_next_24),
-                contentDescription = "Siguiente",
-                tint = LocalMaterialTheme.current.primary,
-                modifier = Modifier.size(22.dp)
-            )
+                        WavyMusicSlider(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(22.dp),
+                            value = progressFraction,
+                            onValueChange = { fraction ->
+                                val duration = totalDuration
+                                if (duration > 0) {
+                                    onSeek((fraction * duration).roundToLong())
+                                }
+                            },
+                            trackHeight = 4.dp,
+                            thumbRadius = 7.dp,
+                            activeTrackColor = LocalMaterialTheme.current.primary,
+                            inactiveTrackColor = LocalMaterialTheme.current.primary.copy(alpha = 0.25f),
+                            thumbColor = LocalMaterialTheme.current.primary,
+                            waveLength = 28.dp,
+                            isPlaying = isPlaying
+                        )
+
+                        Text(
+                            text = formatDuration(totalDuration),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = FontWeight.Medium,
+                                color = LocalMaterialTheme.current.onSurfaceVariant
+                            )
+                        )
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.rounded_skip_previous_24),
+                    contentDescription = "Previous",
+                    tint = LocalMaterialTheme.current.primary,
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .clickable(
+                            interactionSource = interaction,
+                            indication = ripple(bounded = true)
+                        ) {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onPrevious()
+                        }
+                        .padding(8.dp)
+                )
+
+                FilledIconButton(
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onPlayPause()
+                    },
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = LocalMaterialTheme.current.primary,
+                        contentColor = LocalMaterialTheme.current.onPrimary
+                    ),
+                    modifier = Modifier.size(46.dp)
+                ) {
+                    Icon(
+                        painter = if (isPlaying) painterResource(R.drawable.rounded_pause_24) else painterResource(R.drawable.rounded_play_arrow_24),
+                        contentDescription = if (isPlaying) "Pause" else "Play",
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Icon(
+                    painter = painterResource(R.drawable.rounded_skip_next_24),
+                    contentDescription = "Next",
+                    tint = LocalMaterialTheme.current.primary,
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .clickable(
+                            interactionSource = interaction,
+                            indication = ripple(bounded = true)
+                        ) {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onNext()
+                        }
+                        .padding(8.dp)
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(LocalMaterialTheme.current.primary.copy(alpha = 0.12f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = ripple(bounded = true)
+                    ) {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onExpand()
+                    }
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.rounded_folder_open_24),
+                        contentDescription = null,
+                        tint = LocalMaterialTheme.current.primary
+                    )
+                    Text(
+                        text = stringResource(id = R.string.open_full_player),
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontWeight = FontWeight.Medium,
+                            color = LocalMaterialTheme.current.primary
+                        )
+                    )
+                }
+
+                Icon(
+                    painter = painterResource(R.drawable.rounded_keyboard_arrow_right_24),
+                    contentDescription = null,
+                    tint = LocalMaterialTheme.current.primary
+                )
+            }
         }
     }
 }
