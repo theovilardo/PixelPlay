@@ -62,7 +62,6 @@ val changelog = listOf(
                 title = "What's new",
                 items = listOf(
                     "Introduced a richer listening stats hub with deeper insights into your sessions.",
-                    "Initial Live Activities support for Android 16",
                     "Launched a floating quick player to instantly open and preview local files.",
                     "Added a folders tab with a tree-style navigator and playlist-ready view."
                 )
