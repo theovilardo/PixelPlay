@@ -1,13 +1,10 @@
 package com.theveloper.pixelplay.presentation.screens
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -28,10 +25,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Card
@@ -46,14 +40,11 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SearchBar
 import androidx.compose.material3.SearchBarDefaults
-import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,12 +53,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -83,6 +70,7 @@ import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import com.theveloper.pixelplay.data.model.SearchResultItem
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.SmartImage
+import com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import android.util.Log
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -95,10 +83,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.layout.windowInsetsBottomHeight
-import androidx.compose.material.icons.rounded.Done
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.ui.platform.LocalDensity
@@ -111,6 +96,7 @@ import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.navigation.Screen // Required for Screen.GenreDetail.createRoute
 import com.theveloper.pixelplay.presentation.screens.search.components.GenreCategoriesGrid
 import kotlinx.collections.immutable.toImmutableList
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import timber.log.Timber
 
 
@@ -128,8 +114,11 @@ fun SearchScreen(
     val uiState by playerViewModel.playerUiState.collectAsState()
     val currentFilter by remember { derivedStateOf { uiState.selectedSearchFilter } }
     val searchHistory = uiState.searchHistory
-    val allSongs by playerViewModel.allSongsFlow.collectAsState()
     val genres by playerViewModel.genres.collectAsState()
+    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
+    val favoriteSongIds by playerViewModel.favoriteSongIds.collectAsState()
+    var showSongInfoBottomSheet by remember { mutableStateOf(false) }
+    var selectedSongForInfo by remember { mutableStateOf<Song?>(null) }
 
     // Perform search whenever searchQuery, active state, or filter changes
     LaunchedEffect(searchQuery, active, currentFilter) {
@@ -140,6 +129,11 @@ fun SearchScreen(
         }
     }
     val searchResults = uiState.searchResults
+    val handleSongMoreOptionsClick: (Song) -> Unit = { song ->
+        selectedSongForInfo = song
+        playerViewModel.selectSongForInfo(song)
+        showSongInfoBottomSheet = true
+    }
 
     val searchbarHorizontalPadding by animateDpAsState(
         targetValue = if (!active) 24.dp else 0.dp,
@@ -310,7 +304,10 @@ fun SearchScreen(
                                 SearchResultsList(
                                     results = searchResults,
                                     playerViewModel = playerViewModel,
-                                    onItemSelected = rememberedOnItemSelected
+                                    onItemSelected = rememberedOnItemSelected,
+                                    currentPlayingSongId = stablePlayerState.currentSong?.id,
+                                    isPlaying = stablePlayerState.isPlaying,
+                                    onSongMoreOptionsClick = handleSongMoreOptionsClick
                                 )
                             } else if (searchQuery.isBlank() && active && searchHistory.isEmpty()) {
                                 Box(
@@ -378,11 +375,65 @@ fun SearchScreen(
                         SearchResultsList(
                             results = searchResults,
                             playerViewModel = playerViewModel,
-                            onItemSelected = { }
+                            onItemSelected = { },
+                            currentPlayingSongId = stablePlayerState.currentSong?.id,
+                            isPlaying = stablePlayerState.isPlaying,
+                            onSongMoreOptionsClick = handleSongMoreOptionsClick
                         )
                     }
                 }
             }
+        }
+    }
+
+    if (showSongInfoBottomSheet && selectedSongForInfo != null) {
+        val currentSong = selectedSongForInfo
+        val isFavorite = remember(currentSong?.id, favoriteSongIds) {
+            derivedStateOf {
+                currentSong?.let { favoriteSongIds.contains(it.id) }
+            }
+        }.value ?: false
+
+        if (currentSong != null) {
+            SongInfoBottomSheet(
+                song = currentSong,
+                isFavorite = isFavorite,
+                onToggleFavorite = {
+                    playerViewModel.toggleFavoriteSpecificSong(currentSong)
+                },
+                onDismiss = { showSongInfoBottomSheet = false },
+                onPlaySong = {
+                    playerViewModel.showAndPlaySong(currentSong)
+                    showSongInfoBottomSheet = false
+                },
+                onAddToQueue = {
+                    playerViewModel.addSongToQueue(currentSong)
+                    showSongInfoBottomSheet = false
+                },
+                onNavigateToAlbum = {
+                    navController.navigate(Screen.AlbumDetail.createRoute(currentSong.albumId))
+                    showSongInfoBottomSheet = false
+                },
+                onNavigateToArtist = {
+                    navController.navigate(Screen.ArtistDetail.createRoute(currentSong.artistId))
+                    showSongInfoBottomSheet = false
+                },
+                onEditSong = { newTitle, newArtist, newAlbum, newGenre, newLyrics, newTrackNumber, coverArtUpdate ->
+                    playerViewModel.editSongMetadata(
+                        currentSong,
+                        newTitle,
+                        newArtist,
+                        newAlbum,
+                        newGenre,
+                        newLyrics,
+                        newTrackNumber,
+                        coverArtUpdate
+                    )
+                },
+                generateAiMetadata = { fields ->
+                    playerViewModel.generateAiMetadata(currentSong, fields)
+                }
+            )
         }
     }
 }
@@ -514,23 +565,31 @@ fun EmptySearchResults(searchQuery: String, colorScheme: ColorScheme) {
     }
 }
 
+
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun SearchResultsList(
     results: List<SearchResultItem>,
     playerViewModel: PlayerViewModel,
-    onItemSelected: () -> Unit
+    onItemSelected: () -> Unit,
+    currentPlayingSongId: String?,
+    isPlaying: Boolean,
+    onSongMoreOptionsClick: (Song) -> Unit
 ) {
     val localDensity = LocalDensity.current
 
     if (results.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
             Text("No results found.", style = MaterialTheme.typography.bodyLarge)
         }
         return
     }
 
-    // Group results by type
     val groupedResults = results.groupBy { item ->
         when (item) {
             is SearchResultItem.SongItem -> SearchFilterType.SONGS
@@ -540,7 +599,6 @@ fun SearchResultsList(
         }
     }
 
-    // Define the desired order of sections
     val sectionOrder = listOf(
         SearchFilterType.SONGS,
         SearchFilterType.ALBUMS,
@@ -548,14 +606,14 @@ fun SearchResultsList(
         SearchFilterType.PLAYLISTS
     )
 
-    var imePadding = WindowInsets.ime.getBottom(localDensity).dp
+    val imePadding = WindowInsets.ime.getBottom(localDensity).dp
     val systemBarPaddingBottom = WindowInsets.systemBars.asPaddingValues().calculateBottomPadding() + 94.dp
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             top = 8.dp,
-            bottom = if (imePadding <= 8.dp) (MiniPlayerHeight + systemBarPaddingBottom) else imePadding // Direct IME padding
+            bottom = if (imePadding <= 8.dp) (MiniPlayerHeight + systemBarPaddingBottom) else imePadding
         )
     ) {
         sectionOrder.forEach { filterType ->
@@ -569,12 +627,11 @@ fun SearchResultsList(
                             SearchFilterType.ALBUMS -> "Albums"
                             SearchFilterType.ARTISTS -> "Artists"
                             SearchFilterType.PLAYLISTS -> "Playlists"
-                            else -> "Results" // Fallback, should ideally not happen with explicit types
+                            else -> "Results"
                         }
                     )
                 }
 
-                // Add items for this section
                 items(
                     count = itemsForSection.size,
                     key = { index ->
@@ -588,7 +645,6 @@ fun SearchResultsList(
                     }
                 ) { index ->
                     val item = itemsForSection[index]
-                    // Apply spacing for each item within the group
                     Box(modifier = Modifier.padding(bottom = 12.dp)) {
                         when (item) {
                             is SearchResultItem.SongItem -> {
@@ -598,11 +654,15 @@ fun SearchResultsList(
                                         onItemSelected()
                                     }
                                 }
-                                ExpressiveSongListItem(
+                                EnhancedSongListItem(
                                     song = item.song,
+                                    isPlaying = isPlaying,
+                                    isCurrentSong = currentPlayingSongId == item.song.id,
+                                    onMoreOptionsClick = onSongMoreOptionsClick,
                                     onClick = rememberedOnClick
                                 )
                             }
+
                             is SearchResultItem.AlbumItem -> {
                                 val rememberedOnClick = remember(item.album, playerViewModel, onItemSelected) {
                                     {
@@ -612,11 +672,12 @@ fun SearchResultsList(
                                         onItemSelected()
                                     }
                                 }
-                                AlbumListItem(
+                                SearchResultAlbumItem(
                                     album = item.album,
                                     onClick = rememberedOnClick
                                 )
                             }
+
                             is SearchResultItem.ArtistItem -> {
                                 val rememberedOnClick = remember(item.artist, playerViewModel, onItemSelected) {
                                     {
@@ -626,11 +687,12 @@ fun SearchResultsList(
                                         onItemSelected()
                                     }
                                 }
-                                ArtistSearchListItem(
+                                SearchResultArtistItem(
                                     artist = item.artist,
                                     onClick = rememberedOnClick
                                 )
                             }
+
                             is SearchResultItem.PlaylistItem -> {
                                 val rememberedOnClick = remember(item.playlist, playerViewModel, onItemSelected) {
                                     {
@@ -638,7 +700,7 @@ fun SearchResultsList(
                                         onItemSelected()
                                     }
                                 }
-                                PlaylistListItem(
+                                SearchResultPlaylistItem(
                                     playlist = item.playlist,
                                     onClick = rememberedOnClick
                                 )
@@ -651,42 +713,45 @@ fun SearchResultsList(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AlbumListItem(album: Album, onClick: () -> Unit) {
-    var isPressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.97f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
-        label = "album_scale"
-    )
-    val backgroundColor by animateColorAsState(
-        targetValue = if (isPressed) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
-        else MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.9f),
-        label = "album_background"
-    )
+fun SearchResultAlbumItem(
+    album: Album,
+    onClick: () -> Unit
+) {
+    val itemShape = remember {
+        AbsoluteSmoothCornerShape(
+            cornerRadiusTL = 26.dp,
+            smoothnessAsPercentTR = 60,
+            cornerRadiusTR = 26.dp,
+            smoothnessAsPercentBR = 60,
+            cornerRadiusBR = 26.dp,
+            smoothnessAsPercentBL = 60,
+            cornerRadiusBL = 26.dp,
+            smoothnessAsPercentTL = 60
+        )
+    }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .scale(scale)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = { isPressed = true; tryAwaitRelease(); isPressed = false },
-                    onTap = { onClick() }
-                )
-            },
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = backgroundColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        onClick = onClick,
+        shape = itemShape,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        ),
+        modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             SmartImage(
                 model = album.albumArtUriString,
                 contentDescription = "Album Art: ${album.title}",
-                modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp))
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(itemShape)
             )
             Spacer(Modifier.width(12.dp))
             Column(
@@ -694,14 +759,14 @@ fun AlbumListItem(album: Album, onClick: () -> Unit) {
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    album.title,
+                    text = album.title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    album.artist,
+                    text = album.artist,
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -717,69 +782,65 @@ fun AlbumListItem(album: Album, onClick: () -> Unit) {
                     contentColor = MaterialTheme.colorScheme.onSecondary
                 )
             ) {
-                Icon(Icons.Rounded.PlayArrow, "Play Album", modifier = Modifier.size(24.dp))
+                Icon(Icons.Rounded.PlayArrow, contentDescription = "Play Album", modifier = Modifier.size(24.dp))
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ArtistSearchListItem(artist: Artist, onClick: () -> Unit) {
-    var isPressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.97f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
-        label = "artist_scale"
-    )
-    val backgroundColor by animateColorAsState(
-        targetValue = if (isPressed) MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f)
-        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f),
-        label = "artist_background"
-    )
+fun SearchResultArtistItem(
+    artist: Artist,
+    onClick: () -> Unit
+) {
+    val itemShape = remember {
+        AbsoluteSmoothCornerShape(
+            cornerRadiusTL = 26.dp,
+            smoothnessAsPercentTR = 60,
+            cornerRadiusTR = 26.dp,
+            smoothnessAsPercentBR = 60,
+            cornerRadiusBR = 26.dp,
+            smoothnessAsPercentBL = 60,
+            cornerRadiusBL = 26.dp,
+            smoothnessAsPercentTL = 60
+        )
+    }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .scale(scale)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = { isPressed = true; tryAwaitRelease(); isPressed = false },
-                    onTap = { onClick() }
-                )
-            },
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = backgroundColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        onClick = onClick,
+        shape = itemShape,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        ),
+        modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Placeholder Icon for Artist
             Icon(
-                imageVector = Icons.Rounded.Person,
-                contentDescription = "Artist Icon",
+                painter = painterResource(id = R.drawable.rounded_artist_24),
+                contentDescription = "Artist",
                 modifier = Modifier
                     .size(56.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f))
-                    .padding(8.dp),
-                tint = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                    .background(MaterialTheme.colorScheme.tertiaryContainer, CircleShape)
+                    .padding(12.dp),
+                tint = MaterialTheme.colorScheme.onTertiaryContainer
             )
             Spacer(Modifier.width(12.dp))
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.Center
-            ) {
+            Column(Modifier.weight(1f)) {
                 Text(
-                    artist.name,
+                    text = artist.name,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    "${artist.songCount} songs",
+                    text = "${artist.songCount} Songs",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -793,59 +854,63 @@ fun ArtistSearchListItem(artist: Artist, onClick: () -> Unit) {
                     contentColor = MaterialTheme.colorScheme.onTertiary
                 )
             ) {
-                Icon(Icons.Rounded.PlayArrow, "Play Artist's Songs", modifier = Modifier.size(24.dp))
+                Icon(Icons.Rounded.PlayArrow, contentDescription = "Play Artist", modifier = Modifier.size(24.dp))
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlaylistListItem(playlist: Playlist, onClick: () -> Unit) {
-    var isPressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.97f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
-        label = "playlist_scale"
-    )
-     val backgroundColor by animateColorAsState(
-        targetValue = if (isPressed) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
-        label = "playlist_background"
-    )
+fun SearchResultPlaylistItem(
+    playlist: Playlist,
+    onClick: () -> Unit
+) {
+    val itemShape = remember {
+        AbsoluteSmoothCornerShape(
+            cornerRadiusTL = 26.dp,
+            smoothnessAsPercentTR = 60,
+            cornerRadiusTR = 26.dp,
+            smoothnessAsPercentBR = 60,
+            cornerRadiusBR = 26.dp,
+            smoothnessAsPercentBL = 60,
+            cornerRadiusBL = 26.dp,
+            smoothnessAsPercentTL = 60
+        )
+    }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .scale(scale)
-            .shadow(
-                elevation = 3.dp,
-                shape = RoundedCornerShape(20.dp),
-                spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) // Using primary color
-            )
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = { isPressed = true; tryAwaitRelease(); isPressed = false },
-                    onTap = { onClick() }
-                )
-            },
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = backgroundColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp) // Elevation handled by shadow modifier
+        onClick = onClick,
+        shape = itemShape,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        ),
+        modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Rounded.PlaylistPlay, // More specific icon for playlist
-                contentDescription = "Playlist Icon",
-                 modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)).padding(8.dp),
+                imageVector = Icons.Rounded.PlaylistPlay,
+                contentDescription = "Playlist",
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(itemShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                    .padding(8.dp),
                 tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)
             )
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(playlist.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                // Could add song count if available in Playlist model: Text("${playlist.songCount} songs", style = MaterialTheme.typography.bodySmall)
+                Text(
+                    text = playlist.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
             FilledIconButton(
                 onClick = onClick,
@@ -856,125 +921,7 @@ fun PlaylistListItem(playlist: Playlist, onClick: () -> Unit) {
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 )
             ) {
-                Icon(Icons.Rounded.PlayArrow, "Play Playlist", modifier = Modifier.size(24.dp))
-            }
-        }
-    }
-}
-
-
-@Composable
-fun ExpressiveSongListItem(
-    song: Song,
-    onClick: () -> Unit
-) {
-    var isPressed by remember { mutableStateOf(false) }
-
-    // Animaciones más expresivas
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.97f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
-        label = "scale"
-    )
-
-    val elevation by animateDpAsState(
-        targetValue = if (isPressed) 1.dp else 6.dp,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
-        label = "elevation"
-    )
-
-    val backgroundColor by animateColorAsState(
-        targetValue = if (isPressed)
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
-        else
-            MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.9f),
-        label = "song_item_background_color"
-    )
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .scale(scale)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        isPressed = true
-                        tryAwaitRelease()
-                        isPressed = false
-                    },
-                    onTap = { onClick() }
-                )
-            },
-        shape = RoundedCornerShape(24.dp), // Consistent corner rounding
-        colors = CardDefaults.cardColors(
-            containerColor = backgroundColor
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp), // Consistent padding
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Album art
-            SmartImage(
-                model = song.albumArtUriString,
-                contentDescription = "Album Art",
-                contentScale = ContentScale.Crop,
-                shape = RoundedCornerShape(12.dp), // Consistent corner rounding
-                modifier = Modifier.size(56.dp) // Consistent size
-            )
-
-            Spacer(modifier = Modifier.width(12.dp)) // Consistent spacing
-
-            // Song info
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.Center // Center content vertically
-            ) {
-                Text(
-                    text = song.title,
-                    style = MaterialTheme.typography.titleMedium, // Adjusted for balance
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(2.dp)) // Reduced spacer
-
-                Text(
-                    text = "${song.artist} • ${song.album}",
-                    style = MaterialTheme.typography.bodySmall, // Adjusted for balance
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp)) // Consistent spacing
-
-            // Play button
-            FilledIconButton(
-                onClick = onClick,
-                modifier = Modifier.size(40.dp), // Consistent size
-                shape = CircleShape,
-                colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.PlayArrow,
-                    contentDescription = "Play Song",
-                    modifier = Modifier.size(24.dp) // Consistent icon size
-                )
+                Icon(Icons.Rounded.PlayArrow, contentDescription = "Play Playlist", modifier = Modifier.size(24.dp))
             }
         }
     }
