@@ -1523,7 +1523,9 @@ class PlayerViewModel @Inject constructor(
             val remoteQueueItems = remoteMediaClient.mediaStatus?.queueItems ?: emptyList()
             val itemInQueue = remoteQueueItems.find { it.customData?.optString("songId") == song.id }
 
-            if (itemInQueue != null) {
+            val queueMatchesContext = remoteQueueItems.matchesContext(contextSongs)
+
+            if (itemInQueue != null && queueMatchesContext) {
                 // Song is already in the remote queue, just jump to it.
                 remoteMediaClient.queueJumpToItem(itemInQueue.itemId, 0L, null).setResultCallback {
                     if (!it.status.isSuccess) {
@@ -1544,8 +1546,9 @@ class PlayerViewModel @Inject constructor(
             mediaController?.let { controller ->
                 val currentQueue = _playerUiState.value.currentPlaybackQueue
                 val songIndexInQueue = currentQueue.indexOfFirst { it.id == song.id }
+                val queueMatchesContext = currentQueue.matchesContext(contextSongs)
 
-                if (songIndexInQueue != -1) {
+                if (songIndexInQueue != -1 && queueMatchesContext) {
                     if (controller.currentMediaItemIndex == songIndexInQueue) {
                         if (!controller.isPlaying) controller.play()
                     } else {
@@ -1565,6 +1568,24 @@ class PlayerViewModel @Inject constructor(
     fun showAndPlaySong(song: Song) {
         Log.d("ShuffleDebug", "showAndPlaySong (single song overload) called for '${song.title}'")
         showAndPlaySong(song, playerUiState.value.allSongs.toList(), "Library")
+    }
+
+    private fun List<Song>.matchesContext(contextSongs: List<Song>): Boolean {
+        if (size != contextSongs.size) return false
+        return indices.all { this[it].id == contextSongs[it].id }
+    }
+
+    private fun List<MediaQueueItem>.matchesContext(contextSongs: List<Song>): Boolean {
+        if (size != contextSongs.size) return false
+
+        for (index in indices) {
+            val queueSongId = this[index].customData?.optString("songId")
+            if (queueSongId.isNullOrEmpty() || queueSongId != contextSongs[index].id) {
+                return false
+            }
+        }
+
+        return true
     }
 
     fun playAlbum(album: Album) {
