@@ -21,7 +21,6 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -60,6 +59,13 @@ class PlaybackStatsRepository @Inject constructor(
         val totalDurationMs: Long,
         val playCount: Int,
         val uniqueSongs: Int
+    )
+
+    data class GenrePlaybackSummary(
+        val genre: String,
+        val totalDurationMs: Long,
+        val playCount: Int,
+        val uniqueArtists: Int
     )
 
     data class AlbumPlaybackSummary(
@@ -121,7 +127,8 @@ class PlaybackStatsRepository @Inject constructor(
         val uniqueSongs: Int,
         val averageDailyDurationMs: Long,
         val songs: List<SongPlaybackSummary> = emptyList(),
-        val topSongs: List<SongPlaybackSummary>,
+        val topSongs: List<SongPlaybackSummary> = emptyList(),
+        val topGenres: List<GenrePlaybackSummary> = emptyList(),
         val timeline: List<TimelineEntry>,
         val topArtists: List<ArtistPlaybackSummary>,
         val topAlbums: List<AlbumPlaybackSummary>,
@@ -239,6 +246,32 @@ class PlaybackStatsRepository @Inject constructor(
                     .thenByDescending { it.playCount }
             )
         val topSongs = allSongs.take(5)
+
+        val topGenres = segmentsBySong.entries
+            .groupBy { (songId, _) ->
+                val genre = songMap[songId]?.genre
+                if (genre.isNullOrBlank()) "Unknown Genre" else genre
+            }
+            .map { (genre, groupedSongs) ->
+                val flattened = groupedSongs.flatMap { it.value }
+                val uniqueArtists = groupedSongs
+                    .mapNotNull { (songId, _) ->
+                        songMap[songId]?.artist?.takeIf { it.isNotBlank() }
+                    }
+                    .toSet()
+                    .size
+                GenrePlaybackSummary(
+                    genre = genre,
+                    totalDurationMs = flattened.sumOf { it.durationMs },
+                    playCount = flattened.size,
+                    uniqueArtists = uniqueArtists
+                )
+            }
+            .sortedWith(
+                compareByDescending<GenrePlaybackSummary> { it.totalDurationMs }
+                    .thenByDescending { it.playCount }
+            )
+            .take(5)
 
         var daySpan = 1L
         val averageDailyDuration = if (effectiveStart != null) {
@@ -364,6 +397,7 @@ class PlaybackStatsRepository @Inject constructor(
             songs = allSongs,
             topSongs = topSongs,
             timeline = timelineEntries,
+            topGenres = topGenres,
             topArtists = topArtists,
             topAlbums = topAlbums,
             activeDays = activeDays,
@@ -764,26 +798,27 @@ class PlaybackStatsRepository @Inject constructor(
     private fun createMonthBuckets(zoneId: ZoneId, now: Instant): List<TimelineBucket> {
         val yearMonth = YearMonth.from(now.atZone(zoneId))
         val daysInMonth = yearMonth.lengthOfMonth()
-        val bucketCount = 5
-        val daysPerBucket = ceil(daysInMonth / bucketCount.toDouble()).toInt().coerceAtLeast(1)
-        return (0 until bucketCount).map { index ->
-            val startDay = index * daysPerBucket + 1
-            if (startDay > daysInMonth) {
-                TimelineBucket(
-                    label = "Week ${index + 1}",
-                    startMillis = yearMonth.atEndOfMonth().plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli(),
-                    endMillis = yearMonth.atEndOfMonth().plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli(),
-                    inclusiveEnd = false
-                )
-            } else {
-                val endDay = minOf(startDay + daysPerBucket - 1, daysInMonth)
+        val bucketCount = 4
+        return buildList {
+            repeat(bucketCount) { index ->
+                val startDay = index * 7 + 1
+                if (startDay > daysInMonth) {
+                    return@repeat
+                }
+                val endDay = if (index == bucketCount - 1) {
+                    daysInMonth
+                } else {
+                    minOf(startDay + 6, daysInMonth)
+                }
                 val start = yearMonth.atDay(startDay).atStartOfDay(zoneId).toInstant()
                 val end = yearMonth.atDay(endDay).plusDays(1).atStartOfDay(zoneId).toInstant()
-                TimelineBucket(
-                    label = "Week ${index + 1}",
-                    startMillis = start.toEpochMilli(),
-                    endMillis = end.toEpochMilli(),
-                    inclusiveEnd = false
+                add(
+                    TimelineBucket(
+                        label = "Week ${index + 1}",
+                        startMillis = start.toEpochMilli(),
+                        endMillis = end.toEpochMilli(),
+                        inclusiveEnd = false
+                    )
                 )
             }
         }

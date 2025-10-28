@@ -118,7 +118,7 @@ fun StatsOverviewCard(
                 }
 
                 Crossfade(
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp),
                     targetState = summary
                 ) { currentSummary ->
                     if (currentSummary == null) {

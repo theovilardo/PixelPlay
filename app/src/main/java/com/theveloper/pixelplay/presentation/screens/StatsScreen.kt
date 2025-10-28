@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -47,6 +48,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ScrollableTabRow
@@ -172,6 +174,7 @@ fun StatsScreen(
     val tabIndicatorExtraSpacing = 8.dp
     val tabContentSpacing = 20.dp
     var selectedTimelineMetric by rememberSaveable { mutableStateOf(TimelineMetric.ListeningTime) }
+    var selectedCategoryDimension by rememberSaveable { mutableStateOf(CategoryDimension.Song) }
 
     Box(
         modifier = Modifier
@@ -209,6 +212,14 @@ fun StatsScreen(
                         summary = summary,
                         selectedMetric = selectedTimelineMetric,
                         onMetricSelected = { selectedTimelineMetric = it },
+                        modifier = Modifier.padding(horizontal = 20.dp)
+                    )
+                }
+                item {
+                    CategoryMetricsSection(
+                        summary = summary,
+                        selectedDimension = selectedCategoryDimension,
+                        onDimensionSelected = { selectedCategoryDimension = it },
                         modifier = Modifier.padding(horizontal = 20.dp)
                     )
                 }
@@ -300,7 +311,7 @@ private fun StatsTopBar(
             FilledIconButton(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(top = 4.dp),
+                    .padding(top = 8.dp),
                 onClick = onBackClick,
                 colors = IconButtonDefaults.filledIconButtonColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
@@ -380,83 +391,6 @@ private fun StatsSummaryCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                }
-                if (summary != null) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-//                        SummaryHeroTile(
-//                            title = "Total plays",
-//                            value = summary.totalPlayCount.toString(),
-//                            supporting = "Logged in this range"
-//                        )
-//                        SummaryHeroTile(
-//                            title = "Unique songs",
-//                            value = summary.uniqueSongs.toString(),
-//                            supporting = "Different tracks"
-//                        )
-                    }
-
-//                    SummaryProgressRow(
-//                        title = "Peak day",
-//                        label = summary.peakDayLabel,
-//                        supporting = if (summary.peakDayDurationMs > 0L) {
-//                            formatListeningDurationCompact(summary.peakDayDurationMs)
-//                        } else {
-//                            "No standout day yet"
-//                        },
-//                        progress = if (summary.totalDurationMs > 0L) {
-//                            (summary.peakDayDurationMs.toFloat() / summary.totalDurationMs.toFloat()).coerceIn(0f, 1f)
-//                        } else {
-//                            0f
-//                        }
-//                    )
-
-//                    FlowRow(
-//                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-//                        verticalArrangement = Arrangement.spacedBy(12.dp)
-//                    ) {
-//                        SummaryPill(label = "Active days", value = summary.activeDays.toString())
-//                        SummaryPill(
-//                            label = "Avg per day",
-//                            value = formatListeningDurationCompact(summary.averageDailyDurationMs)
-//                        )
-//                        SummaryPill(
-//                            label = "Avg session",
-//                            value = formatListeningDurationCompact(summary.averageSessionDurationMs)
-//                        )
-//                        SummaryPill(
-//                            label = "Sessions/day",
-//                            value = String.format(Locale.US, "%.1f", summary.averageSessionsPerDay)
-//                        )
-//                        SummaryPill(label = "Total sessions", value = summary.totalSessions.toString())
-//                        SummaryPill(
-//                            label = "Longest session",
-//                            value = if (summary.longestSessionDurationMs > 0L) {
-//                                formatListeningDurationCompact(summary.longestSessionDurationMs)
-//                            } else {
-//                                "—"
-//                            }
-//                        )
-//                        SummaryPill(
-//                            label = "Longest streak",
-//                            value = if (summary.longestStreakDays > 0) "${summary.longestStreakDays} days" else "—"
-//                        )
-//                    }
-                } else {
-                    Text(
-                        text = "Start playing music to unlock your insights.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                if (isLoading) {
-                    LinearProgressIndicator(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
                 }
             }
         }
@@ -840,6 +774,39 @@ private enum class TimelineMetric(
     )
 }
 
+private enum class CategoryDimension(
+    val displayName: String,
+    val cardTitle: String,
+    val highlightTitle: String
+) {
+    Genre(
+        displayName = "Genre",
+        cardTitle = "Listening by genre",
+        highlightTitle = "Top genre"
+    ),
+    Artist(
+        displayName = "Artist",
+        cardTitle = "Listening by artist",
+        highlightTitle = "Top artist"
+    ),
+    Album(
+        displayName = "Album",
+        cardTitle = "Listening by album",
+        highlightTitle = "Top album"
+    ),
+    Song(
+        displayName = "Song",
+        cardTitle = "Listening by song",
+        highlightTitle = "Top song"
+    )
+}
+
+private data class CategoryMetricEntry(
+    val label: String,
+    val durationMs: Long,
+    val supporting: String
+)
+
 @Composable
 private fun DailyListeningDistributionSection(
     summary: PlaybackStatsRepository.PlaybackStatsSummary?,
@@ -1071,6 +1038,303 @@ private fun ListeningTimelineSection(
                         }
                     },
                     icon = Icons.Outlined.AutoGraph
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CategoryMetricsSection(
+    summary: PlaybackStatsRepository.PlaybackStatsSummary?,
+    selectedDimension: CategoryDimension,
+    onDimensionSelected: (CategoryDimension) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = "Top categories",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = "Compare how you listen across genres, artists, albums, and songs.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp)
+        ) {
+            CategoryDimension.entries.reversed().forEach { dimension ->
+                val isSelected = dimension == selectedDimension
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onDimensionSelected(dimension) },
+                    label = {
+                        Text(
+                            text = dimension.displayName,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                        labelColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        borderColor = if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outlineVariant,
+                        selectedBorderColor = Color.Transparent,
+                        enabled = true,
+                        selected = isSelected
+                    )
+                )
+            }
+        }
+
+        val entries = remember(summary, selectedDimension) {
+            val base = when (selectedDimension) {
+                CategoryDimension.Genre -> summary?.topGenres.orEmpty().map {
+                    CategoryMetricEntry(
+                        label = it.genre,
+                        durationMs = it.totalDurationMs,
+                        supporting = "${it.playCount} plays • ${it.uniqueArtists} artists"
+                    )
+                }
+
+                CategoryDimension.Artist -> summary?.topArtists.orEmpty().map {
+                    CategoryMetricEntry(
+                        label = it.artist,
+                        durationMs = it.totalDurationMs,
+                        supporting = "${it.playCount} plays • ${it.uniqueSongs} tracks"
+                    )
+                }
+
+                CategoryDimension.Album -> summary?.topAlbums.orEmpty().map {
+                    CategoryMetricEntry(
+                        label = it.album,
+                        durationMs = it.totalDurationMs,
+                        supporting = "${it.playCount} plays • ${it.uniqueSongs} tracks"
+                    )
+                }
+
+                CategoryDimension.Song -> summary?.topSongs.orEmpty().map {
+                    val supportingParts = buildList {
+                        add("${it.playCount} plays")
+                        if (it.artist.isNotBlank()) {
+                            add(it.artist)
+                        }
+                    }
+                    CategoryMetricEntry(
+                        label = it.title,
+                        durationMs = it.totalDurationMs,
+                        supporting = supportingParts.joinToString(separator = " • ")
+                    )
+                }
+            }
+            base.filter { it.durationMs > 0L }
+        }
+
+        if (entries.isEmpty()) {
+            Text(
+                text = "Press play to surface your listening highlights in this view.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            Card(
+                shape = RoundedCornerShape(32.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    Text(
+                        text = selectedDimension.cardTitle,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    CategoryVerticalBarChart(entries = entries)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategoryVerticalBarChart(
+    entries: List<CategoryMetricEntry>,
+    modifier: Modifier = Modifier
+) {
+    if (entries.isEmpty()) return
+    val maxDuration = entries.maxOf { it.durationMs }.coerceAtLeast(1L)
+    val highlightDuration = entries.maxOf { it.durationMs }
+    val highlightIndex = entries.indexOfFirst { it.durationMs == highlightDuration }.coerceAtLeast(0)
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(220.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.Bottom
+        ) {
+            entries.forEachIndexed { index, entry ->
+                val progress = (entry.durationMs.toFloat() / maxDuration.toFloat()).coerceIn(0f, 1f)
+                val isHighlight = entry.durationMs == highlightDuration
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .widthIn(min = 56.dp)
+                        .padding(horizontal = 2.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = formatListeningDurationCompact(entry.durationMs),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Clip
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(140.dp)
+                            .clip(CircleShape)
+                            .background(Color.Transparent),//.background(MaterialTheme.colorScheme.surfaceContainerLowest),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .fillMaxHeight(progress)
+                                .clip(CircleShape)
+                                .background(
+                                    if (isHighlight) {
+                                        Brush.verticalGradient(
+                                            listOf(
+                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
+                                                MaterialTheme.colorScheme.tertiary
+                                            )
+                                        )
+                                    } else {
+                                        Brush.verticalGradient(
+                                            listOf(
+                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                                                MaterialTheme.colorScheme.primary
+                                            )
+                                        )
+                                    }
+                                )
+                        )
+                    }
+                    CategoryMetricIndicator(
+                        //modifier = Modifier.height(40.dp),
+                        index = index,
+                        highlighted = isHighlight
+                    )
+                }
+            }
+        }
+
+        HorizontalDivider(
+            modifier = Modifier
+                .height(2.dp)
+                .clip(shape = CircleShape),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
+        )
+
+        CategoryMetricsLegend(entries = entries, highlightIndex = highlightIndex)
+    }
+}
+
+@Composable
+private fun CategoryMetricIndicator(
+    index: Int,
+    highlighted: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val containerColor = if (highlighted) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.secondaryContainer
+    }
+    val contentColor = if (highlighted) {
+        MaterialTheme.colorScheme.onPrimary
+    } else {
+        MaterialTheme.colorScheme.onSecondaryContainer
+    }
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.extraLarge,
+        color = containerColor,
+        contentColor = contentColor,
+        tonalElevation = if (highlighted) 4.dp else 0.dp
+    ) {
+        Box(
+            modifier = Modifier
+                .defaultMinSize(minWidth = 36.dp, minHeight = 36.dp)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "${index + 1}",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun CategoryMetricsLegend(
+    entries: List<CategoryMetricEntry>,
+    highlightIndex: Int
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        entries.forEachIndexed { index, entry ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CategoryMetricIndicator(index = index, highlighted = index == highlightIndex)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = entry.label,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (entry.supporting.isNotBlank()) {
+                        Text(
+                            text = entry.supporting,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Text(
+                    text = formatListeningDurationCompact(entry.durationMs),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
