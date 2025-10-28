@@ -34,13 +34,22 @@
             android:exported="true"
             android:label="@string/app_name"
             android:theme="@style/Theme.PixelPlay"
-            android:launchMode="singleTop"
-            android:grantUriPermissions="true">
+            android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ExternalPlayerActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.PixelPlay.ExternalPlayer"
+            android:excludeFromRecents="true"
+            android:grantUriPermissions="true">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
 
