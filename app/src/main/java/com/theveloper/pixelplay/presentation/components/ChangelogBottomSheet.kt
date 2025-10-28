@@ -70,6 +70,7 @@ val changelog = listOf(
                 title = "Improvements",
                 items = listOf(
                     "Refined the overall Material 3 UI for a cleaner and more cohesive experience.",
+                    "Metadata editing now supports cover art change.",
                     "Smoothed out animations and transitions across the app for more fluid navigation.",
                     "Enhanced the artist screen layout with richer details and polish.",
                     "Upgraded DailyMix and YourMix generation with smarter, more diverse selections.",
