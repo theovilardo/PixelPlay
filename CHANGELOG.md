@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0-beta] - 2025-10-28
+
+### What's new
+- Introduced a richer listening stats hub with deeper insights into your sessions.
+- Launched a floating quick player to instantly open and preview local files.
+- Added a folders tab with a tree-style navigator and playlist-ready view.
+
+### Improvements
+- Refined the overall Material 3 UI for a cleaner and more cohesive experience.
+- Smoothed out animations and transitions across the app for more fluid navigation.
+- Enhanced the artist screen layout with richer details and polish.
+- Upgraded DailyMix and YourMix generation with smarter, more diverse selections.
+- Strengthened the AI assistant to deliver more relevant playback suggestions.
+- Improved search relevance and presentation for faster discovery.
+- Expanded support for a broader range of audio file formats.
+
+### Fixes
+- Resolved metadata quirks so song details stay accurate everywhere.
+- Restored notification shortcuts so they reliably jump back into playback.
+
 ## [0.2.0-beta] - 2024-09-15
 
 ### Added
