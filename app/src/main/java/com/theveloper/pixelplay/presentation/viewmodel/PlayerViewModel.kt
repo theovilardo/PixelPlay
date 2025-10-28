@@ -1523,7 +1523,7 @@ class PlayerViewModel @Inject constructor(
             val remoteQueueItems = remoteMediaClient.mediaStatus?.queueItems ?: emptyList()
             val itemInQueue = remoteQueueItems.find { it.customData?.optString("songId") == song.id }
 
-            val queueMatchesContext = remoteQueueItems.matchesSongContext(contextSongs)
+            val queueMatchesContext = remoteQueueItems.matchesQueueSongOrder(contextSongs)
 
             if (itemInQueue != null && queueMatchesContext) {
                 // Song is already in the remote queue, just jump to it.
@@ -1546,7 +1546,7 @@ class PlayerViewModel @Inject constructor(
             mediaController?.let { controller ->
                 val currentQueue = _playerUiState.value.currentPlaybackQueue
                 val songIndexInQueue = currentQueue.indexOfFirst { it.id == song.id }
-                val queueMatchesContext = currentQueue.matchesSongContext(contextSongs)
+                val queueMatchesContext = currentQueue.matchesSongOrder(contextSongs)
 
                 if (songIndexInQueue != -1 && queueMatchesContext) {
                     if (controller.currentMediaItemIndex == songIndexInQueue) {
@@ -1570,12 +1570,12 @@ class PlayerViewModel @Inject constructor(
         showAndPlaySong(song, playerUiState.value.allSongs.toList(), "Library")
     }
 
-    private fun List<Song>.matchesSongContext(contextSongs: List<Song>): Boolean {
+    private fun List<Song>.matchesSongOrder(contextSongs: List<Song>): Boolean {
         if (size != contextSongs.size) return false
         return indices.all { this[it].id == contextSongs[it].id }
     }
 
-    private fun List<MediaQueueItem>.matchesSongContext(contextSongs: List<Song>): Boolean {
+    private fun List<MediaQueueItem>.matchesQueueSongOrder(contextSongs: List<Song>): Boolean {
         if (size != contextSongs.size) return false
 
         for (index in indices) {
