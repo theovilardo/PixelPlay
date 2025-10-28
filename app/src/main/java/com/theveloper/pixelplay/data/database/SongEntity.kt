@@ -6,6 +6,8 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.theveloper.pixelplay.data.model.Song
+import com.theveloper.pixelplay.utils.normalizeMetadataText
+import com.theveloper.pixelplay.utils.normalizeMetadataTextOrEmpty
 
 @Entity(
     tableName = "songs",
@@ -57,17 +59,17 @@ data class SongEntity(
 fun SongEntity.toSong(): Song {
     return Song(
         id = this.id.toString(),
-        title = this.title,
-        artist = this.artistName,
+        title = this.title.normalizeMetadataTextOrEmpty(),
+        artist = this.artistName.normalizeMetadataTextOrEmpty(),
         artistId = this.artistId,
-        album = this.albumName,
+        album = this.albumName.normalizeMetadataTextOrEmpty(),
         albumId = this.albumId,
         path = this.filePath, // Map the file path
         contentUriString = this.contentUriString,
         albumArtUriString = this.albumArtUriString,
         duration = this.duration,
-        genre = this.genre,
-        lyrics = this.lyrics,
+        genre = this.genre.normalizeMetadataText(),
+        lyrics = this.lyrics?.normalizeMetadataText(),
         isFavorite = this.isFavorite,
         trackNumber = this.trackNumber,
         dateAdded = this.dateAdded,

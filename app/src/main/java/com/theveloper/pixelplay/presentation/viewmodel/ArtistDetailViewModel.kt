@@ -1,6 +1,7 @@
 
 package com.theveloper.pixelplay.presentation.viewmodel
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -20,8 +21,18 @@ import javax.inject.Inject
 data class ArtistDetailUiState(
     val artist: Artist? = null,
     val songs: List<Song> = emptyList(),
+    val albumSections: List<ArtistAlbumSection> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null
+)
+
+@Immutable
+data class ArtistAlbumSection(
+    val albumId: Long,
+    val title: String,
+    val year: Int?,
+    val albumArtUriString: String?,
+    val songs: List<Song>
 )
 
 @HiltViewModel
@@ -56,9 +67,12 @@ class ArtistDetailViewModel @Inject constructor(
 
                 combine(artistDetailsFlow, artistSongsFlow) { artist, songs ->
                     if (artist != null) {
+                        val albumSections = buildAlbumSections(songs)
+                        val orderedSongs = albumSections.flatMap { it.songs }
                         ArtistDetailUiState(
                             artist = artist,
-                            songs = songs,
+                            songs = orderedSongs,
+                            albumSections = albumSections,
                             isLoading = false
                         )
                     } else {
@@ -85,4 +99,36 @@ class ArtistDetailViewModel @Inject constructor(
             }
         }
     }
+}
+
+private val songDisplayComparator = compareBy<Song> {
+    if (it.trackNumber > 0) it.trackNumber else Int.MAX_VALUE
+}.thenBy { it.title.lowercase() }
+
+private fun buildAlbumSections(songs: List<Song>): List<ArtistAlbumSection> {
+    if (songs.isEmpty()) return emptyList()
+
+    val sections = songs
+        .groupBy { it.albumId to it.album }
+        .map { (key, albumSongs) ->
+            val sortedSongs = albumSongs.sortedWith(songDisplayComparator)
+            val albumYear = albumSongs.mapNotNull { song -> song.year.takeIf { it > 0 } }.maxOrNull()
+            val albumArtUri = albumSongs.firstNotNullOfOrNull { it.albumArtUriString }
+            ArtistAlbumSection(
+                albumId = key.first,
+                title = (key.second.takeIf { it.isNotBlank() } ?: "Unknown Album"),
+                year = albumYear,
+                albumArtUriString = albumArtUri,
+                songs = sortedSongs
+            )
+        }
+
+    val (withYear, withoutYear) = sections.partition { it.year != null }
+    val withYearSorted = withYear.sortedWith(
+        compareByDescending<ArtistAlbumSection> { it.year ?: Int.MIN_VALUE }
+            .thenBy { it.title.lowercase() }
+    )
+    val withoutYearSorted = withoutYear.sortedBy { it.title.lowercase() }
+
+    return withYearSorted + withoutYearSorted
 }

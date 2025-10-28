@@ -7,11 +7,12 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -56,6 +57,7 @@ import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.ArtistDetailViewModel
+import com.theveloper.pixelplay.presentation.viewmodel.ArtistAlbumSection
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
@@ -63,7 +65,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @androidx.annotation.OptIn(UnstableApi::class)
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ArtistDetailScreen(
     artistId: String,
@@ -182,28 +184,65 @@ fun ArtistDetailScreen(
                     val songs = uiState.songs
                     val currentTopBarHeightDp = with(density) { topBarHeight.value.toDp() }
 
+                    val albumSections = uiState.albumSections
                     LazyColumn(
                         state = lazyListState,
                         contentPadding = PaddingValues(top = currentTopBarHeightDp, bottom = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 16.dp)
+                            .padding(horizontal = 0.dp)
                     ) {
-                        items(songs, key = { song -> "artist_song_${song.id}" }) { song ->
-                            EnhancedSongListItem(
-                                song = song,
-                                isCurrentSong = songs.isNotEmpty() && stablePlayerState.currentSong == song,
-                                isPlaying = stablePlayerState.isPlaying,
-                                onMoreOptionsClick = {
-                                    playerViewModel.selectSongForInfo(song)
-                                    showSongInfoBottomSheet = true
-                                },
-                                onClick = { playerViewModel.showAndPlaySong(song, songs) }
-                            )
+                        albumSections.forEachIndexed { index, section ->
+                            if (section.songs.isEmpty()) return@forEachIndexed
+
+                            stickyHeader(key = "artist_album_${section.albumId}_${section.title}_header") {
+                                AlbumSectionHeader(
+                                    section = section,
+                                    onPlayAlbum = {
+                                        section.songs.firstOrNull()?.let { firstSong ->
+                                            playerViewModel.showAndPlaySong(firstSong, section.songs)
+                                        }
+                                    }
+                                )
+                            }
+
+                            item(key = "artist_album_${section.albumId}_${section.title}_header_spacing") {
+                                Spacer(modifier = Modifier.height(12.dp))
+                            }
+
+                            itemsIndexed(
+                                items = section.songs,
+                                key = { _, song -> "artist_album_${section.albumId}_song_${song.id}" }
+                            ) { songIndex, song ->
+                                EnhancedSongListItem(
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    song = song,
+                                    isCurrentSong = stablePlayerState.currentSong == song,
+                                    isPlaying = stablePlayerState.isPlaying,
+                                    onMoreOptionsClick = {
+                                        playerViewModel.selectSongForInfo(song)
+                                        showSongInfoBottomSheet = true
+                                    },
+                                    onClick = { playerViewModel.showAndPlaySong(song, section.songs) }
+                                )
+
+                                if (songIndex != section.songs.lastIndex) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
+                            }
+
+                            item(key = "artist_album_${section.albumId}_${section.title}_footer_spacing") {
+                                Spacer(
+                                    modifier = Modifier.height(
+                                        if (index == albumSections.lastIndex) 24.dp else 20.dp
+                                    )
+                                )
+                            }
                         }
 
-                        item(key = "bottom_spacer") { Spacer(modifier = Modifier.height(MiniPlayerHeight + 16.dp)) }
+                        item(key = "bottom_spacer") {
+                            Spacer(modifier = Modifier.height(MiniPlayerHeight + 16.dp))
+                        }
                     }
 
                     CustomCollapsingTopBar(
@@ -259,6 +298,62 @@ fun ArtistDetailScreen(
                     playerViewModel.generateAiMetadata(currentSong, fields)
                 }
             )
+        }
+    }
+}
+
+@Composable
+private fun AlbumSectionHeader(
+    section: ArtistAlbumSection,
+    modifier: Modifier = Modifier,
+    onPlayAlbum: () -> Unit
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = Color.Transparent,
+        tonalElevation = 2.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp, horizontal = 22.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = section.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                val subtitle = buildString {
+                    section.year?.takeIf { it > 0 }?.let {
+                        append(it.toString())
+                        append(" • ")
+                    }
+                    append("${section.songs.size} songs")
+                }
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            FilledIconButton(
+                onClick = onPlayAlbum,
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                )
+            ) {
+                Icon(Icons.Rounded.PlayArrow, contentDescription = "Play ${section.title}")
+            }
         }
     }
 }
