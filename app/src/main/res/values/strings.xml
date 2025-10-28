@@ -26,6 +26,6 @@
     <string name="unknown_artist">Unknown artist</string>
     <string name="unknown_album">Unknown album</string>
     <string name="external_queue_label">Quick play</string>
-    <string name="external_playback_error">We couldn&#39;t open that audio file.</string>
+    <string name="external_playback_error">Unable to open that audio file.</string>
     <string name="open_full_player">Open full player</string>
 </resources>
