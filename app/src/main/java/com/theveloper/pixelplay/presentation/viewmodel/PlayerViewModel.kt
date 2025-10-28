@@ -2,9 +2,11 @@ package com.theveloper.pixelplay.presentation.viewmodel
 
 import android.annotation.SuppressLint
 import android.content.ComponentName
+import android.content.ContentUris
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.net.Uri
+import android.media.MediaMetadataRetriever
 import android.os.SystemClock
 import android.os.Trace
 import android.util.Log
@@ -35,6 +37,8 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.os.Bundle
+import android.provider.MediaStore
+import android.provider.OpenableColumns
 import androidx.media3.session.SessionToken
 import androidx.mediarouter.media.MediaControlIntent
 import androidx.mediarouter.media.MediaRouteSelector
@@ -128,6 +132,18 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlin.collections.map
 
+private const val EXTERNAL_MEDIA_ID_PREFIX = "external:"
+private const val EXTERNAL_EXTRA_PREFIX = "com.theveloper.pixelplay.external."
+private const val EXTERNAL_EXTRA_FLAG = EXTERNAL_EXTRA_PREFIX + "FLAG"
+private const val EXTERNAL_EXTRA_ALBUM = EXTERNAL_EXTRA_PREFIX + "ALBUM"
+private const val EXTERNAL_EXTRA_DURATION = EXTERNAL_EXTRA_PREFIX + "DURATION"
+private const val EXTERNAL_EXTRA_CONTENT_URI = EXTERNAL_EXTRA_PREFIX + "CONTENT_URI"
+private const val EXTERNAL_EXTRA_ALBUM_ART = EXTERNAL_EXTRA_PREFIX + "ALBUM_ART"
+private const val EXTERNAL_EXTRA_GENRE = EXTERNAL_EXTRA_PREFIX + "GENRE"
+private const val EXTERNAL_EXTRA_TRACK = EXTERNAL_EXTRA_PREFIX + "TRACK"
+private const val EXTERNAL_EXTRA_YEAR = EXTERNAL_EXTRA_PREFIX + "YEAR"
+private const val EXTERNAL_EXTRA_DATE_ADDED = EXTERNAL_EXTRA_PREFIX + "DATE_ADDED"
+
 enum class PlayerSheetState {
     COLLAPSED,
     EXPANDED
@@ -183,6 +199,13 @@ data class PlayerUiState(
     val dismissedPosition: Long = 0L,
     val undoBarVisibleDuration: Long = 4000L,
     val preparingSongId: String? = null
+)
+
+private data class ExternalSongLoadResult(
+    val song: Song,
+    val relativePath: String?,
+    val bucketId: Long?,
+    val displayName: String?
 )
 
 sealed interface LyricsSearchUiState {
@@ -1630,6 +1653,52 @@ class PlayerViewModel @Inject constructor(
         _predictiveBackCollapseFraction.value = 0f
     }
 
+    private fun resolveSongFromMediaItem(mediaItem: MediaItem): Song? {
+        _playerUiState.value.currentPlaybackQueue.find { it.id == mediaItem.mediaId }?.let { return it }
+        _masterAllSongs.value.find { it.id == mediaItem.mediaId }?.let { return it }
+
+        val metadata = mediaItem.mediaMetadata
+        val extras = metadata.extras
+        val contentUri = extras?.getString(EXTERNAL_EXTRA_CONTENT_URI)
+            ?: mediaItem.localConfiguration?.uri?.toString()
+            ?: return null
+
+        val title = metadata.title?.toString()?.takeIf { it.isNotBlank() }
+            ?: context.getString(R.string.unknown_song_title)
+        val artist = metadata.artist?.toString()?.takeIf { it.isNotBlank() }
+            ?: context.getString(R.string.unknown_artist)
+        val album = extras?.getString(EXTERNAL_EXTRA_ALBUM)?.takeIf { it.isNotBlank() }
+            ?: metadata.albumTitle?.toString()?.takeIf { it.isNotBlank() }
+            ?: context.getString(R.string.unknown_album)
+        val duration = extras?.getLong(EXTERNAL_EXTRA_DURATION)?.takeIf { it > 0 } ?: 0L
+        val albumArt = extras?.getString(EXTERNAL_EXTRA_ALBUM_ART)
+            ?: metadata.artworkUri?.toString()
+        val genre = extras?.getString(EXTERNAL_EXTRA_GENRE)
+        val trackNumber = extras?.getInt(EXTERNAL_EXTRA_TRACK) ?: 0
+        val year = extras?.getInt(EXTERNAL_EXTRA_YEAR) ?: 0
+        val dateAdded = extras?.getLong(EXTERNAL_EXTRA_DATE_ADDED)?.takeIf { it > 0 }
+            ?: System.currentTimeMillis()
+
+        return Song(
+            id = mediaItem.mediaId,
+            title = title,
+            artist = artist,
+            artistId = -1L,
+            album = album,
+            albumId = -1L,
+            path = contentUri,
+            contentUriString = contentUri,
+            albumArtUriString = albumArt,
+            duration = duration,
+            genre = genre,
+            lyrics = null,
+            isFavorite = false,
+            trackNumber = trackNumber,
+            year = year,
+            dateAdded = dateAdded
+        )
+    }
+
     private fun updateCurrentPlaybackQueueFromPlayer(playerCtrl: MediaController?) {
         val currentMediaController = playerCtrl ?: mediaController ?: return
         val count = currentMediaController.mediaItemCount
@@ -1640,16 +1709,16 @@ class PlayerViewModel @Inject constructor(
         }
 
         val queue = mutableListOf<Song>()
-        val allSongsMasterList = _masterAllSongs.value // Use the master list for lookup
 
-        // This reflects the timeline order as defined by the MediaController.
-        // If shuffle mode is on, the controller plays in a shuffled order, but the
-        // underlying timeline list remains in its original order.
         for (i in 0 until count) {
             val mediaItem = currentMediaController.getMediaItemAt(i)
-            allSongsMasterList.find { it.id == mediaItem.mediaId }?.let { song -> queue.add(song) }
+            resolveSongFromMediaItem(mediaItem)?.let { queue.add(it) }
         }
+
         _playerUiState.update { it.copy(currentPlaybackQueue = queue.toImmutableList()) }
+        if (queue.isNotEmpty()) {
+            _isSheetVisible.value = true
+        }
     }
 
     private fun setupMediaControllerListeners() {
@@ -1666,9 +1735,8 @@ class PlayerViewModel @Inject constructor(
 
         updateCurrentPlaybackQueueFromPlayer(playerCtrl)
 
-        playerCtrl.currentMediaItem?.mediaId?.let { songId ->
-            val song = _playerUiState.value.currentPlaybackQueue.find { s -> s.id == songId }
-                ?: _playerUiState.value.allSongs.find { s -> s.id == songId }
+        playerCtrl.currentMediaItem?.let { mediaItem ->
+            val song = resolveSongFromMediaItem(mediaItem)
 
             if (song != null) {
                 _stablePlayerState.update {
@@ -1690,6 +1758,7 @@ class PlayerViewModel @Inject constructor(
                     isPlaying = playerCtrl.isPlaying
                 )
                 if (playerCtrl.isPlaying) {
+                    _isSheetVisible.value = true
                     startProgressUpdates()
                 }
             } else {
@@ -1744,9 +1813,9 @@ class PlayerViewModel @Inject constructor(
                         }
                     }
 
-                    mediaItem?.mediaId?.let { songId ->
+                    mediaItem?.let { transitionedItem ->
                         listeningStatsTracker.finalizeCurrentSession()
-                        val song = _masterAllSongs.value.find { s -> s.id == songId }
+                        val song = resolveSongFromMediaItem(transitionedItem)
                         resetLyricsSearchState()
                         _stablePlayerState.update {
                             it.copy(
@@ -1829,10 +1898,326 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun playExternalUri(uri: Uri) {
+        viewModelScope.launch {
+            val externalResult = buildExternalSongFromUri(uri)
+            if (externalResult == null) {
+                sendToast(context.getString(R.string.external_playback_error))
+                return@launch
+            }
+
+            transitionSchedulerJob?.cancel()
+
+            val queueSongs = buildExternalQueue(externalResult, uri)
+            val immutableQueue = queueSongs.toImmutableList()
+
+            _playerUiState.update { state ->
+                state.copy(
+                    currentPosition = 0L,
+                    currentPlaybackQueue = immutableQueue,
+                    currentQueueSourceName = context.getString(R.string.external_queue_label),
+                    showDismissUndoBar = false,
+                    dismissedSong = null,
+                    dismissedQueue = persistentListOf(),
+                    dismissedQueueName = "",
+                    dismissedPosition = 0L
+                )
+            }
+
+            _stablePlayerState.update { state ->
+                state.copy(
+                    currentSong = externalResult.song,
+                    isPlaying = true,
+                    totalDuration = externalResult.song.duration,
+                    lyrics = null,
+                    isLoadingLyrics = false
+                )
+            }
+
+            _sheetState.value = PlayerSheetState.COLLAPSED
+            _isSheetVisible.value = true
+
+            internalPlaySongs(queueSongs, externalResult.song, context.getString(R.string.external_queue_label), null)
+            showPlayer()
+        }
+    }
+
+    private suspend fun buildExternalQueue(
+        result: ExternalSongLoadResult,
+        originalUri: Uri
+    ): List<Song> {
+        val continuation = loadAdditionalSongsFromFolder(result, originalUri)
+        if (continuation.isEmpty()) {
+            return listOf(result.song)
+        }
+
+        val queue = mutableListOf(result.song)
+        continuation.forEach { song ->
+            if (queue.none { it.id == song.id }) {
+                queue.add(song)
+            }
+        }
+
+        return queue
+    }
+
+    private suspend fun loadAdditionalSongsFromFolder(
+        reference: ExternalSongLoadResult,
+        originalUri: Uri
+    ): List<Song> = withContext(Dispatchers.IO) {
+        val relativePath = reference.relativePath
+        val bucketId = reference.bucketId
+        if (relativePath.isNullOrEmpty() && bucketId == null) {
+            return@withContext emptyList()
+        }
+
+        val selection: String
+        val selectionArgs: Array<String>
+        if (bucketId != null) {
+            selection = "${MediaStore.Audio.Media.BUCKET_ID} = ?"
+            selectionArgs = arrayOf(bucketId.toString())
+        } else {
+            selection = "${MediaStore.Audio.Media.RELATIVE_PATH} = ?"
+            selectionArgs = arrayOf(relativePath!!)
+        }
+
+        val resolver = context.contentResolver
+        val projection = arrayOf(
+            MediaStore.Audio.Media._ID,
+            MediaStore.Audio.Media.DISPLAY_NAME
+        )
+
+        val siblings = mutableListOf<Pair<Uri, String?>>()
+        try {
+            resolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                selection,
+                selectionArgs,
+                "LOWER(${MediaStore.Audio.Media.DISPLAY_NAME}) ASC"
+            )?.use { cursor ->
+                val idIndex = cursor.getColumnIndex(MediaStore.Audio.Media._ID)
+                val nameIndex = cursor.getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME)
+                if (idIndex != -1) {
+                    while (cursor.moveToNext()) {
+                        val mediaId = cursor.getLong(idIndex)
+                        val mediaUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, mediaId)
+                        val siblingName = if (nameIndex != -1) cursor.getString(nameIndex) else null
+                        siblings.add(mediaUri to siblingName)
+                    }
+                }
+            }
+        } catch (securityException: SecurityException) {
+            Timber.w(securityException, "Unable to load sibling songs for uri: $originalUri")
+            return@withContext emptyList()
+        } catch (illegalArgumentException: IllegalArgumentException) {
+            Timber.w(illegalArgumentException, "Invalid query while loading sibling songs for uri: $originalUri")
+            return@withContext emptyList()
+        }
+
+        if (siblings.isEmpty()) return@withContext emptyList()
+
+        val normalizedTargetUri = originalUri.toString()
+        val normalizedDisplayName = reference.displayName?.lowercase()?.trim()
+
+        val startIndex = siblings.indexOfFirst { (itemUri, displayName) ->
+            itemUri == originalUri ||
+                itemUri.toString() == normalizedTargetUri ||
+                (normalizedDisplayName != null && displayName?.lowercase()?.trim() == normalizedDisplayName)
+        }
+
+        val candidates = if (startIndex != -1) {
+            siblings.drop(startIndex + 1)
+        } else {
+            siblings.filterNot { (itemUri, displayName) ->
+                itemUri == originalUri ||
+                    itemUri.toString() == normalizedTargetUri ||
+                    (normalizedDisplayName != null && displayName?.lowercase()?.trim() == normalizedDisplayName)
+            }
+        }
+
+        if (candidates.isEmpty()) return@withContext emptyList()
+
+        val resolved = mutableListOf<Song>()
+        for ((candidateUri, _) in candidates) {
+            val additional = buildExternalSongFromUri(candidateUri, captureFolderInfo = false)
+            val song = additional?.song ?: continue
+            if (song.id != reference.song.id) {
+                resolved.add(song)
+            }
+        }
+
+        resolved
+    }
+
     fun showPlayer() {
         if (stablePlayerState.value.currentSong != null) {
             _isSheetVisible.value = true
         }
+    }
+
+    private suspend fun buildExternalSongFromUri(
+        uri: Uri,
+        captureFolderInfo: Boolean = true
+    ): ExternalSongLoadResult? = withContext(Dispatchers.IO) {
+        val resolver = context.contentResolver
+
+        var displayName: String? = null
+        var relativePath: String? = null
+        var bucketId: Long? = null
+        var storeTitle: String? = null
+        var storeArtist: String? = null
+        var storeAlbum: String? = null
+        var storeDuration: Long? = null
+        var storeTrack: Int? = null
+        var storeYear: Int? = null
+        var storeDateAddedSeconds: Long? = null
+
+        val projection = arrayOf(
+            OpenableColumns.DISPLAY_NAME,
+            MediaStore.Audio.Media.RELATIVE_PATH,
+            MediaStore.Audio.Media.BUCKET_ID,
+            MediaStore.Audio.Media.DURATION,
+            MediaStore.Audio.Media.TITLE,
+            MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.ALBUM,
+            MediaStore.Audio.Media.TRACK,
+            MediaStore.Audio.Media.YEAR,
+            MediaStore.Audio.Media.DATE_ADDED
+        )
+
+        try {
+            resolver.query(uri, projection, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val displayNameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (displayNameIndex != -1) displayName = cursor.getString(displayNameIndex)
+
+                    val relativePathIndex = cursor.getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH)
+                    if (relativePathIndex != -1) relativePath = cursor.getString(relativePathIndex)
+
+                    val bucketIdIndex = cursor.getColumnIndex(MediaStore.Audio.Media.BUCKET_ID)
+                    if (bucketIdIndex != -1) bucketId = cursor.getLong(bucketIdIndex)
+
+                    val titleIndex = cursor.getColumnIndex(MediaStore.Audio.Media.TITLE)
+                    if (titleIndex != -1) storeTitle = cursor.getString(titleIndex)
+
+                    val artistIndex = cursor.getColumnIndex(MediaStore.Audio.Media.ARTIST)
+                    if (artistIndex != -1) storeArtist = cursor.getString(artistIndex)
+
+                    val albumIndex = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM)
+                    if (albumIndex != -1) storeAlbum = cursor.getString(albumIndex)
+
+                    val durationIndex = cursor.getColumnIndex(MediaStore.Audio.Media.DURATION)
+                    if (durationIndex != -1) storeDuration = cursor.getLong(durationIndex)
+
+                    val trackIndex = cursor.getColumnIndex(MediaStore.Audio.Media.TRACK)
+                    if (trackIndex != -1) storeTrack = cursor.getInt(trackIndex)
+
+                    val yearIndex = cursor.getColumnIndex(MediaStore.Audio.Media.YEAR)
+                    if (yearIndex != -1) storeYear = cursor.getInt(yearIndex)
+
+                    val dateAddedIndex = cursor.getColumnIndex(MediaStore.Audio.Media.DATE_ADDED)
+                    if (dateAddedIndex != -1) storeDateAddedSeconds = cursor.getLong(dateAddedIndex)
+                }
+            }
+        } catch (exception: Exception) {
+            Timber.w(exception, "Failed querying metadata for external uri: $uri")
+        }
+
+        val metadataRetriever = MediaMetadataRetriever()
+        return@withContext try {
+            metadataRetriever.setDataSource(context, uri)
+
+            val metadataTitle = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
+                ?.takeIf { it.isNotBlank() }
+            val metadataArtist = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+                ?.takeIf { it.isNotBlank() }
+            val metadataAlbum = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
+                ?.takeIf { it.isNotBlank() }
+            val metadataDuration = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                ?.toLongOrNull()
+            val metadataTrack = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)
+                ?.substringBefore('/')
+                ?.toIntOrNull()
+            val metadataYear = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR)
+                ?.toIntOrNull()
+            val genre = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE)
+            val embeddedArt = metadataRetriever.embeddedPicture?.takeIf { it.isNotEmpty() }
+            val albumArtUriString = embeddedArt?.let { persistExternalAlbumArt(uri, it) }
+
+            val duration = metadataDuration
+                ?: storeDuration?.takeIf { it > 0 }
+                ?: 0L
+
+            val trackNumber = metadataTrack
+                ?: storeTrack?.takeIf { it > 0 }?.let { track ->
+                    if (track > 1000) track % 1000 else track
+                }
+                ?: 0
+
+            val year = metadataYear ?: storeYear ?: 0
+
+            val dateAdded = storeDateAddedSeconds?.takeIf { it > 0 }
+                ?.let { TimeUnit.SECONDS.toMillis(it) }
+                ?: System.currentTimeMillis()
+
+            val song = Song(
+                id = "${EXTERNAL_MEDIA_ID_PREFIX}${uri}",
+                title = metadataTitle
+                    ?: storeTitle?.takeIf { it.isNotBlank() }
+                    ?: displayName?.substringBeforeLast('.')?.takeIf { it.isNotBlank() }
+                    ?: displayName?.takeIf { it.isNotBlank() }
+                    ?: uri.lastPathSegment?.takeIf { it.isNotBlank() }
+                    ?: context.getString(R.string.unknown_song_title),
+                artist = metadataArtist
+                    ?: storeArtist?.takeIf { it.isNotBlank() }
+                    ?: context.getString(R.string.unknown_artist),
+                artistId = -1L,
+                album = metadataAlbum
+                    ?: storeAlbum?.takeIf { it.isNotBlank() }
+                    ?: context.getString(R.string.unknown_album),
+                albumId = -1L,
+                path = uri.toString(),
+                contentUriString = uri.toString(),
+                albumArtUriString = albumArtUriString,
+                duration = duration,
+                genre = genre,
+                lyrics = null,
+                isFavorite = false,
+                trackNumber = trackNumber,
+                year = year,
+                dateAdded = dateAdded
+            )
+
+            ExternalSongLoadResult(
+                song = song,
+                relativePath = if (captureFolderInfo) relativePath else null,
+                bucketId = if (captureFolderInfo) bucketId else null,
+                displayName = displayName
+            )
+        } catch (error: Exception) {
+            Timber.e(error, "Failed to read metadata for external uri: $uri")
+            null
+        } finally {
+            runCatching { metadataRetriever.release() }
+        }
+    }
+
+    private fun persistExternalAlbumArt(uri: Uri, data: ByteArray): String? {
+        return runCatching {
+            val directory = File(context.cacheDir, "external_artwork")
+            if (!directory.exists()) {
+                directory.mkdirs()
+            }
+            val fileName = "art_${uri.toString().hashCode()}.jpg"
+            val file = File(directory, fileName)
+            file.outputStream().use { output ->
+                output.write(data)
+            }
+            Uri.fromFile(file).toString()
+        }.onFailure { throwable ->
+            Timber.w(throwable, "Unable to persist album art for external uri: $uri")
+        }.getOrNull()
     }
 
     private suspend fun internalPlaySongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None", playlistId: String? = null) {
@@ -1912,33 +2297,58 @@ class PlayerViewModel @Inject constructor(
 
 
     private fun loadAndPlaySong(song: Song) {
-        mediaController?.let { controller ->
-            val artworkUriForMediaItem = song.albumArtUriString?.toUri()
-
-            val metadata = MediaMetadata.Builder()
-                .setTitle(song.title)
-                .setArtist(song.artist)
-                .setArtworkUri(artworkUriForMediaItem)
-                .build()
-            val mediaItem = MediaItem.Builder()
-                .setMediaId(song.id)
-                .setUri(song.contentUriString.toUri())
-                .setMediaMetadata(metadata)
-                .build()
-            if (controller.currentMediaItem?.mediaId == song.id) {
-                if (!controller.isPlaying) controller.play()
-            } else {
-                controller.setMediaItem(mediaItem)
-                controller.prepare()
-                controller.play()
+        val controller = mediaController
+        if (controller == null) {
+            pendingPlaybackAction = {
+                loadAndPlaySong(song)
             }
-            _stablePlayerState.update { it.copy(currentSong = song, isPlaying = true) }
-            viewModelScope.launch {
-                song.albumArtUriString?.toUri()?.let { uri ->
-                    extractAndGenerateColorScheme(uri, isPreload = false)
-                }
+            return
+        }
+
+        val mediaItem = MediaItem.Builder()
+            .setMediaId(song.id)
+            .setUri(song.contentUriString.toUri())
+            .setMediaMetadata(buildMediaMetadataForSong(song))
+            .build()
+        if (controller.currentMediaItem?.mediaId == song.id) {
+            if (!controller.isPlaying) controller.play()
+        } else {
+            controller.setMediaItem(mediaItem)
+            controller.prepare()
+            controller.play()
+        }
+        _stablePlayerState.update { it.copy(currentSong = song, isPlaying = true) }
+        viewModelScope.launch {
+            song.albumArtUriString?.toUri()?.let { uri ->
+                extractAndGenerateColorScheme(uri, isPreload = false)
             }
         }
+    }
+
+    private fun buildMediaMetadataForSong(song: Song): MediaMetadata {
+        val metadataBuilder = MediaMetadata.Builder()
+            .setTitle(song.title)
+            .setArtist(song.artist)
+            .setAlbumTitle(song.album)
+
+        song.albumArtUriString?.toUri()?.let { artworkUri ->
+            metadataBuilder.setArtworkUri(artworkUri)
+        }
+
+        val extras = Bundle().apply {
+            putBoolean(EXTERNAL_EXTRA_FLAG, song.id.startsWith(EXTERNAL_MEDIA_ID_PREFIX))
+            putString(EXTERNAL_EXTRA_ALBUM, song.album)
+            putLong(EXTERNAL_EXTRA_DURATION, song.duration)
+            putString(EXTERNAL_EXTRA_CONTENT_URI, song.contentUriString)
+            song.albumArtUriString?.let { putString(EXTERNAL_EXTRA_ALBUM_ART, it) }
+            song.genre?.let { putString(EXTERNAL_EXTRA_GENRE, it) }
+            putInt(EXTERNAL_EXTRA_TRACK, song.trackNumber)
+            putInt(EXTERNAL_EXTRA_YEAR, song.year)
+            putLong(EXTERNAL_EXTRA_DATE_ADDED, song.dateAdded)
+        }
+
+        metadataBuilder.setExtras(extras)
+        return metadataBuilder.build()
     }
 
     fun toggleShuffle() {
@@ -2279,14 +2689,36 @@ class PlayerViewModel @Inject constructor(
                 }
             }
         } else {
-            mediaController?.let {
-                if (it.isPlaying) {
-                    it.pause()
+            mediaController?.let { controller ->
+                if (controller.isPlaying) {
+                    controller.pause()
                 } else {
-                    if (it.currentMediaItem == null && _playerUiState.value.allSongs.isNotEmpty()) {
-                        loadAndPlaySong(_playerUiState.value.allSongs.first())
+                    if (controller.currentMediaItem == null) {
+                        val currentQueue = _playerUiState.value.currentPlaybackQueue
+                        val currentSong = _stablePlayerState.value.currentSong
+                        when {
+                            currentQueue.isNotEmpty() && currentSong != null -> {
+                                viewModelScope.launch {
+                                    transitionSchedulerJob?.cancel()
+                                    internalPlaySongs(
+                                        currentQueue.toList(),
+                                        currentSong,
+                                        _playerUiState.value.currentQueueSourceName
+                                    )
+                                }
+                            }
+                            currentSong != null -> {
+                                loadAndPlaySong(currentSong)
+                            }
+                            _playerUiState.value.allSongs.isNotEmpty() -> {
+                                loadAndPlaySong(_playerUiState.value.allSongs.first())
+                            }
+                            else -> {
+                                controller.play()
+                            }
+                        }
                     } else {
-                        it.play()
+                        controller.play()
                     }
                 }
             }

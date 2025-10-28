@@ -22,4 +22,15 @@
     <string name="ok">OK</string>
     <string name="cancel">Cancel</string>
     <string name="import_file">Import</string>
+    <string name="unknown_song_title">Unknown track</string>
+    <string name="unknown_artist">Unknown artist</string>
+    <string name="unknown_album">Unknown album</string>
+    <string name="external_queue_label">Quick play</string>
+    <string name="external_playback_error">Unable to open that audio file.</string>
+    <string name="open_full_player">Open full player</string>
+    <string name="close_external_player">Close floating player</string>
+    <string name="previous_track">Previous track</string>
+    <string name="next_track">Next track</string>
+    <string name="pause_playback">Pause playback</string>
+    <string name="play_playback">Play</string>
 </resources>
