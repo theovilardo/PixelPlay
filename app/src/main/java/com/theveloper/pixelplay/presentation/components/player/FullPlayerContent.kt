@@ -511,6 +511,185 @@ fun FullPlayerContent(
 }
 
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun SongMetadataDisplaySection(
+    song: Song?,
+    expansionFraction: Float,
+    textColor: Color,
+    artistTextColor: Color,
+    gradientEdgeColor: Color,
+    onClickLyrics: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier
+            .fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Absolute.SpaceBetween
+    ) {
+        song?.let { currentSong ->
+            DeferAt(expansionFraction, 0.20f) {
+                PlayerSongInfo(
+                    title = currentSong.title,
+                    artist = currentSong.artist,
+                    expansionFraction = expansionFraction,
+                    textColor = textColor,
+                    artistTextColor = artistTextColor,
+                    gradientEdgeColor = gradientEdgeColor,
+                    modifier = Modifier
+                        .weight(0.85f)
+                        .align(Alignment.CenterVertically)
+                )
+            }
+        }
+        Spacer(
+            modifier = Modifier
+                .width(8.dp)
+        )
+        FilledIconButton(
+            modifier = Modifier
+                .weight(0.15f)
+                .size(width = 48.dp, height = 48.dp),
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = LocalMaterialTheme.current.onPrimary,
+                contentColor = LocalMaterialTheme.current.primary
+            ),
+            onClick = onClickLyrics,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.rounded_lyrics_24),
+                contentDescription = "Lyrics"
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlayerProgressBarSection(
+    currentPositionProvider: () -> Long,
+    totalDurationValue: Long,
+    onSeek: (Long) -> Unit,
+    expansionFraction: Float,
+    isPlayingProvider: () -> Boolean,
+    currentSheetState: PlayerSheetState,
+    activeTrackColor: Color,
+    inactiveTrackColor: Color,
+    thumbColor: Color,
+    timeTextColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val isExpanded = currentSheetState == PlayerSheetState.EXPANDED &&
+        expansionFraction >= 0.995f
+
+    val rawPosition = currentPositionProvider()
+    val rawProgress = (rawPosition.coerceAtLeast(0) / totalDurationValue.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
+
+    val (smoothProgress, sampledPosition) = rememberSmoothProgress(
+        isPlayingProvider = isPlayingProvider,
+        currentPositionProvider = currentPositionProvider,
+        totalDuration = totalDurationValue,
+        sampleWhilePlayingMs = 200L,
+        sampleWhilePausedMs = 800L
+    )
+
+    var sliderDragValue by remember { mutableStateOf<Float?>(null) }
+    val interactionSource = remember { MutableInteractionSource() }
+
+    val effectiveProgress = sliderDragValue ?: if (isExpanded) rawProgress else smoothProgress
+    val effectivePosition = sliderDragValue?.let { (it * totalDurationValue).roundToLong() }
+        ?: if (isExpanded) rawPosition else sampledPosition
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = lerp(2.dp, 0.dp, expansionFraction))
+            .graphicsLayer { alpha = expansionFraction }
+            .heightIn(min = 70.dp)
+    ) {
+        DeferAt(expansionFraction = expansionFraction, threshold = 0.08f) {
+            WavyMusicSlider(
+                value = effectiveProgress,
+                onValueChange = { newValue -> sliderDragValue = newValue },
+                onValueChangeFinished = {
+                    sliderDragValue?.let { finalValue ->
+                        onSeek((finalValue * totalDurationValue).roundToLong())
+                    }
+                    sliderDragValue = null
+                },
+                interactionSource = interactionSource,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                trackHeight = 6.dp,
+                thumbRadius = 8.dp,
+                activeTrackColor = activeTrackColor,
+                inactiveTrackColor = inactiveTrackColor,
+                thumbColor = thumbColor,
+                waveLength = 30.dp,
+                isPlaying = (isPlayingProvider() && isExpanded),
+                isWaveEligible = isExpanded
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                formatDuration(effectivePosition),
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                color = timeTextColor
+            )
+            Text(
+                formatDuration(totalDurationValue),
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                color = timeTextColor
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlayerSongInfo(
+    title: String,
+    artist: String,
+    expansionFraction: Float,
+    textColor: Color,
+    artistTextColor: Color,
+    gradientEdgeColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val titleStyle = MaterialTheme.typography.headlineSmall.copy(
+        fontWeight = FontWeight.Bold,
+        fontFamily = GoogleSansRounded,
+        color = textColor
+    )
+
+    val artistStyle = MaterialTheme.typography.titleMedium.copy(
+        letterSpacing = 0.sp,
+        color = artistTextColor
+    )
+
+    Column(
+        horizontalAlignment = Alignment.Start,
+        modifier = modifier
+            .padding(vertical = lerp(2.dp, 10.dp, expansionFraction))
+            .fillMaxWidth(0.9f)
+            .graphicsLayer {
+                alpha = expansionFraction
+                translationY = (1f - expansionFraction) * 24f
+            }
+    ) {
+        AutoScrollingTextOnDemand(title, titleStyle, gradientEdgeColor, expansionFraction)
+        Spacer(modifier = Modifier.height(4.dp))
+        AutoScrollingTextOnDemand(artist, artistStyle, gradientEdgeColor, expansionFraction)
+    }
+}
+
 @Composable
 private fun BottomToggleRow(
     modifier: Modifier,
