@@ -2083,24 +2083,30 @@ class PlayerViewModel @Inject constructor(
 
 
     private fun loadAndPlaySong(song: Song) {
-        mediaController?.let { controller ->
-            val mediaItem = MediaItem.Builder()
-                .setMediaId(song.id)
-                .setUri(song.contentUriString.toUri())
-                .setMediaMetadata(buildMediaMetadataForSong(song))
-                .build()
-            if (controller.currentMediaItem?.mediaId == song.id) {
-                if (!controller.isPlaying) controller.play()
-            } else {
-                controller.setMediaItem(mediaItem)
-                controller.prepare()
-                controller.play()
+        val controller = mediaController
+        if (controller == null) {
+            pendingPlaybackAction = {
+                loadAndPlaySong(song)
             }
-            _stablePlayerState.update { it.copy(currentSong = song, isPlaying = true) }
-            viewModelScope.launch {
-                song.albumArtUriString?.toUri()?.let { uri ->
-                    extractAndGenerateColorScheme(uri, isPreload = false)
-                }
+            return
+        }
+
+        val mediaItem = MediaItem.Builder()
+            .setMediaId(song.id)
+            .setUri(song.contentUriString.toUri())
+            .setMediaMetadata(buildMediaMetadataForSong(song))
+            .build()
+        if (controller.currentMediaItem?.mediaId == song.id) {
+            if (!controller.isPlaying) controller.play()
+        } else {
+            controller.setMediaItem(mediaItem)
+            controller.prepare()
+            controller.play()
+        }
+        _stablePlayerState.update { it.copy(currentSong = song, isPlaying = true) }
+        viewModelScope.launch {
+            song.albumArtUriString?.toUri()?.let { uri ->
+                extractAndGenerateColorScheme(uri, isPreload = false)
             }
         }
     }
@@ -2469,14 +2475,36 @@ class PlayerViewModel @Inject constructor(
                 }
             }
         } else {
-            mediaController?.let {
-                if (it.isPlaying) {
-                    it.pause()
+            mediaController?.let { controller ->
+                if (controller.isPlaying) {
+                    controller.pause()
                 } else {
-                    if (it.currentMediaItem == null && _playerUiState.value.allSongs.isNotEmpty()) {
-                        loadAndPlaySong(_playerUiState.value.allSongs.first())
+                    if (controller.currentMediaItem == null) {
+                        val currentQueue = _playerUiState.value.currentPlaybackQueue
+                        val currentSong = _stablePlayerState.value.currentSong
+                        when {
+                            currentQueue.isNotEmpty() && currentSong != null -> {
+                                viewModelScope.launch {
+                                    transitionSchedulerJob?.cancel()
+                                    internalPlaySongs(
+                                        currentQueue.toList(),
+                                        currentSong,
+                                        _playerUiState.value.currentQueueSourceName
+                                    )
+                                }
+                            }
+                            currentSong != null -> {
+                                loadAndPlaySong(currentSong)
+                            }
+                            _playerUiState.value.allSongs.isNotEmpty() -> {
+                                loadAndPlaySong(_playerUiState.value.allSongs.first())
+                            }
+                            else -> {
+                                controller.play()
+                            }
+                        }
                     } else {
-                        it.play()
+                        controller.play()
                     }
                 }
             }

@@ -6,6 +6,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -52,9 +54,11 @@ import androidx.compose.ui.unit.sp
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.components.OptimizedAlbumArt
 import com.theveloper.pixelplay.presentation.components.WavyMusicSlider
+import com.theveloper.pixelplay.presentation.components.player.AnimatedPlaybackControls
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.utils.formatDuration
 import kotlin.math.roundToLong
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 @Composable
 fun ExternalPlayerOverlay(
@@ -66,10 +70,32 @@ fun ExternalPlayerOverlay(
     val playerUiState by playerViewModel.playerUiState.collectAsState()
     val remotePosition by playerViewModel.remotePosition.collectAsState()
     val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
+    val navBarCornerRadius by playerViewModel.navBarCornerRadius.collectAsState()
     val currentSong = stablePlayerState.currentSong
 
     var sheetVisible by remember { mutableStateOf(true) }
     var awaitingSong by remember { mutableStateOf(true) }
+
+    val sheetShape = remember(navBarCornerRadius) {
+        val radiusDp = navBarCornerRadius.dp
+        AbsoluteSmoothCornerShape(
+            cornerRadiusTL = radiusDp,
+            smoothnessAsPercentTR = 60,
+            cornerRadiusTR = radiusDp,
+            smoothnessAsPercentTL = 60,
+            cornerRadiusBL = radiusDp,
+            smoothnessAsPercentBR = 60,
+            cornerRadiusBR = radiusDp,
+            smoothnessAsPercentBL = 60
+        )
+    }
+
+    val controlAnimationSpec = remember {
+        spring<Float>(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMedium
+        )
+    }
 
     LaunchedEffect(currentSong) {
         if (currentSong != null) {
@@ -114,8 +140,8 @@ fun ExternalPlayerOverlay(
         ) {
             Surface(
                 tonalElevation = 12.dp,
-                shadowElevation = 18.dp,
-                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                shadowElevation = 20.dp,
+                shape = sheetShape,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 16.dp)
@@ -262,50 +288,21 @@ fun ExternalPlayerOverlay(
 
                         Spacer(modifier = Modifier.height(24.dp))
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(onClick = { playerViewModel.previousSong() }) {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.rounded_skip_previous_24),
-                                    contentDescription = stringResource(id = R.string.previous_track)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(12.dp))
-
-                            IconButton(
-                                onClick = { playerViewModel.playPause() },
-                                modifier = Modifier.size(68.dp)
-                            ) {
-                                Icon(
-                                    painter = painterResource(
-                                        id = if (stablePlayerState.isPlaying) {
-                                            R.drawable.rounded_pause_24
-                                        } else {
-                                            R.drawable.rounded_play_arrow_24
-                                        }
-                                    ),
-                                    contentDescription = if (stablePlayerState.isPlaying) {
-                                        stringResource(id = R.string.pause_playback)
-                                    } else {
-                                        stringResource(id = R.string.play_playback)
-                                    },
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(12.dp))
-
-                            IconButton(onClick = { playerViewModel.nextSong() }) {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.rounded_skip_next_24),
-                                    contentDescription = stringResource(id = R.string.next_track)
-                                )
-                            }
-                        }
+                        AnimatedPlaybackControls(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp),
+                            isPlayingProvider = { stablePlayerState.isPlaying },
+                            onPrevious = playerViewModel::previousSong,
+                            onPlayPause = playerViewModel::playPause,
+                            onNext = playerViewModel::nextSong,
+                            height = 76.dp,
+                            pressAnimationSpec = controlAnimationSpec,
+                            colorOtherButtons = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                            colorPlayPause = MaterialTheme.colorScheme.primary,
+                            tintPlayPauseIcon = MaterialTheme.colorScheme.onPrimary,
+                            tintOtherIcons = MaterialTheme.colorScheme.primary
+                        )
 
                         Spacer(modifier = Modifier.height(24.dp))
 
