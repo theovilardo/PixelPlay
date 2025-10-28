@@ -2,7 +2,10 @@ package com.theveloper.pixelplay.utils
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import java.nio.charset.Charset
 import java.text.Normalizer
+
+private val WINDOWS_1252: Charset = Charset.forName("windows-1252")
 
 fun Color.toHexString(): String {
     return String.format("#%08X", this.toArgb())
@@ -26,7 +29,7 @@ fun String?.normalizeMetadataText(): String? {
 
     val reencoded = if (needsFix) {
         runCatching {
-            String(trimmed.toByteArray(Charsets.ISO_8859_1), Charsets.UTF_8).trim()
+            String(trimmed.toByteArray(WINDOWS_1252), Charsets.UTF_8).trim()
         }.getOrNull()
     } else null
 
