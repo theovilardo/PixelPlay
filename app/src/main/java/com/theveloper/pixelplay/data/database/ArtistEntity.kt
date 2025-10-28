@@ -5,6 +5,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.theveloper.pixelplay.data.model.Artist
+import com.theveloper.pixelplay.utils.normalizeMetadataTextOrEmpty
 
 @Entity(
     tableName = "artists",
@@ -19,7 +20,7 @@ data class ArtistEntity(
 fun ArtistEntity.toArtist(): Artist {
     return Artist(
         id = this.id,
-        name = this.name,
+        name = this.name.normalizeMetadataTextOrEmpty(),
         songCount = this.trackCount // El modelo Artist usa songCount, MediaStore usa NUMBER_OF_TRACKS
     )
 }

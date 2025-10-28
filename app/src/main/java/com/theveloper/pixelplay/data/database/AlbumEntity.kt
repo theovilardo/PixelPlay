@@ -5,6 +5,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.theveloper.pixelplay.data.model.Album
+import com.theveloper.pixelplay.utils.normalizeMetadataTextOrEmpty
 
 @Entity(
     tableName = "albums",
@@ -27,8 +28,8 @@ data class AlbumEntity(
 fun AlbumEntity.toAlbum(): Album {
     return Album(
         id = this.id,
-        title = this.title,
-        artist = this.artistName,
+        title = this.title.normalizeMetadataTextOrEmpty(),
+        artist = this.artistName.normalizeMetadataTextOrEmpty(),
         albumArtUriString = this.albumArtUriString, // El modelo Album usa albumArtUrl
         songCount = this.songCount,
         year = this.year

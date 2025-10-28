@@ -17,10 +17,13 @@ import com.theveloper.pixelplay.data.database.AlbumEntity
 import com.theveloper.pixelplay.data.database.ArtistEntity
 import com.theveloper.pixelplay.data.database.MusicDao
 import com.theveloper.pixelplay.data.database.SongEntity
+import com.theveloper.pixelplay.utils.normalizeMetadataText
+import com.theveloper.pixelplay.utils.normalizeMetadataTextOrEmpty
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.FileNotFoundException
 import java.util.concurrent.TimeUnit
 
 @HiltWorker
@@ -192,9 +195,19 @@ class SyncWorker @AssistedInject constructor(
                 val contentUriString = ContentUris.withAppendedId(
                     MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id
                 ).toString()
-                val albumArtUriString = ContentUris.withAppendedId(
-                    "content://media/external/audio/albumart".toUri(), albumId
-                ).toString()
+                val albumArtUriString = if (albumId > 0) {
+                    val potentialUri = ContentUris.withAppendedId(
+                        "content://media/external/audio/albumart".toUri(), albumId
+                    )
+                    try {
+                        contentResolver.openFileDescriptor(potentialUri, "r")?.use { }
+                        potentialUri.toString()
+                    } catch (notFound: FileNotFoundException) {
+                        null
+                    }
+                } else {
+                    null
+                }
 
 //                val genreName = run {
 //                    val staticGenres = GenreDataSource.getStaticGenres()
@@ -208,15 +221,15 @@ class SyncWorker @AssistedInject constructor(
                 songs.add(
                     SongEntity(
                         id = id,
-                        title = cursor.getString(titleCol) ?: "Unknown Title",
-                        artistName = cursor.getString(artistCol) ?: "Unknown Artist",
+                        title = cursor.getString(titleCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Title" },
+                        artistName = cursor.getString(artistCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Artist" },
                         artistId = songArtistId,
-                        albumName = cursor.getString(albumCol) ?: "Unknown Album",
+                        albumName = cursor.getString(albumCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Album" },
                         albumId = albumId,
                         contentUriString = contentUriString,
                         albumArtUriString = albumArtUriString,
                         duration = cursor.getLong(durationCol),
-                        genre = if (genreCol != -1) cursor.getString(genreCol) else null,
+                        genre = if (genreCol != -1) cursor.getString(genreCol).normalizeMetadataText() else null,
                         filePath = filePath,
                         parentDirectoryPath = parentDir,
                         trackNumber = cursor.getInt(trackCol),
