@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -327,7 +328,7 @@ private fun StatsTopBar(
                     .padding(start = 0.dp, end = 0.dp),
                 containerHeightRange = 80.dp to 56.dp,
                 titlePaddingRange = 28.dp to 44.dp,
-                collapsedTitleVerticalBias = 0f
+                collapsedTitleVerticalBias = -0.4f
             )
         }
     }
@@ -1288,6 +1289,7 @@ private fun CategoryVerticalBarChart(
                 Column(
                     modifier = Modifier
                         .weight(1f)
+                        .widthIn(min = 56.dp)
                         .padding(horizontal = 2.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -1365,12 +1367,18 @@ private fun CategoryMetricIndicator(
         contentColor = contentColor,
         tonalElevation = if (highlighted) 4.dp else 0.dp
     ) {
-        Text(
-            text = "${index + 1}",
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold
-        )
+        Box(
+            modifier = Modifier
+                .defaultMinSize(minWidth = 36.dp, minHeight = 36.dp)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "${index + 1}",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 
