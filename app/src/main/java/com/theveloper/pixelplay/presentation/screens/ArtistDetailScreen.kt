@@ -13,7 +13,6 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.stickyHeader
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -191,7 +190,7 @@ fun ArtistDetailScreen(
                         contentPadding = PaddingValues(top = currentTopBarHeightDp, bottom = 16.dp),
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 16.dp)
+                            .padding(horizontal = 0.dp)
                     ) {
                         albumSections.forEachIndexed { index, section ->
                             if (section.songs.isEmpty()) return@forEachIndexed
@@ -216,6 +215,7 @@ fun ArtistDetailScreen(
                                 key = { _, song -> "artist_album_${section.albumId}_song_${song.id}" }
                             ) { songIndex, song ->
                                 EnhancedSongListItem(
+                                    modifier = Modifier.padding(horizontal = 16.dp),
                                     song = song,
                                     isCurrentSong = stablePlayerState.currentSong == song,
                                     isPlaying = stablePlayerState.isPlaying,
@@ -310,13 +310,13 @@ private fun AlbumSectionHeader(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
+        color = Color.Transparent,
         tonalElevation = 2.dp
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 12.dp),
+                .padding(vertical = 12.dp, horizontal = 22.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -348,8 +348,8 @@ private fun AlbumSectionHeader(
             FilledIconButton(
                 onClick = onPlayAlbum,
                 colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
                 )
             ) {
                 Icon(Icons.Rounded.PlayArrow, contentDescription = "Play ${section.title}")
