@@ -708,7 +708,11 @@ class PlayerViewModel @Inject constructor(
             val totalCap = if (session.totalDurationMs > 0) session.totalDurationMs else Long.MAX_VALUE
             val listened = session.accumulatedListeningMs.coerceAtMost(totalCap).coerceAtLeast(0L)
             if (listened >= MIN_SESSION_LISTEN_MS) {
-                val timestamp = System.currentTimeMillis()
+                val rawEndTimestamp = session.lastUpdateEpochMs.takeIf { it > 0L }
+                    ?: (session.startedAtEpochMs + listened)
+                val timestamp = rawEndTimestamp
+                    .coerceAtLeast(session.startedAtEpochMs.coerceAtLeast(0L))
+                    .coerceAtMost(System.currentTimeMillis())
                 val songId = session.songId
                 viewModelScope.launch(Dispatchers.IO) {
                     dailyMixManager.recordPlay(
