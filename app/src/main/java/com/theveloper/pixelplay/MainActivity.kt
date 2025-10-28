@@ -321,7 +321,8 @@ class MainActivity : ComponentActivity() {
                 Screen.ArtistDetail.route,
                 Screen.DJSpace.route,
                 Screen.NavBarCrRad.route,
-                Screen.About.route
+                Screen.About.route,
+                Screen.Stats.route
             )
         }
         val shouldHideNavigationBar by remember(currentRoute) {
