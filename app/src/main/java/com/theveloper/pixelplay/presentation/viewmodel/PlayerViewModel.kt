@@ -131,6 +131,18 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlin.collections.map
 
+private const val EXTERNAL_MEDIA_ID_PREFIX = "external:"
+private const val EXTERNAL_EXTRA_PREFIX = "com.theveloper.pixelplay.external."
+private const val EXTERNAL_EXTRA_FLAG = EXTERNAL_EXTRA_PREFIX + "FLAG"
+private const val EXTERNAL_EXTRA_ALBUM = EXTERNAL_EXTRA_PREFIX + "ALBUM"
+private const val EXTERNAL_EXTRA_DURATION = EXTERNAL_EXTRA_PREFIX + "DURATION"
+private const val EXTERNAL_EXTRA_CONTENT_URI = EXTERNAL_EXTRA_PREFIX + "CONTENT_URI"
+private const val EXTERNAL_EXTRA_ALBUM_ART = EXTERNAL_EXTRA_PREFIX + "ALBUM_ART"
+private const val EXTERNAL_EXTRA_GENRE = EXTERNAL_EXTRA_PREFIX + "GENRE"
+private const val EXTERNAL_EXTRA_TRACK = EXTERNAL_EXTRA_PREFIX + "TRACK"
+private const val EXTERNAL_EXTRA_YEAR = EXTERNAL_EXTRA_PREFIX + "YEAR"
+private const val EXTERNAL_EXTRA_DATE_ADDED = EXTERNAL_EXTRA_PREFIX + "DATE_ADDED"
+
 enum class PlayerSheetState {
     COLLAPSED,
     EXPANDED
@@ -1629,6 +1641,52 @@ class PlayerViewModel @Inject constructor(
         _predictiveBackCollapseFraction.value = 0f
     }
 
+    private fun resolveSongFromMediaItem(mediaItem: MediaItem): Song? {
+        _playerUiState.value.currentPlaybackQueue.find { it.id == mediaItem.mediaId }?.let { return it }
+        _masterAllSongs.value.find { it.id == mediaItem.mediaId }?.let { return it }
+
+        val metadata = mediaItem.mediaMetadata
+        val extras = metadata.extras
+        val contentUri = extras?.getString(EXTERNAL_EXTRA_CONTENT_URI)
+            ?: mediaItem.localConfiguration?.uri?.toString()
+            ?: return null
+
+        val title = metadata.title?.toString()?.takeIf { it.isNotBlank() }
+            ?: context.getString(R.string.unknown_song_title)
+        val artist = metadata.artist?.toString()?.takeIf { it.isNotBlank() }
+            ?: context.getString(R.string.unknown_artist)
+        val album = extras?.getString(EXTERNAL_EXTRA_ALBUM)?.takeIf { it.isNotBlank() }
+            ?: metadata.albumTitle?.toString()?.takeIf { it.isNotBlank() }
+            ?: context.getString(R.string.unknown_album)
+        val duration = extras?.getLong(EXTERNAL_EXTRA_DURATION)?.takeIf { it > 0 } ?: 0L
+        val albumArt = extras?.getString(EXTERNAL_EXTRA_ALBUM_ART)
+            ?: metadata.artworkUri?.toString()
+        val genre = extras?.getString(EXTERNAL_EXTRA_GENRE)
+        val trackNumber = extras?.getInt(EXTERNAL_EXTRA_TRACK) ?: 0
+        val year = extras?.getInt(EXTERNAL_EXTRA_YEAR) ?: 0
+        val dateAdded = extras?.getLong(EXTERNAL_EXTRA_DATE_ADDED)?.takeIf { it > 0 }
+            ?: System.currentTimeMillis()
+
+        return Song(
+            id = mediaItem.mediaId,
+            title = title,
+            artist = artist,
+            artistId = -1L,
+            album = album,
+            albumId = -1L,
+            path = contentUri,
+            contentUriString = contentUri,
+            albumArtUriString = albumArt,
+            duration = duration,
+            genre = genre,
+            lyrics = null,
+            isFavorite = false,
+            trackNumber = trackNumber,
+            year = year,
+            dateAdded = dateAdded
+        )
+    }
+
     private fun updateCurrentPlaybackQueueFromPlayer(playerCtrl: MediaController?) {
         val currentMediaController = playerCtrl ?: mediaController ?: return
         val count = currentMediaController.mediaItemCount
@@ -1639,16 +1697,16 @@ class PlayerViewModel @Inject constructor(
         }
 
         val queue = mutableListOf<Song>()
-        val allSongsMasterList = _masterAllSongs.value // Use the master list for lookup
 
-        // This reflects the timeline order as defined by the MediaController.
-        // If shuffle mode is on, the controller plays in a shuffled order, but the
-        // underlying timeline list remains in its original order.
         for (i in 0 until count) {
             val mediaItem = currentMediaController.getMediaItemAt(i)
-            allSongsMasterList.find { it.id == mediaItem.mediaId }?.let { song -> queue.add(song) }
+            resolveSongFromMediaItem(mediaItem)?.let { queue.add(it) }
         }
+
         _playerUiState.update { it.copy(currentPlaybackQueue = queue.toImmutableList()) }
+        if (queue.isNotEmpty()) {
+            _isSheetVisible.value = true
+        }
     }
 
     private fun setupMediaControllerListeners() {
@@ -1665,9 +1723,8 @@ class PlayerViewModel @Inject constructor(
 
         updateCurrentPlaybackQueueFromPlayer(playerCtrl)
 
-        playerCtrl.currentMediaItem?.mediaId?.let { songId ->
-            val song = _playerUiState.value.currentPlaybackQueue.find { s -> s.id == songId }
-                ?: _playerUiState.value.allSongs.find { s -> s.id == songId }
+        playerCtrl.currentMediaItem?.let { mediaItem ->
+            val song = resolveSongFromMediaItem(mediaItem)
 
             if (song != null) {
                 _stablePlayerState.update {
@@ -1689,6 +1746,7 @@ class PlayerViewModel @Inject constructor(
                     isPlaying = playerCtrl.isPlaying
                 )
                 if (playerCtrl.isPlaying) {
+                    _isSheetVisible.value = true
                     startProgressUpdates()
                 }
             } else {
@@ -1743,9 +1801,9 @@ class PlayerViewModel @Inject constructor(
                         }
                     }
 
-                    mediaItem?.mediaId?.let { songId ->
+                    mediaItem?.let { transitionedItem ->
                         listeningStatsTracker.finalizeCurrentSession()
-                        val song = _masterAllSongs.value.find { s -> s.id == songId }
+                        val song = resolveSongFromMediaItem(transitionedItem)
                         resetLyricsSearchState()
                         _stablePlayerState.update {
                             it.copy(
@@ -1903,7 +1961,7 @@ class PlayerViewModel @Inject constructor(
             val albumArtUriString = embeddedArt?.let { persistExternalAlbumArt(uri, it) }
 
             Song(
-                id = "external:${uri}",
+                id = "${EXTERNAL_MEDIA_ID_PREFIX}${uri}",
                 title = title ?: displayName?.substringBeforeLast('.')?.takeIf { it.isNotBlank() }
                 ?: displayName?.takeIf { it.isNotBlank() }
                 ?: uri.lastPathSegment?.takeIf { it.isNotBlank() }
@@ -2026,17 +2084,10 @@ class PlayerViewModel @Inject constructor(
 
     private fun loadAndPlaySong(song: Song) {
         mediaController?.let { controller ->
-            val artworkUriForMediaItem = song.albumArtUriString?.toUri()
-
-            val metadata = MediaMetadata.Builder()
-                .setTitle(song.title)
-                .setArtist(song.artist)
-                .setArtworkUri(artworkUriForMediaItem)
-                .build()
             val mediaItem = MediaItem.Builder()
                 .setMediaId(song.id)
                 .setUri(song.contentUriString.toUri())
-                .setMediaMetadata(metadata)
+                .setMediaMetadata(buildMediaMetadataForSong(song))
                 .build()
             if (controller.currentMediaItem?.mediaId == song.id) {
                 if (!controller.isPlaying) controller.play()
@@ -2052,6 +2103,32 @@ class PlayerViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private fun buildMediaMetadataForSong(song: Song): MediaMetadata {
+        val metadataBuilder = MediaMetadata.Builder()
+            .setTitle(song.title)
+            .setArtist(song.artist)
+            .setAlbumTitle(song.album)
+
+        song.albumArtUriString?.toUri()?.let { artworkUri ->
+            metadataBuilder.setArtworkUri(artworkUri)
+        }
+
+        val extras = Bundle().apply {
+            putBoolean(EXTERNAL_EXTRA_FLAG, song.id.startsWith(EXTERNAL_MEDIA_ID_PREFIX))
+            putString(EXTERNAL_EXTRA_ALBUM, song.album)
+            putLong(EXTERNAL_EXTRA_DURATION, song.duration)
+            putString(EXTERNAL_EXTRA_CONTENT_URI, song.contentUriString)
+            song.albumArtUriString?.let { putString(EXTERNAL_EXTRA_ALBUM_ART, it) }
+            song.genre?.let { putString(EXTERNAL_EXTRA_GENRE, it) }
+            putInt(EXTERNAL_EXTRA_TRACK, song.trackNumber)
+            putInt(EXTERNAL_EXTRA_YEAR, song.year)
+            putLong(EXTERNAL_EXTRA_DATE_ADDED, song.dateAdded)
+        }
+
+        metadataBuilder.setExtras(extras)
+        return metadataBuilder.build()
     }
 
     fun toggleShuffle() {

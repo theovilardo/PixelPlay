@@ -68,12 +68,14 @@ fun ExternalPlayerOverlay(
     val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
     val currentSong = stablePlayerState.currentSong
 
-    var sheetVisible by remember { mutableStateOf(false) }
+    var sheetVisible by remember { mutableStateOf(true) }
+    var awaitingSong by remember { mutableStateOf(true) }
 
     LaunchedEffect(currentSong) {
         if (currentSong != null) {
+            awaitingSong = false
             sheetVisible = true
-        } else {
+        } else if (!awaitingSong) {
             sheetVisible = false
             onDismiss()
         }
@@ -105,7 +107,7 @@ fun ExternalPlayerOverlay(
         }
 
         AnimatedVisibility(
-            visible = sheetVisible && currentSong != null,
+            visible = sheetVisible,
             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter)
