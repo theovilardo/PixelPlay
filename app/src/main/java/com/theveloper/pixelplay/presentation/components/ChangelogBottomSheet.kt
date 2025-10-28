@@ -27,6 +27,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -36,6 +38,7 @@ import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.components.subcomps.SineWaveLine
 import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 data class ChangelogSection(
     val title: String,
@@ -59,6 +62,7 @@ val changelog = listOf(
                 title = "What's new",
                 items = listOf(
                     "Introduced a richer listening stats hub with deeper insights into your sessions.",
+                    "Initial Live Activities support for Android 16",
                     "Launched a floating quick player to instantly open and preview local files.",
                     "Added a folders tab with a tree-style navigator and playlist-ready view."
                 )
@@ -70,7 +74,7 @@ val changelog = listOf(
                     "Smoothed out animations and transitions across the app for more fluid navigation.",
                     "Enhanced the artist screen layout with richer details and polish.",
                     "Upgraded DailyMix and YourMix generation with smarter, more diverse selections.",
-                    "Strengthened the AI assistant to deliver more relevant playback suggestions.",
+                    "Strengthened the AI playlist generation.",
                     "Improved search relevance and presentation for faster discovery.",
                     "Expanded support for a broader range of audio file formats."
                 )
@@ -134,11 +138,13 @@ fun ChangelogBottomSheet(
     val context = LocalContext.current
     val changelogUrl = "https://github.com/theovilardo/PixelPlay/blob/master/CHANGELOG.md"
 
+    val fabCornerRadius = 16.dp
+
     Box(modifier = modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 16.dp),
+                .padding(horizontal = 24.dp, vertical = 0.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
@@ -181,6 +187,18 @@ fun ChangelogBottomSheet(
 
         ExtendedFloatingActionButton(
             onClick = { openUrl(context, changelogUrl) },
+            shape = AbsoluteSmoothCornerShape(
+                cornerRadiusBR = fabCornerRadius,
+                smoothnessAsPercentBR = 60,
+                cornerRadiusBL = fabCornerRadius,
+                smoothnessAsPercentBL = 60,
+                cornerRadiusTR = fabCornerRadius,
+                smoothnessAsPercentTR = 60,
+                cornerRadiusTL = fabCornerRadius,
+                smoothnessAsPercentTL = 60
+            ),
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
             icon = {
                 Icon(
                     painter = painterResource(id = R.drawable.github),
@@ -192,6 +210,23 @@ fun ChangelogBottomSheet(
                 .align(Alignment.BottomEnd)
                 .padding(horizontal = 24.dp, vertical = 24.dp)
         )
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(30.dp)
+                .background(
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            Color.Transparent,
+                            MaterialTheme.colorScheme.surfaceContainerLow
+                        )
+                    )
+                )
+        ) {
+
+        }
     }
 }
 
