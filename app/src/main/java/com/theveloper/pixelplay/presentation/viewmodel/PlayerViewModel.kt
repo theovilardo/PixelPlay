@@ -1576,7 +1576,13 @@ class PlayerViewModel @Inject constructor(
                 }
 
                 if (songsList.isNotEmpty()) {
-                    playSongs(songsList, songsList.first(), album.title, null)
+                    val sortedSongs = songsList.sortedWith(
+                        compareBy<Song> {
+                            if (it.trackNumber > 0) it.trackNumber else Int.MAX_VALUE
+                        }.thenBy { it.title.lowercase() }
+                    )
+
+                    playSongs(sortedSongs, sortedSongs.first(), album.title, null)
                     _isSheetVisible.value = true // Mostrar reproductor
                 } else {
                     Log.w("PlayerViewModel", "Album '${album.title}' has no playable songs.")
