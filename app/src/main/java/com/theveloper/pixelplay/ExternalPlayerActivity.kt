@@ -14,7 +14,9 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.components.external.ExternalPlayerOverlay
 import com.theveloper.pixelplay.ui.theme.PixelPlayTheme
 import android.content.Intent.EXTRA_STREAM
+import androidx.media3.common.util.UnstableApi
 
+@UnstableApi
 @AndroidEntryPoint
 class ExternalPlayerActivity : ComponentActivity() {
 

@@ -1,6 +1,7 @@
 package com.theveloper.pixelplay.presentation.components.external
 
 import androidx.activity.compose.BackHandler
+import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -51,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.components.OptimizedAlbumArt
 import com.theveloper.pixelplay.presentation.components.WavyMusicSlider
@@ -60,6 +62,7 @@ import com.theveloper.pixelplay.utils.formatDuration
 import kotlin.math.roundToLong
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
+@OptIn(UnstableApi::class)
 @Composable
 fun ExternalPlayerOverlay(
     playerViewModel: PlayerViewModel,
@@ -173,7 +176,7 @@ fun ExternalPlayerOverlay(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 24.dp)
+                            .padding(start = 16.dp, end = 16.dp, top = 24.dp)
                             .padding(bottom = bottomPadding)
                     ) {
                         Box(
@@ -184,27 +187,29 @@ fun ExternalPlayerOverlay(
                             Spacer(
                                 modifier = Modifier
                                     .align(Alignment.Center)
-                                    .width(48.dp)
+                                    .width(40.dp)
                                     .height(5.dp)
                                     .clip(CircleShape)
                                     .background(MaterialTheme.colorScheme.surfaceVariant)
                             )
-                            IconButton(
-                                onClick = onDismiss,
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .size(32.dp)
-                            ) {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.rounded_close_24),
-                                    contentDescription = stringResource(id = R.string.close_external_player),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+//                            IconButton(
+//                                onClick = onDismiss,
+//                                modifier = Modifier
+//                                    .align(Alignment.TopEnd)
+//                                    .size(32.dp)
+//                            ) {
+//                                Icon(
+//                                    painter = painterResource(id = R.drawable.rounded_close_24),
+//                                    contentDescription = stringResource(id = R.string.close_external_player),
+//                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+//                                )
+//                            }
                         }
 
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Surface(
@@ -264,6 +269,7 @@ fun ExternalPlayerOverlay(
                                 playerViewModel.seekTo(targetPosition)
                                 isUserScrubbing = false
                             },
+                            waveLength = 30.dp,
                             isPlaying = stablePlayerState.isPlaying,
                             isWaveEligible = true
                         )
@@ -309,9 +315,20 @@ fun ExternalPlayerOverlay(
                         Button(
                             onClick = onOpenFullPlayer,
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                            shape = AbsoluteSmoothCornerShape(
+                                cornerRadiusTR = 16.dp,
+                                smoothnessAsPercentTR = 60,
+                                cornerRadiusBL = 16.dp,
+                                smoothnessAsPercentTL = 60,
+                                cornerRadiusTL = 16.dp,
+                                smoothnessAsPercentBL = 60,
+                                cornerRadiusBR = 16.dp,
+                                smoothnessAsPercentBR = 60
+                            ),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
                         ) {
                             Text(
+                                modifier = Modifier.padding(vertical = 10.dp),
                                 text = stringResource(id = R.string.open_full_player),
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onPrimary
