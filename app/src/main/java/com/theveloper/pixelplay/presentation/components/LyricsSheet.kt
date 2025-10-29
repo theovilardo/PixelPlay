@@ -6,11 +6,12 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -26,8 +27,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -37,7 +42,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.SyncedLine
-import com.theveloper.pixelplay.data.repository.LyricsRepository
 import com.theveloper.pixelplay.data.repository.LyricsSearchResult
 import com.theveloper.pixelplay.presentation.screens.TabAnimation
 import com.theveloper.pixelplay.presentation.components.subcomps.FetchLyricsDialog
@@ -54,6 +58,13 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.roundToInt
+
+private const val LYRICS_HIGHLIGHT_FRACTION = 0.28f
+private val LYRICS_BOTTOM_PADDING = 180.dp
+private val LYRICS_HIGHLIGHT_HEIGHT = 68.dp
+private val LYRICS_HIGHLIGHT_CORNER_RADIUS = 28.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -332,6 +343,17 @@ fun LyricsSheet(
         val playerUiState by playerUiStateFlow.collectAsState()
         val density = LocalDensity.current
 
+        val topContentPadding = paddingValues.calculateTopPadding()
+        val bottomContentPadding = paddingValues.calculateBottomPadding() + LYRICS_BOTTOM_PADDING
+        val horizontalContentPadding = 24.dp
+
+        val highlightHeightPx = remember(density) { with(density) { LYRICS_HIGHLIGHT_HEIGHT.toPx() } }
+        val highlightCornerRadiusPx = remember(density) { with(density) { LYRICS_HIGHLIGHT_CORNER_RADIUS.toPx() } }
+        val horizontalPaddingPx = remember(density) { with(density) { horizontalContentPadding.toPx() } }
+        val topContentPaddingPx = remember(density, topContentPadding) { with(density) { topContentPadding.toPx() } }
+        val bottomContentPaddingPx = remember(density, bottomContentPadding) { with(density) { bottomContentPadding.toPx() } }
+        val highlightColor = remember(accentColor) { accentColor.copy(alpha = 0.12f) }
+
         val currentItemIndex by remember {
             derivedStateOf {
                 val position = playerUiState.currentPosition
@@ -339,7 +361,7 @@ fun LyricsSheet(
                     var currentIndex = -1
                     for ((index, line) in synced.withIndex()) {
                         val nextTime = synced.getOrNull(index + 1)?.time?.toLong() ?: Long.MAX_VALUE
-                        if (position in line.time.toLong()..nextTime) {
+                        if (position in line.time.toLong()..<nextTime) {
                             currentIndex = index
                             break
                         }
@@ -354,12 +376,18 @@ fun LyricsSheet(
                 val itemInfo = listState.layoutInfo.visibleItemsInfo
                     .firstOrNull { it.index == currentItemIndex }
 
+                val layoutInfo = listState.layoutInfo
+                val viewportHeight = layoutInfo.viewportSize.height
+                val beforePadding = layoutInfo.beforeContentPadding
+                val afterPadding = layoutInfo.afterContentPadding
+                val availableHeight = max(viewportHeight - beforePadding - afterPadding, 1)
+                val highlightCenter = beforePadding + (availableHeight * LYRICS_HIGHLIGHT_FRACTION).roundToInt()
+
                 if (itemInfo != null) {
                     // Item is visible, use precise scrollBy
-                    val viewportHeight = listState.layoutInfo.viewportSize.height
                     val itemHeight = itemInfo.size
-                    val desiredOffset = ((viewportHeight * 0.35F) - (itemHeight / 2)).toInt()
-                    val scrollAmount = itemInfo.offset - desiredOffset
+                    val desiredItemStart = (highlightCenter - (itemHeight / 2)).coerceAtLeast(0)
+                    val scrollAmount = itemInfo.offset - desiredItemStart
                     if (abs(scrollAmount) > 1) {
                         coroutineScope.launch {
                             listState.animateScrollBy(
@@ -370,9 +398,8 @@ fun LyricsSheet(
                     }
                 } else {
                     // Item is not visible, use animateScrollToItem with estimated height
-                    val estimatedItemHeight = with(density) { 48.dp.toPx() }
-                    val viewportHeight = listState.layoutInfo.viewportSize.height
-                    val desiredOffset = ((viewportHeight * 0.35F) - (estimatedItemHeight / 2)).toInt()
+                    val estimatedItemHeight = with(density) { 56.dp.toPx() }
+                    val desiredOffset = (highlightCenter - (estimatedItemHeight / 2f)).roundToInt().coerceAtLeast(0)
 
                     coroutineScope.launch {
                         listState.animateScrollToItem(
@@ -393,12 +420,39 @@ fun LyricsSheet(
             LazyColumn(
                 state = listState,
                 contentPadding = PaddingValues(
-                    start = 24.dp,
-                    end = 24.dp,
-                    top = paddingValues.calculateTopPadding(),
-                    bottom = paddingValues.calculateBottomPadding() + 180.dp // Padding for FAB and seek bar
+                    start = horizontalContentPadding,
+                    end = horizontalContentPadding,
+                    top = topContentPadding,
+                    bottom = bottomContentPadding
                 ),
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .drawWithContent {
+                        if (showSyncedLyrics == true && (lyrics?.synced?.isNotEmpty() == true)) {
+                            val availableHeight = size.height - topContentPaddingPx - bottomContentPaddingPx
+                            if (availableHeight > 0f && highlightHeightPx > 0f) {
+                                val highlightCenterY = topContentPaddingPx + (availableHeight * LYRICS_HIGHLIGHT_FRACTION)
+                                val minTop = topContentPaddingPx
+                                val maxTop = size.height - bottomContentPaddingPx - highlightHeightPx
+                                val highlightTop = highlightCenterY - (highlightHeightPx / 2f)
+                                val clampedTop = if (maxTop >= minTop) {
+                                    highlightTop.coerceIn(minTop, maxTop)
+                                } else {
+                                    minTop
+                                }
+                                val highlightWidth = size.width - (horizontalPaddingPx * 2f)
+                                if (highlightWidth > 0f) {
+                                    drawRoundRect(
+                                        color = highlightColor,
+                                        topLeft = Offset(horizontalPaddingPx, clampedTop),
+                                        size = Size(highlightWidth, highlightHeightPx),
+                                        cornerRadius = CornerRadius(highlightCornerRadiusPx, highlightCornerRadiusPx)
+                                    )
+                                }
+                            }
+                        }
+                        drawContent()
+                    }
             ) {
                 when (showSyncedLyrics) {
                     null -> {
@@ -522,6 +576,7 @@ fun LyricsSheet(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SyncedLyricsLine(
     positionFlow: Flow<Long>,
@@ -552,16 +607,19 @@ fun SyncedLyricsLine(
         val unhighlightedColor = LocalContentColor.current.copy(alpha = 0.45f)
         val highlightedColor = accentColor
 
-        Row(modifier = modifier.clickable { onClick() }) {
-            for ((index, word) in words.withIndex()) {
+        FlowRow(
+            modifier = modifier.clickable { onClick() },
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.Center
+        ) {
+            words.forEachIndexed { index, word ->
                 val nextWordTime = words.getOrNull(index + 1)?.time?.toLong() ?: nextTime.toLong()
-                val isCurrentWord by remember(position, word.time, nextWordTime) {
-                    derivedStateOf { position in word.time.toLong()..<nextWordTime }
-                }
+                val isCurrentWord = position in word.time.toLong()..<nextWordTime
 
                 val color by animateColorAsState(
                     targetValue = if (isCurrentWord) highlightedColor else unhighlightedColor,
-                    animationSpec = tween(durationMillis = 300)
+                    animationSpec = tween(durationMillis = 300),
+                    label = "wordColor-$index"
                 )
 
                 Text(
