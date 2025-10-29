@@ -1,15 +1,12 @@
 package com.theveloper.pixelplay.data.ai
 
-import android.util.Log
 import com.google.ai.client.generativeai.GenerativeModel
 import com.theveloper.pixelplay.data.DailyMixManager
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
-import com.theveloper.pixelplay.utils.LogUtils
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import timber.log.Timber
 import javax.inject.Inject
 import kotlin.Result
 
@@ -92,9 +89,7 @@ class AiPlaylistGenerator @Inject constructor(
             val response = generativeModel.generateContent(fullPrompt)
             val responseText = response.text ?: return Result.failure(Exception("AI returned an empty response."))
 
-            // Clean the response to ensure it's valid JSON
-            val cleanedJson = responseText.substringAfter("[").substringBeforeLast("]")
-            val songIds = json.decodeFromString<List<String>>("[$cleanedJson]")
+            val songIds = extractPlaylistSongIds(responseText)
 
             // Map the returned IDs to the actual Song objects
             val songMap = allSongs.associateBy { it.id }
@@ -102,8 +97,60 @@ class AiPlaylistGenerator @Inject constructor(
 
             Result.success(generatedPlaylist)
 
+        } catch (e: IllegalArgumentException) {
+            Result.failure(Exception(e.message ?: "AI response did not contain a valid playlist."))
         } catch (e: Exception) {
             Result.failure(Exception("AI Error: ${e.message}"))
         }
+    }
+
+    private fun extractPlaylistSongIds(rawResponse: String): List<String> {
+        val sanitized = rawResponse
+            .replace("```json", "")
+            .replace("```", "")
+            .trim()
+
+        for (startIndex in sanitized.indices) {
+            if (sanitized[startIndex] != '[') continue
+
+            var depth = 0
+            var inString = false
+            var isEscaped = false
+
+            for (index in startIndex until sanitized.length) {
+                val character = sanitized[index]
+
+                if (inString) {
+                    if (isEscaped) {
+                        isEscaped = false
+                        continue
+                    }
+
+                    when (character) {
+                        '\\' -> isEscaped = true
+                        '"' -> inString = false
+                    }
+                    continue
+                }
+
+                when (character) {
+                    '"' -> inString = true
+                    '[' -> depth++
+                    ']' -> {
+                        depth--
+                        if (depth == 0) {
+                            val candidate = sanitized.substring(startIndex, index + 1)
+                            val decoded = runCatching { json.decodeFromString<List<String>>(candidate) }
+                            if (decoded.isSuccess) {
+                                return decoded.getOrThrow()
+                            }
+                            break
+                        }
+                    }
+                }
+            }
+        }
+
+        throw IllegalArgumentException("AI response did not contain a valid playlist.")
     }
 }
