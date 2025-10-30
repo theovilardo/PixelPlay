@@ -74,6 +74,7 @@ import com.theveloper.pixelplay.data.media.CoverArtUpdate
 import com.theveloper.pixelplay.data.media.SongMetadataEditor
 import com.theveloper.pixelplay.data.media.guessImageMimeType
 import com.theveloper.pixelplay.data.media.imageExtensionFromMimeType
+import com.theveloper.pixelplay.data.media.isValidImageData
 import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.data.model.Genre
@@ -2175,6 +2176,15 @@ class PlayerViewModel @Inject constructor(
             var embeddedArt = metadataRetriever.embeddedPicture?.takeIf { it.isNotEmpty() }
             var embeddedArtMimeType: String? = null
 
+            if (embeddedArt != null) {
+                if (isValidImageData(embeddedArt)) {
+                    embeddedArtMimeType = guessImageMimeType(embeddedArt)
+                } else {
+                    Timber.w("MediaMetadataRetriever returned invalid embedded art for uri: $uri; falling back")
+                    embeddedArt = null
+                }
+            }
+
             if (metadataTitle == null || metadataArtist == null || metadataAlbum == null ||
                 metadataDuration == null || metadataDuration <= 0 ||
                 metadataTrack == null || metadataYear == null ||
@@ -2192,8 +2202,13 @@ class PlayerViewModel @Inject constructor(
                     if (metadataYear == null) metadataYear = fallback.year
                     if (embeddedArt == null) {
                         fallback.artwork?.let { artwork ->
-                            embeddedArt = artwork.bytes
-                            embeddedArtMimeType = artwork.mimeType
+                            if (artwork.bytes.isNotEmpty() && isValidImageData(artwork.bytes)) {
+                                embeddedArt = artwork.bytes
+                                embeddedArtMimeType = artwork.mimeType
+                                    ?: guessImageMimeType(artwork.bytes)
+                            } else if (artwork.bytes.isNotEmpty()) {
+                                Timber.w("JAudioTagger returned invalid artwork for uri: $uri")
+                            }
                         }
                     }
                 }
@@ -2263,6 +2278,9 @@ class PlayerViewModel @Inject constructor(
 
     private fun persistExternalAlbumArt(uri: Uri, data: ByteArray, mimeType: String? = null): String? {
         return runCatching {
+            if (!isValidImageData(data)) {
+                throw IllegalArgumentException("Invalid embedded album art for uri: $uri")
+            }
             val directory = File(context.cacheDir, "external_artwork")
             if (!directory.exists()) {
                 directory.mkdirs()

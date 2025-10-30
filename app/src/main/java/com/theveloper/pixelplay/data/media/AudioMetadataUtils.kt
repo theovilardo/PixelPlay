@@ -1,6 +1,7 @@
 package com.theveloper.pixelplay.data.media
 
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
@@ -110,6 +111,12 @@ private val AUDIO_MIME_OVERRIDES = mapOf(
     "audio/amr" to "amr",
     "audio/x-ms-wma" to "wma"
 )
+
+internal fun isValidImageData(data: ByteArray): Boolean {
+    val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(data, 0, data.size, options)
+    return options.outWidth > 0 && options.outHeight > 0
+}
 
 internal fun imageExtensionFromMimeType(mimeType: String?): String? {
     return when (mimeType?.lowercase(Locale.ROOT)) {

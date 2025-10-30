@@ -48,9 +48,14 @@ object AudioMetadataReader {
             val durationMs = durationSeconds?.takeIf { it > 0 }?.let { it * 1000L }
 
             val artworkTag = tag.firstArtwork
-            val artwork = artworkTag?.binaryData?.takeIf { it.isNotEmpty() }?.let { data ->
-                AudioMetadataArtwork(bytes = data, mimeType = artworkTag.mimeType)
-            }
+            val artworkData = artworkTag?.binaryData?.takeIf { it.isNotEmpty() }
+            val artwork = artworkData
+                ?.takeIf { isValidImageData(it) }
+                ?.let { data ->
+                    val mimeType = artworkTag.mimeType?.takeIf { it.isNotBlank() }
+                        ?: guessImageMimeType(data)
+                    AudioMetadataArtwork(bytes = data, mimeType = mimeType)
+                }
 
             AudioMetadata(
                 title = title,
