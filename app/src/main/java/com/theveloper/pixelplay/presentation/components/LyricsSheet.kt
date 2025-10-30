@@ -3,14 +3,21 @@ package com.theveloper.pixelplay.presentation.components
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.AnimationState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateTo
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,14 +37,16 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.SyncedLine
-import com.theveloper.pixelplay.data.repository.LyricsRepository
+import com.theveloper.pixelplay.data.model.SyncedWord
 import com.theveloper.pixelplay.data.repository.LyricsSearchResult
 import com.theveloper.pixelplay.presentation.screens.TabAnimation
 import com.theveloper.pixelplay.presentation.components.subcomps.FetchLyricsDialog
@@ -48,12 +57,16 @@ import com.theveloper.pixelplay.presentation.viewmodel.StablePlayerState
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import com.theveloper.pixelplay.utils.BubblesLine
 import com.theveloper.pixelplay.utils.ProviderText
+import com.theveloper.pixelplay.presentation.components.snapping.ExperimentalSnapperApi
+import com.theveloper.pixelplay.presentation.components.snapping.SnapperLayoutInfo
+import com.theveloper.pixelplay.presentation.components.snapping.rememberLazyListSnapperLayoutInfo
+import com.theveloper.pixelplay.presentation.components.snapping.rememberSnapperFlingBehavior
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,7 +91,10 @@ fun LyricsSheet(
     onBackClick: () -> Unit,
     onSeekTo: (Long) -> Unit,
     onPlayPause: () -> Unit, // New parameter
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    highlightZoneFraction: Float = 0.22f,
+    highlightOffsetDp: Dp = 32.dp,
+    autoscrollAnimationSpec: AnimationSpec<Float> = tween(durationMillis = 450, easing = FastOutSlowInEasing)
 ) {
     BackHandler { onBackClick() }
     val stablePlayerState by stablePlayerStateFlow.collectAsState()
@@ -327,81 +343,33 @@ fun LyricsSheet(
         },
         floatingActionButtonPosition = FabPosition.Center,
     ) { paddingValues ->
-        val listState = rememberLazyListState()
-        val coroutineScope = rememberCoroutineScope()
+        val syncedListState = rememberLazyListState()
+        val staticListState = rememberLazyListState()
         val playerUiState by playerUiStateFlow.collectAsState()
-        val density = LocalDensity.current
-
-        val currentItemIndex by remember {
-            derivedStateOf {
-                val position = playerUiState.currentPosition
-                lyrics?.synced?.let { synced ->
-                    var currentIndex = -1
-                    for ((index, line) in synced.withIndex()) {
-                        val nextTime = synced.getOrNull(index + 1)?.time?.toLong() ?: Long.MAX_VALUE
-                        if (position in line.time.toLong()..nextTime) {
-                            currentIndex = index
-                            break
-                        }
-                    }
-                    currentIndex
-                } ?: -1
-            }
+        val positionFlow = remember(playerUiStateFlow) {
+            playerUiStateFlow.map { it.currentPosition }
         }
 
-        LaunchedEffect(currentItemIndex) {
-            if (currentItemIndex != -1 && !listState.isScrollInProgress) {
-                val itemInfo = listState.layoutInfo.visibleItemsInfo
-                    .firstOrNull { it.index == currentItemIndex }
-
-                if (itemInfo != null) {
-                    // Item is visible, use precise scrollBy
-                    val viewportHeight = listState.layoutInfo.viewportSize.height
-                    val itemHeight = itemInfo.size
-                    val desiredOffset = ((viewportHeight * 0.35F) - (itemHeight / 2)).toInt()
-                    val scrollAmount = itemInfo.offset - desiredOffset
-                    if (abs(scrollAmount) > 1) {
-                        coroutineScope.launch {
-                            listState.animateScrollBy(
-                                value = scrollAmount.toFloat(),
-                                animationSpec = tween(durationMillis = 300)
-                            )
-                        }
-                    }
-                } else {
-                    // Item is not visible, use animateScrollToItem with estimated height
-                    val estimatedItemHeight = with(density) { 48.dp.toPx() }
-                    val viewportHeight = listState.layoutInfo.viewportSize.height
-                    val desiredOffset = ((viewportHeight * 0.35F) - (estimatedItemHeight / 2)).toInt()
-
-                    coroutineScope.launch {
-                        listState.animateScrollToItem(
-                            index = currentItemIndex,
-                            scrollOffset = desiredOffset
-                        )
-                    }
-                }
-            }
+        LaunchedEffect(lyrics) {
+            syncedListState.scrollToItem(0)
+            staticListState.scrollToItem(0)
         }
-
-        LaunchedEffect(lyrics) { listState.scrollToItem(0) }
 
         Box(
             modifier = Modifier.fillMaxSize()
         ) {
 
-            LazyColumn(
-                state = listState,
-                contentPadding = PaddingValues(
-                    start = 24.dp,
-                    end = 24.dp,
-                    top = paddingValues.calculateTopPadding(),
-                    bottom = paddingValues.calculateBottomPadding() + 180.dp // Padding for FAB and seek bar
-                ),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                when (showSyncedLyrics) {
-                    null -> {
+            when (showSyncedLyrics) {
+                null -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            top = paddingValues.calculateTopPadding(),
+                            bottom = paddingValues.calculateBottomPadding() + 180.dp,
+                            start = 24.dp,
+                            end = 24.dp
+                        )
+                    ) {
                         item(key = "loader_or_empty") {
                             Box(
                                 modifier = Modifier
@@ -425,52 +393,56 @@ fun LyricsSheet(
                             }
                         }
                     }
-                    true -> {
-                        lyrics?.synced?.let { synced ->
-                            itemsIndexed(
-                                items = synced,
-                                key = { index, item -> "$index-${item.time}" }
-                            ) { index, syncedLine ->
-                                val nextTime = synced.getOrNull(index + 1)?.time ?: Int.MAX_VALUE
-
-                                if (syncedLine.line.isNotBlank()) {
-                                    SyncedLyricsLine(
-                                        positionFlow = playerUiStateFlow.map { it.currentPosition },
-                                        syncedLine = syncedLine,
-                                        nextTime = nextTime,
-                                        accentColor = accentColor,
-                                        style = lyricsTextStyle,
-                                        onClick = { onSeekTo(syncedLine.time.toLong()) },
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                } else {
-                                    BubblesLine(
-                                        positionFlow = playerUiStateFlow.map { it.currentPosition },
-                                        time = syncedLine.time,
-                                        color = contentColor,
-                                        nextTime = nextTime,
-                                        modifier = Modifier.padding(vertical = 8.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(16.dp))
-                            }
-
-                            if (lyrics!!.areFromRemote) {
-                                item(key = "provider_text") {
-                                    ProviderText(
-                                        providerText = context.resources.getString(R.string.lyrics_provided_by),
-                                        uri = context.resources.getString(R.string.lrclib_uri),
-                                        textAlign = TextAlign.Center,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 16.dp)
-                                    )
+                }
+                true -> {
+                    lyrics?.synced?.let { synced ->
+                        SyncedLyricsList(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(
+                                    start = 24.dp,
+                                    end = 24.dp,
+                                    //top = paddingValues.calculateTopPadding(),
+                                    //bottom = paddingValues.calculateBottomPadding() //+ 180.dp
+                                ),
+                            lines = synced,
+                            listState = syncedListState,
+                            positionFlow = positionFlow,
+                            accentColor = accentColor,
+                            textStyle = lyricsTextStyle,
+                            onLineClick = { syncedLine -> onSeekTo(syncedLine.time.toLong()) },
+                            highlightZoneFraction = highlightZoneFraction,
+                            highlightOffsetDp = highlightOffsetDp,
+                            autoscrollAnimationSpec = autoscrollAnimationSpec,
+                            footer = {
+                                if (lyrics!!.areFromRemote) {
+                                    item(key = "provider_text") {
+                                        ProviderText(
+                                            providerText = context.resources.getString(R.string.lyrics_provided_by),
+                                            uri = context.resources.getString(R.string.lrclib_uri),
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 16.dp)
+                                        )
+                                    }
                                 }
                             }
-                        }
+                        )
                     }
-                    false -> {
-                        lyrics?.plain?.let { plain ->
+                }
+                false -> {
+                    lyrics?.plain?.let { plain ->
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            state = staticListState,
+                            contentPadding = PaddingValues(
+                                start = 24.dp,
+                                end = 24.dp,
+                                top = paddingValues.calculateTopPadding(),
+                                bottom = paddingValues.calculateBottomPadding() + 180.dp
+                            )
+                        ) {
                             itemsIndexed(
                                 items = plain,
                                 key = { index, line -> "$index-$line" }
@@ -522,57 +494,208 @@ fun LyricsSheet(
     }
 }
 
+@OptIn(ExperimentalSnapperApi::class)
 @Composable
-fun SyncedLyricsLine(
+fun SyncedLyricsList(
+    lines: List<SyncedLine>,
+    listState: LazyListState,
     positionFlow: Flow<Long>,
-    syncedLine: SyncedLine,
     accentColor: Color,
-    nextTime: Int,
-    style: TextStyle,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    textStyle: TextStyle,
+    onLineClick: (SyncedLine) -> Unit,
+    highlightZoneFraction: Float,
+    highlightOffsetDp: Dp,
+    autoscrollAnimationSpec: AnimationSpec<Float>,
+    modifier: Modifier = Modifier,
+    footer: LazyListScope.() -> Unit = {}
 ) {
-    val position by positionFlow.collectAsState(0L)
-    val isCurrentLine by remember(position, syncedLine.time, nextTime) {
-        derivedStateOf { position in syncedLine.time.toLong()..<nextTime.toLong() }
+    val density = LocalDensity.current
+    val position by positionFlow.collectAsState(initial = 0L)
+    val currentLineIndex by remember(position, lines) {
+        derivedStateOf {
+            if (lines.isEmpty()) return@derivedStateOf -1
+            val currentPosition = position
+            lines.withIndex().lastOrNull { (index, line) ->
+                val nextTime = lines.getOrNull(index + 1)?.time?.toLong() ?: Long.MAX_VALUE
+                currentPosition in line.time.toLong()..<nextTime
+            }?.index ?: -1
+        }
     }
 
-    val words = syncedLine.words
-    if (words.isNullOrEmpty()) {
-        // Fallback to line-by-line
+    BoxWithConstraints(modifier = modifier) {
+        val metrics = remember(maxHeight, highlightZoneFraction, highlightOffsetDp) {
+            calculateHighlightMetrics(maxHeight, highlightZoneFraction, highlightOffsetDp)
+        }
+        val highlightOffsetPx = remember(highlightOffsetDp, density) { with(density) { highlightOffsetDp.toPx() } }
+
+        val snapperLayoutInfo = rememberLazyListSnapperLayoutInfo(
+            lazyListState = listState,
+            snapOffsetForItem = { layoutInfo, item ->
+                val viewportHeight = layoutInfo.endScrollOffset - layoutInfo.startScrollOffset
+                highlightSnapOffsetPx(viewportHeight, item.size, highlightOffsetPx)
+            }
+        )
+        val flingBehavior = rememberSnapperFlingBehavior(layoutInfo = snapperLayoutInfo)
+
+        LaunchedEffect(currentLineIndex, lines.size, metrics) {
+            if (lines.isEmpty()) return@LaunchedEffect
+            if (currentLineIndex !in lines.indices) return@LaunchedEffect
+            if (listState.isScrollInProgress) return@LaunchedEffect
+            if (listState.layoutInfo.totalItemsCount == 0) return@LaunchedEffect
+
+            animateToSnapIndex(
+                listState = listState,
+                layoutInfo = snapperLayoutInfo,
+                targetIndex = currentLineIndex,
+                animationSpec = autoscrollAnimationSpec
+            )
+        }
+
+        Box(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                state = listState,
+                flingBehavior = flingBehavior,
+                contentPadding = PaddingValues(
+                    top = metrics.topPadding,
+                    bottom = metrics.bottomPadding
+                )
+            ) {
+                itemsIndexed(
+                    items = lines,
+                    key = { index, item -> "${item.time}_$index" }
+                ) { index, line ->
+                    val nextTime = lines.getOrNull(index + 1)?.time ?: Int.MAX_VALUE
+                    if (line.line.isNotBlank()) {
+                        LyricLineRow(
+                            line = line,
+                            nextTime = nextTime,
+                            position = position,
+                            accentColor = accentColor,
+                            style = textStyle,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("synced_line_${line.time}"),
+                            onClick = { onLineClick(line) }
+                        )
+                    } else {
+                        BubblesLine(
+                            positionFlow = positionFlow,
+                            time = line.time,
+                            color = LocalContentColor.current.copy(alpha = 0.6f),
+                            nextTime = nextTime,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+                footer()
+            }
+
+//            if (metrics.zoneHeight > 0.dp) {
+//                Box(
+//                    modifier = Modifier
+//                        .fillMaxWidth()
+//                        .offset(y = metrics.topPadding)
+//                        .height(metrics.zoneHeight)
+//                        .align(Alignment.TopCenter)
+//                        .clip(RoundedCornerShape(18.dp))
+//                        .background(accentColor.copy(alpha = 0.12f))
+//                        .testTag("synced_highlight_zone")
+//                )
+//            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun LyricLineRow(
+    line: SyncedLine,
+    nextTime: Int,
+    position: Long,
+    accentColor: Color,
+    style: TextStyle,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val sanitizedLine = remember(line.line) { sanitizeLyricLineText(line.line) }
+    val sanitizedWords = remember(line.words) {
+        line.words?.let(::sanitizeSyncedWords)
+    }
+    val isCurrentLine by remember(position, line.time, nextTime) {
+        derivedStateOf { position in line.time.toLong()..<nextTime.toLong() }
+    }
+    val unhighlightedColor = LocalContentColor.current.copy(alpha = 0.45f)
+    val lineColor by animateColorAsState(
+        targetValue = if (isCurrentLine) accentColor else unhighlightedColor,
+        animationSpec = tween(durationMillis = 250),
+        label = "lineColor"
+    )
+
+    if (sanitizedWords.isNullOrEmpty()) {
         Text(
-            text = syncedLine.line,
+            text = sanitizedLine,
             style = style,
-            color = if (isCurrentLine) accentColor else LocalContentColor.current.copy(alpha = 0.45f),
+            color = lineColor,
             fontWeight = if (isCurrentLine) FontWeight.Bold else FontWeight.Normal,
-            modifier = modifier.clickable { onClick() }
+            modifier = modifier
+                .clip(RoundedCornerShape(12.dp))
+                .clickable { onClick() }
+                .padding(vertical = 4.dp, horizontal = 2.dp)
         )
     } else {
-        // Word-by-word highlighting
-        val unhighlightedColor = LocalContentColor.current.copy(alpha = 0.45f)
-        val highlightedColor = accentColor
-
-        Row(modifier = modifier.clickable { onClick() }) {
-            for ((index, word) in words.withIndex()) {
-                val nextWordTime = words.getOrNull(index + 1)?.time?.toLong() ?: nextTime.toLong()
-                val isCurrentWord by remember(position, word.time, nextWordTime) {
-                    derivedStateOf { position in word.time.toLong()..<nextWordTime }
+        FlowRow(
+            modifier = modifier
+                .clip(RoundedCornerShape(12.dp))
+                .clickable { onClick() }
+                .padding(vertical = 4.dp, horizontal = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            sanitizedWords.forEachIndexed { wordIndex, word ->
+                key("${line.time}_${word.time}_${word.word}") {
+                    val nextWordTime = sanitizedWords.getOrNull(wordIndex + 1)?.time?.toLong() ?: nextTime.toLong()
+                    val isCurrentWord by remember(position, word.time, nextWordTime) {
+                        derivedStateOf { position in word.time.toLong()..<nextWordTime }
+                    }
+                    LyricWordSpan(
+                        word = word,
+                        isHighlighted = isCurrentLine && isCurrentWord,
+                        style = style,
+                        highlightedColor = accentColor,
+                        unhighlightedColor = unhighlightedColor
+                    )
                 }
-
-                val color by animateColorAsState(
-                    targetValue = if (isCurrentWord) highlightedColor else unhighlightedColor,
-                    animationSpec = tween(durationMillis = 300)
-                )
-
-                Text(
-                    text = word.word,
-                    style = style,
-                    color = color,
-                    fontWeight = if (isCurrentWord) FontWeight.Bold else FontWeight.Normal,
-                )
             }
         }
     }
+}
+
+@Composable
+fun LyricWordSpan(
+    word: SyncedWord,
+    isHighlighted: Boolean,
+    style: TextStyle,
+    highlightedColor: Color,
+    unhighlightedColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val color by animateColorAsState(
+        targetValue = if (isHighlighted) highlightedColor else unhighlightedColor,
+        animationSpec = tween(durationMillis = 200),
+        label = "wordColor"
+    )
+
+    Text(
+        text = word.word,
+        style = style,
+        color = color,
+        fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.Normal,
+        modifier = modifier
+    )
 }
 
 @Composable
@@ -581,10 +704,89 @@ fun PlainLyricsLine(
     style: TextStyle,
     modifier: Modifier = Modifier
 ) {
+    val sanitizedLine = remember(line) { sanitizeLyricLineText(line) }
     Text(
-        text = line,
+        text = sanitizedLine,
         style = style,
         color = LocalContentColor.current.copy(alpha = 0.7f),
         modifier = modifier
     )
+}
+
+private val LeadingTagRegex = Regex("^v\\d+:\\s*", RegexOption.IGNORE_CASE)
+
+internal fun sanitizeLyricLineText(raw: String): String = raw.replace(LeadingTagRegex, "").trimStart()
+
+internal fun sanitizeSyncedWords(words: List<SyncedWord>): List<SyncedWord> =
+    words.mapIndexedNotNull { index, word ->
+        val sanitized = if (index == 0) LeadingTagRegex.replace(word.word, "") else word.word
+        val trimmed = sanitized.trim()
+        if (trimmed.isEmpty()) null else word.copy(word = trimmed)
+    }
+
+internal data class HighlightZoneMetrics(
+    val topPadding: Dp,
+    val bottomPadding: Dp,
+    val zoneHeight: Dp,
+    val centerFromTop: Dp
+)
+
+internal fun calculateHighlightMetrics(
+    containerHeight: Dp,
+    highlightZoneFraction: Float,
+    highlightOffset: Dp
+): HighlightZoneMetrics {
+    val container = containerHeight.value
+    val zoneHeight = (containerHeight * highlightZoneFraction).value.coerceAtLeast(0f)
+    val offset = highlightOffset.value
+    val minCenter = zoneHeight / 2f
+    val maxCenter = (container - zoneHeight / 2f).coerceAtLeast(minCenter)
+    val unclampedCenter = container / 2f - offset
+    val center = unclampedCenter.coerceIn(minCenter, maxCenter)
+    val topPadding = (center - zoneHeight / 2f).coerceAtLeast(0f)
+    val bottomPadding = (container - center - zoneHeight / 2f).coerceAtLeast(0f)
+
+    return HighlightZoneMetrics(
+        topPadding = topPadding.dp,
+        bottomPadding = bottomPadding.dp,
+        zoneHeight = zoneHeight.dp,
+        centerFromTop = center.dp
+    )
+}
+
+internal fun highlightSnapOffsetPx(
+    viewportHeight: Int,
+    itemSize: Int,
+    highlightOffsetPx: Float
+): Int {
+    if (viewportHeight <= 0 || itemSize <= 0) return 0
+    if (itemSize >= viewportHeight) return 0
+    val viewport = viewportHeight.toFloat()
+    val halfItem = itemSize / 2f
+    val targetCenter = (viewport / 2f) - highlightOffsetPx
+    val clampedCenter = targetCenter.coerceIn(halfItem, viewport - halfItem)
+    return (clampedCenter - halfItem).roundToInt()
+}
+
+internal suspend fun animateToSnapIndex(
+    listState: LazyListState,
+    layoutInfo: SnapperLayoutInfo,
+    targetIndex: Int,
+    animationSpec: AnimationSpec<Float>
+) {
+    val distance = layoutInfo.distanceToIndexSnap(targetIndex)
+    if (distance == 0) return
+
+    listState.scroll {
+        var previous = 0f
+        AnimationState(initialValue = 0f).animateTo(
+            targetValue = distance.toFloat(),
+            animationSpec = animationSpec
+        ) {
+            val delta = value - previous
+            val consumed = scrollBy(delta)
+            previous = value
+            if (abs(delta - consumed) > 0.5f) cancelAnimation()
+        }
+    }
 }
