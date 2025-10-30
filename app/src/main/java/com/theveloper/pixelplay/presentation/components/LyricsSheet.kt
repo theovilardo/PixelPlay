@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.SyncedLine
+import com.theveloper.pixelplay.data.model.SyncedWord
 import com.theveloper.pixelplay.data.repository.LyricsSearchResult
 import com.theveloper.pixelplay.presentation.screens.TabAnimation
 import com.theveloper.pixelplay.presentation.components.subcomps.FetchLyricsDialog
@@ -65,6 +66,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -400,8 +402,8 @@ fun LyricsSheet(
                                 .padding(
                                     start = 24.dp,
                                     end = 24.dp,
-                                    top = paddingValues.calculateTopPadding(),
-                                    bottom = paddingValues.calculateBottomPadding() + 180.dp
+                                    //top = paddingValues.calculateTopPadding(),
+                                    //bottom = paddingValues.calculateBottomPadding() //+ 180.dp
                                 ),
                             lines = synced,
                             listState = syncedListState,
@@ -413,7 +415,7 @@ fun LyricsSheet(
                             highlightOffsetDp = highlightOffsetDp,
                             autoscrollAnimationSpec = autoscrollAnimationSpec,
                             footer = {
-                                if (lyrics.areFromRemote) {
+                                if (lyrics!!.areFromRemote) {
                                     item(key = "provider_text") {
                                         ProviderText(
                                             providerText = context.resources.getString(R.string.lyrics_provided_by),
@@ -592,18 +594,18 @@ fun SyncedLyricsList(
                 footer()
             }
 
-            if (metrics.zoneHeight > 0.dp) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .offset(y = metrics.topPadding)
-                        .height(metrics.zoneHeight)
-                        .align(Alignment.TopCenter)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(accentColor.copy(alpha = 0.12f))
-                        .testTag("synced_highlight_zone")
-                )
-            }
+//            if (metrics.zoneHeight > 0.dp) {
+//                Box(
+//                    modifier = Modifier
+//                        .fillMaxWidth()
+//                        .offset(y = metrics.topPadding)
+//                        .height(metrics.zoneHeight)
+//                        .align(Alignment.TopCenter)
+//                        .clip(RoundedCornerShape(18.dp))
+//                        .background(accentColor.copy(alpha = 0.12f))
+//                        .testTag("synced_highlight_zone")
+//                )
+//            }
         }
     }
 }
@@ -766,7 +768,6 @@ internal fun highlightSnapOffsetPx(
     return (clampedCenter - halfItem).roundToInt()
 }
 
-@OptIn(ExperimentalSnapperApi::class)
 internal suspend fun animateToSnapIndex(
     listState: LazyListState,
     layoutInfo: SnapperLayoutInfo,
