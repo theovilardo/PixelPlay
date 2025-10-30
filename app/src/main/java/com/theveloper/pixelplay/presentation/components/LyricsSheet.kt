@@ -4,10 +4,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,12 +26,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -57,14 +53,21 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
-import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-private const val LYRICS_HIGHLIGHT_FRACTION = 0.28f
+private const val LYRICS_HIGHLIGHT_FRACTION = 0.32f
 private val LYRICS_BOTTOM_PADDING = 180.dp
-private val LYRICS_HIGHLIGHT_HEIGHT = 68.dp
-private val LYRICS_HIGHLIGHT_CORNER_RADIUS = 28.dp
+private val DEFAULT_LINE_HEIGHT = 56.dp
+private val VERSE_MARKER_INLINE_REGEX = Regex("(?i)\\bv\\d+:\\s*")
+private val VERSE_MARKER_WORD_REGEX = Regex("(?i)^v\\d+:$")
+
+private fun String.removeVerseMarkers(): String {
+    val stripped = VERSE_MARKER_INLINE_REGEX.replace(this, "")
+    return stripped.replace(Regex("\\s+"), " ").trim()
+}
+
+private fun String.isVerseMarkerWord(): Boolean = VERSE_MARKER_WORD_REGEX.matches(trim())
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -342,17 +345,13 @@ fun LyricsSheet(
         val coroutineScope = rememberCoroutineScope()
         val playerUiState by playerUiStateFlow.collectAsState()
         val density = LocalDensity.current
+        val lineHeights = remember { mutableStateMapOf<Int, Int>() }
 
         val topContentPadding = paddingValues.calculateTopPadding()
         val bottomContentPadding = paddingValues.calculateBottomPadding() + LYRICS_BOTTOM_PADDING
         val horizontalContentPadding = 24.dp
 
-        val highlightHeightPx = remember(density) { with(density) { LYRICS_HIGHLIGHT_HEIGHT.toPx() } }
-        val highlightCornerRadiusPx = remember(density) { with(density) { LYRICS_HIGHLIGHT_CORNER_RADIUS.toPx() } }
-        val horizontalPaddingPx = remember(density) { with(density) { horizontalContentPadding.toPx() } }
-        val topContentPaddingPx = remember(density, topContentPadding) { with(density) { topContentPadding.toPx() } }
-        val bottomContentPaddingPx = remember(density, bottomContentPadding) { with(density) { bottomContentPadding.toPx() } }
-        val highlightColor = remember(accentColor) { accentColor.copy(alpha = 0.12f) }
+        val defaultLineHeightPx = remember(density) { with(density) { DEFAULT_LINE_HEIGHT.roundToPx() } }
 
         val currentItemIndex by remember {
             derivedStateOf {
@@ -372,46 +371,34 @@ fun LyricsSheet(
         }
 
         LaunchedEffect(currentItemIndex) {
-            if (currentItemIndex != -1 && !listState.isScrollInProgress) {
-                val itemInfo = listState.layoutInfo.visibleItemsInfo
-                    .firstOrNull { it.index == currentItemIndex }
-
+            if (currentItemIndex != -1) {
                 val layoutInfo = listState.layoutInfo
                 val viewportHeight = layoutInfo.viewportSize.height
+                if (viewportHeight <= 0) {
+                    return@LaunchedEffect
+                }
                 val beforePadding = layoutInfo.beforeContentPadding
                 val afterPadding = layoutInfo.afterContentPadding
                 val availableHeight = max(viewportHeight - beforePadding - afterPadding, 1)
                 val highlightCenter = beforePadding + (availableHeight * LYRICS_HIGHLIGHT_FRACTION).roundToInt()
+                val measuredHeight = lineHeights[currentItemIndex]
+                    ?: layoutInfo.visibleItemsInfo.firstOrNull { it.index == currentItemIndex }?.size
+                    ?: defaultLineHeightPx
 
-                if (itemInfo != null) {
-                    // Item is visible, use precise scrollBy
-                    val itemHeight = itemInfo.size
-                    val desiredItemStart = (highlightCenter - (itemHeight / 2)).coerceAtLeast(0)
-                    val scrollAmount = itemInfo.offset - desiredItemStart
-                    if (abs(scrollAmount) > 1) {
-                        coroutineScope.launch {
-                            listState.animateScrollBy(
-                                value = scrollAmount.toFloat(),
-                                animationSpec = tween(durationMillis = 300)
-                            )
-                        }
-                    }
-                } else {
-                    // Item is not visible, use animateScrollToItem with estimated height
-                    val estimatedItemHeight = with(density) { 56.dp.toPx() }
-                    val desiredOffset = (highlightCenter - (estimatedItemHeight / 2f)).roundToInt().coerceAtLeast(0)
-
-                    coroutineScope.launch {
-                        listState.animateScrollToItem(
-                            index = currentItemIndex,
-                            scrollOffset = desiredOffset
-                        )
-                    }
+                val desiredOffset = (highlightCenter - (measuredHeight / 2)).coerceAtLeast(0)
+                coroutineScope.launch {
+                    listState.animateScrollToItem(
+                        index = currentItemIndex,
+                        scrollOffset = desiredOffset
+                    )
                 }
             }
         }
 
-        LaunchedEffect(lyrics) { listState.scrollToItem(0) }
+        LaunchedEffect(lyrics) {
+            lineHeights.clear()
+            listState.scrollToItem(0)
+        }
 
         Box(
             modifier = Modifier.fillMaxSize()
@@ -425,34 +412,7 @@ fun LyricsSheet(
                     top = topContentPadding,
                     bottom = bottomContentPadding
                 ),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .drawWithContent {
-                        if (showSyncedLyrics == true && (lyrics?.synced?.isNotEmpty() == true)) {
-                            val availableHeight = size.height - topContentPaddingPx - bottomContentPaddingPx
-                            if (availableHeight > 0f && highlightHeightPx > 0f) {
-                                val highlightCenterY = topContentPaddingPx + (availableHeight * LYRICS_HIGHLIGHT_FRACTION)
-                                val minTop = topContentPaddingPx
-                                val maxTop = size.height - bottomContentPaddingPx - highlightHeightPx
-                                val highlightTop = highlightCenterY - (highlightHeightPx / 2f)
-                                val clampedTop = if (maxTop >= minTop) {
-                                    highlightTop.coerceIn(minTop, maxTop)
-                                } else {
-                                    minTop
-                                }
-                                val highlightWidth = size.width - (horizontalPaddingPx * 2f)
-                                if (highlightWidth > 0f) {
-                                    drawRoundRect(
-                                        color = highlightColor,
-                                        topLeft = Offset(horizontalPaddingPx, clampedTop),
-                                        size = Size(highlightWidth, highlightHeightPx),
-                                        cornerRadius = CornerRadius(highlightCornerRadiusPx, highlightCornerRadiusPx)
-                                    )
-                                }
-                            }
-                        }
-                        drawContent()
-                    }
+                modifier = Modifier.fillMaxSize()
             ) {
                 when (showSyncedLyrics) {
                     null -> {
@@ -495,7 +455,11 @@ fun LyricsSheet(
                                         accentColor = accentColor,
                                         style = lyricsTextStyle,
                                         onClick = { onSeekTo(syncedLine.time.toLong()) },
-                                        modifier = Modifier.fillMaxWidth()
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .onSizeChanged { size ->
+                                                lineHeights[index] = size.height
+                                            }
                                     )
                                 } else {
                                     BubblesLine(
@@ -503,7 +467,11 @@ fun LyricsSheet(
                                         time = syncedLine.time,
                                         color = contentColor,
                                         nextTime = nextTime,
-                                        modifier = Modifier.padding(vertical = 8.dp)
+                                        modifier = Modifier
+                                            .padding(vertical = 8.dp)
+                                            .onSizeChanged { size ->
+                                                lineHeights[index] = size.height
+                                            }
                                     )
                                 }
                                 Spacer(modifier = Modifier.height(16.dp))
@@ -593,10 +561,15 @@ fun SyncedLyricsLine(
     }
 
     val words = syncedLine.words
-    if (words.isNullOrEmpty()) {
+    val sanitizedLine = remember(syncedLine.line) { syncedLine.line.removeVerseMarkers() }
+    val displayWords = remember(words) {
+        words?.filterNot { it.word.isVerseMarkerWord() }
+    }
+
+    if (displayWords.isNullOrEmpty()) {
         // Fallback to line-by-line
         Text(
-            text = syncedLine.line,
+            text = sanitizedLine,
             style = style,
             color = if (isCurrentLine) accentColor else LocalContentColor.current.copy(alpha = 0.45f),
             fontWeight = if (isCurrentLine) FontWeight.Bold else FontWeight.Normal,
@@ -612,9 +585,10 @@ fun SyncedLyricsLine(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalArrangement = Arrangement.Center
         ) {
-            words.forEachIndexed { index, word ->
-                val nextWordTime = words.getOrNull(index + 1)?.time?.toLong() ?: nextTime.toLong()
-                val isCurrentWord = position in word.time.toLong()..<nextWordTime
+            displayWords.forEachIndexed { index, word ->
+                val nextWordTime = displayWords.getOrNull(index + 1)?.time?.toLong() ?: nextTime.toLong()
+                val wordStart = if (index == 0) syncedLine.time.toLong() else word.time.toLong()
+                val isCurrentWord = position in wordStart..<nextWordTime
 
                 val color by animateColorAsState(
                     targetValue = if (isCurrentWord) highlightedColor else unhighlightedColor,
@@ -623,7 +597,7 @@ fun SyncedLyricsLine(
                 )
 
                 Text(
-                    text = word.word,
+                    text = word.word.removeVerseMarkers(),
                     style = style,
                     color = color,
                     fontWeight = if (isCurrentWord) FontWeight.Bold else FontWeight.Normal,
@@ -640,7 +614,7 @@ fun PlainLyricsLine(
     modifier: Modifier = Modifier
 ) {
     Text(
-        text = line,
+        text = line.removeVerseMarkers(),
         style = style,
         color = LocalContentColor.current.copy(alpha = 0.7f),
         modifier = modifier
