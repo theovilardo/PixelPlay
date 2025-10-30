@@ -411,7 +411,7 @@ fun LyricsSheet(
                     val desiredTop = highlightCenterPx - (measuredHeight / 2)
                     val visibleInfo = layoutInfo.visibleItemsInfo.firstOrNull { it.index == currentItemIndex }
                     if (visibleInfo != null) {
-                        val delta = visibleInfo.offset - desiredTop
+                        val delta = desiredTop - visibleInfo.offset
                         if (kotlin.math.abs(delta) > 1) {
                             syncedListState.animateScrollBy(delta.toFloat())
                         }
