@@ -56,7 +56,7 @@ import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
 private const val LYRICS_HIGHLIGHT_FRACTION = 0f
-private const val LYRICS_FOCUS_LINE_OFFSET = 2.5f
+private const val LYRICS_FOCUS_LINE_OFFSET = 1.75f
 private val LYRICS_BOTTOM_PADDING = 180.dp
 private val DEFAULT_LINE_HEIGHT = 56.dp
 private val LYRICS_LINE_SPACING = 16.dp
@@ -410,45 +410,21 @@ fun LyricsSheet(
                     val viewportHeight = layoutInfo.viewportSize.height
                     if (viewportHeight <= 0) return@LaunchedEffect
 
-                    suspend fun alignVisibleLine(): Boolean {
-                        while (true) {
-                            val latestLayoutInfo = syncedListState.layoutInfo
-                            val visibleInfo = latestLayoutInfo.visibleItemsInfo
-                                .firstOrNull { it.index == currentItemIndex }
-                                ?: return false
+                    val targetHeight = lineHeights[currentItemIndex] ?: defaultLineHeightPx
+                    val desiredCenterOffset = highlightCenterPx - beforePaddingPx - (targetHeight / 2)
+                    val clampedOffset = desiredCenterOffset.coerceIn(
+                        minimumValue = 0,
+                        maximumValue = (viewportHeight - afterPaddingPx - targetHeight).coerceAtLeast(0)
+                    )
 
-                            val itemCenter = visibleInfo.offset + (visibleInfo.size / 2)
-                            val delta = (itemCenter - highlightCenterPx).toFloat()
-                            if (kotlin.math.abs(delta) <= 1f) {
-                                return true
-                            }
+                    val visibleInfo = layoutInfo.visibleItemsInfo.firstOrNull { it.index == currentItemIndex }
+                    val needsRealignment = visibleInfo?.let {
+                        val currentCenter = it.offset + (it.size / 2)
+                        kotlin.math.abs(currentCenter - highlightCenterPx) > 2
+                    } ?: true
 
-                            val consumed = syncedListState.animateScrollBy(delta)
-                            if (kotlin.math.abs(consumed) < 1f) {
-                                return true
-                            }
-                        }
-                    }
-
-                    if (!alignVisibleLine()) {
-                        val measuredHeight = lineHeights[currentItemIndex]
-                            ?: defaultLineHeightPx
-                        val estimatedOffset = highlightCenterPx - beforePaddingPx - (measuredHeight / 2)
-                        val maxOffset = (viewportHeight - afterPaddingPx - measuredHeight).coerceAtLeast(0)
-                        val clampedOffset = estimatedOffset.coerceIn(0, maxOffset)
-
-                        syncedListState.scrollToItem(currentItemIndex, clampedOffset)
-
-                        val refreshedLayoutInfo = syncedListState.layoutInfo
-                        val refreshedVisibleInfo = refreshedLayoutInfo.visibleItemsInfo
-                            .firstOrNull { it.index == currentItemIndex }
-                        if (refreshedVisibleInfo != null) {
-                            val itemCenter = refreshedVisibleInfo.offset + (refreshedVisibleInfo.size / 2)
-                            val delta = (itemCenter - highlightCenterPx).toFloat()
-                            if (kotlin.math.abs(delta) > 1f) {
-                                syncedListState.animateScrollBy(delta)
-                            }
-                        }
+                    if (needsRealignment) {
+                        syncedListState.animateScrollToItem(currentItemIndex, clampedOffset)
                     }
                 }
             }
