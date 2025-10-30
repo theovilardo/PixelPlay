@@ -757,6 +757,7 @@ internal fun highlightSnapOffsetPx(
     highlightOffsetPx: Float
 ): Int {
     if (viewportHeight <= 0 || itemSize <= 0) return 0
+    if (itemSize >= viewportHeight) return 0
     val viewport = viewportHeight.toFloat()
     val halfItem = itemSize / 2f
     val targetCenter = (viewport / 2f) - highlightOffsetPx

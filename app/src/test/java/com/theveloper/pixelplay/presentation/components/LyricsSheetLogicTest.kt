@@ -48,6 +48,16 @@ class LyricsSheetLogicTest {
     }
 
     @Test
+    fun highlightSnapOffsetPx_handlesOversizedItems() {
+        val viewportHeight = 200
+        val itemSize = 260
+
+        val offset = highlightSnapOffsetPx(viewportHeight, itemSize, highlightOffsetPx = 60f)
+
+        assertEquals(0, offset)
+    }
+
+    @Test
     fun calculateHighlightMetrics_reservesBottomSpace() {
         val metrics = calculateHighlightMetrics(
             containerHeight = 480.dp,
