@@ -73,7 +73,6 @@ retrofit = "3.0.0"
 okhttp = "5.1.0"
 mediarouterVersion = "1.8.1"
 playServicesCastFramework = "22.1.0"
-snapper = "0.3.0"
 
 [libraries]
 accompanist-drawablepainter = { module = "com.google.accompanist:accompanist-drawablepainter", version.ref = "accompanistDrawablepainter" }
@@ -159,7 +158,6 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhtt
 logging-interceptor = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
 androidx-mediarouter = { group = "androidx.mediarouter", name = "mediarouter", version.ref = "mediarouterVersion" }
 play-services-cast-framework = { group = "com.google.android.gms", name = "play-services-cast-framework", version.ref = "playServicesCastFramework" }
-snapper = { module = "dev.chrisbanes.snapper:snapper", version.ref = "snapper" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

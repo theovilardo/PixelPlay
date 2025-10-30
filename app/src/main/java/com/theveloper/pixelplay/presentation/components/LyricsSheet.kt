@@ -56,10 +56,10 @@ import com.theveloper.pixelplay.presentation.viewmodel.StablePlayerState
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import com.theveloper.pixelplay.utils.BubblesLine
 import com.theveloper.pixelplay.utils.ProviderText
-import dev.chrisbanes.snapper.ExperimentalSnapperApi
-import dev.chrisbanes.snapper.SnapperLayoutInfo
-import dev.chrisbanes.snapper.rememberLazyListSnapperLayoutInfo
-import dev.chrisbanes.snapper.rememberSnapperFlingBehavior
+import com.theveloper.pixelplay.presentation.components.snapping.ExperimentalSnapperApi
+import com.theveloper.pixelplay.presentation.components.snapping.SnapperLayoutInfo
+import com.theveloper.pixelplay.presentation.components.snapping.rememberLazyListSnapperLayoutInfo
+import com.theveloper.pixelplay.presentation.components.snapping.rememberSnapperFlingBehavior
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map

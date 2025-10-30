@@ -187,7 +187,6 @@ dependencies {
     //Icons
     implementation(libs.androidx.material.icons.core)
     implementation(libs.androidx.material.icons.extended)
-    implementation(libs.snapper)
 
     // Protobuf (JavaLite es suficiente para Android y más pequeño)
     // implementation(libs.protobuf.javalite) // Eliminada dependencia de Protobuf
