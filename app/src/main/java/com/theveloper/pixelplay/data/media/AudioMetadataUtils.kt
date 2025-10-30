@@ -31,6 +31,11 @@ internal fun createTempAudioFileFromUri(context: Context, uri: Uri): File? {
 }
 
 internal fun resolveAudioFileExtension(context: Context, uri: Uri): String {
+    fun normalizeExtension(extension: String): String {
+        val normalized = extension.trim().lowercase(Locale.ROOT)
+        return if (normalized.startsWith('.')) normalized else ".${normalized}"
+    }
+
     val extensionFromDisplayName = runCatching {
         var extension: String? = null
         context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
@@ -40,7 +45,7 @@ internal fun resolveAudioFileExtension(context: Context, uri: Uri): String {
                     val displayName = cursor.getString(displayNameIndex)
                     val dotIndex = displayName.lastIndexOf('.')
                     if (dotIndex > 0 && dotIndex < displayName.lastIndex) {
-                        extension = displayName.substring(dotIndex)
+                        extension = displayName.substring(dotIndex + 1)
                     }
                 }
             }
@@ -49,21 +54,62 @@ internal fun resolveAudioFileExtension(context: Context, uri: Uri): String {
     }.getOrNull()
 
     if (!extensionFromDisplayName.isNullOrBlank()) {
-        return extensionFromDisplayName
+        return normalizeExtension(extensionFromDisplayName)
     }
 
-    val extensionFromMimeType = runCatching {
-        context.contentResolver.getType(uri)?.let { mimeType ->
-            MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType)
-        }
-    }.getOrNull()
+    uri.lastPathSegment
+        ?.substringAfterLast('.', "")
+        ?.takeIf { it.isNotBlank() }
+        ?.let { return normalizeExtension(it) }
+
+    val mimeType = runCatching { context.contentResolver.getType(uri) }
+        .getOrNull()
+        ?.lowercase(Locale.ROOT)
+
+    val extensionFromMimeType = mimeType
+        ?.let { AUDIO_MIME_OVERRIDES[it] ?: MimeTypeMap.getSingleton().getExtensionFromMimeType(it) }
+        ?.takeIf { it.isNotBlank() }
 
     if (!extensionFromMimeType.isNullOrBlank()) {
-        return ".${extensionFromMimeType}"
+        return normalizeExtension(extensionFromMimeType)
+    }
+
+    val streamMimeType = runCatching {
+        context.contentResolver.openInputStream(uri)?.buffered()?.use { input ->
+            URLConnection.guessContentTypeFromStream(input)
+        }
+    }.getOrNull()?.lowercase(Locale.ROOT)
+
+    val extensionFromStream = streamMimeType
+        ?.let { AUDIO_MIME_OVERRIDES[it] ?: MimeTypeMap.getSingleton().getExtensionFromMimeType(it) }
+        ?.takeIf { it.isNotBlank() }
+
+    if (!extensionFromStream.isNullOrBlank()) {
+        return normalizeExtension(extensionFromStream)
     }
 
     return ".mp3"
 }
+
+private val AUDIO_MIME_OVERRIDES = mapOf(
+    "audio/mp4" to "m4a",
+    "audio/x-m4a" to "m4a",
+    "audio/aac" to "aac",
+    "audio/x-aac" to "aac",
+    "audio/flac" to "flac",
+    "audio/x-flac" to "flac",
+    "audio/ogg" to "ogg",
+    "audio/vorbis" to "ogg",
+    "audio/opus" to "opus",
+    "audio/wav" to "wav",
+    "audio/x-wav" to "wav",
+    "audio/vnd.wave" to "wav",
+    "audio/mpeg" to "mp3",
+    "audio/3gpp" to "3gp",
+    "audio/3gpp2" to "3g2",
+    "audio/amr" to "amr",
+    "audio/x-ms-wma" to "wma"
+)
 
 internal fun imageExtensionFromMimeType(mimeType: String?): String? {
     return when (mimeType?.lowercase(Locale.ROOT)) {
