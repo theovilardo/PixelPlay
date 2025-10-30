@@ -410,21 +410,46 @@ fun LyricsSheet(
                     val viewportHeight = layoutInfo.viewportSize.height
                     if (viewportHeight <= 0) return@LaunchedEffect
 
-                    val measuredHeight = lineHeights[currentItemIndex]
-                        ?: layoutInfo.visibleItemsInfo.firstOrNull { it.index == currentItemIndex }?.size
-                        ?: defaultLineHeightPx
+                    suspend fun alignVisibleLine(): Boolean {
+                        while (true) {
+                            val latestLayoutInfo = syncedListState.layoutInfo
+                            val visibleInfo = latestLayoutInfo.visibleItemsInfo
+                                .firstOrNull { it.index == currentItemIndex }
+                                ?: return false
 
-                    val desiredTop = highlightCenterPx - (measuredHeight / 2)
-                    val visibleInfo = layoutInfo.visibleItemsInfo.firstOrNull { it.index == currentItemIndex }
-                    if (visibleInfo != null) {
-                        val alreadyAligned = kotlin.math.abs(visibleInfo.offset - desiredTop) <= 1
-                        if (alreadyAligned) return@LaunchedEffect
+                            val itemCenter = visibleInfo.offset + (visibleInfo.size / 2)
+                            val delta = (itemCenter - highlightCenterPx).toFloat()
+                            if (kotlin.math.abs(delta) <= 1f) {
+                                return true
+                            }
+
+                            val consumed = syncedListState.animateScrollBy(delta)
+                            if (kotlin.math.abs(consumed) < 1f) {
+                                return true
+                            }
+                        }
                     }
 
-                    val minOffset = -beforePaddingPx
-                    val maxOffset = (viewportHeight - afterPaddingPx - measuredHeight).coerceAtLeast(minOffset)
-                    val desiredOffset = (desiredTop - beforePaddingPx).coerceIn(minOffset, maxOffset)
-                    syncedListState.animateScrollToItem(currentItemIndex, desiredOffset)
+                    if (!alignVisibleLine()) {
+                        val measuredHeight = lineHeights[currentItemIndex]
+                            ?: defaultLineHeightPx
+                        val estimatedOffset = highlightCenterPx - beforePaddingPx - (measuredHeight / 2)
+                        val maxOffset = (viewportHeight - afterPaddingPx - measuredHeight).coerceAtLeast(0)
+                        val clampedOffset = estimatedOffset.coerceIn(0, maxOffset)
+
+                        syncedListState.scrollToItem(currentItemIndex, clampedOffset)
+
+                        val refreshedLayoutInfo = syncedListState.layoutInfo
+                        val refreshedVisibleInfo = refreshedLayoutInfo.visibleItemsInfo
+                            .firstOrNull { it.index == currentItemIndex }
+                        if (refreshedVisibleInfo != null) {
+                            val itemCenter = refreshedVisibleInfo.offset + (refreshedVisibleInfo.size / 2)
+                            val delta = (itemCenter - highlightCenterPx).toFloat()
+                            if (kotlin.math.abs(delta) > 1f) {
+                                syncedListState.animateScrollBy(delta)
+                            }
+                        }
+                    }
                 }
             }
 
