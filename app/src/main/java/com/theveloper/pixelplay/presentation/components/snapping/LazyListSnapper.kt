@@ -403,9 +403,11 @@ private object SnapperLog {
 internal fun DecayAnimationSpec<Float>.calculateTargetValue(initialValue: Float, velocity: Float): Float {
     val state = AnimationState(initialValue = initialValue, initialVelocity = velocity)
     var finalValue = initialValue
-    state.animateDecay(this) {
-        finalValue = value
-        if (!isRunning) cancelAnimation()
+    kotlinx.coroutines.runBlocking {
+        state.animateDecay(this@calculateTargetValue) {
+            finalValue = value
+            if (!isRunning) cancelAnimation()
+        }
     }
     return finalValue
 }
