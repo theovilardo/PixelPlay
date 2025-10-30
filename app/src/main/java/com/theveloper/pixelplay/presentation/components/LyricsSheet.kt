@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.ScrollableDefaults
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
@@ -54,6 +56,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
+import dev.chrisbanes.snapper.rememberLazyListSnapperLayoutInfo
+import dev.chrisbanes.snapper.rememberSnapperFlingBehavior
+import kotlin.math.absoluteValue
 
 private const val LYRICS_HIGHLIGHT_FRACTION = 0f
 private const val LYRICS_FOCUS_LINE_OFFSET = 1.75f
@@ -402,173 +407,195 @@ fun LyricsSheet(
             val afterPaddingPx = remember(density, bottomContentPadding) {
                 with(density) { bottomContentPadding.roundToPx() }
             }
+            val snapperLayoutInfo = rememberLazyListSnapperLayoutInfo(lazyListState = syncedListState)
+            val snapperFlingBehavior = rememberSnapperFlingBehavior(lazyListState = syncedListState)
+            var lastSnapRequest by remember { mutableStateOf<Pair<Int, Int>?>(null) }
 
-            LaunchedEffect(currentItemIndex, showSyncedLyrics, highlightCenterPx, syncedListState.isScrollInProgress) {
-                if (syncedListState.isScrollInProgress) return@LaunchedEffect
-                if (showSyncedLyrics == true && currentItemIndex != -1) {
+            LaunchedEffect(syncedListState.isScrollInProgress) {
+                if (syncedListState.isScrollInProgress) {
+                    lastSnapRequest = null
+                }
+            }
+
+            LaunchedEffect(lyrics?.synced) {
+                lineHeights.clear()
+                lastSnapRequest = null
+                syncedListState.scrollToItem(0)
+            }
+
+            val currentLineHeight = if (currentItemIndex >= 0) lineHeights[currentItemIndex] else null
+
+            LaunchedEffect(currentItemIndex, showSyncedLyrics, highlightCenterPx, currentLineHeight) {
+                if (showSyncedLyrics == true && currentItemIndex >= 0 && !syncedListState.isScrollInProgress) {
                     val layoutInfo = syncedListState.layoutInfo
+                    if (layoutInfo.visibleItemsInfo.isEmpty()) return@LaunchedEffect
                     val viewportHeight = layoutInfo.viewportSize.height
                     if (viewportHeight <= 0) return@LaunchedEffect
 
-                    val targetHeight = lineHeights[currentItemIndex] ?: defaultLineHeightPx
+                    val targetHeight = currentLineHeight ?: defaultLineHeightPx
                     val desiredCenterOffset = highlightCenterPx - beforePaddingPx - (targetHeight / 2)
                     val clampedOffset = desiredCenterOffset.coerceIn(
                         minimumValue = 0,
                         maximumValue = (viewportHeight - afterPaddingPx - targetHeight).coerceAtLeast(0)
                     )
 
-                    val visibleInfo = layoutInfo.visibleItemsInfo.firstOrNull { it.index == currentItemIndex }
-                    val needsRealignment = visibleInfo?.let {
-                        val currentCenter = it.offset + (it.size / 2)
-                        kotlin.math.abs(currentCenter - highlightCenterPx) > 2
-                    } ?: true
+                    val distance = if (snapperLayoutInfo.totalItemsCount > currentItemIndex) {
+                        snapperLayoutInfo.distanceToIndexSnap(currentItemIndex).absoluteValue
+                    } else {
+                        Float.MAX_VALUE
+                    }
+                    val requestKey = currentItemIndex to clampedOffset
 
-                    if (needsRealignment) {
-                        syncedListState.animateScrollToItem(currentItemIndex, clampedOffset)
+                    if (lastSnapRequest != requestKey || distance > 1f) {
+                        lastSnapRequest = requestKey
+                        if (currentLineHeight == null) {
+                            syncedListState.scrollToItem(currentItemIndex, clampedOffset)
+                        } else {
+                            syncedListState.animateScrollToItem(currentItemIndex, clampedOffset)
+                        }
                     }
                 }
             }
 
-            LaunchedEffect(lyrics?.synced) {
-                lineHeights.clear()
-                syncedListState.scrollToItem(0)
-            }
-
-            LazyColumn(
-                state = listState,
-                contentPadding = PaddingValues(
-                    start = horizontalContentPadding,
-                    end = horizontalContentPadding,
-                    top = topContentPadding,
-                    bottom = bottomContentPadding
-                ),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                when (showSyncedLyrics) {
-                    null -> {
-                        item(key = "loader_or_empty") {
-                            Box(
-                                modifier = Modifier
-                                    .fillParentMaxSize()
-                                    .padding(bottom = 160.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (isLoadingLyrics) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(
-                                            text = context.resources.getString(R.string.loading_lyrics),
-                                            style = MaterialTheme.typography.titleMedium
-                                        )
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        LinearProgressIndicator(
-                                            trackColor = accentColor.copy(alpha = .5f),
-                                            modifier = Modifier.width(100.dp)
-                                        )
+            Box(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    state = listState,
+                    contentPadding = PaddingValues(
+                        start = horizontalContentPadding,
+                        end = horizontalContentPadding,
+                        top = topContentPadding,
+                        bottom = bottomContentPadding
+                    ),
+                    modifier = Modifier.fillMaxSize(),
+                    flingBehavior = if (showSyncedLyrics == true) snapperFlingBehavior else ScrollableDefaults.flingBehavior()
+                ) {
+                    when (showSyncedLyrics) {
+                        null -> {
+                            item(key = "loader_or_empty") {
+                                Box(
+                                    modifier = Modifier
+                                        .fillParentMaxSize()
+                                        .padding(bottom = 160.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (isLoadingLyrics) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text(
+                                                text = context.resources.getString(R.string.loading_lyrics),
+                                                style = MaterialTheme.typography.titleMedium
+                                            )
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            LinearProgressIndicator(
+                                                trackColor = accentColor.copy(alpha = .5f),
+                                                modifier = Modifier.width(100.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                    true -> {
-                        lyrics?.synced?.let { synced ->
-                            itemsIndexed(
-                                items = synced,
-                                key = { index, item -> "$index-${item.time}" }
-                            ) { index, syncedLine ->
-                                val nextTime = synced.getOrNull(index + 1)?.time ?: Int.MAX_VALUE
+                        true -> {
+                            lyrics?.synced?.let { synced ->
+                                itemsIndexed(
+                                    items = synced,
+                                    key = { index, item -> "$index-${item.time}" }
+                                ) { index, syncedLine ->
+                                    val nextTime = synced.getOrNull(index + 1)?.time ?: Int.MAX_VALUE
 
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .onSizeChanged { size ->
-                                            lineHeights[index] = size.height
-                                        }
-                                ) {
-                                    if (syncedLine.line.isNotBlank()) {
-                                        SyncedLyricsLine(
-                                            positionFlow = playerUiStateFlow.map { it.currentPosition },
-                                            syncedLine = syncedLine,
-                                            nextTime = nextTime,
-                                            accentColor = accentColor,
-                                            style = lyricsTextStyle,
-                                            onClick = { onSeekTo(syncedLine.time.toLong()) },
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-                                    } else {
-                                        BubblesLine(
-                                            positionFlow = playerUiStateFlow.map { it.currentPosition },
-                                            time = syncedLine.time,
-                                            color = contentColor,
-                                            nextTime = nextTime,
-                                            modifier = Modifier.padding(vertical = 8.dp)
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(LYRICS_LINE_SPACING))
-                            }
-
-                            if (lyrics!!.areFromRemote) {
-                                item(key = "provider_text") {
-                                    ProviderText(
-                                        providerText = context.resources.getString(R.string.lyrics_provided_by),
-                                        uri = context.resources.getString(R.string.lrclib_uri),
-                                        textAlign = TextAlign.Center,
+                                    Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(vertical = 16.dp)
+                                            .onSizeChanged { size ->
+                                                lineHeights[index] = size.height
+                                            }
+                                    ) {
+                                        if (syncedLine.line.isNotBlank()) {
+                                            SyncedLyricsLine(
+                                                positionFlow = playerUiStateFlow.map { it.currentPosition },
+                                                syncedLine = syncedLine,
+                                                nextTime = nextTime,
+                                                accentColor = accentColor,
+                                                style = lyricsTextStyle,
+                                                onClick = { onSeekTo(syncedLine.time.toLong()) },
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        } else {
+                                            BubblesLine(
+                                                positionFlow = playerUiStateFlow.map { it.currentPosition },
+                                                time = syncedLine.time,
+                                                color = contentColor,
+                                                nextTime = nextTime,
+                                                modifier = Modifier.padding(vertical = 8.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(LYRICS_LINE_SPACING))
+                                }
+
+                                if (lyrics!!.areFromRemote) {
+                                    item(key = "provider_text") {
+                                        ProviderText(
+                                            providerText = context.resources.getString(R.string.lyrics_provided_by),
+                                            uri = context.resources.getString(R.string.lrclib_uri),
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        false -> {
+                            lyrics?.plain?.let { plain ->
+                                itemsIndexed(
+                                    items = plain,
+                                    key = { index, line -> "$index-$line" }
+                                ) { _, line ->
+                                    PlainLyricsLine(
+                                        line = line,
+                                        style = lyricsTextStyle,
+                                        modifier = Modifier.fillMaxWidth()
                                     )
+                                    Spacer(modifier = Modifier.height(LYRICS_LINE_SPACING))
                                 }
                             }
                         }
                     }
-                    false -> {
-                        lyrics?.plain?.let { plain ->
-                            itemsIndexed(
-                                items = plain,
-                                key = { index, line -> "$index-$line" }
-                            ) { _, line ->
-                                PlainLyricsLine(
-                                    line = line,
-                                    style = lyricsTextStyle,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Spacer(modifier = Modifier.height(LYRICS_LINE_SPACING))
-                            }
-                        }
-                    }
                 }
-            }
 
-            if (showSyncedLyrics == true) {
-                val highlightTop = (highlightCenter - (highlightBandHeight / 2f))
-                    .coerceAtLeast(topContentPadding)
-                val maxTop = (maxHeight - bottomContentPadding - highlightBandHeight)
-                    .coerceAtLeast(topContentPadding)
-                val indicatorTop = highlightTop.coerceAtMost(maxTop)
+                if (showSyncedLyrics == true) {
+                    val indicatorTop = (highlightCenter - (highlightBandHeight / 2f))
+                        .coerceAtLeast(topContentPadding)
+                    val maxTop = (maxHeight - bottomContentPadding - highlightBandHeight)
+                        .coerceAtLeast(topContentPadding)
+                    val bandTop = indicatorTop.coerceAtMost(maxTop)
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = horizontalContentPadding)
-                        .offset(y = indicatorTop)
-                        .height(highlightBandHeight)
-                        .drawBehind {
-                            val strokeWidth = 1.5.dp.toPx()
-                            val color = accentColor.copy(alpha = 0.35f)
-                            drawLine(
-                                color = color,
-                                start = androidx.compose.ui.geometry.Offset(0f, strokeWidth / 2f),
-                                end = androidx.compose.ui.geometry.Offset(size.width, strokeWidth / 2f),
-                                strokeWidth = strokeWidth
-                            )
-                            drawLine(
-                                color = color,
-                                start = androidx.compose.ui.geometry.Offset(0f, size.height - strokeWidth / 2f),
-                                end = androidx.compose.ui.geometry.Offset(size.width, size.height - strokeWidth / 2f),
-                                strokeWidth = strokeWidth
-                            )
-                        }
-                )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = horizontalContentPadding)
+                            .offset(y = bandTop)
+                            .height(highlightBandHeight)
+                            .drawBehind {
+                                val strokeWidth = 2.dp.toPx()
+                                val topY = strokeWidth / 2f
+                                val bottomY = size.height - (strokeWidth / 2f)
+                                drawLine(
+                                    color = accentColor,
+                                    start = Offset(0f, topY),
+                                    end = Offset(size.width, topY),
+                                    strokeWidth = strokeWidth
+                                )
+                                drawLine(
+                                    color = accentColor,
+                                    start = Offset(0f, bottomY),
+                                    end = Offset(size.width, bottomY),
+                                    strokeWidth = strokeWidth
+                                )
+                            }
+                    )
+                }
             }
 
             Box(

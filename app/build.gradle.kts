@@ -177,6 +177,7 @@ dependencies {
 
     //Foundation
     implementation(libs.androidx.foundation)
+    implementation(libs.snapper)
 
     //Wavy slider
     implementation(libs.wavy.slider)
