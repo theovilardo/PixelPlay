@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Sort
@@ -315,6 +316,7 @@ fun Breadcrumbs(
             items(pathSegments.size) { index ->
                 val (name, path) = pathSegments[index]
                 val isLast = index == pathSegments.lastIndex
+                val isFirst = index == 0
                 Text(
                     text = name,
                     style = MaterialTheme.typography.titleSmall,
@@ -322,8 +324,14 @@ fun Breadcrumbs(
                     fontFamily = GoogleSansRounded,
                     color = if (isLast) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(enabled = !isLast) { onFolderClick(path) }
+                        .clip(CircleShape)
+                        .clickable(enabled = !isLast) {
+                            if (isFirst){
+                                onNavigateBack()
+                            } else {
+                                onFolderClick(path)
+                            }
+                        }
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
                 if (!isLast) {
