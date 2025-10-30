@@ -204,7 +204,7 @@ fun AlbumDetailScreen(
                     items(songs, key = { song -> "album_song_${song.id}" }) { song ->
                         EnhancedSongListItem(
                             song = song,
-                            isCurrentSong = songs.isNotEmpty() && stablePlayerState.currentSong == song,
+                            isCurrentSong = stablePlayerState.currentSong?.id == song.id,
                             isPlaying = stablePlayerState.isPlaying,
                             onMoreOptionsClick = {
                                 playerViewModel.selectSongForInfo(song)
