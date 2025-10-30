@@ -57,7 +57,7 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-private const val LYRICS_HIGHLIGHT_FRACTION = 0.18f
+private const val LYRICS_HIGHLIGHT_FRACTION = 0.08f
 private val LYRICS_BOTTOM_PADDING = 180.dp
 private val DEFAULT_LINE_HEIGHT = 56.dp
 private val VERSE_MARKER_INLINE_REGEX = Regex("(?i)\\bv\\d+:\\s*")
