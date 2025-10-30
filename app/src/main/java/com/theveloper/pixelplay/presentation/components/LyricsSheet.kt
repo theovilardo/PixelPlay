@@ -57,7 +57,7 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-private const val LYRICS_HIGHLIGHT_FRACTION = 0.32f
+private const val LYRICS_HIGHLIGHT_FRACTION = 0.18f
 private val LYRICS_BOTTOM_PADDING = 180.dp
 private val DEFAULT_LINE_HEIGHT = 56.dp
 private val VERSE_MARKER_INLINE_REGEX = Regex("(?i)\\bv\\d+:\\s*")
@@ -382,9 +382,10 @@ fun LyricsSheet(
                 val desired = DEFAULT_LINE_HEIGHT + 24.dp
                 if (maxHeight <= 0.dp) desired else desired.coerceAtMost(maxHeight / 2)
             }
-            val highlightCenter = remember(maxHeight, topContentPadding, bottomContentPadding) {
+            val highlightCenter = remember(maxHeight, topContentPadding, bottomContentPadding, highlightBandHeight) {
                 val available = (maxHeight - topContentPadding - bottomContentPadding).coerceAtLeast(0.dp)
-                topContentPadding + (available * LYRICS_HIGHLIGHT_FRACTION)
+                val adjustableSpace = (available - highlightBandHeight).coerceAtLeast(0.dp)
+                topContentPadding + (highlightBandHeight / 2f) + (adjustableSpace * LYRICS_HIGHLIGHT_FRACTION)
             }
             val highlightCenterPx = remember(density, highlightCenter) {
                 with(density) { highlightCenter.roundToPx() }
