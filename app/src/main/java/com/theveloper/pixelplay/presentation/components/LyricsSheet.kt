@@ -26,6 +26,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
@@ -347,7 +348,6 @@ fun LyricsSheet(
             false -> staticListState
             else -> syncedListState
         }
-        val coroutineScope = rememberCoroutineScope()
         val playerUiState by playerUiStateFlow.collectAsState()
         val density = LocalDensity.current
         val lineHeights = remember { mutableStateMapOf<Int, Int>() }
@@ -375,39 +375,58 @@ fun LyricsSheet(
             }
         }
 
-        LaunchedEffect(currentItemIndex, showSyncedLyrics) {
-            if (showSyncedLyrics == true && currentItemIndex != -1) {
-                val layoutInfo = syncedListState.layoutInfo
-                val viewportHeight = layoutInfo.viewportSize.height
-                if (viewportHeight <= 0) {
-                    return@LaunchedEffect
-                }
-                val beforePadding = layoutInfo.beforeContentPadding
-                val afterPadding = layoutInfo.afterContentPadding
-                val availableHeight = max(viewportHeight - beforePadding - afterPadding, 1)
-                val highlightCenter = beforePadding + (availableHeight * LYRICS_HIGHLIGHT_FRACTION).roundToInt()
-                val measuredHeight = lineHeights[currentItemIndex]
-                    ?: layoutInfo.visibleItemsInfo.firstOrNull { it.index == currentItemIndex }?.size
-                    ?: defaultLineHeightPx
-
-                val desiredOffset = (highlightCenter - (measuredHeight / 2)).coerceAtLeast(0)
-                coroutineScope.launch {
-                    syncedListState.animateScrollToItem(
-                        index = currentItemIndex,
-                        scrollOffset = desiredOffset
-                    )
-                }
-            }
-        }
-
-        LaunchedEffect(lyrics?.synced) {
-            lineHeights.clear()
-            syncedListState.scrollToItem(0)
-        }
-
-        Box(
+        BoxWithConstraints(
             modifier = Modifier.fillMaxSize()
         ) {
+            val highlightBandHeight = remember(maxHeight) {
+                val desired = DEFAULT_LINE_HEIGHT + 24.dp
+                if (maxHeight <= 0.dp) desired else desired.coerceAtMost(maxHeight / 2)
+            }
+            val highlightCenter = remember(maxHeight, topContentPadding, bottomContentPadding) {
+                val available = (maxHeight - topContentPadding - bottomContentPadding).coerceAtLeast(0.dp)
+                topContentPadding + (available * LYRICS_HIGHLIGHT_FRACTION)
+            }
+            val highlightCenterPx = remember(density, highlightCenter) {
+                with(density) { highlightCenter.roundToPx() }
+            }
+            val beforePaddingPx = remember(density, topContentPadding) {
+                with(density) { topContentPadding.roundToPx() }
+            }
+            val afterPaddingPx = remember(density, bottomContentPadding) {
+                with(density) { bottomContentPadding.roundToPx() }
+            }
+
+            LaunchedEffect(currentItemIndex, showSyncedLyrics, highlightCenterPx, syncedListState.isScrollInProgress) {
+                if (syncedListState.isScrollInProgress) return@LaunchedEffect
+                if (showSyncedLyrics == true && currentItemIndex != -1) {
+                    val layoutInfo = syncedListState.layoutInfo
+                    val viewportHeight = layoutInfo.viewportSize.height
+                    if (viewportHeight <= 0) return@LaunchedEffect
+
+                    val measuredHeight = lineHeights[currentItemIndex]
+                        ?: layoutInfo.visibleItemsInfo.firstOrNull { it.index == currentItemIndex }?.size
+                        ?: defaultLineHeightPx
+
+                    val desiredTop = highlightCenterPx - (measuredHeight / 2)
+                    val visibleInfo = layoutInfo.visibleItemsInfo.firstOrNull { it.index == currentItemIndex }
+                    if (visibleInfo != null) {
+                        val delta = visibleInfo.offset - desiredTop
+                        if (kotlin.math.abs(delta) > 1) {
+                            syncedListState.animateScrollBy(delta.toFloat())
+                        }
+                    } else {
+                        val minOffset = -beforePaddingPx
+                        val maxOffset = (viewportHeight - afterPaddingPx - measuredHeight).coerceAtLeast(minOffset)
+                        val desiredOffset = (desiredTop - beforePaddingPx).coerceIn(minOffset, maxOffset)
+                        syncedListState.animateScrollToItem(currentItemIndex, desiredOffset)
+                    }
+                }
+            }
+
+            LaunchedEffect(lyrics?.synced) {
+                lineHeights.clear()
+                syncedListState.scrollToItem(0)
+            }
 
             LazyColumn(
                 state = listState,
@@ -512,6 +531,38 @@ fun LyricsSheet(
                         }
                     }
                 }
+            }
+
+            if (showSyncedLyrics == true) {
+                val highlightTop = (highlightCenter - (highlightBandHeight / 2f))
+                    .coerceAtLeast(topContentPadding)
+                val maxTop = (maxHeight - bottomContentPadding - highlightBandHeight)
+                    .coerceAtLeast(topContentPadding)
+                val indicatorTop = highlightTop.coerceAtMost(maxTop)
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = horizontalContentPadding)
+                        .offset(y = indicatorTop)
+                        .height(highlightBandHeight)
+                        .drawBehind {
+                            val strokeWidth = 1.5.dp.toPx()
+                            val color = accentColor.copy(alpha = 0.35f)
+                            drawLine(
+                                color = color,
+                                start = androidx.compose.ui.geometry.Offset(0f, strokeWidth / 2f),
+                                end = androidx.compose.ui.geometry.Offset(size.width, strokeWidth / 2f),
+                                strokeWidth = strokeWidth
+                            )
+                            drawLine(
+                                color = color,
+                                start = androidx.compose.ui.geometry.Offset(0f, size.height - strokeWidth / 2f),
+                                end = androidx.compose.ui.geometry.Offset(size.width, size.height - strokeWidth / 2f),
+                                strokeWidth = strokeWidth
+                            )
+                        }
+                )
             }
 
             Box(
