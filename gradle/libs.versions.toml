@@ -50,6 +50,7 @@ roomRuntime = "2.7.1"
 accompanist = "0.37.3"
 checkerframework = "3.49.5" # O la versión más reciente que encuentres
 jaudiotagger = "3.0.1"
+snapper = "0.3.0"
 
 # DI
 dagger = "2.53.1"
@@ -158,6 +159,7 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhtt
 logging-interceptor = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
 androidx-mediarouter = { group = "androidx.mediarouter", name = "mediarouter", version.ref = "mediarouterVersion" }
 play-services-cast-framework = { group = "com.google.android.gms", name = "play-services-cast-framework", version.ref = "playServicesCastFramework" }
+snapper = { module = "dev.chrisbanes.snapper:snapper", version.ref = "snapper" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
