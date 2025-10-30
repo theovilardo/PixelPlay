@@ -1110,7 +1110,7 @@ fun LibraryFavoritesTab(
                     val isPlayingThisSong = song.id == stablePlayerState.currentSong?.id && stablePlayerState.isPlaying
                     EnhancedSongListItem(
                         song = song,
-                        isCurrentSong = favoriteSongs.isNotEmpty() && stablePlayerState.currentSong == song,
+                        isCurrentSong = stablePlayerState.currentSong?.id == song.id,
                         isPlaying = isPlayingThisSong,
                         onMoreOptionsClick = { onMoreOptionsClick(song) },
                         onClick = { playerViewModel.showAndPlaySong(song, favoriteSongs, "Liked Songs") }
@@ -1263,7 +1263,7 @@ fun LibrarySongsTab(
                             EnhancedSongListItem(
                                 song = song,
                                 isPlaying = isPlayingThisSong,
-                                isCurrentSong = songs.isNotEmpty() && stablePlayerState.currentSong == song,
+                                isCurrentSong = stablePlayerState.currentSong?.id == song.id,
                                 isLoading = false,
                                 onMoreOptionsClick = rememberedOnMoreOptionsClick,
                                 onClick = rememberedOnClick

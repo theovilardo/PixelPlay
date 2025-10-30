@@ -230,13 +230,16 @@ class PlaybackStatsRepository @Inject constructor(
         val uniqueSongs = segmentsBySong.keys.size
 
         val allSongs = segmentsBySong
-            .map { (songId, segmentsForSong) ->
-                val song = songMap[songId]
+            .mapNotNull { (songId, segmentsForSong) ->
+                val song = songMap[songId] ?: return@mapNotNull null
+                val title = song.title.takeIf { it.isNotBlank() }
+                    ?: song.path.substringAfterLast('/').ifBlank { return@mapNotNull null }
+                val artist = song.artist.takeIf { it.isNotBlank() } ?: "Unknown Artist"
                 SongPlaybackSummary(
                     songId = songId,
-                    title = song?.title ?: "Unknown Track",
-                    artist = song?.artist ?: "Unknown Artist",
-                    albumArtUri = song?.albumArtUriString,
+                    title = title,
+                    artist = artist,
+                    albumArtUri = song.albumArtUriString,
                     totalDurationMs = segmentsForSong.sumOf { it.durationMs },
                     playCount = segmentsForSong.size
                 )
