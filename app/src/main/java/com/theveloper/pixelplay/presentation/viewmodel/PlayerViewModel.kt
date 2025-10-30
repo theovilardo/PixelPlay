@@ -69,8 +69,11 @@ import com.theveloper.pixelplay.data.database.AlbumArtThemeDao
 import com.theveloper.pixelplay.data.database.AlbumArtThemeEntity
 import com.theveloper.pixelplay.data.database.StoredColorSchemeValues
 import com.theveloper.pixelplay.data.database.toComposeColor
+import com.theveloper.pixelplay.data.media.AudioMetadataReader
 import com.theveloper.pixelplay.data.media.CoverArtUpdate
 import com.theveloper.pixelplay.data.media.SongMetadataEditor
+import com.theveloper.pixelplay.data.media.guessImageMimeType
+import com.theveloper.pixelplay.data.media.imageExtensionFromMimeType
 import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.data.model.Genre
@@ -2155,22 +2158,50 @@ class PlayerViewModel @Inject constructor(
         return@withContext try {
             metadataRetriever.setDataSource(context, uri)
 
-            val metadataTitle = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
+            var metadataTitle = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
                 ?.takeIf { it.isNotBlank() }
-            val metadataArtist = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+            var metadataArtist = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
                 ?.takeIf { it.isNotBlank() }
-            val metadataAlbum = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
+            var metadataAlbum = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
                 ?.takeIf { it.isNotBlank() }
-            val metadataDuration = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+            var metadataDuration = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
                 ?.toLongOrNull()
-            val metadataTrack = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)
+            var metadataTrack = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)
                 ?.substringBefore('/')
                 ?.toIntOrNull()
-            val metadataYear = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR)
+            var metadataYear = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR)
                 ?.toIntOrNull()
-            val genre = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE)
-            val embeddedArt = metadataRetriever.embeddedPicture?.takeIf { it.isNotEmpty() }
-            val albumArtUriString = embeddedArt?.let { persistExternalAlbumArt(uri, it) }
+            var genre = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE)
+            var embeddedArt = metadataRetriever.embeddedPicture?.takeIf { it.isNotEmpty() }
+            var embeddedArtMimeType: String? = null
+
+            if (metadataTitle == null || metadataArtist == null || metadataAlbum == null ||
+                metadataDuration == null || metadataDuration <= 0 ||
+                metadataTrack == null || metadataYear == null ||
+                embeddedArt == null || genre.isNullOrBlank()
+            ) {
+                AudioMetadataReader.read(context, uri)?.let { fallback ->
+                    if (metadataTitle == null) metadataTitle = fallback.title
+                    if (metadataArtist == null) metadataArtist = fallback.artist
+                    if (metadataAlbum == null) metadataAlbum = fallback.album
+                    if (genre.isNullOrBlank()) genre = fallback.genre
+                    if (metadataDuration == null || metadataDuration <= 0) {
+                        metadataDuration = fallback.durationMs
+                    }
+                    if (metadataTrack == null) metadataTrack = fallback.trackNumber
+                    if (metadataYear == null) metadataYear = fallback.year
+                    if (embeddedArt == null) {
+                        fallback.artwork?.let { artwork ->
+                            embeddedArt = artwork.bytes
+                            embeddedArtMimeType = artwork.mimeType
+                        }
+                    }
+                }
+            }
+
+            val albumArtUriString = embeddedArt?.let { artBytes ->
+                persistExternalAlbumArt(uri, artBytes, embeddedArtMimeType)
+            }
 
             val duration = metadataDuration
                 ?: storeDuration?.takeIf { it > 0 }
@@ -2230,13 +2261,19 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    private fun persistExternalAlbumArt(uri: Uri, data: ByteArray): String? {
+    private fun persistExternalAlbumArt(uri: Uri, data: ByteArray, mimeType: String? = null): String? {
         return runCatching {
             val directory = File(context.cacheDir, "external_artwork")
             if (!directory.exists()) {
                 directory.mkdirs()
             }
-            val fileName = "art_${uri.toString().hashCode()}.jpg"
+            val resolvedMimeType = mimeType ?: guessImageMimeType(data)
+            val extension = imageExtensionFromMimeType(resolvedMimeType) ?: "jpg"
+            val fileNamePrefix = "art_${uri.toString().hashCode()}."
+            directory.listFiles { file ->
+                file.name.startsWith(fileNamePrefix)
+            }?.forEach { it.delete() }
+            val fileName = "$fileNamePrefix$extension"
             val file = File(directory, fileName)
             file.outputStream().use { output ->
                 output.write(data)
