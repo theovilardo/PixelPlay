@@ -1,12 +1,9 @@
 package com.theveloper.pixelplay.presentation.components.snapping
 
-import androidx.annotation.VisibleForTesting
 import androidx.compose.animation.core.AnimationScope
 import androidx.compose.animation.core.AnimationSpec
-import androidx.compose.animation.core.AnimationState
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.DecayAnimationSpec
-import androidx.compose.animation.core.animateDecay
 import androidx.compose.animation.core.animateTo
 import androidx.compose.animation.core.rememberSplineBasedDecay
 import androidx.compose.animation.core.spring
@@ -397,17 +394,4 @@ class SnapperFlingBehavior internal constructor(
 
 private object SnapperLog {
     inline fun d(message: () -> String) { /* no-op */ }
-}
-
-@VisibleForTesting
-internal fun DecayAnimationSpec<Float>.calculateTargetValue(initialValue: Float, velocity: Float): Float {
-    val state = AnimationState(initialValue = initialValue, initialVelocity = velocity)
-    var finalValue = initialValue
-    kotlinx.coroutines.runBlocking {
-        state.animateDecay(this@calculateTargetValue) {
-            finalValue = value
-            if (!isRunning) cancelAnimation()
-        }
-    }
-    return finalValue
 }
