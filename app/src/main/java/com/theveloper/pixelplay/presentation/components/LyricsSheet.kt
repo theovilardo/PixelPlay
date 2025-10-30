@@ -341,7 +341,12 @@ fun LyricsSheet(
         },
         floatingActionButtonPosition = FabPosition.Center,
     ) { paddingValues ->
-        val listState = rememberLazyListState()
+        val syncedListState = rememberLazyListState()
+        val staticListState = rememberLazyListState()
+        val listState = when (showSyncedLyrics) {
+            false -> staticListState
+            else -> syncedListState
+        }
         val coroutineScope = rememberCoroutineScope()
         val playerUiState by playerUiStateFlow.collectAsState()
         val density = LocalDensity.current
@@ -370,9 +375,9 @@ fun LyricsSheet(
             }
         }
 
-        LaunchedEffect(currentItemIndex) {
-            if (currentItemIndex != -1) {
-                val layoutInfo = listState.layoutInfo
+        LaunchedEffect(currentItemIndex, showSyncedLyrics) {
+            if (showSyncedLyrics == true && currentItemIndex != -1) {
+                val layoutInfo = syncedListState.layoutInfo
                 val viewportHeight = layoutInfo.viewportSize.height
                 if (viewportHeight <= 0) {
                     return@LaunchedEffect
@@ -387,7 +392,7 @@ fun LyricsSheet(
 
                 val desiredOffset = (highlightCenter - (measuredHeight / 2)).coerceAtLeast(0)
                 coroutineScope.launch {
-                    listState.animateScrollToItem(
+                    syncedListState.animateScrollToItem(
                         index = currentItemIndex,
                         scrollOffset = desiredOffset
                     )
@@ -395,9 +400,9 @@ fun LyricsSheet(
             }
         }
 
-        LaunchedEffect(lyrics) {
+        LaunchedEffect(lyrics?.synced) {
             lineHeights.clear()
-            listState.scrollToItem(0)
+            syncedListState.scrollToItem(0)
         }
 
         Box(
@@ -447,34 +452,34 @@ fun LyricsSheet(
                             ) { index, syncedLine ->
                                 val nextTime = synced.getOrNull(index + 1)?.time ?: Int.MAX_VALUE
 
-                                if (syncedLine.line.isNotBlank()) {
-                                    SyncedLyricsLine(
-                                        positionFlow = playerUiStateFlow.map { it.currentPosition },
-                                        syncedLine = syncedLine,
-                                        nextTime = nextTime,
-                                        accentColor = accentColor,
-                                        style = lyricsTextStyle,
-                                        onClick = { onSeekTo(syncedLine.time.toLong()) },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .onSizeChanged { size ->
-                                                lineHeights[index] = size.height
-                                            }
-                                    )
-                                } else {
-                                    BubblesLine(
-                                        positionFlow = playerUiStateFlow.map { it.currentPosition },
-                                        time = syncedLine.time,
-                                        color = contentColor,
-                                        nextTime = nextTime,
-                                        modifier = Modifier
-                                            .padding(vertical = 8.dp)
-                                            .onSizeChanged { size ->
-                                                lineHeights[index] = size.height
-                                            }
-                                    )
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .onSizeChanged { size ->
+                                            lineHeights[index] = size.height
+                                        }
+                                ) {
+                                    if (syncedLine.line.isNotBlank()) {
+                                        SyncedLyricsLine(
+                                            positionFlow = playerUiStateFlow.map { it.currentPosition },
+                                            syncedLine = syncedLine,
+                                            nextTime = nextTime,
+                                            accentColor = accentColor,
+                                            style = lyricsTextStyle,
+                                            onClick = { onSeekTo(syncedLine.time.toLong()) },
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    } else {
+                                        BubblesLine(
+                                            positionFlow = playerUiStateFlow.map { it.currentPosition },
+                                            time = syncedLine.time,
+                                            color = contentColor,
+                                            nextTime = nextTime,
+                                            modifier = Modifier.padding(vertical = 8.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(16.dp))
                                 }
-                                Spacer(modifier = Modifier.height(16.dp))
                             }
 
                             if (lyrics!!.areFromRemote) {
