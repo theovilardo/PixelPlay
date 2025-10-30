@@ -56,6 +56,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
+import dev.chrisbanes.snapper.ExperimentalSnapperApi
 import dev.chrisbanes.snapper.rememberLazyListSnapperLayoutInfo
 import dev.chrisbanes.snapper.rememberSnapperFlingBehavior
 import kotlin.math.absoluteValue
@@ -75,7 +76,7 @@ private fun String.removeVerseMarkers(): String {
 
 private fun String.isVerseMarkerWord(): Boolean = VERSE_MARKER_WORD_REGEX.matches(trim())
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSnapperApi::class)
 @Composable
 fun LyricsSheet(
     stablePlayerStateFlow: StateFlow<StablePlayerState>,
@@ -383,17 +384,18 @@ fun LyricsSheet(
         BoxWithConstraints(
             modifier = Modifier.fillMaxSize()
         ) {
-            val highlightBandHeight = remember(maxHeight) {
+            val sheetMaxHeight = maxHeight
+            val highlightBandHeight = remember(sheetMaxHeight) {
                 val desired = DEFAULT_LINE_HEIGHT + 24.dp
-                if (maxHeight <= 0.dp) desired else desired.coerceAtMost(maxHeight / 2)
+                if (sheetMaxHeight <= 0.dp) desired else desired.coerceAtMost(sheetMaxHeight / 2)
             }
-            val highlightCenter = remember(maxHeight, topContentPadding, bottomContentPadding, highlightBandHeight) {
-                val available = (maxHeight - topContentPadding - bottomContentPadding).coerceAtLeast(0.dp)
+            val highlightCenter = remember(sheetMaxHeight, topContentPadding, bottomContentPadding, highlightBandHeight) {
+                val available = (sheetMaxHeight - topContentPadding - bottomContentPadding).coerceAtLeast(0.dp)
                 val adjustableSpace = (available - highlightBandHeight).coerceAtLeast(0.dp)
                 val lineOffset = (DEFAULT_LINE_HEIGHT + LYRICS_LINE_SPACING) * LYRICS_FOCUS_LINE_OFFSET
                 val minCenter = topContentPadding + (highlightBandHeight / 2f)
                 val preferredCenter = minCenter + lineOffset
-                val maxCenter = (maxHeight - bottomContentPadding - (highlightBandHeight / 2f))
+                val maxCenter = (sheetMaxHeight - bottomContentPadding - (highlightBandHeight / 2f))
                     .coerceAtLeast(minCenter)
                 val fallbackCenter = minCenter + (adjustableSpace * LYRICS_HIGHLIGHT_FRACTION)
                 preferredCenter.coerceIn(fallbackCenter, maxCenter)
@@ -567,7 +569,7 @@ fun LyricsSheet(
                 if (showSyncedLyrics == true) {
                     val indicatorTop = (highlightCenter - (highlightBandHeight / 2f))
                         .coerceAtLeast(topContentPadding)
-                    val maxTop = (maxHeight - bottomContentPadding - highlightBandHeight)
+                    val maxTop = (sheetMaxHeight - bottomContentPadding - highlightBandHeight)
                         .coerceAtLeast(topContentPadding)
                     val bandTop = indicatorTop.coerceAtMost(maxTop)
 
