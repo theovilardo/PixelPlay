@@ -6,7 +6,7 @@ import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
 import timber.log.Timber
 
-internal data class AudioMetadata(
+data class AudioMetadata(
     val title: String?,
     val artist: String?,
     val album: String?,
@@ -17,7 +17,7 @@ internal data class AudioMetadata(
     val artwork: AudioMetadataArtwork?
 )
 
-internal data class AudioMetadataArtwork(
+data class AudioMetadataArtwork(
     val bytes: ByteArray,
     val mimeType: String?
 )
