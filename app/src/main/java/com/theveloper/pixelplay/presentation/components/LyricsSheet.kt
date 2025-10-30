@@ -54,12 +54,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
-import kotlin.math.max
-import kotlin.math.roundToInt
 
 private const val LYRICS_HIGHLIGHT_FRACTION = 0f
+private const val LYRICS_FOCUS_LINE_OFFSET = 2.5f
 private val LYRICS_BOTTOM_PADDING = 180.dp
 private val DEFAULT_LINE_HEIGHT = 56.dp
+private val LYRICS_LINE_SPACING = 16.dp
 private val VERSE_MARKER_INLINE_REGEX = Regex("(?i)\\bv\\d+:\\s*")
 private val VERSE_MARKER_WORD_REGEX = Regex("(?i)^v\\d+:$")
 
@@ -385,7 +385,13 @@ fun LyricsSheet(
             val highlightCenter = remember(maxHeight, topContentPadding, bottomContentPadding, highlightBandHeight) {
                 val available = (maxHeight - topContentPadding - bottomContentPadding).coerceAtLeast(0.dp)
                 val adjustableSpace = (available - highlightBandHeight).coerceAtLeast(0.dp)
-                topContentPadding + (highlightBandHeight / 2f) + (adjustableSpace * LYRICS_HIGHLIGHT_FRACTION)
+                val lineOffset = (DEFAULT_LINE_HEIGHT + LYRICS_LINE_SPACING) * LYRICS_FOCUS_LINE_OFFSET
+                val minCenter = topContentPadding + (highlightBandHeight / 2f)
+                val preferredCenter = minCenter + lineOffset
+                val maxCenter = (maxHeight - bottomContentPadding - (highlightBandHeight / 2f))
+                    .coerceAtLeast(minCenter)
+                val fallbackCenter = minCenter + (adjustableSpace * LYRICS_HIGHLIGHT_FRACTION)
+                preferredCenter.coerceIn(fallbackCenter, maxCenter)
             }
             val highlightCenterPx = remember(density, highlightCenter) {
                 with(density) { highlightCenter.roundToPx() }
@@ -411,16 +417,14 @@ fun LyricsSheet(
                     val desiredTop = highlightCenterPx - (measuredHeight / 2)
                     val visibleInfo = layoutInfo.visibleItemsInfo.firstOrNull { it.index == currentItemIndex }
                     if (visibleInfo != null) {
-                        val delta = desiredTop - visibleInfo.offset
-                        if (kotlin.math.abs(delta) > 1) {
-                            syncedListState.animateScrollBy(delta.toFloat())
-                        }
-                    } else {
-                        val minOffset = -beforePaddingPx
-                        val maxOffset = (viewportHeight - afterPaddingPx - measuredHeight).coerceAtLeast(minOffset)
-                        val desiredOffset = (desiredTop - beforePaddingPx).coerceIn(minOffset, maxOffset)
-                        syncedListState.animateScrollToItem(currentItemIndex, desiredOffset)
+                        val alreadyAligned = kotlin.math.abs(visibleInfo.offset - desiredTop) <= 1
+                        if (alreadyAligned) return@LaunchedEffect
                     }
+
+                    val minOffset = -beforePaddingPx
+                    val maxOffset = (viewportHeight - afterPaddingPx - measuredHeight).coerceAtLeast(minOffset)
+                    val desiredOffset = (desiredTop - beforePaddingPx).coerceIn(minOffset, maxOffset)
+                    syncedListState.animateScrollToItem(currentItemIndex, desiredOffset)
                 }
             }
 
@@ -498,8 +502,8 @@ fun LyricsSheet(
                                             modifier = Modifier.padding(vertical = 8.dp)
                                         )
                                     }
-                                    Spacer(modifier = Modifier.height(16.dp))
                                 }
+                                Spacer(modifier = Modifier.height(LYRICS_LINE_SPACING))
                             }
 
                             if (lyrics!!.areFromRemote) {
@@ -527,7 +531,7 @@ fun LyricsSheet(
                                     style = lyricsTextStyle,
                                     modifier = Modifier.fillMaxWidth()
                                 )
-                                Spacer(modifier = Modifier.height(16.dp))
+                                Spacer(modifier = Modifier.height(LYRICS_LINE_SPACING))
                             }
                         }
                     }
