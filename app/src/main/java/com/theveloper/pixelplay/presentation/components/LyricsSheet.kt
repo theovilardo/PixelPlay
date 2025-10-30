@@ -702,8 +702,9 @@ fun PlainLyricsLine(
     style: TextStyle,
     modifier: Modifier = Modifier
 ) {
+    val sanitizedLine = remember(line) { sanitizeLyricLineText(line) }
     Text(
-        text = line,
+        text = sanitizedLine,
         style = style,
         color = LocalContentColor.current.copy(alpha = 0.7f),
         modifier = modifier
