@@ -4,9 +4,12 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
@@ -14,8 +17,8 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.res.painterResource
 import coil.annotation.ExperimentalCoilApi
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
@@ -72,21 +75,36 @@ fun OptimizedAlbumArt(
                 modifier = Modifier.fillMaxSize()
             )
             is AsyncImagePainter.State.Loading,
-            is AsyncImagePainter.State.Empty -> Image(
-                painter = painterResource(R.drawable.ic_music_placeholder),
-                contentDescription = "$title placeholder",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(
-                    MaterialTheme.colorScheme.onSurfaceVariant
+            is AsyncImagePainter.State.Empty -> Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_music_placeholder),
+                    contentDescription = "$title placeholder",
+                    contentScale = ContentScale.Fit,
+                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
                 )
-            )
-            is AsyncImagePainter.State.Error -> Image(
-                painter = painterResource(R.drawable.rounded_broken_image_24),
-                contentDescription = "Error loading album art for $title",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
+            }
+            is AsyncImagePainter.State.Error -> Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.errorContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.rounded_broken_image_24),
+                    contentDescription = "Error loading album art for $title",
+                    contentScale = ContentScale.Fit,
+                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(
+                        MaterialTheme.colorScheme.onErrorContainer
+                    )
+                )
+            }
         }
     }
 }
