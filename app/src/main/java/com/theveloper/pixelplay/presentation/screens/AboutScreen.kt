@@ -58,9 +58,10 @@ import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import kotlin.math.roundToInt
 import androidx.core.net.toUri
-import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import coil.size.Size
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
+import com.theveloper.pixelplay.presentation.components.SmartImage
 
 // Data class to hold information about each person in the acknowledgements section
 data class Contributor(
@@ -489,17 +490,18 @@ private fun ContributorAvatar(
     ) {
         when {
             !avatarUrl.isNullOrBlank() -> {
-                // Coil AsyncImage; if you don't use Coil, swap this for your own image loader
-                AsyncImage(
+                SmartImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(avatarUrl)
                         .crossfade(true)
                         .build(),
                     contentDescription = "Avatar de $name",
-                    contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
-                    error = painterResource(id = iconRes ?: 0).takeIf { iconRes != null },
-                    placeholder = painterResource(id = iconRes ?: 0).takeIf { iconRes != null }
+                    shape = CircleShape,
+                    contentScale = ContentScale.Crop,
+                    placeholderResId = iconRes ?: R.drawable.ic_music_placeholder,
+                    errorResId = iconRes ?: R.drawable.rounded_broken_image_24,
+                    targetSize = Size(96, 96)
                 )
             }
             iconRes != null -> {

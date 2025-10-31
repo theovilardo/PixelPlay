@@ -51,7 +51,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.theveloper.pixelplay.R
 import java.net.URLEncoder
 import timber.log.Timber
@@ -68,7 +67,6 @@ import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.ui.ExperimentalComposeUiApi
-import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.text.font.FontWeight
 import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.graphicsLayer
@@ -616,13 +614,13 @@ private fun CoverArtEditorCard(
                         }
 
                         albumArtUri != null -> {
-                            AsyncImage(
+                            SmartImage(
                                 model = albumArtUri,
                                 contentDescription = "Current song cover art",
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop,
-                                placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
-                                error = ColorPainter(MaterialTheme.colorScheme.surfaceVariant)
+                                placeholderResId = R.drawable.rounded_album_24,
+                                errorResId = R.drawable.rounded_broken_image_24
                             )
                         }
 
