@@ -23,7 +23,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
@@ -97,8 +96,8 @@ fun AlbumArtCollage(
                 Box(Modifier.fillMaxWidth().height(boxMaxHeight * 0.6f)) {
                     topConfigs.forEachIndexed { idx, cfg ->
                         songsToShow.getOrNull(idx)?.let { song ->
-                            AsyncImage(
-                                model = requests[idx],
+                            SmartImage(
+                                model = requests[idx] ?: R.drawable.rounded_album_24,
                                 contentDescription = null,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
@@ -119,8 +118,8 @@ fun AlbumArtCollage(
                 Box(Modifier.fillMaxWidth().height(boxMaxHeight * 0.4f)) {
                     bottomConfigs.forEachIndexed { j, cfg ->
                         songsToShow.getOrNull(j + 3)?.let { song ->
-                            AsyncImage(
-                                model = requests[j + 3],
+                            SmartImage(
+                                model = requests[j + 3] ?: R.drawable.rounded_album_24,
                                 contentDescription = null,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
