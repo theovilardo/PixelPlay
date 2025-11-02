@@ -61,7 +61,8 @@ object LyricsUtils {
         val plainLines = mutableListOf<String>()
         var isSynced = false
 
-        lyricsText.lines().forEach { line ->
+        lyricsText.lines().forEach { rawLine ->
+            val line = rawLine.trimStart('\uFEFF')
             val lineMatcher = LRC_LINE_REGEX.matcher(line)
             if (lineMatcher.matches()) {
                 isSynced = true
