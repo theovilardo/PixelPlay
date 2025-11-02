@@ -36,6 +36,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -58,9 +60,12 @@ import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import kotlin.math.roundToInt
 import androidx.core.net.toUri
-import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
+import coil.size.Size
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
+import com.theveloper.pixelplay.presentation.components.SmartImage
+import androidx.core.graphics.drawable.toBitmap
 
 // Data class to hold information about each person in the acknowledgements section
 data class Contributor(
@@ -477,47 +482,79 @@ private fun ContributorAvatar(
     @DrawableRes iconRes: Int?,
     modifier: Modifier = Modifier
 ) {
-    val bg = MaterialTheme.colorScheme.secondaryContainer
-    val fg = MaterialTheme.colorScheme.onSecondaryContainer
+    val containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+    val iconTint = MaterialTheme.colorScheme.onSurfaceVariant
+    val letterBackground = MaterialTheme.colorScheme.surfaceContainerHighest
+    val letterTint = MaterialTheme.colorScheme.onSurfaceVariant
     val initial = name.firstOrNull()?.uppercase() ?: "?"
+    var cachedBitmap by remember(avatarUrl) { mutableStateOf<ImageBitmap?>(null) }
 
     Surface(
         modifier = modifier.size(48.dp),
         shape = CircleShape,
-        color = bg,
+        color = containerColor,
         tonalElevation = 3.dp,
     ) {
         when {
+            cachedBitmap != null -> {
+                Image(
+                    bitmap = cachedBitmap!!,
+                    contentDescription = "Avatar de $name",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
             !avatarUrl.isNullOrBlank() -> {
-                // Coil AsyncImage; if you don't use Coil, swap this for your own image loader
-                AsyncImage(
+                SmartImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(avatarUrl)
                         .crossfade(true)
                         .build(),
                     contentDescription = "Avatar de $name",
-                    contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
-                    error = painterResource(id = iconRes ?: 0).takeIf { iconRes != null },
-                    placeholder = painterResource(id = iconRes ?: 0).takeIf { iconRes != null }
+                    shape = CircleShape,
+                    contentScale = ContentScale.Crop,
+                    placeholderResId = iconRes ?: R.drawable.ic_music_placeholder,
+                    errorResId = iconRes ?: R.drawable.rounded_broken_image_24,
+                    targetSize = Size(96, 96),
+                    onState = { state ->
+                        if (state is AsyncImagePainter.State.Success) {
+                            val drawable = state.result.drawable
+                            val bitmap = drawable?.toBitmap()?.asImageBitmap()
+                            if (bitmap != null) {
+                                cachedBitmap = bitmap
+                            }
+                        }
+                    }
                 )
             }
             iconRes != null -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Image(
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(letterBackground),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
                         painter = painterResource(iconRes),
                         contentDescription = "Icono de $name",
+                        tint = iconTint,
                         modifier = Modifier.size(28.dp)
                     )
                 }
             }
             else -> {
                 // Letter tile fallback
-                Box(Modifier.fillMaxSize().background(bg), contentAlignment = Alignment.Center) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(letterBackground),
+                    contentAlignment = Alignment.Center
+                ) {
                     Text(
                         text = initial.toString(),
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = fg
+                        color = letterTint
                     )
                 }
             }

@@ -1,30 +1,24 @@
 package com.theveloper.pixelplay.presentation.components
 
-import android.util.Log
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import android.graphics.Bitmap
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.lerp
-import androidx.compose.ui.util.lerp
 import coil.annotation.ExperimentalCoilApi
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
@@ -32,28 +26,39 @@ import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Size
 import com.theveloper.pixelplay.R
-import timber.log.Timber
 
 @OptIn(ExperimentalCoilApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun OptimizedAlbumArt(
-    uri: String?,
+    uri: Any?,
     title: String,
     modifier: Modifier = Modifier,
     targetSize: Size = Size.ORIGINAL
 ) {
     val context = LocalContext.current
 
+    if (renderDirectAlbumArt(
+            model = uri,
+            title = title,
+            modifier = modifier
+        )
+    ) {
+        return
+    }
+
     val painter = rememberAsyncImagePainter(
-        model = ImageRequest.Builder(context)
-            .data(uri)
-            .crossfade(false)
-            .placeholder(R.drawable.ic_music_placeholder)
-            .error(R.drawable.rounded_broken_image_24)
-            .size(targetSize)
-            .memoryCachePolicy(CachePolicy.ENABLED)
-            .diskCachePolicy(CachePolicy.ENABLED)
-            .build()
+        model = when (uri) {
+            is ImageRequest -> uri
+            else -> ImageRequest.Builder(context)
+                .data(uri)
+                .crossfade(false)
+                .placeholder(R.drawable.ic_music_placeholder)
+                .error(R.drawable.rounded_broken_image_24)
+                .size(targetSize)
+                .memoryCachePolicy(CachePolicy.ENABLED)
+                .diskCachePolicy(CachePolicy.ENABLED)
+                .build()
+        }
     )
 
     Crossfade(
@@ -70,22 +75,85 @@ fun OptimizedAlbumArt(
                 modifier = Modifier.fillMaxSize()
             )
             is AsyncImagePainter.State.Loading,
-            is AsyncImagePainter.State.Empty -> Image(
-                painter = painterResource(R.drawable.ic_music_placeholder),
-                contentDescription = "$title placeholder",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(
-                    MaterialTheme.colorScheme.onSurfaceVariant
+            is AsyncImagePainter.State.Empty -> Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_music_placeholder),
+                    contentDescription = "$title placeholder",
+                    contentScale = ContentScale.Fit,
+                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
                 )
-            )
-            is AsyncImagePainter.State.Error -> Image(
-                painter = painterResource(R.drawable.rounded_broken_image_24),
-                contentDescription = "Error loading album art for $title",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
+            }
+            is AsyncImagePainter.State.Error -> Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.errorContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.rounded_broken_image_24),
+                    contentDescription = "Error loading album art for $title",
+                    contentScale = ContentScale.Fit,
+                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(
+                        MaterialTheme.colorScheme.onErrorContainer
+                    )
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun renderDirectAlbumArt(
+    model: Any?,
+    title: String,
+    modifier: Modifier
+): Boolean {
+    return when (model) {
+        is ImageRequest -> renderDirectAlbumArt(model.data, title, modifier)
+        is ImageVector -> {
+            Image(
+                imageVector = model,
+                contentDescription = "Album art of $title",
+                contentScale = ContentScale.Crop,
+                modifier = modifier.fillMaxSize()
+            )
+            true
+        }
+        is Painter -> {
+            Image(
+                painter = model,
+                contentDescription = "Album art of $title",
+                contentScale = ContentScale.Crop,
+                modifier = modifier.fillMaxSize()
+            )
+            true
+        }
+        is ImageBitmap -> {
+            Image(
+                bitmap = model,
+                contentDescription = "Album art of $title",
+                contentScale = ContentScale.Crop,
+                modifier = modifier.fillMaxSize()
+            )
+            true
+        }
+        is Bitmap -> {
+            Image(
+                bitmap = model.asImageBitmap(),
+                contentDescription = "Album art of $title",
+                contentScale = ContentScale.Crop,
+                modifier = modifier.fillMaxSize()
+            )
+            true
+        }
+        else -> false
     }
 }
 
