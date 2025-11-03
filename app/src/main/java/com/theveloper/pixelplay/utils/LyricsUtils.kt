@@ -37,6 +37,7 @@ import com.theveloper.pixelplay.data.model.Lyrics
 import com.theveloper.pixelplay.data.model.SyncedLine
 import com.theveloper.pixelplay.data.model.SyncedWord
 import kotlinx.coroutines.flow.Flow
+import java.lang.Character
 import java.util.regex.Pattern
 import kotlin.math.PI
 import kotlin.math.max
@@ -46,6 +47,8 @@ object LyricsUtils {
 
     private val LRC_LINE_REGEX = Pattern.compile("^\\[(\\d{2}):(\\d{2})\\.(\\d{2,3})](.*)$")
     private val LRC_WORD_REGEX = Pattern.compile("<(\\d{2}):(\\d{2})\\.(\\d{2,3})>([^<]*)")
+    private val LRC_WORD_TAG_REGEX = Regex("<\\d{2}:\\d{2}\\.\\d{2,3}>")
+    private val LRC_WORD_SPLIT_REGEX = Regex("(?=<\\d{2}:\\d{2}\\.\\d{2,3}>)")
 
     /**
      * Parsea un String que contiene una letra en formato LRC o texto plano.
@@ -62,22 +65,24 @@ object LyricsUtils {
         var isSynced = false
 
         lyricsText.lines().forEach { rawLine ->
-            val line = rawLine.trimStart('\uFEFF')
+            val line = sanitizeLrcLine(rawLine)
+            if (line.isEmpty()) return@forEach
+
             val lineMatcher = LRC_LINE_REGEX.matcher(line)
             if (lineMatcher.matches()) {
                 isSynced = true
                 val minutes = lineMatcher.group(1)?.toLong() ?: 0
                 val seconds = lineMatcher.group(2)?.toLong() ?: 0
                 val fraction = lineMatcher.group(3)?.toLong() ?: 0
-                val text = lineMatcher.group(4)?.trim() ?: ""
+                val text = stripFormatCharacters(lineMatcher.group(4)?.trim() ?: "")
 
                 val millis = if (lineMatcher.group(3)?.length == 2) fraction * 10 else fraction
                 val lineTimestamp = minutes * 60 * 1000 + seconds * 1000 + millis
 
                 // Enhanced word-by-word parsing
-                if (text.contains(Regex("<\\d{2}:\\d{2}\\.\\d{2,3}>"))) {
+                if (text.contains(LRC_WORD_TAG_REGEX)) {
                     val words = mutableListOf<SyncedWord>()
-                    val parts = text.split(Regex("(?=<\\d{2}:\\d{2}\\.\\d{2,3}>)"))
+                    val parts = text.split(LRC_WORD_SPLIT_REGEX)
 
                     for (part in parts) {
                         if (part.isEmpty()) continue
@@ -86,7 +91,7 @@ object LyricsUtils {
                             val wordMinutes = wordMatcher.group(1)?.toLong() ?: 0
                             val wordSeconds = wordMatcher.group(2)?.toLong() ?: 0
                             val wordFraction = wordMatcher.group(3)?.toLong() ?: 0
-                            val wordText = wordMatcher.group(4) ?: ""
+                            val wordText = stripFormatCharacters(wordMatcher.group(4) ?: "")
                             val wordMillis = if (wordMatcher.group(3)?.length == 2) wordFraction * 10 else wordFraction
                             val wordTimestamp = wordMinutes * 60 * 1000 + wordSeconds * 1000 + wordMillis
                             words.add(SyncedWord(wordTimestamp.toInt(), wordText))
@@ -100,14 +105,14 @@ object LyricsUtils {
                     if (words.isNotEmpty()) {
                         val fullLineText = words.joinToString("") { it.word }
                         syncedLines.add(SyncedLine(lineTimestamp.toInt(), fullLineText, words))
-                    } else if (text.isNotEmpty()) {
+                    } else {
                         syncedLines.add(SyncedLine(lineTimestamp.toInt(), text))
                     }
-                } else if (text.isNotEmpty()) {
+                } else {
                     syncedLines.add(SyncedLine(lineTimestamp.toInt(), text))
                 }
             } else {
-                plainLines.add(line)
+                plainLines.add(stripFormatCharacters(line))
             }
         }
 
@@ -119,6 +124,25 @@ object LyricsUtils {
             Lyrics(plain = plainLines)
         }
     }
+}
+
+private fun sanitizeLrcLine(rawLine: String): String {
+    if (rawLine.isEmpty()) return rawLine
+
+    val withoutCarriageReturn = rawLine.trimEnd('\r', '\uFEFF')
+    val trimmedFormatPrefix = withoutCarriageReturn.trimStart { ch ->
+        ch.isWhitespace() || Character.getType(ch) == Character.FORMAT
+    }
+    val firstBracket = trimmedFormatPrefix.indexOf('[')
+    return if (firstBracket > 0) {
+        trimmedFormatPrefix.substring(firstBracket)
+    } else {
+        trimmedFormatPrefix
+    }
+}
+
+private fun stripFormatCharacters(value: String): String {
+    return value.filterNot { Character.getType(it) == Character.FORMAT }
 }
 
 @Composable
