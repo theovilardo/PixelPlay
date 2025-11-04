@@ -129,20 +129,33 @@ object LyricsUtils {
 private fun sanitizeLrcLine(rawLine: String): String {
     if (rawLine.isEmpty()) return rawLine
 
-    val withoutCarriageReturn = rawLine.trimEnd('\r', '\uFEFF')
-    val trimmedFormatPrefix = withoutCarriageReturn.trimStart { ch ->
-        ch.isWhitespace() || Character.getType(ch) == Character.FORMAT
-    }
-    val firstBracket = trimmedFormatPrefix.indexOf('[')
+    val withoutTerminators = rawLine
+        .trimEnd('\r', '\n')
+        .filterNot { char ->
+            Character.getType(char) == Character.FORMAT ||
+                (Character.isISOControl(char) && char != '\t')
+        }
+        .trimEnd('\uFEFF')
+
+    val trimmedPrefix = withoutTerminators.trimStart { it.isWhitespace() }
+    val firstBracket = trimmedPrefix.indexOf('[')
     return if (firstBracket > 0) {
-        trimmedFormatPrefix.substring(firstBracket)
+        trimmedPrefix.substring(firstBracket)
     } else {
-        trimmedFormatPrefix
+        trimmedPrefix
     }
 }
 
 private fun stripFormatCharacters(value: String): String {
-    return value.filterNot { Character.getType(it) == Character.FORMAT }
+    val cleaned = value.filterNot { char ->
+        Character.getType(char) == Character.FORMAT ||
+            (Character.isISOControl(char) && char != '\t')
+    }
+
+    return when (cleaned) {
+        "\"", "'" -> ""
+        else -> cleaned
+    }
 }
 
 @Composable
