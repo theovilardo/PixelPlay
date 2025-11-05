@@ -132,7 +132,7 @@ private fun sanitizeLrcLine(rawLine: String): String {
     val withoutTerminators = rawLine
         .trimEnd('\r', '\n')
         .filterNot { char ->
-            Character.getType(char) == Character.FORMAT ||
+            Character.getType(char).toByte() == Character.FORMAT ||
                 (Character.isISOControl(char) && char != '\t')
         }
         .trimEnd('\uFEFF')
@@ -148,7 +148,7 @@ private fun sanitizeLrcLine(rawLine: String): String {
 
 private fun stripFormatCharacters(value: String): String {
     val cleaned = value.filterNot { char ->
-        Character.getType(char) == Character.FORMAT ||
+        Character.getType(char).toByte() == Character.FORMAT ||
             (Character.isISOControl(char) && char != '\t')
     }
 
