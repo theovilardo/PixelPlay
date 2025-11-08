@@ -158,7 +158,7 @@ class SyncWorker @AssistedInject constructor(
             MediaStore.Audio.Media.GENRE,
             MediaStore.Audio.Media.TRACK,
             MediaStore.Audio.Media.YEAR,
-            MediaStore.Audio.Media.DATE_ADDED
+            MediaStore.Audio.Media.DATE_MODIFIED
         )
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ?"
         val selectionArgs = arrayOf("10000")
@@ -182,7 +182,7 @@ class SyncWorker @AssistedInject constructor(
             val genreCol = cursor.getColumnIndex(MediaStore.Audio.Media.GENRE)
             val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
             val yearCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
-            val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
+            val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
 
 
             while (cursor.moveToNext()) {
