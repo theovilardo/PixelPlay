@@ -1,6 +1,7 @@
 [versions]
 accompanistDrawablepainter = "0.37.3"
 agp = "8.9.2"
+app = "1.7.0"
 googleGenai = "1.11.0"
 googlePlayServicesCast = "21.5.0"
 amplituda = "2.3.0"
@@ -34,6 +35,7 @@ activityCompose = "1.10.1"
 composeBom = "2025.05.00"
 material = "1.12.0"
 material3 = "1.5.0-alpha04"
+media = "1.7.1"
 media3Session = "1.3.1"
 media3Transformer = "1.7.1"
 mediaRouter = "1.7.0"
@@ -76,6 +78,9 @@ playServicesCastFramework = "22.1.0"
 
 [libraries]
 accompanist-drawablepainter = { module = "com.google.accompanist:accompanist-drawablepainter", version.ref = "accompanistDrawablepainter" }
+androidx-app = { module = "androidx.car.app:app", version.ref = "app" }
+androidx-app-projected = { module = "androidx.car.app:app-projected", version.ref = "app" }
+androidx-media = { module = "androidx.media:media", version.ref = "media" }
 androidx-ui-text-google-fonts = { module = "androidx.compose.ui:ui-text-google-fonts" }
 google-genai = { group = "com.google.genai", name = "google-genai", version.ref = "googleGenai" }
 google-play-services-cast-framework = { group = "com.google.android.gms", name = "play-services-cast-framework", version.ref = "googlePlayServicesCast" }

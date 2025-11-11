@@ -244,6 +244,12 @@ dependencies {
 
     implementation(libs.accompanist.drawablepainter)
     implementation(kotlin("test"))
+
+    // Android Auto
+    implementation(libs.androidx.media)
+    implementation(libs.androidx.app)
+    implementation(libs.androidx.app.projected)
+
 }
 
 
