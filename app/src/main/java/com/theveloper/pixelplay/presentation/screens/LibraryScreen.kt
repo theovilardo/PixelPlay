@@ -729,17 +729,15 @@ fun LibraryScreen(
                 onAddToQueue = {
                     playerViewModel.addSongToQueue(currentSong) // Assumes such a method exists or will be added
                     showSongInfoBottomSheet = false
-                    // Optionally, show a Snackbar/Toast message
+                    playerViewModel.sendToast("Added to the queue")
                 },
                 onNavigateToAlbum = {
-                    // navController.navigate(Screen.AlbumDetail.createRoute(currentSong.albumId)) // Example
+                    navController.navigate(Screen.AlbumDetail.createRoute(currentSong.albumId))
                     showSongInfoBottomSheet = false
-                    // Actual navigation logic to be implemented if routes exist
                 },
                 onNavigateToArtist = {
-                    // navController.navigate(Screen.ArtistDetail.createRoute(currentSong.artistId)) // Example
+                    navController.navigate(Screen.ArtistDetail.createRoute(currentSong.artistId))
                     showSongInfoBottomSheet = false
-                    // Actual navigation logic to be implemented if routes exist
                 },
                 onEditSong = { newTitle, newArtist, newAlbum, newGenre, newLyrics, newTrackNumber, coverArtUpdate ->
                     playerViewModel.editSongMetadata(currentSong, newTitle, newArtist, newAlbum, newGenre, newLyrics, newTrackNumber, coverArtUpdate)
