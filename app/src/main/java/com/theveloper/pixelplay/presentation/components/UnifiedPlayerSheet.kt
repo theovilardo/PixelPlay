@@ -4,6 +4,7 @@ import android.os.Trace
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.PredictiveBackHandler
+import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -84,6 +85,7 @@ import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import androidx.media3.common.util.UnstableApi
+import androidx.navigation.NavHostController
 import coil.size.Size
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
@@ -113,13 +115,14 @@ const val ANIMATION_DURATION_MS = 255
 
 val MiniPlayerBottomSpacer = 8.dp
 
-@androidx.annotation.OptIn(UnstableApi::class)
+@OptIn(UnstableApi::class)
 @Composable
 fun UnifiedPlayerSheet(
     playerViewModel: PlayerViewModel,
     sheetCollapsedTargetY: Float,
     containerHeight: Dp,
     collapsedStateHorizontalPadding: Dp = 12.dp,
+    navController: NavHostController,
     hideMiniPlayer: Boolean = false,
     isNavBarHidden: Boolean = false
 ) {
@@ -632,7 +635,11 @@ fun UnifiedPlayerSheet(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(color = if (isSystemInDarkTheme()) Color.Black.copy(alpha = currentDimLayerAlpha) else Color.White.copy(alpha = currentDimLayerAlpha))
+                .background(
+                    color = if (isSystemInDarkTheme()) Color.Black.copy(alpha = currentDimLayerAlpha) else Color.White.copy(
+                        alpha = currentDimLayerAlpha
+                    )
+                )
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
@@ -665,7 +672,7 @@ fun UnifiedPlayerSheet(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .pointerInput(Unit){
+                            .pointerInput(Unit) {
                                 if (!isCollapsedState.value) return@pointerInput
                                 var accumulatedDragX by mutableFloatStateOf(0f)
                                 var dragPhase by mutableStateOf(DragPhase.IDLE)
@@ -682,19 +689,33 @@ fun UnifiedPlayerSheet(
 
                                         when (dragPhase) {
                                             DragPhase.TENSION -> {
-                                                val snapThresholdPx = with(density) { 100.dp.toPx() }
+                                                val snapThresholdPx =
+                                                    with(density) { 100.dp.toPx() }
                                                 if (abs(accumulatedDragX) < snapThresholdPx) {
-                                                    val maxTensionOffsetPx = with(density) { 30.dp.toPx() }
-                                                    val dragFraction = (abs(accumulatedDragX) / snapThresholdPx).coerceIn(0f, 1f)
-                                                    val tensionOffset = lerp(0f, maxTensionOffsetPx, dragFraction)
-                                                    scope.launch { offsetAnimatable.snapTo(tensionOffset * accumulatedDragX.sign) }
+                                                    val maxTensionOffsetPx =
+                                                        with(density) { 30.dp.toPx() }
+                                                    val dragFraction =
+                                                        (abs(accumulatedDragX) / snapThresholdPx).coerceIn(
+                                                            0f,
+                                                            1f
+                                                        )
+                                                    val tensionOffset =
+                                                        lerp(0f, maxTensionOffsetPx, dragFraction)
+                                                    scope.launch {
+                                                        offsetAnimatable.snapTo(
+                                                            tensionOffset * accumulatedDragX.sign
+                                                        )
+                                                    }
                                                 } else {
                                                     // Threshold crossed, transition to the snap phase
                                                     dragPhase = DragPhase.SNAPPING
                                                 }
                                             }
+
                                             DragPhase.SNAPPING -> {
-                                                hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                hapticFeedback.performHapticFeedback(
+                                                    HapticFeedbackType.LongPress
+                                                )
                                                 // On the first frame of snapping, launch the soft spring animation
                                                 scope.launch {
                                                     offsetAnimatable.animateTo(
@@ -708,6 +729,7 @@ fun UnifiedPlayerSheet(
                                                 // Immediately transition to free drag so subsequent events are handled there
                                                 dragPhase = DragPhase.FREE_DRAG
                                             }
+
                                             DragPhase.FREE_DRAG -> {
                                                 // After the initial snap, track the finger with a very stiff spring to feel 1-to-1
                                                 scope.launch {
@@ -720,6 +742,7 @@ fun UnifiedPlayerSheet(
                                                     )
                                                 }
                                             }
+
                                             else -> {}
                                         }
                                     },
@@ -727,11 +750,15 @@ fun UnifiedPlayerSheet(
                                         dragPhase = DragPhase.IDLE
                                         val dismissThreshold = screenWidthPx * 0.4f
                                         if (abs(accumulatedDragX) > dismissThreshold) {
-                                            val targetDismissOffset = if (accumulatedDragX < 0) -screenWidthPx else screenWidthPx
+                                            val targetDismissOffset =
+                                                if (accumulatedDragX < 0) -screenWidthPx else screenWidthPx
                                             scope.launch {
                                                 offsetAnimatable.animateTo(
                                                     targetValue = targetDismissOffset,
-                                                    animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                                                    animationSpec = tween(
+                                                        durationMillis = 200,
+                                                        easing = FastOutSlowInEasing
+                                                    )
                                                 )
                                                 playerViewModel.dismissPlaylistAndShowUndo()
                                                 offsetAnimatable.snapTo(0f)
@@ -791,7 +818,8 @@ fun UnifiedPlayerSheet(
                                         isDragging = true
                                         isDraggingPlayerArea = true
                                         velocityTracker.resetTracking()
-                                        initialFractionOnDragStart = playerContentExpansionFraction.value
+                                        initialFractionOnDragStart =
+                                            playerContentExpansionFraction.value
                                         initialYOnDragStart = currentSheetTranslationY.value
                                         accumulatedDragYSinceStart = 0f
                                     },
@@ -806,12 +834,22 @@ fun UnifiedPlayerSheet(
                                                 )
                                             currentSheetTranslationY.snapTo(newY)
 
-                                            val denom = (collapsedY.value - expandedY.value).coerceAtLeast(1f)
+                                            val denom =
+                                                (collapsedY.value - expandedY.value).coerceAtLeast(
+                                                    1f
+                                                )
                                             val dragRatio = (initialYOnDragStart - newY) / denom
-                                            val newFraction = (initialFractionOnDragStart + dragRatio).coerceIn(0f, 1f)
+                                            val newFraction =
+                                                (initialFractionOnDragStart + dragRatio).coerceIn(
+                                                    0f,
+                                                    1f
+                                                )
                                             playerContentExpansionFraction.snapTo(newFraction)
                                         }
-                                        velocityTracker.addPosition(change.uptimeMillis, change.position)
+                                        velocityTracker.addPosition(
+                                            change.uptimeMillis,
+                                            change.position
+                                        )
                                     },
                                     onDragEnd = {
                                         isDragging = false
@@ -826,8 +864,10 @@ fun UnifiedPlayerSheet(
                                             when {
                                                 abs(accumulatedDragYSinceStart) > minDragThresholdPx ->
                                                     if (accumulatedDragYSinceStart < 0) PlayerSheetState.EXPANDED else PlayerSheetState.COLLAPSED
+
                                                 abs(verticalVelocity) > velocityThreshold ->
                                                     if (verticalVelocity < 0) PlayerSheetState.EXPANDED else PlayerSheetState.COLLAPSED
+
                                                 else ->
                                                     if (currentFraction > 0.5f) PlayerSheetState.EXPANDED else PlayerSheetState.COLLAPSED
                                             }
@@ -837,30 +877,37 @@ fun UnifiedPlayerSheet(
                                                 launch {
                                                     currentSheetTranslationY.animateTo(
                                                         targetValue = expandedY.value,
-                                                        animationSpec = tween(ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
+                                                        animationSpec = tween(
+                                                            ANIMATION_DURATION_MS,
+                                                            easing = FastOutSlowInEasing
+                                                        )
                                                     )
                                                 }
                                                 launch {
                                                     playerContentExpansionFraction.animateTo(
                                                         1f,
-                                                        animationSpec = tween(ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
+                                                        animationSpec = tween(
+                                                            ANIMATION_DURATION_MS,
+                                                            easing = FastOutSlowInEasing
+                                                        )
                                                     )
                                                 }
                                                 playerViewModel.expandPlayerSheet()
                                             } else {
                                                 val dynamicDamping = lerp(
                                                     start = Spring.DampingRatioNoBouncy,
-                                                    stop  = Spring.DampingRatioLowBouncy,
+                                                    stop = Spring.DampingRatioLowBouncy,
                                                     fraction = currentFraction
                                                 )
                                                 launch {
-                                                    val initialSquash = lerp(1.0f, 0.97f, currentFraction)
+                                                    val initialSquash =
+                                                        lerp(1.0f, 0.97f, currentFraction)
                                                     visualOvershootScaleY.snapTo(initialSquash)
                                                     visualOvershootScaleY.animateTo(
                                                         1f,
                                                         animationSpec = spring(
                                                             dampingRatio = Spring.DampingRatioMediumBouncy,
-                                                            stiffness   = Spring.StiffnessVeryLow
+                                                            stiffness = Spring.StiffnessVeryLow
                                                         )
                                                     )
                                                 }
@@ -870,18 +917,21 @@ fun UnifiedPlayerSheet(
                                                         initialVelocity = verticalVelocity,
                                                         animationSpec = spring(
                                                             dampingRatio = dynamicDamping,
-                                                            stiffness   = Spring.StiffnessLow
+                                                            stiffness = Spring.StiffnessLow
                                                         )
                                                     )
                                                 }
                                                 launch {
-                                                    val denom = (collapsedY.value - expandedY.value).coerceAtLeast(1f)
+                                                    val denom =
+                                                        (collapsedY.value - expandedY.value).coerceAtLeast(
+                                                            1f
+                                                        )
                                                     playerContentExpansionFraction.animateTo(
                                                         0f,
                                                         initialVelocity = verticalVelocity / denom,
                                                         animationSpec = spring(
                                                             dampingRatio = dynamicDamping,
-                                                            stiffness   = Spring.StiffnessLow
+                                                            stiffness = Spring.StiffnessLow
                                                         )
                                                     )
                                                 }
@@ -1082,10 +1132,13 @@ fun UnifiedPlayerSheet(
                                                 onCollapse = playerViewModel::collapsePlayerSheet,
                                                 onShowQueueClicked = { showQueueSheet = true },
                                                 onShowCastClicked = { showCastSheet = true },
-                                                onShowTrackVolumeClicked = { showTrackVolumeSheet = true },
+                                                onShowTrackVolumeClicked = {
+                                                    showTrackVolumeSheet = true
+                                                },
                                                 onShuffleToggle = playerViewModel::toggleShuffle,
                                                 onRepeatToggle = playerViewModel::cycleRepeatMode,
-                                                onFavoriteToggle = playerViewModel::toggleFavorite
+                                                onFavoriteToggle = playerViewModel::toggleFavorite,
+                                                navController = navController,
                                             )
                                         }
                                     }

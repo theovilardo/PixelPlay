@@ -548,6 +548,7 @@ class MainActivity : ComponentActivity() {
                     collapsedStateHorizontalPadding = horizontalPadding,
                     hideMiniPlayer = shouldHideMiniPlayer,
                     containerHeight = containerHeight,
+                    navController = navController,
                     isNavBarHidden = shouldHideNavigationBar
                 )
 

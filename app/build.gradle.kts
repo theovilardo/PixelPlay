@@ -83,6 +83,7 @@ dependencies {
     implementation(libs.generativeai)
     implementation(libs.androidx.mediarouter)
     implementation(libs.play.services.cast.framework)
+    implementation(libs.androidx.navigation.runtime.ktx)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
