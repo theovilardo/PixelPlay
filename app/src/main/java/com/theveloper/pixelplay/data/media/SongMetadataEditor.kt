@@ -113,10 +113,10 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
             val extension = imageExtensionFromMimeType(coverArtUpdate.mimeType) ?: "jpg"
             val directory = File(context.filesDir, "cover_art").apply { if (!exists()) mkdirs() }
             directory.listFiles { file ->
-                file.name.startsWith("song_\${songId}_")
+                file.name.startsWith("song_${songId}_")
             }?.forEach { it.delete() }
             val timestamp = System.currentTimeMillis()
-            val file = File(directory, "song_\${songId}_\${timestamp}.$extension")
+            val file = File(directory, "song_${songId}_${timestamp}.$extension")
             FileOutputStream(file).use { outputStream ->
                 ByteArrayInputStream(coverArtUpdate.bytes).use { inputStream ->
                     inputStream.copyTo(outputStream)

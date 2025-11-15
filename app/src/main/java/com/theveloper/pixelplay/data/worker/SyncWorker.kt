@@ -140,7 +140,7 @@ class SyncWorker @AssistedInject constructor(
         return Triple(correctedSongs, albums, artists)
     }
 
-    private fun fetchAllMusicData(): List<SongEntity> {
+    private suspend fun fetchAllMusicData(): List<SongEntity> {
         Trace.beginSection("SyncWorker.fetchAllMusicData")
         val songs = mutableListOf<SongEntity>()
         // Removed genre mapping from initial sync for performance.
@@ -203,7 +203,7 @@ class SyncWorker @AssistedInject constructor(
                         contentResolver.openFileDescriptor(potentialUri, "r")?.use { }
                         potentialUri.toString()
                     } catch (notFound: FileNotFoundException) {
-                        null
+                        musicDao.getAlbumArtUriById(id)
                     }
                 } else {
                     null
