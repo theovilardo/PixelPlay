@@ -6,14 +6,24 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.theveloper.pixelplay.data.preferences.CarouselStyle
+import com.theveloper.pixelplay.data.preferences.LaunchTab
+import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.presentation.screens.AlbumDetailScreen
 import com.theveloper.pixelplay.presentation.screens.ArtistDetailScreen
 import com.theveloper.pixelplay.presentation.screens.DailyMixScreen
@@ -30,6 +40,10 @@ import com.theveloper.pixelplay.presentation.screens.StatsScreen
 import com.theveloper.pixelplay.presentation.screens.SettingsScreen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 
 @OptIn(UnstableApi::class)
 @SuppressLint("UnrememberedGetBackStackEntry")
@@ -37,11 +51,23 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 fun AppNavigation(
     playerViewModel: PlayerViewModel,
     navController: NavHostController,
-    paddingValues: PaddingValues
+    paddingValues: PaddingValues,
+    userPreferencesRepository: UserPreferencesRepository
 ) {
+    var launchTab by remember { mutableStateOf(LaunchTab.HOME) }
+
+    // Collect the initial value once and never again
+    LaunchedEffect(Unit) {
+        userPreferencesRepository.launchTabFlow
+            .first() // Get only the first value
+            .let { tab ->
+                launchTab = tab
+            }
+    }
+
     NavHost(
         navController = navController,
-        startDestination = Screen.Home.route
+        startDestination = launchTab
     ) {
         composable(
             Screen.Home.route,

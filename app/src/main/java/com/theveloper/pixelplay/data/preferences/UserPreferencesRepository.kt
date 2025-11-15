@@ -67,6 +67,7 @@ class UserPreferencesRepository @Inject constructor(
         val NAV_BAR_CORNER_RADIUS = intPreferencesKey("nav_bar_corner_radius")
         val NAV_BAR_STYLE = stringPreferencesKey("nav_bar_style")
         val CAROUSEL_STYLE = stringPreferencesKey("carousel_style")
+        val LAUNCH_TAB = stringPreferencesKey("launch_tab")
 
         // Transition Settings
         val GLOBAL_TRANSITION_SETTINGS = stringPreferencesKey("global_transition_settings_json")
@@ -500,6 +501,17 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setCarouselStyle(style: String) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.CAROUSEL_STYLE] = style
+        }
+    }
+
+    val launchTabFlow: Flow<String> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.LAUNCH_TAB] ?: LaunchTab.HOME
+        }
+
+    suspend fun setLaunchTab(tab: String) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.LAUNCH_TAB] = tab
         }
     }
 
