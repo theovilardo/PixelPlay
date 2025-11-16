@@ -639,9 +639,9 @@ class PlayerViewModel @Inject constructor(
         private val MIN_SESSION_LISTEN_MS = TimeUnit.SECONDS.toMillis(5)
     }
 
+    private var currentSession: ActiveSession? = null
 
     private inner class ListeningStatsTracker {
-        private var currentSession: ActiveSession? = null
         private var pendingVoluntarySongId: String? = null
 
         fun onVoluntarySelection(songId: String) {
@@ -2583,9 +2583,18 @@ class PlayerViewModel @Inject constructor(
                 onResult(false)
                 return@launch
             }
-            if (stablePlayerState.value.currentSong?.id == song.id) {
+            if (currentSession?.songId == song.id) {
                 mediaController?.pause()
                 mediaController?.stop()
+                mediaController?.clearMediaItems()
+                currentSession
+                _stablePlayerState.update {
+                    it.copy(
+                        currentSong = null,
+                        isPlaying = false,
+                        totalDuration = 0L
+                    )
+                }
             }
             val fileInfo = FileDeletionUtils.getFileInfo(song.path)
             if (fileInfo.exists && fileInfo.canWrite) {
@@ -2609,17 +2618,8 @@ class PlayerViewModel @Inject constructor(
             currentState.copy(
                 allSongs = currentState.allSongs.filter { it.id != song.id }.toImmutableList(),
                 currentPosition = 0L,
-                currentPlaybackQueue = persistentListOf(),
+                currentPlaybackQueue = currentState.currentPlaybackQueue.filter { it.id != song.id }.toImmutableList(),
                 currentQueueSourceName = ""
-            )
-        }
-        mediaController?.clearMediaItems()
-
-        _stablePlayerState.update {
-            it.copy(
-                currentSong = null,
-                isPlaying = false,
-                totalDuration = 0L
             )
         }
         _isSheetVisible.value = false
