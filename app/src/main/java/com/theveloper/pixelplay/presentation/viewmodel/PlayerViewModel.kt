@@ -1,6 +1,7 @@
 package com.theveloper.pixelplay.presentation.viewmodel
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.ComponentName
 import android.content.ContentUris
 import android.graphics.Bitmap
@@ -39,6 +40,12 @@ import android.net.NetworkRequest
 import android.os.Bundle
 import android.provider.MediaStore
 import android.provider.OpenableColumns
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.view.ContextThemeWrapper
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import androidx.media3.session.SessionToken
 import androidx.mediarouter.media.MediaControlIntent
 import androidx.mediarouter.media.MediaRouteSelector
@@ -58,6 +65,7 @@ import com.google.android.gms.common.images.WebImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Size
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.common.util.concurrent.ListenableFuture
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.DailyMixManager
@@ -101,6 +109,7 @@ import com.theveloper.pixelplay.ui.theme.GenreColors
 import com.theveloper.pixelplay.ui.theme.LightColorScheme
 import com.theveloper.pixelplay.ui.theme.extractSeedColor
 import com.theveloper.pixelplay.ui.theme.generateColorSchemeFromSeed
+import com.theveloper.pixelplay.utils.FileDeletionUtils
 import com.theveloper.pixelplay.utils.LyricsUtils
 import com.theveloper.pixelplay.utils.toHexString
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -108,6 +117,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
@@ -1918,14 +1928,14 @@ class PlayerViewModel @Inject constructor(
 
     private fun createShuffledQueue(songs: List<Song>): List<Song> {
         if (songs.isEmpty()) return emptyList()
-       
+
         val shuffledQueue = songs.shuffled()
         val chosenSong = shuffledQueue.firstOrNull()
         Log.d(
             "ShuffleDebug",
             "createShuffledQueue called. Input size: ${songs.size}. Chosen first song: '${chosenSong?.title}'"
         )
-        
+
         return shuffledQueue
     }
 
@@ -2508,9 +2518,9 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    fun toggleFavoriteSpecificSong(song: Song) {
+    fun toggleFavoriteSpecificSong(song: Song, removing: Boolean = false) {
         viewModelScope.launch {
-            userPreferencesRepository.toggleFavoriteSong(song.id)
+            userPreferencesRepository.toggleFavoriteSong(song.id, removing)
         }
     }
 
@@ -2528,6 +2538,96 @@ class PlayerViewModel @Inject constructor(
             controller.addMediaItem(mediaItem)
         }
     }
+    private suspend fun showMaterialDeleteConfirmation(activity: Activity, song: Song): Boolean {
+        return withContext(Dispatchers.Main) {
+            try {
+                if (activity.isFinishing || activity.isDestroyed) {
+                    return@withContext false
+                }
+
+                val userChoice = CompletableDeferred<Boolean>()
+
+                val dialog = MaterialAlertDialogBuilder(activity)
+                    .setTitle("Delete song?")
+                    .setMessage("""
+                    "${song.title}" by ${song.artist}
+
+                    This song will be permanently deleted from your device and cannot be recovered.
+                """.trimIndent())
+                    .setPositiveButton("Delete") { _, _ ->
+                        userChoice.complete(true)
+                    }
+                    .setNegativeButton("Cancel") { _, _ ->
+                        userChoice.complete(false)
+                    }
+                    .setOnCancelListener {
+                        userChoice.complete(false)
+                    }
+                    .setCancelable(true)
+                    .create()
+
+                dialog.show()
+
+                // Wait for user response - this will suspend until complete is called
+                userChoice.await()
+            } catch (e: Exception) {
+                false
+            }
+        }
+    }
+
+    fun deleteFromDevice(activity: Activity, song: Song, onResult: (Boolean) -> Unit = {}){
+        viewModelScope.launch {
+            val userConfirmed = showMaterialDeleteConfirmation(activity, song)
+            if (!userConfirmed) {
+                onResult(false)
+                return@launch
+            }
+            if (stablePlayerState.value.currentSong?.id == song.id) {
+                mediaController?.pause()
+                mediaController?.stop()
+            }
+            val fileInfo = FileDeletionUtils.getFileInfo(song.path)
+            if (fileInfo.exists && fileInfo.canWrite) {
+                val success = FileDeletionUtils.deleteFile(context, song.path)
+                if (success) {
+                    _toastEvents.emit("File deleted")
+                    removeSong(song)
+                    onResult(true)
+                } else {
+                    _toastEvents.emit("Can't delete the file")
+                }
+            } else
+                _toastEvents.emit("File does not exist or not permitted")
+            onResult(false)
+        }
+    }
+
+    suspend fun removeSong(song: Song) {
+        toggleFavoriteSpecificSong(song, true)
+        _playerUiState.update { currentState ->
+            currentState.copy(
+                allSongs = currentState.allSongs.filter { it.id != song.id }.toImmutableList(),
+                currentPosition = 0L,
+                currentPlaybackQueue = persistentListOf(),
+                currentQueueSourceName = ""
+            )
+        }
+        mediaController?.clearMediaItems()
+
+        _stablePlayerState.update {
+            it.copy(
+                currentSong = null,
+                isPlaying = false,
+                totalDuration = 0L
+            )
+        }
+        _isSheetVisible.value = false
+        musicRepository.deleteById(song.id.toLong())
+        userPreferencesRepository.removeSongFromAllPlaylists(song.id)
+        syncManager.sync()
+    }
+
 
     fun getAlbumColorSchemeFlow(albumArtUri: String?): StateFlow<ColorSchemePair?> {
         val uriString = albumArtUri ?: "default_fallback_key"

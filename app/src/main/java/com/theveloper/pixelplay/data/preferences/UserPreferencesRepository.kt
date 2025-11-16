@@ -16,14 +16,18 @@ import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.model.TransitionSettings
 import dagger.hilt.android.qualifiers.ApplicationContext
 import androidx.datastore.preferences.core.MutablePreferences
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.text.get
+import kotlin.text.set
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
@@ -223,6 +227,28 @@ class UserPreferencesRepository @Inject constructor(
         }
     }
 
+
+    suspend fun removeSongFromAllPlaylists(songId: String) {
+        val currentPlaylists = userPlaylistsFlow.first().toMutableList()
+        var updated = false
+
+        // Iterate through all playlists and remove the song
+        currentPlaylists.forEachIndexed { index, playlist ->
+            if (playlist.songIds.contains(songId)) {
+                currentPlaylists[index] = playlist.copy(
+                    songIds = playlist.songIds.filterNot { it == songId },
+                    lastModified = System.currentTimeMillis()
+                )
+                updated = true
+            }
+        }
+
+        if (updated) {
+            savePlaylists(currentPlaylists)
+        }
+    }
+
+
     suspend fun reorderSongsInPlaylist(playlistId: String, newSongOrderIds: List<String>) {
         val currentPlaylists = userPlaylistsFlow.first().toMutableList()
         val index = currentPlaylists.indexOfFirst { it.id == playlistId }
@@ -244,14 +270,14 @@ class UserPreferencesRepository @Inject constructor(
         }
     }
 
-    suspend fun toggleFavoriteSong(songId: String) { // Nueva función para favoritos
+    suspend fun toggleFavoriteSong(songId: String, removing: Boolean = false) { // Nueva función para favoritos
         dataStore.edit { preferences ->
             val currentFavorites = preferences[PreferencesKeys.FAVORITE_SONG_IDS] ?: emptySet()
-            if (currentFavorites.contains(songId)) {
+            val contains = currentFavorites.contains(songId)
+            if ((removing && contains) || contains)
                 preferences[PreferencesKeys.FAVORITE_SONG_IDS] = currentFavorites - songId
-            } else {
+            else
                 preferences[PreferencesKeys.FAVORITE_SONG_IDS] = currentFavorites + songId
-            }
         }
     }
 

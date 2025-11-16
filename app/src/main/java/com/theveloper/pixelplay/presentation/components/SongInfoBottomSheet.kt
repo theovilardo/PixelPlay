@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.presentation.components
 
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -18,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlayArrow
@@ -70,6 +72,7 @@ fun SongInfoBottomSheet(
     onDismiss: () -> Unit,
     onPlaySong: () -> Unit,
     onAddToQueue: () -> Unit,
+    onDeleteFromDevice: (activity: Activity, song: Song, onResult: (Boolean) -> Unit) -> Unit,
     onNavigateToAlbum: () -> Unit,
     onNavigateToArtist: () -> Unit,
     onEditSong: (title: String, artist: String, album: String, genre: String, lyrics: String, trackNumber: Int, coverArtUpdate: CoverArtUpdate?) -> Unit,
@@ -272,6 +275,35 @@ fun SongInfoBottomSheet(
                 Icon(Icons.AutoMirrored.Rounded.QueueMusic, contentDescription = "Add to Queue icon")
                 Spacer(Modifier.width(8.dp))
                 Text("Add to Queue")
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            FilledTonalButton(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 66.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                ),
+                shape = CircleShape,
+                onClick = {
+                    (context as? Activity)?.let { activity ->
+                        onDeleteFromDevice(activity, song) { result ->
+                            if (result) {
+                                onDismiss()
+                            }
+                        }
+                    }
+                }
+            ) {
+                Icon(
+                    Icons.Default.DeleteForever,
+                    contentDescription = "Delete from device icon"
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("Delete From Device")
             }
 
             Spacer(modifier = Modifier.height(14.dp))

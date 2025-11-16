@@ -170,6 +170,7 @@ fun DailyMixScreen(
                 playerViewModel.addSongToQueue(song)
                 showSongInfoSheet = false
             },
+            onDeleteFromDevice = playerViewModel::deleteFromDevice,
             onNavigateToAlbum = {
                 // Assuming Screen object has a method to create a route
                 navController.navigate(Screen.AlbumDetail.createRoute(song.albumId))

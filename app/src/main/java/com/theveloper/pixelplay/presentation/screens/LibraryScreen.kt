@@ -595,7 +595,9 @@ fun LibraryScreen(
                                         )
                                     } else {
                                         Column(
-                                            modifier = Modifier.fillMaxSize().padding(16.dp),
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(16.dp),
                                             horizontalAlignment = Alignment.CenterHorizontally,
                                             verticalArrangement = Arrangement.Center
                                         ) {
@@ -731,6 +733,7 @@ fun LibraryScreen(
                     showSongInfoBottomSheet = false
                     playerViewModel.sendToast("Added to the queue")
                 },
+                onDeleteFromDevice = playerViewModel::deleteFromDevice,
                 onNavigateToAlbum = {
                     navController.navigate(Screen.AlbumDetail.createRoute(currentSong.albumId))
                     showSongInfoBottomSheet = false
@@ -1801,7 +1804,7 @@ fun LibraryArtistsTab(
 @Composable
 fun ArtistListItem(artist: Artist, onClick: () -> Unit) {
     Card(
-        onClick = onClick, 
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
@@ -1810,7 +1813,7 @@ fun ArtistListItem(artist: Artist, onClick: () -> Unit) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 painter = painterResource(R.drawable.rounded_artist_24),
-                contentDescription = "Artista", 
+                contentDescription = "Artista",
                 modifier = Modifier
                     .size(48.dp)
                     .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
