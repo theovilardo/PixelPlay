@@ -274,10 +274,15 @@ class UserPreferencesRepository @Inject constructor(
         dataStore.edit { preferences ->
             val currentFavorites = preferences[PreferencesKeys.FAVORITE_SONG_IDS] ?: emptySet()
             val contains = currentFavorites.contains(songId)
-            if ((removing && contains) || contains)
+
+            if (contains)
                 preferences[PreferencesKeys.FAVORITE_SONG_IDS] = currentFavorites - songId
-            else
-                preferences[PreferencesKeys.FAVORITE_SONG_IDS] = currentFavorites + songId
+            else {
+                if (removing)
+                    preferences[PreferencesKeys.FAVORITE_SONG_IDS] = currentFavorites - songId
+                else
+                    preferences[PreferencesKeys.FAVORITE_SONG_IDS] = currentFavorites + songId
+            }
         }
     }
 

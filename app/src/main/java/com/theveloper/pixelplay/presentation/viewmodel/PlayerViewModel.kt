@@ -256,7 +256,7 @@ class PlayerViewModel @Inject constructor(
     private val musicRepository: MusicRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val albumArtThemeDao: AlbumArtThemeDao,
-    private val syncManager: SyncManager, // Inyectar SyncManager
+    val syncManager: SyncManager, // Inyectar SyncManager
     private val songMetadataEditor: SongMetadataEditor,
     private val dailyMixManager: DailyMixManager,
     private val playbackStatsRepository: PlaybackStatsRepository,
@@ -2646,7 +2646,6 @@ class PlayerViewModel @Inject constructor(
         _isSheetVisible.value = false
         musicRepository.deleteById(song.id.toLong())
         userPreferencesRepository.removeSongFromAllPlaylists(song.id)
-        syncManager.sync()
     }
 
 

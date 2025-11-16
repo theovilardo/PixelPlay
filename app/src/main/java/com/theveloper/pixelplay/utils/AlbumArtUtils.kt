@@ -9,19 +9,25 @@ import androidx.core.net.toUri
 import com.theveloper.pixelplay.data.database.MusicDao
 import java.io.File
 import java.io.FileInputStream
-import java.io.FileNotFoundException
 
 object AlbumArtUtils {
 
     /**
      * Main function to get album art - tries multiple methods
      */
-    fun getAlbumArtUri(appContext:Context,musicDao: MusicDao, path: String, albumId: Long, songId: Long): String? {
+    fun getAlbumArtUri(
+        appContext: Context,
+        musicDao: MusicDao,
+        path: String,
+        albumId: Long,
+        songId: Long,
+        deepScan: Boolean
+    ): String? {
         // Method 1: Try MediaStore (even though it often fails)
 //        getMediaStoreAlbumArtUri(appContext, albumId)?.let { return it.toString() }
 
         // Method 2: Try embedded art from file
-        getEmbeddedAlbumArtUri(appContext, path, songId)?.let { return it.toString() }
+        getEmbeddedAlbumArtUri(appContext, path, songId, deepScan)?.let { return it.toString() }
         // Method 3: try from db
 //        musicDao.getAlbumArtUriById(songId)?.let {
 //            return it
@@ -35,28 +41,40 @@ object AlbumArtUtils {
     /**
      * Enhanced embedded art extraction with better error handling
      */
-    fun getEmbeddedAlbumArtUri(appContext: Context, filePath: String, songId: Long): Uri? {
+    fun getEmbeddedAlbumArtUri(
+        appContext: Context,
+        filePath: String,
+        songId: Long,
+        deepScan: Boolean
+    ): Uri? {
         if (!File(filePath).exists() || !File(filePath).canRead()) {
             return null
         }
+        if (!deepScan) {
 
-        // 1. Check if art is already cached
-        val cachedFile = File(appContext.cacheDir, "song_art_${songId}.jpg")
-        if (cachedFile.exists()) {
-            return try {
-                FileProvider.getUriForFile(
-                    appContext,
-                    "${appContext.packageName}.provider",
-                    cachedFile
-                )
-            } catch (e: Exception) {
-                Uri.fromFile(cachedFile)
+            // 1. Check if art is already cached
+            val cachedFile = File(appContext.cacheDir, "song_art_${songId}.jpg")
+            if (cachedFile.exists()) {
+                return try {
+                    FileProvider.getUriForFile(
+                        appContext,
+                        "${appContext.packageName}.provider",
+                        cachedFile
+                    )
+                } catch (e: Exception) {
+                    Uri.fromFile(cachedFile)
+                }
             }
         }
 
         // 2. Check if marked as "no art" to skip extraction
         val noArtFile = File(appContext.cacheDir, "song_art_${songId}_no.jpg")
-        if (noArtFile.exists()) return null
+        if (noArtFile.exists()) {
+            if (deepScan)
+                noArtFile.delete()
+            else
+                return null
+        }
 
         // 3. Try to extract embedded art
         val retriever = MediaMetadataRetriever()

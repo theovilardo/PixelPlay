@@ -19,9 +19,9 @@ object AudioMetaUtils {
      * Returns audio metadata for a given file path.
      * Tries MediaMetadataRetriever first, then falls back to MediaExtractor.
      */
-    suspend fun getAudioMetadata(musicDao: MusicDao, id: Long, filePath: String): AudioMeta {
+    suspend fun getAudioMetadata(musicDao: MusicDao, id: Long, filePath: String, deepScan: Boolean): AudioMeta {
         val cached = musicDao.getAudioMetadataById(id)
-        if (cached != null &&
+        if (!deepScan && cached != null &&
             cached.mimeType != null &&
             cached.bitrate != null &&
             cached.sampleRate != null

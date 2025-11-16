@@ -10,6 +10,7 @@ import android.os.Trace // Import Trace
 import androidx.work.CoroutineWorker
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.theveloper.pixelplay.data.database.AlbumEntity
 import com.theveloper.pixelplay.data.database.ArtistEntity
 import com.theveloper.pixelplay.data.database.MusicDao
@@ -193,7 +194,7 @@ class SyncWorker @AssistedInject constructor(
                 val contentUriString = ContentUris.withAppendedId(
                     MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id
                 ).toString()
-                val albumArtUriString = AlbumArtUtils.getAlbumArtUri(applicationContext, musicDao, filePath, albumId, id)
+
 //                val genreName = run {
 //                    val staticGenres = GenreDataSource.getStaticGenres()
 //                    if (staticGenres.isNotEmpty()) {
@@ -202,7 +203,9 @@ class SyncWorker @AssistedInject constructor(
 //                        "Unknown Genre"
 //                    }
 //                }
-                val audioMetadata = getAudioMetadata(musicDao,id, filePath)
+                val deepScan = inputData.getBoolean(SyncWorker.INPUT_FORCE_METADATA, false)
+                val albumArtUriString = AlbumArtUtils.getAlbumArtUri(applicationContext, musicDao, filePath, albumId, id, deepScan)
+                val audioMetadata = getAudioMetadata(musicDao,id, filePath, deepScan)
                 songs.add(
                     SongEntity(
                         id = id,
@@ -237,7 +240,10 @@ class SyncWorker @AssistedInject constructor(
     companion object {
         const val WORK_NAME = "com.theveloper.pixelplay.data.worker.SyncWorker"
         private const val TAG = "SyncWorker"
+        const val INPUT_FORCE_METADATA = "input_force_metadata" // new key
 
-        fun startUpSyncWork() = OneTimeWorkRequestBuilder<SyncWorker>().build()
+        fun startUpSyncWork(deepScan: Boolean = false) = OneTimeWorkRequestBuilder<SyncWorker>()
+            .setInputData(workDataOf(INPUT_FORCE_METADATA to deepScan))
+            .build()
     }
 }
