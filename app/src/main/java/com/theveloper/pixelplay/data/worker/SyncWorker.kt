@@ -3,17 +3,10 @@ package com.theveloper.pixelplay.data.worker
 import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.Context
-import android.database.Cursor
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.media.MediaMetadataRetriever
-import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
-import androidx.core.net.toUri
 import androidx.hilt.work.HiltWorker
 import android.os.Trace // Import Trace
-import androidx.core.content.FileProvider
 import androidx.work.CoroutineWorker
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkerParameters
@@ -29,8 +22,6 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileNotFoundException
 import java.util.concurrent.TimeUnit
 
 @HiltWorker
@@ -202,9 +193,7 @@ class SyncWorker @AssistedInject constructor(
                 val contentUriString = ContentUris.withAppendedId(
                     MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id
                 ).toString()
-                val albumArtUriString = AlbumArtUtils.getAlbumArtUri(applicationContext, filePath, albumId)?.toString()
-                    ?: musicDao.getAlbumArtUriById(id)
-
+                val albumArtUriString = AlbumArtUtils.getAlbumArtUri(applicationContext, musicDao, filePath, albumId, id)
 //                val genreName = run {
 //                    val staticGenres = GenreDataSource.getStaticGenres()
 //                    if (staticGenres.isNotEmpty()) {
@@ -213,7 +202,7 @@ class SyncWorker @AssistedInject constructor(
 //                        "Unknown Genre"
 //                    }
 //                }
-                var audioMetadata = getAudioMetadata(filePath)
+                val audioMetadata = getAudioMetadata(musicDao,id, filePath)
                 songs.add(
                     SongEntity(
                         id = id,

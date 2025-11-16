@@ -1,15 +1,16 @@
 package com.theveloper.pixelplay.utils
+
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.util.Log
+import com.theveloper.pixelplay.data.database.MusicDao
 import java.io.File
 
 data class AudioMeta(
     val mimeType: String?,
     val bitrate: Int?,      // bits per second
-    val sampleRate: Int?,   // Hz
-    val channels: Int?      // number of audio channels
+    val sampleRate: Int?   // Hz
 )
 
 object AudioMetaUtils {
@@ -18,22 +19,31 @@ object AudioMetaUtils {
      * Returns audio metadata for a given file path.
      * Tries MediaMetadataRetriever first, then falls back to MediaExtractor.
      */
-    fun getAudioMetadata(filePath: String): AudioMeta {
+    suspend fun getAudioMetadata(musicDao: MusicDao, id: Long, filePath: String): AudioMeta {
+        val cached = musicDao.getAudioMetadataById(id)
+        if (cached != null &&
+            cached.mimeType != null &&
+            cached.bitrate != null &&
+            cached.sampleRate != null
+        )
+            return cached
+
         val file = File(filePath)
-        if (!file.exists() || !file.canRead()) return AudioMeta(null, null, null, null)
+        if (!file.exists() || !file.canRead()) return AudioMeta(null, null, null)
 
         var mimeType: String? = null
         var bitrate: Int? = null
         var sampleRate: Int? = null
-        var channels: Int? = null
 
         // Try MediaMetadataRetriever
         try {
             MediaMetadataRetriever().apply {
                 setDataSource(filePath)
                 mimeType = extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE)
-                bitrate = extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toIntOrNull()
-                sampleRate = extractMetadata(MediaMetadataRetriever.METADATA_KEY_SAMPLERATE)?.toIntOrNull()
+                bitrate =
+                    extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toIntOrNull()
+                sampleRate =
+                    extractMetadata(MediaMetadataRetriever.METADATA_KEY_SAMPLERATE)?.toIntOrNull()
                 release()
             }
         } catch (e: Exception) {
@@ -49,8 +59,8 @@ object AudioMetaUtils {
                     val trackMime = format.getString(MediaFormat.KEY_MIME)
                     if (trackMime?.startsWith("audio/") == true) {
                         mimeType = mimeType ?: trackMime
-                        sampleRate = sampleRate ?: format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
-                        channels = channels ?: format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+                        sampleRate =
+                            sampleRate ?: format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
                         bitrate = bitrate ?: if (format.containsKey(MediaFormat.KEY_BIT_RATE)) {
                             format.getInteger(MediaFormat.KEY_BIT_RATE)
                         } else null
@@ -63,7 +73,8 @@ object AudioMetaUtils {
             Log.w("AudioMetaUtils", "Extractor failed for $filePath: ${e.message}")
         }
 
-        return AudioMeta(mimeType, bitrate, sampleRate, channels)
+        return AudioMeta(mimeType, bitrate, sampleRate)
+
     }
 
     fun mimeTypeToFormat(mimeType: String?): String {

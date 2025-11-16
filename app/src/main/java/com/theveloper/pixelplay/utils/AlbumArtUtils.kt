@@ -5,23 +5,29 @@ import android.content.Context
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import androidx.core.content.FileProvider
+import androidx.core.net.toUri
+import com.theveloper.pixelplay.data.database.MusicDao
 import java.io.File
 import java.io.FileInputStream
+import java.io.FileNotFoundException
 
 object AlbumArtUtils {
 
     /**
      * Main function to get album art - tries multiple methods
      */
-    fun getAlbumArtUri(appContext:Context, path: String, albumId: Long): Uri? {
-        // Method 1: Try embedded art from file
-        getEmbeddedAlbumArtUri(appContext, path)?.let { return it }
+    fun getAlbumArtUri(appContext:Context,musicDao: MusicDao, path: String, albumId: Long, songId: Long): String? {
+        // Method 1: Try MediaStore (even though it often fails)
+//        getMediaStoreAlbumArtUri(appContext, albumId)?.let { return it.toString() }
 
-        // Method 2: Try external album art files in directory
-        getExternalAlbumArtUri(path)?.let { return it }
-
-        // Method 3: Try MediaStore (even though it often fails)
-        getMediaStoreAlbumArtUri(albumId)?.let { return it }
+        // Method 2: Try embedded art from file
+        getEmbeddedAlbumArtUri(appContext, path, songId)?.let { return it.toString() }
+        // Method 3: try from db
+//        musicDao.getAlbumArtUriById(songId)?.let {
+//            return it
+//        }
+        // Method 4: Try external album art files in directory
+//        getExternalAlbumArtUri(path)?.let { return it.toString() }
 
         return null
     }
@@ -29,20 +35,38 @@ object AlbumArtUtils {
     /**
      * Enhanced embedded art extraction with better error handling
      */
-    fun getEmbeddedAlbumArtUri(appContext: Context, filePath: String): Uri? {
+    fun getEmbeddedAlbumArtUri(appContext: Context, filePath: String, songId: Long): Uri? {
         if (!File(filePath).exists() || !File(filePath).canRead()) {
             return null
         }
 
+        // 1. Check if art is already cached
+        val cachedFile = File(appContext.cacheDir, "song_art_${songId}.jpg")
+        if (cachedFile.exists()) {
+            return try {
+                FileProvider.getUriForFile(
+                    appContext,
+                    "${appContext.packageName}.provider",
+                    cachedFile
+                )
+            } catch (e: Exception) {
+                Uri.fromFile(cachedFile)
+            }
+        }
+
+        // 2. Check if marked as "no art" to skip extraction
+        val noArtFile = File(appContext.cacheDir, "song_art_${songId}_no.jpg")
+        if (noArtFile.exists()) return null
+
+        // 3. Try to extract embedded art
         val retriever = MediaMetadataRetriever()
         return try {
-            // Try different setDataSource methods
             try {
                 retriever.setDataSource(filePath)
             } catch (e: IllegalArgumentException) {
-                // Some files need FileDescriptor approach
+                // FileDescriptor fallback
                 try {
-                    FileInputStream(File(filePath)).use { fis ->
+                    FileInputStream(filePath).use { fis ->
                         retriever.setDataSource(fis.fd)
                     }
                 } catch (e2: Exception) {
@@ -51,7 +75,13 @@ object AlbumArtUtils {
             }
 
             val bytes = retriever.embeddedPicture
-            bytes?.let { saveAlbumArtToCache(appContext,it) }
+            if (bytes != null) {
+                saveAlbumArtToCache(appContext, bytes, songId)
+            } else {
+                // Mark "no art" to avoid trying again
+                noArtFile.createNewFile()
+                null
+            }
         } catch (e: Exception) {
             null
         } finally {
@@ -116,14 +146,17 @@ object AlbumArtUtils {
     /**
      * Try MediaStore as last resort
      */
-    fun getMediaStoreAlbumArtUri(albumId: Long): Uri? {
+    fun getMediaStoreAlbumArtUri(appContext: Context, albumId: Long): Uri? {
+        if (albumId <= 0) return null
+
+        val potentialUri = ContentUris.withAppendedId(
+            "content://media/external/audio/albumart".toUri(),
+            albumId
+        )
+
         return try {
-            // If song has albumId, try the standard MediaStore URI
-            albumId.takeIf { it != -1L }?.let { albumId ->
-                ContentUris.withAppendedId(
-                    Uri.parse("content://media/external/audio/albumart"),
-                    albumId
-                )
+            appContext.contentResolver.openFileDescriptor(potentialUri, "r")?.use {
+                potentialUri // only return if open succeeded
             }
         } catch (e: Exception) {
             null
@@ -133,9 +166,8 @@ object AlbumArtUtils {
     /**
      * Save embedded art to cache with unique naming
      */
-    private fun saveAlbumArtToCache(appContext: Context, bytes: ByteArray): Uri {
-        val timestamp = System.currentTimeMillis()
-        val file = File(appContext.cacheDir, "album_art_${timestamp}.jpg")
+    private fun saveAlbumArtToCache(appContext: Context, bytes: ByteArray, songId: Long): Uri {
+        val file = File(appContext.cacheDir, "song_art_${songId}.jpg")
 
         file.outputStream().use { outputStream ->
             outputStream.write(bytes)

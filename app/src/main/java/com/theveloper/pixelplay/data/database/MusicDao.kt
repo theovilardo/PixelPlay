@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.RawQuery
 import androidx.room.Transaction
 import androidx.sqlite.db.SimpleSQLiteQuery
+import com.theveloper.pixelplay.utils.AudioMeta
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -277,5 +278,14 @@ interface MusicDao {
 
     @Query("DELETE FROM songs WHERE id=:id")
     suspend fun deleteById(id: Long)
+
+    @Query("""
+    SELECT mime_type AS mimeType,
+           bitrate,
+           sample_rate AS sampleRate
+    FROM songs
+    WHERE id = :id
+    """)
+    suspend fun getAudioMetadataById(id: Long): AudioMeta?
 
 }
