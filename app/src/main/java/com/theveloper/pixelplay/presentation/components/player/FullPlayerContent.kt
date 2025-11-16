@@ -32,7 +32,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
@@ -84,6 +83,7 @@ import com.theveloper.pixelplay.presentation.viewmodel.LyricsSearchUiState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
+import com.theveloper.pixelplay.utils.AudioMetaUtils.mimeTypeToFormat
 import com.theveloper.pixelplay.utils.formatDuration
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -566,6 +566,28 @@ private fun SongMetadataDisplaySection(
             )
         }
     }
+    Spacer(modifier = Modifier.width(8.dp))
+    Box(
+        modifier = Modifier
+            .background(
+                color = LocalMaterialTheme.current.primary.copy(alpha = 0.15f),
+                shape = CircleShape
+            )
+    ) {
+        Text(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            text = formatAudioMetaString(song?.mimeType, song?.bitrate, song?.sampleRate),
+            fontFamily = GoogleSansRounded,
+            style = MaterialTheme.typography.labelSmallEmphasized,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+    }
+}
+fun formatAudioMetaString(mimeType: String?, bitrate: Int?, sampleRate: Int?): String {
+    val bitrate = bitrate?.div(1000) ?: 0       // convert to kb/s
+    val sampleRate = sampleRate ?: 0           // in Hz
+
+    return "${mimeTypeToFormat(mimeType)} \u25CF $bitrate kb/s \u25CF ${sampleRate / 1000.0} kHz"
 }
 
 @Composable

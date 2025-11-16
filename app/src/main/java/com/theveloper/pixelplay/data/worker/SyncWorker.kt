@@ -22,6 +22,7 @@ import com.theveloper.pixelplay.data.database.ArtistEntity
 import com.theveloper.pixelplay.data.database.MusicDao
 import com.theveloper.pixelplay.data.database.SongEntity
 import com.theveloper.pixelplay.utils.AlbumArtUtils
+import com.theveloper.pixelplay.utils.AudioMetaUtils.getAudioMetadata
 import com.theveloper.pixelplay.utils.normalizeMetadataText
 import com.theveloper.pixelplay.utils.normalizeMetadataTextOrEmpty
 import dagger.assisted.Assisted
@@ -212,7 +213,7 @@ class SyncWorker @AssistedInject constructor(
 //                        "Unknown Genre"
 //                    }
 //                }
-
+                var audioMetadata = getAudioMetadata(filePath)
                 songs.add(
                     SongEntity(
                         id = id,
@@ -231,7 +232,10 @@ class SyncWorker @AssistedInject constructor(
                         year = cursor.getInt(yearCol),
                         dateAdded = cursor.getLong(dateAddedCol).let { seconds ->
                             if (seconds > 0) TimeUnit.SECONDS.toMillis(seconds) else System.currentTimeMillis()
-                        }
+                        },
+                        mimeType = audioMetadata.mimeType,
+                        sampleRate = audioMetadata.sampleRate,
+                        bitrate = audioMetadata.bitrate
                     )
                 )
             }

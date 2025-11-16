@@ -160,6 +160,9 @@ private const val EXTERNAL_EXTRA_GENRE = EXTERNAL_EXTRA_PREFIX + "GENRE"
 private const val EXTERNAL_EXTRA_TRACK = EXTERNAL_EXTRA_PREFIX + "TRACK"
 private const val EXTERNAL_EXTRA_YEAR = EXTERNAL_EXTRA_PREFIX + "YEAR"
 private const val EXTERNAL_EXTRA_DATE_ADDED = EXTERNAL_EXTRA_PREFIX + "DATE_ADDED"
+private const val EXTERNAL_EXTRA_MIME_TYPE = EXTERNAL_EXTRA_PREFIX + "MIME_TYPE"
+private const val EXTERNAL_EXTRA_BITRATE = EXTERNAL_EXTRA_PREFIX + "BITRATE"
+private const val EXTERNAL_EXTRA_SAMPLE_RATE = EXTERNAL_EXTRA_PREFIX + "SAMPLE_RATE"
 
 enum class PlayerSheetState {
     COLLAPSED,
@@ -1726,6 +1729,12 @@ class PlayerViewModel @Inject constructor(
         val year = extras?.getInt(EXTERNAL_EXTRA_YEAR) ?: 0
         val dateAdded = extras?.getLong(EXTERNAL_EXTRA_DATE_ADDED)?.takeIf { it > 0 }
             ?: System.currentTimeMillis()
+        val mimeType = extras?.getString(EXTERNAL_EXTRA_MIME_TYPE)?.takeIf { true }
+            ?: "-"
+        val bitrate = extras?.getInt(EXTERNAL_EXTRA_BITRATE)?.takeIf { it > 0 }
+            ?: 0
+        val sampleRate = extras?.getInt(EXTERNAL_EXTRA_SAMPLE_RATE)?.takeIf { it > 0 }
+            ?: 0
 
         return Song(
             id = mediaItem.mediaId,
@@ -1743,7 +1752,10 @@ class PlayerViewModel @Inject constructor(
             isFavorite = false,
             trackNumber = trackNumber,
             year = year,
-            dateAdded = dateAdded
+            dateAdded = dateAdded,
+            mimeType = mimeType,
+            bitrate = bitrate,
+            sampleRate = sampleRate
         )
     }
 
@@ -2189,6 +2201,9 @@ class PlayerViewModel @Inject constructor(
                 ?.toIntOrNull()
             var metadataYear = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR)
                 ?.toIntOrNull()
+            var mimeType = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE)
+            var bitrate = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toIntOrNull()
+            var sampleRate = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_SAMPLERATE)?.toIntOrNull()
             var genre = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE)
             var embeddedArt = metadataRetriever.embeddedPicture?.takeIf { it.isNotEmpty() }
             var embeddedArtMimeType: String? = null
@@ -2276,7 +2291,10 @@ class PlayerViewModel @Inject constructor(
                 isFavorite = false,
                 trackNumber = trackNumber,
                 year = year,
-                dateAdded = dateAdded
+                dateAdded = dateAdded,
+                mimeType = mimeType,
+                bitrate = bitrate,
+                sampleRate = sampleRate
             )
 
             ExternalSongLoadResult(
@@ -2444,6 +2462,9 @@ class PlayerViewModel @Inject constructor(
             putInt(EXTERNAL_EXTRA_TRACK, song.trackNumber)
             putInt(EXTERNAL_EXTRA_YEAR, song.year)
             putLong(EXTERNAL_EXTRA_DATE_ADDED, song.dateAdded)
+            putString(EXTERNAL_EXTRA_MIME_TYPE, song.mimeType)
+            putInt(EXTERNAL_EXTRA_BITRATE, song.bitrate ?: 0)
+            putInt(EXTERNAL_EXTRA_SAMPLE_RATE, song.sampleRate ?: 0)
         }
 
         metadataBuilder.setExtras(extras)
