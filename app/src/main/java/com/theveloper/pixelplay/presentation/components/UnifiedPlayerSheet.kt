@@ -1181,13 +1181,16 @@ fun UnifiedPlayerSheet(
                 onToggleShuffle = { playerViewModel.toggleShuffle() },
                 onClearQueue = { playerViewModel.clearQueueExceptCurrent() },
                 activeTimerValueDisplay = playerViewModel.activeTimerValueDisplay.collectAsState().value,
+                playCount = playerViewModel.playCount.collectAsState().value,
                 isEndOfTrackTimerActive = playerViewModel.isEndOfTrackTimerActive.collectAsState().value,
                 onSetPredefinedTimer = { minutes -> playerViewModel.setSleepTimer(minutes) },
                 onSetEndOfTrackTimer = { enable -> playerViewModel.setEndOfTrackTimer(enable) },
                 onOpenCustomTimePicker = {
                     Log.d("TimerOptions", "OpenCustomTimePicker clicked")
                 },
-                onCancelTimer = { playerViewModel.cancelSleepTimer() }
+                onCancelTimer = { playerViewModel.cancelSleepTimer() },
+                onCancelCountedPlay = playerViewModel::cancelCountedPlay,
+                onPlayCounter = playerViewModel::playCounted
             )
         }
     }
