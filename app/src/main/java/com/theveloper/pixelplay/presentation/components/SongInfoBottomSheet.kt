@@ -1,5 +1,8 @@
 package com.theveloper.pixelplay.presentation.components
 
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -16,11 +19,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.rounded.Album
+import androidx.compose.material.icons.rounded.AudioFile
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.MusicNote
@@ -47,6 +52,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import com.theveloper.pixelplay.data.media.CoverArtUpdate
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.subcomps.AutoSizingTextToFill
@@ -55,6 +61,7 @@ import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import androidx.core.net.toUri
 import com.theveloper.pixelplay.ui.theme.MontserratFamily
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -65,6 +72,7 @@ fun SongInfoBottomSheet(
     onDismiss: () -> Unit,
     onPlaySong: () -> Unit,
     onAddToQueue: () -> Unit,
+    onDeleteFromDevice: (activity: Activity, song: Song, onResult: (Boolean) -> Unit) -> Unit,
     onNavigateToAlbum: () -> Unit,
     onNavigateToArtist: () -> Unit,
     onEditSong: (title: String, artist: String, album: String, genre: String, lyrics: String, trackNumber: Int, coverArtUpdate: CoverArtUpdate?) -> Unit,
@@ -271,6 +279,35 @@ fun SongInfoBottomSheet(
 
             Spacer(modifier = Modifier.height(14.dp))
 
+            FilledTonalButton(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 66.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                ),
+                shape = CircleShape,
+                onClick = {
+                    (context as? Activity)?.let { activity ->
+                        onDeleteFromDevice(activity, song) { result ->
+                            if (result) {
+                                onDismiss()
+                            }
+                        }
+                    }
+                }
+            ) {
+                Icon(
+                    Icons.Default.DeleteForever,
+                    contentDescription = "Delete from device icon"
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("Delete From Device")
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
             // Sección de Detalles
             Column(
                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -307,6 +344,13 @@ fun SongInfoBottomSheet(
                     headlineContent = { Text("Artist") },
                     supportingContent = { Text(song.artist) },
                     leadingContent = { Icon(Icons.Rounded.Person, contentDescription = "Artist icon") }
+                )
+                ListItem(
+                    modifier = Modifier
+                        .clip(shape = listItemShape),
+                    headlineContent = { Text("Path") },
+                    supportingContent = { Text(song.path) },
+                    leadingContent = { Icon(Icons.Rounded.AudioFile, contentDescription = "File icon") }
                 )
             }
         }

@@ -252,6 +252,7 @@ fun AlbumDetailScreen(
                     playerViewModel.addSongToQueue(currentSong)
                     showSongInfoBottomSheet = false
                 },
+                onDeleteFromDevice = playerViewModel::deleteFromDevice,
                 onNavigateToAlbum = {
                     navController.navigate(Screen.AlbumDetail.createRoute(currentSong.albumId))
                     showSongInfoBottomSheet = false

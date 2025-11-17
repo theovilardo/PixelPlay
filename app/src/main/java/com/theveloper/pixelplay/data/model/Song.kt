@@ -20,7 +20,10 @@ data class Song(
     val isFavorite: Boolean = false,
     val trackNumber: Int = 0,
     val year: Int = 0,
-    val dateAdded: Long = 0
+    val dateAdded: Long = 0,
+    val mimeType: String?,
+    val bitrate: Int?,
+    val sampleRate: Int?,
 ) {
     companion object {
         fun emptySong(): Song {
@@ -40,7 +43,10 @@ data class Song(
                 isFavorite = false,
                 trackNumber = 0,
                 year = 0,
-                dateAdded = 0
+                dateAdded = 0,
+                mimeType = "-",
+                bitrate = 0,
+                sampleRate = 0
             )
         }
     }

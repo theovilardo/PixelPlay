@@ -112,6 +112,7 @@ import androidx.navigation.NavController
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.DirectoryItem
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
+import com.theveloper.pixelplay.data.preferences.LaunchTab
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
@@ -437,6 +438,25 @@ fun SettingsScreen(
                             leadingIcon = {
                                 Icon(
                                     painter = painterResource(id = R.drawable.rounded_view_carousel_24),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        ThemeSelectorItem(
+                            label = "Default Tab",
+                            description = "Choose the Default launch tab.",
+                            options = mapOf(
+                                LaunchTab.HOME to "Home",
+                                LaunchTab.SEARCH to "Search",
+                                LaunchTab.LIBRARY to "Library",
+                            ),
+                            selectedKey = uiState.launchTab,
+                            onSelectionChanged = { settingsViewModel.setLaunchTab(it) },
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.tab_24),
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.secondary
                                 )

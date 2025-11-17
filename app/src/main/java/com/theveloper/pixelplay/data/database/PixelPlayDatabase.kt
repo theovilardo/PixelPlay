@@ -15,7 +15,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ArtistEntity::class,
         TransitionRuleEntity::class
     ],
-    version = 8, // Incremented version for year column
+    version = 9, // Incremented version for audio metadata cols
     exportSchema = false
 )
 abstract class PixelPlayDatabase : RoomDatabase() {
@@ -37,9 +37,16 @@ abstract class PixelPlayDatabase : RoomDatabase() {
             }
         }
 
+//        val MIGRATION_6_7 = object : Migration(6, 7) {
+//            override fun migrate(db: SupportSQLiteDatabase) {
+//                db.execSQL("ALTER TABLE songs ADD COLUMN date_added INTEGER NOT NULL DEFAULT 0")
+//            }
+//        }
         val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE songs ADD COLUMN date_added INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE songs ADD COLUMN mime_type TEXT")
+                db.execSQL("ALTER TABLE songs ADD COLUMN bitrate INTEGER")
+                db.execSQL("ALTER TABLE songs ADD COLUMN sample_rate INTEGER")
             }
         }
     }

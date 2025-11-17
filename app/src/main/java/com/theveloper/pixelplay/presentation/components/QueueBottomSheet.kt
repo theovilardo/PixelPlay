@@ -102,12 +102,15 @@ fun QueueBottomSheet(
     onToggleShuffle: () -> Unit,
     onClearQueue: () -> Unit,
     activeTimerValueDisplay: String?,
+    playCount: Float,
     isEndOfTrackTimerActive: Boolean,
     onSetPredefinedTimer: (minutes: Int) -> Unit,
     onSetEndOfTrackTimer: (enable: Boolean) -> Unit,
     onOpenCustomTimePicker: () -> Unit,
-    onCancelTimer: () -> Unit
-) {
+    onCancelTimer: () -> Unit,
+    onCancelCountedPlay: () -> Unit,
+    onPlayCounter: (count: Int) -> Unit,
+    ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val colors = MaterialTheme.colorScheme
     var showTimerOptions by rememberSaveable { mutableStateOf(false) }
@@ -392,12 +395,15 @@ fun QueueBottomSheet(
 
         if (showTimerOptions) {
             TimerOptionsBottomSheet(
+                onPlayCounter = onPlayCounter,
                 activeTimerValueDisplay = activeTimerValueDisplay,
+                playCount = playCount,
                 isEndOfTrackTimerActive = isEndOfTrackTimerActive,
                 onDismiss = { showTimerOptions = false },
                 onSetPredefinedTimer = onSetPredefinedTimer,
                 onSetEndOfTrackTimer = onSetEndOfTrackTimer,
                 onOpenCustomTimePicker = onOpenCustomTimePicker,
+                onCancelCountedPlay = onCancelCountedPlay,
                 onCancelTimer = onCancelTimer
             )
         }

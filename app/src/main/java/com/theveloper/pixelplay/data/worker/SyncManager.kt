@@ -45,7 +45,7 @@ class SyncManager @Inject constructor(
      * existente. Ideal para el botón de "Refrescar Biblioteca".
      */
     fun forceRefresh() {
-        val syncRequest = SyncWorker.startUpSyncWork()
+        val syncRequest = SyncWorker.startUpSyncWork(true)
         workManager.enqueueUniqueWork(
             SyncWorker.WORK_NAME,
             ExistingWorkPolicy.REPLACE, // La política clave para el refresco

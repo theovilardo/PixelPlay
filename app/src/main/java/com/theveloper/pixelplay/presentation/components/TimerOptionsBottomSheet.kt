@@ -56,9 +56,12 @@ val predefinedTimes = listOf(0, 5, 10, 15, 20, 30, 45, 60) // 0 represents 'Off'
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun TimerOptionsBottomSheet(
+    onPlayCounter: (count: Int) -> Unit,
     activeTimerValueDisplay: String?, // e.g., "15 minutes", "End of Track"
+    playCount: Float,
     isEndOfTrackTimerActive: Boolean,
     onDismiss: () -> Unit,
+    onCancelCountedPlay: () -> Unit,
     onSetPredefinedTimer: (minutes: Int) -> Unit,
     onSetEndOfTrackTimer: (enable: Boolean) -> Unit,
     onOpenCustomTimePicker: () -> Unit,
@@ -66,10 +69,13 @@ fun TimerOptionsBottomSheet(
 ) {
     var showCustomTimePicker by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
-    var sliderPosition by remember { mutableStateOf(0f) }
+    var timerSliderPosition by remember { mutableStateOf(0f) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val isSwitchEnabled = isEndOfTrackTimerActive
+
+    var counterSliderPosition by remember { mutableStateOf(1f) }
+    var isTimerMode by remember { mutableStateOf(true) } // true = timer mode, false = counter mode
 
     // Animate background color
     val boxBackgroundColor by animateColorAsState(
@@ -84,7 +90,7 @@ fun TimerOptionsBottomSheet(
     )
 
     LaunchedEffect(activeTimerValueDisplay) {
-        sliderPosition = when {
+        timerSliderPosition = when {
             activeTimerValueDisplay == null -> 0f // Off
             activeTimerValueDisplay == "End of Track" -> 0f // Slider shows 'Off' as EOT is a separate control
             activeTimerValueDisplay.startsWith("Custom:") -> 0f // Slider shows 'Off' if custom time is active via a different mechanism
@@ -95,6 +101,7 @@ fun TimerOptionsBottomSheet(
                 if (index != -1) index.toFloat() else 0f
             }
         }
+        counterSliderPosition = playCount
     }
 
     ModalBottomSheet(
@@ -128,9 +135,16 @@ fun TimerOptionsBottomSheet(
             Spacer(modifier = Modifier.height(8.dp))
 
             Column(modifier = Modifier.fillMaxWidth()) {
-                val currentIndex = sliderPosition.roundToInt().coerceIn(0, predefinedTimes.size - 1)
+                val currentIndex =
+                    timerSliderPosition.roundToInt().coerceIn(0, predefinedTimes.size - 1)
                 val currentMinutes = predefinedTimes[currentIndex]
-                val displayText = if (currentMinutes == 0) "Off" else "$currentMinutes minutes"
+                val timerDisplayText = if (currentMinutes == 0) "Timer" else "$currentMinutes minutes"
+                Text(
+                    text = timerDisplayText,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
+                )
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -146,12 +160,17 @@ fun TimerOptionsBottomSheet(
                         )
                 ) {
                     Slider(
-                        value = sliderPosition,
-                        onValueChange = { sliderPosition = it },
+                        value = timerSliderPosition,
+                        onValueChange = {
+                            timerSliderPosition = it
+                            isTimerMode = true
+                        },
                         valueRange = 0f..(predefinedTimes.size - 1).toFloat(),
                         steps = predefinedTimes.size - 2, // Number of discrete intervals
+                        enabled = isTimerMode || counterSliderPosition == 1f,
                         onValueChangeFinished = {
-                            val selectedIndexOnFinish = sliderPosition.roundToInt().coerceIn(0, predefinedTimes.size - 1)
+                            val selectedIndexOnFinish = timerSliderPosition.roundToInt()
+                                .coerceIn(0, predefinedTimes.size - 1)
                             val selectedMinutesOnFinish = predefinedTimes[selectedIndexOnFinish]
                             if (selectedMinutesOnFinish == 0) {
                                 if (activeTimerValueDisplay != null && activeTimerValueDisplay != "End of Track") { // Only cancel if a duration timer was set
@@ -188,18 +207,61 @@ fun TimerOptionsBottomSheet(
                                 topStart = 6.dp
                             )
                         )
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Column(modifier = Modifier.fillMaxWidth()) {
+
+
+                val currentPlayCount = counterSliderPosition.toInt()
+                val counterDisplayText = "Play Count: " + when (currentPlayCount) {
+                    1 -> "1 time"
+                    else -> "$currentPlayCount times"
+                }
+                Text(
+                    text = counterDisplayText,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 0.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            shape = RoundedCornerShape(18.dp)
+                        )
                 ) {
-                    Text(
-                        text = displayText,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = if (displayText == "Off") MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f) else MaterialTheme.colorScheme.primary,
+                    Slider(
+                        value = counterSliderPosition,
+                        onValueChange = {
+                            counterSliderPosition = it
+                            isTimerMode = false
+                        },
+                        valueRange = 1f..10f,
+                        steps = 8,
+                        enabled = !isTimerMode || timerSliderPosition == 0f,
+                        onValueChangeFinished = {
+                            onCancelTimer()
+                            onSetEndOfTrackTimer(false)
+                            onPlayCounter(counterSliderPosition.toInt())
+                        },
+                        track = { sliderState ->
+                            SliderDefaults.Track(
+                                sliderState = sliderState,
+                                modifier = Modifier
+                                    .heightIn(min = 32.dp),
+                            )
+                        },
                         modifier = Modifier
-                            .align(Alignment.CenterStart)
-                            .padding(14.dp)
-                            .padding(start = 4.dp)
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
                     )
                 }
             }
+
             Spacer(modifier = Modifier.height(16.dp))
 
             // End of track option
@@ -241,6 +303,7 @@ fun TimerOptionsBottomSheet(
                     )
                     Switch(
                         checked = isSwitchEnabled,
+                        enabled = isTimerMode || counterSliderPosition == 1f,
                         onCheckedChange = {
                             onSetEndOfTrackTimer(it)
                         },
@@ -275,6 +338,7 @@ fun TimerOptionsBottomSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Button(
+                    enabled = counterSliderPosition == 1f,
                     onClick = {
                         showCustomTimePicker = true
                     },
@@ -294,6 +358,7 @@ fun TimerOptionsBottomSheet(
                     onClick = {
                         onCancelTimer()
                         onDismiss()
+                        onCancelCountedPlay()
                     },
                     shape = RoundedCornerShape(
                         topStart = 8.dp,
@@ -305,7 +370,7 @@ fun TimerOptionsBottomSheet(
                         containerColor = MaterialTheme.colorScheme.errorContainer,
                         contentColor = MaterialTheme.colorScheme.onErrorContainer
                     ),
-                    enabled = activeTimerValueDisplay != null,
+                    enabled = activeTimerValueDisplay != null || counterSliderPosition != 1f,
                     modifier = Modifier
                         .weight(1f)
                         .height(buttonHeight)

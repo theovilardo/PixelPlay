@@ -670,4 +670,8 @@ class MusicRepositoryImpl @Inject constructor(
             result
         }.flowOn(Dispatchers.IO)
     }
+
+    override suspend fun deleteById(id: Long) {
+        musicDao.deleteById(id)
+    }
 }

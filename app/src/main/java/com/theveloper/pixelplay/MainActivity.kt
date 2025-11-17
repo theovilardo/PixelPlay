@@ -126,8 +126,11 @@ import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.lerp
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
+import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
+import com.theveloper.pixelplay.data.worker.SyncManager
 import com.theveloper.pixelplay.presentation.components.MiniPlayerBottomSpacer
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
+import javax.inject.Inject
 
 @Immutable
 data class BottomNavItem(
@@ -143,6 +146,10 @@ class MainActivity : ComponentActivity() {
 
     private val playerViewModel: PlayerViewModel by viewModels()
     private var mediaControllerFuture: ListenableFuture<MediaController>? = null
+    @Inject
+    lateinit var userPreferencesRepository: UserPreferencesRepository // Inject here
+    @Inject
+    lateinit var syncManager: SyncManager;
 
     private val requestAllFilesAccessLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { _ ->
         // Handle the result in onResume
@@ -539,7 +546,8 @@ class MainActivity : ComponentActivity() {
                 AppNavigation(
                     playerViewModel = playerViewModel,
                     navController = navController,
-                    paddingValues = innerPadding
+                    paddingValues = innerPadding,
+                    userPreferencesRepository = userPreferencesRepository
                 )
 
                 UnifiedPlayerSheet(
@@ -548,6 +556,7 @@ class MainActivity : ComponentActivity() {
                     collapsedStateHorizontalPadding = horizontalPadding,
                     hideMiniPlayer = shouldHideMiniPlayer,
                     containerHeight = containerHeight,
+                    navController = navController,
                     isNavBarHidden = shouldHideNavigationBar
                 )
 
@@ -649,5 +658,11 @@ class MainActivity : ComponentActivity() {
             MediaController.releaseFuture(it)
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        syncManager.sync()
+    }
+
 
 }

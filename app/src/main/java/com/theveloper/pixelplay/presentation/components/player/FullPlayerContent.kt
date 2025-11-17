@@ -6,7 +6,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
@@ -24,7 +23,6 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -58,39 +56,36 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.navigation.NavHostController
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.presentation.components.AlbumCarouselSection
-import com.theveloper.pixelplay.presentation.components.AutoScrollingText
 import com.theveloper.pixelplay.presentation.components.AutoScrollingTextOnDemand
 import com.theveloper.pixelplay.presentation.components.LocalMaterialTheme
 import com.theveloper.pixelplay.presentation.components.LyricsSheet
 import com.theveloper.pixelplay.presentation.components.WavyMusicSlider
 import com.theveloper.pixelplay.presentation.components.scoped.DeferAt
-import com.theveloper.pixelplay.presentation.components.scoped.PrefetchAlbumNeighbors
 import com.theveloper.pixelplay.presentation.components.scoped.PrefetchAlbumNeighborsImg
 import com.theveloper.pixelplay.presentation.components.scoped.rememberSmoothProgress
 import com.theveloper.pixelplay.presentation.components.subcomps.FetchLyricsDialog
+import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.LyricsSearchUiState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
+import com.theveloper.pixelplay.utils.AudioMetaUtils.mimeTypeToFormat
 import com.theveloper.pixelplay.utils.formatDuration
 import kotlinx.collections.immutable.ImmutableList
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
@@ -108,9 +103,10 @@ fun FullPlayerContent(
     isShuffleEnabled: Boolean,
     repeatMode: Int,
     expansionFraction: Float,
-    currentSheetState: com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState,
+    currentSheetState: PlayerSheetState,
     carouselStyle: String,
     playerViewModel: PlayerViewModel, // For stable state like totalDuration and lyrics
+    navController: NavHostController,
     // State Providers
     currentPositionProvider: () -> Long,
     isPlayingProvider: () -> Boolean,
@@ -418,6 +414,8 @@ fun FullPlayerContent(
                 expansionFraction = expansionFraction,
                 textColor = LocalMaterialTheme.current.onPrimaryContainer,
                 artistTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.8f),
+                navController = navController,
+                onCollapse = onCollapse,
                 gradientEdgeColor = LocalMaterialTheme.current.primaryContainer
                 // modifier for PlayerSongInfo is internal to SongMetadataDisplaySection if needed, or pass one
             )
@@ -520,6 +518,8 @@ private fun SongMetadataDisplaySection(
     artistTextColor: Color,
     gradientEdgeColor: Color,
     onClickLyrics: () -> Unit,
+    navController: NavHostController,
+    onCollapse: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -533,10 +533,13 @@ private fun SongMetadataDisplaySection(
                 PlayerSongInfo(
                     title = currentSong.title,
                     artist = currentSong.artist,
+                    artistId = currentSong.artistId,
                     expansionFraction = expansionFraction,
                     textColor = textColor,
                     artistTextColor = artistTextColor,
                     gradientEdgeColor = gradientEdgeColor,
+                    navController = navController,
+                    onCollapse = onCollapse,
                     modifier = Modifier
                         .weight(0.85f)
                         .align(Alignment.CenterVertically)
@@ -563,6 +566,32 @@ private fun SongMetadataDisplaySection(
             )
         }
     }
+    Spacer(modifier = Modifier.width(8.dp))
+    song?.let { currentSong ->
+        Box(
+            modifier = Modifier
+                .background(
+                    color = LocalMaterialTheme.current.primary.copy(alpha = 0.15f),
+                    shape = CircleShape
+                )
+        ) {
+            Text(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                text = formatAudioMetaString(currentSong.mimeType, currentSong.bitrate, currentSong.sampleRate),
+                fontFamily = GoogleSansRounded,
+                style = MaterialTheme.typography.labelSmallEmphasized,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        }
+    }
+
+}
+
+fun formatAudioMetaString(mimeType: String?, bitrate: Int?, sampleRate: Int?): String {
+    val bitrate = bitrate?.div(1000) ?: 0       // convert to kb/s
+    val sampleRate = sampleRate ?: 0           // in Hz
+
+    return "${mimeTypeToFormat(mimeType)} \u25CF $bitrate kb/s \u25CF ${sampleRate / 1000.0} kHz"
 }
 
 @Composable
@@ -657,10 +686,13 @@ private fun PlayerProgressBarSection(
 private fun PlayerSongInfo(
     title: String,
     artist: String,
+    artistId: Long,
     expansionFraction: Float,
     textColor: Color,
     artistTextColor: Color,
     gradientEdgeColor: Color,
+    navController: NavHostController,
+    onCollapse: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val titleStyle = MaterialTheme.typography.headlineSmall.copy(
@@ -686,7 +718,19 @@ private fun PlayerSongInfo(
     ) {
         AutoScrollingTextOnDemand(title, titleStyle, gradientEdgeColor, expansionFraction)
         Spacer(modifier = Modifier.height(4.dp))
-        AutoScrollingTextOnDemand(artist, artistStyle, gradientEdgeColor, expansionFraction)
+        AutoScrollingTextOnDemand(
+            text = artist,
+            style = artistStyle,
+            gradientEdgeColor = gradientEdgeColor,
+            expansionFraction = expansionFraction,
+            modifier = Modifier.clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                navController.navigate(Screen.ArtistDetail.createRoute(artistId))
+                onCollapse()
+            }
+        )
     }
 }
 
@@ -735,8 +779,7 @@ private fun BottomToggleRow(
                         smoothnessAsPercentTL = 60
                     )
                 )
-                .background(Color.Transparent)
-            ,
+                .background(Color.Transparent),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {

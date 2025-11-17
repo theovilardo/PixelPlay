@@ -111,12 +111,11 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
     private fun saveCoverArtPreview(songId: Long, coverArtUpdate: CoverArtUpdate): String? {
         return try {
             val extension = imageExtensionFromMimeType(coverArtUpdate.mimeType) ?: "jpg"
-            val directory = File(context.filesDir, "cover_art").apply { if (!exists()) mkdirs() }
+            val directory = File(context.cacheDir, "").apply { if (!exists()) mkdirs() }
             directory.listFiles { file ->
-                file.name.startsWith("song_\${songId}_")
+                file.name.startsWith("song_art_${songId}")
             }?.forEach { it.delete() }
-            val timestamp = System.currentTimeMillis()
-            val file = File(directory, "song_\${songId}_\${timestamp}.$extension")
+            val file = File(directory, "song_${songId}.$extension")
             FileOutputStream(file).use { outputStream ->
                 ByteArrayInputStream(coverArtUpdate.bytes).use { inputStream ->
                     inputStream.copyTo(outputStream)

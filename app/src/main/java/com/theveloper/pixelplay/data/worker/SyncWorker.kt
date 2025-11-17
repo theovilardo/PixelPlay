@@ -3,27 +3,26 @@ package com.theveloper.pixelplay.data.worker
 import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.Context
-import android.database.Cursor
-import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
-import androidx.core.net.toUri
 import androidx.hilt.work.HiltWorker
 import android.os.Trace // Import Trace
 import androidx.work.CoroutineWorker
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.theveloper.pixelplay.data.database.AlbumEntity
 import com.theveloper.pixelplay.data.database.ArtistEntity
 import com.theveloper.pixelplay.data.database.MusicDao
 import com.theveloper.pixelplay.data.database.SongEntity
+import com.theveloper.pixelplay.utils.AlbumArtUtils
+import com.theveloper.pixelplay.utils.AudioMetaUtils.getAudioMetadata
 import com.theveloper.pixelplay.utils.normalizeMetadataText
 import com.theveloper.pixelplay.utils.normalizeMetadataTextOrEmpty
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.FileNotFoundException
 import java.util.concurrent.TimeUnit
 
 @HiltWorker
@@ -140,7 +139,7 @@ class SyncWorker @AssistedInject constructor(
         return Triple(correctedSongs, albums, artists)
     }
 
-    private fun fetchAllMusicData(): List<SongEntity> {
+    private suspend fun fetchAllMusicData(): List<SongEntity> {
         Trace.beginSection("SyncWorker.fetchAllMusicData")
         val songs = mutableListOf<SongEntity>()
         // Removed genre mapping from initial sync for performance.
@@ -195,19 +194,6 @@ class SyncWorker @AssistedInject constructor(
                 val contentUriString = ContentUris.withAppendedId(
                     MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id
                 ).toString()
-                val albumArtUriString = if (albumId > 0) {
-                    val potentialUri = ContentUris.withAppendedId(
-                        "content://media/external/audio/albumart".toUri(), albumId
-                    )
-                    try {
-                        contentResolver.openFileDescriptor(potentialUri, "r")?.use { }
-                        potentialUri.toString()
-                    } catch (notFound: FileNotFoundException) {
-                        null
-                    }
-                } else {
-                    null
-                }
 
 //                val genreName = run {
 //                    val staticGenres = GenreDataSource.getStaticGenres()
@@ -217,7 +203,9 @@ class SyncWorker @AssistedInject constructor(
 //                        "Unknown Genre"
 //                    }
 //                }
-
+                val deepScan = inputData.getBoolean(SyncWorker.INPUT_FORCE_METADATA, false)
+                val albumArtUriString = AlbumArtUtils.getAlbumArtUri(applicationContext, musicDao, filePath, albumId, id, deepScan)
+                val audioMetadata = getAudioMetadata(musicDao,id, filePath, deepScan)
                 songs.add(
                     SongEntity(
                         id = id,
@@ -236,7 +224,10 @@ class SyncWorker @AssistedInject constructor(
                         year = cursor.getInt(yearCol),
                         dateAdded = cursor.getLong(dateAddedCol).let { seconds ->
                             if (seconds > 0) TimeUnit.SECONDS.toMillis(seconds) else System.currentTimeMillis()
-                        }
+                        },
+                        mimeType = audioMetadata.mimeType,
+                        sampleRate = audioMetadata.sampleRate,
+                        bitrate = audioMetadata.bitrate
                     )
                 )
             }
@@ -245,12 +236,14 @@ class SyncWorker @AssistedInject constructor(
         return songs
     }
 
-        
 
     companion object {
         const val WORK_NAME = "com.theveloper.pixelplay.data.worker.SyncWorker"
         private const val TAG = "SyncWorker"
+        const val INPUT_FORCE_METADATA = "input_force_metadata" // new key
 
-        fun startUpSyncWork() = OneTimeWorkRequestBuilder<SyncWorker>().build()
+        fun startUpSyncWork(deepScan: Boolean = false) = OneTimeWorkRequestBuilder<SyncWorker>()
+            .setInputData(workDataOf(INPUT_FORCE_METADATA to deepScan))
+            .build()
     }
 }

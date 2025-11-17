@@ -16,6 +16,7 @@ import javax.inject.Inject
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.data.ai.GeminiModelService
 import com.theveloper.pixelplay.data.ai.GeminiModel
+import com.theveloper.pixelplay.data.preferences.LaunchTab
 
 data class SettingsUiState(
     val directoryItems: List<DirectoryItem> = emptyList(),
@@ -25,6 +26,7 @@ data class SettingsUiState(
     val navBarCornerRadius: Int = 32,
     val navBarStyle: String = NavBarStyle.DEFAULT,
     val carouselStyle: String = CarouselStyle.ONE_PEEK,
+    val launchTab: String = LaunchTab.HOME,
     val availableModels: List<GeminiModel> = emptyList(),
     val isLoadingModels: Boolean = false,
     val modelsFetchError: String? = null
@@ -81,6 +83,12 @@ class SettingsViewModel @Inject constructor(
             }
         }
 
+        viewModelScope.launch {
+            userPreferencesRepository.launchTabFlow.collect { tab ->
+                _uiState.update { it.copy(launchTab = tab) }
+            }
+        }
+
         loadDirectoryPreferences()
     }
 
@@ -134,6 +142,12 @@ class SettingsViewModel @Inject constructor(
     fun setCarouselStyle(style: String) {
         viewModelScope.launch {
             userPreferencesRepository.setCarouselStyle(style)
+        }
+    }
+
+    fun setLaunchTab(tab: String) {
+        viewModelScope.launch {
+            userPreferencesRepository.setLaunchTab(tab)
         }
     }
 

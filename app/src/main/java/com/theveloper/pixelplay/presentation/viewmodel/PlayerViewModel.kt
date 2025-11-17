@@ -1,6 +1,7 @@
 package com.theveloper.pixelplay.presentation.viewmodel
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.ComponentName
 import android.content.ContentUris
 import android.graphics.Bitmap
@@ -39,6 +40,12 @@ import android.net.NetworkRequest
 import android.os.Bundle
 import android.provider.MediaStore
 import android.provider.OpenableColumns
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.view.ContextThemeWrapper
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import androidx.media3.session.SessionToken
 import androidx.mediarouter.media.MediaControlIntent
 import androidx.mediarouter.media.MediaRouteSelector
@@ -58,6 +65,7 @@ import com.google.android.gms.common.images.WebImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Size
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.common.util.concurrent.ListenableFuture
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.DailyMixManager
@@ -101,6 +109,7 @@ import com.theveloper.pixelplay.ui.theme.GenreColors
 import com.theveloper.pixelplay.ui.theme.LightColorScheme
 import com.theveloper.pixelplay.ui.theme.extractSeedColor
 import com.theveloper.pixelplay.ui.theme.generateColorSchemeFromSeed
+import com.theveloper.pixelplay.utils.FileDeletionUtils
 import com.theveloper.pixelplay.utils.LyricsUtils
 import com.theveloper.pixelplay.utils.toHexString
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -108,8 +117,11 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -123,6 +135,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -147,6 +160,9 @@ private const val EXTERNAL_EXTRA_GENRE = EXTERNAL_EXTRA_PREFIX + "GENRE"
 private const val EXTERNAL_EXTRA_TRACK = EXTERNAL_EXTRA_PREFIX + "TRACK"
 private const val EXTERNAL_EXTRA_YEAR = EXTERNAL_EXTRA_PREFIX + "YEAR"
 private const val EXTERNAL_EXTRA_DATE_ADDED = EXTERNAL_EXTRA_PREFIX + "DATE_ADDED"
+private const val EXTERNAL_EXTRA_MIME_TYPE = EXTERNAL_EXTRA_PREFIX + "MIME_TYPE"
+private const val EXTERNAL_EXTRA_BITRATE = EXTERNAL_EXTRA_PREFIX + "BITRATE"
+private const val EXTERNAL_EXTRA_SAMPLE_RATE = EXTERNAL_EXTRA_PREFIX + "SAMPLE_RATE"
 
 enum class PlayerSheetState {
     COLLAPSED,
@@ -240,7 +256,7 @@ class PlayerViewModel @Inject constructor(
     private val musicRepository: MusicRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val albumArtThemeDao: AlbumArtThemeDao,
-    private val syncManager: SyncManager, // Inyectar SyncManager
+    val syncManager: SyncManager, // Inyectar SyncManager
     private val songMetadataEditor: SongMetadataEditor,
     private val dailyMixManager: DailyMixManager,
     private val playbackStatsRepository: PlaybackStatsRepository,
@@ -312,11 +328,15 @@ class PlayerViewModel @Inject constructor(
     private val _activeTimerValueDisplay = MutableStateFlow<String?>(null)
     val activeTimerValueDisplay: StateFlow<String?> = _activeTimerValueDisplay.asStateFlow()
 
+    private val _playCount = MutableStateFlow<Float>(1f)
+    val playCount: StateFlow<Float> = _playCount.asStateFlow()
+
     private val _lyricsSearchUiState = MutableStateFlow<LyricsSearchUiState>(LyricsSearchUiState.Idle)
     val lyricsSearchUiState = _lyricsSearchUiState.asStateFlow()
 
     private var sleepTimerJob: Job? = null
     private var eotSongMonitorJob: Job? = null
+    private var countedPlayJob: Job? = null
 
     // Toast Events
     private val _toastEvents = MutableSharedFlow<String>()
@@ -622,9 +642,9 @@ class PlayerViewModel @Inject constructor(
         private val MIN_SESSION_LISTEN_MS = TimeUnit.SECONDS.toMillis(5)
     }
 
+    private var currentSession: ActiveSession? = null
 
     private inner class ListeningStatsTracker {
-        private var currentSession: ActiveSession? = null
         private var pendingVoluntarySongId: String? = null
 
         fun onVoluntarySelection(songId: String) {
@@ -1709,6 +1729,12 @@ class PlayerViewModel @Inject constructor(
         val year = extras?.getInt(EXTERNAL_EXTRA_YEAR) ?: 0
         val dateAdded = extras?.getLong(EXTERNAL_EXTRA_DATE_ADDED)?.takeIf { it > 0 }
             ?: System.currentTimeMillis()
+        val mimeType = extras?.getString(EXTERNAL_EXTRA_MIME_TYPE)?.takeIf { true }
+            ?: "-"
+        val bitrate = extras?.getInt(EXTERNAL_EXTRA_BITRATE)?.takeIf { it > 0 }
+            ?: 0
+        val sampleRate = extras?.getInt(EXTERNAL_EXTRA_SAMPLE_RATE)?.takeIf { it > 0 }
+            ?: 0
 
         return Song(
             id = mediaItem.mediaId,
@@ -1726,7 +1752,10 @@ class PlayerViewModel @Inject constructor(
             isFavorite = false,
             trackNumber = trackNumber,
             year = year,
-            dateAdded = dateAdded
+            dateAdded = dateAdded,
+            mimeType = mimeType,
+            bitrate = bitrate,
+            sampleRate = sampleRate
         )
     }
 
@@ -1911,14 +1940,14 @@ class PlayerViewModel @Inject constructor(
 
     private fun createShuffledQueue(songs: List<Song>): List<Song> {
         if (songs.isEmpty()) return emptyList()
-       
+
         val shuffledQueue = songs.shuffled()
         val chosenSong = shuffledQueue.firstOrNull()
         Log.d(
             "ShuffleDebug",
             "createShuffledQueue called. Input size: ${songs.size}. Chosen first song: '${chosenSong?.title}'"
         )
-        
+
         return shuffledQueue
     }
 
@@ -2172,6 +2201,9 @@ class PlayerViewModel @Inject constructor(
                 ?.toIntOrNull()
             var metadataYear = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR)
                 ?.toIntOrNull()
+            val mimeType = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE)
+            val bitrate = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toIntOrNull()
+            val sampleRate = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_SAMPLERATE)?.toIntOrNull()
             var genre = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE)
             var embeddedArt = metadataRetriever.embeddedPicture?.takeIf { it.isNotEmpty() }
             var embeddedArtMimeType: String? = null
@@ -2259,7 +2291,10 @@ class PlayerViewModel @Inject constructor(
                 isFavorite = false,
                 trackNumber = trackNumber,
                 year = year,
-                dateAdded = dateAdded
+                dateAdded = dateAdded,
+                mimeType = mimeType,
+                bitrate = bitrate,
+                sampleRate = sampleRate
             )
 
             ExternalSongLoadResult(
@@ -2427,6 +2462,9 @@ class PlayerViewModel @Inject constructor(
             putInt(EXTERNAL_EXTRA_TRACK, song.trackNumber)
             putInt(EXTERNAL_EXTRA_YEAR, song.year)
             putLong(EXTERNAL_EXTRA_DATE_ADDED, song.dateAdded)
+            putString(EXTERNAL_EXTRA_MIME_TYPE, song.mimeType)
+            putInt(EXTERNAL_EXTRA_BITRATE, song.bitrate ?: 0)
+            putInt(EXTERNAL_EXTRA_SAMPLE_RATE, song.sampleRate ?: 0)
         }
 
         metadataBuilder.setExtras(extras)
@@ -2479,6 +2517,20 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun repeatSingle(){
+        val castSession = _castSession.value
+        if (castSession != null && castSession.remoteMediaClient != null) {
+            val remoteMediaClient = castSession.remoteMediaClient
+            val newMode = MediaStatus.REPEAT_MODE_REPEAT_SINGLE;
+            remoteMediaClient?.queueSetRepeatMode(newMode, null)?.setResultCallback {
+                if (!it.status.isSuccess) Timber.e("Remote media client failed to set repeat mode: ${it.status.statusMessage}")
+            }
+        } else {
+            val newMode = Player.REPEAT_MODE_ONE
+            mediaController?.repeatMode = newMode
+        }
+    }
+
     fun toggleFavorite() {
         _stablePlayerState.value.currentSong?.id?.let { songId ->
             viewModelScope.launch {
@@ -2487,9 +2539,9 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    fun toggleFavoriteSpecificSong(song: Song) {
+    fun toggleFavoriteSpecificSong(song: Song, removing: Boolean = false) {
         viewModelScope.launch {
-            userPreferencesRepository.toggleFavoriteSong(song.id)
+            userPreferencesRepository.toggleFavoriteSong(song.id, removing)
         }
     }
 
@@ -2507,6 +2559,95 @@ class PlayerViewModel @Inject constructor(
             controller.addMediaItem(mediaItem)
         }
     }
+    private suspend fun showMaterialDeleteConfirmation(activity: Activity, song: Song): Boolean {
+        return withContext(Dispatchers.Main) {
+            try {
+                if (activity.isFinishing || activity.isDestroyed) {
+                    return@withContext false
+                }
+
+                val userChoice = CompletableDeferred<Boolean>()
+
+                val dialog = MaterialAlertDialogBuilder(activity)
+                    .setTitle("Delete song?")
+                    .setMessage("""
+                    "${song.title}" by ${song.artist}
+
+                    This song will be permanently deleted from your device and cannot be recovered.
+                """.trimIndent())
+                    .setPositiveButton("Delete") { _, _ ->
+                        userChoice.complete(true)
+                    }
+                    .setNegativeButton("Cancel") { _, _ ->
+                        userChoice.complete(false)
+                    }
+                    .setOnCancelListener {
+                        userChoice.complete(false)
+                    }
+                    .setCancelable(true)
+                    .create()
+
+                dialog.show()
+
+                // Wait for user response - this will suspend until complete is called
+                userChoice.await()
+            } catch (e: Exception) {
+                false
+            }
+        }
+    }
+
+    fun deleteFromDevice(activity: Activity, song: Song, onResult: (Boolean) -> Unit = {}){
+        viewModelScope.launch {
+            val userConfirmed = showMaterialDeleteConfirmation(activity, song)
+            if (!userConfirmed) {
+                onResult(false)
+                return@launch
+            }
+            if (currentSession?.songId == song.id) {
+                mediaController?.pause()
+                mediaController?.stop()
+                mediaController?.clearMediaItems()
+                currentSession
+                _stablePlayerState.update {
+                    it.copy(
+                        currentSong = null,
+                        isPlaying = false,
+                        totalDuration = 0L
+                    )
+                }
+            }
+            val fileInfo = FileDeletionUtils.getFileInfo(song.path)
+            if (fileInfo.exists && fileInfo.canWrite) {
+                val success = FileDeletionUtils.deleteFile(context, song.path)
+                if (success) {
+                    _toastEvents.emit("File deleted")
+                    removeSong(song)
+                    onResult(true)
+                } else {
+                    _toastEvents.emit("Can't delete the file")
+                }
+            } else
+                _toastEvents.emit("File does not exist or not permitted")
+            onResult(false)
+        }
+    }
+
+    suspend fun removeSong(song: Song) {
+        toggleFavoriteSpecificSong(song, true)
+        _playerUiState.update { currentState ->
+            currentState.copy(
+                allSongs = currentState.allSongs.filter { it.id != song.id }.toImmutableList(),
+                currentPosition = 0L,
+                currentPlaybackQueue = currentState.currentPlaybackQueue.filter { it.id != song.id }.toImmutableList(),
+                currentQueueSourceName = ""
+            )
+        }
+        _isSheetVisible.value = false
+        musicRepository.deleteById(song.id.toLong())
+        userPreferencesRepository.removeSongFromAllPlaylists(song.id)
+    }
+
 
     fun getAlbumColorSchemeFlow(albumArtUri: String?): StateFlow<ColorSchemePair?> {
         val uriString = albumArtUri ?: "default_fallback_key"
@@ -3312,6 +3453,76 @@ class PlayerViewModel @Inject constructor(
             }
         }
         viewModelScope.launch { _toastEvents.emit("Timer set for $durationMinutes minutes.") }
+    }
+
+    fun disableCountedPlay() {
+        cancelCountedPlay()
+        cycleRepeatMode()
+        viewModelScope.launch {
+            _toastEvents.emit("Disabled counted play")
+        }
+    }
+
+    @OptIn(FlowPreview::class)
+    fun playCounted(count: Int){
+
+        _playCount.value = count.toFloat()
+        if (count == 1) {
+            disableCountedPlay()
+        } else {
+            repeatSingle()
+            val currentSongId = stablePlayerState.value.currentSong?.id
+
+            if (currentSongId != null) {
+                countedPlayJob?.cancel()
+
+                countedPlayJob = viewModelScope.launch {
+                    var playCount = 1 // Start at 1 for current play
+                    viewModelScope.launch {
+                        _toastEvents.emit("Will play $count times (including current play)")
+                        _toastEvents.emit("Play count: $playCount/$count")
+                    }
+                    combine(
+                        playerUiState.map { it.currentPosition }.sample(1000), // Only check once per second ,
+                        stablePlayerState.map { it.totalDuration },
+                        stablePlayerState.map { it.currentSong?.id }
+                    ) { position, duration, songId ->
+                        Triple(position, duration, songId)
+                    }
+                        .collect { (position, duration, songId) ->
+                            // Check if song changed
+                            if (songId != currentSongId) {
+                                cancel()
+                                disableCountedPlay()
+                                return@collect
+                            }
+
+                            // Detect track completion: position near end with valid duration
+                            if (duration > 0 && position >= duration - 1100) {
+                                playCount++
+                                if (playCount<=count)
+                                    _toastEvents.emit("Play count: $playCount/$count")
+
+                                if (playCount >= count+1) {
+                                    mediaController?.pause()
+                                    _toastEvents.emit("Played $count times - pausing")
+                                    disableCountedPlay()
+                                    cancel()
+                                } else {
+                                    // Skip ahead to avoid multiple triggers for same completion
+                                    delay(1000)
+                                }
+                            }
+                    }
+
+                }
+            }
+        }
+    }
+    fun cancelCountedPlay() {
+        countedPlayJob?.cancel()
+        countedPlayJob = null
+        _playCount.value = 1f
     }
 
     fun setEndOfTrackTimer(enable: Boolean) {
