@@ -127,6 +127,7 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.lerp
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
+import com.theveloper.pixelplay.data.worker.SyncManager
 import com.theveloper.pixelplay.presentation.components.MiniPlayerBottomSpacer
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import javax.inject.Inject
@@ -147,6 +148,8 @@ class MainActivity : ComponentActivity() {
     private var mediaControllerFuture: ListenableFuture<MediaController>? = null
     @Inject
     lateinit var userPreferencesRepository: UserPreferencesRepository // Inject here
+    @Inject
+    lateinit var syncManager: SyncManager;
 
     private val requestAllFilesAccessLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { _ ->
         // Handle the result in onResume
@@ -655,5 +658,11 @@ class MainActivity : ComponentActivity() {
             MediaController.releaseFuture(it)
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        syncManager.sync()
+    }
+
 
 }

@@ -567,22 +567,26 @@ private fun SongMetadataDisplaySection(
         }
     }
     Spacer(modifier = Modifier.width(8.dp))
-    Box(
-        modifier = Modifier
-            .background(
-                color = LocalMaterialTheme.current.primary.copy(alpha = 0.15f),
-                shape = CircleShape
+    song?.let { currentSong ->
+        Box(
+            modifier = Modifier
+                .background(
+                    color = LocalMaterialTheme.current.primary.copy(alpha = 0.15f),
+                    shape = CircleShape
+                )
+        ) {
+            Text(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                text = formatAudioMetaString(currentSong.mimeType, currentSong.bitrate, currentSong.sampleRate),
+                fontFamily = GoogleSansRounded,
+                style = MaterialTheme.typography.labelSmallEmphasized,
+                color = MaterialTheme.colorScheme.onBackground
             )
-    ) {
-        Text(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            text = formatAudioMetaString(song?.mimeType, song?.bitrate, song?.sampleRate),
-            fontFamily = GoogleSansRounded,
-            style = MaterialTheme.typography.labelSmallEmphasized,
-            color = MaterialTheme.colorScheme.onBackground
-        )
+        }
     }
+
 }
+
 fun formatAudioMetaString(mimeType: String?, bitrate: Int?, sampleRate: Int?): String {
     val bitrate = bitrate?.div(1000) ?: 0       // convert to kb/s
     val sampleRate = sampleRate ?: 0           // in Hz
@@ -775,8 +779,7 @@ private fun BottomToggleRow(
                         smoothnessAsPercentTL = 60
                     )
                 )
-                .background(Color.Transparent)
-            ,
+                .background(Color.Transparent),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
