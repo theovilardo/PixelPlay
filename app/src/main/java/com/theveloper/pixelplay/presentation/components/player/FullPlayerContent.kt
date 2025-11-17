@@ -566,24 +566,24 @@ private fun SongMetadataDisplaySection(
             )
         }
     }
-    Spacer(modifier = Modifier.width(8.dp))
-    song?.let { currentSong ->
-        Box(
-            modifier = Modifier
-                .background(
-                    color = LocalMaterialTheme.current.primary.copy(alpha = 0.15f),
-                    shape = CircleShape
-                )
-        ) {
-            Text(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                text = formatAudioMetaString(currentSong.mimeType, currentSong.bitrate, currentSong.sampleRate),
-                fontFamily = GoogleSansRounded,
-                style = MaterialTheme.typography.labelSmallEmphasized,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-        }
-    }
+//    Spacer(modifier = Modifier.width(8.dp))
+//    song?.let { currentSong ->
+//        Box(
+//            modifier = Modifier
+//                .background(
+//                    color = LocalMaterialTheme.current.primary.copy(alpha = 0.15f),
+//                    shape = CircleShape
+//                )
+//        ) {
+//            Text(
+//                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+//                text = formatAudioMetaString(currentSong.mimeType, currentSong.bitrate, currentSong.sampleRate),
+//                fontFamily = GoogleSansRounded,
+//                style = MaterialTheme.typography.labelSmallEmphasized,
+//                color = MaterialTheme.colorScheme.onBackground
+//            )
+//        }
+//    }
 
 }
 
