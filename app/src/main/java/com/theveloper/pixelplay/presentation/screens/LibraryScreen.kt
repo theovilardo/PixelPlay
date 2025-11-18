@@ -9,7 +9,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -79,6 +78,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.theveloper.pixelplay.ui.theme.LocalPixelPlayDarkTheme
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
@@ -212,7 +212,7 @@ fun LibraryScreen(
     val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val bottomBarHeightDp = NavBarContentHeight + systemNavBarInset
 
-    val dm = isSystemInDarkTheme()
+    val dm = LocalPixelPlayDarkTheme.current
 
     val iconRotation by transition.animateFloat(
         label = "Action Button Icon Rotation",
@@ -1639,7 +1639,7 @@ fun AlbumGridItemRedesigned(
     isLoading: Boolean = false
 ) {
     val albumColorSchemePair by albumColorSchemePairFlow.collectAsState()
-    val systemIsDark = isSystemInDarkTheme()
+    val systemIsDark = LocalPixelPlayDarkTheme.current
 
     // 1. Obtén el colorScheme del tema actual aquí, en el scope Composable.
     val currentMaterialColorScheme = MaterialTheme.colorScheme

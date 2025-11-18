@@ -2,10 +2,12 @@ package com.theveloper.pixelplay.presentation.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -32,8 +34,8 @@ import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.presentation.components.scoped.CustomNavigationBarItem
 import kotlinx.collections.immutable.ImmutableList
 
-internal val NavBarContentHeight = 106.dp // Altura del contenido de la barra de navegación
-internal val NavBarContentHeightFullWidth = 84.dp // Altura del contenido de la barra de navegación en modo completo
+internal val NavBarContentHeight = 90.dp // Altura del contenido de la barra de navegación
+internal val NavBarContentHeightFullWidth = NavBarContentHeight // Altura del contenido de la barra de navegación en modo completo
 
 @Composable
 private fun PlayerInternalNavigationItemsRow(
@@ -41,13 +43,14 @@ private fun PlayerInternalNavigationItemsRow(
     navItems: ImmutableList<BottomNavItem>,
     currentRoute: String?,
     modifier: Modifier = Modifier,
-    navBarStyle: String,
-    navBarInset: Dp
+    navBarStyle: String
 ) {
+    val navBarInsetPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+
     val rowModifier = if (navBarStyle == NavBarStyle.FULL_WIDTH) {
         modifier
             .fillMaxWidth()
-            .padding(top = 14.dp, bottom = 8.dp + navBarInset, start = 12.dp, end = 12.dp)
+            .padding(top = 14.dp, bottom = navBarInsetPadding, start = 12.dp, end = 12.dp)
     } else {
         modifier
             .padding(horizontal = 10.dp)
@@ -121,15 +124,13 @@ fun PlayerInternalNavigationBar(
     navItems: ImmutableList<BottomNavItem>,
     currentRoute: String?,
     modifier: Modifier = Modifier,
-    navBarStyle: String,
-    navBarInset: Dp
+    navBarStyle: String
 ) {
     PlayerInternalNavigationItemsRow(
         navController = navController,
         navItems = navItems,
         currentRoute = currentRoute,
         navBarStyle = navBarStyle,
-        navBarInset = navBarInset,
         modifier = modifier
     )
 }

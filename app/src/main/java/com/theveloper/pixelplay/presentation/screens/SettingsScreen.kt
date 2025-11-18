@@ -43,6 +43,7 @@ import androidx.compose.material.icons.outlined.ClearAll
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.FolderOff
+import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material.icons.outlined.Sync
@@ -113,6 +114,7 @@ import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.DirectoryItem
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.data.preferences.LaunchTab
+import com.theveloper.pixelplay.data.preferences.AppThemeMode
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
@@ -367,6 +369,25 @@ fun SettingsScreen(
                             .background(color = Color.Transparent, shape = RoundedCornerShape(24.dp))
                             .clip(shape = RoundedCornerShape(24.dp))
                     ){
+                        ThemeSelectorItem(
+                            label = "App Theme",
+                            description = "Switch between light, dark, or follow system appearance.",
+                            options = mapOf(
+                                AppThemeMode.LIGHT to "Light Theme",
+                                AppThemeMode.DARK to "Dark Theme",
+                                AppThemeMode.FOLLOW_SYSTEM to "Follow System"
+                            ),
+                            selectedKey = uiState.appThemeMode,
+                            onSelectionChanged = { settingsViewModel.setAppThemeMode(it) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.LightMode,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
                         ThemeSelectorItem(
                             label = "Player Theme",
                             description = "Choose the appearance for the floating player.",

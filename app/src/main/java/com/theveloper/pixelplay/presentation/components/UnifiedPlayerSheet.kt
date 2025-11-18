@@ -62,6 +62,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
+import com.theveloper.pixelplay.ui.theme.LocalPixelPlayDarkTheme
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -547,7 +548,7 @@ fun UnifiedPlayerSheet(
 
     // val currentAlbumColorSchemePair by playerViewModel.currentAlbumArtColorSchemePair.collectAsState() // Replaced by activePlayerColorSchemePair
     val activePlayerSchemePair by playerViewModel.activePlayerColorSchemePair.collectAsState()
-    val isDarkTheme = isSystemInDarkTheme()
+    val isDarkTheme = LocalPixelPlayDarkTheme.current
     val systemColorScheme = MaterialTheme.colorScheme // This is the standard M3 theme
 
     val targetColorScheme = remember(activePlayerSchemePair, isDarkTheme, systemColorScheme) {
@@ -636,7 +637,7 @@ fun UnifiedPlayerSheet(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
-                    color = if (isSystemInDarkTheme()) Color.Black.copy(alpha = currentDimLayerAlpha) else Color.White.copy(
+                    color = if (isDarkTheme) Color.Black.copy(alpha = currentDimLayerAlpha) else Color.White.copy(
                         alpha = currentDimLayerAlpha
                     )
                 )
@@ -942,132 +943,6 @@ fun UnifiedPlayerSheet(
                                     }
                                 )
                             }
-                            //.pointerInput(showPlayerContentArea, sheetCollapsedTargetY, sheetExpandedTargetY, currentSheetContentState)
-//                            .pointerInput(Unit)
-//                            {
-//                                //if (!showPlayerContentArea) return@pointerInput
-//                                if (!canShow.value) return@pointerInput
-//                                var initialFractionOnDragStart = 0f
-//                                var initialYOnDragStart = 0f
-//                                detectVerticalDragGestures(
-//                                    onDragStart = { offset ->
-//                                        scope.launch {
-//                                            currentSheetTranslationY.stop()
-//                                            playerContentExpansionFraction.stop()
-//                                        }
-//                                        isDragging = true
-//                                        isDraggingPlayerArea = true
-//                                        velocityTracker.resetTracking()
-//                                        initialFractionOnDragStart = playerContentExpansionFraction.value
-//                                        initialYOnDragStart = currentSheetTranslationY.value
-//                                        accumulatedDragYSinceStart = 0f
-//                                    },
-//                                    onVerticalDrag = { change, dragAmount ->
-//                                        change.consume()
-//                                        accumulatedDragYSinceStart += dragAmount
-//                                        scope.launch {
-//                                            val newY = (currentSheetTranslationY.value + dragAmount)
-//                                                .coerceIn(
-//                                                    sheetExpandedTargetY - miniPlayerContentHeightPx * 0.2f,
-//                                                    sheetCollapsedTargetY + miniPlayerContentHeightPx * 0.2f
-//                                                )
-//                                            currentSheetTranslationY.snapTo(newY)
-//                                            val dragRatio =
-//                                                (initialYOnDragStart - newY) / (sheetCollapsedTargetY - sheetExpandedTargetY).coerceAtLeast(
-//                                                    1f
-//                                                )
-//                                            val newFraction =
-//                                                (initialFractionOnDragStart + dragRatio).coerceIn(0f, 1f)
-//                                            playerContentExpansionFraction.snapTo(newFraction)
-//                                        }
-//                                        velocityTracker.addPosition(change.uptimeMillis, change.position)
-//                                    },
-//                                    onDragEnd = {
-//                                        isDragging = false
-//                                        isDraggingPlayerArea = false
-//                                        val verticalVelocity = velocityTracker.calculateVelocity().y
-//                                        val currentExpansionFraction = playerContentExpansionFraction.value
-//                                        val minDragThresholdPx =
-//                                            with(density) { 5.dp.toPx() }
-//                                        val velocityThresholdForInstantTrigger =
-//                                            150f
-//                                        val targetContentState = when {
-//                                            abs(accumulatedDragYSinceStart) > minDragThresholdPx -> {
-//                                                if (accumulatedDragYSinceStart < 0) PlayerSheetState.EXPANDED else PlayerSheetState.COLLAPSED
-//                                            }
-//                                            abs(verticalVelocity) > velocityThresholdForInstantTrigger -> {
-//                                                if (verticalVelocity < 0) PlayerSheetState.EXPANDED else PlayerSheetState.COLLAPSED
-//                                            }
-//                                            else -> {
-//                                                if (currentExpansionFraction > 0.5f) PlayerSheetState.EXPANDED else PlayerSheetState.COLLAPSED
-//                                            }
-//                                        }
-//                                        scope.launch {
-//                                            if (targetContentState == PlayerSheetState.EXPANDED) {
-//                                                launch {
-//                                                    currentSheetTranslationY.animateTo(
-//                                                        targetValue = sheetExpandedTargetY,
-//                                                        animationSpec = tween(
-//                                                            durationMillis = ANIMATION_DURATION_MS,
-//                                                            easing = FastOutSlowInEasing
-//                                                        )
-//                                                    )
-//                                                }
-//                                                launch {
-//                                                    playerContentExpansionFraction.animateTo(
-//                                                        targetValue = 1f,
-//                                                        animationSpec = tween(
-//                                                            durationMillis = ANIMATION_DURATION_MS,
-//                                                            easing = FastOutSlowInEasing
-//                                                        )
-//                                                    )
-//                                                }
-//                                                playerViewModel.expandPlayerSheet()
-//                                            } else {
-//                                                val dynamicDampingRatio = lerp(
-//                                                    start = Spring.DampingRatioNoBouncy,
-//                                                    stop = Spring.DampingRatioLowBouncy,
-//                                                    fraction = currentExpansionFraction
-//                                                )
-//                                                // New logic for scale animation
-//                                                launch {
-//                                                    val initialSquash = lerp(1.0f, 0.97f, currentExpansionFraction)
-//                                                    visualOvershootScaleY.snapTo(initialSquash)
-//                                                    visualOvershootScaleY.animateTo(
-//                                                        targetValue = 1f,
-//                                                        animationSpec = spring(
-//                                                            dampingRatio = Spring.DampingRatioMediumBouncy,
-//                                                            stiffness = Spring.StiffnessVeryLow
-//                                                        )
-//                                                    )
-//                                                }
-//                                                launch {
-//                                                    currentSheetTranslationY.animateTo(
-//                                                        targetValue = sheetCollapsedTargetY,
-//                                                        initialVelocity = verticalVelocity,
-//                                                        animationSpec = spring(
-//                                                            dampingRatio = dynamicDampingRatio,
-//                                                            stiffness = Spring.StiffnessLow
-//                                                        )
-//                                                    )
-//                                                }
-//                                                launch {
-//                                                    playerContentExpansionFraction.animateTo(
-//                                                        targetValue = 0f,
-//                                                        initialVelocity = verticalVelocity / (sheetCollapsedTargetY - sheetExpandedTargetY).coerceAtLeast(1f),
-//                                                        animationSpec = spring(
-//                                                            dampingRatio = dynamicDampingRatio,
-//                                                            stiffness = Spring.StiffnessLow
-//                                                        )
-//                                                    )
-//                                                }
-//                                                playerViewModel.collapsePlayerSheet()
-//                                            }
-//                                        }
-//                                        accumulatedDragYSinceStart = 0f
-//                                    }
-//                                )
-//                            }
                             .clickable(
                                 enabled = true,
                                 interactionSource = remember { MutableInteractionSource() },

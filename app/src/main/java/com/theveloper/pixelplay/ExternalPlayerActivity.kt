@@ -8,6 +8,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.core.view.WindowCompat
 import dagger.hilt.android.AndroidEntryPoint
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
@@ -15,12 +17,17 @@ import com.theveloper.pixelplay.presentation.components.external.ExternalPlayerO
 import com.theveloper.pixelplay.ui.theme.PixelPlayTheme
 import android.content.Intent.EXTRA_STREAM
 import androidx.media3.common.util.UnstableApi
+import com.theveloper.pixelplay.data.preferences.AppThemeMode
+import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
+import javax.inject.Inject
 
 @UnstableApi
 @AndroidEntryPoint
 class ExternalPlayerActivity : ComponentActivity() {
 
     private val playerViewModel: PlayerViewModel by viewModels()
+    @Inject
+    lateinit var userPreferencesRepository: UserPreferencesRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -29,7 +36,13 @@ class ExternalPlayerActivity : ComponentActivity() {
         window.navigationBarColor = android.graphics.Color.TRANSPARENT
 
         setContent {
-            val useDarkTheme = isSystemInDarkTheme()
+            val systemDarkTheme = isSystemInDarkTheme()
+            val appThemeMode by userPreferencesRepository.appThemeModeFlow.collectAsState(initial = AppThemeMode.FOLLOW_SYSTEM)
+            val useDarkTheme = when (appThemeMode) {
+                AppThemeMode.DARK -> true
+                AppThemeMode.LIGHT -> false
+                else -> systemDarkTheme
+            }
             PixelPlayTheme(darkTheme = useDarkTheme) {
                 ExternalPlayerOverlay(
                     playerViewModel = playerViewModel,
