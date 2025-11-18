@@ -485,7 +485,7 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val queueSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val queueSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showQueueSheet by remember { mutableStateOf(false) }
     var showCastSheet by remember { mutableStateOf(false) }
     var showTrackVolumeSheet by remember { mutableStateOf(false) }
