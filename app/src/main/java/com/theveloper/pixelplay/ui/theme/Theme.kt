@@ -90,9 +90,10 @@ fun PixelPlayTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            val statusBarColor = finalColorScheme.surfaceColorAtElevation(6.dp)
+            val statusBarElevation = if (darkTheme) 4.dp else 10.dp
+            val statusBarColor = finalColorScheme.surfaceColorAtElevation(statusBarElevation)
             window.statusBarColor = statusBarColor.toArgb()
-            val isLightStatusBar = ColorUtils.calculateLuminance(statusBarColor.toArgb()) > 0.5
+            val isLightStatusBar = ColorUtils.calculateLuminance(statusBarColor.toArgb()) > 0.6
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = isLightStatusBar
         }
     }
