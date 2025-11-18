@@ -9,14 +9,21 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import com.theveloper.pixelplay.presentation.viewmodel.ColorSchemePair
+import androidx.core.graphics.ColorUtils
+import androidx.compose.ui.unit.dp
+
+val LocalPixelPlayDarkTheme = staticCompositionLocalOf { false }
 
 val DarkColorScheme = darkColorScheme(
     primary = PixelPlayPurplePrimary,
@@ -35,15 +42,24 @@ val DarkColorScheme = darkColorScheme(
 
 val LightColorScheme = lightColorScheme(
     primary = LightPrimary,
-    secondary = PixelPlayPink,
-    tertiary = PixelPlayOrange,
-    background = LightBackground,
-    surface = PixelPlayWhite,
     onPrimary = PixelPlayWhite,
-    onSecondary = PixelPlayBlack,
+    primaryContainer = LightPrimaryContainer,
+    onPrimaryContainer = LightOnPrimaryContainer,
+    secondary = PixelPlayPink,
+    onSecondary = PixelPlayWhite,
+    secondaryContainer = PixelPlayPink.copy(alpha = 0.15f),
+    onSecondaryContainer = PixelPlayPink.copy(alpha = 0.85f),
+    tertiary = PixelPlayOrange,
     onTertiary = PixelPlayBlack,
-    onBackground = PixelPlayBlack,
-    onSurface = PixelPlayBlack,
+    background = LightBackground,
+    onBackground = LightOnSurface,
+    surface = LightSurface,
+    onSurface = LightOnSurface,
+    surfaceVariant = LightSurfaceVariant,
+    onSurfaceVariant = LightOnSurfaceVariant,
+    outline = LightOutline,
+    outlineVariant = LightOutline.copy(alpha = 0.6f),
+    surfaceTint = LightPrimary,
     error = Color(0xFFD32F2F),
     onError = PixelPlayWhite
 )
@@ -78,15 +94,21 @@ fun PixelPlayTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = finalColorScheme.background.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            val statusBarElevation = if (darkTheme) 4.dp else 12.dp
+            val elevatedSurface = finalColorScheme.surfaceColorAtElevation(statusBarElevation)
+            val statusBarColor = Color(ColorUtils.blendARGB(finalColorScheme.background.toArgb(), elevatedSurface.toArgb(), 0.35f))
+            window.statusBarColor = statusBarColor.toArgb()
+            val isLightStatusBar = ColorUtils.calculateLuminance(statusBarColor.toArgb()) > 0.55
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = isLightStatusBar
         }
     }
 
-    MaterialTheme(
-        colorScheme = finalColorScheme,
-        typography = Typography,
-        shapes = Shapes,
-        content = content
-    )
+    CompositionLocalProvider(LocalPixelPlayDarkTheme provides darkTheme) {
+        MaterialTheme(
+            colorScheme = finalColorScheme,
+            typography = Typography,
+            shapes = Shapes,
+            content = content
+        )
+    }
 }
