@@ -481,29 +481,24 @@ class MainActivity : ComponentActivity() {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .padding(bottom = systemNavBarInset)
                             .onSizeChanged { componentHeightPx = it.height }
                             .graphicsLayer {
                                 translationY = animatedTranslationY
                                 alpha = 1f
                             }
                     ) {
-                        val navHeight: Dp
-                        val bottomPadding: Dp
-
-                        if (navBarStyle == NavBarStyle.DEFAULT) {
-                            navHeight = NavBarContentHeight
-                            bottomPadding = systemNavBarInset
-                        } else { // FULL_WIDTH
-                            navHeight = NavBarContentHeightFullWidth + systemNavBarInset
-                            bottomPadding = 0.dp
+                        val navHeight: Dp = if (navBarStyle == NavBarStyle.DEFAULT) {
+                            NavBarContentHeight
+                        } else {
+                            NavBarContentHeightFullWidth
                         }
 
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(navHeight)
-                                .padding(horizontal = horizontalPadding)
-                                .padding(bottom = bottomPadding),
+                                .padding(horizontal = horizontalPadding),
                             color = NavigationBarDefaults.containerColor,
                             shape = actualShape,
                             shadowElevation = navBarElevation
@@ -513,7 +508,6 @@ class MainActivity : ComponentActivity() {
                                 navItems = commonNavItems,
                                 currentRoute = currentRoute,
                                 navBarStyle = navBarStyle,
-                                navBarInset = systemNavBarInset,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }

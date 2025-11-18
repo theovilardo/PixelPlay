@@ -476,20 +476,26 @@ fun LyricsSheet(
 
             }
 
-            PlayerSeekBar(
-                backgroundColor = backgroundColor,
-                onBackgroundColor = onBackgroundColor,
-                primaryColor = accentColor,
-                currentPosition = playerUiState.currentPosition,
-                totalDuration = stablePlayerState.totalDuration,
-                onSeek = onSeekTo,
-                isPlaying = isPlaying,
+            Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .height(78.dp)
+                    .fillMaxWidth()
                     .padding(bottom = paddingValues.calculateBottomPadding() + 10.dp)
                     .padding(horizontal = 24.dp)
-            )
+            ) {
+                PlayerSeekBar(
+                    backgroundColor = backgroundColor,
+                    onBackgroundColor = onBackgroundColor,
+                    primaryColor = accentColor,
+                    currentPosition = playerUiState.currentPosition,
+                    totalDuration = stablePlayerState.totalDuration,
+                    onSeek = onSeekTo,
+                    isPlaying = isPlaying,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(78.dp)
+                )
+            }
         }
     }
 }

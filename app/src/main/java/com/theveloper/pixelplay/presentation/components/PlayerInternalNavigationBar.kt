@@ -41,13 +41,12 @@ private fun PlayerInternalNavigationItemsRow(
     navItems: ImmutableList<BottomNavItem>,
     currentRoute: String?,
     modifier: Modifier = Modifier,
-    navBarStyle: String,
-    navBarInset: Dp
+    navBarStyle: String
 ) {
     val rowModifier = if (navBarStyle == NavBarStyle.FULL_WIDTH) {
         modifier
             .fillMaxWidth()
-            .padding(top = 14.dp, bottom = 8.dp + navBarInset, start = 12.dp, end = 12.dp)
+            .padding(top = 14.dp, bottom = 8.dp, start = 12.dp, end = 12.dp)
     } else {
         modifier
             .padding(horizontal = 10.dp)
@@ -121,15 +120,13 @@ fun PlayerInternalNavigationBar(
     navItems: ImmutableList<BottomNavItem>,
     currentRoute: String?,
     modifier: Modifier = Modifier,
-    navBarStyle: String,
-    navBarInset: Dp
+    navBarStyle: String
 ) {
     PlayerInternalNavigationItemsRow(
         navController = navController,
         navItems = navItems,
         currentRoute = currentRoute,
         navBarStyle = navBarStyle,
-        navBarInset = navBarInset,
         modifier = modifier
     )
 }
