@@ -46,6 +46,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.media3.common.Timeline
 import androidx.media3.session.SessionToken
 import androidx.mediarouter.media.MediaControlIntent
 import androidx.mediarouter.media.MediaRouteSelector
@@ -2628,6 +2629,7 @@ class PlayerViewModel @Inject constructor(
                 val success = FileDeletionUtils.deleteFile(context, song.path)
                 if (success) {
                     _toastEvents.emit("File deleted")
+                    removeFromMediaControllerQueue(song.id)
                     removeSong(song)
                     onResult(true)
                 } else {
@@ -2652,6 +2654,38 @@ class PlayerViewModel @Inject constructor(
         _isSheetVisible.value = false
         musicRepository.deleteById(song.id.toLong())
         userPreferencesRepository.removeSongFromAllPlaylists(song.id)
+    }
+
+    private fun removeFromMediaControllerQueue(songId: String) {
+        val controller = mediaController ?: return
+
+        try {
+            // Get the current timeline and media item count
+            val timeline = controller.currentTimeline
+            val mediaItemCount = timeline.windowCount
+
+            // Find the media item to remove by iterating through windows
+            for (i in 0 until mediaItemCount) {
+                val window = timeline.getWindow(i, Timeline.Window())
+                if (window.mediaItem.mediaId == songId) {
+                    // Remove the media item by index
+                    controller.removeMediaItem(i)
+
+                    // If the currently playing song was removed, handle playback
+//                    val currentMediaItem = controller.currentMediaItem
+//                    if (currentMediaItem?.mediaId == songId) {
+//                        when {
+//                            controller.hasNextMediaItem() -> controller.seekToNextMediaItem()
+//                            controller.hasPreviousMediaItem() -> controller.seekToPreviousMediaItem()
+//                            else -> controller.stop()
+//                        }
+//                    }
+                    break
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("MediaController", "Error removing from queue: ${e.message}")
+        }
     }
 
 

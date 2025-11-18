@@ -549,6 +549,7 @@ fun PlaylistDetailScreen(
                                             }
                                         }
                                     },
+                                    isFromPlaylist = true,
                                     isReorderModeEnabled = isReorderModeEnabled,
                                     isDragHandleVisible = isReorderModeEnabled,
                                     isRemoveButtonVisible = isRemoveModeEnabled,
