@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -76,6 +77,7 @@ import com.theveloper.pixelplay.presentation.navigation.AppNavigation
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.screens.SetupScreen
 import com.theveloper.pixelplay.presentation.viewmodel.MainViewModel
+import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.ui.theme.DarkColorScheme
 import com.theveloper.pixelplay.ui.theme.LightColorScheme
@@ -94,6 +96,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -121,6 +124,7 @@ import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
 import com.theveloper.pixelplay.presentation.components.NavBarContentHeightFullWidth
 import kotlin.math.pow
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -159,6 +163,12 @@ class MainActivity : ComponentActivity() {
         LogUtils.d(this, "onCreate")
         installSplashScreen()
         enableEdgeToEdge()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            window.navigationBarColor = Color.TRANSPARENT
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+        }
         super.onCreate(savedInstanceState)
 
         setContent {
@@ -425,6 +435,7 @@ class MainActivity : ComponentActivity() {
                 if (!shouldHideNavigationBar) {
                     val playerContentExpansionFraction = playerViewModel.playerContentExpansionFraction.value
                     val showPlayerContentArea = playerViewModel.stablePlayerState.collectAsState().value.currentSong != null
+                    val currentSheetContentState by playerViewModel.sheetState.collectAsState()
                     val navBarCornerRadius by playerViewModel.navBarCornerRadius.collectAsState()
                     val navBarElevation = 3.dp
 
@@ -460,6 +471,7 @@ class MainActivity : ComponentActivity() {
                     )
 
                     val navBarHideFraction = if (showPlayerContentArea) playerContentExpansionFraction else 0f
+                    val navBarHideFractionClamped = navBarHideFraction.coerceIn(0f, 1f)
 
                     val actualShape = remember(playerContentActualBottomRadius, showPlayerContentArea, navBarStyle, navBarCornerRadius) {
                         val bottomRadius = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp
@@ -475,35 +487,48 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    val bottomBarPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else systemNavBarInset
+
                     var componentHeightPx by remember { mutableStateOf(0) }
-                    val animatedTranslationY by remember(navBarHideFraction, componentHeightPx) { derivedStateOf { componentHeightPx * navBarHideFraction } }
+                    val density = LocalDensity.current
+                    val shadowOverflowPx = remember(navBarElevation, density) {
+                        with(density) { (navBarElevation * 8).toPx() }
+                    }
+                    val bottomBarPaddingPx = remember(bottomBarPadding, density) {
+                        with(density) { bottomBarPadding.toPx() }
+                    }
+                    val animatedTranslationY by remember(
+                        navBarHideFractionClamped,
+                        componentHeightPx,
+                        shadowOverflowPx,
+                        bottomBarPaddingPx,
+                    ) {
+                        derivedStateOf {
+                            (componentHeightPx + shadowOverflowPx + bottomBarPaddingPx) * navBarHideFractionClamped
+                        }
+                    }
 
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .padding(bottom = bottomBarPadding)
                             .onSizeChanged { componentHeightPx = it.height }
                             .graphicsLayer {
                                 translationY = animatedTranslationY
                                 alpha = 1f
                             }
                     ) {
-                        val navHeight: Dp
-                        val bottomPadding: Dp
-
-                        if (navBarStyle == NavBarStyle.DEFAULT) {
-                            navHeight = NavBarContentHeight
-                            bottomPadding = systemNavBarInset
-                        } else { // FULL_WIDTH
-                            navHeight = NavBarContentHeightFullWidth + systemNavBarInset
-                            bottomPadding = 0.dp
+                        val navHeight: Dp = if (navBarStyle == NavBarStyle.DEFAULT) {
+                            NavBarContentHeight
+                        } else {
+                            NavBarContentHeightFullWidth + systemNavBarInset
                         }
 
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(navHeight)
-                                .padding(horizontal = horizontalPadding)
-                                .padding(bottom = bottomPadding),
+                                .padding(horizontal = horizontalPadding),
                             color = NavigationBarDefaults.containerColor,
                             shape = actualShape,
                             shadowElevation = navBarElevation
@@ -513,7 +538,6 @@ class MainActivity : ComponentActivity() {
                                 navItems = commonNavItems,
                                 currentRoute = currentRoute,
                                 navBarStyle = navBarStyle,
-                                navBarInset = systemNavBarInset,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
