@@ -37,6 +37,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.provider.OpenableColumns
@@ -88,6 +89,7 @@ import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.data.model.Genre
 import com.theveloper.pixelplay.data.model.Lyrics
+import com.theveloper.pixelplay.data.model.MusicFolder
 import com.theveloper.pixelplay.data.model.SearchFilterType
 import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import com.theveloper.pixelplay.data.model.SearchResultItem
@@ -123,6 +125,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -144,8 +147,12 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import org.json.JSONObject
 import timber.log.Timber
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.util.ArrayDeque
+import java.util.Calendar
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlin.collections.map
@@ -205,11 +212,11 @@ data class PlayerUiState(
     val selectedSearchFilter: SearchFilterType = SearchFilterType.ALL,
     val searchHistory: ImmutableList<SearchHistoryItem> = persistentListOf(),
     val isSyncingLibrary: Boolean = false,
-    val musicFolders: ImmutableList<com.theveloper.pixelplay.data.model.MusicFolder> = persistentListOf(),
+    val musicFolders: ImmutableList<MusicFolder> = persistentListOf(),
     val currentFolderPath: String? = null,
     val isFolderFilterActive: Boolean = false,
 
-    val currentFolder: com.theveloper.pixelplay.data.model.MusicFolder? = null,
+    val currentFolder: MusicFolder? = null,
     val isFoldersPlaylistView: Boolean = false,
 
     // State for dismiss/undo functionality
@@ -512,7 +519,7 @@ class PlayerViewModel @Inject constructor(
 
     private val individualAlbumColorSchemes = mutableMapOf<String, MutableStateFlow<ColorSchemePair?>>()
 
-    private val colorSchemeRequestChannel = kotlinx.coroutines.channels.Channel<String>(kotlinx.coroutines.channels.Channel.UNLIMITED)
+    private val colorSchemeRequestChannel = Channel<String>(Channel.UNLIMITED)
     private val urisBeingProcessed = mutableSetOf<String>()
 
     private var mediaController: MediaController? = null
@@ -1087,7 +1094,7 @@ class PlayerViewModel @Inject constructor(
                             .setContentType("audio/mpeg")
                             .setMetadata(mediaMetadata)
                             .build()
-                        MediaQueueItem.Builder(mediaInfo).setCustomData(org.json.JSONObject().put("songId", song.id)).build()
+                        MediaQueueItem.Builder(mediaInfo).setCustomData(JSONObject().put("songId", song.id)).build()
                     }
 
                     val castRepeatMode = if (localPlayer.shuffleModeEnabled) {
@@ -1236,8 +1243,9 @@ class PlayerViewModel @Inject constructor(
     private fun checkAndUpdateDailyMixIfNeeded() {
         viewModelScope.launch {
             val lastUpdate = userPreferencesRepository.lastDailyMixUpdateFlow.first()
-            val today = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_YEAR)
-            val lastUpdateDay = java.util.Calendar.getInstance().apply { timeInMillis = lastUpdate }.get(java.util.Calendar.DAY_OF_YEAR)
+            val today = Calendar.getInstance().get(Calendar.DAY_OF_YEAR)
+            val lastUpdateDay = Calendar.getInstance().apply { timeInMillis = lastUpdate }.get(
+                Calendar.DAY_OF_YEAR)
 
             if (today != lastUpdateDay) {
                 updateDailyMix()
@@ -1525,7 +1533,7 @@ class PlayerViewModel @Inject constructor(
 
             try {
                 val repoCallFoldersStartTime = System.currentTimeMillis()
-                val allFoldersList: List<com.theveloper.pixelplay.data.model.MusicFolder> = musicRepository.getMusicFolders().first()
+                val allFoldersList: List<MusicFolder> = musicRepository.getMusicFolders().first()
                 val foldersLoadDuration = System.currentTimeMillis() - repoCallFoldersStartTime
                 Log.d("PlayerViewModelPerformance", "musicRepository.getMusicFolders (All) took $foldersLoadDuration ms for ${allFoldersList.size} folders.")
 
@@ -1938,7 +1946,7 @@ class PlayerViewModel @Inject constructor(
                 }
             }
             override fun onRepeatModeChanged(repeatMode: Int) { _stablePlayerState.update { it.copy(repeatMode = repeatMode) } }
-            override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+            override fun onTimelineChanged(timeline: Timeline, reason: Int) {
                 transitionSchedulerJob?.cancel()
                 updateCurrentPlaybackQueueFromPlayer(mediaController)
             }
@@ -2365,7 +2373,7 @@ class PlayerViewModel @Inject constructor(
                     .setContentType("audio/mpeg")
                     .setMetadata(mediaMetadata)
                     .build()
-                MediaQueueItem.Builder(mediaInfo).setCustomData(org.json.JSONObject().put("songId", song.id)).build()
+                MediaQueueItem.Builder(mediaInfo).setCustomData(JSONObject().put("songId", song.id)).build()
             }
             val startIndex = songsToPlay.indexOf(startSong).coerceAtLeast(0)
             val repeatMode = _stablePlayerState.value.repeatMode
@@ -2385,7 +2393,7 @@ class PlayerViewModel @Inject constructor(
                             .setTitle(song.title)
                             .setArtist(song.artist)
                         playlistId?.let {
-                            val extras = android.os.Bundle()
+                            val extras = Bundle()
                             extras.putString("playlistId", it)
                             metadataBuilder.setExtras(extras)
                         }
@@ -3110,8 +3118,8 @@ class PlayerViewModel @Inject constructor(
                         config = Bitmap.Config.ARGB_8888
                     )
 
-                    val stream = java.io.ByteArrayOutputStream()
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                    val stream = ByteArrayOutputStream()
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                         bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 80, stream)
                     } else {
                         bitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream)
@@ -3256,11 +3264,11 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    private fun findFolder(path: String?, folders: List<com.theveloper.pixelplay.data.model.MusicFolder>): com.theveloper.pixelplay.data.model.MusicFolder? {
+    private fun findFolder(path: String?, folders: List<MusicFolder>): MusicFolder? {
         if (path == null) {
             return null
         }
-        val queue = java.util.ArrayDeque(folders)
+        val queue = ArrayDeque(folders)
         while (queue.isNotEmpty()) {
             val folder = queue.remove()
             if (folder.path == path) {
@@ -3875,7 +3883,6 @@ class PlayerViewModel @Inject constructor(
             val previousAlbumArt = song.albumArtUriString
             val result = withContext(Dispatchers.IO) {
                 songMetadataEditor.editSongMetadata(
-                    contentUri = song.contentUriString,
                     newTitle = newTitle,
                     newArtist = newArtist,
                     newAlbum = newAlbum,
@@ -3883,6 +3890,7 @@ class PlayerViewModel @Inject constructor(
                     newLyrics = newLyrics,
                     newTrackNumber = newTrackNumber,
                     coverArtUpdate = coverArtUpdate,
+                    songId = song.id.toLong(),
                 )
             }
 

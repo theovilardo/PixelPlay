@@ -55,7 +55,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
-import com.theveloper.pixelplay.data.media.CoverArtUpdate
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.subcomps.AutoSizingTextToFill
 import com.theveloper.pixelplay.utils.formatDuration
@@ -65,6 +64,7 @@ import androidx.core.net.toUri
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.theveloper.pixelplay.data.ai.SongMetadata
+import com.theveloper.pixelplay.data.media.CoverArtUpdate
 import com.theveloper.pixelplay.ui.theme.MontserratFamily
 import java.io.File
 
