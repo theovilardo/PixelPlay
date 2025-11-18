@@ -781,6 +781,7 @@ fun LibraryScreen(
                 generateAiMetadata = { fields ->
                     playerViewModel.generateAiMetadata(currentSong, fields)
                 },
+                removeFromListTrigger = {}
             )
 
             if (showPlaylistBottomSheet) {

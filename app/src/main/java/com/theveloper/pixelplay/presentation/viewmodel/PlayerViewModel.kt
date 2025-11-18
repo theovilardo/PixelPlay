@@ -558,6 +558,12 @@ class PlayerViewModel @Inject constructor(
 
     private var dailyMixJob: Job? = null
 
+    fun removeFromDailyMix(songId: String) {
+        _dailyMixSongs.update { currentList ->
+            currentList.filterNot { it.id == songId }.toImmutableList()
+        }
+    }
+
     private fun updateDailyMix() {
         // Cancel any previous job to avoid multiple updates running
         dailyMixJob?.cancel()

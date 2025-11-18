@@ -645,7 +645,6 @@ fun PlaylistDetailScreen(
                     showPlaylistBottomSheet = true;
                 },
                 onDeleteFromDevice = playerViewModel::deleteFromDevice,
-                currentPlaylistId = playlistId,
                 onNavigateToAlbum = {
                     navController.navigate(Screen.AlbumDetail.createRoute(currentSong.albumId))
                     showSongInfoBottomSheet = false
@@ -668,6 +667,9 @@ fun PlaylistDetailScreen(
                 },
                 generateAiMetadata = { fields ->
                     playerViewModel.generateAiMetadata(currentSong, fields)
+                },
+                removeFromListTrigger = {
+                    playlistViewModel.removeSongFromPlaylist(playlistId, currentSong.id)
                 }
             )
             if (showPlaylistBottomSheet) {

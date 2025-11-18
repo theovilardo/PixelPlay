@@ -83,8 +83,7 @@ fun SongInfoBottomSheet(
     onNavigateToArtist: () -> Unit,
     onEditSong: (title: String, artist: String, album: String, genre: String, lyrics: String, trackNumber: Int, coverArtUpdate: CoverArtUpdate?) -> Unit,
     generateAiMetadata: suspend (List<String>) -> Result<SongMetadata>,
-    currentPlaylistId: String? = null,
-    playlistViewModel: PlaylistViewModel = hiltViewModel()
+    removeFromListTrigger: () -> Unit
 ) {
     val context = LocalContext.current
     var showEditSheet by remember { mutableStateOf(false) }
@@ -331,8 +330,7 @@ fun SongInfoBottomSheet(
                     (context as? Activity)?.let { activity ->
                         onDeleteFromDevice(activity, song) { result ->
                             if (result) {
-                                if (currentPlaylistId != null)
-                                    playlistViewModel.removeSongFromPlaylist(currentPlaylistId, song.id)
+                                removeFromListTrigger()
                                 onDismiss()
                             }
                         }

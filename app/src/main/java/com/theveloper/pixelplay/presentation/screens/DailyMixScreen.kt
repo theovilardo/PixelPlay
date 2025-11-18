@@ -145,6 +145,11 @@ fun DailyMixScreen(
 
     if (showSongInfoSheet && selectedSongForInfo != null) {
         val song = selectedSongForInfo!!
+        val removeFromListTrigger = remember(dailyMixSongs) {
+            {
+                playerViewModel.removeFromDailyMix(song.id)
+            }
+        }
         SongInfoBottomSheet(
             song = song,
             isFavorite = favoriteSongIds.contains(song.id),
@@ -177,6 +182,7 @@ fun DailyMixScreen(
             generateAiMetadata = { fields ->
                 playerViewModel.generateAiMetadata(song, fields)
             },
+            removeFromListTrigger = removeFromListTrigger
         )
 
         if (showPlaylistBottomSheet) {

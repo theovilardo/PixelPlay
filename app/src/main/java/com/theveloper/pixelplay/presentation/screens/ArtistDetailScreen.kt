@@ -267,6 +267,11 @@ fun ArtistDetailScreen(
         }.value ?: false
 
         if (currentSong != null) {
+            val removeFromListTrigger = remember(uiState.songs) {
+                {
+                    viewModel.removeSongFromAlbumSection(currentSong.id)
+                }
+            }
             SongInfoBottomSheet(
                 song = currentSong,
                 isFavorite = isFavorite,
@@ -300,6 +305,7 @@ fun ArtistDetailScreen(
                 generateAiMetadata = { fields ->
                     playerViewModel.generateAiMetadata(currentSong, fields)
                 },
+                removeFromListTrigger = removeFromListTrigger
             )
             if (showPlaylistBottomSheet) {
                 val playlistUiState by playlistViewModel.uiState.collectAsState()

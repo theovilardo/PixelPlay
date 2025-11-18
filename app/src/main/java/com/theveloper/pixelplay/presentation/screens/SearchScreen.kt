@@ -404,11 +404,17 @@ fun SearchScreen(
                 currentSong?.let { favoriteSongIds.contains(it.id) }
             }
         }.value ?: false
+        val removeFromListTrigger = remember(currentSong) {
+            {
+                searchQuery = "$searchQuery "
+            }
+        }
 
         if (currentSong != null) {
             SongInfoBottomSheet(
                 song = currentSong,
                 isFavorite = isFavorite,
+                removeFromListTrigger = removeFromListTrigger,
                 onToggleFavorite = {
                     playerViewModel.toggleFavoriteSpecificSong(currentSong)
                 },
