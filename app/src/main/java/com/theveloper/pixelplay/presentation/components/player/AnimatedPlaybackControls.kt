@@ -5,6 +5,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -35,6 +36,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.components.LocalMaterialTheme
+import androidx.compose.material.icons.animated.AnimatedIcons
 import kotlinx.coroutines.delay
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
@@ -65,12 +67,29 @@ fun AnimatedPlaybackControls(
 ) {
     val isPlaying = isPlayingProvider()
     var lastClicked by remember { mutableStateOf<PlaybackButtonType?>(null) }
+    val isPlayPauseLocked =
+        lastClicked == PlaybackButtonType.NEXT || lastClicked == PlaybackButtonType.PREVIOUS
+    var playPauseVisualState by remember { mutableStateOf(isPlaying) }
+    var pendingPlayPauseState by remember { mutableStateOf<Boolean?>(null) }
     val hapticFeedback = LocalHapticFeedback.current
 
     LaunchedEffect(lastClicked) {
         if (lastClicked != null) {
             delay(releaseDelay)
             lastClicked = null
+        }
+    }
+
+    LaunchedEffect(isPlaying) {
+        pendingPlayPauseState = isPlaying
+    }
+
+    LaunchedEffect(isPlayPauseLocked, pendingPlayPauseState) {
+        if (!isPlayPauseLocked) {
+            pendingPlayPauseState?.let {
+                playPauseVisualState = it
+                pendingPlayPauseState = null
+            }
         }
     }
 
@@ -121,7 +140,7 @@ fun AnimatedPlaybackControls(
                 label = "playWeight"
             )
             val playCorner by animateDpAsState(
-                targetValue = if (!isPlaying) playPauseCornerPlaying else playPauseCornerPaused,
+                targetValue = if (!playPauseVisualState) playPauseCornerPlaying else playPauseCornerPaused,
                 animationSpec = spring(
                     dampingRatio = Spring.DampingRatioNoBouncy,
                     stiffness = Spring.StiffnessMedium
@@ -151,15 +170,10 @@ fun AnimatedPlaybackControls(
                     },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    painter = if (isPlaying) {
-                        painterResource(R.drawable.rounded_pause_24)
-                    } else {
-                        painterResource(R.drawable.rounded_play_arrow_24)
-                    },
-                    contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+                MorphingPlayPauseIcon(
+                    isPlaying = playPauseVisualState,
                     tint = tintPlayPauseIcon,
-                    modifier = Modifier.size(playPauseIconSize)
+                    size = playPauseIconSize
                 )
             }
 
@@ -189,4 +203,23 @@ fun AnimatedPlaybackControls(
             }
         }
     }
+}
+
+@Composable
+private fun MorphingPlayPauseIcon(
+    isPlaying: Boolean,
+    tint: Color,
+    size: Dp,
+) {
+    val painter = rememberAnimatedVectorPainter(
+        animatedImageVector = AnimatedIcons.Filled.PlayPause,
+        atEnd = isPlaying
+    )
+
+    Icon(
+        painter = painter,
+        contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+        tint = tint,
+        modifier = Modifier.size(size)
+    )
 }

@@ -179,6 +179,7 @@ dependencies {
 
     //Foundation
     implementation(libs.androidx.foundation)
+    implementation("androidx.compose.animation:animation-graphics")
 
     //Wavy slider
     implementation(libs.wavy.slider)

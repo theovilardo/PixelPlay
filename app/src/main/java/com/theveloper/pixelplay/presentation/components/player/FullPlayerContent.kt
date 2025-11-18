@@ -383,24 +383,22 @@ fun FullPlayerContent(
                 }
 
                 DeferAt(expansionFraction, 0.34f) {
-                    key(currentSong.id) {
-                        AlbumCarouselSection(
-                            currentSong = currentSong,
-                            queue = currentPlaybackQueue,
-                            expansionFraction = expansionFraction,
-                            onSongSelected = { newSong ->
-                                if (newSong.id != currentSong.id) {
-                                    playerViewModel.showAndPlaySong(
-                                        song = newSong,
-                                        contextSongs = currentPlaybackQueue,
-                                        queueName = currentQueueSourceName
-                                    )
-                                }
-                            },
-                            carouselStyle = carouselStyle,
-                            modifier = Modifier.height(carouselHeight) // Apply calculated height
-                        )
-                    }
+                    AlbumCarouselSection(
+                        currentSong = currentSong,
+                        queue = currentPlaybackQueue,
+                        expansionFraction = expansionFraction,
+                        onSongSelected = { newSong ->
+                            if (newSong.id != currentSong.id) {
+                                playerViewModel.showAndPlaySong(
+                                    song = newSong,
+                                    contextSongs = currentPlaybackQueue,
+                                    queueName = currentQueueSourceName
+                                )
+                            }
+                        },
+                        carouselStyle = carouselStyle,
+                        modifier = Modifier.height(carouselHeight) // Apply calculated height
+                    )
                 }
             }
 
