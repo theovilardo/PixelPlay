@@ -40,7 +40,7 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheetState
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -114,7 +114,7 @@ fun FullPlayerContent(
     carouselStyle: String,
     playerViewModel: PlayerViewModel, // For stable state like totalDuration and lyrics
     navController: NavHostController,
-    queueSheetState: ModalBottomSheetState,
+    queueSheetState: SheetState,
     isQueueSheetVisible: Boolean,
     // State Providers
     currentPositionProvider: () -> Long,
@@ -252,10 +252,8 @@ fun FullPlayerContent(
                             }
 
                             launch {
-                                if (queueSheetState.currentValue == SheetValue.Hidden) {
-                                    queueSheetState.show()
-                                } else if (
-                                    queueSheetState.hasPartiallyExpandedState &&
+                                if (
+                                    queueSheetState.currentValue == SheetValue.Hidden ||
                                     queueSheetState.currentValue == SheetValue.PartiallyExpanded
                                 ) {
                                     queueSheetState.show()
