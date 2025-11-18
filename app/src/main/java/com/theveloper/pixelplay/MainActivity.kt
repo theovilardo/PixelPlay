@@ -89,7 +89,7 @@ import kotlinx.coroutines.delay
 import android.provider.Settings
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -471,17 +471,24 @@ class MainActivity : ComponentActivity() {
 
                     val navBarHideFraction = if (showPlayerContentArea) playerContentExpansionFraction else 0f
                     val navBarHideFractionClamped = navBarHideFraction.coerceIn(0f, 1f)
-                    val navBarHideFractionForTranslation = when {
-                        currentSheetContentState == PlayerSheetState.EXPANDED -> 1f
-                        else -> navBarHideFractionClamped.let { fraction ->
-                            if (fraction >= 0.9f) 1f else fraction
+                    val navBarHideAnimatable = remember { Animatable(navBarHideFractionClamped) }
+
+                    LaunchedEffect(navBarHideFractionClamped, currentSheetContentState) {
+                        val targetFraction = when {
+                            currentSheetContentState == PlayerSheetState.EXPANDED -> 1f
+                            navBarHideFractionClamped >= 0.98f -> 1f
+                            else -> navBarHideFractionClamped
+                        }
+
+                        if (currentSheetContentState == PlayerSheetState.EXPANDED && navBarHideAnimatable.value < targetFraction) {
+                            navBarHideAnimatable.animateTo(
+                                targetValue = targetFraction,
+                                animationSpec = tween(durationMillis = 220)
+                            )
+                        } else {
+                            navBarHideAnimatable.snapTo(targetFraction)
                         }
                     }
-                    val animatedNavBarHideFraction by animateFloatAsState(
-                        targetValue = navBarHideFractionForTranslation,
-                        animationSpec = tween(durationMillis = 220),
-                        label = "NavBarHideFraction"
-                    )
 
                     val actualShape = remember(playerContentActualBottomRadius, showPlayerContentArea, navBarStyle, navBarCornerRadius) {
                         val bottomRadius = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp
@@ -502,9 +509,9 @@ class MainActivity : ComponentActivity() {
                     val shadowOverflowPx = remember(navBarElevation, density) {
                         with(density) { (navBarElevation * 8).toPx() }
                     }
-                    val animatedTranslationY by remember(animatedNavBarHideFraction, componentHeightPx, shadowOverflowPx) {
+                    val animatedTranslationY by remember(navBarHideAnimatable.value, componentHeightPx, shadowOverflowPx) {
                         derivedStateOf {
-                            (componentHeightPx + shadowOverflowPx) * animatedNavBarHideFraction
+                            (componentHeightPx + shadowOverflowPx) * navBarHideAnimatable.value
                         }
                     }
 
