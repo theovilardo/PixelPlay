@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
@@ -64,6 +65,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavHostController
@@ -132,6 +134,7 @@ fun FullPlayerContent(
     val lyricsSearchUiState by playerViewModel.lyricsSearchUiState.collectAsState()
 
     var showFetchLyricsDialog by remember { mutableStateOf(false) }
+    var totalDrag by remember { mutableStateOf(0f) }
 
     val context = LocalContext.current
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -219,6 +222,27 @@ fun FullPlayerContent(
 
     Scaffold(
         containerColor = Color.Transparent,
+        modifier = Modifier.pointerInput(currentSheetState, expansionFraction) {
+            val isFullyExpanded =
+                currentSheetState == PlayerSheetState.EXPANDED && expansionFraction >= 0.99f
+            if (!isFullyExpanded) return@pointerInput
+
+            val swipeThresholdPx = with(this) { 36.dp.toPx() }
+            detectVerticalDragGestures(
+                onDragStart = { totalDrag = 0f },
+                onVerticalDrag = { change, dragAmount ->
+                    change.consume()
+                    totalDrag += dragAmount
+                },
+                onDragEnd = {
+                    if (totalDrag < -swipeThresholdPx) {
+                        onShowQueueClicked()
+                    }
+                    totalDrag = 0f
+                },
+                onDragCancel = { totalDrag = 0f }
+            )
+        },
         topBar = {
             TopAppBar(
                 modifier = Modifier.alpha(expansionFraction.coerceIn(0f, 1f)),
