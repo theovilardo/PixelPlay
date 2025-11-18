@@ -337,7 +337,8 @@ class PlayerViewModel @Inject constructor(
 
     private var sleepTimerJob: Job? = null
     private var eotSongMonitorJob: Job? = null
-    private var countedPlayJob: Job? = null
+    private var countedMediaListener: Player.Listener? = null
+    private var countedOriginalSongId: String? = null
 
     // Toast Events
     private val _toastEvents = MutableSharedFlow<String>()
@@ -2538,16 +2539,16 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    fun repeatAll(){
+    fun repeatOff(){
         val castSession = _castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
             val remoteMediaClient = castSession.remoteMediaClient
-            val newMode = MediaStatus.REPEAT_MODE_REPEAT_ALL;
+            val newMode = MediaStatus.REPEAT_MODE_REPEAT_OFF;
             remoteMediaClient?.queueSetRepeatMode(newMode, null)?.setResultCallback {
                 if (!it.status.isSuccess) Timber.e("Remote media client failed to set repeat mode: ${it.status.statusMessage}")
             }
         } else {
-            val newMode = Player.REPEAT_MODE_ALL
+            val newMode = Player.REPEAT_MODE_OFF
             mediaController?.repeatMode = newMode
         }
     }
@@ -3515,13 +3516,11 @@ class PlayerViewModel @Inject constructor(
 
     fun disableCountedPlay() {
         cancelCountedPlay()
-        repeatAll()
+        repeatOff()
         sendToast("Disabled counted play")
     }
 
-    @OptIn(FlowPreview::class)
-    fun playCounted(count: Int){
-
+    fun playCounted(count: Int) {
         _playCount.value = count.toFloat()
         if (count == 1) {
             disableCountedPlay()
@@ -3530,54 +3529,70 @@ class PlayerViewModel @Inject constructor(
             val currentSongId = stablePlayerState.value.currentSong?.id
 
             if (currentSongId != null) {
-                countedPlayJob?.cancel()
+                // Reset state
+                cancelCountedPlay()
 
-                countedPlayJob = viewModelScope.launch {
-                    var playCount = 1 // Start at 1 for current play
-                    viewModelScope.launch {
-                        sendToast("Will play $count times (including current play)")
-                        sendToast("Play count: $playCount/$count")
-                    }
-                    combine(
-                        playerUiState.map { it.currentPosition }.sample(1000), // Only check once per second ,
-                        stablePlayerState.map { it.totalDuration },
-                        stablePlayerState.map { it.currentSong?.id }
-                    ) { position, duration, songId ->
-                        Triple(position, duration, songId)
-                    }
-                        .collect { (position, duration, songId) ->
-                            // Check if song changed
-                            if (songId != currentSongId) {
-                                cancel()
-                                disableCountedPlay()
-                                return@collect
-                            }
+                this.countedOriginalSongId = currentSongId
+                var playCount = 1 // Start at 1 for current play
 
-                            // Detect track completion: position near end with valid duration
-                            if (duration > 0 && position >= duration - 1100) {
+                sendToast("Will play $count times (including current play)")
+                sendToast("Play count: 1/$count")
+
+                // Create the media listener
+                countedMediaListener = object : Player.Listener {
+                    override fun onPositionDiscontinuity(
+                        oldPosition: Player.PositionInfo,
+                        newPosition: Player.PositionInfo,
+                        reason: Int
+                    ) {
+                        when (reason) {
+                            Player.DISCONTINUITY_REASON_AUTO_TRANSITION -> {
+                                // This is triggered when the track completes and restarts (repeat single)
                                 playCount++
-                                if (playCount<=count)
-                                    sendToast("Play count: $playCount/$count")
-
-                                if (playCount >= count+1) {
+                                if (playCount <= count) {
+                                    sendToast("Play count: ${playCount}/$count")
+                                }
+                                if (playCount >= count + 1) {
                                     mediaController?.pause()
                                     sendToast("Played $count times - pausing")
                                     disableCountedPlay()
-                                    cancel()
-                                } else {
-                                    // Skip ahead to avoid multiple triggers for same completion
-                                    delay(1000)
                                 }
                             }
+                            Player.DISCONTINUITY_REASON_SEEK -> {
+                                val newMediaItem = newPosition.mediaItem
+                                // If sought to a different song, cancel counted play
+                                if (newMediaItem?.mediaId != countedOriginalSongId) {
+                                    disableCountedPlay()
+                                }
+                            }
+                        }
                     }
 
+                    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                        // If user manually changes to a different song
+                        if (mediaItem?.mediaId != countedOriginalSongId) {
+                            disableCountedPlay()
+                        }
+                    }
+                }
+                // Add the listener to media controller
+                countedMediaListener?.let { listener ->
+                    mediaController?.addListener(listener)
                 }
             }
         }
     }
+
+
     fun cancelCountedPlay() {
-        countedPlayJob?.cancel()
-        countedPlayJob = null
+        // Remove media listener
+        countedMediaListener?.let { listener ->
+            mediaController?.removeListener(listener)
+        }
+        countedMediaListener = null
+
+        // Reset state
+        countedOriginalSongId = null
         _playCount.value = 1f
     }
 
