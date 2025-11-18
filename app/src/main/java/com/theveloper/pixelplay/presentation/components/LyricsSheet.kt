@@ -459,46 +459,45 @@ fun LyricsSheet(
                 }
             }
 
-                val bottomPadding = paddingValues.calculateBottomPadding() + 10.dp
-                val footerBaseHeight = 76.dp
+            val bottomPadding = paddingValues.calculateBottomPadding() + 10.dp
+            val footerBaseHeight = 76.dp
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.BottomCenter)
-                        .heightIn(min = footerBaseHeight + bottomPadding)
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Transparent,
-                                    containerColor
-                                )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .heightIn(min = footerBaseHeight + bottomPadding)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                containerColor
                             )
                         )
-                ) {
-
-                }
-
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .padding(bottom = bottomPadding)
-                        .padding(horizontal = 24.dp)
-                ) {
-                    PlayerSeekBar(
-                        backgroundColor = backgroundColor,
-                        onBackgroundColor = onBackgroundColor,
-                        primaryColor = accentColor,
-                        currentPosition = playerUiState.currentPosition,
-                        totalDuration = stablePlayerState.totalDuration,
-                        onSeek = onSeekTo,
-                        isPlaying = isPlaying,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(70.dp)
                     )
-                }
+            ) {
+
+            }
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(bottom = bottomPadding)
+                    .padding(horizontal = 24.dp)
+            ) {
+                PlayerSeekBar(
+                    backgroundColor = backgroundColor,
+                    onBackgroundColor = onBackgroundColor,
+                    primaryColor = accentColor,
+                    currentPosition = playerUiState.currentPosition,
+                    totalDuration = stablePlayerState.totalDuration,
+                    onSeek = onSeekTo,
+                    isPlaying = isPlaying,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                )
             }
         }
     }
