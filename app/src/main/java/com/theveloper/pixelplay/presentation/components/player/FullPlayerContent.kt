@@ -243,8 +243,9 @@ fun FullPlayerContent(
                     },
                     onVerticalDrag = { change, dragAmount ->
                         totalDrag += dragAmount
-
                         val isDraggingUp = totalDrag < -queueDragActivationThresholdPx
+                        val isDraggingDown = totalDrag > queueDragActivationThresholdPx
+
                         if (isDraggingUp) {
                             change.consume()
                             if (!isQueueSheetVisible) {
@@ -258,7 +259,13 @@ fun FullPlayerContent(
                                 ) {
                                     queueSheetState.show()
                                 }
+
+                                if (totalDrag < -swipeThresholdPx) {
+                                    queueSheetState.expand()
+                                }
                             }
+                        } else if (isDraggingDown && !isQueueSheetVisible) {
+                            change.consume()
                         }
                     },
                     onDragEnd = {
@@ -267,6 +274,8 @@ fun FullPlayerContent(
                                 if (!isQueueSheetVisible) onQueueSheetVisibilityChange(true)
                                 queueSheetState.expand()
                             }
+                        } else if (totalDrag > swipeThresholdPx && !isQueueSheetVisible) {
+                            onCollapse()
                         }
                         totalDrag = 0f
                     },
