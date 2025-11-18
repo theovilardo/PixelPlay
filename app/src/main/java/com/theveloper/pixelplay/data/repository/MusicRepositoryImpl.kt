@@ -331,8 +331,10 @@ class MusicRepositoryImpl @Inject constructor(
 
     override suspend fun searchPlaylists(query: String): List<Playlist> {
         if (query.isBlank()) return emptyList()
-        Log.d("MusicRepositoryImpl", "searchPlaylists called with query: $query. Not implemented.")
-        return emptyList()
+        return userPreferencesRepository.userPlaylistsFlow.first()
+            .filter { playlist ->
+                playlist.name.contains(query, ignoreCase = true)
+            }
     }
 
     override fun searchAll(query: String, filterType: SearchFilterType): Flow<List<SearchResultItem>> {

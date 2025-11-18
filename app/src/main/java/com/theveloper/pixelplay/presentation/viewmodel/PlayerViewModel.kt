@@ -3070,6 +3070,10 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    suspend fun getSongs(songIds: List<String>) : List<Song>{
+        return musicRepository.getSongsByIds(songIds).first()
+    }
+
     //Sorting
     fun sortSongs(sortOption: SortOption, persist: Boolean = true) {
         val sortedSongs = when (sortOption) {
