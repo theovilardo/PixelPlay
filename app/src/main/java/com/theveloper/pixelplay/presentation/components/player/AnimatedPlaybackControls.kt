@@ -1,11 +1,11 @@
 package com.theveloper.pixelplay.presentation.components.player
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -36,7 +36,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.components.LocalMaterialTheme
-import androidx.compose.material.icons.animated.AnimatedIcons
 import kotlinx.coroutines.delay
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
@@ -211,15 +210,17 @@ private fun MorphingPlayPauseIcon(
     tint: Color,
     size: Dp,
 ) {
-    val painter = rememberAnimatedVectorPainter(
-        animatedImageVector = AnimatedIcons.Filled.PlayPause,
-        atEnd = isPlaying
-    )
-
-    Icon(
-        painter = painter,
-        contentDescription = if (isPlaying) "Pausar" else "Reproducir",
-        tint = tint,
-        modifier = Modifier.size(size)
-    )
+    Crossfade(
+        targetState = isPlaying,
+        label = "playPauseCrossfade"
+    ) { playing ->
+        Icon(
+            painter = painterResource(
+                if (playing) R.drawable.rounded_pause_24 else R.drawable.rounded_play_arrow_24
+            ),
+            contentDescription = if (playing) "Pausar" else "Reproducir",
+            tint = tint,
+            modifier = Modifier.size(size)
+        )
+    }
 }
