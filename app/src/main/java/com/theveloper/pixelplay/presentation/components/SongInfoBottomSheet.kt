@@ -279,7 +279,7 @@ fun SongInfoBottomSheet(
                     Text("Add to Queue")
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 FilledTonalButton(
                     modifier = Modifier
