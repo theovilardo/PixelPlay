@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -88,6 +89,7 @@ import kotlinx.coroutines.delay
 import android.provider.Settings
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -160,6 +162,12 @@ class MainActivity : ComponentActivity() {
         LogUtils.d(this, "onCreate")
         installSplashScreen()
         enableEdgeToEdge()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            window.navigationBarColor = Color.TRANSPARENT
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+        }
         super.onCreate(savedInstanceState)
 
         setContent {
@@ -469,6 +477,11 @@ class MainActivity : ComponentActivity() {
                             if (fraction >= 0.9f) 1f else fraction
                         }
                     }
+                    val animatedNavBarHideFraction by animateFloatAsState(
+                        targetValue = navBarHideFractionForTranslation,
+                        animationSpec = tween(durationMillis = 220),
+                        label = "NavBarHideFraction"
+                    )
 
                     val actualShape = remember(playerContentActualBottomRadius, showPlayerContentArea, navBarStyle, navBarCornerRadius) {
                         val bottomRadius = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp
@@ -489,9 +502,9 @@ class MainActivity : ComponentActivity() {
                     val shadowOverflowPx = remember(navBarElevation, density) {
                         with(density) { (navBarElevation * 8).toPx() }
                     }
-                    val animatedTranslationY by remember(navBarHideFractionForTranslation, componentHeightPx, shadowOverflowPx) {
+                    val animatedTranslationY by remember(animatedNavBarHideFraction, componentHeightPx, shadowOverflowPx) {
                         derivedStateOf {
-                            (componentHeightPx + shadowOverflowPx) * navBarHideFractionForTranslation
+                            (componentHeightPx + shadowOverflowPx) * animatedNavBarHideFraction
                         }
                     }
 
