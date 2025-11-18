@@ -81,16 +81,19 @@ fun extractSeedColor(bitmap: Bitmap): Color {
 
 fun generateColorSchemeFromSeed(seedColor: Color): ColorSchemePair {
 
-    val tunedSeed = seedColor.withMinChroma(0.26f)
+    val tunedSeed = seedColor.withMinChroma(0.3f)
 
     // --- Tonal Palettes ---
     // Primary Tones
     val primary10 = tunedSeed.tone(10)
     val primary20 = tunedSeed.tone(20)
     val primary30 = tunedSeed.tone(30)
-    val primary45 = tunedSeed.tone(45) // Primary Light
+    val primary15 = tunedSeed.tone(15)
+    val primary45 = tunedSeed.tone(45)
+    val primary55 = tunedSeed.tone(55) // Primary Light
     val primary80 = tunedSeed.tone(80) // Primary Dark
     val primary90 = tunedSeed.tone(90)
+    val primary92 = tunedSeed.tone(92)
     val primary100= tunedSeed.tone(100)
 
 
@@ -99,9 +102,11 @@ fun generateColorSchemeFromSeed(seedColor: Color): ColorSchemePair {
     val secondary10 = secondarySeed.tone(10)
     val secondary20 = secondarySeed.tone(20)
     val secondary30 = secondarySeed.tone(30)
-    val secondary45 = secondarySeed.tone(45)
+    val secondary15 = secondarySeed.tone(15)
+    val secondary55 = secondarySeed.tone(55)
     val secondary80 = secondarySeed.tone(80)
     val secondary90 = secondarySeed.tone(90)
+    val secondary92 = secondarySeed.tone(92)
     val secondary100= secondarySeed.tone(100)
 
     // Tertiary Tones (Shift hue differently, adjust chroma)
@@ -109,54 +114,58 @@ fun generateColorSchemeFromSeed(seedColor: Color): ColorSchemePair {
     val tertiary10 = tertiarySeed.tone(10)
     val tertiary20 = tertiarySeed.tone(20)
     val tertiary30 = tertiarySeed.tone(30)
-    val tertiary45 = tertiarySeed.tone(45)
+    val tertiary15 = tertiarySeed.tone(15)
+    val tertiary55 = tertiarySeed.tone(55)
     val tertiary80 = tertiarySeed.tone(80)
     val tertiary90 = tertiarySeed.tone(90)
+    val tertiary92 = tertiarySeed.tone(92)
     val tertiary100= tertiarySeed.tone(100)
 
     // Neutral Tones (Very low chroma from seed)
     val neutralSeed = tunedSeed.withChroma(0.06f)
     val neutral10 = neutralSeed.tone(10) // Surface Dark, Background Dark
+    val neutral12 = neutralSeed.tone(12)
     val neutral20 = neutralSeed.tone(20)
     val neutral30 = neutralSeed.tone(30) // SurfaceVariant Dark
-    val neutral88 = neutralSeed.tone(88)
+    val neutral80 = neutralSeed.tone(80)
+    val neutral86 = neutralSeed.tone(86)
     val neutral90 = neutralSeed.tone(90)
     val neutral94 = neutralSeed.tone(94)
-    val neutral97 = neutralSeed.tone(97)
+    val neutral96 = neutralSeed.tone(96)
     val neutral98 = neutralSeed.tone(98)
     val neutral100= neutralSeed.tone(100)
 
 
     // Light Color Scheme
     val lightScheme = lightColorScheme(
-        primary = primary45,
+        primary = primary55,
         onPrimary = primary100,
-        primaryContainer = primary90,
-        onPrimaryContainer = primary10,
-        secondary = secondary45,
+        primaryContainer = primary92,
+        onPrimaryContainer = primary15,
+        secondary = secondary55,
         onSecondary = secondary100,
-        secondaryContainer = secondary90,
-        onSecondaryContainer = secondary10,
-        tertiary = tertiary45,
+        secondaryContainer = secondary92,
+        onSecondaryContainer = secondary15,
+        tertiary = tertiary55,
         onTertiary = tertiary100,
-        tertiaryContainer = tertiary90,
-        onTertiaryContainer = tertiary10,
+        tertiaryContainer = tertiary92,
+        onTertiaryContainer = tertiary15,
         error = Color(0xFFBA1A1A), // M3 Defaults
         onError = Color.White,
         errorContainer = Color(0xFFFFDAD6),
         onErrorContainer = Color(0xFF410002),
-        background = neutral98,
-        onBackground = neutral10,
-        surface = neutral97,
-        onSurface = neutral10,
-        surfaceVariant = neutral88,
+        background = neutral96,
+        onBackground = neutral12,
+        surface = neutral94,
+        onSurface = neutral12,
+        surfaceVariant = neutral86,
         onSurfaceVariant = neutral30,
-        outline = neutralSeed.tone(52),
+        outline = neutralSeed.tone(58),
         inverseOnSurface = neutral94,
         inverseSurface = neutral20,
         inversePrimary = primary80,
-        surfaceTint = primary45,
-        outlineVariant = neutralSeed.tone(78),
+        surfaceTint = primary55,
+        outlineVariant = neutral80,
         scrim = Color.Black
     )
 
