@@ -40,6 +40,8 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheetState
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -91,6 +93,7 @@ import com.theveloper.pixelplay.utils.formatDuration
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import timber.log.Timber
 import kotlin.math.roundToLong
@@ -110,6 +113,8 @@ fun FullPlayerContent(
     carouselStyle: String,
     playerViewModel: PlayerViewModel, // For stable state like totalDuration and lyrics
     navController: NavHostController,
+    queueSheetState: ModalBottomSheetState,
+    isQueueSheetVisible: Boolean,
     // State Providers
     currentPositionProvider: () -> Long,
     isPlayingProvider: () -> Boolean,
@@ -121,6 +126,7 @@ fun FullPlayerContent(
     onPrevious: () -> Unit,
     onCollapse: () -> Unit,
     onShowQueueClicked: () -> Unit,
+    onQueueSheetVisibilityChange: (Boolean) -> Unit,
     onShowCastClicked: () -> Unit,
     onShowTrackVolumeClicked: () -> Unit,
     onShuffleToggle: () -> Unit,
@@ -222,21 +228,42 @@ fun FullPlayerContent(
 
     Scaffold(
         containerColor = Color.Transparent,
-        modifier = Modifier.pointerInput(currentSheetState, expansionFraction) {
+        modifier = Modifier.pointerInput(currentSheetState, expansionFraction, isQueueSheetVisible) {
             val isFullyExpanded =
                 currentSheetState == PlayerSheetState.EXPANDED && expansionFraction >= 0.99f
             if (!isFullyExpanded) return@pointerInput
 
             val swipeThresholdPx = with(this) { 36.dp.toPx() }
+            val queueDragActivationThresholdPx = with(this) { 6.dp.toPx() }
             detectVerticalDragGestures(
-                onDragStart = { totalDrag = 0f },
+                onDragStart = {
+                    totalDrag = 0f
+                },
                 onVerticalDrag = { change, dragAmount ->
-                    change.consume()
                     totalDrag += dragAmount
+
+                    val isDraggingUp = totalDrag < -queueDragActivationThresholdPx
+                    if (isDraggingUp) {
+                        change.consume()
+                        if (!isQueueSheetVisible) {
+                            onQueueSheetVisibilityChange(true)
+                        }
+
+                        launch {
+                            if (queueSheetState.currentValue == SheetValue.Hidden) {
+                                queueSheetState.partialExpand()
+                            } else if (queueSheetState.currentValue == SheetValue.PartiallyExpanded) {
+                                queueSheetState.snapTo(SheetValue.PartiallyExpanded)
+                            }
+                        }
+                    }
                 },
                 onDragEnd = {
                     if (totalDrag < -swipeThresholdPx) {
-                        onShowQueueClicked()
+                        launch {
+                            if (!isQueueSheetVisible) onQueueSheetVisibilityChange(true)
+                            queueSheetState.animateTo(SheetValue.Expanded)
+                        }
                     }
                     totalDrag = 0f
                 },

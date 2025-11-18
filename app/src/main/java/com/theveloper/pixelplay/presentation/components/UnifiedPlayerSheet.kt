@@ -47,6 +47,7 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -1004,6 +1005,8 @@ fun UnifiedPlayerSheet(
                                                 currentPositionProvider = { positionToDisplay },
                                                 isPlayingProvider = { stablePlayerState.isPlaying },
                                                 isFavoriteProvider = { isFavorite },
+                                                queueSheetState = queueSheetState,
+                                                isQueueSheetVisible = showQueueSheet,
                                                 // Event Handlers
                                                 onPlayPause = playerViewModel::playPause,
                                                 onSeek = playerViewModel::seekTo,
@@ -1011,6 +1014,7 @@ fun UnifiedPlayerSheet(
                                                 onPrevious = playerViewModel::previousSong,
                                                 onCollapse = playerViewModel::collapsePlayerSheet,
                                                 onShowQueueClicked = { showQueueSheet = true },
+                                                onQueueSheetVisibilityChange = { showQueueSheet = it },
                                                 onShowCastClicked = { showCastSheet = true },
                                                 onShowTrackVolumeClicked = {
                                                     showTrackVolumeSheet = true
@@ -1037,11 +1041,14 @@ fun UnifiedPlayerSheet(
         }
     }
 
+    val queueSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+
     if (showQueueSheet && !internalIsKeyboardVisible) {
         CompositionLocalProvider(
             LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
         ) {
             QueueBottomSheet(
+                sheetState = queueSheetState,
                 queue = currentPlaybackQueue, // Use granular state
                 currentQueueSourceName = currentQueueSourceName, // Use granular state
                 currentSongId = stablePlayerState.currentSong?.id, // stablePlayerState is fine here
