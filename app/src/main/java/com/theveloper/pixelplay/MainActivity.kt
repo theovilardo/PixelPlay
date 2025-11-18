@@ -89,7 +89,6 @@ import kotlinx.coroutines.delay
 import android.provider.Settings
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -471,24 +470,6 @@ class MainActivity : ComponentActivity() {
 
                     val navBarHideFraction = if (showPlayerContentArea) playerContentExpansionFraction else 0f
                     val navBarHideFractionClamped = navBarHideFraction.coerceIn(0f, 1f)
-                    val navBarHideAnimatable = remember { Animatable(navBarHideFractionClamped) }
-
-                    LaunchedEffect(navBarHideFractionClamped, currentSheetContentState) {
-                        val targetFraction = if (currentSheetContentState == PlayerSheetState.EXPANDED) 1f else navBarHideFractionClamped
-                        val delta = kotlin.math.abs(targetFraction - navBarHideAnimatable.value)
-
-                        if (delta < 0.04f && currentSheetContentState != PlayerSheetState.EXPANDED) {
-                            navBarHideAnimatable.snapTo(targetFraction)
-                        } else {
-                            navBarHideAnimatable.animateTo(
-                                targetValue = targetFraction,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioNoBouncy,
-                                    stiffness = Spring.StiffnessMediumLow
-                                )
-                            )
-                        }
-                    }
 
                     val actualShape = remember(playerContentActualBottomRadius, showPlayerContentArea, navBarStyle, navBarCornerRadius) {
                         val bottomRadius = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp
@@ -509,9 +490,9 @@ class MainActivity : ComponentActivity() {
                     val shadowOverflowPx = remember(navBarElevation, density) {
                         with(density) { (navBarElevation * 8).toPx() }
                     }
-                    val animatedTranslationY by remember(navBarHideAnimatable.value, componentHeightPx, shadowOverflowPx) {
+                    val animatedTranslationY by remember(navBarHideFractionClamped, componentHeightPx, shadowOverflowPx) {
                         derivedStateOf {
-                            (componentHeightPx + shadowOverflowPx) * navBarHideAnimatable.value
+                            (componentHeightPx + shadowOverflowPx) * navBarHideFractionClamped
                         }
                     }
 
