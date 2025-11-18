@@ -38,6 +38,12 @@ object ThemePreference {
     const val GLOBAL = "global"
 }
 
+object AppThemeMode {
+    const val FOLLOW_SYSTEM = "follow_system"
+    const val LIGHT = "light"
+    const val DARK = "dark"
+}
+
 @Singleton
 class UserPreferencesRepository @Inject constructor(
     private val dataStore: DataStore<Preferences>,
@@ -52,6 +58,7 @@ class UserPreferencesRepository @Inject constructor(
         val INITIAL_SETUP_DONE = booleanPreferencesKey("initial_setup_done")
         // val GLOBAL_THEME_PREFERENCE = stringPreferencesKey("global_theme_preference_v2") // Removed
         val PLAYER_THEME_PREFERENCE = stringPreferencesKey("player_theme_preference_v2")
+        val APP_THEME_MODE = stringPreferencesKey("app_theme_mode")
         val FAVORITE_SONG_IDS = stringSetPreferencesKey("favorite_song_ids")
         val USER_PLAYLISTS = stringPreferencesKey("user_playlists_json_v1")
 
@@ -142,6 +149,11 @@ class UserPreferencesRepository @Inject constructor(
     val playerThemePreferenceFlow: Flow<String> = dataStore.data
         .map { preferences ->
             preferences[PreferencesKeys.PLAYER_THEME_PREFERENCE] ?: ThemePreference.ALBUM_ART // Default to Album Art
+        }
+
+    val appThemeModeFlow: Flow<String> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.APP_THEME_MODE] ?: AppThemeMode.FOLLOW_SYSTEM
         }
 
     val favoriteSongIdsFlow: Flow<Set<String>> = dataStore.data // Nuevo flujo para favoritos
@@ -267,6 +279,12 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setPlayerThemePreference(themeMode: String) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.PLAYER_THEME_PREFERENCE] = themeMode
+        }
+    }
+
+    suspend fun setAppThemeMode(themeMode: String) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.APP_THEME_MODE] = themeMode
         }
     }
 

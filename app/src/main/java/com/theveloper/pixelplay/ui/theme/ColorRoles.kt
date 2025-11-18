@@ -31,6 +31,13 @@ private fun Color.withChroma(targetChroma: Float): Color {
     return hctToColor(hue, targetChroma.coerceIn(0f,1f), tone)
 }
 
+private fun Color.withMinChroma(minChroma: Float): Color {
+    val (hue, chroma, tone) = this.toHct()
+    val boostedChroma = max(chroma, minChroma).coerceAtMost(0.5f)
+    val balancedTone = tone.coerceIn(0.32f, 0.8f)
+    return hctToColor(hue, boostedChroma, balancedTone)
+}
+
 private fun Float.toByteInt(): Int = (this * 255f).toInt()
 
 
@@ -74,59 +81,63 @@ fun extractSeedColor(bitmap: Bitmap): Color {
 
 fun generateColorSchemeFromSeed(seedColor: Color): ColorSchemePair {
 
+    val tunedSeed = seedColor.withMinChroma(0.26f)
+
     // --- Tonal Palettes ---
     // Primary Tones
-    val primary10 = seedColor.tone(10)
-    val primary20 = seedColor.tone(20)
-    val primary30 = seedColor.tone(30)
-    val primary40 = seedColor.tone(40) // Primary Light
-    val primary80 = seedColor.tone(80) // Primary Dark
-    val primary90 = seedColor.tone(90)
-    val primary100= seedColor.tone(100)
+    val primary10 = tunedSeed.tone(10)
+    val primary20 = tunedSeed.tone(20)
+    val primary30 = tunedSeed.tone(30)
+    val primary45 = tunedSeed.tone(45) // Primary Light
+    val primary80 = tunedSeed.tone(80) // Primary Dark
+    val primary90 = tunedSeed.tone(90)
+    val primary100= tunedSeed.tone(100)
 
 
     // Secondary Tones (Shift hue, adjust chroma)
-    val secondarySeed = hctToColor((seedColor.toHct().first + 60f) % 360f, 0.16f, seedColor.toHct().third)
+    val secondarySeed = hctToColor((tunedSeed.toHct().first + 45f) % 360f, 0.24f, tunedSeed.toHct().third).withMinChroma(0.22f)
     val secondary10 = secondarySeed.tone(10)
     val secondary20 = secondarySeed.tone(20)
     val secondary30 = secondarySeed.tone(30)
-    val secondary40 = secondarySeed.tone(40)
+    val secondary45 = secondarySeed.tone(45)
     val secondary80 = secondarySeed.tone(80)
     val secondary90 = secondarySeed.tone(90)
     val secondary100= secondarySeed.tone(100)
 
     // Tertiary Tones (Shift hue differently, adjust chroma)
-    val tertiarySeed = hctToColor((seedColor.toHct().first + 120f) % 360f, 0.24f, seedColor.toHct().third)
+    val tertiarySeed = hctToColor((tunedSeed.toHct().first + 120f) % 360f, 0.32f, tunedSeed.toHct().third).withMinChroma(0.24f)
     val tertiary10 = tertiarySeed.tone(10)
     val tertiary20 = tertiarySeed.tone(20)
     val tertiary30 = tertiarySeed.tone(30)
-    val tertiary40 = tertiarySeed.tone(40)
+    val tertiary45 = tertiarySeed.tone(45)
     val tertiary80 = tertiarySeed.tone(80)
     val tertiary90 = tertiarySeed.tone(90)
     val tertiary100= tertiarySeed.tone(100)
 
     // Neutral Tones (Very low chroma from seed)
-    val neutralSeed = seedColor.withChroma(0.04f)
+    val neutralSeed = tunedSeed.withChroma(0.06f)
     val neutral10 = neutralSeed.tone(10) // Surface Dark, Background Dark
     val neutral20 = neutralSeed.tone(20)
     val neutral30 = neutralSeed.tone(30) // SurfaceVariant Dark
-    val neutral90 = neutralSeed.tone(90) // SurfaceVariant Light, OnPrimaryContainer Dark
-    val neutral95 = neutralSeed.tone(95)
-    val neutral99 = neutralSeed.tone(99) // Surface Light, Background Light
+    val neutral88 = neutralSeed.tone(88)
+    val neutral90 = neutralSeed.tone(90)
+    val neutral94 = neutralSeed.tone(94)
+    val neutral97 = neutralSeed.tone(97)
+    val neutral98 = neutralSeed.tone(98)
     val neutral100= neutralSeed.tone(100)
 
 
     // Light Color Scheme
     val lightScheme = lightColorScheme(
-        primary = primary40,
+        primary = primary45,
         onPrimary = primary100,
         primaryContainer = primary90,
         onPrimaryContainer = primary10,
-        secondary = secondary40,
+        secondary = secondary45,
         onSecondary = secondary100,
         secondaryContainer = secondary90,
         onSecondaryContainer = secondary10,
-        tertiary = tertiary40,
+        tertiary = tertiary45,
         onTertiary = tertiary100,
         tertiaryContainer = tertiary90,
         onTertiaryContainer = tertiary10,
@@ -134,18 +145,18 @@ fun generateColorSchemeFromSeed(seedColor: Color): ColorSchemePair {
         onError = Color.White,
         errorContainer = Color(0xFFFFDAD6),
         onErrorContainer = Color(0xFF410002),
-        background = neutral99,
+        background = neutral98,
         onBackground = neutral10,
-        surface = neutral99,
+        surface = neutral97,
         onSurface = neutral10,
-        surfaceVariant = neutral90,
+        surfaceVariant = neutral88,
         onSurfaceVariant = neutral30,
-        outline = neutralSeed.tone(50),
-        inverseOnSurface = neutral95,
+        outline = neutralSeed.tone(52),
+        inverseOnSurface = neutral94,
         inverseSurface = neutral20,
         inversePrimary = primary80,
-        surfaceTint = primary40,
-        outlineVariant = neutralSeed.tone(80),
+        surfaceTint = primary45,
+        outlineVariant = neutralSeed.tone(78),
         scrim = Color.Black
     )
 
@@ -176,7 +187,7 @@ fun generateColorSchemeFromSeed(seedColor: Color): ColorSchemePair {
         outline = neutralSeed.tone(60),
         inverseOnSurface = neutral20,
         inverseSurface = neutral90,
-        inversePrimary = primary40,
+        inversePrimary = primary45,
         surfaceTint = primary80,
         outlineVariant = neutral30,
         scrim = Color.Black

@@ -3,6 +3,7 @@ package com.theveloper.pixelplay.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.theveloper.pixelplay.data.model.DirectoryItem
+import com.theveloper.pixelplay.data.preferences.AppThemeMode
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
@@ -21,6 +22,7 @@ import com.theveloper.pixelplay.data.preferences.LaunchTab
 data class SettingsUiState(
     val directoryItems: List<DirectoryItem> = emptyList(),
     val isLoadingDirectories: Boolean = true,
+    val appThemeMode: String = AppThemeMode.FOLLOW_SYSTEM,
     val playerThemePreference: String = ThemePreference.ALBUM_ART,
     val mockGenresEnabled: Boolean = false,
     val navBarCornerRadius: Int = 32,
@@ -53,6 +55,12 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferencesRepository.DEFAULT_SYSTEM_PROMPT)
 
     init {
+        viewModelScope.launch {
+            userPreferencesRepository.appThemeModeFlow.collect { appThemeMode ->
+                _uiState.update { it.copy(appThemeMode = appThemeMode) }
+            }
+        }
+
         viewModelScope.launch {
             userPreferencesRepository.playerThemePreferenceFlow.collect { preference ->
                 _uiState.update{ it.copy(playerThemePreference = preference) }
@@ -130,6 +138,12 @@ class SettingsViewModel @Inject constructor(
     fun setPlayerThemePreference(preference: String) {
         viewModelScope.launch {
             userPreferencesRepository.setPlayerThemePreference(preference)
+        }
+    }
+
+    fun setAppThemeMode(mode: String) {
+        viewModelScope.launch {
+            userPreferencesRepository.setAppThemeMode(mode)
         }
     }
 
