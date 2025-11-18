@@ -91,6 +91,7 @@ import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import com.theveloper.pixelplay.utils.AudioMetaUtils.mimeTypeToFormat
 import com.theveloper.pixelplay.utils.formatDuration
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -235,40 +236,45 @@ fun FullPlayerContent(
 
             val swipeThresholdPx = with(this) { 36.dp.toPx() }
             val queueDragActivationThresholdPx = with(this) { 6.dp.toPx() }
-            detectVerticalDragGestures(
-                onDragStart = {
-                    totalDrag = 0f
-                },
-                onVerticalDrag = { change, dragAmount ->
-                    totalDrag += dragAmount
+            coroutineScope {
+                detectVerticalDragGestures(
+                    onDragStart = {
+                        totalDrag = 0f
+                    },
+                    onVerticalDrag = { change, dragAmount ->
+                        totalDrag += dragAmount
 
-                    val isDraggingUp = totalDrag < -queueDragActivationThresholdPx
-                    if (isDraggingUp) {
-                        change.consume()
-                        if (!isQueueSheetVisible) {
-                            onQueueSheetVisibilityChange(true)
-                        }
+                        val isDraggingUp = totalDrag < -queueDragActivationThresholdPx
+                        if (isDraggingUp) {
+                            change.consume()
+                            if (!isQueueSheetVisible) {
+                                onQueueSheetVisibilityChange(true)
+                            }
 
-                        launch {
-                            if (queueSheetState.currentValue == SheetValue.Hidden) {
-                                queueSheetState.partialExpand()
-                            } else if (queueSheetState.currentValue == SheetValue.PartiallyExpanded) {
-                                queueSheetState.snapTo(SheetValue.PartiallyExpanded)
+                            launch {
+                                if (queueSheetState.currentValue == SheetValue.Hidden) {
+                                    queueSheetState.show()
+                                } else if (
+                                    queueSheetState.hasPartiallyExpandedState &&
+                                    queueSheetState.currentValue == SheetValue.PartiallyExpanded
+                                ) {
+                                    queueSheetState.show()
+                                }
                             }
                         }
-                    }
-                },
-                onDragEnd = {
-                    if (totalDrag < -swipeThresholdPx) {
-                        launch {
-                            if (!isQueueSheetVisible) onQueueSheetVisibilityChange(true)
-                            queueSheetState.animateTo(SheetValue.Expanded)
+                    },
+                    onDragEnd = {
+                        if (totalDrag < -swipeThresholdPx) {
+                            launch {
+                                if (!isQueueSheetVisible) onQueueSheetVisibilityChange(true)
+                                queueSheetState.expand()
+                            }
                         }
-                    }
-                    totalDrag = 0f
-                },
-                onDragCancel = { totalDrag = 0f }
-            )
+                        totalDrag = 0f
+                    },
+                    onDragCancel = { totalDrag = 0f }
+                )
+            }
         },
         topBar = {
             TopAppBar(
