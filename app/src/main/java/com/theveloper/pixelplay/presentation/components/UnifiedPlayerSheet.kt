@@ -485,6 +485,7 @@ fun UnifiedPlayerSheet(
         }
     }
 
+    val queueSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     var showQueueSheet by remember { mutableStateOf(false) }
     var showCastSheet by remember { mutableStateOf(false) }
     var showTrackVolumeSheet by remember { mutableStateOf(false) }
@@ -1040,8 +1041,6 @@ fun UnifiedPlayerSheet(
             }
         }
     }
-
-    val queueSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
 
     if (showQueueSheet && !internalIsKeyboardVisible) {
         CompositionLocalProvider(
