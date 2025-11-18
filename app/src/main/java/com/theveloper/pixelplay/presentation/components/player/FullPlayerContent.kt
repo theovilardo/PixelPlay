@@ -249,7 +249,6 @@ fun FullPlayerContent(
                     onVerticalDrag = { change, dragAmount ->
                         totalDrag += dragAmount
                         val isDraggingUp = totalDrag < -queueDragActivationThresholdPx
-                        val isDraggingDown = totalDrag > queueDragActivationThresholdPx
 
                         if (isDraggingUp) {
                             change.consume()
@@ -265,12 +264,6 @@ fun FullPlayerContent(
                                         queueSheetState.expand()
                                     }
                                 }
-                            }
-                        } else if (isDraggingDown && !isQueueSheetVisible) {
-                            change.consume()
-                            if (totalDrag > swipeThresholdPx) {
-                                gestureScope.launch { onCollapse() }
-                                totalDrag = 0f
                             }
                         }
                     },
