@@ -459,16 +459,16 @@ fun LyricsSheet(
                 }
             }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
-                    .height(96.dp)
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                containerColor
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                    .height(88.dp)
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    containerColor
                             )
                         )
                     )
@@ -476,16 +476,16 @@ fun LyricsSheet(
 
             }
 
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(bottom = paddingValues.calculateBottomPadding() + 10.dp)
-                    .padding(horizontal = 24.dp)
-            ) {
-                PlayerSeekBar(
-                    backgroundColor = backgroundColor,
-                    onBackgroundColor = onBackgroundColor,
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(bottom = paddingValues.calculateBottomPadding() + 10.dp)
+                        .padding(horizontal = 24.dp)
+                ) {
+                    PlayerSeekBar(
+                        backgroundColor = backgroundColor,
+                        onBackgroundColor = onBackgroundColor,
                     primaryColor = accentColor,
                     currentPosition = playerUiState.currentPosition,
                     totalDuration = stablePlayerState.totalDuration,
@@ -493,7 +493,7 @@ fun LyricsSheet(
                     isPlaying = isPlaying,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(78.dp)
+                        .height(70.dp)
                 )
             }
         }
