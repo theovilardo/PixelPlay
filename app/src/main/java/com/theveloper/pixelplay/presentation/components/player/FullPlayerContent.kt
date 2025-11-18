@@ -33,7 +33,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.drag
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
@@ -69,6 +71,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavHostController
@@ -93,7 +96,6 @@ import com.theveloper.pixelplay.utils.AudioMetaUtils.mimeTypeToFormat
 import com.theveloper.pixelplay.utils.formatDuration
 import kotlinx.coroutines.Job
 import kotlinx.collections.immutable.ImmutableList
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -241,47 +243,49 @@ fun FullPlayerContent(
 
             val swipeThresholdPx = with(this) { 36.dp.toPx() }
             val queueDragActivationThresholdPx = with(this) { 6.dp.toPx() }
-            coroutineScope {
-                detectVerticalDragGestures(
-                    onDragStart = {
-                        totalDrag = 0f
-                    },
-                    onVerticalDrag = { change, dragAmount ->
-                        totalDrag += dragAmount
-                        val isDraggingUp = totalDrag < -queueDragActivationThresholdPx
 
-                        if (isDraggingUp) {
-                            change.consume()
-                            if (!isQueueSheetVisible) {
-                                onQueueSheetVisibilityChange(true)
-                            }
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                var dragConsumedByQueue = false
+                totalDrag = 0f
 
-                            queueRevealJob?.cancel()
-                            queueRevealJob = launch {
-                                if (queueSheetState.currentValue != SheetValue.Expanded) {
-                                    queueSheetState.show()
-                                    if (totalDrag < -swipeThresholdPx) {
-                                        queueSheetState.expand()
-                                    }
-                                }
-                            }
+                drag(down.id) { change ->
+                    val dragAmount = change.positionChange().y
+                    totalDrag += dragAmount
+                    val isDraggingUp = totalDrag < -queueDragActivationThresholdPx
+
+                    if (isDraggingUp && !dragConsumedByQueue) {
+                        dragConsumedByQueue = true
+                        if (!isQueueSheetVisible) {
+                            onQueueSheetVisibilityChange(true)
                         }
-                    },
-                    onDragEnd = {
-                        if (totalDrag < -swipeThresholdPx) {
-                            launch {
-                                if (!isQueueSheetVisible) onQueueSheetVisibilityChange(true)
+                    }
+
+                    if (dragConsumedByQueue) {
+                        change.consume()
+                        queueRevealJob?.cancel()
+                        queueRevealJob = gestureScope.launch {
+                            queueSheetState.show()
+                            if (totalDrag < -swipeThresholdPx) {
                                 queueSheetState.expand()
                             }
                         }
-                        totalDrag = 0f
-                        queueRevealJob?.cancel()
-                    },
-                    onDragCancel = {
-                        totalDrag = 0f
-                        queueRevealJob?.cancel()
                     }
-                )
+                }
+
+                if (dragConsumedByQueue) {
+                    gestureScope.launch {
+                        if (!isQueueSheetVisible) onQueueSheetVisibilityChange(true)
+                        if (totalDrag < -swipeThresholdPx) {
+                            queueSheetState.expand()
+                        } else {
+                            queueSheetState.show()
+                        }
+                    }
+                }
+
+                totalDrag = 0f
+                queueRevealJob?.cancel()
             }
         },
         topBar = {
