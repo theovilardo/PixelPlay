@@ -2,10 +2,11 @@ package com.theveloper.pixelplay.presentation.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -43,10 +44,12 @@ private fun PlayerInternalNavigationItemsRow(
     modifier: Modifier = Modifier,
     navBarStyle: String
 ) {
+    val navBarInsetPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+
     val rowModifier = if (navBarStyle == NavBarStyle.FULL_WIDTH) {
         modifier
             .fillMaxWidth()
-            .padding(top = 14.dp, bottom = 16.dp, start = 12.dp, end = 12.dp)
+            .padding(top = 14.dp, bottom = navBarInsetPadding, start = 12.dp, end = 12.dp)
     } else {
         modifier
             .padding(horizontal = 10.dp)

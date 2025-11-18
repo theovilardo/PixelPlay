@@ -461,8 +461,11 @@ class MainActivity : ComponentActivity() {
 
                     val navBarHideFraction = if (showPlayerContentArea) playerContentExpansionFraction else 0f
                     val navBarHideFractionClamped = navBarHideFraction.coerceIn(0f, 1f)
-                    val navBarHideFractionForTranslation = navBarHideFractionClamped.let { fraction ->
-                        if (fraction >= 0.9f) 1f else fraction
+                    val navBarHideFractionForTranslation = when {
+                        currentSheetContentState == PlayerSheetState.EXPANDED -> 1f
+                        else -> navBarHideFractionClamped.let { fraction ->
+                            if (fraction >= 0.9f) 1f else fraction
+                        }
                     }
 
                     val actualShape = remember(playerContentActualBottomRadius, showPlayerContentArea, navBarStyle, navBarCornerRadius) {
@@ -505,7 +508,7 @@ class MainActivity : ComponentActivity() {
                         val navHeight: Dp = if (navBarStyle == NavBarStyle.DEFAULT) {
                             NavBarContentHeight
                         } else {
-                            NavBarContentHeightFullWidth
+                            NavBarContentHeightFullWidth + systemNavBarInset
                         }
 
                         Surface(
