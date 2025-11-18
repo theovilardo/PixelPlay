@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
@@ -159,10 +160,7 @@ fun FullPlayerContent(
     }.collectAsState(initial = 0L)
 
     val stableControlAnimationSpec = remember {
-        spring<Float>(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMedium
-        )
+        tween<Float>(durationMillis = 240, easing = FastOutSlowInEasing)
     }
 
     val controlOtherButtonsColor = LocalMaterialTheme.current.primary.copy(alpha = 0.15f)

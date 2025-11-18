@@ -2,10 +2,12 @@ package com.theveloper.pixelplay.presentation.components.player
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -212,6 +214,7 @@ private fun MorphingPlayPauseIcon(
 ) {
     Crossfade(
         targetState = isPlaying,
+        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
         label = "playPauseCrossfade"
     ) { playing ->
         Icon(

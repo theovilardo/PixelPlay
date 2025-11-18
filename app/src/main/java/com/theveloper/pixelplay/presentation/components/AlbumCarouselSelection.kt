@@ -1,5 +1,7 @@
 package com.theveloper.pixelplay.presentation.components
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.Modifier
@@ -14,6 +16,7 @@ import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.presentation.components.scoped.PrefetchAlbumNeighbors
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.coroutines.flow.first
 
 // ====== TIPOS/STATE DEL CARRUSEL (wrapper para mantener compatibilidad) ======
 
@@ -71,9 +74,12 @@ fun AlbumCarouselSection(
                 .takeIf { it >= 0 }
                 ?: 0
     }
+    val smoothCarouselSpec = remember { tween<Float>(durationMillis = 360, easing = FastOutSlowInEasing) }
     LaunchedEffect(currentSongIndex, queue) {
+        snapshotFlow { carouselState.pagerState.isScrollInProgress }
+            .first { !it }
         if (carouselState.pagerState.currentPage != currentSongIndex) {
-            carouselState.animateScrollToItem(currentSongIndex)
+            carouselState.animateScrollToItem(currentSongIndex, animationSpec = smoothCarouselSpec)
         }
     }
 
