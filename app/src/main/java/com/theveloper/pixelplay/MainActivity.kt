@@ -461,7 +461,9 @@ class MainActivity : ComponentActivity() {
 
                     val navBarHideFraction = if (showPlayerContentArea) playerContentExpansionFraction else 0f
                     val navBarHideFractionClamped = navBarHideFraction.coerceIn(0f, 1f)
-                    val navBarHideFractionForTranslation = if (navBarHideFractionClamped >= 0.98f) 1f else navBarHideFractionClamped
+                    val navBarHideFractionForTranslation = navBarHideFractionClamped.let { fraction ->
+                        if (fraction >= 0.9f) 1f else fraction
+                    }
 
                     val actualShape = remember(playerContentActualBottomRadius, showPlayerContentArea, navBarStyle, navBarCornerRadius) {
                         val bottomRadius = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp
@@ -478,8 +480,14 @@ class MainActivity : ComponentActivity() {
                     }
 
                     var componentHeightPx by remember { mutableStateOf(0) }
-                    val animatedTranslationY by remember(navBarHideFractionForTranslation, componentHeightPx) {
-                        derivedStateOf { componentHeightPx * navBarHideFractionForTranslation }
+                    val density = LocalDensity.current
+                    val shadowOverflowPx = remember(navBarElevation, density) {
+                        with(density) { (navBarElevation * 8).toPx() }
+                    }
+                    val animatedTranslationY by remember(navBarHideFractionForTranslation, componentHeightPx, shadowOverflowPx) {
+                        derivedStateOf {
+                            (componentHeightPx + shadowOverflowPx) * navBarHideFractionForTranslation
+                        }
                     }
 
                     val bottomBarPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else systemNavBarInset
