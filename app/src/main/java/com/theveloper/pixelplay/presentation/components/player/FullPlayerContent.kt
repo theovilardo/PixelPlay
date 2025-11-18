@@ -147,6 +147,7 @@ fun FullPlayerContent(
     var showFetchLyricsDialog by remember { mutableStateOf(false) }
     var totalDrag by remember { mutableStateOf(0f) }
     var queueRevealJob by remember { mutableStateOf<Job?>(null) }
+    var queueExpandJob by remember { mutableStateOf<Job?>(null) }
 
     val context = LocalContext.current
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -247,6 +248,7 @@ fun FullPlayerContent(
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
                 var dragConsumedByQueue = false
+                var queueExpandTriggered = false
                 totalDrag = 0f
 
                 drag(down.id) { change ->
@@ -263,11 +265,23 @@ fun FullPlayerContent(
 
                     if (dragConsumedByQueue) {
                         change.consume()
-                        queueRevealJob?.cancel()
-                        queueRevealJob = gestureScope.launch {
-                            queueSheetState.show()
-                            if (totalDrag < -swipeThresholdPx) {
+                        if (totalDrag < -queueDragActivationThresholdPx && queueRevealJob == null) {
+                            queueRevealJob = gestureScope.launch {
+                                if (!isQueueSheetVisible) onQueueSheetVisibilityChange(true)
+                                queueSheetState.show()
+                            }.also { job ->
+                                job.invokeOnCompletion { queueRevealJob = null }
+                            }
+                        }
+
+                        if (!queueExpandTriggered && totalDrag < -swipeThresholdPx) {
+                            queueExpandTriggered = true
+                            queueExpandJob?.cancel()
+                            queueExpandJob = gestureScope.launch {
+                                queueRevealJob?.join()
                                 queueSheetState.expand()
+                            }.also { job ->
+                                job.invokeOnCompletion { queueExpandJob = null }
                             }
                         }
                     }
@@ -276,16 +290,12 @@ fun FullPlayerContent(
                 if (dragConsumedByQueue) {
                     gestureScope.launch {
                         if (!isQueueSheetVisible) onQueueSheetVisibilityChange(true)
-                        if (totalDrag < -swipeThresholdPx) {
-                            queueSheetState.expand()
-                        } else {
-                            queueSheetState.show()
-                        }
+                        queueRevealJob?.join()
+                        queueSheetState.expand()
                     }
                 }
 
                 totalDrag = 0f
-                queueRevealJob?.cancel()
             }
         },
         topBar = {
