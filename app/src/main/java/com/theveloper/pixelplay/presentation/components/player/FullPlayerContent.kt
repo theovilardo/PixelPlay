@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
@@ -32,12 +33,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.drag
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SheetState
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -50,6 +56,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -63,6 +70,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavHostController
@@ -85,9 +94,11 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import com.theveloper.pixelplay.utils.AudioMetaUtils.mimeTypeToFormat
 import com.theveloper.pixelplay.utils.formatDuration
+import kotlinx.coroutines.Job
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import timber.log.Timber
 import kotlin.math.roundToLong
@@ -107,6 +118,8 @@ fun FullPlayerContent(
     carouselStyle: String,
     playerViewModel: PlayerViewModel, // For stable state like totalDuration and lyrics
     navController: NavHostController,
+    queueSheetState: SheetState,
+    isQueueSheetVisible: Boolean,
     // State Providers
     currentPositionProvider: () -> Long,
     isPlayingProvider: () -> Boolean,
@@ -118,6 +131,7 @@ fun FullPlayerContent(
     onPrevious: () -> Unit,
     onCollapse: () -> Unit,
     onShowQueueClicked: () -> Unit,
+    onQueueSheetVisibilityChange: (Boolean) -> Unit,
     onShowCastClicked: () -> Unit,
     onShowTrackVolumeClicked: () -> Unit,
     onShuffleToggle: () -> Unit,
@@ -131,6 +145,9 @@ fun FullPlayerContent(
     val lyricsSearchUiState by playerViewModel.lyricsSearchUiState.collectAsState()
 
     var showFetchLyricsDialog by remember { mutableStateOf(false) }
+    var totalDrag by remember { mutableStateOf(0f) }
+    var queueRevealJob by remember { mutableStateOf<Job?>(null) }
+    var queueExpandJob by remember { mutableStateOf<Job?>(null) }
 
     val context = LocalContext.current
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -159,10 +176,7 @@ fun FullPlayerContent(
     }.collectAsState(initial = 0L)
 
     val stableControlAnimationSpec = remember {
-        spring<Float>(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMedium
-        )
+        tween<Float>(durationMillis = 240, easing = FastOutSlowInEasing)
     }
 
     val controlOtherButtonsColor = LocalMaterialTheme.current.primary.copy(alpha = 0.15f)
@@ -219,8 +233,71 @@ fun FullPlayerContent(
         }
     }
 
+    val gestureScope = rememberCoroutineScope()
+
     Scaffold(
         containerColor = Color.Transparent,
+        modifier = Modifier.pointerInput(currentSheetState, expansionFraction, isQueueSheetVisible) {
+            val isFullyExpanded =
+                currentSheetState == PlayerSheetState.EXPANDED && expansionFraction >= 0.99f
+            if (!isFullyExpanded) return@pointerInput
+
+            val swipeThresholdPx = with(this) { 36.dp.toPx() }
+            val queueDragActivationThresholdPx = with(this) { 6.dp.toPx() }
+
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                var dragConsumedByQueue = false
+                var queueExpandTriggered = false
+                totalDrag = 0f
+
+                drag(down.id) { change ->
+                    val dragAmount = change.positionChange().y
+                    totalDrag += dragAmount
+                    val isDraggingUp = totalDrag < -queueDragActivationThresholdPx
+
+                    if (isDraggingUp && !dragConsumedByQueue) {
+                        dragConsumedByQueue = true
+                        if (!isQueueSheetVisible) {
+                            onQueueSheetVisibilityChange(true)
+                        }
+                    }
+
+                    if (dragConsumedByQueue) {
+                        change.consume()
+                        if (totalDrag < -queueDragActivationThresholdPx && queueRevealJob == null) {
+                            queueRevealJob = gestureScope.launch {
+                                if (!isQueueSheetVisible) onQueueSheetVisibilityChange(true)
+                                queueSheetState.show()
+                            }.also { job ->
+                                job.invokeOnCompletion { queueRevealJob = null }
+                            }
+                        }
+
+                        if (!queueExpandTriggered && totalDrag < -swipeThresholdPx) {
+                            queueExpandTriggered = true
+                            queueExpandJob?.cancel()
+                            queueExpandJob = gestureScope.launch {
+                                queueRevealJob?.join()
+                                queueSheetState.expand()
+                            }.also { job ->
+                                job.invokeOnCompletion { queueExpandJob = null }
+                            }
+                        }
+                    }
+                }
+
+                if (dragConsumedByQueue) {
+                    gestureScope.launch {
+                        if (!isQueueSheetVisible) onQueueSheetVisibilityChange(true)
+                        queueRevealJob?.join()
+                        queueSheetState.expand()
+                    }
+                }
+
+                totalDrag = 0f
+            }
+        },
         topBar = {
             TopAppBar(
                 modifier = Modifier.alpha(expansionFraction.coerceIn(0f, 1f)),
@@ -383,24 +460,22 @@ fun FullPlayerContent(
                 }
 
                 DeferAt(expansionFraction, 0.34f) {
-                    key(currentSong.id) {
-                        AlbumCarouselSection(
-                            currentSong = currentSong,
-                            queue = currentPlaybackQueue,
-                            expansionFraction = expansionFraction,
-                            onSongSelected = { newSong ->
-                                if (newSong.id != currentSong.id) {
-                                    playerViewModel.showAndPlaySong(
-                                        song = newSong,
-                                        contextSongs = currentPlaybackQueue,
-                                        queueName = currentQueueSourceName
-                                    )
-                                }
-                            },
-                            carouselStyle = carouselStyle,
-                            modifier = Modifier.height(carouselHeight) // Apply calculated height
-                        )
-                    }
+                    AlbumCarouselSection(
+                        currentSong = currentSong,
+                        queue = currentPlaybackQueue,
+                        expansionFraction = expansionFraction,
+                        onSongSelected = { newSong ->
+                            if (newSong.id != currentSong.id) {
+                                playerViewModel.showAndPlaySong(
+                                    song = newSong,
+                                    contextSongs = currentPlaybackQueue,
+                                    queueName = currentQueueSourceName
+                                )
+                            }
+                        },
+                        carouselStyle = carouselStyle,
+                        modifier = Modifier.height(carouselHeight) // Apply calculated height
+                    )
                 }
             }
 
