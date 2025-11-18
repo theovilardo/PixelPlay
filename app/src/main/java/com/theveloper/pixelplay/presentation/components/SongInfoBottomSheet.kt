@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Favorite
@@ -60,6 +61,9 @@ import com.theveloper.pixelplay.utils.formatDuration
 import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import androidx.core.net.toUri
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.theveloper.pixelplay.data.ai.SongMetadata
+import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 import com.theveloper.pixelplay.ui.theme.MontserratFamily
 import java.io.File
 
@@ -72,11 +76,14 @@ fun SongInfoBottomSheet(
     onDismiss: () -> Unit,
     onPlaySong: () -> Unit,
     onAddToQueue: () -> Unit,
+    onAddToPlayList: () -> Unit,
     onDeleteFromDevice: (activity: Activity, song: Song, onResult: (Boolean) -> Unit) -> Unit,
     onNavigateToAlbum: () -> Unit,
     onNavigateToArtist: () -> Unit,
     onEditSong: (title: String, artist: String, album: String, genre: String, lyrics: String, trackNumber: Int, coverArtUpdate: CoverArtUpdate?) -> Unit,
-    generateAiMetadata: suspend (List<String>) -> Result<com.theveloper.pixelplay.data.ai.SongMetadata>
+    generateAiMetadata: suspend (List<String>) -> Result<SongMetadata>,
+    currentPlaylistId: String? = null,
+    playlistViewModel: PlaylistViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     var showEditSheet by remember { mutableStateOf(false) }
@@ -259,22 +266,52 @@ fun SongInfoBottomSheet(
             }
 
             Spacer(modifier = Modifier.height(10.dp))
-
-            // Botón de Añadir a la Cola
-            FilledTonalButton(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 66.dp), // Altura mínima recomendada para botones
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                ),
-                shape = CircleShape, // O considera RoundedCornerShape(16.dp)
-                onClick = onAddToQueue
+                    .height(IntrinsicSize.Min), // Asegura que todos los hijos puedan tener la misma altura
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(Icons.AutoMirrored.Rounded.QueueMusic, contentDescription = "Add to Queue icon")
-                Spacer(Modifier.width(8.dp))
-                Text("Add to Queue")
+                // Botón de Añadir a la Cola
+                FilledTonalButton(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(0.75f)
+                        .heightIn(min = 66.dp), // Altura mínima recomendada para botones
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                    ),
+                    shape = CircleShape, // O considera RoundedCornerShape(16.dp)
+                    onClick = onAddToQueue
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.QueueMusic,
+                        contentDescription = "Add to Queue icon"
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Add to Queue")
+                }
+                FilledTonalButton(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(0.25f)
+                        .heightIn(min = 66.dp), // Altura mínima recomendada para botones
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                    ),
+                    shape = CircleShape, // O considera RoundedCornerShape(16.dp)
+                    onClick = onAddToPlayList
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.PlaylistAdd,
+                        contentDescription = "Add to Playlist icon"
+                    )
+//                    Spacer(Modifier.width(8.dp))
+//                    Text("Add to a Playlist")
+                }
             }
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -292,6 +329,8 @@ fun SongInfoBottomSheet(
                     (context as? Activity)?.let { activity ->
                         onDeleteFromDevice(activity, song) { result ->
                             if (result) {
+                                if (currentPlaylistId != null)
+                                    playlistViewModel.removeSongFromPlaylist(currentPlaylistId, song.id)
                                 onDismiss()
                             }
                         }

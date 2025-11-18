@@ -5,7 +5,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -15,9 +14,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -67,6 +69,7 @@ import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -93,8 +96,12 @@ import coil.size.Size
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
+import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
+import com.theveloper.pixelplay.presentation.components.PlaylistBottomSheet
 import com.theveloper.pixelplay.presentation.components.QueuePlaylistSongItem
 import com.theveloper.pixelplay.presentation.components.SmartImage
+import com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet
+import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
@@ -106,7 +113,8 @@ import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
 @androidx.annotation.OptIn(UnstableApi::class)
-@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalFoundationApi::class,
+@OptIn(
+    ExperimentalMaterial3ExpressiveApi::class, ExperimentalFoundationApi::class,
     ExperimentalMaterial3Api::class
 )
 @Composable
@@ -137,7 +145,18 @@ fun PlaylistDetailScreen(
     var showRenameDialog by remember { mutableStateOf(false) }
     var isReorderModeEnabled by remember { mutableStateOf(false) }
     var isRemoveModeEnabled by remember { mutableStateOf(false) }
-
+    var showSongInfoBottomSheet by remember { mutableStateOf(false) }
+    val selectedSongForInfo by playerViewModel.selectedSongForInfo.collectAsState()
+    val favoriteIds by playerViewModel.favoriteSongIds.collectAsState() // Reintroducir favoriteIds aquí
+    val stableOnMoreOptionsClick: (Song) -> Unit = remember {
+        { song ->
+            playerViewModel.selectSongForInfo(song)
+            showSongInfoBottomSheet = true
+        }
+    }
+    val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val bottomBarHeightDp = NavBarContentHeight + systemNavBarInset
+    var showPlaylistBottomSheet by remember { mutableStateOf(false) }
     var localReorderableSongs by remember(songsInPlaylist) { mutableStateOf(songsInPlaylist) }
 
     val listState = rememberLazyListState()
@@ -193,7 +212,11 @@ fun PlaylistDetailScreen(
                 subtitle = {
                     Text(
                         modifier = Modifier.padding(start = 8.dp),
-                        text = "${songsInPlaylist.size} songs • ${formatTotalDuration(songsInPlaylist)}",
+                        text = "${songsInPlaylist.size} songs • ${
+                            formatTotalDuration(
+                                songsInPlaylist
+                            )
+                        }",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -258,17 +281,22 @@ fun PlaylistDetailScreen(
         }
     ) { innerPadding ->
         if (uiState.isLoading && currentPlaylist == null) {
-            Box(Modifier
-                .fillMaxSize()
-                .padding(top = innerPadding.calculateTopPadding()), Alignment.Center) { CircularProgressIndicator() }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(top = innerPadding.calculateTopPadding()), Alignment.Center
+            ) { CircularProgressIndicator() }
         } else if (currentPlaylist == null) {
-            Box(Modifier
-                .fillMaxSize()
-                .padding(top = innerPadding.calculateTopPadding()), Alignment.Center) { Text("Playlist no encontrada.") }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(top = innerPadding.calculateTopPadding()), Alignment.Center
+            ) { Text("Playlist no encontrada.") }
         } else {
-            Column(modifier = Modifier
-                .fillMaxSize()
-                .padding(top = innerPadding.calculateTopPadding())
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = innerPadding.calculateTopPadding())
             ) {
                 Row(
                     modifier = Modifier
@@ -281,7 +309,11 @@ fun PlaylistDetailScreen(
                     Button(
                         onClick = {
                             if (localReorderableSongs.isNotEmpty()) {
-                                playerViewModel.playSongs(localReorderableSongs, localReorderableSongs.first(), currentPlaylist.name)
+                                playerViewModel.playSongs(
+                                    localReorderableSongs,
+                                    localReorderableSongs.first(),
+                                    currentPlaylist.name
+                                )
                                 if (playerStableState.isShuffleEnabled) playerViewModel.toggleShuffle()
                             }
                         },
@@ -289,9 +321,22 @@ fun PlaylistDetailScreen(
                             .weight(1f)
                             .height(76.dp),
                         enabled = localReorderableSongs.isNotEmpty(),
-                        shape = AbsoluteSmoothCornerShape(cornerRadiusTL = 60.dp, smoothnessAsPercentTR = 60, cornerRadiusTR = 14.dp, smoothnessAsPercentTL = 60, cornerRadiusBL = 60.dp, smoothnessAsPercentBR = 60, cornerRadiusBR = 14.dp, smoothnessAsPercentBL = 60)
+                        shape = AbsoluteSmoothCornerShape(
+                            cornerRadiusTL = 60.dp,
+                            smoothnessAsPercentTR = 60,
+                            cornerRadiusTR = 14.dp,
+                            smoothnessAsPercentTL = 60,
+                            cornerRadiusBL = 60.dp,
+                            smoothnessAsPercentBR = 60,
+                            cornerRadiusBR = 14.dp,
+                            smoothnessAsPercentBL = 60
+                        )
                     ) {
-                        Icon(Icons.Rounded.PlayArrow, contentDescription = "Play", modifier = Modifier.size(20.dp))
+                        Icon(
+                            Icons.Rounded.PlayArrow,
+                            contentDescription = "Play",
+                            modifier = Modifier.size(20.dp)
+                        )
                         Spacer(Modifier.size(ButtonDefaults.IconSpacing))
                         Text("Play it")
                     }
@@ -299,16 +344,33 @@ fun PlaylistDetailScreen(
                         onClick = {
                             if (localReorderableSongs.isNotEmpty()) {
                                 if (!playerStableState.isShuffleEnabled) playerViewModel.toggleShuffle()
-                                playerViewModel.playSongs(localReorderableSongs, localReorderableSongs.random(), currentPlaylist.name)
+                                playerViewModel.playSongs(
+                                    localReorderableSongs,
+                                    localReorderableSongs.random(),
+                                    currentPlaylist.name
+                                )
                             }
                         },
                         modifier = Modifier
                             .weight(1f)
                             .height(76.dp),
                         enabled = localReorderableSongs.isNotEmpty(),
-                        shape = AbsoluteSmoothCornerShape(cornerRadiusTL = 14.dp, smoothnessAsPercentTR = 60, cornerRadiusTR = 60.dp, smoothnessAsPercentTL = 60, cornerRadiusBL = 14.dp, smoothnessAsPercentBR = 60, cornerRadiusBR = 60.dp, smoothnessAsPercentBL = 60)
+                        shape = AbsoluteSmoothCornerShape(
+                            cornerRadiusTL = 14.dp,
+                            smoothnessAsPercentTR = 60,
+                            cornerRadiusTR = 60.dp,
+                            smoothnessAsPercentTL = 60,
+                            cornerRadiusBL = 14.dp,
+                            smoothnessAsPercentBR = 60,
+                            cornerRadiusBR = 60.dp,
+                            smoothnessAsPercentBL = 60
+                        )
                     ) {
-                        Icon(Icons.Rounded.Shuffle, contentDescription = "Shuffle", modifier = Modifier.size(ButtonDefaults.IconSize))
+                        Icon(
+                            Icons.Rounded.Shuffle,
+                            contentDescription = "Shuffle",
+                            modifier = Modifier.size(ButtonDefaults.IconSize)
+                        )
                         Spacer(Modifier.size(ButtonDefaults.IconSpacing))
                         Text("Shuffle")
                     }
@@ -448,12 +510,17 @@ fun PlaylistDetailScreen(
                             bottom = if (playerStableState.isPlaying || playerStableState.currentSong != null) MiniPlayerHeight + 32.dp + 104.dp else 10.dp + 104.dp
                         )
                     ) {
-                        itemsIndexed(localReorderableSongs, key = { _, item -> item.id }) { _, song ->
+                        itemsIndexed(
+                            localReorderableSongs,
+                            key = { _, item -> item.id }) { _, song ->
                             ReorderableItem(
                                 state = reorderableState,
                                 key = song.id,
                             ) { isDragging ->
-                                val scale by animateFloatAsState(if (isDragging) 1.05f else 1f, label = "scale")
+                                val scale by animateFloatAsState(
+                                    if (isDragging) 1.05f else 1f,
+                                    label = "scale"
+                                )
 
                                 QueuePlaylistSongItem(
                                     modifier = Modifier
@@ -485,6 +552,7 @@ fun PlaylistDetailScreen(
                                     isReorderModeEnabled = isReorderModeEnabled,
                                     isDragHandleVisible = isReorderModeEnabled,
                                     isRemoveButtonVisible = isRemoveModeEnabled,
+                                    onMoreOptionsClick = stableOnMoreOptionsClick,
                                     dragHandle = {
                                         IconButton(
                                             onClick = {},
@@ -543,6 +611,82 @@ fun PlaylistDetailScreen(
             }
         )
     }
+    if (showSongInfoBottomSheet && selectedSongForInfo != null) {
+        val currentSong = selectedSongForInfo
+        val isFavorite = remember(currentSong?.id, favoriteIds) {
+            derivedStateOf {
+                currentSong?.let {
+                    favoriteIds.contains(
+                        it.id
+                    )
+                }
+            }
+        }.value ?: false
+
+        if (currentSong != null) {
+            SongInfoBottomSheet(
+                song = currentSong,
+                isFavorite = isFavorite,
+                onToggleFavorite = {
+                    // Directly use PlayerViewModel's method to toggle, which should handle UserPreferencesRepository
+                    playerViewModel.toggleFavoriteSpecificSong(currentSong) // Assumes such a method exists or will be added to PlayerViewModel
+                },
+                onDismiss = { showSongInfoBottomSheet = false },
+                onPlaySong = {
+                    playerViewModel.showAndPlaySong(currentSong)
+                    showSongInfoBottomSheet = false
+                },
+                onAddToQueue = {
+                    playerViewModel.addSongToQueue(currentSong) // Assumes such a method exists or will be added
+                    showSongInfoBottomSheet = false
+                    playerViewModel.sendToast("Added to the queue")
+                },
+                onAddToPlayList = {
+                    showPlaylistBottomSheet = true;
+                },
+                onDeleteFromDevice = playerViewModel::deleteFromDevice,
+                currentPlaylistId = playlistId,
+                onNavigateToAlbum = {
+                    navController.navigate(Screen.AlbumDetail.createRoute(currentSong.albumId))
+                    showSongInfoBottomSheet = false
+                },
+                onNavigateToArtist = {
+                    navController.navigate(Screen.ArtistDetail.createRoute(currentSong.artistId))
+                    showSongInfoBottomSheet = false
+                },
+                onEditSong = { newTitle, newArtist, newAlbum, newGenre, newLyrics, newTrackNumber, coverArtUpdate ->
+                    playerViewModel.editSongMetadata(
+                        currentSong,
+                        newTitle,
+                        newArtist,
+                        newAlbum,
+                        newGenre,
+                        newLyrics,
+                        newTrackNumber,
+                        coverArtUpdate
+                    )
+                },
+                generateAiMetadata = { fields ->
+                    playerViewModel.generateAiMetadata(currentSong, fields)
+                }
+            )
+            if (showPlaylistBottomSheet) {
+                val playlistUiState by playlistViewModel.uiState.collectAsState()
+
+                PlaylistBottomSheet(
+                    playlistUiState = playlistUiState,
+                    song = currentSong,
+                    onDismiss = {
+                        showPlaylistBottomSheet = false
+                    },
+                    currentPlaylistId = playlistId,
+                    bottomBarHeight = bottomBarHeightDp,
+                    playerViewModel = playerViewModel,
+                )
+            }
+        }
+    }
+
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -555,13 +699,20 @@ fun SongPickerBottomSheet(
     onConfirm: (Set<String>) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val selectedSongIds = remember { mutableStateMapOf<String, Boolean>().apply {
-        initiallySelectedSongIds.forEach { put(it, true) }
-    } }
+    val selectedSongIds = remember {
+        mutableStateMapOf<String, Boolean>().apply {
+            initiallySelectedSongIds.forEach { put(it, true) }
+        }
+    }
     var searchQuery by remember { mutableStateOf("") }
     val filteredSongs = remember(searchQuery, allSongs) {
         if (searchQuery.isBlank()) allSongs
-        else allSongs.filter { it.title.contains(searchQuery, true) || it.artist.contains(searchQuery, true) }
+        else allSongs.filter {
+            it.title.contains(searchQuery, true) || it.artist.contains(
+                searchQuery,
+                true
+            )
+        }
     }
 
     val animatedAlbumCornerRadius = 60.dp
@@ -598,7 +749,11 @@ fun SongPickerBottomSheet(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Add Songs", style = MaterialTheme.typography.displaySmall, fontFamily = GoogleSansRounded)
+                            Text(
+                                "Add Songs",
+                                style = MaterialTheme.typography.displaySmall,
+                                fontFamily = GoogleSansRounded
+                            )
                         }
                         OutlinedTextField(
                             value = searchQuery,
@@ -619,7 +774,11 @@ fun SongPickerBottomSheet(
                                 .padding(horizontal = 16.dp, vertical = 8.dp),
                             shape = CircleShape,
                             singleLine = true,
-                            trailingIcon = { if(searchQuery.isNotEmpty()) IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Filled.Clear, null) } }
+                            trailingIcon = {
+                                if (searchQuery.isNotEmpty()) IconButton(onClick = {
+                                    searchQuery = ""
+                                }) { Icon(Icons.Filled.Clear, null) }
+                            }
                         )
                     }
                 },
@@ -634,9 +793,11 @@ fun SongPickerBottomSheet(
                 }
             ) { innerPadding ->
                 if (isLoading) {
-                    Box(Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding), Alignment.Center) { CircularProgressIndicator() }
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding), Alignment.Center
+                    ) { CircularProgressIndicator() }
                 } else {
                     LazyColumn(
                         modifier = Modifier
@@ -663,26 +824,39 @@ fun SongPickerBottomSheet(
                             ) {
                                 Checkbox(
                                     checked = selectedSongIds[song.id] ?: false,
-                                    onCheckedChange = { isChecked -> selectedSongIds[song.id] = isChecked }
+                                    onCheckedChange = { isChecked ->
+                                        selectedSongIds[song.id] = isChecked
+                                    }
                                 )
                                 Box(
                                     modifier = Modifier
                                         .size(36.dp)
-                                        .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                                        .background(
+                                            MaterialTheme.colorScheme.surfaceVariant,
+                                            CircleShape
+                                        )
                                 ) {
                                     // Usando tu composable SmartImage
                                     SmartImage(
                                         model = song.albumArtUriString,
                                         contentDescription = song.title,
                                         shape = albumShape,
-                                        targetSize = Size(168, 168), // 56dp * 3 (para densidad xxhdpi)
+                                        targetSize = Size(
+                                            168,
+                                            168
+                                        ), // 56dp * 3 (para densidad xxhdpi)
                                         modifier = Modifier.fillMaxSize()
                                     )
                                 }
                                 Spacer(Modifier.width(16.dp))
                                 Column {
                                     Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text(song.artist, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(
+                                        song.artist,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                 }
                             }
                         }
@@ -714,7 +888,7 @@ fun RenamePlaylistDialog(currentName: String, onDismiss: () -> Unit, onRename: (
     var newName by remember { mutableStateOf(TextFieldValue(currentName)) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Renamer Playlist") },
+        title = { Text("Rename Playlist") },
         text = {
             OutlinedTextField(
                 value = newName,

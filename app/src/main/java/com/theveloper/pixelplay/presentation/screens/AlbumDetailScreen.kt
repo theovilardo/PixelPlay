@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
@@ -68,12 +69,15 @@ import androidx.navigation.NavController
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
+import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
+import com.theveloper.pixelplay.presentation.components.PlaylistBottomSheet
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.AlbumDetailViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -85,7 +89,8 @@ fun AlbumDetailScreen(
     albumId: String,
     navController: NavController,
     playerViewModel: PlayerViewModel,
-    viewModel: AlbumDetailViewModel = hiltViewModel()
+    viewModel: AlbumDetailViewModel = hiltViewModel(),
+    playlistViewModel: PlaylistViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
@@ -93,7 +98,9 @@ fun AlbumDetailScreen(
     val favoriteIds by playerViewModel.favoriteSongIds.collectAsState()
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     val selectedSongForInfo by playerViewModel.selectedSongForInfo.collectAsState()
-
+    val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val bottomBarHeightDp = NavBarContentHeight + systemNavBarInset
+    var showPlaylistBottomSheet by remember { mutableStateOf(false) }
     val surfaceColor = MaterialTheme.colorScheme.surface
     val statusBarColor = if (isSystemInDarkTheme()) Color.Black.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.4f)
     val density = LocalDensity.current
@@ -252,6 +259,9 @@ fun AlbumDetailScreen(
                     playerViewModel.addSongToQueue(currentSong)
                     showSongInfoBottomSheet = false
                 },
+                onAddToPlayList = {
+                    showPlaylistBottomSheet = true;
+                },
                 onDeleteFromDevice = playerViewModel::deleteFromDevice,
                 onNavigateToAlbum = {
                     navController.navigate(Screen.AlbumDetail.createRoute(currentSong.albumId))
@@ -266,8 +276,19 @@ fun AlbumDetailScreen(
                 },
                 generateAiMetadata = { fields ->
                     playerViewModel.generateAiMetadata(currentSong, fields)
-                }
+                },
             )
+            if (showPlaylistBottomSheet) {
+                val playlistUiState by playlistViewModel.uiState.collectAsState()
+
+                PlaylistBottomSheet(
+                    playlistUiState = playlistUiState,
+                    song = currentSong,
+                    onDismiss = { showPlaylistBottomSheet = false },
+                    bottomBarHeight = bottomBarHeightDp,
+                    playerViewModel = playerViewModel
+                )
+            }
         }
     }
 }
