@@ -54,6 +54,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -90,6 +91,7 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import com.theveloper.pixelplay.utils.AudioMetaUtils.mimeTypeToFormat
 import com.theveloper.pixelplay.utils.formatDuration
+import kotlinx.coroutines.Job
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -142,6 +144,7 @@ fun FullPlayerContent(
 
     var showFetchLyricsDialog by remember { mutableStateOf(false) }
     var totalDrag by remember { mutableStateOf(0f) }
+    var queueRevealJob by remember { mutableStateOf<Job?>(null) }
 
     val context = LocalContext.current
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -227,6 +230,8 @@ fun FullPlayerContent(
         }
     }
 
+    val gestureScope = rememberCoroutineScope()
+
     Scaffold(
         containerColor = Color.Transparent,
         modifier = Modifier.pointerInput(currentSheetState, expansionFraction, isQueueSheetVisible) {
@@ -252,20 +257,21 @@ fun FullPlayerContent(
                                 onQueueSheetVisibilityChange(true)
                             }
 
-                            launch {
-                                if (
-                                    queueSheetState.currentValue == SheetValue.Hidden ||
-                                    queueSheetState.currentValue == SheetValue.PartiallyExpanded
-                                ) {
+                            queueRevealJob?.cancel()
+                            queueRevealJob = launch {
+                                if (queueSheetState.currentValue != SheetValue.Expanded) {
                                     queueSheetState.show()
-                                }
-
-                                if (totalDrag < -swipeThresholdPx) {
-                                    queueSheetState.expand()
+                                    if (totalDrag < -swipeThresholdPx) {
+                                        queueSheetState.expand()
+                                    }
                                 }
                             }
                         } else if (isDraggingDown && !isQueueSheetVisible) {
                             change.consume()
+                            if (totalDrag > swipeThresholdPx) {
+                                gestureScope.launch { onCollapse() }
+                                totalDrag = 0f
+                            }
                         }
                     },
                     onDragEnd = {
@@ -274,12 +280,14 @@ fun FullPlayerContent(
                                 if (!isQueueSheetVisible) onQueueSheetVisibilityChange(true)
                                 queueSheetState.expand()
                             }
-                        } else if (totalDrag > swipeThresholdPx && !isQueueSheetVisible) {
-                            onCollapse()
                         }
                         totalDrag = 0f
+                        queueRevealJob?.cancel()
                     },
-                    onDragCancel = { totalDrag = 0f }
+                    onDragCancel = {
+                        totalDrag = 0f
+                        queueRevealJob?.cancel()
+                    }
                 )
             }
         },
