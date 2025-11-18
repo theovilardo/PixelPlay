@@ -155,8 +155,15 @@ fun AboutScreen(
     )
 
     val contributors = listOf(
+        Contributor(name = "BeanVortex", githubUrl = "https://github.com/BeanVortex", avatarUrl = "https://avatars.githubusercontent.com/u/47008296?v=4"),
         Contributor(name = "Colby Cabrera", githubUrl = "https://github.com/ColbyCabrera", avatarUrl = "https://avatars.githubusercontent.com/u/77089439?v=4"),
-        Contributor(name = "Sjoerd Vermeulen", githubUrl = "https://github.com/SjVer", avatarUrl = "https://avatars.githubusercontent.com/u/72567996?v=4")
+        Contributor(name = "Dexter Reed", githubUrl = "https://github.com/sungsphinx", avatarUrl = "https://avatars.githubusercontent.com/u/80914457?v=4"),
+        Contributor(name = "Mazen", githubUrl = "https://github.com/Natour-Mazen", avatarUrl = "https://avatars.githubusercontent.com/u/115185120?v=4"),
+        Contributor(name = "OpenSource Guy", githubUrl = "https://github.com/os-guy-original", avatarUrl = "https://avatars.githubusercontent.com/u/228935929?v=4"),
+        Contributor(name = "Ori Spokoini", githubUrl = "https://github.com/orispok", avatarUrl = "https://avatars.githubusercontent.com/u/85396245?v=4"),
+        Contributor(name = "Ravishanker", githubUrl = "https://github.com/thequantumquirk", avatarUrl = "https://avatars.githubusercontent.com/u/175215931?v=4"),
+        Contributor(name = "Sjoerd Vermeulen", githubUrl = "https://github.com/SjVer", avatarUrl = "https://avatars.githubusercontent.com/u/72567996?v=4"),
+        Contributor(name = "Will", githubUrl = "https://github.com/goonerDroid", avatarUrl = "https://avatars.githubusercontent.com/u/4929917?v=4")
     )
 
     // Correctly initialize MutableTransitionState
