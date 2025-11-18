@@ -474,19 +474,19 @@ class MainActivity : ComponentActivity() {
                     val navBarHideAnimatable = remember { Animatable(navBarHideFractionClamped) }
 
                     LaunchedEffect(navBarHideFractionClamped, currentSheetContentState) {
-                        val targetFraction = when {
-                            currentSheetContentState == PlayerSheetState.EXPANDED -> 1f
-                            navBarHideFractionClamped >= 0.98f -> 1f
-                            else -> navBarHideFractionClamped
-                        }
+                        val targetFraction = if (currentSheetContentState == PlayerSheetState.EXPANDED) 1f else navBarHideFractionClamped
+                        val delta = kotlin.math.abs(targetFraction - navBarHideAnimatable.value)
 
-                        if (currentSheetContentState == PlayerSheetState.EXPANDED && navBarHideAnimatable.value < targetFraction) {
+                        if (delta < 0.04f && currentSheetContentState != PlayerSheetState.EXPANDED) {
+                            navBarHideAnimatable.snapTo(targetFraction)
+                        } else {
                             navBarHideAnimatable.animateTo(
                                 targetValue = targetFraction,
-                                animationSpec = tween(durationMillis = 220)
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                )
                             )
-                        } else {
-                            navBarHideAnimatable.snapTo(targetFraction)
                         }
                     }
 
