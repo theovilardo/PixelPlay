@@ -2538,6 +2538,20 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun repeatAll(){
+        val castSession = _castSession.value
+        if (castSession != null && castSession.remoteMediaClient != null) {
+            val remoteMediaClient = castSession.remoteMediaClient
+            val newMode = MediaStatus.REPEAT_MODE_REPEAT_ALL;
+            remoteMediaClient?.queueSetRepeatMode(newMode, null)?.setResultCallback {
+                if (!it.status.isSuccess) Timber.e("Remote media client failed to set repeat mode: ${it.status.statusMessage}")
+            }
+        } else {
+            val newMode = Player.REPEAT_MODE_ALL
+            mediaController?.repeatMode = newMode
+        }
+    }
+
     fun toggleFavorite() {
         _stablePlayerState.value.currentSong?.id?.let { songId ->
             viewModelScope.launch {
@@ -3501,10 +3515,8 @@ class PlayerViewModel @Inject constructor(
 
     fun disableCountedPlay() {
         cancelCountedPlay()
-        cycleRepeatMode()
-        viewModelScope.launch {
-            _toastEvents.emit("Disabled counted play")
-        }
+        repeatAll()
+        sendToast("Disabled counted play")
     }
 
     @OptIn(FlowPreview::class)
@@ -3523,8 +3535,8 @@ class PlayerViewModel @Inject constructor(
                 countedPlayJob = viewModelScope.launch {
                     var playCount = 1 // Start at 1 for current play
                     viewModelScope.launch {
-                        _toastEvents.emit("Will play $count times (including current play)")
-                        _toastEvents.emit("Play count: $playCount/$count")
+                        sendToast("Will play $count times (including current play)")
+                        sendToast("Play count: $playCount/$count")
                     }
                     combine(
                         playerUiState.map { it.currentPosition }.sample(1000), // Only check once per second ,
@@ -3545,11 +3557,11 @@ class PlayerViewModel @Inject constructor(
                             if (duration > 0 && position >= duration - 1100) {
                                 playCount++
                                 if (playCount<=count)
-                                    _toastEvents.emit("Play count: $playCount/$count")
+                                    sendToast("Play count: $playCount/$count")
 
                                 if (playCount >= count+1) {
                                     mediaController?.pause()
-                                    _toastEvents.emit("Played $count times - pausing")
+                                    sendToast("Played $count times - pausing")
                                     disableCountedPlay()
                                     cancel()
                                 } else {
