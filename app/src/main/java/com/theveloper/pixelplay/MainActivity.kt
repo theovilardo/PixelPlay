@@ -485,18 +485,26 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    val bottomBarPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else systemNavBarInset
+
                     var componentHeightPx by remember { mutableStateOf(0) }
                     val density = LocalDensity.current
                     val shadowOverflowPx = remember(navBarElevation, density) {
                         with(density) { (navBarElevation * 8).toPx() }
                     }
-                    val animatedTranslationY by remember(navBarHideFractionClamped, componentHeightPx, shadowOverflowPx) {
+                    val bottomBarPaddingPx = remember(bottomBarPadding, density) {
+                        with(density) { bottomBarPadding.toPx() }
+                    }
+                    val animatedTranslationY by remember(
+                        navBarHideFractionClamped,
+                        componentHeightPx,
+                        shadowOverflowPx,
+                        bottomBarPaddingPx,
+                    ) {
                         derivedStateOf {
-                            (componentHeightPx + shadowOverflowPx) * navBarHideFractionClamped
+                            (componentHeightPx + shadowOverflowPx + bottomBarPaddingPx) * navBarHideFractionClamped
                         }
                     }
-
-                    val bottomBarPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else systemNavBarInset
 
                     Box(
                         modifier = Modifier
