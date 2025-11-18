@@ -460,6 +460,8 @@ class MainActivity : ComponentActivity() {
                     )
 
                     val navBarHideFraction = if (showPlayerContentArea) playerContentExpansionFraction else 0f
+                    val navBarHideFractionClamped = navBarHideFraction.coerceIn(0f, 1f)
+                    val navBarHideFractionForTranslation = if (navBarHideFractionClamped >= 0.98f) 1f else navBarHideFractionClamped
 
                     val actualShape = remember(playerContentActualBottomRadius, showPlayerContentArea, navBarStyle, navBarCornerRadius) {
                         val bottomRadius = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else navBarCornerRadius.dp
@@ -476,12 +478,16 @@ class MainActivity : ComponentActivity() {
                     }
 
                     var componentHeightPx by remember { mutableStateOf(0) }
-                    val animatedTranslationY by remember(navBarHideFraction, componentHeightPx) { derivedStateOf { componentHeightPx * navBarHideFraction } }
+                    val animatedTranslationY by remember(navBarHideFractionForTranslation, componentHeightPx) {
+                        derivedStateOf { componentHeightPx * navBarHideFractionForTranslation }
+                    }
+
+                    val bottomBarPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 0.dp else systemNavBarInset
 
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = systemNavBarInset)
+                            .padding(bottom = bottomBarPadding)
                             .onSizeChanged { componentHeightPx = it.height }
                             .graphicsLayer {
                                 translationY = animatedTranslationY
