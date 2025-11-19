@@ -72,6 +72,7 @@ import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavHostController
@@ -130,7 +131,7 @@ fun FullPlayerContent(
     onShowQueueClicked: () -> Unit,
     onQueueDragStart: () -> Unit,
     onQueueDrag: (Float) -> Unit,
-    onQueueRelease: (Float) -> Unit,
+    onQueueRelease: (Float, Float) -> Unit,
     onShowCastClicked: () -> Unit,
     onShowTrackVolumeClicked: () -> Unit,
     onShuffleToggle: () -> Unit,
@@ -244,6 +245,7 @@ fun FullPlayerContent(
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
                 var dragConsumedByQueue = false
+                val velocityTracker = VelocityTracker()
                 totalDrag = 0f
 
                 drag(down.id) { change ->
@@ -258,12 +260,14 @@ fun FullPlayerContent(
 
                     if (dragConsumedByQueue) {
                         change.consume()
+                        velocityTracker.addPosition(change.uptimeMillis, change.position)
                         onQueueDrag(dragAmount)
                     }
                 }
 
                 if (dragConsumedByQueue) {
-                    onQueueRelease(totalDrag)
+                    val velocity = velocityTracker.calculateVelocity().y
+                    onQueueRelease(totalDrag, velocity)
                 }
 
                 totalDrag = 0f

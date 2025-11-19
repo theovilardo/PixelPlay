@@ -7,6 +7,9 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,9 +52,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -60,6 +65,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.consume
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
@@ -108,6 +117,9 @@ fun QueueBottomSheet(
     onCancelTimer: () -> Unit,
     onCancelCountedPlay: () -> Unit,
     onPlayCounter: (count: Int) -> Unit,
+    onQueueDragStart: () -> Unit,
+    onQueueDrag: (Float) -> Unit,
+    onQueueRelease: (Float, Float) -> Unit,
     modifier: Modifier = Modifier,
     tonalElevation: Dp = 10.dp,
     shape: RoundedCornerShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
@@ -132,6 +144,10 @@ fun QueueBottomSheet(
     var items by remember(displayQueue) { mutableStateOf(displayQueue) }
 
     val listState = rememberLazyListState()
+    val canDragSheetFromList by remember {
+        derivedStateOf { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 }
+    }
+    val updatedCanDragSheet by rememberUpdatedState(canDragSheetFromList)
     val view = LocalView.current
     var lastMovedFrom by remember { mutableStateOf<Int?>(null) }
     var lastMovedTo by remember { mutableStateOf<Int?>(null) }
@@ -180,6 +196,37 @@ fun QueueBottomSheet(
     val scrollBehavior = FloatingToolbarDefaults.exitAlwaysScrollBehavior(
         exitDirection = FloatingToolbarExitDirection.Bottom
     )
+
+    val listDragModifier = Modifier.pointerInput(updatedCanDragSheet) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            var dragTotal = 0f
+            var draggingSheet = false
+            val dragVelocityTracker = VelocityTracker()
+            dragVelocityTracker.addPosition(down.uptimeMillis, down.position)
+
+            drag(down.id) { change ->
+                val dragAmount = change.positionChange().y
+                dragTotal += dragAmount
+                dragVelocityTracker.addPosition(change.uptimeMillis, change.position)
+
+                if (!draggingSheet && dragAmount > 0 && updatedCanDragSheet) {
+                    draggingSheet = true
+                    onQueueDragStart()
+                }
+
+                if (draggingSheet) {
+                    change.consume()
+                    onQueueDrag(dragAmount)
+                }
+            }
+
+            if (draggingSheet) {
+                val velocity = dragVelocityTracker.calculateVelocity().y
+                onQueueRelease(dragTotal, velocity)
+            }
+        }
+    }
 
     Surface(
         modifier = modifier,
@@ -246,10 +293,11 @@ fun QueueBottomSheet(
                                     smoothnessAsPercentTR = 60,
                                     cornerRadiusBR = 0.dp,
                                     smoothnessAsPercentBL = 60,
-                                    cornerRadiusBL = 0.dp,
-                                    smoothnessAsPercentBR = 60
-                                )
-                            ),
+                                cornerRadiusBL = 0.dp,
+                                smoothnessAsPercentBR = 60
+                            )
+                        ),
+                        .then(listDragModifier),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(bottom = 110.dp)
                     ) {

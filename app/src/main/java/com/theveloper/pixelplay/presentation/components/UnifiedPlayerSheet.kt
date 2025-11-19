@@ -5,6 +5,7 @@ package com.theveloper.pixelplay.presentation.components
 import android.os.Trace
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
@@ -498,7 +499,7 @@ fun UnifiedPlayerSheet(
         }
     }
     val queueDragThresholdPx by remember(queueHiddenOffsetPx) {
-        derivedStateOf { queueHiddenOffsetPx * 0.35f }
+        derivedStateOf { queueHiddenOffsetPx * 0.2f }
     }
     var showCastSheet by remember { mutableStateOf(false) }
     var showTrackVolumeSheet by remember { mutableStateOf(false) }
@@ -510,6 +511,7 @@ fun UnifiedPlayerSheet(
     LaunchedEffect(queueHiddenOffsetPx) {
         if (queueHiddenOffsetPx > 0f && queueSheetOffset.value == 0f) {
             queueSheetOffset.snapTo(queueHiddenOffsetPx)
+            showQueueSheet = false
         }
     }
 
@@ -517,6 +519,7 @@ fun UnifiedPlayerSheet(
         if (queueHiddenOffsetPx == 0f) return
         scope.launch {
             val target = if (targetExpanded) 0f else queueHiddenOffsetPx
+            showQueueSheet = true
             queueSheetOffset.animateTo(
                 targetValue = target,
                 animationSpec = tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
@@ -537,9 +540,11 @@ fun UnifiedPlayerSheet(
         scope.launch { queueSheetOffset.snapTo(newOffset) }
     }
 
-    fun endQueueDrag(totalDrag: Float) {
+    fun endQueueDrag(totalDrag: Float, velocity: Float) {
         if (queueHiddenOffsetPx == 0f) return
-        val shouldExpand = queueSheetOffset.value < queueHiddenOffsetPx - queueDragThresholdPx || totalDrag < -queueDragThresholdPx
+        val isFastUpward = velocity < -1400f
+        val isFastDownward = velocity > 1400f
+        val shouldExpand = isFastUpward || (!isFastDownward && (queueSheetOffset.value < queueHiddenOffsetPx - queueDragThresholdPx || totalDrag < -queueDragThresholdPx))
         animateQueueSheet(shouldExpand)
     }
 
@@ -582,6 +587,10 @@ fun UnifiedPlayerSheet(
 
     val shouldShowSheet by remember(showPlayerContentArea, hideMiniPlayer) {
         derivedStateOf { showPlayerContentArea && !hideMiniPlayer }
+    }
+
+    val isQueueVisible by remember(showQueueSheet, queueHiddenOffsetPx) {
+        derivedStateOf { showQueueSheet && queueHiddenOffsetPx > 0f && queueSheetOffset.value < queueHiddenOffsetPx }
     }
 
     var internalIsKeyboardVisible by remember { mutableStateOf(false) }
@@ -1067,7 +1076,7 @@ fun UnifiedPlayerSheet(
                                                 onShowQueueClicked = { animateQueueSheet(true) },
                                                 onQueueDragStart = { beginQueueDrag() },
                                                 onQueueDrag = { dragQueueBy(it) },
-                                                onQueueRelease = { totalDrag -> endQueueDrag(totalDrag) },
+                                                onQueueRelease = { totalDrag, velocity -> endQueueDrag(totalDrag, velocity) },
                                                 onShowCastClicked = { showCastSheet = true },
                                                 onShowTrackVolumeClicked = {
                                                     showTrackVolumeSheet = true
@@ -1095,21 +1104,34 @@ fun UnifiedPlayerSheet(
                 }
             }
 
-            if (!internalIsKeyboardVisible) {
-                val queueSheetDragModifier = Modifier.pointerInput(queueHiddenOffsetPx) {
+    BackHandler(enabled = isQueueVisible && !internalIsKeyboardVisible) {
+        animateQueueSheet(false)
+    }
+
+    if (!internalIsKeyboardVisible) {
+        val queueSheetDragModifier = Modifier.pointerInput(queueHiddenOffsetPx) {
                     var dragTotal = 0f
+                    val dragVelocityTracker = VelocityTracker()
                     detectVerticalDragGestures(
                         onDragStart = {
                             dragTotal = 0f
+                            dragVelocityTracker.resetTracking()
                             beginQueueDrag()
                         },
                         onVerticalDrag = { change, dragAmount ->
                             change.consume()
                             dragTotal += dragAmount
+                            dragVelocityTracker.addPosition(change.uptimeMillis, change.position)
                             dragQueueBy(dragAmount)
                         },
-                        onDragEnd = { endQueueDrag(dragTotal) },
-                        onDragCancel = { endQueueDrag(dragTotal) }
+                        onDragEnd = {
+                            val velocity = dragVelocityTracker.calculateVelocity().y
+                            endQueueDrag(dragTotal, velocity)
+                        },
+                        onDragCancel = {
+                            val velocity = dragVelocityTracker.calculateVelocity().y
+                            endQueueDrag(dragTotal, velocity)
+                        }
                     )
                 }
 
@@ -1122,7 +1144,7 @@ fun UnifiedPlayerSheet(
                             .fillMaxWidth()
                             .graphicsLayer {
                                 translationY = if (queueHiddenOffsetPx == 0f) queueSheetOffset.value else queueSheetOffset.value
-                                alpha = if (queueHiddenOffsetPx == 0f) 0f else 1f
+                                alpha = if (queueHiddenOffsetPx == 0f || !showQueueSheet) 0f else 1f
                             }
                             .onGloballyPositioned { coordinates ->
                                 queueSheetHeightPx = coordinates.size.height.toFloat()
@@ -1156,7 +1178,10 @@ fun UnifiedPlayerSheet(
                         },
                         onCancelTimer = { playerViewModel.cancelSleepTimer() },
                         onCancelCountedPlay = playerViewModel::cancelCountedPlay,
-                        onPlayCounter = playerViewModel::playCounted
+                        onPlayCounter = playerViewModel::playCounted,
+                        onQueueDragStart = { beginQueueDrag() },
+                        onQueueDrag = { dragQueueBy(it) },
+                        onQueueRelease = { drag, velocity -> endQueueDrag(drag, velocity) }
                     )
                 }
             }
