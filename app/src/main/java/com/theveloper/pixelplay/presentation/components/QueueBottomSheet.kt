@@ -19,6 +19,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateTopPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -363,11 +367,19 @@ fun QueueBottomSheet(
             modifier = Modifier.fillMaxSize()
         ) {
             Column {
+                val headerTopPadding = WindowInsets.statusBars
+                    .asPaddingValues()
+                    .calculateTopPadding() + 10.dp
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(12.dp)
-                        .padding(top = 32.dp)
+                        .padding(
+                            start = 12.dp,
+                            end = 12.dp,
+                            top = headerTopPadding,
+                            bottom = 12.dp,
+                        )
                         .then(directSheetDragModifier),
                     horizontalArrangement = Arrangement.Absolute.SpaceBetween
                 ) {
