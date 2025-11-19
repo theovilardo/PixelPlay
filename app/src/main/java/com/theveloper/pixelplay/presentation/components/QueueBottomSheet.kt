@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -65,6 +66,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
@@ -176,6 +179,9 @@ fun QueueBottomSheet(
         derivedStateOf { reorderableState.isAnyItemDragging }
     }
     val updatedIsReordering by rememberUpdatedState(isReordering)
+    val updatedOnQueueDragStart by rememberUpdatedState(onQueueDragStart)
+    val updatedOnQueueDrag by rememberUpdatedState(onQueueDrag)
+    val updatedOnQueueRelease by rememberUpdatedState(onQueueRelease)
 
     LaunchedEffect(reorderableState.isAnyItemDragging) {
         if (!reorderableState.isAnyItemDragging && lastMovedFrom != null && lastMovedTo != null) {
@@ -275,6 +281,37 @@ fun QueueBottomSheet(
         }
     }
 
+    val queueSheetDragModifier =
+        if (updatedIsReordering || updatedReorderHandleInUse) {
+            Modifier
+        } else {
+            Modifier.pointerInput(updatedOnQueueDragStart, updatedOnQueueDrag, updatedOnQueueRelease) {
+                var dragTotal = 0f
+                val dragVelocityTracker = VelocityTracker()
+                detectVerticalDragGestures(
+                    onDragStart = {
+                        dragTotal = 0f
+                        dragVelocityTracker.resetTracking()
+                        updatedOnQueueDragStart()
+                    },
+                    onVerticalDrag = { change, dragAmount ->
+                        change.consume()
+                        dragTotal += dragAmount
+                        dragVelocityTracker.addPosition(change.uptimeMillis, change.position)
+                        updatedOnQueueDrag(dragAmount)
+                    },
+                    onDragEnd = {
+                        val velocity = dragVelocityTracker.calculateVelocity().y
+                        updatedOnQueueRelease(dragTotal, velocity)
+                    },
+                    onDragCancel = {
+                        val velocity = dragVelocityTracker.calculateVelocity().y
+                        updatedOnQueueRelease(dragTotal, velocity)
+                    }
+                )
+            }
+        }
+
     LaunchedEffect(listState.isScrollInProgress, draggingSheetFromList) {
         if (draggingSheetFromList && !listState.isScrollInProgress) {
             onQueueRelease(listDragAccumulated, 0f)
@@ -289,7 +326,11 @@ fun QueueBottomSheet(
         tonalElevation = tonalElevation,
         color = colors.surfaceContainer,
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(queueSheetDragModifier)
+        ) {
             Column {
                 Row(
                     modifier = Modifier

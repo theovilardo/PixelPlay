@@ -1109,38 +1109,12 @@ fun UnifiedPlayerSheet(
     }
 
     if (!internalIsKeyboardVisible) {
-        val queueSheetDragModifier = Modifier.pointerInput(queueHiddenOffsetPx) {
-                    var dragTotal = 0f
-                    val dragVelocityTracker = VelocityTracker()
-                    detectVerticalDragGestures(
-                        onDragStart = {
-                            dragTotal = 0f
-                            dragVelocityTracker.resetTracking()
-                            beginQueueDrag()
-                        },
-                        onVerticalDrag = { change, dragAmount ->
-                            change.consume()
-                            dragTotal += dragAmount
-                            dragVelocityTracker.addPosition(change.uptimeMillis, change.position)
-                            dragQueueBy(dragAmount)
-                        },
-                        onDragEnd = {
-                            val velocity = dragVelocityTracker.calculateVelocity().y
-                            endQueueDrag(dragTotal, velocity)
-                        },
-                        onDragCancel = {
-                            val velocity = dragVelocityTracker.calculateVelocity().y
-                            endQueueDrag(dragTotal, velocity)
-                        }
-                    )
-                }
-
-                CompositionLocalProvider(
-                    LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
-                ) {
-                    QueueBottomSheet(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
+        CompositionLocalProvider(
+            LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
+        ) {
+            QueueBottomSheet(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
                             .fillMaxWidth()
                             .graphicsLayer {
                                 translationY = if (queueHiddenOffsetPx == 0f) queueSheetOffset.value else queueSheetOffset.value
@@ -1148,8 +1122,7 @@ fun UnifiedPlayerSheet(
                             }
                             .onGloballyPositioned { coordinates ->
                                 queueSheetHeightPx = coordinates.size.height.toFloat()
-                            }
-                            .then(queueSheetDragModifier),
+                            },
                         queue = currentPlaybackQueue, // Use granular state
                         currentQueueSourceName = currentQueueSourceName, // Use granular state
                         currentSongId = stablePlayerState.currentSong?.id, // stablePlayerState is fine here
