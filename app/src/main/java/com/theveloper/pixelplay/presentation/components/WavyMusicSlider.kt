@@ -101,19 +101,22 @@ fun WavyMusicSlider(
     )
 
     // FASE CONDICIONAL: si la onda no se muestra, no hay transición infinita ni invalidaciones.
-    val phaseShift: Float = if (shouldShowWave) {
-        val infinite = rememberInfiniteTransition(label = "WavePhaseInfiniteAnim")
-        val p by infinite.animateFloat(
-            initialValue = 0f,
-            targetValue = (2 * PI).toFloat(),
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = waveAnimationDuration, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "WavePhaseShiftAnim"
-        )
-        p
-    } else 0f
+    val phaseShiftAnim = remember { Animatable(0f) }
+    val phaseShift = phaseShiftAnim.value
+
+    LaunchedEffect(shouldShowWave, waveAnimationDuration) {
+        if (shouldShowWave && waveAnimationDuration > 0) {
+            val fullRotation = (2 * PI).toFloat()
+            while (shouldShowWave) {
+                val start = (phaseShiftAnim.value % fullRotation).let { if (it < 0f) it + fullRotation else it }
+                phaseShiftAnim.snapTo(start)
+                phaseShiftAnim.animateTo(
+                    targetValue = start + fullRotation,
+                    animationSpec = tween(durationMillis = waveAnimationDuration, easing = LinearEasing)
+                )
+            }
+        }
+    }
 
     val trackHeightPx = with(LocalDensity.current) { trackHeight.toPx() }
     val thumbRadiusPx = with(LocalDensity.current) { thumbRadius.toPx() }
