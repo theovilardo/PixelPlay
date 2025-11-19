@@ -139,17 +139,15 @@ fun QueueBottomSheet(
         queue.indexOfFirst { it.id == currentSongId }
     }
 
+    val displayStartIndex = remember(currentSongIndex) { if (currentSongIndex >= 0) currentSongIndex else 0 }
     val displayQueue = remember(queue, currentSongId, currentSongIndex) {
-        if (currentSongIndex != -1) {
-            queue.subList(currentSongIndex, queue.size)
-        } else {
-            queue
-        }
+        queue.drop(displayStartIndex)
     }
 
-    val displayStartIndex = remember(currentSongIndex) { if (currentSongIndex >= 0) currentSongIndex else 0 }
-
-    var items by remember(displayQueue) { mutableStateOf(displayQueue) }
+    var items by remember { mutableStateOf(displayQueue) }
+    LaunchedEffect(displayQueue) {
+        items = displayQueue
+    }
 
     val listState = rememberLazyListState()
     val density = LocalDensity.current
@@ -163,26 +161,35 @@ fun QueueBottomSheet(
     var draggingSheetFromList by remember { mutableStateOf(false) }
     var listDragAccumulated by remember { mutableStateOf(0f) }
     val view = LocalView.current
-    var lastMovedFrom by remember { mutableStateOf<Int?>(null) }
-    var lastMovedTo by remember { mutableStateOf<Int?>(null) }
-    var pendingReorderSongId by remember { mutableStateOf<String?>(null) }
     var reorderHandleInUse by remember { mutableStateOf(false) }
     val updatedReorderHandleInUse by rememberUpdatedState(reorderHandleInUse)
 
     val reorderableState = rememberReorderableLazyListState(
         lazyListState = listState,
         onMove = { from, to ->
-            val movingSongId = items.getOrNull(from.index)?.id
             items = items.toMutableList().apply {
                 add(to.index, removeAt(from.index))
             }
-            if (lastMovedFrom == null) {
-                lastMovedFrom = from.index
-                lastMovedTo = from.index
+        },
+        onSettle = { from, to ->
+            if (queue.isEmpty()) return@rememberReorderableLazyListState
+
+            val fromLocal = from.index
+            val toLocal = to.index
+
+            if (fromLocal == toLocal || fromLocal == 0) {
+                items = displayQueue
+                return@rememberReorderableLazyListState
             }
-            lastMovedTo = to.index
-            if (movingSongId != null) {
-                pendingReorderSongId = movingSongId
+
+            val fromOriginalIndex = displayStartIndex + fromLocal
+            val toOriginalIndex = displayStartIndex + toLocal
+
+            val validFrom = fromOriginalIndex in queue.indices
+            val validTo = toOriginalIndex in queue.indices
+
+            if (validFrom && validTo && fromOriginalIndex != toOriginalIndex) {
+                onReorder(fromOriginalIndex, toOriginalIndex)
             }
         },
         //canDragOver = { _, over -> over.index != 0 }
@@ -194,32 +201,6 @@ fun QueueBottomSheet(
     val updatedOnQueueDragStart by rememberUpdatedState(onQueueDragStart)
     val updatedOnQueueDrag by rememberUpdatedState(onQueueDrag)
     val updatedOnQueueRelease by rememberUpdatedState(onQueueRelease)
-
-    LaunchedEffect(reorderableState.isAnyItemDragging) {
-        if (!reorderableState.isAnyItemDragging) {
-            val fromIndex = lastMovedFrom
-            val toIndex = lastMovedTo
-            val movedSongId = pendingReorderSongId
-
-            if (fromIndex != null && toIndex != null && movedSongId != null) {
-                val fromOriginalIndex = displayStartIndex + fromIndex
-                val resolvedTargetLocalIndex = items.indexOfFirst { it.id == movedSongId }
-                    .takeIf { it != -1 } ?: toIndex
-                val toOriginalIndex = displayStartIndex + resolvedTargetLocalIndex
-
-                val fromWithinQueue = fromOriginalIndex in queue.indices
-                val toWithinQueue = toOriginalIndex in queue.indices
-
-                if (fromWithinQueue && toWithinQueue && fromOriginalIndex != toOriginalIndex) {
-                    onReorder(fromOriginalIndex, toOriginalIndex)
-                }
-            }
-
-            lastMovedFrom = null
-            lastMovedTo = null
-            pendingReorderSongId = null
-        }
-    }
 
     val scrollBehavior = FloatingToolbarDefaults.exitAlwaysScrollBehavior(
         exitDirection = FloatingToolbarExitDirection.Bottom
