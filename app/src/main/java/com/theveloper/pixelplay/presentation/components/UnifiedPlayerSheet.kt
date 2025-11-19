@@ -499,7 +499,7 @@ fun UnifiedPlayerSheet(
         }
     }
     val queueDragThresholdPx by remember(queueHiddenOffsetPx) {
-        derivedStateOf { queueHiddenOffsetPx * 0.12f }
+        derivedStateOf { queueHiddenOffsetPx * 0.08f }
     }
     var showCastSheet by remember { mutableStateOf(false) }
     var showTrackVolumeSheet by remember { mutableStateOf(false) }
@@ -542,8 +542,8 @@ fun UnifiedPlayerSheet(
 
     fun endQueueDrag(totalDrag: Float, velocity: Float) {
         if (queueHiddenOffsetPx == 0f) return
-        val isFastUpward = velocity < -900f
-        val isFastDownward = velocity > 900f
+        val isFastUpward = velocity < -650f
+        val isFastDownward = velocity > 650f
         val shouldExpand = isFastUpward || (!isFastDownward && (queueSheetOffset.value < queueHiddenOffsetPx - queueDragThresholdPx || totalDrag < -queueDragThresholdPx))
         animateQueueSheet(shouldExpand)
     }

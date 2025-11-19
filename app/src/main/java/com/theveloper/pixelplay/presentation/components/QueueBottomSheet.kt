@@ -7,9 +7,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +22,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.nestedScroll.NestedScrollConnection
+import androidx.compose.foundation.nestedScroll.NestedScrollSource
+import androidx.compose.foundation.nestedScroll.nestedScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -65,17 +65,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.consume
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
-import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.core.view.ViewCompat
@@ -146,13 +144,15 @@ fun QueueBottomSheet(
 
     val listState = rememberLazyListState()
     val density = LocalDensity.current
-    val topDragActivationOffsetPx = with(density) { 8.dp.toPx() }
+    val topDragActivationOffsetPx = with(density) { 16.dp.toPx() }
     val canDragSheetFromList by remember {
         derivedStateOf {
             listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset <= topDragActivationOffsetPx
         }
     }
     val updatedCanDragSheet by rememberUpdatedState(canDragSheetFromList)
+    var draggingSheetFromList by remember { mutableStateOf(false) }
+    var listDragAccumulated by remember { mutableStateOf(0f) }
     val view = LocalView.current
     var lastMovedFrom by remember { mutableStateOf<Int?>(null) }
     var lastMovedTo by remember { mutableStateOf<Int?>(null) }
@@ -202,34 +202,64 @@ fun QueueBottomSheet(
         exitDirection = FloatingToolbarExitDirection.Bottom
     )
 
-    val listDragModifier = Modifier.pointerInput(updatedCanDragSheet) {
-        awaitEachGesture {
-            val down = awaitFirstDown(requireUnconsumed = false)
-            var dragTotal = 0f
-            var draggingSheet = false
-            val dragVelocityTracker = VelocityTracker()
-            dragVelocityTracker.addPosition(down.uptimeMillis, down.position)
-
-            drag(down.id) { change ->
-                val dragAmount = change.positionChange().y
-                dragTotal += dragAmount
-                dragVelocityTracker.addPosition(change.uptimeMillis, change.position)
-
-                if (!draggingSheet && dragAmount > 0 && updatedCanDragSheet) {
-                    draggingSheet = true
-                    onQueueDragStart()
+    val listDragConnection = remember(updatedCanDragSheet) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y > 0 && updatedCanDragSheet) {
+                    if (!draggingSheetFromList) {
+                        draggingSheetFromList = true
+                        listDragAccumulated = 0f
+                        onQueueDragStart()
+                    }
+                    listDragAccumulated += available.y
+                    onQueueDrag(available.y)
+                    return Offset(0f, available.y)
                 }
 
-                if (draggingSheet) {
-                    change.consume()
-                    onQueueDrag(dragAmount)
-                }
+                return Offset.Zero
             }
 
-            if (draggingSheet) {
-                val velocity = dragVelocityTracker.calculateVelocity().y
-                onQueueRelease(dragTotal, velocity)
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                if (available.y > 0 && updatedCanDragSheet) {
+                    if (!draggingSheetFromList) {
+                        draggingSheetFromList = true
+                        listDragAccumulated = 0f
+                        onQueueDragStart()
+                    }
+                    onQueueRelease(listDragAccumulated, available.y)
+                    draggingSheetFromList = false
+                    listDragAccumulated = 0f
+                    return available
+                }
+                return Velocity.Zero
             }
+
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (draggingSheetFromList && source == NestedScrollSource.Drag && available.y != 0f) {
+                    listDragAccumulated += available.y
+                    onQueueDrag(available.y)
+                    return Offset(0f, available.y)
+                }
+                return Offset.Zero
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                if (draggingSheetFromList) {
+                    onQueueRelease(listDragAccumulated, available.y)
+                    draggingSheetFromList = false
+                    listDragAccumulated = 0f
+                    return available
+                }
+                return Velocity.Zero
+            }
+        }
+    }
+
+    LaunchedEffect(listState.isScrollInProgress, draggingSheetFromList) {
+        if (draggingSheetFromList && !listState.isScrollInProgress) {
+            onQueueRelease(listDragAccumulated, 0f)
+            draggingSheetFromList = false
+            listDragAccumulated = 0f
         }
     }
 
@@ -302,7 +332,7 @@ fun QueueBottomSheet(
                                     smoothnessAsPercentBL = 60
                                 )
                             )
-                            .then(listDragModifier),
+                            .nestedScroll(listDragConnection),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(bottom = 110.dp)
                     ) {
