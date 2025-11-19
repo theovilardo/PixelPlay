@@ -1112,52 +1112,55 @@ fun UnifiedPlayerSheet(
         CompositionLocalProvider(
             LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
         ) {
-            QueueBottomSheet(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                            .graphicsLayer {
-                                translationY = if (queueHiddenOffsetPx == 0f) queueSheetOffset.value else queueSheetOffset.value
-                                alpha = if (queueHiddenOffsetPx == 0f || !showQueueSheet) 0f else 1f
-                            }
-                            .onGloballyPositioned { coordinates ->
-                                queueSheetHeightPx = coordinates.size.height.toFloat()
-                            },
-                        queue = currentPlaybackQueue, // Use granular state
-                        currentQueueSourceName = currentQueueSourceName, // Use granular state
-                        currentSongId = stablePlayerState.currentSong?.id, // stablePlayerState is fine here
-                        onDismiss = { animateQueueSheet(false) },
-                        onPlaySong = { song ->
-                            playerViewModel.playSongs(
-                                currentPlaybackQueue, // Use granular state
-                                song,
-                                currentQueueSourceName // Use granular state
-                            )
+            Box {
+                QueueBottomSheet(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .graphicsLayer {
+                            translationY = if (queueHiddenOffsetPx == 0f) queueSheetOffset.value else queueSheetOffset.value
+                            alpha = if (queueHiddenOffsetPx == 0f || !showQueueSheet) 0f else 1f
+                        }
+                        .onGloballyPositioned { coordinates ->
+                            queueSheetHeightPx = coordinates.size.height.toFloat()
                         },
-                        onRemoveSong = { songId -> playerViewModel.removeSongFromQueue(songId) },
-                        onReorder = { from, to -> playerViewModel.reorderQueueItem(from, to) },
-                        repeatMode = stablePlayerState.repeatMode,
-                        isShuffleOn = stablePlayerState.isShuffleEnabled,
-                        onToggleRepeat = { playerViewModel.cycleRepeatMode() },
-                        onToggleShuffle = { playerViewModel.toggleShuffle() },
-                        onClearQueue = { playerViewModel.clearQueueExceptCurrent() },
-                        activeTimerValueDisplay = playerViewModel.activeTimerValueDisplay.collectAsState().value,
-                        playCount = playerViewModel.playCount.collectAsState().value,
-                        isEndOfTrackTimerActive = playerViewModel.isEndOfTrackTimerActive.collectAsState().value,
-                        onSetPredefinedTimer = { minutes -> playerViewModel.setSleepTimer(minutes) },
-                        onSetEndOfTrackTimer = { enable -> playerViewModel.setEndOfTrackTimer(enable) },
-                        onOpenCustomTimePicker = {
-                            Log.d("TimerOptions", "OpenCustomTimePicker clicked")
-                        },
-                        onCancelTimer = { playerViewModel.cancelSleepTimer() },
-                        onCancelCountedPlay = playerViewModel::cancelCountedPlay,
-                        onPlayCounter = playerViewModel::playCounted,
-                        onQueueDragStart = { beginQueueDrag() },
-                        onQueueDrag = { dragQueueBy(it) },
-                        onQueueRelease = { drag, velocity -> endQueueDrag(drag, velocity) }
-                    )
-                }
+                    queue = currentPlaybackQueue, // Use granular state
+                    currentQueueSourceName = currentQueueSourceName, // Use granular state
+                    currentSongId = stablePlayerState.currentSong?.id, // stablePlayerState is fine here
+                    onDismiss = { animateQueueSheet(false) },
+                    onPlaySong = { song ->
+                        playerViewModel.playSongs(
+                            currentPlaybackQueue, // Use granular state
+                            song,
+                            currentQueueSourceName // Use granular state
+                        )
+                    },
+                    onRemoveSong = { songId -> playerViewModel.removeSongFromQueue(songId) },
+                    onReorder = { from, to -> playerViewModel.reorderQueueItem(from, to) },
+                    repeatMode = stablePlayerState.repeatMode,
+                    isShuffleOn = stablePlayerState.isShuffleEnabled,
+                    onToggleRepeat = { playerViewModel.cycleRepeatMode() },
+                    onToggleShuffle = { playerViewModel.toggleShuffle() },
+                    onClearQueue = { playerViewModel.clearQueueExceptCurrent() },
+                    activeTimerValueDisplay = playerViewModel.activeTimerValueDisplay.collectAsState().value,
+                    playCount = playerViewModel.playCount.collectAsState().value,
+                    isEndOfTrackTimerActive = playerViewModel.isEndOfTrackTimerActive.collectAsState().value,
+                    onSetPredefinedTimer = { minutes -> playerViewModel.setSleepTimer(minutes) },
+                    onSetEndOfTrackTimer = { enable -> playerViewModel.setEndOfTrackTimer(enable) },
+                    onOpenCustomTimePicker = {
+                        Log.d("TimerOptions", "OpenCustomTimePicker clicked")
+                    },
+                    onCancelTimer = { playerViewModel.cancelSleepTimer() },
+                    onCancelCountedPlay = playerViewModel::cancelCountedPlay,
+                    onPlayCounter = playerViewModel::playCounted,
+                    onQueueDragStart = { beginQueueDrag() },
+                    onQueueDrag = { dragQueueBy(it) },
+                    onQueueRelease = { drag, velocity -> endQueueDrag(drag, velocity) }
+                )
             }
+        }
+            }
+
         }
     }
 

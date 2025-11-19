@@ -344,6 +344,7 @@ fun QueueBottomSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(12.dp)
+                        .padding(top = 32.dp)
                         .then(directSheetDragModifier),
                     horizontalArrangement = Arrangement.Absolute.SpaceBetween
                 ) {
