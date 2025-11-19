@@ -43,7 +43,6 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SheetState
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -95,7 +94,6 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import com.theveloper.pixelplay.utils.AudioMetaUtils.mimeTypeToFormat
 import com.theveloper.pixelplay.utils.formatDuration
-import kotlinx.coroutines.Job
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -119,8 +117,6 @@ fun FullPlayerContent(
     carouselStyle: String,
     playerViewModel: PlayerViewModel, // For stable state like totalDuration and lyrics
     navController: NavHostController,
-    queueSheetState: SheetState,
-    isQueueSheetVisible: Boolean,
     // State Providers
     currentPositionProvider: () -> Long,
     isPlayingProvider: () -> Boolean,
@@ -132,7 +128,9 @@ fun FullPlayerContent(
     onPrevious: () -> Unit,
     onCollapse: () -> Unit,
     onShowQueueClicked: () -> Unit,
-    onQueueSheetVisibilityChange: (Boolean) -> Unit,
+    onQueueDragStart: () -> Unit,
+    onQueueDrag: (Float) -> Unit,
+    onQueueRelease: (Float) -> Unit,
     onShowCastClicked: () -> Unit,
     onShowTrackVolumeClicked: () -> Unit,
     onShuffleToggle: () -> Unit,
@@ -147,8 +145,6 @@ fun FullPlayerContent(
 
     var showFetchLyricsDialog by remember { mutableStateOf(false) }
     var totalDrag by remember { mutableStateOf(0f) }
-    var queueRevealJob by remember { mutableStateOf<Job?>(null) }
-    var queueExpandJob by remember { mutableStateOf<Job?>(null) }
 
     val context = LocalContext.current
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -238,18 +234,16 @@ fun FullPlayerContent(
 
     Scaffold(
         containerColor = Color.Transparent,
-        modifier = Modifier.pointerInput(currentSheetState, expansionFraction, isQueueSheetVisible) {
+        modifier = Modifier.pointerInput(currentSheetState, expansionFraction) {
             val isFullyExpanded =
                 currentSheetState == PlayerSheetState.EXPANDED && expansionFraction >= 0.99f
             if (!isFullyExpanded) return@pointerInput
 
-            val swipeThresholdPx = with(this) { 36.dp.toPx() }
             val queueDragActivationThresholdPx = with(this) { 6.dp.toPx() }
 
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
                 var dragConsumedByQueue = false
-                var queueExpandTriggered = false
                 totalDrag = 0f
 
                 drag(down.id) { change ->
@@ -259,41 +253,17 @@ fun FullPlayerContent(
 
                     if (isDraggingUp && !dragConsumedByQueue) {
                         dragConsumedByQueue = true
-                        if (!isQueueSheetVisible) {
-                            onQueueSheetVisibilityChange(true)
-                        }
+                        onQueueDragStart()
                     }
 
                     if (dragConsumedByQueue) {
                         change.consume()
-                        if (totalDrag < -queueDragActivationThresholdPx && queueRevealJob == null) {
-                            queueRevealJob = gestureScope.launch {
-                                if (!isQueueSheetVisible) onQueueSheetVisibilityChange(true)
-                                queueSheetState.show()
-                            }.also { job ->
-                                job.invokeOnCompletion { queueRevealJob = null }
-                            }
-                        }
-
-                        if (!queueExpandTriggered && totalDrag < -swipeThresholdPx) {
-                            queueExpandTriggered = true
-                            queueExpandJob?.cancel()
-                            queueExpandJob = gestureScope.launch {
-                                queueRevealJob?.join()
-                                queueSheetState.expand()
-                            }.also { job ->
-                                job.invokeOnCompletion { queueExpandJob = null }
-                            }
-                        }
+                        onQueueDrag(dragAmount)
                     }
                 }
 
                 if (dragConsumedByQueue) {
-                    gestureScope.launch {
-                        if (!isQueueSheetVisible) onQueueSheetVisibilityChange(true)
-                        queueRevealJob?.join()
-                        queueSheetState.expand()
-                    }
+                    onQueueRelease(totalDrag)
                 }
 
                 totalDrag = 0f

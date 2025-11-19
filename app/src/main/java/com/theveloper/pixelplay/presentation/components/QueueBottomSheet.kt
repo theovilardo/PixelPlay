@@ -31,7 +31,6 @@ import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
@@ -44,12 +43,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LargeFloatingActionButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.SheetState
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -69,6 +65,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.core.view.ViewCompat
@@ -90,7 +87,6 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
 @Composable
 fun QueueBottomSheet(
     viewModel: PlayerViewModel = hiltViewModel(),
-    sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     queue: List<Song>,
     currentQueueSourceName: String,
     currentSongId: String?,
@@ -112,6 +108,9 @@ fun QueueBottomSheet(
     onCancelTimer: () -> Unit,
     onCancelCountedPlay: () -> Unit,
     onPlayCounter: (count: Int) -> Unit,
+    modifier: Modifier = Modifier,
+    tonalElevation: Dp = 10.dp,
+    shape: RoundedCornerShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
     ) {
     val colors = MaterialTheme.colorScheme
     var showTimerOptions by rememberSaveable { mutableStateOf(false) }
@@ -182,15 +181,11 @@ fun QueueBottomSheet(
         exitDirection = FloatingToolbarExitDirection.Bottom
     )
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState       = sheetState,
-        containerColor   = colors.surfaceContainer,
-        dragHandle       = {
-            BottomSheetDefaults.DragHandle(
-                color = colors.primary
-            )
-        }
+    Surface(
+        modifier = modifier,
+        shape = shape,
+        tonalElevation = tonalElevation,
+        color = colors.surfaceContainer,
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Column {

@@ -50,7 +50,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -78,6 +77,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -488,14 +488,60 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val queueSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showQueueSheet by remember { mutableStateOf(false) }
+    val queueSheetOffset = remember { Animatable(0f) }
+    var queueSheetHeightPx by remember { mutableFloatStateOf(0f) }
+    val queueHiddenOffsetPx by remember(currentBottomPadding, queueSheetHeightPx, density) {
+        derivedStateOf {
+            val basePadding = with(density) { currentBottomPadding.toPx() }
+            if (queueSheetHeightPx == 0f) 0f else queueSheetHeightPx + basePadding
+        }
+    }
+    val queueDragThresholdPx by remember(queueHiddenOffsetPx) {
+        derivedStateOf { queueHiddenOffsetPx * 0.35f }
+    }
     var showCastSheet by remember { mutableStateOf(false) }
     var showTrackVolumeSheet by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
     var isDraggingPlayerArea by remember { mutableStateOf(false) }
     val velocityTracker = remember { VelocityTracker() }
     var accumulatedDragYSinceStart by remember { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(queueHiddenOffsetPx) {
+        if (queueHiddenOffsetPx > 0f && queueSheetOffset.value == 0f) {
+            queueSheetOffset.snapTo(queueHiddenOffsetPx)
+        }
+    }
+
+    fun animateQueueSheet(targetExpanded: Boolean) {
+        if (queueHiddenOffsetPx == 0f) return
+        scope.launch {
+            val target = if (targetExpanded) 0f else queueHiddenOffsetPx
+            queueSheetOffset.animateTo(
+                targetValue = target,
+                animationSpec = tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
+            )
+            showQueueSheet = targetExpanded
+        }
+    }
+
+    fun beginQueueDrag() {
+        if (queueHiddenOffsetPx == 0f) return
+        showQueueSheet = true
+        scope.launch { queueSheetOffset.stop() }
+    }
+
+    fun dragQueueBy(dragAmount: Float) {
+        if (queueHiddenOffsetPx == 0f) return
+        val newOffset = (queueSheetOffset.value + dragAmount).coerceIn(0f, queueHiddenOffsetPx)
+        scope.launch { queueSheetOffset.snapTo(newOffset) }
+    }
+
+    fun endQueueDrag(totalDrag: Float) {
+        if (queueHiddenOffsetPx == 0f) return
+        val shouldExpand = queueSheetOffset.value < queueHiddenOffsetPx - queueDragThresholdPx || totalDrag < -queueDragThresholdPx
+        animateQueueSheet(shouldExpand)
+    }
 
     val hapticFeedback = LocalHapticFeedback.current
 
@@ -668,13 +714,16 @@ fun UnifiedPlayerSheet(
             shadowElevation = 0.dp,
             color = Color.Transparent
         ) {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(bottom = currentBottomPadding)
             ) {
-            // Use granular showDismissUndoBar and undoBarVisibleDuration
-            if (showPlayerContentArea) {
+                Column(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    // Use granular showDismissUndoBar and undoBarVisibleDuration
+                    if (showPlayerContentArea) {
                     val dismissGestureModifier = if (currentSheetContentState == PlayerSheetState.COLLAPSED) {
                         Modifier.pointerInput(Unit) {
                             var accumulatedDragX by mutableFloatStateOf(0f)
@@ -1009,16 +1058,16 @@ fun UnifiedPlayerSheet(
                                                 currentPositionProvider = { positionToDisplay },
                                                 isPlayingProvider = { stablePlayerState.isPlaying },
                                                 isFavoriteProvider = { isFavorite },
-                                                queueSheetState = queueSheetState,
-                                                isQueueSheetVisible = showQueueSheet,
                                                 // Event Handlers
                                                 onPlayPause = playerViewModel::playPause,
                                                 onSeek = playerViewModel::seekTo,
                                                 onNext = playerViewModel::nextSong,
                                                 onPrevious = playerViewModel::previousSong,
                                                 onCollapse = playerViewModel::collapsePlayerSheet,
-                                                onShowQueueClicked = { showQueueSheet = true },
-                                                onQueueSheetVisibilityChange = { showQueueSheet = it },
+                                                onShowQueueClicked = { animateQueueSheet(true) },
+                                                onQueueDragStart = { beginQueueDrag() },
+                                                onQueueDrag = { dragQueueBy(it) },
+                                                onQueueRelease = { totalDrag -> endQueueDrag(totalDrag) },
                                                 onShowCastClicked = { showCastSheet = true },
                                                 onShowTrackVolumeClicked = {
                                                     showTrackVolumeSheet = true
@@ -1042,45 +1091,72 @@ fun UnifiedPlayerSheet(
                     // Spacer removed
                 }
             }
-        }
-    }
 
-    if (showQueueSheet && !internalIsKeyboardVisible) {
-        CompositionLocalProvider(
-            LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
-        ) {
-            QueueBottomSheet(
-                sheetState = queueSheetState,
-                queue = currentPlaybackQueue, // Use granular state
-                currentQueueSourceName = currentQueueSourceName, // Use granular state
-                currentSongId = stablePlayerState.currentSong?.id, // stablePlayerState is fine here
-                onDismiss = { showQueueSheet = false },
-                onPlaySong = { song ->
-                    playerViewModel.playSongs(
-                        currentPlaybackQueue, // Use granular state
-                        song,
-                        currentQueueSourceName // Use granular state
+            if (!internalIsKeyboardVisible) {
+                val queueSheetDragModifier = Modifier.pointerInput(queueHiddenOffsetPx) {
+                    var dragTotal = 0f
+                    detectVerticalDragGestures(
+                        onDragStart = {
+                            dragTotal = 0f
+                            beginQueueDrag()
+                        },
+                        onVerticalDrag = { change, dragAmount ->
+                            change.consume()
+                            dragTotal += dragAmount
+                            dragQueueBy(dragAmount)
+                        },
+                        onDragEnd = { endQueueDrag(dragTotal) },
+                        onDragCancel = { endQueueDrag(dragTotal) }
                     )
-                },
-                onRemoveSong = { songId -> playerViewModel.removeSongFromQueue(songId) },
-                onReorder = { from, to -> playerViewModel.reorderQueueItem(from, to) },
-                repeatMode = stablePlayerState.repeatMode,
-                isShuffleOn = stablePlayerState.isShuffleEnabled,
-                onToggleRepeat = { playerViewModel.cycleRepeatMode() },
-                onToggleShuffle = { playerViewModel.toggleShuffle() },
-                onClearQueue = { playerViewModel.clearQueueExceptCurrent() },
-                activeTimerValueDisplay = playerViewModel.activeTimerValueDisplay.collectAsState().value,
-                playCount = playerViewModel.playCount.collectAsState().value,
-                isEndOfTrackTimerActive = playerViewModel.isEndOfTrackTimerActive.collectAsState().value,
-                onSetPredefinedTimer = { minutes -> playerViewModel.setSleepTimer(minutes) },
-                onSetEndOfTrackTimer = { enable -> playerViewModel.setEndOfTrackTimer(enable) },
-                onOpenCustomTimePicker = {
-                    Log.d("TimerOptions", "OpenCustomTimePicker clicked")
-                },
-                onCancelTimer = { playerViewModel.cancelSleepTimer() },
-                onCancelCountedPlay = playerViewModel::cancelCountedPlay,
-                onPlayCounter = playerViewModel::playCounted
-            )
+                }
+
+                CompositionLocalProvider(
+                    LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
+                ) {
+                    QueueBottomSheet(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .graphicsLayer {
+                                translationY = if (queueHiddenOffsetPx == 0f) queueSheetOffset.value else queueSheetOffset.value
+                                alpha = if (queueHiddenOffsetPx == 0f) 0f else 1f
+                            }
+                            .onGloballyPositioned { coordinates ->
+                                queueSheetHeightPx = coordinates.size.height.toFloat()
+                            }
+                            .then(queueSheetDragModifier),
+                        queue = currentPlaybackQueue, // Use granular state
+                        currentQueueSourceName = currentQueueSourceName, // Use granular state
+                        currentSongId = stablePlayerState.currentSong?.id, // stablePlayerState is fine here
+                        onDismiss = { animateQueueSheet(false) },
+                        onPlaySong = { song ->
+                            playerViewModel.playSongs(
+                                currentPlaybackQueue, // Use granular state
+                                song,
+                                currentQueueSourceName // Use granular state
+                            )
+                        },
+                        onRemoveSong = { songId -> playerViewModel.removeSongFromQueue(songId) },
+                        onReorder = { from, to -> playerViewModel.reorderQueueItem(from, to) },
+                        repeatMode = stablePlayerState.repeatMode,
+                        isShuffleOn = stablePlayerState.isShuffleEnabled,
+                        onToggleRepeat = { playerViewModel.cycleRepeatMode() },
+                        onToggleShuffle = { playerViewModel.toggleShuffle() },
+                        onClearQueue = { playerViewModel.clearQueueExceptCurrent() },
+                        activeTimerValueDisplay = playerViewModel.activeTimerValueDisplay.collectAsState().value,
+                        playCount = playerViewModel.playCount.collectAsState().value,
+                        isEndOfTrackTimerActive = playerViewModel.isEndOfTrackTimerActive.collectAsState().value,
+                        onSetPredefinedTimer = { minutes -> playerViewModel.setSleepTimer(minutes) },
+                        onSetEndOfTrackTimer = { enable -> playerViewModel.setEndOfTrackTimer(enable) },
+                        onOpenCustomTimePicker = {
+                            Log.d("TimerOptions", "OpenCustomTimePicker clicked")
+                        },
+                        onCancelTimer = { playerViewModel.cancelSleepTimer() },
+                        onCancelCountedPlay = playerViewModel::cancelCountedPlay,
+                        onPlayCounter = playerViewModel::playCounted
+                    )
+                }
+            }
         }
     }
 
