@@ -77,6 +77,12 @@ class MusicService : MediaSessionService() {
     private var favoriteSongIds = emptySet<String>()
     private var mediaSession: MediaSession? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    // --- Counted Play State ---
+    private var countedPlayActive = false
+    private var countedPlayTarget = 0
+    private var countedPlayCount = 0
+    private var countedOriginalId: String? = null
+    private var countedPlayListener: Player.Listener? = null
 
     companion object {
         private const val TAG = "MusicService_PixelPlay"
@@ -99,7 +105,8 @@ class MusicService : MediaSessionService() {
                     MusicNotificationProvider.CUSTOM_COMMAND_LIKE,
                     MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_ON,
                     MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_OFF,
-                    MusicNotificationProvider.CUSTOM_COMMAND_CYCLE_REPEAT_MODE
+                    MusicNotificationProvider.CUSTOM_COMMAND_CYCLE_REPEAT_MODE,
+                    MusicNotificationProvider.CUSTOM_COMMAND_COUNTED_PLAY
                 ).map { SessionCommand(it, Bundle.EMPTY) }
 
                 val sessionCommandsBuilder = SessionCommands.Builder()
@@ -121,6 +128,13 @@ class MusicService : MediaSessionService() {
                 Timber.tag("MusicService")
                     .d("onCustomCommand received: ${customCommand.customAction}")
                 when (customCommand.customAction) {
+                    MusicNotificationProvider.CUSTOM_COMMAND_COUNTED_PLAY -> {
+                        val count = args.getInt("count", 1)
+                        startCountedPlay(count)
+                    }
+                    MusicNotificationProvider.CUSTOM_COMMAND_CANCEL_COUNTED_PLAY -> {
+                        stopCountedPlay()
+                    }
                     MusicNotificationProvider.CUSTOM_COMMAND_SHUFFLE_ON -> {
                         Timber.tag("MusicService")
                             .d("Executing SHUFFLE_ON. Current shuffleMode: ${session.player.shuffleModeEnabled}")
@@ -157,7 +171,7 @@ class MusicService : MediaSessionService() {
                         } else {
                             favoriteSongIds + songId
                         }
-        
+
                         onUpdateNotification(session)
 
                         serviceScope.launch {
@@ -431,5 +445,81 @@ class MusicService : MediaSessionService() {
     fun isSongFavorite(songId: String?): Boolean {
         return songId != null && favoriteSongIds.contains(songId)
     }
+
+    // ------------------------
+    // Counted Play Controls
+    // ------------------------
+    fun startCountedPlay(count: Int) {
+        val player = engine.masterPlayer
+        val currentItem = player.currentMediaItem ?: return
+
+        stopCountedPlay()  // reset previous
+
+        countedPlayTarget = count
+        countedPlayCount = 1
+        countedOriginalId = currentItem.mediaId
+        countedPlayActive = true
+
+        // Force repeat-one
+        player.repeatMode = Player.REPEAT_MODE_ONE
+
+        val listener = object : Player.Listener {
+
+            override fun onPositionDiscontinuity(
+                oldPosition: Player.PositionInfo,
+                newPosition: Player.PositionInfo,
+                reason: Int
+            ) {
+                if (!countedPlayActive) return
+
+                if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION) {
+                    countedPlayCount++
+
+                    if (countedPlayCount > countedPlayTarget) {
+                        player.pause()
+                        stopCountedPlay()
+                        return
+                    }
+                }
+            }
+
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                if (!countedPlayActive) return
+
+                // If user manually changes the song -> cancel
+                if (mediaItem?.mediaId != countedOriginalId) {
+                    stopCountedPlay()
+                }
+            }
+
+            override fun onRepeatModeChanged(repeatMode: Int) {
+                // Prevent user from disabling repeat-one
+                if (countedPlayActive && repeatMode != Player.REPEAT_MODE_ONE) {
+                    player.repeatMode = Player.REPEAT_MODE_ONE
+                }
+            }
+        }
+
+        countedPlayListener = listener
+        player.addListener(listener)
+    }
+
+    fun stopCountedPlay() {
+        if (!countedPlayActive) return
+
+        countedPlayActive = false
+        countedPlayTarget = 0
+        countedPlayCount = 0
+        countedOriginalId = null
+
+        countedPlayListener?.let {
+            engine.masterPlayer.removeListener(it)
+        }
+        countedPlayListener = null
+
+        // Restore normal repeat mode (OFF)
+        engine.masterPlayer.repeatMode = Player.REPEAT_MODE_OFF
+    }
+
 }
 

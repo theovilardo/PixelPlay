@@ -48,6 +48,7 @@ import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.media3.common.Timeline
+import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 import androidx.mediarouter.media.MediaControlIntent
 import androidx.mediarouter.media.MediaRouteSelector
@@ -103,6 +104,7 @@ import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.LyricsSearchResult
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.data.repository.NoLyricsFoundException
+import com.theveloper.pixelplay.data.service.MusicNotificationProvider
 import com.theveloper.pixelplay.data.service.MusicService
 import com.theveloper.pixelplay.data.stats.PlaybackStatsRepository
 import com.theveloper.pixelplay.data.service.http.MediaFileHttpServerService
@@ -3522,87 +3524,24 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch { _toastEvents.emit("Timer set for $durationMinutes minutes.") }
     }
 
-    fun disableCountedPlay() {
-        cancelCountedPlay()
-        repeatOff()
-        sendToast("Disabled counted play")
-    }
 
     fun playCounted(count: Int) {
-        _playCount.value = count.toFloat()
-        if (count == 1) {
-            disableCountedPlay()
-        } else {
-            repeatSingle()
-            val currentSongId = stablePlayerState.value.currentSong?.id
+        val args = Bundle().apply { putInt("count", count) }
 
-            if (currentSongId != null) {
-                // Reset state
-                cancelCountedPlay()
-
-                this.countedOriginalSongId = currentSongId
-                var playCount = 1 // Start at 1 for current play
-
-                sendToast("Will play $count times (including current play)")
-                sendToast("Play count: 1/$count")
-
-                // Create the media listener
-                countedMediaListener = object : Player.Listener {
-                    override fun onPositionDiscontinuity(
-                        oldPosition: Player.PositionInfo,
-                        newPosition: Player.PositionInfo,
-                        reason: Int
-                    ) {
-                        when (reason) {
-                            Player.DISCONTINUITY_REASON_AUTO_TRANSITION -> {
-                                // This is triggered when the track completes and restarts (repeat single)
-                                playCount++
-                                if (playCount <= count) {
-                                    sendToast("Play count: ${playCount}/$count")
-                                }
-                                if (playCount >= count + 1) {
-                                    mediaController?.pause()
-                                    sendToast("Played $count times - pausing")
-                                    disableCountedPlay()
-                                }
-                            }
-                            Player.DISCONTINUITY_REASON_SEEK -> {
-                                val newMediaItem = newPosition.mediaItem
-                                // If sought to a different song, cancel counted play
-                                if (newMediaItem?.mediaId != countedOriginalSongId) {
-                                    disableCountedPlay()
-                                }
-                            }
-                        }
-                    }
-
-                    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                        // If user manually changes to a different song
-                        if (mediaItem?.mediaId != countedOriginalSongId) {
-                            disableCountedPlay()
-                        }
-                    }
-                }
-                // Add the listener to media controller
-                countedMediaListener?.let { listener ->
-                    mediaController?.addListener(listener)
-                }
-            }
-        }
+        mediaController?.sendCustomCommand(
+            SessionCommand(MusicNotificationProvider.CUSTOM_COMMAND_COUNTED_PLAY, Bundle.EMPTY),
+            args
+        )
     }
 
-
-    fun cancelCountedPlay() {
-        // Remove media listener
-        countedMediaListener?.let { listener ->
-            mediaController?.removeListener(listener)
-        }
-        countedMediaListener = null
-
-        // Reset state
-        countedOriginalSongId = null
+    fun cancelCountedPlay(){
+        val args = Bundle()
         _playCount.value = 1f
+        mediaController?.sendCustomCommand(
+            SessionCommand(MusicNotificationProvider.CUSTOM_COMMAND_CANCEL_COUNTED_PLAY, Bundle.EMPTY), args
+        )
     }
+
 
     fun setEndOfTrackTimer(enable: Boolean) {
         if (enable) {
