@@ -723,6 +723,23 @@ fun QueuePlaylistSongItem(
             label = "dismissIconScale"
         )
 
+        val hapticView = LocalView.current
+        var dismissHapticPlayed by remember { mutableStateOf(false) }
+
+        LaunchedEffect(dismissProgress, enableSwipeToDismiss) {
+            if (!enableSwipeToDismiss) return@LaunchedEffect
+
+            if (dismissProgress > 0.5f && !dismissHapticPlayed) {
+                dismissHapticPlayed = true
+                ViewCompat.performHapticFeedback(
+                    hapticView,
+                    HapticFeedbackConstantsCompat.GESTURE_END
+                )
+            } else if (dismissProgress < 0.25f) {
+                dismissHapticPlayed = false
+            }
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -734,33 +751,35 @@ fun QueuePlaylistSongItem(
                     orientation = Orientation.Horizontal,
                 )
         ) {
-            Box(
+            Row(
                 modifier = Modifier
                     .matchParentSize()
-                    .clip(itemShape),
-                contentAlignment = Alignment.CenterEnd
+                    .clip(itemShape)
+                    .padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                Spacer(modifier = Modifier.width(4.dp))
+
                 Box(
                     modifier = Modifier
-                        .padding(horizontal = 12.dp)
-                        .height(42.dp)
+                        .fillMaxHeight()
                         .width(capsuleWidth)
                         .clip(CircleShape)
-                        .background(colors.errorContainer)
-                )
-
-                Icon(
-                    painter = painterResource(R.drawable.rounded_close_24),
-                    contentDescription = "Dismiss song",
-                    modifier = Modifier
-                        .padding(end = 24.dp)
-                        .graphicsLayer {
+                        .background(colors.errorContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.rounded_close_24),
+                        contentDescription = "Dismiss song",
+                        modifier = Modifier.graphicsLayer {
                             scaleX = iconScale
                             scaleY = iconScale
                             alpha = iconAlpha
                         },
-                    tint = colors.onErrorContainer
-                )
+                        tint = colors.onErrorContainer
+                    )
+                }
             }
 
             Surface(
