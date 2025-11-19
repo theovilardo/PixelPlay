@@ -71,7 +71,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -151,11 +150,9 @@ fun QueueBottomSheet(
     }
 
     val listState = rememberLazyListState()
-    val density = LocalDensity.current
-    val topDragActivationOffsetPx = with(density) { 16.dp.toPx() }
     val canDragSheetFromList by remember {
         derivedStateOf {
-            listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset <= topDragActivationOffsetPx
+            listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
         }
     }
     val updatedCanDragSheet by rememberUpdatedState(canDragSheetFromList)
