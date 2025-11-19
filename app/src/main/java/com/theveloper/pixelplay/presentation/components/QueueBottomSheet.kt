@@ -288,16 +288,16 @@ fun QueueBottomSheet(
                             .clip(
                                 shape = AbsoluteSmoothCornerShape(
                                     cornerRadiusTR = 26.dp,
-                                    smoothnessAsPercentTL = 60,
-                                    cornerRadiusTL = 26.dp,
                                     smoothnessAsPercentTR = 60,
+                                    cornerRadiusTL = 26.dp,
+                                    smoothnessAsPercentTL = 60,
                                     cornerRadiusBR = 0.dp,
-                                    smoothnessAsPercentBL = 60,
-                                cornerRadiusBL = 0.dp,
-                                smoothnessAsPercentBR = 60
+                                    smoothnessAsPercentBR = 60,
+                                    cornerRadiusBL = 0.dp,
+                                    smoothnessAsPercentBL = 60
+                                )
                             )
-                        ),
-                        .then(listDragModifier),
+                            .then(listDragModifier),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(bottom = 110.dp)
                     ) {
