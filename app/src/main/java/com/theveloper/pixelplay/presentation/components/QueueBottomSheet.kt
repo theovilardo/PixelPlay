@@ -707,10 +707,6 @@ fun QueuePlaylistSongItem(
                 if (target == SwipeState.Dismissed && latestDismissProgress < dismissalThreshold) {
                     return@rememberSwipeableState false
                 }
-
-                if (target == SwipeState.Dismissed) {
-                    onDismiss()
-                }
                 true
             }
         )
@@ -750,6 +746,32 @@ fun QueuePlaylistSongItem(
                 )
             } else if (dismissProgress < resetThreshold) {
                 dismissHapticPlayed = false
+            }
+        }
+
+        var isDismissAnimating by remember { mutableStateOf(false) }
+        val dismissExitFraction by animateFloatAsState(
+            targetValue = if (isDismissAnimating) 1f else 0f,
+            label = "dismissExitFraction",
+            finishedListener = { fraction ->
+                if (fraction == 1f && isDismissAnimating) {
+                    isDismissAnimating = false
+                    onDismiss()
+                }
+            }
+        )
+
+        val exitOffsetPx by remember { derivedStateOf { maxWidthPx * dismissExitFraction } }
+        val dismissAlpha by remember { derivedStateOf { 1f - dismissExitFraction } }
+
+        LaunchedEffect(enableSwipeToDismiss, swipeableState.currentValue) {
+            if (!enableSwipeToDismiss) {
+                isDismissAnimating = false
+                return@LaunchedEffect
+            }
+
+            if (swipeableState.currentValue == SwipeState.Dismissed && !isDismissAnimating) {
+                isDismissAnimating = true
             }
         }
 
@@ -800,9 +822,10 @@ fun QueuePlaylistSongItem(
             Surface(
                 modifier = Modifier
                     .padding(start = 12.dp, end = 12.dp + capsuleGap)
-                    .offset { IntOffset(offsetX.roundToInt(), 0) }
+                    .offset { IntOffset((offsetX - exitOffsetPx).roundToInt(), 0) }
+                    .graphicsLayer { alpha = dismissAlpha }
                     .clip(itemShape)
-                    .clickable(enabled = offsetX == 0f) {
+                    .clickable(enabled = offsetX == 0f && !isDismissAnimating) {
                         onClick()
                     },
                 shape = itemShape,
