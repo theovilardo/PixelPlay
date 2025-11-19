@@ -697,7 +697,8 @@ fun QueuePlaylistSongItem(
             mapOf(0f to SwipeState.Resting, -maxWidthPx to SwipeState.Dismissed)
         }
         val capsuleGap = 4.dp
-        val dismissalThreshold = 0.7f
+        val dismissalThreshold = 0.25f
+        val iconRevealThreshold = dismissalThreshold
 
         var latestDismissProgress by remember { mutableStateOf(0f) }
         val swipeableState = rememberSwipeableState(
@@ -722,11 +723,11 @@ fun QueuePlaylistSongItem(
             label = "capsuleWidth"
         )
         val iconAlpha by animateFloatAsState(
-            targetValue = if (dismissProgress > 0.2f) 1f else 0f,
+            targetValue = if (dismissProgress > iconRevealThreshold) 1f else 0f,
             label = "dismissIconAlpha"
         )
         val iconScale by animateFloatAsState(
-            targetValue = if (dismissProgress > 0.2f) 1f else 0.8f,
+            targetValue = if (dismissProgress > iconRevealThreshold) 1f else 0.8f,
             label = "dismissIconScale"
         )
 
@@ -738,8 +739,8 @@ fun QueuePlaylistSongItem(
 
             latestDismissProgress = dismissProgress
 
-            val hapticTriggerProgress = dismissalThreshold * 0.8f
-            val resetThreshold = dismissalThreshold * 0.4f
+            val hapticTriggerProgress = dismissalThreshold
+            val resetThreshold = dismissalThreshold * 0.6f
 
             if (dismissProgress > hapticTriggerProgress && !dismissHapticPlayed) {
                 dismissHapticPlayed = true
