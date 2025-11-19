@@ -49,6 +49,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -90,6 +91,7 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
 @Composable
 fun QueueBottomSheet(
     viewModel: PlayerViewModel = hiltViewModel(),
+    sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     queue: List<Song>,
     currentQueueSourceName: String,
     currentSongId: String?,
@@ -112,7 +114,6 @@ fun QueueBottomSheet(
     onCancelCountedPlay: () -> Unit,
     onPlayCounter: (count: Int) -> Unit,
     ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val colors = MaterialTheme.colorScheme
     var showTimerOptions by rememberSaveable { mutableStateOf(false) }
     var showClearQueueDialog by remember { mutableStateOf(false) }
