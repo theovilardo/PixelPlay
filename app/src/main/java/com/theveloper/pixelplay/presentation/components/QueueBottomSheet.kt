@@ -89,6 +89,7 @@ import com.theveloper.pixelplay.presentation.components.subcomps.PlayingEqIcon
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.draggableHandle
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
 @androidx.annotation.OptIn(UnstableApi::class)
@@ -403,7 +404,27 @@ fun QueueBottomSheet(
                                     smoothnessAsPercentBL = 60
                                 )
                             )
-                            .nestedScroll(listDragConnection),
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                shape = AbsoluteSmoothCornerShape(
+                                    cornerRadiusTR = 26.dp,
+                                    smoothnessAsPercentTR = 60,
+                                    cornerRadiusTL = 26.dp,
+                                    smoothnessAsPercentTL = 60,
+                                    cornerRadiusBR = 0.dp,
+                                    smoothnessAsPercentBR = 60,
+                                    cornerRadiusBL = 0.dp,
+                                    smoothnessAsPercentBL = 60
+                                )
+                            )
+                            .then(
+                                if (isReordering || reorderHandleInUse) {
+                                    Modifier
+                                } else {
+                                    Modifier.nestedScroll(listDragConnection)
+                                }
+                            ),
+                        userScrollEnabled = !(isReordering || reorderHandleInUse),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(bottom = 110.dp)
                     ) {
@@ -449,10 +470,11 @@ fun QueueBottomSheet(
                                             onClick = {},
                                             modifier = Modifier
                                                 .draggableHandle(
-                                                    onDragStarted = {
-                                                        reorderHandleInUse = true
-                                                        ViewCompat.performHapticFeedback(
-                                                            view,
+                                                        onDragStarted = {
+                                                            draggingSheetFromList = false
+                                                            reorderHandleInUse = true
+                                                            ViewCompat.performHapticFeedback(
+                                                                view,
                                                             HapticFeedbackConstantsCompat.GESTURE_START
                                                         )
                                                     },

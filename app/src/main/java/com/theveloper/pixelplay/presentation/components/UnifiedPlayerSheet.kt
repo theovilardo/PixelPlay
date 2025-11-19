@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -79,6 +80,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.offset
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -86,6 +88,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
@@ -490,7 +493,7 @@ fun UnifiedPlayerSheet(
     }
 
     var showQueueSheet by remember { mutableStateOf(false) }
-    val queueSheetOffset = remember { Animatable(0f) }
+    val queueSheetOffset = remember(screenHeightPx) { Animatable(screenHeightPx) }
     var queueSheetHeightPx by remember { mutableFloatStateOf(0f) }
     val queueHiddenOffsetPx by remember(currentBottomPadding, queueSheetHeightPx, density) {
         derivedStateOf {
@@ -509,10 +512,13 @@ fun UnifiedPlayerSheet(
     var accumulatedDragYSinceStart by remember { mutableFloatStateOf(0f) }
 
     LaunchedEffect(queueHiddenOffsetPx) {
-        if (queueHiddenOffsetPx > 0f && queueSheetOffset.value == 0f) {
-            queueSheetOffset.snapTo(queueHiddenOffsetPx)
-            showQueueSheet = false
+        if (queueHiddenOffsetPx <= 0f) return@LaunchedEffect
+        val targetOffset = if (showQueueSheet) {
+            queueSheetOffset.value.coerceIn(0f, queueHiddenOffsetPx)
+        } else {
+            queueHiddenOffsetPx
         }
+        queueSheetOffset.snapTo(targetOffset)
     }
 
     fun animateQueueSheet(targetExpanded: Boolean) {
@@ -1117,8 +1123,8 @@ fun UnifiedPlayerSheet(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
+                        .offset { IntOffset(x = 0, y = queueSheetOffset.value.roundToInt()) }
                         .graphicsLayer {
-                            translationY = if (queueHiddenOffsetPx == 0f) queueSheetOffset.value else queueSheetOffset.value
                             alpha = if (queueHiddenOffsetPx == 0f || !showQueueSheet) 0f else 1f
                         }
                         .onGloballyPositioned { coordinates ->
