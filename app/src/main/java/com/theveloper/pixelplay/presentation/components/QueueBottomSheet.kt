@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListItemInfo
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -167,22 +168,29 @@ fun QueueBottomSheet(
     var reorderHandleInUse by remember { mutableStateOf(false) }
     val updatedReorderHandleInUse by rememberUpdatedState(reorderHandleInUse)
 
+    fun mapLazyListIndexToLocal(indexInfo: LazyListItemInfo?): Int? {
+        val key = indexInfo?.key ?: return null
+        val resolvedIndex = items.indexOfFirst { it.id == key }
+        return resolvedIndex.takeIf { it != -1 }
+    }
+
     val reorderableState = rememberReorderableLazyListState(
         lazyListState = listState,
         onMove = { from, to ->
-            val movingSongId = items.getOrNull(from.index)?.id
+            val fromLocalIndex = mapLazyListIndexToLocal(from) ?: return@rememberReorderableLazyListState
+            val toLocalIndex = mapLazyListIndexToLocal(to) ?: return@rememberReorderableLazyListState
+            val movingSongId = items.getOrNull(fromLocalIndex)?.id
             items = items.toMutableList().apply {
-                add(to.index, removeAt(from.index))
+                add(toLocalIndex, removeAt(fromLocalIndex))
             }
             if (lastMovedFrom == null) {
-                lastMovedFrom = from.index
+                lastMovedFrom = fromLocalIndex
             }
-            lastMovedTo = to.index
+            lastMovedTo = toLocalIndex
             if (movingSongId != null && pendingReorderSongId == null) {
                 pendingReorderSongId = movingSongId
             }
         },
-        //canDragOver = { _, over -> over.index != 0 }
     )
     val isReordering by remember {
         derivedStateOf { reorderableState.isAnyItemDragging }
