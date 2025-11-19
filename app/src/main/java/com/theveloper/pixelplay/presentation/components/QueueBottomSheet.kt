@@ -281,7 +281,7 @@ fun QueueBottomSheet(
         }
     }
 
-    val queueSheetDragModifier =
+    val directSheetDragModifier =
         if (updatedIsReordering || updatedReorderHandleInUse) {
             Modifier
         } else {
@@ -327,15 +327,14 @@ fun QueueBottomSheet(
         color = colors.surfaceContainer,
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .then(queueSheetDragModifier)
+            modifier = Modifier.fillMaxSize()
         ) {
             Column {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(12.dp),
+                        .padding(12.dp)
+                        .then(directSheetDragModifier),
                     horizontalArrangement = Arrangement.Absolute.SpaceBetween
                 ) {
                     Text(
@@ -473,7 +472,8 @@ fun QueueBottomSheet(
             HorizontalFloatingToolbar(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 24.dp),
+                    .padding(bottom = 24.dp)
+                    .then(directSheetDragModifier),
                 expandedShadowElevation = 0.dp,
                 colors = FloatingToolbarDefaults.standardFloatingToolbarColors(
                     toolbarContainerColor = MaterialTheme.colorScheme.surfaceVariant
