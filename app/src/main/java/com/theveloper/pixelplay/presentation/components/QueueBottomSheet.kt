@@ -170,6 +170,10 @@ fun QueueBottomSheet(
         },
         //canDragOver = { _, over -> over.index != 0 }
     )
+    val isReordering by remember {
+        derivedStateOf { reorderableState.isAnyItemDragging }
+    }
+    val updatedIsReordering by rememberUpdatedState(isReordering)
 
     LaunchedEffect(reorderableState.isAnyItemDragging) {
         if (!reorderableState.isAnyItemDragging && lastMovedFrom != null && lastMovedTo != null) {
@@ -205,6 +209,8 @@ fun QueueBottomSheet(
     val listDragConnection = remember(updatedCanDragSheet) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (updatedIsReordering) return Offset.Zero
+
                 if (draggingSheetFromList) {
                     listDragAccumulated += available.y
                     onQueueDrag(available.y)
@@ -226,6 +232,8 @@ fun QueueBottomSheet(
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
+                if (updatedIsReordering) return Velocity.Zero
+
                 if (available.y > 0 && updatedCanDragSheet) {
                     if (!draggingSheetFromList) {
                         draggingSheetFromList = true
@@ -241,6 +249,8 @@ fun QueueBottomSheet(
             }
 
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (updatedIsReordering) return Offset.Zero
+
                 if (draggingSheetFromList && source == NestedScrollSource.Drag && available.y != 0f) {
                     listDragAccumulated += available.y
                     onQueueDrag(available.y)
@@ -250,6 +260,8 @@ fun QueueBottomSheet(
             }
 
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                if (updatedIsReordering) return Velocity.Zero
+
                 if (draggingSheetFromList) {
                     onQueueRelease(listDragAccumulated, available.y)
                     draggingSheetFromList = false
