@@ -555,6 +555,22 @@ fun UnifiedPlayerSheet(
     }
 
     val hapticFeedback = LocalHapticFeedback.current
+    val updatedQueueImpactHaptics by rememberUpdatedState(hapticFeedback)
+
+    LaunchedEffect(queueHiddenOffsetPx, showQueueSheet) {
+        if (queueHiddenOffsetPx == 0f) return@LaunchedEffect
+        var hasHitTopEdge = showQueueSheet && queueSheetOffset.value <= 0.5f
+        snapshotFlow { queueSheetOffset.value to showQueueSheet }
+            .collectLatest { (offset, isShown) ->
+                val isFullyOpen = isShown && offset <= 0.5f
+                if (isFullyOpen && !hasHitTopEdge) {
+                    updatedQueueImpactHaptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    hasHitTopEdge = true
+                } else if (!isFullyOpen) {
+                    hasHitTopEdge = false
+                }
+            }
+    }
 
     PredictiveBackHandler(
         enabled = showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED && !isDragging
