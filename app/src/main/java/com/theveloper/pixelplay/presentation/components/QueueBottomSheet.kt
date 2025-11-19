@@ -696,6 +696,7 @@ fun QueuePlaylistSongItem(
         val swipeAnchors = remember(maxWidthPx) {
             mapOf(0f to SwipeState.Resting, -maxWidthPx to SwipeState.Dismissed)
         }
+        val capsuleGap = 4.dp
 
         val swipeableState = rememberSwipeableState(
             initialValue = SwipeState.Resting,
@@ -747,8 +748,9 @@ fun QueuePlaylistSongItem(
                     enabled = enableSwipeToDismiss && !isDragging,
                     state = swipeableState,
                     anchors = swipeAnchors,
-                    thresholds = { _, _ -> FractionalThreshold(0.5f) },
+                    thresholds = { _, _ -> FractionalThreshold(0.6f) },
                     orientation = Orientation.Horizontal,
+                    resistance = null,
                 )
         ) {
             Row(
@@ -759,7 +761,7 @@ fun QueuePlaylistSongItem(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(capsuleGap))
 
                 Box(
                     modifier = Modifier
@@ -784,6 +786,7 @@ fun QueuePlaylistSongItem(
 
             Surface(
                 modifier = Modifier
+                    .padding(start = 12.dp, end = 12.dp + capsuleGap)
                     .offset { IntOffset(offsetX.roundToInt(), 0) }
                     .clip(itemShape)
                     .clickable(enabled = offsetX == 0f) {
