@@ -70,6 +70,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -144,8 +145,12 @@ fun QueueBottomSheet(
     var items by remember(displayQueue) { mutableStateOf(displayQueue) }
 
     val listState = rememberLazyListState()
+    val density = LocalDensity.current
+    val topDragActivationOffsetPx = with(density) { 8.dp.toPx() }
     val canDragSheetFromList by remember {
-        derivedStateOf { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 }
+        derivedStateOf {
+            listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset <= topDragActivationOffsetPx
+        }
     }
     val updatedCanDragSheet by rememberUpdatedState(canDragSheetFromList)
     val view = LocalView.current
@@ -301,6 +306,10 @@ fun QueueBottomSheet(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(bottom = 110.dp)
                     ) {
+                        item("queue_top_spacer") {
+                            Spacer(modifier = Modifier.height(2.dp))
+                        }
+
                         itemsIndexed(items, key = { _, s -> s.id }) { index, song ->
                             ReorderableItem(
                                 state = reorderableState,
