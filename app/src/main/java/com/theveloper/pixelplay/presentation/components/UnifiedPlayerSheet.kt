@@ -1085,6 +1085,9 @@ fun UnifiedPlayerSheet(
                     }
                 }
 
+                // Close the player content block before rendering auxiliary UI
+                }
+
                 // Use granular showDismissUndoBar
                 val isPlayerOrUndoBarVisible = showPlayerContentArea || showDismissUndoBar
                 if (isPlayerOrUndoBarVisible) {
