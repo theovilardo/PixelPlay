@@ -697,10 +697,16 @@ fun QueuePlaylistSongItem(
             mapOf(0f to SwipeState.Resting, -maxWidthPx to SwipeState.Dismissed)
         }
         val capsuleGap = 4.dp
+        val dismissalThreshold = 0.7f
 
+        var latestDismissProgress by remember { mutableStateOf(0f) }
         val swipeableState = rememberSwipeableState(
             initialValue = SwipeState.Resting,
             confirmStateChange = { target ->
+                if (target == SwipeState.Dismissed && latestDismissProgress < dismissalThreshold) {
+                    return@rememberSwipeableState false
+                }
+
                 if (target == SwipeState.Dismissed) {
                     onDismiss()
                 }
@@ -730,13 +736,18 @@ fun QueuePlaylistSongItem(
         LaunchedEffect(dismissProgress, enableSwipeToDismiss) {
             if (!enableSwipeToDismiss) return@LaunchedEffect
 
-            if (dismissProgress > 0.5f && !dismissHapticPlayed) {
+            latestDismissProgress = dismissProgress
+
+            val hapticTriggerProgress = dismissalThreshold * 0.8f
+            val resetThreshold = dismissalThreshold * 0.4f
+
+            if (dismissProgress > hapticTriggerProgress && !dismissHapticPlayed) {
                 dismissHapticPlayed = true
                 ViewCompat.performHapticFeedback(
                     hapticView,
                     HapticFeedbackConstantsCompat.GESTURE_END
                 )
-            } else if (dismissProgress < 0.25f) {
+            } else if (dismissProgress < resetThreshold) {
                 dismissHapticPlayed = false
             }
         }
@@ -748,7 +759,8 @@ fun QueuePlaylistSongItem(
                     enabled = enableSwipeToDismiss && !isDragging,
                     state = swipeableState,
                     anchors = swipeAnchors,
-                    thresholds = { _, _ -> FractionalThreshold(0.6f) },
+                    thresholds = { _, _ -> FractionalThreshold(dismissalThreshold) },
+                    velocityThreshold = 1200.dp,
                     orientation = Orientation.Horizontal,
                     resistance = null,
                 )
