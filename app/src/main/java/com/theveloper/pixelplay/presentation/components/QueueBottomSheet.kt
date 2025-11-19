@@ -156,6 +156,8 @@ fun QueueBottomSheet(
     val view = LocalView.current
     var lastMovedFrom by remember { mutableStateOf<Int?>(null) }
     var lastMovedTo by remember { mutableStateOf<Int?>(null) }
+    var reorderHandleInUse by remember { mutableStateOf(false) }
+    val updatedReorderHandleInUse by rememberUpdatedState(reorderHandleInUse)
 
     val reorderableState = rememberReorderableLazyListState(
         lazyListState = listState,
@@ -209,7 +211,7 @@ fun QueueBottomSheet(
     val listDragConnection = remember(updatedCanDragSheet) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (updatedIsReordering) return Offset.Zero
+                if (updatedIsReordering || updatedReorderHandleInUse) return Offset.Zero
 
                 if (draggingSheetFromList) {
                     listDragAccumulated += available.y
@@ -232,7 +234,7 @@ fun QueueBottomSheet(
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
-                if (updatedIsReordering) return Velocity.Zero
+                if (updatedIsReordering || updatedReorderHandleInUse) return Velocity.Zero
 
                 if (available.y > 0 && updatedCanDragSheet) {
                     if (!draggingSheetFromList) {
@@ -249,7 +251,7 @@ fun QueueBottomSheet(
             }
 
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-                if (updatedIsReordering) return Offset.Zero
+                if (updatedIsReordering || updatedReorderHandleInUse) return Offset.Zero
 
                 if (draggingSheetFromList && source == NestedScrollSource.Drag && available.y != 0f) {
                     listDragAccumulated += available.y
@@ -260,7 +262,7 @@ fun QueueBottomSheet(
             }
 
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                if (updatedIsReordering) return Velocity.Zero
+                if (updatedIsReordering || updatedReorderHandleInUse) return Velocity.Zero
 
                 if (draggingSheetFromList) {
                     onQueueRelease(listDragAccumulated, available.y)
@@ -397,12 +399,14 @@ fun QueueBottomSheet(
                                             modifier = Modifier
                                                 .draggableHandle(
                                                     onDragStarted = {
+                                                        reorderHandleInUse = true
                                                         ViewCompat.performHapticFeedback(
                                                             view,
                                                             HapticFeedbackConstantsCompat.GESTURE_START
                                                         )
                                                     },
                                                     onDragStopped = {
+                                                        reorderHandleInUse = false
                                                         ViewCompat.performHapticFeedback(
                                                             view,
                                                             HapticFeedbackConstantsCompat.GESTURE_END
