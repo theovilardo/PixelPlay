@@ -7,9 +7,11 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -27,6 +29,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.FractionalThreshold
+import androidx.compose.material.rememberSwipeableState
+import androidx.compose.material.swipeable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -71,6 +77,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -91,6 +98,7 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.draggableHandle
 import sh.calvin.reorderable.rememberReorderableLazyListState
+import kotlin.math.roundToInt
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class,
@@ -469,7 +477,9 @@ fun QueueBottomSheet(
                                     onRemoveClick = { onRemoveSong(song.id) },
                                     isReorderModeEnabled = false,
                                     isDragHandleVisible = index != 0,
-                                    isRemoveButtonVisible = true,
+                                    isRemoveButtonVisible = false,
+                                    enableSwipeToDismiss = index != 0,
+                                    onDismiss = { onRemoveSong(song.id) },
                                     dragHandle = {
                                         IconButton(
                                             onClick = {},
@@ -631,7 +641,9 @@ fun QueuePlaylistSongItem(
     dragHandle: @Composable () -> Unit,
     isReorderModeEnabled: Boolean,
     isDragHandleVisible: Boolean,
-    isRemoveButtonVisible: Boolean
+    isRemoveButtonVisible: Boolean,
+    enableSwipeToDismiss: Boolean = false,
+    onDismiss: () -> Unit = {}
 ) {
     val colors = MaterialTheme.colorScheme
 
@@ -677,94 +689,174 @@ fun QueuePlaylistSongItem(
         label = "backgroundColorAnimation"
     )
 
-    Surface(
-        modifier = modifier
-            .clip(itemShape)
-            .clickable {
-                onClick()
-            },
-        shape = itemShape,
-        color = backgroundColor,
-        tonalElevation = elevation,
-        shadowElevation = elevation
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
+    val density = LocalDensity.current
+
+    BoxWithConstraints(modifier = modifier) {
+        val maxWidthPx = constraints.maxWidth.toFloat()
+        val swipeAnchors = remember(maxWidthPx) {
+            mapOf(0f to SwipeState.Resting, -maxWidthPx to SwipeState.Dismissed)
+        }
+
+        val swipeableState = rememberSwipeableState(
+            initialValue = SwipeState.Resting,
+            confirmStateChange = { target ->
+                if (target == SwipeState.Dismissed) {
+                    onDismiss()
+                }
+                true
+            }
+        )
+
+        val offsetX by remember { derivedStateOf { if (enableSwipeToDismiss) swipeableState.offset.value else 0f } }
+        val dismissProgress by remember { derivedStateOf { (offsetX / -maxWidthPx).coerceIn(0f, 1f) } }
+
+        val capsuleWidth by animateDpAsState(
+            targetValue = with(density) { (maxWidthPx * dismissProgress).toDp() },
+            label = "capsuleWidth"
+        )
+        val iconAlpha by animateFloatAsState(
+            targetValue = if (dismissProgress > 0.2f) 1f else 0f,
+            label = "dismissIconAlpha"
+        )
+        val iconScale by animateFloatAsState(
+            targetValue = if (dismissProgress > 0.2f) 1f else 0.8f,
+            label = "dismissIconScale"
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .swipeable(
+                    enabled = enableSwipeToDismiss && !isDragging,
+                    state = swipeableState,
+                    anchors = swipeAnchors,
+                    thresholds = { _, _ -> FractionalThreshold(0.5f) },
+                    orientation = Orientation.Horizontal,
+                )
         ) {
-            AnimatedVisibility(visible = isDragHandleVisible) {
-                dragHandle()
-            }
-
-            val albumArtPadding by animateDpAsState(
-                targetValue = if (isDragHandleVisible) 6.dp else 12.dp,
-                label = "albumArtPadding"
-            )
-            Spacer(Modifier.width(albumArtPadding))
-
-            SmartImage(
-                model = song.albumArtUriString,
-                shape = albumShape,
-                contentDescription = "Carátula",
+            Box(
                 modifier = Modifier
-                    .size(42.dp)
-                    .clip(albumShape),
-                contentScale = ContentScale.Crop
-            )
-
-            Spacer(Modifier.width(16.dp))
-
-            Column(Modifier.weight(1f)) {
-                Text(
-                    song.title, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    color = if (isCurrentSong) colors.primary else colors.onSurface,
-                    fontWeight = if (isCurrentSong) FontWeight.Bold else FontWeight.Normal,
-                    style = MaterialTheme.typography.bodyLarge
+                    .matchParentSize()
+                    .clip(itemShape),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                        .height(42.dp)
+                        .width(capsuleWidth)
+                        .clip(CircleShape)
+                        .background(colors.errorContainer)
                 )
-                Text(
-                    song.artist, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (isCurrentSong) colors.primary.copy(alpha = 0.8f) else colors.onSurfaceVariant
+
+                Icon(
+                    painter = painterResource(R.drawable.rounded_close_24),
+                    contentDescription = "Dismiss song",
+                    modifier = Modifier
+                        .padding(end = 24.dp)
+                        .graphicsLayer {
+                            scaleX = iconScale
+                            scaleY = iconScale
+                            alpha = iconAlpha
+                        },
+                    tint = colors.onErrorContainer
                 )
             }
 
-            if (isCurrentSong) {
-                if (isPlaying != null) {
-                    PlayingEqIcon(
-                        modifier = Modifier
-                            .padding(start = 8.dp)
-                            .size(width = 18.dp, height = 16.dp), // similar al tamaño del ícono
-                        color = colors.primary,
-                        isPlaying = isPlaying  // o conectalo a tu estado real de reproducción
+            Surface(
+                modifier = Modifier
+                    .offset { IntOffset(offsetX.roundToInt(), 0) }
+                    .clip(itemShape)
+                    .clickable(enabled = offsetX == 0f) {
+                        onClick()
+                    },
+                shape = itemShape,
+                color = backgroundColor,
+                tonalElevation = elevation,
+                shadowElevation = elevation
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AnimatedVisibility(visible = isDragHandleVisible) {
+                        dragHandle()
+                    }
+
+                    val albumArtPadding by animateDpAsState(
+                        targetValue = if (isDragHandleVisible) 6.dp else 12.dp,
+                        label = "albumArtPadding"
                     )
-                    Spacer(Modifier.width(4.dp))
-                    if (!isRemoveButtonVisible){
+                    Spacer(Modifier.width(albumArtPadding))
+
+                    SmartImage(
+                        model = song.albumArtUriString,
+                        shape = albumShape,
+                        contentDescription = "Carátula",
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(albumShape),
+                        contentScale = ContentScale.Crop
+                    )
+
+                    Spacer(Modifier.width(16.dp))
+
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            song.title, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            color = if (isCurrentSong) colors.primary else colors.onSurface,
+                            fontWeight = if (isCurrentSong) FontWeight.Bold else FontWeight.Normal,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            song.artist, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (isCurrentSong) colors.primary.copy(alpha = 0.8f) else colors.onSurfaceVariant
+                        )
+                    }
+
+                    if (isCurrentSong) {
+                        if (isPlaying != null) {
+                            PlayingEqIcon(
+                                modifier = Modifier
+                                    .padding(start = 8.dp)
+                                    .size(width = 18.dp, height = 16.dp),
+                                color = colors.primary,
+                                isPlaying = isPlaying
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            if (!isRemoveButtonVisible){
+                                Spacer(Modifier.width(8.dp))
+                            }
+                        }
+                    } else {
                         Spacer(Modifier.width(8.dp))
                     }
-                }
-            } else {
-                Spacer(Modifier.width(8.dp))
-            }
 
-            AnimatedVisibility(visible = isRemoveButtonVisible) {
-                FilledIconButton(
-                    onClick = onRemoveClick,
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = colors.surfaceContainer,
-                        contentColor = colors.onSurface
-                    ),
-                    modifier = Modifier
-                        .width(40.dp)
-                        .height(40.dp)
-                        .padding(start = 4.dp, end = 8.dp)
-                ) {
-                    Icon(
-                        modifier = Modifier.size(18.dp),
-                        painter = painterResource(R.drawable.rounded_close_24),
-                        contentDescription = "Remove from playlist",
-                    )
+                    AnimatedVisibility(visible = isRemoveButtonVisible && !enableSwipeToDismiss) {
+                        FilledIconButton(
+                            onClick = onRemoveClick,
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = colors.surfaceContainer,
+                                contentColor = colors.onSurface
+                            ),
+                            modifier = Modifier
+                                .width(40.dp)
+                                .height(40.dp)
+                                .padding(start = 4.dp, end = 8.dp)
+                        ) {
+                            Icon(
+                                modifier = Modifier.size(18.dp),
+                                painter = painterResource(R.drawable.rounded_close_24),
+                                contentDescription = "Remove from playlist",
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 }
+
+@OptIn(ExperimentalMaterialApi::class)
+private enum class SwipeState { Resting, Dismissed }
