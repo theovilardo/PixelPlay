@@ -205,6 +205,12 @@ fun QueueBottomSheet(
     val listDragConnection = remember(updatedCanDragSheet) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (draggingSheetFromList) {
+                    listDragAccumulated += available.y
+                    onQueueDrag(available.y)
+                    return available
+                }
+
                 if (available.y > 0 && updatedCanDragSheet) {
                     if (!draggingSheetFromList) {
                         draggingSheetFromList = true
