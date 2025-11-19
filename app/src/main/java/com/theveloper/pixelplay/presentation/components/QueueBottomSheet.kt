@@ -23,9 +23,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.nestedScroll.NestedScrollConnection
-import androidx.compose.foundation.nestedScroll.NestedScrollSource
-import androidx.compose.foundation.nestedScroll.nestedScroll
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -134,14 +134,19 @@ fun QueueBottomSheet(
 
     val isPlaying = stablePlayerState.isPlaying
 
-    val displayQueue = remember(queue, currentSongId) {
-        val currentSongIndex = queue.indexOfFirst { it.id == currentSongId }
+    val currentSongIndex = remember(queue, currentSongId) {
+        queue.indexOfFirst { it.id == currentSongId }
+    }
+
+    val displayQueue = remember(queue, currentSongId, currentSongIndex) {
         if (currentSongIndex != -1) {
             queue.subList(currentSongIndex, queue.size)
         } else {
             queue
         }
     }
+
+    val displayStartIndex = remember(currentSongIndex) { if (currentSongIndex >= 0) currentSongIndex else 0 }
 
     var items by remember(displayQueue) { mutableStateOf(displayQueue) }
 
@@ -159,19 +164,25 @@ fun QueueBottomSheet(
     val view = LocalView.current
     var lastMovedFrom by remember { mutableStateOf<Int?>(null) }
     var lastMovedTo by remember { mutableStateOf<Int?>(null) }
+    var pendingReorderSongId by remember { mutableStateOf<String?>(null) }
     var reorderHandleInUse by remember { mutableStateOf(false) }
     val updatedReorderHandleInUse by rememberUpdatedState(reorderHandleInUse)
 
     val reorderableState = rememberReorderableLazyListState(
         lazyListState = listState,
         onMove = { from, to ->
+            val movingSongId = items.getOrNull(from.index)?.id
             items = items.toMutableList().apply {
                 add(to.index, removeAt(from.index))
             }
             if (lastMovedFrom == null) {
                 lastMovedFrom = from.index
+                lastMovedTo = from.index
             }
             lastMovedTo = to.index
+            if (movingSongId != null) {
+                pendingReorderSongId = movingSongId
+            }
         },
         //canDragOver = { _, over -> over.index != 0 }
     )
@@ -184,29 +195,28 @@ fun QueueBottomSheet(
     val updatedOnQueueRelease by rememberUpdatedState(onQueueRelease)
 
     LaunchedEffect(reorderableState.isAnyItemDragging) {
-        if (!reorderableState.isAnyItemDragging && lastMovedFrom != null && lastMovedTo != null) {
-            val fromIndex = lastMovedFrom!!
-            val toIndex = lastMovedTo!!
+        if (!reorderableState.isAnyItemDragging) {
+            val fromIndex = lastMovedFrom
+            val toIndex = lastMovedTo
+            val movedSongId = pendingReorderSongId
 
-            if (fromIndex != 0) {
-                val fromSong = displayQueue[fromIndex]
-                val fromOriginalIndex = queue.indexOfFirst { it.id == fromSong.id }
+            if (fromIndex != null && toIndex != null && movedSongId != null) {
+                val fromOriginalIndex = displayStartIndex + fromIndex
+                val resolvedTargetLocalIndex = items.indexOfFirst { it.id == movedSongId }
+                    .takeIf { it != -1 } ?: toIndex
+                val toOriginalIndex = displayStartIndex + resolvedTargetLocalIndex
 
-                // FIX: The `to` index must be derived from the stable `displayQueue`.
-                // The `items` list is a temporary state for the drag animation and using it
-                // to find the destination song is incorrect because `items[toIndex]` will
-                // point to the song that was just moved. By using `displayQueue`, we get
-                // the song that was at the destination index *before* the drag operation.
-                val toSong = displayQueue[toIndex]
-                val toOriginalIndex = queue.indexOfFirst { it.id == toSong.id }
+                val fromWithinQueue = fromOriginalIndex in queue.indices
+                val toWithinQueue = toOriginalIndex in queue.indices
 
-                if (fromOriginalIndex != -1 && toOriginalIndex != -1) {
+                if (fromWithinQueue && toWithinQueue && fromOriginalIndex != toOriginalIndex) {
                     onReorder(fromOriginalIndex, toOriginalIndex)
                 }
             }
 
             lastMovedFrom = null
             lastMovedTo = null
+            pendingReorderSongId = null
         }
     }
 
