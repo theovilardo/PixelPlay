@@ -238,10 +238,23 @@ fun QueueBottomSheet(
         exitDirection = FloatingToolbarExitDirection.Bottom
     )
 
+    fun finalizeListDrag(velocity: Float = 0f) {
+        if (draggingSheetFromList) {
+            onQueueRelease(listDragAccumulated, velocity)
+            draggingSheetFromList = false
+            listDragAccumulated = 0f
+        }
+    }
+
     val listDragConnection = remember(updatedCanDragSheet) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 if (updatedIsReordering || updatedReorderHandleInUse) return Offset.Zero
+
+                if (draggingSheetFromList && available.y < 0f) {
+                    finalizeListDrag()
+                    return Offset.Zero
+                }
 
                 if (draggingSheetFromList) {
                     listDragAccumulated += available.y
@@ -265,6 +278,11 @@ fun QueueBottomSheet(
 
             override suspend fun onPreFling(available: Velocity): Velocity {
                 if (updatedIsReordering || updatedReorderHandleInUse) return Velocity.Zero
+
+                if (draggingSheetFromList && available.y < 0f) {
+                    finalizeListDrag(available.y)
+                    return Velocity.Zero
+                }
 
                 if (available.y > 0 && updatedCanDragSheet) {
                     if (!draggingSheetFromList) {
@@ -294,12 +312,7 @@ fun QueueBottomSheet(
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
                 if (updatedIsReordering || updatedReorderHandleInUse) return Velocity.Zero
 
-                if (draggingSheetFromList) {
-                    onQueueRelease(listDragAccumulated, available.y)
-                    draggingSheetFromList = false
-                    listDragAccumulated = 0f
-                    return available
-                }
+                if (draggingSheetFromList) return available.also { finalizeListDrag(available.y) }
                 return Velocity.Zero
             }
         }
@@ -337,11 +350,7 @@ fun QueueBottomSheet(
         }
 
     LaunchedEffect(listState.isScrollInProgress, draggingSheetFromList) {
-        if (draggingSheetFromList && !listState.isScrollInProgress) {
-            onQueueRelease(listDragAccumulated, 0f)
-            draggingSheetFromList = false
-            listDragAccumulated = 0f
-        }
+        if (draggingSheetFromList && !listState.isScrollInProgress) finalizeListDrag()
     }
 
     Surface(
