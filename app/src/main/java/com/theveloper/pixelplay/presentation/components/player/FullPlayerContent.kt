@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -689,7 +690,7 @@ private fun PlayerProgressBarSection(
     val rawPosition = currentPositionProvider()
     val rawProgress = (rawPosition.coerceAtLeast(0) / totalDurationValue.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
 
-    val (smoothProgress, sampledPosition) = rememberSmoothProgress(
+    val (smoothProgress, _) = rememberSmoothProgress(
         isPlayingProvider = isPlayingProvider,
         currentPositionProvider = currentPositionProvider,
         totalDuration = totalDurationValue,
@@ -700,9 +701,26 @@ private fun PlayerProgressBarSection(
     var sliderDragValue by remember { mutableStateOf<Float?>(null) }
     val interactionSource = remember { MutableInteractionSource() }
 
-    val effectiveProgress = sliderDragValue ?: if (isExpanded) rawProgress else smoothProgress
-    val effectivePosition = sliderDragValue?.let { (it * totalDurationValue).roundToLong() }
-        ?: if (isExpanded) rawPosition else sampledPosition
+    val targetProgress = sliderDragValue ?: if (isExpanded) rawProgress else smoothProgress
+
+    val animatedProgress = remember {
+        Animatable(targetProgress)
+    }
+
+    LaunchedEffect(targetProgress, sliderDragValue != null) {
+        val clampedTarget = targetProgress.coerceIn(0f, 1f)
+        if (sliderDragValue != null) {
+            animatedProgress.snapTo(clampedTarget)
+        } else {
+            animatedProgress.animateTo(
+                targetValue = clampedTarget,
+                animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)
+            )
+        }
+    }
+
+    val effectiveProgress = animatedProgress.value
+    val effectivePosition = (effectiveProgress * totalDurationValue).roundToLong()
 
     Column(
         modifier = modifier
