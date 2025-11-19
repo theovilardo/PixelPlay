@@ -52,11 +52,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -83,6 +81,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -91,11 +90,16 @@ import androidx.compose.ui.res.painterResource
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavHostController
 import com.theveloper.pixelplay.R
-import com.theveloper.pixelplay.data.model.Genre // Added import for Genre
+import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
+import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
+import com.theveloper.pixelplay.presentation.components.PlaylistBottomSheet
 import com.theveloper.pixelplay.presentation.navigation.Screen // Required for Screen.GenreDetail.createRoute
 import com.theveloper.pixelplay.presentation.screens.search.components.GenreCategoriesGrid
+import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import timber.log.Timber
 
@@ -106,11 +110,14 @@ import timber.log.Timber
 fun SearchScreen(
     paddingValues: PaddingValues,
     playerViewModel: PlayerViewModel = hiltViewModel(),
+    playlistViewModel: PlaylistViewModel = hiltViewModel(),
     navController: NavHostController
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var active by remember { mutableStateOf(false) }
-
+    val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val bottomBarHeightDp = NavBarContentHeight + systemNavBarInset
+    var showPlaylistBottomSheet by remember { mutableStateOf(false) }
     val uiState by playerViewModel.playerUiState.collectAsState()
     val currentFilter by remember { derivedStateOf { uiState.selectedSearchFilter } }
     val searchHistory = uiState.searchHistory
@@ -307,7 +314,8 @@ fun SearchScreen(
                                     onItemSelected = rememberedOnItemSelected,
                                     currentPlayingSongId = stablePlayerState.currentSong?.id,
                                     isPlaying = stablePlayerState.isPlaying,
-                                    onSongMoreOptionsClick = handleSongMoreOptionsClick
+                                    onSongMoreOptionsClick = handleSongMoreOptionsClick,
+                                    navController = navController
                                 )
                             } else if (searchQuery.isBlank() && active && searchHistory.isEmpty()) {
                                 Box(
@@ -348,7 +356,9 @@ fun SearchScreen(
                                     brush = Brush.verticalGradient(
                                         colors = listOf(
                                             Color.Transparent,
-                                            MaterialTheme.colorScheme.surfaceContainerLowest.copy(0.5f),
+                                            MaterialTheme.colorScheme.surfaceContainerLowest.copy(
+                                                0.5f
+                                            ),
                                             MaterialTheme.colorScheme.surfaceContainerLowest
                                         )
                                     )
@@ -378,7 +388,8 @@ fun SearchScreen(
                             onItemSelected = { },
                             currentPlayingSongId = stablePlayerState.currentSong?.id,
                             isPlaying = stablePlayerState.isPlaying,
-                            onSongMoreOptionsClick = handleSongMoreOptionsClick
+                            onSongMoreOptionsClick = handleSongMoreOptionsClick,
+                            navController = navController
                         )
                     }
                 }
@@ -393,11 +404,17 @@ fun SearchScreen(
                 currentSong?.let { favoriteSongIds.contains(it.id) }
             }
         }.value ?: false
+        val removeFromListTrigger = remember(currentSong) {
+            {
+                searchQuery = "$searchQuery "
+            }
+        }
 
         if (currentSong != null) {
             SongInfoBottomSheet(
                 song = currentSong,
                 isFavorite = isFavorite,
+                removeFromListTrigger = removeFromListTrigger,
                 onToggleFavorite = {
                     playerViewModel.toggleFavoriteSpecificSong(currentSong)
                 },
@@ -409,6 +426,9 @@ fun SearchScreen(
                 onAddToQueue = {
                     playerViewModel.addSongToQueue(currentSong)
                     showSongInfoBottomSheet = false
+                },
+                onAddToPlayList = {
+                    showPlaylistBottomSheet = true;
                 },
                 onDeleteFromDevice = playerViewModel::deleteFromDevice,
                 onNavigateToAlbum = {
@@ -433,8 +453,19 @@ fun SearchScreen(
                 },
                 generateAiMetadata = { fields ->
                     playerViewModel.generateAiMetadata(currentSong, fields)
-                }
+                },
             )
+            if (showPlaylistBottomSheet) {
+                val playlistUiState by playlistViewModel.uiState.collectAsState()
+
+                PlaylistBottomSheet(
+                    playlistUiState = playlistUiState,
+                    song = currentSong,
+                    onDismiss = { showPlaylistBottomSheet = false },
+                    bottomBarHeight = bottomBarHeightDp,
+                    playerViewModel = playerViewModel,
+                )
+            }
         }
     }
 }
@@ -460,7 +491,9 @@ fun SearchHistoryList(
     val localDensity = LocalDensity.current
     Column {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp, horizontal = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -544,7 +577,9 @@ fun EmptySearchResults(searchQuery: String, colorScheme: ColorScheme) {
         Icon(
             imageVector = Icons.Rounded.Search, // More generic icon
             contentDescription = "No results",
-            modifier = Modifier.size(80.dp).padding(bottom = 16.dp),
+            modifier = Modifier
+                .size(80.dp)
+                .padding(bottom = 16.dp),
             tint = colorScheme.primary.copy(alpha = 0.6f)
         )
 
@@ -575,9 +610,11 @@ fun SearchResultsList(
     onItemSelected: () -> Unit,
     currentPlayingSongId: String?,
     isPlaying: Boolean,
-    onSongMoreOptionsClick: (Song) -> Unit
+    onSongMoreOptionsClick: (Song) -> Unit,
+    navController: NavHostController
 ) {
     val localDensity = LocalDensity.current
+    val playerStableState by playerViewModel.stablePlayerState.collectAsState()
 
     if (results.isEmpty()) {
         Box(
@@ -665,7 +702,7 @@ fun SearchResultsList(
                             }
 
                             is SearchResultItem.AlbumItem -> {
-                                val rememberedOnClick = remember(item.album, playerViewModel, onItemSelected) {
+                                val onPlayClick = remember(item.album, playerViewModel, onItemSelected) {
                                     {
                                         Timber.tag("SearchScreen")
                                             .d("Album clicked: ${item.album.title}")
@@ -673,14 +710,23 @@ fun SearchResultsList(
                                         onItemSelected()
                                     }
                                 }
+                                val onOpenClick = remember (
+                                    item.album,
+                                    playerViewModel, onItemSelected ) {
+                                    {
+                                        navController.navigate(Screen.AlbumDetail.createRoute(item.album.id))
+                                        onItemSelected()
+                                    }
+                                }
                                 SearchResultAlbumItem(
                                     album = item.album,
-                                    onClick = rememberedOnClick
+                                    onPlayClick = onPlayClick,
+                                    onOpenClick = onOpenClick
                                 )
                             }
 
                             is SearchResultItem.ArtistItem -> {
-                                val rememberedOnClick = remember(item.artist, playerViewModel, onItemSelected) {
+                                val onPlayClick = remember(item.artist, playerViewModel, onItemSelected) {
                                     {
                                         Timber.tag("SearchScreen")
                                             .d("Artist clicked: ${item.artist.name}")
@@ -688,22 +734,54 @@ fun SearchResultsList(
                                         onItemSelected()
                                     }
                                 }
+                                val onOpenClick = remember (
+                                    item.artist,
+                                    playerViewModel, onItemSelected ) {
+                                    {
+                                        navController.navigate(Screen.ArtistDetail.createRoute(item.artist.id))
+                                        onItemSelected()
+                                    }
+                                }
                                 SearchResultArtistItem(
                                     artist = item.artist,
-                                    onClick = rememberedOnClick
+                                    onPlayClick = onPlayClick,
+                                    onOpenClick = onOpenClick
                                 )
                             }
 
                             is SearchResultItem.PlaylistItem -> {
-                                val rememberedOnClick = remember(item.playlist, playerViewModel, onItemSelected) {
+                                var songsInPlaylist by remember { mutableStateOf<List<Song>>(emptyList()) }
+                                var fetchSongs by remember { mutableStateOf(false) }
+                                LaunchedEffect(fetchSongs) {
+                                    songsInPlaylist = playerViewModel.getSongs( item.playlist.songIds)
+                                }
+                                val onPlayClick = remember(item.playlist, playerViewModel, onItemSelected) {
                                     {
-                                        Log.d("SearchScreen", "Playlist clicked: ${item.playlist.name}")
+                                        fetchSongs = true
+                                        if (songsInPlaylist.isNotEmpty()) {
+                                            playerViewModel.playSongs(
+                                                songsInPlaylist,
+                                                songsInPlaylist.first(),
+                                                item.playlist.name
+                                            )
+                                            if (playerStableState.isShuffleEnabled) playerViewModel.toggleShuffle()
+                                        } else
+                                            playerViewModel.sendToast("Empty playlist")
+                                        onItemSelected()
+                                    }
+                                }
+                                val onOpenClick = remember (
+                                    item.playlist,
+                                    playerViewModel, onItemSelected ) {
+                                    {
+                                        navController.navigate(Screen.PlaylistDetail.createRoute(item.playlist.id))
                                         onItemSelected()
                                     }
                                 }
                                 SearchResultPlaylistItem(
                                     playlist = item.playlist,
-                                    onClick = rememberedOnClick
+                                    onPlayClick = onPlayClick,
+                                    onOpenClick = onOpenClick
                                 )
                             }
                         }
@@ -718,7 +796,8 @@ fun SearchResultsList(
 @Composable
 fun SearchResultAlbumItem(
     album: Album,
-    onClick: () -> Unit
+    onOpenClick: () -> Unit,
+    onPlayClick: () -> Unit
 ) {
     val itemShape = remember {
         AbsoluteSmoothCornerShape(
@@ -734,7 +813,7 @@ fun SearchResultAlbumItem(
     }
 
     Card(
-        onClick = onClick,
+        onClick = onOpenClick,
         shape = itemShape,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
@@ -775,7 +854,7 @@ fun SearchResultAlbumItem(
                 )
             }
             FilledIconButton(
-                onClick = onClick,
+                onClick = onPlayClick,
                 modifier = Modifier.size(40.dp),
                 shape = CircleShape,
                 colors = IconButtonDefaults.filledIconButtonColors(
@@ -793,7 +872,8 @@ fun SearchResultAlbumItem(
 @Composable
 fun SearchResultArtistItem(
     artist: Artist,
-    onClick: () -> Unit
+    onOpenClick: () -> Unit,
+    onPlayClick: () -> Unit
 ) {
     val itemShape = remember {
         AbsoluteSmoothCornerShape(
@@ -809,7 +889,7 @@ fun SearchResultArtistItem(
     }
 
     Card(
-        onClick = onClick,
+        onClick = onOpenClick,
         shape = itemShape,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
@@ -847,7 +927,7 @@ fun SearchResultArtistItem(
                 )
             }
             FilledIconButton(
-                onClick = onClick,
+                onClick = onPlayClick,
                 modifier = Modifier.size(40.dp),
                 shape = CircleShape,
                 colors = IconButtonDefaults.filledIconButtonColors(
@@ -865,7 +945,8 @@ fun SearchResultArtistItem(
 @Composable
 fun SearchResultPlaylistItem(
     playlist: Playlist,
-    onClick: () -> Unit
+    onOpenClick: () -> Unit,
+    onPlayClick: () -> Unit
 ) {
     val itemShape = remember {
         AbsoluteSmoothCornerShape(
@@ -881,7 +962,7 @@ fun SearchResultPlaylistItem(
     }
 
     Card(
-        onClick = onClick,
+        onClick = onOpenClick,
         shape = itemShape,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
@@ -914,7 +995,7 @@ fun SearchResultPlaylistItem(
                 )
             }
             FilledIconButton(
-                onClick = onClick,
+                onClick = onPlayClick,
                 modifier = Modifier.size(40.dp),
                 shape = CircleShape,
                 colors = IconButtonDefaults.filledIconButtonColors(

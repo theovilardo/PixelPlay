@@ -45,7 +45,8 @@ class PlaylistViewModel @Inject constructor(
     val uiState: StateFlow<PlaylistUiState> = _uiState.asStateFlow()
 
     companion object {
-        private const val SONG_SELECTION_PAGE_SIZE = 100 // Cargar 100 canciones a la vez para el selector
+        private const val SONG_SELECTION_PAGE_SIZE =
+            100 // Cargar 100 canciones a la vez para el selector
         const val FOLDER_PLAYLIST_PREFIX = "folder_playlist:"
     }
 
@@ -72,7 +73,8 @@ class PlaylistViewModel @Inject constructor(
 
             // Then, collect playlists and apply the sort option
             userPreferencesRepository.userPlaylistsFlow.collect { playlists ->
-                val currentSortOption = _uiState.value.currentPlaylistSortOption // Use the most up-to-date sort option
+                val currentSortOption =
+                    _uiState.value.currentPlaylistSortOption // Use the most up-to-date sort option
                 val sortedPlaylists = when (currentSortOption) {
                     SortOption.PlaylistNameAZ -> playlists.sortedBy { it.name }
                     SortOption.PlaylistNameZA -> playlists.sortedByDescending { it.name }
@@ -119,13 +121,17 @@ class PlaylistViewModel @Inject constructor(
             // Usar el songSelectionPage del estado que acabamos de actualizar para la llamada al repo
             val pageToLoad = _uiState.value.songSelectionPage // Esta ahora es la página correcta
 
-            Log.d("PlaylistVM", "Loading songs for selection. Page: $pageToLoad, PageSize: $SONG_SELECTION_PAGE_SIZE")
+            Log.d(
+                "PlaylistVM",
+                "Loading songs for selection. Page: $pageToLoad, PageSize: $SONG_SELECTION_PAGE_SIZE"
+            )
 
             try {
                 // Colectar la lista de canciones del Flow en un hilo de IO
-                val actualNewSongsList: List<Song> = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    musicRepository.getAudioFiles().first()
-                }
+                val actualNewSongsList: List<Song> =
+                    withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        musicRepository.getAudioFiles().first()
+                    }
                 Log.d("PlaylistVM", "Loaded ${actualNewSongsList.size} songs for selection.")
 
                 // La actualización del UI se hace en el hilo principal (contexto por defecto de viewModelScope.launch)
@@ -134,8 +140,10 @@ class PlaylistViewModel @Inject constructor(
                         actualNewSongsList
                     } else {
                         // Evitar duplicados si por alguna razón se recarga la misma página
-                        val currentSongIds = currentStateAfterLoad.songSelectionForPlaylist.map { it.id }.toSet()
-                        val uniqueNewSongs = actualNewSongsList.filterNot { currentSongIds.contains(it.id) }
+                        val currentSongIds =
+                            currentStateAfterLoad.songSelectionForPlaylist.map { it.id }.toSet()
+                        val uniqueNewSongs =
+                            actualNewSongsList.filterNot { currentSongIds.contains(it.id) }
                         currentStateAfterLoad.songSelectionForPlaylist + uniqueNewSongs
                     }
 
@@ -165,7 +173,13 @@ class PlaylistViewModel @Inject constructor(
 
     fun loadPlaylistDetails(playlistId: String) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, currentPlaylistDetails = null, currentPlaylistSongs = emptyList()) } // Resetear detalles y canciones
+            _uiState.update {
+                it.copy(
+                    isLoading = true,
+                    currentPlaylistDetails = null,
+                    currentPlaylistSongs = emptyList()
+                )
+            } // Resetear detalles y canciones
             try {
                 if (isFolderPlaylistId(playlistId)) {
                     val folderPath = Uri.decode(playlistId.removePrefix(FOLDER_PLAYLIST_PREFIX))
@@ -248,7 +262,13 @@ class PlaylistViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferencesRepository.renamePlaylist(playlistId, newName)
             if (_uiState.value.currentPlaylistDetails?.id == playlistId) {
-                _uiState.update { it.copy(currentPlaylistDetails = it.currentPlaylistDetails?.copy(name = newName)) }
+                _uiState.update {
+                    it.copy(
+                        currentPlaylistDetails = it.currentPlaylistDetails?.copy(
+                            name = newName
+                        )
+                    )
+                }
             }
         }
     }
@@ -259,6 +279,23 @@ class PlaylistViewModel @Inject constructor(
             userPreferencesRepository.addSongsToPlaylist(playlistId, songIdsToAdd)
             if (_uiState.value.currentPlaylistDetails?.id == playlistId) {
                 loadPlaylistDetails(playlistId)
+            }
+        }
+    }
+
+    /**
+     * @param playlistIds Ids of playlists to add the song to
+     * */
+    fun addOrRemoveSongFromPlaylists(
+        songId: String,
+        playlistIds: List<String>,
+        currentPlaylistId: String?
+    ) {
+        viewModelScope.launch {
+            val removedFromPlaylists =
+                userPreferencesRepository.addOrRemoveSongFromPlaylists(songId, playlistIds)
+            if (currentPlaylistId != null && removedFromPlaylists.contains (currentPlaylistId)) {
+                removeSongFromPlaylist(currentPlaylistId, songId)
             }
         }
     }
@@ -308,7 +345,8 @@ class PlaylistViewModel @Inject constructor(
         }
     }
 
-    private fun isFolderPlaylistId(playlistId: String): Boolean = playlistId.startsWith(FOLDER_PLAYLIST_PREFIX)
+    private fun isFolderPlaylistId(playlistId: String): Boolean =
+        playlistId.startsWith(FOLDER_PLAYLIST_PREFIX)
 
     private fun findFolder(
         targetPath: String,

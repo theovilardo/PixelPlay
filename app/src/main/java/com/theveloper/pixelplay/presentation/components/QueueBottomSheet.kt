@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.DragIndicator
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
@@ -291,6 +292,8 @@ fun QueueBottomSheet(
                                     isReorderModeEnabled = false,
                                     isDragHandleVisible = index != 0,
                                     isRemoveButtonVisible = true,
+                                    onMoreOptionsClick = {},
+                                    isFromPlaylist = false,
                                     dragHandle = {
                                         IconButton(
                                             onClick = {},
@@ -447,8 +450,10 @@ fun QueuePlaylistSongItem(
     onRemoveClick: () -> Unit,
     dragHandle: @Composable () -> Unit,
     isReorderModeEnabled: Boolean,
+    onMoreOptionsClick: (song: Song) -> Unit,
     isDragHandleVisible: Boolean,
-    isRemoveButtonVisible: Boolean
+    isRemoveButtonVisible: Boolean,
+    isFromPlaylist: Boolean
 ) {
     val colors = MaterialTheme.colorScheme
 
@@ -493,6 +498,8 @@ fun QueuePlaylistSongItem(
         targetValue = if (isCurrentSong) colors.surfaceContainerLowest else colors.surfaceContainerLowest,
         label = "backgroundColorAnimation"
     )
+    val mvContainerColor = if (isCurrentSong) colors.primaryContainer.copy(alpha = 0.44f) else colors.surfaceContainerHigh
+    val mvContentColor = if (isCurrentSong) colors.onPrimaryContainer else colors.onSurface
 
     Surface(
         modifier = modifier
@@ -561,6 +568,24 @@ fun QueuePlaylistSongItem(
                 }
             } else {
                 Spacer(Modifier.width(8.dp))
+            }
+            if (isFromPlaylist){
+                FilledIconButton(
+                    onClick = { onMoreOptionsClick(song) },
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = mvContainerColor,
+                        contentColor = mvContentColor.copy(alpha = 0.7f)
+                    ),
+                    modifier = Modifier
+                        .size(36.dp)
+                        .padding(end = 4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.MoreVert,
+                        contentDescription = "More options for ${song.title}",
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
 
             AnimatedVisibility(visible = isRemoveButtonVisible) {

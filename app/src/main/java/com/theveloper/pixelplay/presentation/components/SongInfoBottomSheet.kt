@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Favorite
@@ -54,13 +55,16 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
-import com.theveloper.pixelplay.data.media.CoverArtUpdate
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.subcomps.AutoSizingTextToFill
 import com.theveloper.pixelplay.utils.formatDuration
 import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import androidx.core.net.toUri
+import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.theveloper.pixelplay.data.ai.SongMetadata
+import com.theveloper.pixelplay.data.media.CoverArtUpdate
 import com.theveloper.pixelplay.ui.theme.MontserratFamily
 import java.io.File
 
@@ -73,11 +77,13 @@ fun SongInfoBottomSheet(
     onDismiss: () -> Unit,
     onPlaySong: () -> Unit,
     onAddToQueue: () -> Unit,
+    onAddToPlayList: () -> Unit,
     onDeleteFromDevice: (activity: Activity, song: Song, onResult: (Boolean) -> Unit) -> Unit,
     onNavigateToAlbum: () -> Unit,
     onNavigateToArtist: () -> Unit,
     onEditSong: (title: String, artist: String, album: String, genre: String, lyrics: String, trackNumber: Int, coverArtUpdate: CoverArtUpdate?) -> Unit,
-    generateAiMetadata: suspend (List<String>) -> Result<com.theveloper.pixelplay.data.ai.SongMetadata>
+    generateAiMetadata: suspend (List<String>) -> Result<SongMetadata>,
+    removeFromListTrigger: () -> Unit
 ) {
     val context = LocalContext.current
     var showEditSheet by remember { mutableStateOf(false) }
@@ -260,12 +266,19 @@ fun SongInfoBottomSheet(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
-
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min), // Asegura que todos los hijos puedan tener la misma altura
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 // Botón de Añadir a la Cola
                 FilledTonalButton(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .weight(0.75f)
                         .heightIn(min = 66.dp), // Altura mínima recomendada para botones
                     colors = ButtonDefaults.filledTonalButtonColors(
                         containerColor = MaterialTheme.colorScheme.tertiaryContainer,
@@ -274,39 +287,63 @@ fun SongInfoBottomSheet(
                     shape = CircleShape, // O considera RoundedCornerShape(16.dp)
                     onClick = onAddToQueue
                 ) {
-                    Icon(Icons.AutoMirrored.Rounded.QueueMusic, contentDescription = "Add to Queue icon")
+                    Icon(
+                        Icons.AutoMirrored.Rounded.QueueMusic,
+                        contentDescription = "Add to Queue icon"
+                    )
                     Spacer(Modifier.width(8.dp))
                     Text("Add to Queue")
                 }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
                 FilledTonalButton(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 66.dp),
+                        .weight(0.25f)
+                        .heightIn(min = 66.dp), // Altura mínima recomendada para botones
                     colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer
                     ),
-                    shape = CircleShape,
-                    onClick = {
-                        (context as? Activity)?.let { activity ->
-                            onDeleteFromDevice(activity, song) { result ->
-                                if (result) {
-                                    onDismiss()
-                                }
+                    shape = CircleShape, // O considera RoundedCornerShape(16.dp)
+                    onClick = onAddToPlayList
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.PlaylistAdd,
+                        contentDescription = "Add to Playlist icon"
+                    )
+//                    Spacer(Modifier.width(8.dp))
+//                    Text("Add to a Playlist")
+                }
+            }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+            FilledTonalButton(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 66.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                ),
+                shape = CircleShape,
+                onClick = {
+                    (context as? Activity)?.let { activity ->
+                        onDeleteFromDevice(activity, song) { result ->
+                            if (result) {
+                                removeFromListTrigger()
+                                onDismiss()
                             }
                         }
                     }
-                ) {
-                    Icon(
-                        Icons.Default.DeleteForever,
-                        contentDescription = "Delete from device icon"
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text("Delete From Device")
                 }
+            ) {
+                Icon(
+                    Icons.Default.DeleteForever,
+                    contentDescription = "Delete from device icon"
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("Delete From Device")
+            }
 
                 Spacer(modifier = Modifier.height(14.dp))
 
@@ -374,6 +411,22 @@ fun SongInfoBottomSheet(
             ) {
 
             }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(30.dp)
+                        .background(
+                            brush = Brush.verticalGradient(
+                                listOf(
+                                    Color.Transparent,
+                                    MaterialTheme.colorScheme.surfaceContainerLow
+                                )
+                            )
+                        )
+                ) {
+
+                }
         }
     }
 
