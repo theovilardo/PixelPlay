@@ -60,6 +60,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -84,6 +85,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -147,6 +149,12 @@ fun QueueBottomSheet(
     var showClearQueueDialog by remember { mutableStateOf(false) }
 
     val stablePlayerState by viewModel.stablePlayerState.collectAsState()
+
+    val albumColorSchemePair by viewModel.currentAlbumArtColorSchemePair.collectAsState()
+    val isDark = isSystemInDarkTheme()
+    val albumColorScheme = remember(albumColorSchemePair, isDark) {
+        albumColorSchemePair?.let { pair -> if (isDark) pair.dark else pair.light }
+    }
 
     val isPlaying = stablePlayerState.isPlaying
 
@@ -380,9 +388,10 @@ fun QueueBottomSheet(
                         isPlaying = isPlaying,
                         onPlayPause = { viewModel.playPause() },
                         onNext = { viewModel.nextSong() },
+                        colorScheme = albumColorScheme,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 12.dp, end = 12.dp)
+                            .padding(horizontal = 12.dp)
                             .padding(top = headerTopPadding, bottom = 12.dp)
                             .then(directSheetDragModifier)
                     )
@@ -694,22 +703,23 @@ private fun QueueMiniPlayer(
     isPlaying: Boolean,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
+    colorScheme: ColorScheme? = null,
     modifier: Modifier = Modifier,
 ) {
-    val colors = MaterialTheme.colorScheme
+    val colors = colorScheme ?: MaterialTheme.colorScheme
     val haptic = LocalHapticFeedback.current
 
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(20.dp),
-        tonalElevation = 8.dp,
+        shape = RoundedCornerShape(22.dp),
+        tonalElevation = 10.dp,
         color = colors.primaryContainer,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(76.dp)
-                .padding(horizontal = 12.dp),
+                .heightIn(min = 78.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -719,7 +729,7 @@ private fun QueueMiniPlayer(
                 contentDescription = "Carátula",
                 modifier = Modifier
                     .size(56.dp)
-                    .clip(RoundedCornerShape(14.dp)),
+                    .clip(RoundedCornerShape(16.dp)),
                 contentScale = ContentScale.Crop
             )
 
