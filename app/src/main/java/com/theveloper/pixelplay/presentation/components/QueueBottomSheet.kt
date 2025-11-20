@@ -421,6 +421,7 @@ fun QueueBottomSheet(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .zIndex(3f)
                         .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.35f))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
@@ -428,7 +429,6 @@ fun QueueBottomSheet(
                         ) {
                             isFabExpanded = false
                         }
-                        .zIndex(1f)
                 )
             }
 
@@ -637,7 +637,7 @@ fun QueueBottomSheet(
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .zIndex(if (isFabExpanded) 2f else 0f)
+                    .zIndex(if (isFabExpanded) 4f else 0f)
             ) {
                 AnimatedVisibility(
                     visible = isFabExpanded,
@@ -646,11 +646,12 @@ fun QueueBottomSheet(
                 ) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .fillMaxSize()
                             .padding(bottom = 144.dp),
                         contentAlignment = Alignment.BottomCenter
                     ) {
                         Column(
+                            modifier = Modifier.wrapContentWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
