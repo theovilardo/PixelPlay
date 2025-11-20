@@ -1,11 +1,11 @@
 package com.theveloper.pixelplay.presentation.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -421,8 +421,8 @@ fun QueueBottomSheet(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .zIndex(3f)
-                        .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.35f))
+                        .zIndex(12f)
+                        .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.4f))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
@@ -637,17 +637,20 @@ fun QueueBottomSheet(
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .zIndex(if (isFabExpanded) 4f else 0f)
+                    .zIndex(if (isFabExpanded) 14f else 0f)
             ) {
+                val fabSpacing = 24.dp
+                val menuSpacing = 20.dp
+
                 AnimatedVisibility(
                     visible = isFabExpanded,
-                    enter = fadeIn() + expandVertically(),
-                    exit = fadeOut() + shrinkVertically(),
+                    enter = fadeIn() + slideInVertically(initialOffsetY = { it / 2 }),
+                    exit = fadeOut() + slideOutVertically(targetOffsetY = { it / 2 }),
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(bottom = 144.dp),
+                            .padding(bottom = fabSpacing + menuSpacing),
                         contentAlignment = Alignment.BottomCenter
                     ) {
                         Column(
@@ -682,7 +685,7 @@ fun QueueBottomSheet(
                 HorizontalFloatingToolbar(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = 24.dp)
+                        .padding(bottom = fabSpacing)
                         .then(directSheetDragModifier),
                     expandedShadowElevation = 0.dp,
                     colors = FloatingToolbarDefaults.standardFloatingToolbarColors(
