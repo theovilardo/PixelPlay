@@ -111,10 +111,34 @@ object LyricsUtils {
                 } else {
                     syncedLines.add(SyncedLine(lineTimestamp.toInt(), text))
                 }
+        } else {
+            // línea SIN timestamp
+            val stripped = stripFormatCharacters(line)
+            // Si ya detectamos que el archivo tiene sincronización y ya existe
+            // al menos una SyncedLine, tratamos esta línea como continuación
+            // de la anterior
+            if (isSynced && syncedLines.isNotEmpty()) {
+                val last = syncedLines.removeAt(syncedLines.lastIndex)
+                // Mantenemos el texto previo y añadimos la nueva línea con un salto de línea.
+                val mergedLineText = if (last.line.isEmpty()) {
+                    stripped
+                } else {
+                    last.line + "\n" + stripped
+                }
+                // Conservamos la lista de palabras sincronizadas si existía.
+                val merged = if (last.words.isNotEmpty()) {
+                    SyncedLine(last.time, mergedLineText, last.words)
+                } else {
+                    SyncedLine(last.time, mergedLineText)
+                }
+
+                syncedLines.add(merged)
             } else {
-                plainLines.add(stripFormatCharacters(line))
+                // Si no hay sincronización en el archivo, es texto plano
+                plainLines.add(stripped)
             }
         }
+    }
 
         return if (isSynced && syncedLines.isNotEmpty()) {
             val sortedSyncedLines = syncedLines.sortedBy { it.time }
