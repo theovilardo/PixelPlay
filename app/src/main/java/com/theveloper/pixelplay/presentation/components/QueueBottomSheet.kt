@@ -68,6 +68,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -108,6 +109,8 @@ import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.draggableHandle
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.interaction.MutableInteractionSource
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class,
@@ -173,6 +176,7 @@ fun QueueBottomSheet(
     }
 
     val listState = rememberLazyListState()
+    val queueListScope = rememberCoroutineScope()
     val canDragSheetFromList by remember {
         derivedStateOf {
             listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
@@ -389,6 +393,11 @@ fun QueueBottomSheet(
                         onPlayPause = { viewModel.playPause() },
                         onNext = { viewModel.nextSong() },
                         colorScheme = albumColorScheme,
+                        onTap = {
+                            queueListScope.launch {
+                                listState.animateScrollToItem(0)
+                            }
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 12.dp)
@@ -704,10 +713,12 @@ private fun QueueMiniPlayer(
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     colorScheme: ColorScheme? = null,
+    onTap: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val colors = colorScheme ?: MaterialTheme.colorScheme
     val haptic = LocalHapticFeedback.current
+    val bodyTapInteractionSource = remember { MutableInteractionSource() }
 
     Surface(
         modifier = modifier,
@@ -719,6 +730,13 @@ private fun QueueMiniPlayer(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 78.dp)
+                .clickable(
+                    enabled = onTap != null,
+                    indication = null,
+                    interactionSource = bodyTapInteractionSource
+                ) {
+                    onTap?.invoke()
+                }
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)

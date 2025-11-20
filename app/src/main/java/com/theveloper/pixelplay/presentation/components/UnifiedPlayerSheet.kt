@@ -615,6 +615,12 @@ fun UnifiedPlayerSheet(
         derivedStateOf { showQueueSheet && queueHiddenOffsetPx > 0f && queueSheetOffset.value < queueHiddenOffsetPx }
     }
 
+    val queueOpenFraction by remember(queueSheetOffset, queueHiddenOffsetPx) {
+        derivedStateOf {
+            if (queueHiddenOffsetPx == 0f) 0f else (1f - (queueSheetOffset.value / queueHiddenOffsetPx)).coerceIn(0f, 1f)
+        }
+    }
+
     var internalIsKeyboardVisible by remember { mutableStateOf(false) }
 
     val imeInsets = WindowInsets.ime
@@ -1071,9 +1077,14 @@ fun UnifiedPlayerSheet(
                                     CompositionLocalProvider(
                                         LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
                                     ) {
+                                        val fullPlayerScale by remember(queueOpenFraction) {
+                                            derivedStateOf { lerp(1f, 0.95f, queueOpenFraction) }
+                                        }
                                         Box(modifier = Modifier.graphicsLayer {
                                             alpha = fullPlayerContentAlpha
                                             translationY = fullPlayerTranslationY
+                                            scaleX = fullPlayerScale
+                                            scaleY = fullPlayerScale
                                         }) {
                                             FullPlayerContent(
                                                 currentSong = currentSongNonNull,
