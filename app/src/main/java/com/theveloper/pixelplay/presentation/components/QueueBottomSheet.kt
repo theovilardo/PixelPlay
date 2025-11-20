@@ -109,6 +109,7 @@ import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.draggableHandle
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.interaction.MutableInteractionSource
 
@@ -177,6 +178,7 @@ fun QueueBottomSheet(
 
     val listState = rememberLazyListState()
     val queueListScope = rememberCoroutineScope()
+    var scrollToTopJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     val canDragSheetFromList by remember {
         derivedStateOf {
             listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
@@ -394,8 +396,18 @@ fun QueueBottomSheet(
                         onNext = { viewModel.nextSong() },
                         colorScheme = albumColorScheme,
                         onTap = {
-                            queueListScope.launch {
-                                listState.animateScrollToItem(0)
+                            scrollToTopJob?.cancel()
+                            scrollToTopJob = queueListScope.launch {
+                                try {
+                                    val currentIndex = listState.firstVisibleItemIndex
+                                    if (currentIndex > 6) {
+                                        val warmupIndex = (currentIndex - 6).coerceAtLeast(0)
+                                        listState.scrollToItem(warmupIndex)
+                                    }
+                                    listState.animateScrollToItem(0)
+                                } finally {
+                                    scrollToTopJob = null
+                                }
                             }
                         },
                         modifier = Modifier
