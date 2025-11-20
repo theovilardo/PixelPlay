@@ -413,6 +413,25 @@ fun QueueBottomSheet(
         Box(
             modifier = Modifier.fillMaxSize()
         ) {
+            AnimatedVisibility(
+                visible = isFabExpanded,
+                enter = fadeIn(),
+                exit = fadeOut(),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.35f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            isFabExpanded = false
+                        }
+                        .zIndex(1f)
+                )
+            }
+
             Column {
                 val headerTopPadding = WindowInsets.statusBars
                     .asPaddingValues()
@@ -615,57 +634,66 @@ fun QueueBottomSheet(
                 }
             }
 
-            HorizontalFloatingToolbar(
+            Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 24.dp)
-                    .then(directSheetDragModifier),
-                expandedShadowElevation = 0.dp,
-                colors = FloatingToolbarDefaults.standardFloatingToolbarColors(
-                    toolbarContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                ),
-                expanded = true,
-                scrollBehavior = scrollBehavior,
-                floatingActionButton = {
-                    val fabRotation by animateFloatAsState(
-                        targetValue = if (isFabExpanded) 45f else 0f,
-                        label = "fabRotation"
-                    )
+                    .zIndex(if (isFabExpanded) 2f else 0f)
+            ) {
+                AnimatedVisibility(
+                    visible = isFabExpanded,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically(),
+                ) {
                     Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 144.dp),
                         contentAlignment = Alignment.BottomCenter
                     ) {
-                        AnimatedVisibility(
-                            visible = isFabExpanded,
-                            enter = fadeIn() + expandVertically(),
-                            exit = fadeOut() + shrinkVertically(),
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(10.dp),
-                                modifier = Modifier.padding(bottom = 72.dp)
-                            ) {
-                                QueueToolbarMenuButton(
-                                    text = "Clear Queue",
-                                    icon = Icons.Filled.ClearAll,
-                                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                                    onClick = {
-                                        isFabExpanded = false
-                                        showClearQueueDialog = true
-                                    }
-                                )
-                                QueueToolbarMenuButton(
-                                    text = "Save as Playlist",
-                                    icon = Icons.Filled.LibraryAdd,
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    onClick = {
-                                        isFabExpanded = false
-                                        showSaveQueueSheet = true
-                                    }
-                                )
-                            }
+                            QueueToolbarMenuButton(
+                                text = "Clear Queue",
+                                icon = Icons.Filled.ClearAll,
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                                onClick = {
+                                    isFabExpanded = false
+                                    showClearQueueDialog = true
+                                }
+                            )
+                            QueueToolbarMenuButton(
+                                text = "Save as Playlist",
+                                icon = Icons.Filled.LibraryAdd,
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                onClick = {
+                                    isFabExpanded = false
+                                    showSaveQueueSheet = true
+                                }
+                            )
                         }
+                    }
+                }
+
+                HorizontalFloatingToolbar(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 24.dp)
+                        .then(directSheetDragModifier),
+                    expandedShadowElevation = 0.dp,
+                    colors = FloatingToolbarDefaults.standardFloatingToolbarColors(
+                        toolbarContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    ),
+                    expanded = true,
+                    scrollBehavior = scrollBehavior,
+                    floatingActionButton = {
+                        val fabRotation by animateFloatAsState(
+                            targetValue = if (isFabExpanded) 45f else 0f,
+                            label = "fabRotation"
+                        )
                         FloatingActionButton(
                             onClick = { isFabExpanded = !isFabExpanded },
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -677,9 +705,8 @@ fun QueueBottomSheet(
                                 modifier = Modifier.rotate(fabRotation)
                             )
                         }
-                    }
-                },
-                content = {
+                    },
+                    content = {
                     val activeColors = IconButtonDefaults.filledIconButtonColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -723,8 +750,9 @@ fun QueueBottomSheet(
                             contentDescription = "Sleep Timer",
                         )
                     }
-                }
-            )
+                    }
+                )
+            }
 
             Box(
                 modifier = Modifier
