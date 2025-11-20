@@ -413,25 +413,6 @@ fun QueueBottomSheet(
         Box(
             modifier = Modifier.fillMaxSize()
         ) {
-            AnimatedVisibility(
-                visible = isFabExpanded,
-                enter = fadeIn(),
-                exit = fadeOut(),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .zIndex(12f)
-                        .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.4f))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            isFabExpanded = false
-                        }
-                )
-            }
-
             Column {
                 val headerTopPadding = WindowInsets.statusBars
                     .asPaddingValues()
@@ -635,52 +616,10 @@ fun QueueBottomSheet(
             }
 
             Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .zIndex(if (isFabExpanded) 14f else 0f)
+                modifier = Modifier.fillMaxSize()
             ) {
                 val fabSpacing = 24.dp
                 val menuSpacing = 20.dp
-
-                AnimatedVisibility(
-                    visible = isFabExpanded,
-                    enter = fadeIn() + slideInVertically(initialOffsetY = { it / 2 }),
-                    exit = fadeOut() + slideOutVertically(targetOffsetY = { it / 2 }),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(bottom = fabSpacing + menuSpacing),
-                        contentAlignment = Alignment.BottomCenter
-                    ) {
-                        Column(
-                            modifier = Modifier.wrapContentWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            QueueToolbarMenuButton(
-                                text = "Clear Queue",
-                                icon = Icons.Filled.ClearAll,
-                                containerColor = MaterialTheme.colorScheme.errorContainer,
-                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                                onClick = {
-                                    isFabExpanded = false
-                                    showClearQueueDialog = true
-                                }
-                            )
-                            QueueToolbarMenuButton(
-                                text = "Save as Playlist",
-                                icon = Icons.Filled.LibraryAdd,
-                                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                onClick = {
-                                    isFabExpanded = false
-                                    showSaveQueueSheet = true
-                                }
-                            )
-                        }
-                    }
-                }
 
                 HorizontalFloatingToolbar(
                     modifier = Modifier
@@ -711,51 +650,111 @@ fun QueueBottomSheet(
                         }
                     },
                     content = {
-                    val activeColors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    val inactiveColors = IconButtonDefaults.filledTonalIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                        val activeColors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        val inactiveColors = IconButtonDefaults.filledTonalIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
 
-                    FilledTonalIconButton(
-                        onClick = onToggleShuffle,
-                        colors = if (isShuffleOn) activeColors else inactiveColors,
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Shuffle,
-                            contentDescription = "Toggle Shuffle",
-                        )
-                    }
-                    FilledTonalIconButton(
-                        onClick = onToggleRepeat,
-                        colors = if (repeatMode != Player.REPEAT_MODE_OFF) activeColors else inactiveColors,
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        val repeatIcon = when (repeatMode) {
-                            Player.REPEAT_MODE_ONE -> Icons.Rounded.RepeatOne
-                            else -> Icons.Rounded.Repeat
+                        FilledTonalIconButton(
+                            onClick = onToggleShuffle,
+                            colors = if (isShuffleOn) activeColors else inactiveColors,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Shuffle,
+                                contentDescription = "Toggle Shuffle",
+                            )
                         }
-                        Icon(
-                            imageVector = repeatIcon,
-                            contentDescription = "Toggle Repeat",
-                        )
-                    }
-                    FilledTonalIconButton(
-                        onClick = { showTimerOptions = true },
-                        colors = if (activeTimerValueDisplay != null) activeColors else inactiveColors,
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Timer,
-                            contentDescription = "Sleep Timer",
-                        )
-                    }
+                        FilledTonalIconButton(
+                            onClick = onToggleRepeat,
+                            colors = if (repeatMode != Player.REPEAT_MODE_OFF) activeColors else inactiveColors,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            val repeatIcon = when (repeatMode) {
+                                Player.REPEAT_MODE_ONE -> Icons.Rounded.RepeatOne
+                                else -> Icons.Rounded.Repeat
+                            }
+                            Icon(
+                                imageVector = repeatIcon,
+                                contentDescription = "Toggle Repeat",
+                            )
+                        }
+                        FilledTonalIconButton(
+                            onClick = { showTimerOptions = true },
+                            colors = if (activeTimerValueDisplay != null) activeColors else inactiveColors,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Timer,
+                                contentDescription = "Sleep Timer",
+                            )
+                        }
                     }
                 )
+
+                AnimatedVisibility(
+                    visible = isFabExpanded,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .zIndex(20f)
+                            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.55f))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                isFabExpanded = false
+                            }
+                    )
+                }
+
+                AnimatedVisibility(
+                    visible = isFabExpanded,
+                    enter = fadeIn() + slideInVertically(initialOffsetY = { it / 3 }),
+                    exit = fadeOut() + slideOutVertically(targetOffsetY = { it / 3 }),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(bottom = fabSpacing + menuSpacing)
+                            .zIndex(30f),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        Column(
+                            modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            QueueToolbarMenuButton(
+                                text = "Clear Queue",
+                                icon = Icons.Filled.ClearAll,
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                                onClick = {
+                                    isFabExpanded = false
+                                    showClearQueueDialog = true
+                                }
+                            )
+                            QueueToolbarMenuButton(
+                                text = "Save as Playlist",
+                                icon = Icons.Filled.LibraryAdd,
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                onClick = {
+                                    isFabExpanded = false
+                                    showSaveQueueSheet = true
+                                }
+                            )
+                        }
+                    }
+                }
             }
 
             Box(
@@ -859,8 +858,9 @@ private fun QueueToolbarMenuButton(
 
     Surface(
         modifier = modifier
-            .widthIn(min = 184.dp)
+            .widthIn(min = 184.dp, max = 260.dp)
             .heightIn(min = 48.dp)
+            .wrapContentWidth()
             .clickable(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() }
@@ -875,7 +875,6 @@ private fun QueueToolbarMenuButton(
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp)
