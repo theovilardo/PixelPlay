@@ -1,7 +1,11 @@
 package com.theveloper.pixelplay.presentation.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -28,8 +32,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListItemInfo
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Checkbox
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -45,6 +51,7 @@ import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -57,10 +64,21 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.ClearAll
+import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -68,6 +86,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -75,13 +94,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalDensity
@@ -89,6 +111,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
@@ -104,6 +127,8 @@ import com.theveloper.pixelplay.presentation.components.AutoScrollingText
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.components.subcomps.PlayingEqIcon
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
+import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.draggableHandle
@@ -120,6 +145,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 @Composable
 fun QueueBottomSheet(
     viewModel: PlayerViewModel = hiltViewModel(),
+    playlistViewModel: PlaylistViewModel = hiltViewModel(),
     queue: List<Song>,
     currentQueueSourceName: String,
     currentSongId: String?,
@@ -151,6 +177,8 @@ fun QueueBottomSheet(
     val colors = MaterialTheme.colorScheme
     var showTimerOptions by rememberSaveable { mutableStateOf(false) }
     var showClearQueueDialog by remember { mutableStateOf(false) }
+    var showSaveQueueSheet by remember { mutableStateOf(false) }
+    var isFabExpanded by rememberSaveable { mutableStateOf(false) }
 
     val stablePlayerState by viewModel.stablePlayerState.collectAsState()
 
@@ -170,6 +198,8 @@ fun QueueBottomSheet(
     val displayQueue = remember(queue, currentSongId, currentSongIndex) {
         queue.drop(displayStartIndex)
     }
+
+    val queueSnapshot = remember(queue) { queue.toList() }
 
     var items by remember { mutableStateOf(displayQueue) }
     LaunchedEffect(displayQueue) {
@@ -597,18 +627,56 @@ fun QueueBottomSheet(
                 expanded = true,
                 scrollBehavior = scrollBehavior,
                 floatingActionButton = {
-                    FilledIconButton(
-                        onClick = { showClearQueueDialog = true },
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer
-                        ),
-                        modifier = Modifier.size(56.dp)
+                    val fabRotation by animateFloatAsState(
+                        targetValue = if (isFabExpanded) 45f else 0f,
+                        label = "fabRotation"
+                    )
+                    Box(
+                        contentAlignment = Alignment.BottomCenter
                     ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.rounded_clear_all_24),
-                            contentDescription = "Clear Queue"
-                        )
+                        AnimatedVisibility(
+                            visible = isFabExpanded,
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut() + shrinkVertically(),
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.padding(bottom = 72.dp)
+                            ) {
+                                QueueToolbarMenuButton(
+                                    text = "Clear Queue",
+                                    icon = Icons.Filled.ClearAll,
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                                    onClick = {
+                                        isFabExpanded = false
+                                        showClearQueueDialog = true
+                                    }
+                                )
+                                QueueToolbarMenuButton(
+                                    text = "Save as Playlist",
+                                    icon = Icons.Filled.LibraryAdd,
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    onClick = {
+                                        isFabExpanded = false
+                                        showSaveQueueSheet = true
+                                    }
+                                )
+                            }
+                        }
+                        FloatingActionButton(
+                            onClick = { isFabExpanded = !isFabExpanded },
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Add,
+                                contentDescription = "Queue actions",
+                                modifier = Modifier.rotate(fabRotation)
+                            )
+                        }
                     }
                 },
                 content = {
@@ -691,6 +759,34 @@ fun QueueBottomSheet(
             )
         }
 
+        if (showSaveQueueSheet) {
+            val defaultName = if (currentQueueSourceName.isNotBlank()) {
+                "${currentQueueSourceName} Queue"
+            } else {
+                "Current Queue"
+            }
+            SaveQueueAsPlaylistSheet(
+                songs = queueSnapshot,
+                defaultName = defaultName,
+                onDismiss = {
+                    showSaveQueueSheet = false
+                },
+                onConfirm = { name, selectedIds ->
+                    val orderedSelection = queueSnapshot
+                        .filter { selectedIds.contains(it.id) }
+                        .map { it.id }
+                    if (orderedSelection.isNotEmpty()) {
+                        playlistViewModel.createPlaylist(
+                            name = name,
+                            songIds = orderedSelection,
+                            isQueueGenerated = true
+                        )
+                    }
+                    showSaveQueueSheet = false
+                }
+            )
+        }
+
         if (showClearQueueDialog) {
             AlertDialog(
                 onDismissRequest = { showClearQueueDialog = false },
@@ -714,6 +810,259 @@ fun QueueBottomSheet(
                     }
                 }
             )
+        }
+    }
+}
+
+@Composable
+private fun QueueToolbarMenuButton(
+    text: String,
+    icon: ImageVector,
+    containerColor: Color,
+    contentColor: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val haptic = LocalHapticFeedback.current
+
+    Surface(
+        modifier = modifier
+            .widthIn(min = 184.dp)
+            .heightIn(min = 48.dp)
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() }
+            ) {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onClick()
+            },
+        shape = RoundedCornerShape(18.dp),
+        color = containerColor,
+        tonalElevation = 8.dp,
+        shadowElevation = 8.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = text,
+                tint = contentColor
+            )
+            Text(
+                text = text,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = contentColor
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SaveQueueAsPlaylistSheet(
+    songs: List<Song>,
+    defaultName: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String, Set<String>) -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val albumShape = remember {
+        AbsoluteSmoothCornerShape(
+            cornerRadiusTL = 40.dp,
+            smoothnessAsPercentTR = 60,
+            cornerRadiusTR = 40.dp,
+            smoothnessAsPercentBR = 60,
+            cornerRadiusBL = 40.dp,
+            smoothnessAsPercentBL = 60,
+            cornerRadiusBR = 40.dp,
+            smoothnessAsPercentTL = 60
+        )
+    }
+
+    var playlistName by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(defaultName))
+    }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    val selectedSongIds = remember(songs) {
+        mutableStateMapOf<String, Boolean>().apply {
+            songs.forEach { put(it.id, true) }
+        }
+    }
+
+    val filteredSongs = remember(searchQuery, songs) {
+        if (searchQuery.isBlank()) songs
+        else songs.filter {
+            it.title.contains(searchQuery, true) || it.artist.contains(searchQuery, true)
+        }
+    }
+
+    val hasSelection by remember {
+        derivedStateOf { selectedSongIds.any { it.value } }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Scaffold(
+                topBar = {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 26.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "Save as Playlist",
+                                style = MaterialTheme.typography.displaySmall,
+                                fontFamily = GoogleSansRounded
+                            )
+                        }
+                        TextField(
+                            value = playlistName,
+                            onValueChange = { playlistName = it },
+                            label = { Text("Playlist name") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            shape = CircleShape,
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                                disabledIndicatorColor = Color.Transparent,
+                            ),
+                        )
+                        TextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            label = { Text("Search songs") },
+                            trailingIcon = {
+                                if (searchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { searchQuery = "" }) {
+                                        Icon(Icons.Filled.Clear, contentDescription = "Clear search")
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            shape = CircleShape,
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                                disabledIndicatorColor = Color.Transparent,
+                                unfocusedTrailingIconColor = Color.Transparent,
+                                focusedSupportingTextColor = Color.Transparent,
+                            ),
+                        )
+                    }
+                },
+                floatingActionButton = {
+                    ExtendedFloatingActionButton(
+                        modifier = Modifier.padding(bottom = 18.dp, end = 8.dp),
+                        shape = CircleShape,
+                        onClick = {
+                            if (hasSelection) {
+                                val finalName = playlistName.text.ifBlank { defaultName }
+                                val chosenIds = selectedSongIds
+                                    .filterValues { it }
+                                    .keys
+                                onConfirm(finalName, chosenIds)
+                            }
+                        },
+                        enabled = hasSelection,
+                        icon = { Icon(Icons.Rounded.Check, contentDescription = "Save") },
+                        text = { Text("Save") },
+                    )
+                }
+            ) { innerPadding ->
+                LazyColumn(
+                    modifier = Modifier
+                        .padding(innerPadding)
+                        .padding(horizontal = 14.dp),
+                    contentPadding = PaddingValues(bottom = 110.dp, top = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(filteredSongs, key = { it.id }) { song ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(CircleShape)
+                                .clickable {
+                                    val currentSelection = selectedSongIds[song.id] ?: false
+                                    selectedSongIds[song.id] = !currentSelection
+                                }
+                                .background(
+                                    color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                                    shape = CircleShape
+                                )
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = selectedSongIds[song.id] ?: false,
+                                onCheckedChange = { isChecked -> selectedSongIds[song.id] = isChecked }
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                            ) {
+                                SmartImage(
+                                    model = song.albumArtUriString,
+                                    contentDescription = song.title,
+                                    shape = albumShape,
+                                    targetSize = Size(168, 168),
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
+                            Spacer(Modifier.width(16.dp))
+                            Column {
+                                Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(
+                                    song.artist,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(30.dp)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            listOf(
+                                Color.Transparent,
+                                MaterialTheme.colorScheme.surface
+                            )
+                        )
+                    )
+            ) { }
         }
     }
 }
