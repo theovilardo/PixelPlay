@@ -49,14 +49,13 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FloatingToolbarDefaults
 import androidx.compose.material3.FloatingToolbarExitDirection
 import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.LargeFloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -81,6 +80,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
@@ -96,6 +97,8 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
+import com.theveloper.pixelplay.presentation.components.AutoScrollingText
+import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.components.subcomps.PlayingEqIcon
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
@@ -371,13 +374,27 @@ fun QueueBottomSheet(
                     .asPaddingValues()
                     .calculateTopPadding() + 10.dp
 
+                stablePlayerState.currentSong?.let { nowPlaying ->
+                    QueueMiniPlayer(
+                        song = nowPlaying,
+                        isPlaying = isPlaying,
+                        onPlayPause = { viewModel.playPause() },
+                        onNext = { viewModel.nextSong() },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 12.dp, end = 12.dp)
+                            .padding(top = headerTopPadding, bottom = 12.dp)
+                            .then(directSheetDragModifier)
+                    )
+                }
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(
                             start = 12.dp,
                             end = 12.dp,
-                            top = headerTopPadding,
+                            top = if (stablePlayerState.currentSong == null) headerTopPadding else 2.dp,
                             bottom = 12.dp,
                         )
                         .then(directSheetDragModifier),
@@ -545,14 +562,18 @@ fun QueueBottomSheet(
                     .then(directSheetDragModifier),
                 expandedShadowElevation = 0.dp,
                 colors = FloatingToolbarDefaults.standardFloatingToolbarColors(
-                    toolbarContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                    toolbarContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh
                 ),
                 expanded = true,
                 scrollBehavior = scrollBehavior,
                 floatingActionButton = {
-                    LargeFloatingActionButton(
+                    FilledIconButton(
                         onClick = { showClearQueueDialog = true },
-                        elevation = FloatingActionButtonDefaults.elevation(0.dp)
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        ),
+                        modifier = Modifier.size(56.dp)
                     ) {
                         Icon(
                             painter = painterResource(id = R.drawable.rounded_clear_all_24),
@@ -561,15 +582,30 @@ fun QueueBottomSheet(
                     }
                 },
                 content = {
-                    IconButton(onClick = onToggleShuffle) {
+                    val activeColors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    val inactiveColors = IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    FilledTonalIconButton(
+                        onClick = onToggleShuffle,
+                        colors = if (isShuffleOn) activeColors else inactiveColors,
+                        modifier = Modifier.size(48.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Rounded.Shuffle,
                             contentDescription = "Toggle Shuffle",
-                            tint = if (isShuffleOn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    IconButton(onClick = onToggleRepeat) {
-                        val repeatActive = repeatMode != Player.REPEAT_MODE_OFF
+                    FilledTonalIconButton(
+                        onClick = onToggleRepeat,
+                        colors = if (repeatMode != Player.REPEAT_MODE_OFF) activeColors else inactiveColors,
+                        modifier = Modifier.size(48.dp)
+                    ) {
                         val repeatIcon = when (repeatMode) {
                             Player.REPEAT_MODE_ONE -> Icons.Rounded.RepeatOne
                             else -> Icons.Rounded.Repeat
@@ -577,14 +613,16 @@ fun QueueBottomSheet(
                         Icon(
                             imageVector = repeatIcon,
                             contentDescription = "Toggle Repeat",
-                            tint = if (repeatActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    IconButton(onClick = { showTimerOptions = true }) {
+                    FilledTonalIconButton(
+                        onClick = { showTimerOptions = true },
+                        colors = if (activeTimerValueDisplay != null) activeColors else inactiveColors,
+                        modifier = Modifier.size(48.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Rounded.Timer,
                             contentDescription = "Sleep Timer",
-                            tint = if (activeTimerValueDisplay != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -646,6 +684,99 @@ fun QueueBottomSheet(
                     }
                 }
             )
+        }
+    }
+}
+
+@Composable
+private fun QueueMiniPlayer(
+    song: Song,
+    isPlaying: Boolean,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.colorScheme
+    val haptic = LocalHapticFeedback.current
+
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(20.dp),
+        tonalElevation = 8.dp,
+        color = colors.primaryContainer,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(76.dp)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            SmartImage(
+                model = song.albumArtUriString ?: R.drawable.rounded_album_24,
+                shape = RoundedCornerShape(14.dp),
+                contentDescription = "Carátula",
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(14.dp)),
+                contentScale = ContentScale.Crop
+            )
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
+                AutoScrollingText(
+                    text = song.title,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.onPrimaryContainer
+                    ),
+                    gradientEdgeColor = colors.primaryContainer
+                )
+                AutoScrollingText(
+                    text = song.artist,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = colors.onPrimaryContainer.copy(alpha = 0.7f)
+                    ),
+                    gradientEdgeColor = colors.primaryContainer
+                )
+            }
+
+            FilledIconButton(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onPlayPause()
+                },
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = colors.onPrimaryContainer,
+                    contentColor = colors.primaryContainer
+                ),
+                modifier = Modifier.size(44.dp),
+            ) {
+                Icon(
+                    painter = if (isPlaying) painterResource(R.drawable.rounded_pause_24) else painterResource(R.drawable.rounded_play_arrow_24),
+                    contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+                )
+            }
+
+            FilledTonalIconButton(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onNext()
+                },
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = colors.onPrimaryContainer.copy(alpha = 0.12f),
+                    contentColor = colors.onPrimaryContainer
+                ),
+                modifier = Modifier.size(44.dp),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.rounded_skip_next_24),
+                    contentDescription = "Siguiente",
+                )
+            }
         }
     }
 }
