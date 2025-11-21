@@ -110,6 +110,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -906,9 +907,20 @@ private fun SaveQueueAsPlaylistSheet(
     onDismiss: () -> Unit,
     onConfirm: (String, Set<String>) -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var allowHide by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { target ->
+            if (target == SheetValue.Hidden && !allowHide) {
+                false
+            } else {
+                true
+            }
+        }
+    )
     val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
     val albumShape = remember {
         AbsoluteSmoothCornerShape(
             cornerRadiusTL = 40.dp,
@@ -946,16 +958,19 @@ private fun SaveQueueAsPlaylistSheet(
     LaunchedEffect(sheetState.currentValue) {
         if (sheetState.currentValue == SheetValue.Expanded) {
             focusRequester.requestFocus()
+            keyboardController?.show()
         }
     }
 
     LaunchedEffect(Unit) {
+        allowHide = false
         sheetState.show()
     }
 
     ModalBottomSheet(
         onDismissRequest = {
             scope.launch {
+                allowHide = true
                 sheetState.hide()
                 onDismiss()
             }
@@ -966,7 +981,7 @@ private fun SaveQueueAsPlaylistSheet(
         properties = ModalBottomSheetProperties(
             securePolicy = SecureFlagPolicy.Inherit,
             shouldDismissOnBackPress = true,
-            shouldDismissOnClickOutside = true
+            shouldDismissOnClickOutside = true,
         )
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -1047,6 +1062,7 @@ private fun SaveQueueAsPlaylistSheet(
                                         .filterValues { it }
                                         .keys
                                     onConfirm(finalName, chosenIds)
+                                    allowHide = true
                                     sheetState.hide()
                                     onDismiss()
                                 }
