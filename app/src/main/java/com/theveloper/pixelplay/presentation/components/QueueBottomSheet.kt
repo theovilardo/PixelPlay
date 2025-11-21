@@ -907,6 +907,7 @@ private fun SaveQueueAsPlaylistSheet(
     onConfirm: (String, Set<String>) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
     val albumShape = remember {
         AbsoluteSmoothCornerShape(
@@ -948,17 +949,26 @@ private fun SaveQueueAsPlaylistSheet(
         }
     }
 
-        ModalBottomSheet(
-            onDismissRequest = onDismiss,
-            sheetState = sheetState,
-            containerColor = MaterialTheme.colorScheme.surface,
-            modifier = Modifier.fillMaxSize(),
-            properties = ModalBottomSheetProperties(
-                securePolicy = SecureFlagPolicy.Inherit,
-                shouldDismissOnBackPress = true,
-                shouldDismissOnClickOutside = true
-            )
-        ) {
+    LaunchedEffect(Unit) {
+        sheetState.show()
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = {
+            scope.launch {
+                sheetState.hide()
+                onDismiss()
+            }
+        },
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+        modifier = Modifier.fillMaxSize(),
+        properties = ModalBottomSheetProperties(
+            securePolicy = SecureFlagPolicy.Inherit,
+            shouldDismissOnBackPress = true,
+            shouldDismissOnClickOutside = true
+        )
+    ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Scaffold(
                 topBar = {
@@ -1031,11 +1041,15 @@ private fun SaveQueueAsPlaylistSheet(
                         shape = CircleShape,
                         onClick = {
                             if (hasSelection) {
-                                val finalName = playlistName.text.ifBlank { defaultName }
-                                val chosenIds = selectedSongIds
-                                    .filterValues { it }
-                                    .keys
-                                onConfirm(finalName, chosenIds)
+                                scope.launch {
+                                    val finalName = playlistName.text.ifBlank { defaultName }
+                                    val chosenIds = selectedSongIds
+                                        .filterValues { it }
+                                        .keys
+                                    onConfirm(finalName, chosenIds)
+                                    sheetState.hide()
+                                    onDismiss()
+                                }
                             }
                         },
                         enabled = hasSelection,
