@@ -99,6 +99,21 @@ class ArtistDetailViewModel @Inject constructor(
             }
         }
     }
+    fun removeSongFromAlbumSection(songId: String) {
+        _uiState.update { currentState ->
+            val updatedAlbumSections = currentState.albumSections.map { section ->
+                // Remove the song from this section if it exists
+                val updatedSongs = section.songs.filterNot { it.id == songId }
+                // Return updated section only if it still has songs, otherwise filter out empty sections
+                section.copy(songs = updatedSongs)
+            }.filter { it.songs.isNotEmpty() } // Remove empty album sections
+
+            currentState.copy(
+                albumSections = updatedAlbumSections,
+                songs = currentState.songs.filterNot { it.id == songId } // Also update the main songs list
+            )
+        }
+    }
 }
 
 private val songDisplayComparator = compareBy<Song> {

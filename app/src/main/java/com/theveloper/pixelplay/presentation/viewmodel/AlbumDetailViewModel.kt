@@ -84,4 +84,13 @@ class AlbumDetailViewModel @Inject constructor(
             }
         }
     }
+
+    fun update(songs: List<Song>) {
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                songs = songs
+            )
+        }
+    }
 }

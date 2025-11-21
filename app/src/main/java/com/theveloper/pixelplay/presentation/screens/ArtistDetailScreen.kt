@@ -3,10 +3,8 @@ package com.theveloper.pixelplay.presentation.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -17,12 +15,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.rounded.Album
-import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SurroundSound
 import androidx.compose.material3.*
@@ -30,7 +26,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -40,26 +35,27 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.lerp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.ui.theme.LocalPixelPlayDarkTheme
 import androidx.compose.ui.unit.lerp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
+import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
+import com.theveloper.pixelplay.presentation.components.PlaylistBottomSheet
 import com.theveloper.pixelplay.presentation.components.SongInfoBottomSheet
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.ArtistDetailViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.ArtistAlbumSection
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
+import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -71,7 +67,8 @@ fun ArtistDetailScreen(
     artistId: String,
     navController: NavController,
     playerViewModel: PlayerViewModel,
-    viewModel: ArtistDetailViewModel = hiltViewModel()
+    viewModel: ArtistDetailViewModel = hiltViewModel(),
+    playlistViewModel: PlaylistViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
@@ -80,7 +77,9 @@ fun ArtistDetailScreen(
     val favoriteIds by playerViewModel.favoriteSongIds.collectAsState()
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     val selectedSongForInfo by playerViewModel.selectedSongForInfo.collectAsState()
-
+    val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val bottomBarHeightDp = NavBarContentHeight + systemNavBarInset
+    var showPlaylistBottomSheet by remember { mutableStateOf(false) }
     val density = LocalDensity.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -268,6 +267,11 @@ fun ArtistDetailScreen(
         }.value ?: false
 
         if (currentSong != null) {
+            val removeFromListTrigger = remember(uiState.songs) {
+                {
+                    viewModel.removeSongFromAlbumSection(currentSong.id)
+                }
+            }
             SongInfoBottomSheet(
                 song = currentSong,
                 isFavorite = isFavorite,
@@ -283,6 +287,9 @@ fun ArtistDetailScreen(
                     playerViewModel.addSongToQueue(currentSong)
                     showSongInfoBottomSheet = false
                 },
+                onAddToPlayList = {
+                    showPlaylistBottomSheet = true;
+                },
                 onDeleteFromDevice = playerViewModel::deleteFromDevice,
                 onNavigateToAlbum = {
                     navController.navigate(Screen.AlbumDetail.createRoute(currentSong.albumId))
@@ -297,8 +304,20 @@ fun ArtistDetailScreen(
                 },
                 generateAiMetadata = { fields ->
                     playerViewModel.generateAiMetadata(currentSong, fields)
-                }
+                },
+                removeFromListTrigger = removeFromListTrigger
             )
+            if (showPlaylistBottomSheet) {
+                val playlistUiState by playlistViewModel.uiState.collectAsState()
+
+                PlaylistBottomSheet(
+                    playlistUiState = playlistUiState,
+                    song = currentSong,
+                    onDismiss = { showPlaylistBottomSheet = false },
+                    bottomBarHeight = bottomBarHeightDp,
+                    playerViewModel = playerViewModel,
+                )
+            }
         }
     }
 }

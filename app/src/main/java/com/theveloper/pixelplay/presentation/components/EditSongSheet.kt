@@ -56,7 +56,6 @@ import java.net.URLEncoder
 import timber.log.Timber
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
-import com.theveloper.pixelplay.data.media.CoverArtUpdate
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -71,6 +70,7 @@ import androidx.compose.ui.text.font.FontWeight
 import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.media3.common.Player
+import com.theveloper.pixelplay.data.media.CoverArtUpdate
 import dev.shreyaspatil.capturable.controller.rememberCaptureController
 import java.io.ByteArrayOutputStream
 
