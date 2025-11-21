@@ -1013,10 +1013,6 @@ fun SaveQueueAsPlaylistSheet(
         derivedStateOf { selectedSongIds.isNotEmpty() && selectedSongIds.all { it.value } }
     }
 
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-    }
-
     var isVisible by remember { mutableStateOf(false) }
     val duration = 400
 
@@ -1073,6 +1069,9 @@ fun SaveQueueAsPlaylistSheet(
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentWindowInsets = WindowInsets.safeDrawing,
                 topBar = {
+                    LaunchedEffect(Unit) {
+                        focusRequester.requestFocus()
+                    }
                     Column {
                         androidx.compose.material3.MediumTopAppBar(
                             title = {
