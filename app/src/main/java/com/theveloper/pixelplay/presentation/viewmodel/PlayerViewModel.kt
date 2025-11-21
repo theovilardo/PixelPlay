@@ -37,6 +37,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.provider.OpenableColumns
@@ -46,6 +47,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.media3.common.Timeline
+import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 import androidx.mediarouter.media.MediaControlIntent
 import androidx.mediarouter.media.MediaRouteSelector
@@ -87,6 +90,7 @@ import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.data.model.Genre
 import com.theveloper.pixelplay.data.model.Lyrics
+import com.theveloper.pixelplay.data.model.MusicFolder
 import com.theveloper.pixelplay.data.model.SearchFilterType
 import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import com.theveloper.pixelplay.data.model.SearchResultItem
@@ -100,6 +104,7 @@ import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.LyricsSearchResult
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.data.repository.NoLyricsFoundException
+import com.theveloper.pixelplay.data.service.MusicNotificationProvider
 import com.theveloper.pixelplay.data.service.MusicService
 import com.theveloper.pixelplay.data.stats.PlaybackStatsRepository
 import com.theveloper.pixelplay.data.service.http.MediaFileHttpServerService
@@ -122,6 +127,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -143,8 +149,12 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import org.json.JSONObject
 import timber.log.Timber
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.util.ArrayDeque
+import java.util.Calendar
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlin.collections.map
@@ -204,11 +214,11 @@ data class PlayerUiState(
     val selectedSearchFilter: SearchFilterType = SearchFilterType.ALL,
     val searchHistory: ImmutableList<SearchHistoryItem> = persistentListOf(),
     val isSyncingLibrary: Boolean = false,
-    val musicFolders: ImmutableList<com.theveloper.pixelplay.data.model.MusicFolder> = persistentListOf(),
+    val musicFolders: ImmutableList<MusicFolder> = persistentListOf(),
     val currentFolderPath: String? = null,
     val isFolderFilterActive: Boolean = false,
 
-    val currentFolder: com.theveloper.pixelplay.data.model.MusicFolder? = null,
+    val currentFolder: MusicFolder? = null,
     val isFoldersPlaylistView: Boolean = false,
 
     // State for dismiss/undo functionality
@@ -336,7 +346,8 @@ class PlayerViewModel @Inject constructor(
 
     private var sleepTimerJob: Job? = null
     private var eotSongMonitorJob: Job? = null
-    private var countedPlayJob: Job? = null
+    private var countedMediaListener: Player.Listener? = null
+    private var countedOriginalSongId: String? = null
 
     // Toast Events
     private val _toastEvents = MutableSharedFlow<String>()
@@ -510,7 +521,7 @@ class PlayerViewModel @Inject constructor(
 
     private val individualAlbumColorSchemes = mutableMapOf<String, MutableStateFlow<ColorSchemePair?>>()
 
-    private val colorSchemeRequestChannel = kotlinx.coroutines.channels.Channel<String>(kotlinx.coroutines.channels.Channel.UNLIMITED)
+    private val colorSchemeRequestChannel = Channel<String>(Channel.UNLIMITED)
     private val urisBeingProcessed = mutableSetOf<String>()
 
     private var mediaController: MediaController? = null
@@ -557,6 +568,12 @@ class PlayerViewModel @Inject constructor(
     val yourMixSongs: StateFlow<ImmutableList<Song>> = _yourMixSongs.asStateFlow()
 
     private var dailyMixJob: Job? = null
+
+    fun removeFromDailyMix(songId: String) {
+        _dailyMixSongs.update { currentList ->
+            currentList.filterNot { it.id == songId }.toImmutableList()
+        }
+    }
 
     private fun updateDailyMix() {
         // Cancel any previous job to avoid multiple updates running
@@ -1079,7 +1096,7 @@ class PlayerViewModel @Inject constructor(
                             .setContentType("audio/mpeg")
                             .setMetadata(mediaMetadata)
                             .build()
-                        MediaQueueItem.Builder(mediaInfo).setCustomData(org.json.JSONObject().put("songId", song.id)).build()
+                        MediaQueueItem.Builder(mediaInfo).setCustomData(JSONObject().put("songId", song.id)).build()
                     }
 
                     val castRepeatMode = if (localPlayer.shuffleModeEnabled) {
@@ -1228,8 +1245,9 @@ class PlayerViewModel @Inject constructor(
     private fun checkAndUpdateDailyMixIfNeeded() {
         viewModelScope.launch {
             val lastUpdate = userPreferencesRepository.lastDailyMixUpdateFlow.first()
-            val today = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_YEAR)
-            val lastUpdateDay = java.util.Calendar.getInstance().apply { timeInMillis = lastUpdate }.get(java.util.Calendar.DAY_OF_YEAR)
+            val today = Calendar.getInstance().get(Calendar.DAY_OF_YEAR)
+            val lastUpdateDay = Calendar.getInstance().apply { timeInMillis = lastUpdate }.get(
+                Calendar.DAY_OF_YEAR)
 
             if (today != lastUpdateDay) {
                 updateDailyMix()
@@ -1517,7 +1535,7 @@ class PlayerViewModel @Inject constructor(
 
             try {
                 val repoCallFoldersStartTime = System.currentTimeMillis()
-                val allFoldersList: List<com.theveloper.pixelplay.data.model.MusicFolder> = musicRepository.getMusicFolders().first()
+                val allFoldersList: List<MusicFolder> = musicRepository.getMusicFolders().first()
                 val foldersLoadDuration = System.currentTimeMillis() - repoCallFoldersStartTime
                 Log.d("PlayerViewModelPerformance", "musicRepository.getMusicFolders (All) took $foldersLoadDuration ms for ${allFoldersList.size} folders.")
 
@@ -1930,7 +1948,7 @@ class PlayerViewModel @Inject constructor(
                 }
             }
             override fun onRepeatModeChanged(repeatMode: Int) { _stablePlayerState.update { it.copy(repeatMode = repeatMode) } }
-            override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+            override fun onTimelineChanged(timeline: Timeline, reason: Int) {
                 transitionSchedulerJob?.cancel()
                 updateCurrentPlaybackQueueFromPlayer(mediaController)
             }
@@ -2357,7 +2375,7 @@ class PlayerViewModel @Inject constructor(
                     .setContentType("audio/mpeg")
                     .setMetadata(mediaMetadata)
                     .build()
-                MediaQueueItem.Builder(mediaInfo).setCustomData(org.json.JSONObject().put("songId", song.id)).build()
+                MediaQueueItem.Builder(mediaInfo).setCustomData(JSONObject().put("songId", song.id)).build()
             }
             val startIndex = songsToPlay.indexOf(startSong).coerceAtLeast(0)
             val repeatMode = _stablePlayerState.value.repeatMode
@@ -2377,7 +2395,7 @@ class PlayerViewModel @Inject constructor(
                             .setTitle(song.title)
                             .setArtist(song.artist)
                         playlistId?.let {
-                            val extras = android.os.Bundle()
+                            val extras = Bundle()
                             extras.putString("playlistId", it)
                             metadataBuilder.setExtras(extras)
                         }
@@ -2531,6 +2549,20 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun repeatOff(){
+        val castSession = _castSession.value
+        if (castSession != null && castSession.remoteMediaClient != null) {
+            val remoteMediaClient = castSession.remoteMediaClient
+            val newMode = MediaStatus.REPEAT_MODE_REPEAT_OFF;
+            remoteMediaClient?.queueSetRepeatMode(newMode, null)?.setResultCallback {
+                if (!it.status.isSuccess) Timber.e("Remote media client failed to set repeat mode: ${it.status.statusMessage}")
+            }
+        } else {
+            val newMode = Player.REPEAT_MODE_OFF
+            mediaController?.repeatMode = newMode
+        }
+    }
+
     fun toggleFavorite() {
         _stablePlayerState.value.currentSong?.id?.let { songId ->
             viewModelScope.launch {
@@ -2622,6 +2654,7 @@ class PlayerViewModel @Inject constructor(
                 val success = FileDeletionUtils.deleteFile(context, song.path)
                 if (success) {
                     _toastEvents.emit("File deleted")
+                    removeFromMediaControllerQueue(song.id)
                     removeSong(song)
                     onResult(true)
                 } else {
@@ -2646,6 +2679,38 @@ class PlayerViewModel @Inject constructor(
         _isSheetVisible.value = false
         musicRepository.deleteById(song.id.toLong())
         userPreferencesRepository.removeSongFromAllPlaylists(song.id)
+    }
+
+    private fun removeFromMediaControllerQueue(songId: String) {
+        val controller = mediaController ?: return
+
+        try {
+            // Get the current timeline and media item count
+            val timeline = controller.currentTimeline
+            val mediaItemCount = timeline.windowCount
+
+            // Find the media item to remove by iterating through windows
+            for (i in 0 until mediaItemCount) {
+                val window = timeline.getWindow(i, Timeline.Window())
+                if (window.mediaItem.mediaId == songId) {
+                    // Remove the media item by index
+                    controller.removeMediaItem(i)
+
+                    // If the currently playing song was removed, handle playback
+//                    val currentMediaItem = controller.currentMediaItem
+//                    if (currentMediaItem?.mediaId == songId) {
+//                        when {
+//                            controller.hasNextMediaItem() -> controller.seekToNextMediaItem()
+//                            controller.hasPreviousMediaItem() -> controller.seekToPreviousMediaItem()
+//                            else -> controller.stop()
+//                        }
+//                    }
+                    break
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("MediaController", "Error removing from queue: ${e.message}")
+        }
     }
 
 
@@ -3055,8 +3120,8 @@ class PlayerViewModel @Inject constructor(
                         config = Bitmap.Config.ARGB_8888
                     )
 
-                    val stream = java.io.ByteArrayOutputStream()
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                    val stream = ByteArrayOutputStream()
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                         bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 80, stream)
                     } else {
                         bitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream)
@@ -3068,6 +3133,10 @@ class PlayerViewModel @Inject constructor(
                 null
             }
         }
+    }
+
+    suspend fun getSongs(songIds: List<String>) : List<Song>{
+        return musicRepository.getSongsByIds(songIds).first()
     }
 
     //Sorting
@@ -3197,11 +3266,11 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    private fun findFolder(path: String?, folders: List<com.theveloper.pixelplay.data.model.MusicFolder>): com.theveloper.pixelplay.data.model.MusicFolder? {
+    private fun findFolder(path: String?, folders: List<MusicFolder>): MusicFolder? {
         if (path == null) {
             return null
         }
-        val queue = java.util.ArrayDeque(folders)
+        val queue = ArrayDeque(folders)
         while (queue.isNotEmpty()) {
             val folder = queue.remove()
             if (folder.path == path) {
@@ -3455,75 +3524,24 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch { _toastEvents.emit("Timer set for $durationMinutes minutes.") }
     }
 
-    fun disableCountedPlay() {
-        cancelCountedPlay()
-        cycleRepeatMode()
-        viewModelScope.launch {
-            _toastEvents.emit("Disabled counted play")
-        }
+
+    fun playCounted(count: Int) {
+        val args = Bundle().apply { putInt("count", count) }
+
+        mediaController?.sendCustomCommand(
+            SessionCommand(MusicNotificationProvider.CUSTOM_COMMAND_COUNTED_PLAY, Bundle.EMPTY),
+            args
+        )
     }
 
-    @OptIn(FlowPreview::class)
-    fun playCounted(count: Int){
-
-        _playCount.value = count.toFloat()
-        if (count == 1) {
-            disableCountedPlay()
-        } else {
-            repeatSingle()
-            val currentSongId = stablePlayerState.value.currentSong?.id
-
-            if (currentSongId != null) {
-                countedPlayJob?.cancel()
-
-                countedPlayJob = viewModelScope.launch {
-                    var playCount = 1 // Start at 1 for current play
-                    viewModelScope.launch {
-                        _toastEvents.emit("Will play $count times (including current play)")
-                        _toastEvents.emit("Play count: $playCount/$count")
-                    }
-                    combine(
-                        playerUiState.map { it.currentPosition }.sample(1000), // Only check once per second ,
-                        stablePlayerState.map { it.totalDuration },
-                        stablePlayerState.map { it.currentSong?.id }
-                    ) { position, duration, songId ->
-                        Triple(position, duration, songId)
-                    }
-                        .collect { (position, duration, songId) ->
-                            // Check if song changed
-                            if (songId != currentSongId) {
-                                cancel()
-                                disableCountedPlay()
-                                return@collect
-                            }
-
-                            // Detect track completion: position near end with valid duration
-                            if (duration > 0 && position >= duration - 1100) {
-                                playCount++
-                                if (playCount<=count)
-                                    _toastEvents.emit("Play count: $playCount/$count")
-
-                                if (playCount >= count+1) {
-                                    mediaController?.pause()
-                                    _toastEvents.emit("Played $count times - pausing")
-                                    disableCountedPlay()
-                                    cancel()
-                                } else {
-                                    // Skip ahead to avoid multiple triggers for same completion
-                                    delay(1000)
-                                }
-                            }
-                    }
-
-                }
-            }
-        }
-    }
-    fun cancelCountedPlay() {
-        countedPlayJob?.cancel()
-        countedPlayJob = null
+    fun cancelCountedPlay(){
+        val args = Bundle()
         _playCount.value = 1f
+        mediaController?.sendCustomCommand(
+            SessionCommand(MusicNotificationProvider.CUSTOM_COMMAND_CANCEL_COUNTED_PLAY, Bundle.EMPTY), args
+        )
     }
+
 
     fun setEndOfTrackTimer(enable: Boolean) {
         if (enable) {
@@ -3804,7 +3822,6 @@ class PlayerViewModel @Inject constructor(
             val previousAlbumArt = song.albumArtUriString
             val result = withContext(Dispatchers.IO) {
                 songMetadataEditor.editSongMetadata(
-                    contentUri = song.contentUriString,
                     newTitle = newTitle,
                     newArtist = newArtist,
                     newAlbum = newAlbum,
@@ -3812,6 +3829,7 @@ class PlayerViewModel @Inject constructor(
                     newLyrics = newLyrics,
                     newTrackNumber = newTrackNumber,
                     coverArtUpdate = coverArtUpdate,
+                    songId = song.id.toLong(),
                 )
             }
 

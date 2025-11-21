@@ -228,6 +228,42 @@ class UserPreferencesRepository @Inject constructor(
         }
     }
 
+    /*
+    * @param playlistIds playlistIds Ids of playlists to add the song to
+    * will remove song from the playlists which are not in playlistIds
+    * */
+    suspend fun addOrRemoveSongFromPlaylists(songId: String, playlistIds: List<String>): MutableList<String> {
+        val currentPlaylists = userPlaylistsFlow.first().toMutableList()
+        val removedPlaylistIds = mutableListOf<String>()
+
+        // adding to playlist if not already in
+        playlistIds.forEach { playlistId ->
+            val index = currentPlaylists.indexOfFirst { it.id == playlistId }
+            if (index != -1) {
+                val playlist = currentPlaylists[index]
+                if (playlist.songIds.contains(songId))
+                    return@forEach
+                else {
+                    val newSongIds = (playlist.songIds + songId).distinct()
+                    currentPlaylists[index] = playlist.copy(songIds = newSongIds, lastModified = System.currentTimeMillis())
+                    savePlaylists(currentPlaylists)
+                }
+            }
+
+        }
+
+        // removing from playlist if not in playlistIds
+        currentPlaylists.forEach { playlist ->
+            if (playlist.songIds.contains(songId) && !playlistIds.contains(playlist.id)){
+                removeSongFromPlaylist(playlist.id, songId)
+                removedPlaylistIds.add(playlist.id)
+            }
+        }
+        return removedPlaylistIds
+    }
+
+
+
     suspend fun removeSongFromPlaylist(playlistId: String, songIdToRemove: String) {
         val currentPlaylists = userPlaylistsFlow.first().toMutableList()
         val index = currentPlaylists.indexOfFirst { it.id == playlistId }
