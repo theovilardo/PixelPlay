@@ -1,6 +1,7 @@
 package com.theveloper.pixelplay.presentation.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColor
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -974,13 +975,13 @@ fun SaveQueueAsPlaylistSheet(
     val focusRequester = remember { FocusRequester() }
     val albumShape = remember {
         AbsoluteSmoothCornerShape(
-            cornerRadiusTL = 40.dp,
+            cornerRadiusTL = 16.dp,
             smoothnessAsPercentTR = 60,
-            cornerRadiusTR = 40.dp,
+            cornerRadiusTR = 16.dp,
             smoothnessAsPercentBR = 60,
-            cornerRadiusBL = 40.dp,
+            cornerRadiusBL = 16.dp,
             smoothnessAsPercentBL = 60,
-            cornerRadiusBR = 40.dp,
+            cornerRadiusBR = 16.dp,
             smoothnessAsPercentTL = 60
         )
     }
@@ -1023,34 +1024,20 @@ fun SaveQueueAsPlaylistSheet(
             decorFitsSystemWindows = false
         )
     ) {
-        val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-        Surface(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.surface)
-                .nestedScroll(scrollBehavior.nestedScrollConnection),
-            tonalElevation = 12.dp,
-            color = MaterialTheme.colorScheme.surface,
-        ) {
-            Scaffold(
-                modifier = Modifier.fillMaxSize(),
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentWindowInsets = WindowInsets.safeDrawing,
-                topBar = {
-                    LargeTopAppBar(
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentWindowInsets = WindowInsets.safeDrawing,
+            topBar = {
+                Column {
+                    androidx.compose.material3.TopAppBar(
                         title = {
-                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(
-                                    text = "Save queue as playlist",
-                                    style = MaterialTheme.typography.headlineMedium,
-                                    fontFamily = GoogleSansRounded
-                                )
-                                Text(
-                                    text = "Rename, search and pick what to keep",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                            Text(
+                                text = "Save as playlist",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontFamily = GoogleSansRounded,
+                                fontWeight = FontWeight.SemiBold
+                            )
                         },
                         navigationIcon = {
                             IconButton(onClick = onDismiss) {
@@ -1058,203 +1045,224 @@ fun SaveQueueAsPlaylistSheet(
                             }
                         },
                         actions = {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                AssistChip(
-                                    onClick = {
-                                        selectedSongIds.keys.forEach { selectedSongIds[it] = true }
-                                    },
-                                    label = { Text("Select all") },
-                                    leadingIcon = {
-                                        Icon(Icons.Rounded.DoneAll, contentDescription = null)
-                                    },
-                                    enabled = !allSelected
-                                )
-                                AssistChip(
-                                    onClick = {
+                            TextButton(
+                                onClick = {
+                                    if (allSelected) {
                                         selectedSongIds.keys.forEach { selectedSongIds[it] = false }
-                                    },
-                                    label = { Text("Deselect") },
-                                    leadingIcon = {
-                                        Icon(Icons.Rounded.RemoveDone, contentDescription = null)
-                                    },
-                                    enabled = hasSelection
-                                )
+                                    } else {
+                                        selectedSongIds.keys.forEach { selectedSongIds[it] = true }
+                                    }
+                                }
+                            ) {
+                                Text(if (allSelected) "Deselect All" else "Select All")
                             }
                         },
-                        scrollBehavior = scrollBehavior
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer
+                        )
                     )
-                },
-                floatingActionButton = {
-                    ExtendedFloatingActionButton(
+                    // Input section pinned to the top
+                    Column(
                         modifier = Modifier
-                            .padding(end = 12.dp)
-                            .windowInsetsPadding(
-                                WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        androidx.compose.material3.OutlinedTextField(
+                            value = playlistName,
+                            onValueChange = { playlistName = it },
+                            label = { Text("Playlist Name") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(focusRequester),
+                            shape = RoundedCornerShape(16.dp),
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                                unfocusedIndicatorColor = Color.Transparent,
                             )
-                            .imePadding(),
-                        shape = CircleShape,
-                        onClick = {
-                            if (hasSelection) {
-                                val finalName = playlistName.text.ifBlank { defaultName }
-                                val chosenIds = selectedSongIds
-                                    .filterValues { it }
-                                    .keys
-                                onConfirm(finalName, chosenIds)
-                                onDismiss()
-                            }
-                        },
-                        //enabled = hasSelection,
-                        icon = { Icon(Icons.Rounded.Check, contentDescription = "Save") },
-                        text = { Text("Save playlist") },
+                        )
+
+                        androidx.compose.material3.OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = { Text("Search songs to include...") },
+                            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                            trailingIcon = {
+                                if (searchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { searchQuery = "" }) {
+                                        Icon(Icons.Filled.Clear, contentDescription = "Clear search")
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = CircleShape,
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                            )
+                        )
+                    }
+                    androidx.compose.material3.HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                     )
                 }
-            ) { innerPadding ->
-                val contentPadding = PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = innerPadding.calculateTopPadding() + 8.dp,
-                    bottom = innerPadding.calculateBottomPadding() + 148.dp
-                )
-
-                LazyColumn(
+            },
+            bottomBar = {
+                Surface(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(bottom = 8.dp)
-                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                        .imePadding()
-                        .consumeWindowInsets(innerPadding),
-                    contentPadding = contentPadding,
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.ime) // Push up with keyboard
+                        .windowInsetsPadding(WindowInsets.navigationBars), // Handle nav bar
+                    tonalElevation = 8.dp,
+                    shadowElevation = 16.dp,
+                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
                 ) {
-                    item {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(28.dp),
-                            tonalElevation = 8.dp,
-                            color = MaterialTheme.colorScheme.surfaceContainerHigh
+                    Row(
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "${selectedSongIds.count { it.value }} songs selected",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = if (playlistName.text.isNotBlank()) "Will save as \"${playlistName.text}\"" else "Enter a name",
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        androidx.compose.material3.Button(
+                            onClick = {
+                                if (hasSelection) {
+                                    val finalName = playlistName.text.ifBlank { defaultName }
+                                    val chosenIds = selectedSongIds
+                                        .filterValues { it }
+                                        .keys
+                                    onConfirm(finalName, chosenIds)
+                                    onDismiss()
+                                }
+                            },
+                            enabled = hasSelection,
+                            modifier = Modifier.height(48.dp),
+                            contentPadding = PaddingValues(horizontal = 24.dp)
                         ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                TextField(
-                                    value = playlistName,
-                                    onValueChange = { playlistName = it },
-                                    label = { Text("Playlist name") },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .focusRequester(focusRequester),
-                                    shape = CircleShape,
-                                    singleLine = true,
-                                    colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                        disabledContainerColor = MaterialTheme.colorScheme.surface,
-                                        focusedIndicatorColor = Color.Transparent,
-                                        unfocusedIndicatorColor = Color.Transparent,
-                                        disabledIndicatorColor = Color.Transparent,
-                                    ),
-                                )
-                                TextField(
-                                    value = searchQuery,
-                                    onValueChange = { searchQuery = it },
-                                    label = { Text("Search songs") },
-                                    leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-                                    trailingIcon = {
-                                        if (searchQuery.isNotEmpty()) {
-                                            IconButton(onClick = { searchQuery = "" }) {
-                                                Icon(Icons.Filled.Clear, contentDescription = "Clear search")
-                                            }
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = CircleShape,
-                                    singleLine = true,
-                                    colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                        disabledContainerColor = MaterialTheme.colorScheme.surface,
-                                        focusedIndicatorColor = Color.Transparent,
-                                        unfocusedIndicatorColor = Color.Transparent,
-                                        disabledIndicatorColor = Color.Transparent,
-                                    ),
-                                )
-                            }
+                            Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Save")
                         }
                     }
-
-                    if (filteredSongs.isEmpty()) {
-                        item {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 24.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Search,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = "No songs match your search",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                }
+            }
+        ) { innerPadding ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = innerPadding.calculateTopPadding(), bottom = innerPadding.calculateBottomPadding())
+                    // Crucial: consume IME insets so the list doesn't get hidden but the bottom bar does the pushing
+                    .consumeWindowInsets(innerPadding)
+                    .imePadding(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (filteredSongs.isEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 48.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Search,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Text(
+                                text = "No songs match \"$searchQuery\"",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                    } else {
-                        items(filteredSongs, key = { it.id }) { song ->
-                            Surface(
+                    }
+                } else {
+                    items(filteredSongs, key = { it.id }) { song ->
+                        val isSelected = selectedSongIds[song.id] ?: false
+                        val transition = androidx.compose.animation.core.updateTransition(isSelected, label = "selection")
+                        val containerColor by transition.animateColor(label = "color") { selected ->
+                            if (selected) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.surface
+                        }
+                        val contentColor by transition.animateColor(label = "contentColor") { selected ->
+                            if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .clickable {
+                                    selectedSongIds[song.id] = !isSelected
+                                },
+                            color = containerColor,
+                            shape = RoundedCornerShape(16.dp),
+                            border = if (isSelected) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)) else null
+                        ) {
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(22.dp))
-                                    .clickable {
-                                        val currentSelection = selectedSongIds[song.id] ?: false
-                                        selectedSongIds[song.id] = !currentSelection
-                                    },
-                                tonalElevation = 6.dp,
-                                color = MaterialTheme.colorScheme.surfaceContainerLowest
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
-                                Row(
+                                Checkbox(
+                                    checked = isSelected,
+                                    onCheckedChange = { selectedSongIds[song.id] = it }
+                                )
+
+                                SmartImage(
+                                    model = song.albumArtUriString,
+                                    contentDescription = null,
                                     modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Checkbox(
-                                        checked = selectedSongIds[song.id] ?: false,
-                                        onCheckedChange = { isChecked -> selectedSongIds[song.id] = isChecked }
+                                        .size(48.dp)
+                                        .clip(albumShape),
+                                    shape = albumShape,
+                                )
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = song.title,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = contentColor,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
-                                    Box(
-                                        modifier = Modifier
-                                            .size(56.dp)
-                                            .clip(albumShape)
-                                    ) {
-                                        SmartImage(
-                                            model = song.albumArtUriString,
-                                            contentDescription = song.title,
-                                            shape = albumShape,
-                                            targetSize = Size(168, 168),
-                                            modifier = Modifier.fillMaxSize(),
-                                        )
-                                    }
-                                    Column(
-                                        modifier = Modifier.weight(1f),
-                                        verticalArrangement = Arrangement.Center
-                                    ) {
-                                        Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        Text(
-                                            song.artist,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
+                                    Text(
+                                        text = song.artist,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = contentColor.copy(alpha = 0.8f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                 }
                             }
                         }
