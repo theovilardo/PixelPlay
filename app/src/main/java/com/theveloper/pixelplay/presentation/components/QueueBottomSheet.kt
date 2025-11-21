@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -1019,15 +1020,17 @@ fun SaveQueueAsPlaylistSheet(
         Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)),
-            tonalElevation = 6.dp
+                .background(MaterialTheme.colorScheme.surface),
+            tonalElevation = 12.dp,
+            color = MaterialTheme.colorScheme.surface,
         ) {
             Scaffold(
                 modifier = Modifier.fillMaxSize(),
+                containerColor = MaterialTheme.colorScheme.surface,
                 topBar = {
                     LargeTopAppBar(
                         title = {
-                            Column {
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(
                                     text = "Save queue as playlist",
                                     style = MaterialTheme.typography.headlineMedium,
@@ -1046,28 +1049,28 @@ fun SaveQueueAsPlaylistSheet(
                             }
                         },
                         actions = {
-                            AssistChip(
-                                onClick = {
-                                    selectedSongIds.keys.forEach { selectedSongIds[it] = true }
-                                },
-                                label = { Text("Select all") },
-                                leadingIcon = {
-                                    Icon(Icons.Rounded.DoneAll, contentDescription = null)
-                                },
-                                enabled = !allSelected
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            AssistChip(
-                                onClick = {
-                                    selectedSongIds.keys.forEach { selectedSongIds[it] = false }
-                                },
-                                label = { Text("Deselect") },
-                                leadingIcon = {
-                                    Icon(Icons.Rounded.RemoveDone, contentDescription = null)
-                                },
-                                enabled = hasSelection
-                            )
-                            Spacer(Modifier.width(4.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                AssistChip(
+                                    onClick = {
+                                        selectedSongIds.keys.forEach { selectedSongIds[it] = true }
+                                    },
+                                    label = { Text("Select all") },
+                                    leadingIcon = {
+                                        Icon(Icons.Rounded.DoneAll, contentDescription = null)
+                                    },
+                                    enabled = !allSelected
+                                )
+                                AssistChip(
+                                    onClick = {
+                                        selectedSongIds.keys.forEach { selectedSongIds[it] = false }
+                                    },
+                                    label = { Text("Deselect") },
+                                    leadingIcon = {
+                                        Icon(Icons.Rounded.RemoveDone, contentDescription = null)
+                                    },
+                                    enabled = hasSelection
+                                )
+                            }
                         }
                     )
                 },
@@ -1096,7 +1099,7 @@ fun SaveQueueAsPlaylistSheet(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
-                        .windowInsetsPadding(WindowInsets.safeDrawing)
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
                         .imePadding()
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -1159,7 +1162,9 @@ fun SaveQueueAsPlaylistSheet(
                     }
 
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
                         contentPadding = PaddingValues(bottom = 120.dp, top = 4.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
@@ -1220,7 +1225,6 @@ fun SaveQueueAsPlaylistSheet(
         }
     }
 }
-
 @Composable
 private fun QueueMiniPlayer(
     song: Song,
