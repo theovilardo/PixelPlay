@@ -65,6 +65,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -72,6 +73,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -95,6 +97,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -118,6 +122,7 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.core.view.ViewCompat
+import androidx.compose.ui.window.SecureFlagPolicy
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -902,6 +907,7 @@ private fun SaveQueueAsPlaylistSheet(
     onConfirm: (String, Set<String>) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val focusRequester = remember { FocusRequester() }
     val albumShape = remember {
         AbsoluteSmoothCornerShape(
             cornerRadiusTL = 40.dp,
@@ -936,11 +942,23 @@ private fun SaveQueueAsPlaylistSheet(
         derivedStateOf { selectedSongIds.any { it.value } }
     }
 
+    LaunchedEffect(sheetState.currentValue) {
+        if (sheetState.currentValue == SheetValue.Expanded) {
+            focusRequester.requestFocus()
+        }
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surface,
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier.fillMaxSize(),
+        properties = ModalBottomSheetProperties(
+            shouldDismissOnBackPress = true,
+            shouldDismissOnClickOutside = true,
+            securePolicy = SecureFlagPolicy.Inherit,
+            isFocusable = true
+        )
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Scaffold(
@@ -966,7 +984,8 @@ private fun SaveQueueAsPlaylistSheet(
                             label = { Text("Playlist name") },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp),
+                                .padding(horizontal = 16.dp)
+                                .focusRequester(focusRequester),
                             shape = CircleShape,
                             singleLine = true,
                             colors = TextFieldDefaults.colors(
