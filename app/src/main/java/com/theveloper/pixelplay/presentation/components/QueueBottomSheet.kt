@@ -92,6 +92,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -964,7 +965,6 @@ private fun SaveQueueAsPlaylistSheet(
     onDismiss: () -> Unit,
     onConfirm: (String, Set<String>) -> Unit,
 ) {
-    val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
     val albumShape = remember {
@@ -1011,18 +1011,22 @@ private fun SaveQueueAsPlaylistSheet(
 
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
-        confirmValueChange = { value ->
-            if (value == SheetValue.Hidden) {
-                onDismiss()
-                false
-            } else {
-                true
-            }
-        }
+        initialValue = SheetValue.Expanded
     )
 
+    LaunchedEffect(sheetState) {
+        snapshotFlow { sheetState.currentValue }
+            .collect { value ->
+                if (value == SheetValue.Hidden) {
+                    onDismiss()
+                }
+            }
+    }
+
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            scope.launch { sheetState.hide() }
+        },
         sheetState = sheetState,
         dragHandle = null,
         windowInsets = WindowInsets(0)
