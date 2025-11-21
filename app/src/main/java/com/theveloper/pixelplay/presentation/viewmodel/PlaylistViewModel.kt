@@ -243,10 +243,11 @@ class PlaylistViewModel @Inject constructor(
     fun createPlaylist(
         name: String,
         songIds: List<String> = emptyList(),
-        isAiGenerated: Boolean = false
+        isAiGenerated: Boolean = false,
+        isQueueGenerated: Boolean = false,
     ) {
         viewModelScope.launch {
-            userPreferencesRepository.createPlaylist(name, songIds, isAiGenerated)
+            userPreferencesRepository.createPlaylist(name, songIds, isAiGenerated, isQueueGenerated)
         }
     }
 
