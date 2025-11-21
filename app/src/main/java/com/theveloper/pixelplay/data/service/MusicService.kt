@@ -49,8 +49,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runBlocking
 import timber.log.Timber
 import java.io.ByteArrayOutputStream
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
@@ -77,6 +79,7 @@ class MusicService : MediaSessionService() {
     private var favoriteSongIds = emptySet<String>()
     private var mediaSession: MediaSession? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var keepPlayingInBackground = true
     // --- Counted Play State ---
     private var countedPlayActive = false
     private var countedPlayTarget = 0
@@ -94,6 +97,11 @@ class MusicService : MediaSessionService() {
 
         engine.masterPlayer.addListener(playerListener)
         controller.initialize()
+        serviceScope.launch {
+            userPreferencesRepository.keepPlayingInBackgroundFlow.collect { enabled ->
+                keepPlayingInBackground = enabled
+            }
+        }
 
         val callback = object : MediaSession.Callback {
             override fun onConnect(
@@ -270,8 +278,22 @@ class MusicService : MediaSessionService() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        val player = mediaSession?.player ?: return
-        if (!player.playWhenReady || player.mediaItemCount == 0 || player.playbackState == Player.STATE_ENDED) {
+        val player = mediaSession?.player
+        val allowBackground = runBlocking { userPreferencesRepository.keepPlayingInBackgroundFlow.first() }
+
+        if (!allowBackground) {
+            player?.apply {
+                playWhenReady = false
+                stop()
+                clearMediaItems()
+            }
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            super.onTaskRemoved(rootIntent)
+            return
+        }
+
+        if (player == null || !player.playWhenReady || player.mediaItemCount == 0 || player.playbackState == Player.STATE_ENDED) {
             stopSelf()
         }
         super.onTaskRemoved(rootIntent)

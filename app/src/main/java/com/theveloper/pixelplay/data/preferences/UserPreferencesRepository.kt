@@ -85,6 +85,7 @@ class UserPreferencesRepository @Inject constructor(
         val LIBRARY_TABS_ORDER = stringPreferencesKey("library_tabs_order")
         val IS_FOLDER_FILTER_ACTIVE = booleanPreferencesKey("is_folder_filter_active")
         val IS_FOLDERS_PLAYLIST_VIEW = booleanPreferencesKey("is_folders_playlist_view")
+        val KEEP_PLAYING_IN_BACKGROUND = booleanPreferencesKey("keep_playing_in_background")
     }
 
     val globalTransitionSettingsFlow: Flow<TransitionSettings> = dataStore.data
@@ -155,6 +156,9 @@ class UserPreferencesRepository @Inject constructor(
         .map { preferences ->
             preferences[PreferencesKeys.APP_THEME_MODE] ?: AppThemeMode.FOLLOW_SYSTEM
         }
+
+    val keepPlayingInBackgroundFlow: Flow<Boolean> = dataStore.data
+        .map { preferences -> preferences[PreferencesKeys.KEEP_PLAYING_IN_BACKGROUND] ?: true }
 
     val favoriteSongIdsFlow: Flow<Set<String>> = dataStore.data // Nuevo flujo para favoritos
         .map { preferences ->
@@ -599,6 +603,12 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setLaunchTab(tab: String) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.LAUNCH_TAB] = tab
+        }
+    }
+
+    suspend fun setKeepPlayingInBackground(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.KEEP_PLAYING_IN_BACKGROUND] = enabled
         }
     }
 
