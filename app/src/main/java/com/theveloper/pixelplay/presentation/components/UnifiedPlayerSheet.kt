@@ -8,7 +8,6 @@ import android.widget.Toast
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
@@ -71,6 +70,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
@@ -101,12 +101,12 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
-import timber.log.Timber
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
 import kotlin.math.sign
@@ -162,10 +162,22 @@ fun UnifiedPlayerSheet(
 
     val currentSheetContentState by playerViewModel.sheetState.collectAsState()
     val predictiveBackCollapseProgress by playerViewModel.predictiveBackCollapseFraction.collectAsState()
+    var prewarmFullPlayer by remember { mutableStateOf(false) }
 
     val navBarCornerRadius by playerViewModel.navBarCornerRadius.collectAsState()
     val navBarStyle by playerViewModel.navBarStyle.collectAsState()
     val carouselStyle by playerViewModel.carouselStyle.collectAsState()
+    LaunchedEffect(stablePlayerState.currentSong?.id) {
+        if (stablePlayerState.currentSong != null) {
+            prewarmFullPlayer = true
+        }
+    }
+    LaunchedEffect(stablePlayerState.currentSong?.id, prewarmFullPlayer) {
+        if (prewarmFullPlayer) {
+            delay(32)
+            prewarmFullPlayer = false
+        }
+    }
 
     val density = LocalDensity.current
     val configuration = LocalConfiguration.current
@@ -216,8 +228,11 @@ fun UnifiedPlayerSheet(
         val targetFraction = if (showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) 1f else 0f
 
         playerContentExpansionFraction.animateTo(
-            targetFraction,
-            animationSpec = tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
+            targetValue = targetFraction,
+            animationSpec = tween(
+                durationMillis = ANIMATION_DURATION_MS,
+                easing = FastOutSlowInEasing
+            )
         )
 
         if (showPlayerContentArea) {
@@ -332,7 +347,10 @@ fun UnifiedPlayerSheet(
         } else { sheetCollapsedTargetY }
         currentSheetTranslationY.animateTo(
             targetValue = targetY,
-            animationSpec = tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
+            animationSpec = tween(
+                durationMillis = ANIMATION_DURATION_MS,
+                easing = FastOutSlowInEasing
+            )
         )
     }
 
@@ -382,14 +400,7 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val overallSheetTopCornerRadius by animateDpAsState(
-        targetValue = overallSheetTopCornerRadiusTargetValue,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
-        label = "SheetTopCornerRadius"
-    )
+    val overallSheetTopCornerRadius = overallSheetTopCornerRadiusTargetValue
 
     val playerContentActualBottomRadiusTargetValue by remember(
         navBarStyle,
@@ -444,14 +455,7 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val playerContentActualBottomRadius by animateDpAsState(
-        targetValue = playerContentActualBottomRadiusTargetValue,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
-        label = "PlayerContentBottomRadius"
-    )
+    val playerContentActualBottomRadius = playerContentActualBottomRadiusTargetValue
 
     val actualCollapsedStateHorizontalPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 14.dp else collapsedStateHorizontalPadding
 
@@ -543,9 +547,11 @@ fun UnifiedPlayerSheet(
     val imeInsets = WindowInsets.ime
     LaunchedEffect(imeInsets, density) {
         snapshotFlow { imeInsets.getBottom(density) > 0 }
+            .distinctUntilChanged()
             .collectLatest { isVisible ->
-                internalIsKeyboardVisible = isVisible
-                Timber.tag("UnifiedPlayerSheet").d("Internal Keyboard Visible: $isVisible")
+                if (internalIsKeyboardVisible != isVisible) {
+                    internalIsKeyboardVisible = isVisible
+                }
             }
     }
 
@@ -561,37 +567,7 @@ fun UnifiedPlayerSheet(
         schemeFromPair ?: systemColorScheme // If activePlayerSchemePair is null (i.e. System Dynamic selected) OR the selected scheme from pair is somehow null, use systemColorScheme
     }
 
-    val colorAnimationSpec = remember { tween<Color>(durationMillis = 700, easing = FastOutSlowInEasing) }
-
-    val animPrimary by animateColorAsState(targetColorScheme.primary, colorAnimationSpec, label = "animPrimary")
-    val animOnPrimary by animateColorAsState(targetColorScheme.onPrimary, colorAnimationSpec, label = "animOnPrimary")
-    val animPrimaryContainer by animateColorAsState(targetColorScheme.primaryContainer, colorAnimationSpec, label = "animPrimaryContainer")
-    val animOnPrimaryContainer by animateColorAsState(targetColorScheme.onPrimaryContainer, colorAnimationSpec, label = "animOnPrimaryContainer")
-    val animSecondary by animateColorAsState(targetColorScheme.secondary, colorAnimationSpec, label = "animSecondary")
-    val animOnSecondary by animateColorAsState(targetColorScheme.onSecondary, colorAnimationSpec, label = "animOnSecondary")
-    val animTertiary by animateColorAsState(targetColorScheme.tertiary, colorAnimationSpec, label = "animTertiary")
-    val animOnTertiary by animateColorAsState(targetColorScheme.onTertiary, colorAnimationSpec, label = "animOnTertiary")
-    val animSurface by animateColorAsState(targetColorScheme.surface, colorAnimationSpec, label = "animSurface")
-    val animOnSurface by animateColorAsState(targetColorScheme.onSurface, colorAnimationSpec, label = "animOnSurface")
-
-    val animatedAlbumColorScheme = remember(
-        animPrimary, animOnPrimary, animPrimaryContainer, animOnPrimaryContainer,
-        animSecondary, animOnSecondary, animTertiary, animOnTertiary, animSurface, animOnSurface, targetColorScheme
-    ) {
-        targetColorScheme.copy(
-            primary = animPrimary,
-            onPrimary = animOnPrimary,
-            primaryContainer = animPrimaryContainer,
-            onPrimaryContainer = animOnPrimaryContainer,
-            secondary = animSecondary,
-            onSecondary = animOnSecondary,
-            tertiary = animTertiary,
-            onTertiary = animOnTertiary,
-            surface = animSurface,
-            onSurface = animOnSurface
-        )
-    }
-    val albumColorScheme = animatedAlbumColorScheme
+    val albumColorScheme = targetColorScheme
 
     val t = rememberExpansionTransition(playerContentExpansionFraction.value)
 
@@ -886,19 +862,19 @@ fun UnifiedPlayerSheet(
                                         scope.launch {
                                             if (targetState == PlayerSheetState.EXPANDED) {
                                                 launch {
-                                                    currentSheetTranslationY.animateTo(
-                                                        targetValue = expandedY.value,
-                                                        animationSpec = tween(
-                                                            ANIMATION_DURATION_MS,
-                                                            easing = FastOutSlowInEasing
-                                                        )
-                                                    )
+                                            currentSheetTranslationY.animateTo(
+                                                targetValue = expandedY.value,
+                                                animationSpec = tween(
+                                                    durationMillis = ANIMATION_DURATION_MS,
+                                                    easing = FastOutSlowInEasing
+                                                )
+                                            )
                                                 }
                                                 launch {
                                                     playerContentExpansionFraction.animateTo(
                                                         1f,
                                                         animationSpec = tween(
-                                                            ANIMATION_DURATION_MS,
+                                                            durationMillis = ANIMATION_DURATION_MS,
                                                             easing = FastOutSlowInEasing
                                                         )
                                                     )
@@ -1032,6 +1008,51 @@ fun UnifiedPlayerSheet(
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+
+                // Prewarm full player once per track to reduce first-open jank.
+                if (prewarmFullPlayer && stablePlayerState.currentSong != null) {
+                    CompositionLocalProvider(
+                        LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .height(containerHeight)
+                                .fillMaxWidth()
+                                .alpha(0f)
+                                .clipToBounds()
+                        ) {
+                            FullPlayerContent(
+                                currentSong = stablePlayerState.currentSong!!,
+                                currentPlaybackQueue = currentPlaybackQueue,
+                                currentQueueSourceName = currentQueueSourceName,
+                                isShuffleEnabled = stablePlayerState.isShuffleEnabled,
+                                repeatMode = stablePlayerState.repeatMode,
+                                expansionFraction = 1f,
+                                currentSheetState = PlayerSheetState.EXPANDED,
+                                carouselStyle = carouselStyle,
+                                playerViewModel = playerViewModel,
+                                currentPositionProvider = { positionToDisplay },
+                                isPlayingProvider = { stablePlayerState.isPlaying },
+                                isFavoriteProvider = { isFavorite },
+                                queueSheetState = queueSheetState,
+                                isQueueSheetVisible = false,
+                                onPlayPause = playerViewModel::playPause,
+                                onSeek = playerViewModel::seekTo,
+                                onNext = playerViewModel::nextSong,
+                                onPrevious = playerViewModel::previousSong,
+                                onCollapse = {},
+                                onShowQueueClicked = {},
+                                onQueueSheetVisibilityChange = {},
+                                onShowCastClicked = {},
+                                onShowTrackVolumeClicked = {},
+                                onShuffleToggle = playerViewModel::toggleShuffle,
+                                onRepeatToggle = playerViewModel::cycleRepeatMode,
+                                onFavoriteToggle = playerViewModel::toggleFavorite,
+                                navController = navController,
+                            )
                         }
                     }
                 }

@@ -1,17 +1,18 @@
 package com.theveloper.pixelplay.data.worker
 
 import android.content.Context
-import androidx.lifecycle.LiveData
-import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
-import androidx.work.NetworkType
-import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,6 +21,7 @@ class SyncManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     private val workManager = WorkManager.getInstance(context)
+    private val sharingScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     // EXPONE UN FLOW<BOOLEAN> SIMPLE
     val isSyncing: Flow<Boolean> =
@@ -30,6 +32,11 @@ class SyncManager @Inject constructor(
                 isRunning || isEnqueued
             }
             .distinctUntilChanged()
+            .shareIn(
+                scope = sharingScope,
+                started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
+                replay = 1
+            )
 
     fun sync() {
         val syncRequest = SyncWorker.startUpSyncWork()

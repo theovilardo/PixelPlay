@@ -29,6 +29,7 @@ data class SettingsUiState(
     val navBarStyle: String = NavBarStyle.DEFAULT,
     val carouselStyle: String = CarouselStyle.ONE_PEEK,
     val launchTab: String = LaunchTab.HOME,
+    val keepPlayingInBackground: Boolean = true,
     val availableModels: List<GeminiModel> = emptyList(),
     val isLoadingModels: Boolean = false,
     val modelsFetchError: String? = null
@@ -97,6 +98,12 @@ class SettingsViewModel @Inject constructor(
             }
         }
 
+        viewModelScope.launch {
+            userPreferencesRepository.keepPlayingInBackgroundFlow.collect { enabled ->
+                _uiState.update { it.copy(keepPlayingInBackground = enabled) }
+            }
+        }
+
         loadDirectoryPreferences()
     }
 
@@ -162,6 +169,12 @@ class SettingsViewModel @Inject constructor(
     fun setLaunchTab(tab: String) {
         viewModelScope.launch {
             userPreferencesRepository.setLaunchTab(tab)
+        }
+    }
+
+    fun setKeepPlayingInBackground(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setKeepPlayingInBackground(enabled)
         }
     }
 

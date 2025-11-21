@@ -44,6 +44,7 @@ import com.theveloper.pixelplay.data.model.SyncedLine
 import com.theveloper.pixelplay.utils.LogUtils
 import com.theveloper.pixelplay.data.model.MusicFolder
 import com.theveloper.pixelplay.utils.LyricsUtils
+import kotlinx.coroutines.flow.conflate
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -87,7 +88,7 @@ class MusicRepositoryImpl @Inject constructor(
                     allowedParentDirs = allowedDirs,
                     applyDirectoryFilter = initialSetupDone // Only apply filter if setup is done
                 ).map { entities -> entities.map { it.toSong() } }
-            }
+            }.conflate()
         }.flowOn(Dispatchers.IO)
     }
 
@@ -106,7 +107,7 @@ class MusicRepositoryImpl @Inject constructor(
                     allowedParentDirs = allowedDirs,
                     applyDirectoryFilter = initialSetupDone
                 ).map { entities -> entities.map { it.toAlbum() } }
-            }
+            }.conflate()
         }.flowOn(Dispatchers.IO)
     }
 
@@ -131,7 +132,7 @@ class MusicRepositoryImpl @Inject constructor(
                     } else if (permittedSongsInAlbum.isNotEmpty() || !initialSetupDone) {
                         // Album has permitted songs OR initial setup not done (show all)
                         // Fetch the album details
-                        musicDao.getAlbumById(id).map { it?.toAlbum() }
+                        musicDao.getAlbumById(id).map { it?.toAlbum() }.conflate()
                     } else {
                         flowOf(null) // No permitted songs for this album
                     }
@@ -156,7 +157,7 @@ class MusicRepositoryImpl @Inject constructor(
                     allowedParentDirs = allowedDirs,
                     applyDirectoryFilter = initialSetupDone
                 ).map { entities -> entities.map { it.toArtist() } }
-            }
+            }.conflate()
         }.flowOn(Dispatchers.IO)
     }
 
@@ -173,7 +174,7 @@ class MusicRepositoryImpl @Inject constructor(
                 songEntities.filter { songEntity ->
                     !initialSetupDone || allowedDirs.contains(songEntity.parentDirectoryPath)
                 }.map { it.toSong() }
-            }
+            }.conflate()
         }.flowOn(Dispatchers.IO)
     }
 
@@ -194,12 +195,12 @@ class MusicRepositoryImpl @Inject constructor(
                     if (initialSetupDone && allowedDirs.isEmpty() && songEntities.isNotEmpty()) {
                         null
                     } else if (permittedSongsInArtist.isNotEmpty() || !initialSetupDone) {
-                        musicDao.getArtistById(artistId).map { it?.toArtist() }
+                        musicDao.getArtistById(artistId).map { it?.toArtist() }.conflate()
                     } else {
                         flowOf(null)
                     }
                 }.flatMapLatest { it!! }
-        }.flowOn(Dispatchers.IO)
+        }.conflate().flowOn(Dispatchers.IO)
     }
 
     override fun getSongsForArtist(artistId: Long): Flow<List<Song>> {
@@ -214,7 +215,7 @@ class MusicRepositoryImpl @Inject constructor(
                 songEntities.filter { songEntity ->
                     !initialSetupDone || allowedDirs.contains(songEntity.parentDirectoryPath)
                 }.map { it.toSong() }
-            }
+            }.conflate()
         }.flowOn(Dispatchers.IO)
     }
 
@@ -261,7 +262,7 @@ class MusicRepositoryImpl @Inject constructor(
                     songEntities
                         .mapNotNull { it.albumArtUriString?.toUri() }
                         .distinct()
-                }
+                }.conflate()
             }
         }.flowOn(Dispatchers.IO)
     }
@@ -283,7 +284,7 @@ class MusicRepositoryImpl @Inject constructor(
                     query = query,
                     allowedParentDirs = allowedDirs,
                     applyDirectoryFilter = initialSetupDone
-                ).map { entities -> entities.map { it.toSong() } }
+                ).map { entities -> entities.map { it.toSong() } }.conflate()
             }
         }.flowOn(Dispatchers.IO)
     }
@@ -304,7 +305,7 @@ class MusicRepositoryImpl @Inject constructor(
                     query = query,
                     allowedParentDirs = allowedDirs,
                     applyDirectoryFilter = initialSetupDone
-                ).map { entities -> entities.map { it.toAlbum() } }
+                ).map { entities -> entities.map { it.toAlbum() } }.conflate()
             }
         }.flowOn(Dispatchers.IO)
     }
@@ -324,7 +325,7 @@ class MusicRepositoryImpl @Inject constructor(
                     query = query,
                     allowedParentDirs = allowedDirs,
                     applyDirectoryFilter = initialSetupDone
-                ).map { entities -> entities.map { it.toArtist() } }
+                ).map { entities -> entities.map { it.toArtist() } }.conflate()
             }
         }.flowOn(Dispatchers.IO)
     }
@@ -436,7 +437,7 @@ class MusicRepositoryImpl @Inject constructor(
                     val songsMap = entities.associateBy { it.id.toString() }
                     // Ensure the order of original songIds is preserved
                     songIds.mapNotNull { idToFind -> songsMap[idToFind]?.toSong() }
-                }
+                }.conflate()
             }
         }.flowOn(Dispatchers.IO)
     }
@@ -518,7 +519,7 @@ class MusicRepositoryImpl @Inject constructor(
                         null
                     }
                 }
-            }
+            }.conflate()
         }.flowOn(Dispatchers.IO)
     }
 
@@ -553,7 +554,7 @@ class MusicRepositoryImpl @Inject constructor(
             } else {
                 dynamicGenres
             }
-        }.flowOn(Dispatchers.IO)
+        }.conflate().flowOn(Dispatchers.IO)
     }
 
     override suspend fun getLyrics(song: Song): Lyrics? {
@@ -613,26 +614,35 @@ class MusicRepositoryImpl @Inject constructor(
 
             val tempFolders = mutableMapOf<String, TempFolder>()
 
-            for (song in songsToProcess) {
-                try {
-                    val songFile = File(song.path)
-                    var currentFile = songFile.parentFile
-                    while (currentFile != null) {
-                        val path = currentFile.path
-                        val name = currentFile.name
-                        val tempFolder = tempFolders.getOrPut(path) { TempFolder(path, name) }
+            // Optimization: Group songs by parent folder first to reduce File object creations and loop iterations
+            val songsByFolder = songsToProcess.groupBy { File(it.path).parent }
 
-                        if (path == songFile.parent) {
-                            tempFolder.songs.add(song)
+            songsByFolder.forEach { (folderPath, songsInFolder) ->
+                if (folderPath != null) {
+                    val folderFile = File(folderPath)
+                    // Create or get the leaf folder
+                    val leafFolder = tempFolders.getOrPut(folderPath) { TempFolder(folderPath, folderFile.name) }
+                    leafFolder.songs.addAll(songsInFolder)
+
+                    // Build hierarchy upwards
+                    var currentPath = folderPath
+                    var currentFile = folderFile
+
+                    while (currentFile.parentFile != null) {
+                        val parentFile = currentFile.parentFile!!
+                        val parentPath = parentFile.path
+
+                        val parentFolder = tempFolders.getOrPut(parentPath) { TempFolder(parentPath, parentFile.name) }
+                        val added = parentFolder.subFolderPaths.add(currentPath)
+
+                        if (!added) {
+                            // If the link already existed, we have processed this branch up to the root already.
+                            break
                         }
-                        currentFile.parentFile?.let { parent ->
-                            tempFolders.getOrPut(parent.path) { TempFolder(parent.path, parent.name) }
-                                .subFolderPaths.add(path)
-                        }
-                        currentFile = currentFile.parentFile
+
+                        currentFile = parentFile
+                        currentPath = parentPath
                     }
-                } catch (e: Exception) {
-                     Log.e("MusicRepositoryImpl", "Error processing song path for folders: ${song.path}", e)
                 }
             }
 
@@ -666,11 +676,11 @@ class MusicRepositoryImpl @Inject constructor(
                  return@combine topLevelPaths
                      .mapNotNull { buildImmutableFolder(it, mutableSetOf()) }
                      .filter { it.totalSongCount > 0 }
-                     .sortedBy { it.name }
+                    .sortedBy { it.name }
              }
 
             result
-        }.flowOn(Dispatchers.IO)
+        }.conflate().flowOn(Dispatchers.IO)
     }
 
     override suspend fun deleteById(id: Long) {

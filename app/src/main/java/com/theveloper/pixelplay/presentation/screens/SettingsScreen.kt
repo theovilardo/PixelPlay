@@ -483,6 +483,26 @@ fun SettingsScreen(
                                 )
                             }
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        ThemeSelectorItem(
+                            label = "Keep playing after closing",
+                            description = "If off, removing the app from recents will stop playback.",
+                            options = mapOf(
+                                "true" to "On",
+                                "false" to "Off"
+                            ),
+                            selectedKey = if (uiState.keepPlayingInBackground) "true" else "false",
+                            onSelectionChanged = { key ->
+                                settingsViewModel.setKeepPlayingInBackground(key.toBoolean())
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.MusicNote,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            }
+                        )
                     }
                 }
             }
