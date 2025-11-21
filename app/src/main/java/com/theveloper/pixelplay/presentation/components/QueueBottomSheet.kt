@@ -18,18 +18,21 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListItemInfo
 import androidx.compose.foundation.lazy.items
@@ -52,9 +55,14 @@ import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.DoneAll
+import androidx.compose.material.icons.rounded.RemoveDone
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FloatingToolbarDefaults
@@ -63,11 +71,13 @@ import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
@@ -85,11 +95,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -106,7 +115,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -114,13 +122,14 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.core.view.ViewCompat
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -143,7 +152,9 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
@@ -181,6 +192,11 @@ fun QueueBottomSheet(
     onCancelTimer: () -> Unit,
     onCancelCountedPlay: () -> Unit,
     onPlayCounter: (count: Int) -> Unit,
+    onRequestSaveAsPlaylist: (
+        songs: List<Song>,
+        defaultName: String,
+        onConfirm: (String, Set<String>) -> Unit
+    ) -> Unit,
     onQueueDragStart: () -> Unit,
     onQueueDrag: (Float) -> Unit,
     onQueueRelease: (Float, Float) -> Unit,
@@ -191,7 +207,6 @@ fun QueueBottomSheet(
     val colors = MaterialTheme.colorScheme
     var showTimerOptions by rememberSaveable { mutableStateOf(false) }
     var showClearQueueDialog by remember { mutableStateOf(false) }
-    var showSaveQueueSheet by remember { mutableStateOf(false) }
     var isFabExpanded by rememberSaveable { mutableStateOf(false) }
 
     val stablePlayerState by viewModel.stablePlayerState.collectAsState()
@@ -812,7 +827,26 @@ fun QueueBottomSheet(
                                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                                 onClick = {
                                     isFabExpanded = false
-                                    showSaveQueueSheet = true
+                                    val defaultName = if (currentQueueSourceName.isNotBlank()) {
+                                        "${currentQueueSourceName} Queue"
+                                    } else {
+                                        "Current Queue"
+                                    }
+                                    onRequestSaveAsPlaylist(
+                                        queueSnapshot,
+                                        defaultName
+                                    ) { name, selectedIds ->
+                                        val orderedSelection = queueSnapshot
+                                            .filter { selectedIds.contains(it.id) }
+                                            .map { it.id }
+                                        if (orderedSelection.isNotEmpty()) {
+                                            playlistViewModel.createPlaylist(
+                                                name = name,
+                                                songIds = orderedSelection,
+                                                isQueueGenerated = true
+                                            )
+                                        }
+                                    }
                                 }
                             )
                         }
@@ -853,34 +887,6 @@ fun QueueBottomSheet(
             )
         }
 
-        if (showSaveQueueSheet) {
-            val defaultName = if (currentQueueSourceName.isNotBlank()) {
-                "${currentQueueSourceName} Queue"
-            } else {
-                "Current Queue"
-            }
-            SaveQueueAsPlaylistSheet(
-                songs = queueSnapshot,
-                defaultName = defaultName,
-                onDismiss = {
-                    showSaveQueueSheet = false
-                },
-                onConfirm = { name, selectedIds ->
-                    val orderedSelection = queueSnapshot
-                        .filter { selectedIds.contains(it.id) }
-                        .map { it.id }
-                    if (orderedSelection.isNotEmpty()) {
-                        playlistViewModel.createPlaylist(
-                            name = name,
-                            songIds = orderedSelection,
-                            isQueueGenerated = true
-                        )
-                    }
-                    showSaveQueueSheet = false
-                }
-            )
-        }
-
         if (showClearQueueDialog) {
             AlertDialog(
                 onDismissRequest = { showClearQueueDialog = false },
@@ -908,6 +914,7 @@ fun QueueBottomSheet(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun QueueToolbarMenuButton(
     text: String,
@@ -956,16 +963,15 @@ private fun QueueToolbarMenuButton(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SaveQueueAsPlaylistSheet(
+fun SaveQueueAsPlaylistSheet(
     songs: List<Song>,
     defaultName: String,
     onDismiss: () -> Unit,
     onConfirm: (String, Set<String>) -> Unit,
 ) {
-    val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
-    val keyboardController = LocalSoftwareKeyboardController.current
     val albumShape = remember {
         AbsoluteSmoothCornerShape(
             cornerRadiusTL = 40.dp,
@@ -999,87 +1005,153 @@ private fun SaveQueueAsPlaylistSheet(
     val hasSelection by remember {
         derivedStateOf { selectedSongIds.any { it.value } }
     }
+    val allSelected by remember {
+        derivedStateOf { selectedSongIds.isNotEmpty() && selectedSongIds.all { it.value } }
+    }
 
     LaunchedEffect(Unit) {
-        // Give the dialog a frame to compose before requesting focus/IME to avoid
-        // premature dismissal when the keyboard appears.
-        withFrameNanos { }
         focusRequester.requestFocus()
-        keyboardController?.show()
     }
+
+    BackHandler(onBack = onDismiss)
 
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
-            dismissOnBackPress = true,
-            dismissOnClickOutside = true,
-            decorFitsSystemWindows = false,
+            dismissOnClickOutside = false,
+            decorFitsSystemWindows = false
         )
     ) {
-        Box(
+        val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+        Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .imePadding()
+                .background(MaterialTheme.colorScheme.surface)
+                .nestedScroll(scrollBehavior.nestedScrollConnection),
+            tonalElevation = 12.dp,
+            color = MaterialTheme.colorScheme.surface,
         ) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .clickable(
-                        indication = null,
-                        interactionSource = remember { MutableInteractionSource() }
-                    ) { onDismiss() }
-                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.56f))
-            )
+            Scaffold(
+                modifier = Modifier.fillMaxSize(),
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentWindowInsets = WindowInsets.safeDrawing,
+                topBar = {
+                    LargeTopAppBar(
+                        title = {
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    text = "Save queue as playlist",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontFamily = GoogleSansRounded
+                                )
+                                Text(
+                                    text = "Rename, search and pick what to keep",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        },
+                        navigationIcon = {
+                            IconButton(onClick = onDismiss) {
+                                Icon(Icons.Rounded.Close, contentDescription = "Close")
+                            }
+                        },
+                        actions = {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                AssistChip(
+                                    onClick = {
+                                        selectedSongIds.keys.forEach { selectedSongIds[it] = true }
+                                    },
+                                    label = { Text("Select all") },
+                                    leadingIcon = {
+                                        Icon(Icons.Rounded.DoneAll, contentDescription = null)
+                                    },
+                                    enabled = !allSelected
+                                )
+                                AssistChip(
+                                    onClick = {
+                                        selectedSongIds.keys.forEach { selectedSongIds[it] = false }
+                                    },
+                                    label = { Text("Deselect") },
+                                    leadingIcon = {
+                                        Icon(Icons.Rounded.RemoveDone, contentDescription = null)
+                                    },
+                                    enabled = hasSelection
+                                )
+                            }
+                        },
+                        scrollBehavior = scrollBehavior
+                    )
+                },
+                floatingActionButton = {
+                    ExtendedFloatingActionButton(
+                        modifier = Modifier
+                            .padding(end = 12.dp)
+                            .windowInsetsPadding(
+                                WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)
+                            )
+                            .imePadding(),
+                        shape = CircleShape,
+                        onClick = {
+                            if (hasSelection) {
+                                val finalName = playlistName.text.ifBlank { defaultName }
+                                val chosenIds = selectedSongIds
+                                    .filterValues { it }
+                                    .keys
+                                onConfirm(finalName, chosenIds)
+                                onDismiss()
+                            }
+                        },
+                        //enabled = hasSelection,
+                        icon = { Icon(Icons.Rounded.Check, contentDescription = "Save") },
+                        text = { Text("Save playlist") },
+                    )
+                }
+            ) { innerPadding ->
+                val contentPadding = PaddingValues(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = innerPadding.calculateTopPadding() + 8.dp,
+                    bottom = innerPadding.calculateBottomPadding() + 148.dp
+                )
 
-            AnimatedVisibility(
-                modifier = Modifier.align(Alignment.BottomCenter),
-                visible = true,
-                enter = slideInVertically { it / 2 } + fadeIn(),
-                exit = slideOutVertically { it / 2 } + fadeOut()
-            ) {
-                Surface(
+                LazyColumn(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .wrapContentHeight()
-                        .padding(horizontal = 10.dp, vertical = 10.dp),
-                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                    tonalElevation = 12.dp,
-                    shadowElevation = 18.dp,
-                    color = MaterialTheme.colorScheme.surface
+                        .fillMaxSize()
+                        .padding(bottom = 8.dp)
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                        .imePadding()
+                        .consumeWindowInsets(innerPadding),
+                    contentPadding = contentPadding,
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Scaffold(
-                        topBar = {
+                    item {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(28.dp),
+                            tonalElevation = 8.dp,
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh
+                        ) {
                             Column(
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 26.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(
-                                        text = "Save as Playlist",
-                                        style = MaterialTheme.typography.displaySmall,
-                                        fontFamily = GoogleSansRounded
-                                    )
-                                }
                                 TextField(
                                     value = playlistName,
                                     onValueChange = { playlistName = it },
                                     label = { Text("Playlist name") },
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 16.dp)
                                         .focusRequester(focusRequester),
                                     shape = CircleShape,
                                     singleLine = true,
                                     colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                        disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        disabledContainerColor = MaterialTheme.colorScheme.surface,
                                         focusedIndicatorColor = Color.Transparent,
                                         unfocusedIndicatorColor = Color.Transparent,
                                         disabledIndicatorColor = Color.Transparent,
@@ -1089,6 +1161,7 @@ private fun SaveQueueAsPlaylistSheet(
                                     value = searchQuery,
                                     onValueChange = { searchQuery = it },
                                     label = { Text("Search songs") },
+                                    leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                                     trailingIcon = {
                                         if (searchQuery.isNotEmpty()) {
                                             IconButton(onClick = { searchQuery = "" }) {
@@ -1096,74 +1169,67 @@ private fun SaveQueueAsPlaylistSheet(
                                             }
                                         }
                                     },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp),
+                                    modifier = Modifier.fillMaxWidth(),
                                     shape = CircleShape,
                                     singleLine = true,
                                     colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                        disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        disabledContainerColor = MaterialTheme.colorScheme.surface,
                                         focusedIndicatorColor = Color.Transparent,
                                         unfocusedIndicatorColor = Color.Transparent,
                                         disabledIndicatorColor = Color.Transparent,
-                                        unfocusedTrailingIconColor = Color.Transparent,
-                                        focusedSupportingTextColor = Color.Transparent,
                                     ),
                                 )
                             }
-                        },
-                        floatingActionButton = {
-                            ExtendedFloatingActionButton(
-                                modifier = Modifier.padding(bottom = 18.dp, end = 8.dp),
-                                shape = CircleShape,
-                                onClick = {
-                                    if (hasSelection) {
-                                        scope.launch {
-                                            val finalName = playlistName.text.ifBlank { defaultName }
-                                            val chosenIds = selectedSongIds
-                                                .filterValues { it }
-                                                .keys
-                                            onConfirm(finalName, chosenIds)
-                                            onDismiss()
-                                        }
-                                    }
-                                },
-                                //enabled = hasSelection,
-                                icon = { Icon(Icons.Rounded.Check, contentDescription = "Save") },
-                                text = { Text("Save") },
-                            )
                         }
-                    ) { innerPadding ->
-                        LazyColumn(
-                            modifier = Modifier
-                                .padding(innerPadding)
-                                .padding(horizontal = 14.dp),
-                            contentPadding = PaddingValues(bottom = 110.dp, top = 20.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(filteredSongs, key = { it.id }) { song ->
+                    }
+
+                    if (filteredSongs.isEmpty()) {
+                        item {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Search,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "No songs match your search",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    } else {
+                        items(filteredSongs, key = { it.id }) { song ->
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(22.dp))
+                                    .clickable {
+                                        val currentSelection = selectedSongIds[song.id] ?: false
+                                        selectedSongIds[song.id] = !currentSelection
+                                    },
+                                tonalElevation = 6.dp,
+                                color = MaterialTheme.colorScheme.surfaceContainerLowest
+                            ) {
                                 Row(
-                                    Modifier
+                                    modifier = Modifier
                                         .fillMaxWidth()
-                                        .clip(CircleShape)
-                                        .clickable {
-                                            val currentSelection = selectedSongIds[song.id] ?: false
-                                            selectedSongIds[song.id] = !currentSelection
-                                        }
-                                        .background(
-                                            color = MaterialTheme.colorScheme.surfaceContainerLowest,
-                                            shape = CircleShape
-                                        )
-                                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     Checkbox(
                                         checked = selectedSongIds[song.id] ?: false,
                                         onCheckedChange = { isChecked -> selectedSongIds[song.id] = isChecked }
                                     )
-                                    Spacer(Modifier.width(12.dp))
                                     Box(
                                         modifier = Modifier
                                             .size(56.dp)
@@ -1172,13 +1238,15 @@ private fun SaveQueueAsPlaylistSheet(
                                         SmartImage(
                                             model = song.albumArtUriString,
                                             contentDescription = song.title,
-                                        shape = albumShape,
+                                            shape = albumShape,
                                             targetSize = Size(168, 168),
                                             modifier = Modifier.fillMaxSize(),
                                         )
                                     }
-                                    Spacer(Modifier.width(16.dp))
-                                    Column {
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
                                         Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         Text(
                                             song.artist,
@@ -1191,25 +1259,11 @@ private fun SaveQueueAsPlaylistSheet(
                             }
                         }
                     }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(30.dp)
-                            .background(
-                                brush = Brush.verticalGradient(
-                                    listOf(
-                                        Color.Transparent,
-                                        MaterialTheme.colorScheme.surface
-                                    )
-                                )
-                            )
-                    ) { }
                 }
             }
         }
     }
 }
-
 @Composable
 private fun QueueMiniPlayer(
     song: Song,
