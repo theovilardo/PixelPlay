@@ -2,11 +2,13 @@ package com.theveloper.pixelplay.presentation.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -1015,10 +1017,36 @@ fun SaveQueueAsPlaylistSheet(
         focusRequester.requestFocus()
     }
 
-    BackHandler(onBack = onDismiss)
+    var isVisible by remember { mutableStateOf(false) }
+    val duration = 400
+
+    LaunchedEffect(Unit) {
+        isVisible = true
+    }
+
+    fun triggerDismiss() {
+        isVisible = false
+    }
+
+    // Wait for exit animation to finish before calling onDismiss
+    LaunchedEffect(isVisible) {
+        if (!isVisible) {
+            // Only delay if we were visible before (to allow exit animation)
+            // But since we initialize to false, we need to check if it was ever true?
+            // Actually, just checking !isVisible is enough if we started as true?
+            // No, on initial composition isVisible is false.
+            // We need a way to know if we are *exiting*.
+            // Let's just use a delay that matches the animation.
+             kotlinx.coroutines.delay(duration.toLong())
+             if (!isVisible) onDismiss()
+        }
+    }
+
+    // Override back handler to animate out
+    BackHandler(onBack = { triggerDismiss() })
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { triggerDismiss() },
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             dismissOnClickOutside = false,
@@ -1026,84 +1054,102 @@ fun SaveQueueAsPlaylistSheet(
         )
     ) {
         val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
-        Scaffold(
-            modifier = Modifier
-                .fillMaxSize()
-                .nestedScroll(scrollBehavior.nestedScrollConnection),
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentWindowInsets = WindowInsets.safeDrawing,
-            topBar = {
-                Column {
-                    androidx.compose.material3.MediumTopAppBar(
-                        title = {
-                            Text(
-                                text = "Save as playlist",
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontFamily = GoogleSansRounded,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        },
-                        navigationIcon = {
-                            FilledTonalIconButton(
-                                modifier = Modifier.padding(start = 12.dp),
-                                onClick = onDismiss,
-                                colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                    contentColor = MaterialTheme.colorScheme.onSurface
-                                )
-                            ) {
-                                Icon(Icons.Rounded.Close, contentDescription = "Close")
-                            }
-                        },
-                        actions = {
-                            val animatedContainerColor by animateColorAsState(
-                                targetValue = if (allSelected) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.surfaceContainerHigh,
-                                label = "selectBtnContainer"
-                            )
-                            val animatedContentColor by animateColorAsState(
-                                targetValue = if (allSelected) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onSurface,
-                                label = "selectBtnContent"
-                            )
 
-                            Surface(
-                                modifier = Modifier
-                                    .padding(end = 12.dp)
-                                    .height(40.dp)
-                                    .clickable {
-                                        if (allSelected) {
-                                            selectedSongIds.keys.forEach { selectedSongIds[it] = false }
-                                        } else {
-                                            selectedSongIds.keys.forEach { selectedSongIds[it] = true }
-                                        }
-                                    },
-                                shape = CircleShape,
-                                color = animatedContainerColor,
-                                contentColor = animatedContentColor
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 16.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+        AnimatedVisibility(
+            visible = isVisible,
+            enter = slideInVertically(
+                initialOffsetY = { it },
+                animationSpec = tween(duration)
+            ) + fadeIn(animationSpec = tween(duration)),
+            exit = slideOutVertically(
+                targetOffsetY = { it },
+                animationSpec = tween(duration)
+            ) + fadeOut(animationSpec = tween(duration))
+        ) {
+            Scaffold(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .nestedScroll(scrollBehavior.nestedScrollConnection),
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentWindowInsets = WindowInsets.safeDrawing,
+                topBar = {
+                    Column {
+                        androidx.compose.material3.MediumTopAppBar(
+                            title = {
+                                Text(
+                                    text = "Save as playlist",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontFamily = GoogleSansRounded,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            },
+                            navigationIcon = {
+                                FilledTonalIconButton(
+                                    modifier = Modifier.padding(start = 12.dp),
+                                    onClick = { triggerDismiss() },
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        contentColor = MaterialTheme.colorScheme.onSurface
+                                    )
                                 ) {
-                                    Icon(
-                                        imageVector = if (allSelected) Icons.Rounded.RemoveDone else Icons.Rounded.DoneAll,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Text(
-                                        text = if (allSelected) "Deselect All" else "Select All",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    Icon(Icons.Rounded.Close, contentDescription = "Close")
                                 }
-                            }
-                        },
-                        colors = TopAppBarDefaults.mediumTopAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            scrolledContainerColor = MaterialTheme.colorScheme.surface
-                        ),
-                        scrollBehavior = scrollBehavior
-                    )
+                            },
+                            actions = {
+                                val animatedContainerColor by animateColorAsState(
+                                    targetValue = if (allSelected) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    label = "selectBtnContainer"
+                                )
+                                val animatedContentColor by animateColorAsState(
+                                    targetValue = if (allSelected) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onSurface,
+                                    label = "selectBtnContent"
+                                )
+                                val animatedCornerPercent by animateIntAsState(
+                                    targetValue = if (allSelected) 50 else 15,
+                                    label = "selectBtnShape"
+                                )
+
+                                Surface(
+                                    modifier = Modifier
+                                        .padding(end = 12.dp)
+                                        .height(40.dp)
+                                        .clickable {
+                                            if (allSelected) {
+                                                selectedSongIds.keys.forEach { selectedSongIds[it] = false }
+                                            } else {
+                                                selectedSongIds.keys.forEach { selectedSongIds[it] = true }
+                                            }
+                                        },
+                                    shape = RoundedCornerShape(animatedCornerPercent),
+                                    color = animatedContainerColor,
+                                    contentColor = animatedContentColor
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 16.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (allSelected) Icons.Rounded.RemoveDone else Icons.Rounded.DoneAll,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Text(
+                                            text = if (allSelected) "Deselect All" else "Select All",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            },
+                            colors = TopAppBarDefaults.mediumTopAppBarColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                scrolledContainerColor = MaterialTheme.colorScheme.surface
+                            ),
+                            scrollBehavior = scrollBehavior
+                        )
                     // Input section pinned to the top
                     Column(
                         modifier = Modifier
