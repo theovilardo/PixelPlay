@@ -187,6 +187,11 @@ fun QueueBottomSheet(
     onCancelTimer: () -> Unit,
     onCancelCountedPlay: () -> Unit,
     onPlayCounter: (count: Int) -> Unit,
+    onRequestSaveAsPlaylist: (
+        songs: List<Song>,
+        defaultName: String,
+        onConfirm: (String, Set<String>) -> Unit
+    ) -> Unit,
     onQueueDragStart: () -> Unit,
     onQueueDrag: (Float) -> Unit,
     onQueueRelease: (Float, Float) -> Unit,
@@ -197,7 +202,6 @@ fun QueueBottomSheet(
     val colors = MaterialTheme.colorScheme
     var showTimerOptions by rememberSaveable { mutableStateOf(false) }
     var showClearQueueDialog by remember { mutableStateOf(false) }
-    var showSaveQueueSheet by remember { mutableStateOf(false) }
     var isFabExpanded by rememberSaveable { mutableStateOf(false) }
 
     val stablePlayerState by viewModel.stablePlayerState.collectAsState()
@@ -818,7 +822,26 @@ fun QueueBottomSheet(
                                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                                 onClick = {
                                     isFabExpanded = false
-                                    showSaveQueueSheet = true
+                                    val defaultName = if (currentQueueSourceName.isNotBlank()) {
+                                        "${currentQueueSourceName} Queue"
+                                    } else {
+                                        "Current Queue"
+                                    }
+                                    onRequestSaveAsPlaylist(
+                                        queueSnapshot,
+                                        defaultName
+                                    ) { name, selectedIds ->
+                                        val orderedSelection = queueSnapshot
+                                            .filter { selectedIds.contains(it.id) }
+                                            .map { it.id }
+                                        if (orderedSelection.isNotEmpty()) {
+                                            playlistViewModel.createPlaylist(
+                                                name = name,
+                                                songIds = orderedSelection,
+                                                isQueueGenerated = true
+                                            )
+                                        }
+                                    }
                                 }
                             )
                         }
@@ -856,34 +879,6 @@ fun QueueBottomSheet(
                 onOpenCustomTimePicker = onOpenCustomTimePicker,
                 onCancelCountedPlay = onCancelCountedPlay,
                 onCancelTimer = onCancelTimer
-            )
-        }
-
-        if (showSaveQueueSheet) {
-            val defaultName = if (currentQueueSourceName.isNotBlank()) {
-                "${currentQueueSourceName} Queue"
-            } else {
-                "Current Queue"
-            }
-            SaveQueueAsPlaylistSheet(
-                songs = queueSnapshot,
-                defaultName = defaultName,
-                onDismiss = {
-                    showSaveQueueSheet = false
-                },
-                onConfirm = { name, selectedIds ->
-                    val orderedSelection = queueSnapshot
-                        .filter { selectedIds.contains(it.id) }
-                        .map { it.id }
-                    if (orderedSelection.isNotEmpty()) {
-                        playlistViewModel.createPlaylist(
-                            name = name,
-                            songIds = orderedSelection,
-                            isQueueGenerated = true
-                        )
-                    }
-                    showSaveQueueSheet = false
-                }
             )
         }
 
@@ -963,7 +958,7 @@ private fun QueueToolbarMenuButton(
 }
 
 @Composable
-private fun SaveQueueAsPlaylistSheet(
+fun SaveQueueAsPlaylistSheet(
     songs: List<Song>,
     defaultName: String,
     onDismiss: () -> Unit,

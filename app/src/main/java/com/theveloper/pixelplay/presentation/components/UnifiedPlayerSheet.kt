@@ -107,6 +107,7 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import timber.log.Timber
@@ -121,6 +122,12 @@ private enum class DragPhase { IDLE, TENSION, SNAPPING, FREE_DRAG }
 
 val MiniPlayerHeight = 64.dp
 const val ANIMATION_DURATION_MS = 255
+
+private data class SaveQueueOverlayData(
+    val songs: List<Song>,
+    val defaultName: String,
+    val onConfirm: (String, Set<String>) -> Unit,
+)
 
 val MiniPlayerBottomSpacer = 8.dp
 
@@ -504,6 +511,7 @@ fun UnifiedPlayerSheet(
     val queueDragThresholdPx by remember(queueHiddenOffsetPx) {
         derivedStateOf { queueHiddenOffsetPx * 0.08f }
     }
+    var pendingSaveQueueOverlay by remember { mutableStateOf<SaveQueueOverlayData?>(null) }
     var showCastSheet by remember { mutableStateOf(false) }
     var showTrackVolumeSheet by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
@@ -521,17 +529,22 @@ fun UnifiedPlayerSheet(
         queueSheetOffset.snapTo(targetOffset)
     }
 
-    fun animateQueueSheet(targetExpanded: Boolean) {
-        if (queueHiddenOffsetPx == 0f) return
-        scope.launch {
-            val target = if (targetExpanded) 0f else queueHiddenOffsetPx
-            showQueueSheet = true
-            queueSheetOffset.animateTo(
-                targetValue = target,
-                animationSpec = tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
-            )
+    suspend fun animateQueueSheetInternal(targetExpanded: Boolean) {
+        if (queueHiddenOffsetPx == 0f) {
             showQueueSheet = targetExpanded
+            return
         }
+        val target = if (targetExpanded) 0f else queueHiddenOffsetPx
+        showQueueSheet = true
+        queueSheetOffset.animateTo(
+            targetValue = target,
+            animationSpec = tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
+        )
+        showQueueSheet = targetExpanded
+    }
+
+    fun animateQueueSheet(targetExpanded: Boolean) {
+        scope.launch { animateQueueSheetInternal(targetExpanded) }
     }
 
     fun beginQueueDrag() {
@@ -618,6 +631,21 @@ fun UnifiedPlayerSheet(
     val queueOpenFraction by remember(queueSheetOffset, queueHiddenOffsetPx) {
         derivedStateOf {
             if (queueHiddenOffsetPx == 0f) 0f else (1f - (queueSheetOffset.value / queueHiddenOffsetPx)).coerceIn(0f, 1f)
+        }
+    }
+
+    val updatedPendingSaveOverlay = rememberUpdatedState(pendingSaveQueueOverlay)
+    fun launchSaveQueueOverlay(
+        songs: List<Song>,
+        defaultName: String,
+        onConfirm: (String, Set<String>) -> Unit
+    ) {
+        if (updatedPendingSaveOverlay.value != null) return
+        scope.launch {
+            animateQueueSheetInternal(false)
+            playerViewModel.collapsePlayerSheet()
+            delay(ANIMATION_DURATION_MS.toLong())
+            pendingSaveQueueOverlay = SaveQueueOverlayData(songs, defaultName, onConfirm)
         }
     }
 
@@ -1186,6 +1214,9 @@ fun UnifiedPlayerSheet(
                     onCancelTimer = { playerViewModel.cancelSleepTimer() },
                     onCancelCountedPlay = playerViewModel::cancelCountedPlay,
                     onPlayCounter = playerViewModel::playCounted,
+                    onRequestSaveAsPlaylist = { songs, defaultName, onConfirm ->
+                        launchSaveQueueOverlay(songs, defaultName, onConfirm)
+                    },
                     onQueueDragStart = { beginQueueDrag() },
                     onQueueDrag = { dragQueueBy(it) },
                     onQueueRelease = { drag, velocity -> endQueueDrag(drag, velocity) }
@@ -1222,6 +1253,18 @@ fun UnifiedPlayerSheet(
                 }
             )
         }
+    }
+
+    pendingSaveQueueOverlay?.let { overlay ->
+        SaveQueueAsPlaylistSheet(
+            songs = overlay.songs,
+            defaultName = overlay.defaultName,
+            onDismiss = { pendingSaveQueueOverlay = null },
+            onConfirm = { name, selectedIds ->
+                overlay.onConfirm(name, selectedIds)
+                pendingSaveQueueOverlay = null
+            }
+        )
     }
     Trace.endSection() // End UnifiedPlayerSheet.Composition
 }
