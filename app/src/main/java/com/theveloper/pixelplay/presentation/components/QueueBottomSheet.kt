@@ -948,18 +948,17 @@ private fun SaveQueueAsPlaylistSheet(
         }
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
-        modifier = Modifier.fillMaxSize(),
-        properties = ModalBottomSheetProperties(
-            shouldDismissOnBackPress = true,
-            shouldDismissOnClickOutside = true,
-            securePolicy = SecureFlagPolicy.Inherit,
-            isFocusable = true
-        )
-    ) {
+        ModalBottomSheet(
+            onDismissRequest = onDismiss,
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surface,
+            modifier = Modifier.fillMaxSize(),
+            properties = ModalBottomSheetProperties(
+                securePolicy = SecureFlagPolicy.Inherit,
+                shouldDismissOnBackPress = true,
+                shouldDismissOnClickOutside = true
+            )
+        ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Scaffold(
                 topBar = {
