@@ -64,6 +64,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -71,8 +72,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ClearAll
@@ -119,8 +122,6 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.core.view.ViewCompat
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -1008,205 +1009,182 @@ private fun SaveQueueAsPlaylistSheet(
         keyboardController?.show()
     }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            dismissOnBackPress = true,
-            dismissOnClickOutside = true,
-            decorFitsSystemWindows = false,
-        )
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .imePadding()
-        ) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .clickable(
-                        indication = null,
-                        interactionSource = remember { MutableInteractionSource() }
-                    ) { onDismiss() }
-                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.56f))
-            )
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { value ->
+            if (value == SheetValue.Hidden) {
+                onDismiss()
+                false
+            } else {
+                true
+            }
+        }
+    )
 
-            AnimatedVisibility(
-                modifier = Modifier.align(Alignment.BottomCenter),
-                visible = true,
-                enter = slideInVertically { it / 2 } + fadeIn(),
-                exit = slideOutVertically { it / 2 } + fadeOut()
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .wrapContentHeight()
-                        .padding(horizontal = 10.dp, vertical = 10.dp),
-                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                    tonalElevation = 12.dp,
-                    shadowElevation = 18.dp,
-                    color = MaterialTheme.colorScheme.surface
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        dragHandle = null,
+        windowInsets = WindowInsets(0)
+    ) {
+        Scaffold(
+            modifier = Modifier
+                .navigationBarsPadding()
+                .imePadding(),
+            topBar = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Scaffold(
-                        topBar = {
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 26.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(
-                                        text = "Save as Playlist",
-                                        style = MaterialTheme.typography.displaySmall,
-                                        fontFamily = GoogleSansRounded
-                                    )
-                                }
-                                TextField(
-                                    value = playlistName,
-                                    onValueChange = { playlistName = it },
-                                    label = { Text("Playlist name") },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp)
-                                        .focusRequester(focusRequester),
-                                    shape = CircleShape,
-                                    singleLine = true,
-                                    colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                        disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                        focusedIndicatorColor = Color.Transparent,
-                                        unfocusedIndicatorColor = Color.Transparent,
-                                        disabledIndicatorColor = Color.Transparent,
-                                    ),
-                                )
-                                TextField(
-                                    value = searchQuery,
-                                    onValueChange = { searchQuery = it },
-                                    label = { Text("Search songs") },
-                                    trailingIcon = {
-                                        if (searchQuery.isNotEmpty()) {
-                                            IconButton(onClick = { searchQuery = "" }) {
-                                                Icon(Icons.Filled.Clear, contentDescription = "Clear search")
-                                            }
-                                        }
-                                    },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp),
-                                    shape = CircleShape,
-                                    singleLine = true,
-                                    colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                        disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                        focusedIndicatorColor = Color.Transparent,
-                                        unfocusedIndicatorColor = Color.Transparent,
-                                        disabledIndicatorColor = Color.Transparent,
-                                        unfocusedTrailingIconColor = Color.Transparent,
-                                        focusedSupportingTextColor = Color.Transparent,
-                                    ),
-                                )
-                            }
-                        },
-                        floatingActionButton = {
-                            ExtendedFloatingActionButton(
-                                modifier = Modifier.padding(bottom = 18.dp, end = 8.dp),
-                                shape = CircleShape,
-                                onClick = {
-                                    if (hasSelection) {
-                                        scope.launch {
-                                            val finalName = playlistName.text.ifBlank { defaultName }
-                                            val chosenIds = selectedSongIds
-                                                .filterValues { it }
-                                                .keys
-                                            onConfirm(finalName, chosenIds)
-                                            onDismiss()
-                                        }
-                                    }
-                                },
-                                //enabled = hasSelection,
-                                icon = { Icon(Icons.Rounded.Check, contentDescription = "Save") },
-                                text = { Text("Save") },
-                            )
-                        }
-                    ) { innerPadding ->
-                        LazyColumn(
-                            modifier = Modifier
-                                .padding(innerPadding)
-                                .padding(horizontal = 14.dp),
-                            contentPadding = PaddingValues(bottom = 110.dp, top = 20.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(filteredSongs, key = { it.id }) { song ->
-                                Row(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .clip(CircleShape)
-                                        .clickable {
-                                            val currentSelection = selectedSongIds[song.id] ?: false
-                                            selectedSongIds[song.id] = !currentSelection
-                                        }
-                                        .background(
-                                            color = MaterialTheme.colorScheme.surfaceContainerLowest,
-                                            shape = CircleShape
-                                        )
-                                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Checkbox(
-                                        checked = selectedSongIds[song.id] ?: false,
-                                        onCheckedChange = { isChecked -> selectedSongIds[song.id] = isChecked }
-                                    )
-                                    Spacer(Modifier.width(12.dp))
-                                    Box(
-                                        modifier = Modifier
-                                            .size(56.dp)
-                                            .clip(albumShape)
-                                    ) {
-                                        SmartImage(
-                                            model = song.albumArtUriString,
-                                            contentDescription = song.title,
-                                        shape = albumShape,
-                                            targetSize = Size(168, 168),
-                                            modifier = Modifier.fillMaxSize(),
-                                        )
-                                    }
-                                    Spacer(Modifier.width(16.dp))
-                                    Column {
-                                        Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        Text(
-                                            song.artist,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Box(
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(30.dp)
+                            .padding(horizontal = 26.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "Save as Playlist",
+                            style = MaterialTheme.typography.displaySmall,
+                            fontFamily = GoogleSansRounded
+                        )
+                    }
+                    TextField(
+                        value = playlistName,
+                        onValueChange = { playlistName = it },
+                        label = { Text("Playlist name") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .focusRequester(focusRequester),
+                        shape = CircleShape,
+                        singleLine = true,
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            disabledIndicatorColor = Color.Transparent,
+                        ),
+                    )
+                    TextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        label = { Text("Search songs") },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Filled.Clear, contentDescription = "Clear search")
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        shape = CircleShape,
+                        singleLine = true,
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            disabledIndicatorColor = Color.Transparent,
+                            unfocusedTrailingIconColor = Color.Transparent,
+                            focusedSupportingTextColor = Color.Transparent,
+                        ),
+                    )
+                }
+            },
+            floatingActionButton = {
+                ExtendedFloatingActionButton(
+                    modifier = Modifier.padding(bottom = 18.dp, end = 8.dp),
+                    shape = CircleShape,
+                    onClick = {
+                        if (hasSelection) {
+                            scope.launch {
+                                val finalName = playlistName.text.ifBlank { defaultName }
+                                val chosenIds = selectedSongIds
+                                    .filterValues { it }
+                                    .keys
+                                onConfirm(finalName, chosenIds)
+                                onDismiss()
+                            }
+                        }
+                    },
+                    //enabled = hasSelection,
+                    icon = { Icon(Icons.Rounded.Check, contentDescription = "Save") },
+                    text = { Text("Save") },
+                )
+            }
+        ) { innerPadding ->
+            LazyColumn(
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .padding(horizontal = 14.dp),
+                contentPadding = PaddingValues(bottom = 110.dp, top = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(filteredSongs, key = { it.id }) { song ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(CircleShape)
+                            .clickable {
+                                val currentSelection = selectedSongIds[song.id] ?: false
+                                selectedSongIds[song.id] = !currentSelection
+                            }
                             .background(
-                                brush = Brush.verticalGradient(
-                                    listOf(
-                                        Color.Transparent,
-                                        MaterialTheme.colorScheme.surface
-                                    )
-                                )
+                                color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                                shape = CircleShape
                             )
-                    ) { }
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = selectedSongIds[song.id] ?: false,
+                            onCheckedChange = { isChecked -> selectedSongIds[song.id] = isChecked }
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(albumShape)
+                        ) {
+                            SmartImage(
+                                model = song.albumArtUriString,
+                                contentDescription = song.title,
+                                shape = albumShape,
+                                targetSize = Size(168, 168),
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                        Spacer(Modifier.width(16.dp))
+                        Column {
+                            Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                song.artist,
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
             }
         }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(30.dp)
+                .background(
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            Color.Transparent,
+                            MaterialTheme.colorScheme.surface
+                        )
+                    )
+                )
+        ) { }
     }
 }
 
