@@ -5,6 +5,7 @@ package com.theveloper.pixelplay.presentation.components
 import android.os.Trace
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
@@ -37,6 +38,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -50,7 +52,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -78,6 +79,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -85,6 +87,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
@@ -104,11 +107,13 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import timber.log.Timber
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.math.sign
 
 internal val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error("No ColorScheme provided") }
@@ -117,6 +122,12 @@ private enum class DragPhase { IDLE, TENSION, SNAPPING, FREE_DRAG }
 
 val MiniPlayerHeight = 64.dp
 const val ANIMATION_DURATION_MS = 255
+
+private data class SaveQueueOverlayData(
+    val songs: List<Song>,
+    val defaultName: String,
+    val onConfirm: (String, Set<String>) -> Unit,
+)
 
 val MiniPlayerBottomSpacer = 8.dp
 
@@ -488,8 +499,19 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val queueSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showQueueSheet by remember { mutableStateOf(false) }
+    val queueSheetOffset = remember(screenHeightPx) { Animatable(screenHeightPx) }
+    var queueSheetHeightPx by remember { mutableFloatStateOf(0f) }
+    val queueHiddenOffsetPx by remember(currentBottomPadding, queueSheetHeightPx, density) {
+        derivedStateOf {
+            val basePadding = with(density) { currentBottomPadding.toPx() }
+            if (queueSheetHeightPx == 0f) 0f else queueSheetHeightPx + basePadding
+        }
+    }
+    val queueDragThresholdPx by remember(queueHiddenOffsetPx) {
+        derivedStateOf { queueHiddenOffsetPx * 0.08f }
+    }
+    var pendingSaveQueueOverlay by remember { mutableStateOf<SaveQueueOverlayData?>(null) }
     var showCastSheet by remember { mutableStateOf(false) }
     var showTrackVolumeSheet by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
@@ -497,7 +519,71 @@ fun UnifiedPlayerSheet(
     val velocityTracker = remember { VelocityTracker() }
     var accumulatedDragYSinceStart by remember { mutableFloatStateOf(0f) }
 
+    LaunchedEffect(queueHiddenOffsetPx) {
+        if (queueHiddenOffsetPx <= 0f) return@LaunchedEffect
+        val targetOffset = if (showQueueSheet) {
+            queueSheetOffset.value.coerceIn(0f, queueHiddenOffsetPx)
+        } else {
+            queueHiddenOffsetPx
+        }
+        queueSheetOffset.snapTo(targetOffset)
+    }
+
+    suspend fun animateQueueSheetInternal(targetExpanded: Boolean) {
+        if (queueHiddenOffsetPx == 0f) {
+            showQueueSheet = targetExpanded
+            return
+        }
+        val target = if (targetExpanded) 0f else queueHiddenOffsetPx
+        showQueueSheet = true
+        queueSheetOffset.animateTo(
+            targetValue = target,
+            animationSpec = tween(durationMillis = ANIMATION_DURATION_MS, easing = FastOutSlowInEasing)
+        )
+        showQueueSheet = targetExpanded
+    }
+
+    fun animateQueueSheet(targetExpanded: Boolean) {
+        scope.launch { animateQueueSheetInternal(targetExpanded) }
+    }
+
+    fun beginQueueDrag() {
+        if (queueHiddenOffsetPx == 0f) return
+        showQueueSheet = true
+        scope.launch { queueSheetOffset.stop() }
+    }
+
+    fun dragQueueBy(dragAmount: Float) {
+        if (queueHiddenOffsetPx == 0f) return
+        val newOffset = (queueSheetOffset.value + dragAmount).coerceIn(0f, queueHiddenOffsetPx)
+        scope.launch { queueSheetOffset.snapTo(newOffset) }
+    }
+
+    fun endQueueDrag(totalDrag: Float, velocity: Float) {
+        if (queueHiddenOffsetPx == 0f) return
+        val isFastUpward = velocity < -650f
+        val isFastDownward = velocity > 650f
+        val shouldExpand = isFastUpward || (!isFastDownward && (queueSheetOffset.value < queueHiddenOffsetPx - queueDragThresholdPx || totalDrag < -queueDragThresholdPx))
+        animateQueueSheet(shouldExpand)
+    }
+
     val hapticFeedback = LocalHapticFeedback.current
+    val updatedQueueImpactHaptics by rememberUpdatedState(hapticFeedback)
+
+    LaunchedEffect(queueHiddenOffsetPx, showQueueSheet) {
+        if (queueHiddenOffsetPx == 0f) return@LaunchedEffect
+        var hasHitTopEdge = showQueueSheet && queueSheetOffset.value <= 0.5f
+        snapshotFlow { queueSheetOffset.value to showQueueSheet }
+            .collectLatest { (offset, isShown) ->
+                val isFullyOpen = isShown && offset <= 0.5f
+                if (isFullyOpen && !hasHitTopEdge) {
+                    updatedQueueImpactHaptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    hasHitTopEdge = true
+                } else if (!isFullyOpen) {
+                    hasHitTopEdge = false
+                }
+            }
+    }
 
     PredictiveBackHandler(
         enabled = showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED && !isDragging
@@ -536,6 +622,31 @@ fun UnifiedPlayerSheet(
 
     val shouldShowSheet by remember(showPlayerContentArea, hideMiniPlayer) {
         derivedStateOf { showPlayerContentArea && !hideMiniPlayer }
+    }
+
+    val isQueueVisible by remember(showQueueSheet, queueHiddenOffsetPx) {
+        derivedStateOf { showQueueSheet && queueHiddenOffsetPx > 0f && queueSheetOffset.value < queueHiddenOffsetPx }
+    }
+
+    val queueOpenFraction by remember(queueSheetOffset, queueHiddenOffsetPx) {
+        derivedStateOf {
+            if (queueHiddenOffsetPx == 0f) 0f else (1f - (queueSheetOffset.value / queueHiddenOffsetPx)).coerceIn(0f, 1f)
+        }
+    }
+
+    val updatedPendingSaveOverlay = rememberUpdatedState(pendingSaveQueueOverlay)
+    fun launchSaveQueueOverlay(
+        songs: List<Song>,
+        defaultName: String,
+        onConfirm: (String, Set<String>) -> Unit
+    ) {
+        if (updatedPendingSaveOverlay.value != null) return
+        scope.launch {
+            animateQueueSheetInternal(false)
+            playerViewModel.collapsePlayerSheet()
+            delay(ANIMATION_DURATION_MS.toLong())
+            pendingSaveQueueOverlay = SaveQueueOverlayData(songs, defaultName, onConfirm)
+        }
     }
 
     var internalIsKeyboardVisible by remember { mutableStateOf(false) }
@@ -668,13 +779,16 @@ fun UnifiedPlayerSheet(
             shadowElevation = 0.dp,
             color = Color.Transparent
         ) {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(bottom = currentBottomPadding)
             ) {
-            // Use granular showDismissUndoBar and undoBarVisibleDuration
-            if (showPlayerContentArea) {
+                Column(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    // Use granular showDismissUndoBar and undoBarVisibleDuration
+                    if (showPlayerContentArea) {
                     val dismissGestureModifier = if (currentSheetContentState == PlayerSheetState.COLLAPSED) {
                         Modifier.pointerInput(Unit) {
                             var accumulatedDragX by mutableFloatStateOf(0f)
@@ -991,9 +1105,14 @@ fun UnifiedPlayerSheet(
                                     CompositionLocalProvider(
                                         LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
                                     ) {
+                                        val fullPlayerScale by remember(queueOpenFraction) {
+                                            derivedStateOf { lerp(1f, 0.95f, queueOpenFraction) }
+                                        }
                                         Box(modifier = Modifier.graphicsLayer {
                                             alpha = fullPlayerContentAlpha
                                             translationY = fullPlayerTranslationY
+                                            scaleX = fullPlayerScale
+                                            scaleY = fullPlayerScale
                                         }) {
                                             FullPlayerContent(
                                                 currentSong = currentSongNonNull,
@@ -1009,16 +1128,16 @@ fun UnifiedPlayerSheet(
                                                 currentPositionProvider = { positionToDisplay },
                                                 isPlayingProvider = { stablePlayerState.isPlaying },
                                                 isFavoriteProvider = { isFavorite },
-                                                queueSheetState = queueSheetState,
-                                                isQueueSheetVisible = showQueueSheet,
                                                 // Event Handlers
                                                 onPlayPause = playerViewModel::playPause,
                                                 onSeek = playerViewModel::seekTo,
                                                 onNext = playerViewModel::nextSong,
                                                 onPrevious = playerViewModel::previousSong,
                                                 onCollapse = playerViewModel::collapsePlayerSheet,
-                                                onShowQueueClicked = { showQueueSheet = true },
-                                                onQueueSheetVisibilityChange = { showQueueSheet = it },
+                                                onShowQueueClicked = { animateQueueSheet(true) },
+                                                onQueueDragStart = { beginQueueDrag() },
+                                                onQueueDrag = { dragQueueBy(it) },
+                                                onQueueRelease = { totalDrag, velocity -> endQueueDrag(totalDrag, velocity) },
                                                 onShowCastClicked = { showCastSheet = true },
                                                 onShowTrackVolumeClicked = {
                                                     showTrackVolumeSheet = true
@@ -1036,51 +1155,76 @@ fun UnifiedPlayerSheet(
                     }
                 }
 
+                // Close the player content block before rendering auxiliary UI
+                }
+
                 // Use granular showDismissUndoBar
                 val isPlayerOrUndoBarVisible = showPlayerContentArea || showDismissUndoBar
                 if (isPlayerOrUndoBarVisible) {
                     // Spacer removed
                 }
             }
-        }
+
+    BackHandler(enabled = isQueueVisible && !internalIsKeyboardVisible) {
+        animateQueueSheet(false)
     }
 
-    if (showQueueSheet && !internalIsKeyboardVisible) {
+    if (!internalIsKeyboardVisible) {
         CompositionLocalProvider(
             LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
         ) {
-            QueueBottomSheet(
-                sheetState = queueSheetState,
-                queue = currentPlaybackQueue, // Use granular state
-                currentQueueSourceName = currentQueueSourceName, // Use granular state
-                currentSongId = stablePlayerState.currentSong?.id, // stablePlayerState is fine here
-                onDismiss = { showQueueSheet = false },
-                onPlaySong = { song ->
-                    playerViewModel.playSongs(
-                        currentPlaybackQueue, // Use granular state
-                        song,
-                        currentQueueSourceName // Use granular state
-                    )
-                },
-                onRemoveSong = { songId -> playerViewModel.removeSongFromQueue(songId) },
-                onReorder = { from, to -> playerViewModel.reorderQueueItem(from, to) },
-                repeatMode = stablePlayerState.repeatMode,
-                isShuffleOn = stablePlayerState.isShuffleEnabled,
-                onToggleRepeat = { playerViewModel.cycleRepeatMode() },
-                onToggleShuffle = { playerViewModel.toggleShuffle() },
-                onClearQueue = { playerViewModel.clearQueueExceptCurrent() },
-                activeTimerValueDisplay = playerViewModel.activeTimerValueDisplay.collectAsState().value,
-                playCount = playerViewModel.playCount.collectAsState().value,
-                isEndOfTrackTimerActive = playerViewModel.isEndOfTrackTimerActive.collectAsState().value,
-                onSetPredefinedTimer = { minutes -> playerViewModel.setSleepTimer(minutes) },
-                onSetEndOfTrackTimer = { enable -> playerViewModel.setEndOfTrackTimer(enable) },
-                onOpenCustomTimePicker = {
-                    Log.d("TimerOptions", "OpenCustomTimePicker clicked")
-                },
-                onCancelTimer = { playerViewModel.cancelSleepTimer() },
-                onCancelCountedPlay = playerViewModel::cancelCountedPlay,
-                onPlayCounter = playerViewModel::playCounted
-            )
+            Box {
+                QueueBottomSheet(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .offset { IntOffset(x = 0, y = queueSheetOffset.value.roundToInt()) }
+                        .graphicsLayer {
+                            alpha = if (queueHiddenOffsetPx == 0f || !showQueueSheet) 0f else 1f
+                        }
+                        .onGloballyPositioned { coordinates ->
+                            queueSheetHeightPx = coordinates.size.height.toFloat()
+                        },
+                    queue = currentPlaybackQueue, // Use granular state
+                    currentQueueSourceName = currentQueueSourceName, // Use granular state
+                    currentSongId = stablePlayerState.currentSong?.id, // stablePlayerState is fine here
+                    onDismiss = { animateQueueSheet(false) },
+                    onPlaySong = { song ->
+                        playerViewModel.playSongs(
+                            currentPlaybackQueue, // Use granular state
+                            song,
+                            currentQueueSourceName // Use granular state
+                        )
+                    },
+                    onRemoveSong = { songId -> playerViewModel.removeSongFromQueue(songId) },
+                    onReorder = { from, to -> playerViewModel.reorderQueueItem(from, to) },
+                    repeatMode = stablePlayerState.repeatMode,
+                    isShuffleOn = stablePlayerState.isShuffleEnabled,
+                    onToggleRepeat = { playerViewModel.cycleRepeatMode() },
+                    onToggleShuffle = { playerViewModel.toggleShuffle() },
+                    onClearQueue = { playerViewModel.clearQueueExceptCurrent() },
+                    activeTimerValueDisplay = playerViewModel.activeTimerValueDisplay.collectAsState().value,
+                    playCount = playerViewModel.playCount.collectAsState().value,
+                    isEndOfTrackTimerActive = playerViewModel.isEndOfTrackTimerActive.collectAsState().value,
+                    onSetPredefinedTimer = { minutes -> playerViewModel.setSleepTimer(minutes) },
+                    onSetEndOfTrackTimer = { enable -> playerViewModel.setEndOfTrackTimer(enable) },
+                    onOpenCustomTimePicker = {
+                        Log.d("TimerOptions", "OpenCustomTimePicker clicked")
+                    },
+                    onCancelTimer = { playerViewModel.cancelSleepTimer() },
+                    onCancelCountedPlay = playerViewModel::cancelCountedPlay,
+                    onPlayCounter = playerViewModel::playCounted,
+                    onRequestSaveAsPlaylist = { songs, defaultName, onConfirm ->
+                        launchSaveQueueOverlay(songs, defaultName, onConfirm)
+                    },
+                    onQueueDragStart = { beginQueueDrag() },
+                    onQueueDrag = { dragQueueBy(it) },
+                    onQueueRelease = { drag, velocity -> endQueueDrag(drag, velocity) }
+                )
+            }
+        }
+            }
+
         }
     }
 
@@ -1109,6 +1253,18 @@ fun UnifiedPlayerSheet(
                 }
             )
         }
+    }
+
+    pendingSaveQueueOverlay?.let { overlay ->
+        SaveQueueAsPlaylistSheet(
+            songs = overlay.songs,
+            defaultName = overlay.defaultName,
+            onDismiss = { pendingSaveQueueOverlay = null },
+            onConfirm = { name, selectedIds ->
+                overlay.onConfirm(name, selectedIds)
+                pendingSaveQueueOverlay = null
+            }
+        )
     }
     Trace.endSection() // End UnifiedPlayerSheet.Composition
 }
