@@ -152,7 +152,9 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
@@ -912,6 +914,7 @@ fun QueueBottomSheet(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun QueueToolbarMenuButton(
     text: String,
@@ -960,6 +963,7 @@ private fun QueueToolbarMenuButton(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SaveQueueAsPlaylistSheet(
     songs: List<Song>,
@@ -1099,7 +1103,7 @@ fun SaveQueueAsPlaylistSheet(
                                 onDismiss()
                             }
                         },
-                        enabled = hasSelection,
+                        //enabled = hasSelection,
                         icon = { Icon(Icons.Rounded.Check, contentDescription = "Save") },
                         text = { Text("Save playlist") },
                     )
