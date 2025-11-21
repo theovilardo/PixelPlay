@@ -27,7 +27,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.calculateTopPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -105,7 +104,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -136,12 +134,23 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import sh.calvin.reorderable.ReorderableItem
-import sh.calvin.reorderable.draggableHandle
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.zIndex
+import coil.size.Size
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class,
@@ -558,15 +567,11 @@ fun QueueBottomSheet(
                                     targetValue = if (isDragging) 1.05f else 1f,
                                     label = "scaleAnimation"
                                 )
-                                val backgroundColor by animateColorAsState(
-                                    targetValue = if (isDragging) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent,
-                                    label = "backgroundColorAnimation"
-                                )
 
                                 QueuePlaylistSongItem(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 16.dp)
+                                        .padding(horizontal = 0.dp)
                                         .graphicsLayer {
                                             scaleX = scale
                                             scaleY = scale
@@ -625,81 +630,122 @@ fun QueueBottomSheet(
             ) {
                 val fabSpacing = 24.dp
                 val menuSpacing = 20.dp
+                val fabRotation by animateFloatAsState(
+                    targetValue = if (isFabExpanded) 45f else 0f,
+                    label = "fabRotation"
+                )
 
-                HorizontalFloatingToolbar(
+                Row(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(bottom = fabSpacing)
+                        // Usamos IntrinsicSize.Min o una altura fija para asegurar igualdad
+                        .height(70.dp)
                         .then(directSheetDragModifier),
-                    expandedShadowElevation = 0.dp,
-                    colors = FloatingToolbarDefaults.standardFloatingToolbarColors(
-                        toolbarContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                    ),
-                    expanded = true,
-                    scrollBehavior = scrollBehavior,
-                    floatingActionButton = {
-                        val fabRotation by animateFloatAsState(
-                            targetValue = if (isFabExpanded) 45f else 0f,
-                            label = "fabRotation"
-                        )
-                        FloatingActionButton(
-                            onClick = { isFabExpanded = !isFabExpanded },
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                            contentColor = MaterialTheme.colorScheme.onSurface,
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically // Alinea FAB y Toolbar al centro verticalmente
+                ) {
+                    // 1. Reemplazo manual del HorizontalFloatingToolbar
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxHeight(), // Llena los 60.dp de altura del Row padre
+                        shape = AbsoluteSmoothCornerShape(
+                            cornerRadiusTR = 8.dp,
+                            smoothnessAsPercentTR = 60,
+                            cornerRadiusTL = 50.dp,
+                            smoothnessAsPercentTL = 60,
+                            cornerRadiusBR = 8.dp,
+                            smoothnessAsPercentBR = 60,
+                            cornerRadiusBL = 50.dp,
+                            smoothnessAsPercentBL = 60
+                        ),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        shadowElevation = 0.dp
+                    ) {
+                        // Contenedor para los botones
+                        Row(
+                            modifier = Modifier
+                                .padding(horizontal = 12.dp, vertical = 8.dp), // Padding interno equivalente al content padding
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
                         ) {
-                            Icon(
-                                imageVector = Icons.Filled.Add,
-                                contentDescription = "Queue actions",
-                                modifier = Modifier.rotate(fabRotation)
+                            // --- Lógica de tus botones ---
+                            val activeColors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                             )
-                        }
-                    },
-                    content = {
-                        val activeColors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        val inactiveColors = IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                            val inactiveColors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
 
-                        FilledTonalIconButton(
-                            onClick = onToggleShuffle,
-                            colors = if (isShuffleOn) activeColors else inactiveColors,
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Shuffle,
-                                contentDescription = "Toggle Shuffle",
-                            )
-                        }
-                        FilledTonalIconButton(
-                            onClick = onToggleRepeat,
-                            colors = if (repeatMode != Player.REPEAT_MODE_OFF) activeColors else inactiveColors,
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            val repeatIcon = when (repeatMode) {
-                                Player.REPEAT_MODE_ONE -> Icons.Rounded.RepeatOne
-                                else -> Icons.Rounded.Repeat
+                            FilledTonalIconButton(
+                                onClick = onToggleShuffle,
+                                colors = if (isShuffleOn) activeColors else inactiveColors,
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Shuffle,
+                                    contentDescription = "Toggle Shuffle",
+                                )
                             }
-                            Icon(
-                                imageVector = repeatIcon,
-                                contentDescription = "Toggle Repeat",
-                            )
-                        }
-                        FilledTonalIconButton(
-                            onClick = { showTimerOptions = true },
-                            colors = if (activeTimerValueDisplay != null) activeColors else inactiveColors,
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Timer,
-                                contentDescription = "Sleep Timer",
-                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            FilledTonalIconButton(
+                                onClick = onToggleRepeat,
+                                colors = if (repeatMode != Player.REPEAT_MODE_OFF) activeColors else inactiveColors,
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                val repeatIcon = when (repeatMode) {
+                                    Player.REPEAT_MODE_ONE -> Icons.Rounded.RepeatOne
+                                    else -> Icons.Rounded.Repeat
+                                }
+                                Icon(
+                                    imageVector = repeatIcon,
+                                    contentDescription = "Toggle Repeat",
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            FilledTonalIconButton(
+                                onClick = { showTimerOptions = true },
+                                colors = if (activeTimerValueDisplay != null) activeColors else inactiveColors,
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Timer,
+                                    contentDescription = "Sleep Timer",
+                                )
+                            }
                         }
                     }
-                )
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    FloatingActionButton(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .aspectRatio(1f),
+                        onClick = { isFabExpanded = !isFabExpanded },
+                        shape = AbsoluteSmoothCornerShape(
+                            cornerRadiusTR = 50.dp,
+                            smoothnessAsPercentTR = 60,
+                            cornerRadiusTL = 8.dp,
+                            smoothnessAsPercentTL = 60,
+                            cornerRadiusBR = 50.dp,
+                            smoothnessAsPercentBR = 60,
+                            cornerRadiusBL = 8.dp,
+                            smoothnessAsPercentBL = 60
+                        ),
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                        elevation = FloatingActionButtonDefaults.elevation(0.dp) // Opcional: para igualar elevación flat
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = "Queue actions",
+                            modifier = Modifier.rotate(fabRotation)
+                        )
+                    }
+                }
 
                 AnimatedVisibility(
                     visible = isFabExpanded,
@@ -728,12 +774,24 @@ fun QueueBottomSheet(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(bottom = fabSpacing + menuSpacing)
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    listOf(
+                                        Color.Transparent,
+                                        MaterialTheme.colorScheme.surfaceContainerLowest
+                                    )
+                                )
+                            )
+                            .clickable {
+                                isFabExpanded = !isFabExpanded
+                            }
                             .zIndex(30f),
                         contentAlignment = Alignment.BottomCenter
                     ) {
                         Column(
-                            modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally),
+                            modifier = Modifier
+                                .wrapContentWidth(Alignment.CenterHorizontally)
+                                .padding(bottom = fabSpacing + menuSpacing),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
@@ -762,22 +820,22 @@ fun QueueBottomSheet(
                 }
             }
 
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(30.dp)
-                    .background(
-                        brush = Brush.verticalGradient(
-                            listOf(
-                                Color.Transparent,
-                                MaterialTheme.colorScheme.surfaceContainer
-                            )
-                        )
-                    )
-            ) {
-
-            }
+//            Box(
+//                modifier = Modifier
+//                    .align(Alignment.BottomCenter)
+//                    .fillMaxWidth()
+//                    .height(30.dp)
+//                    .background(
+//                        brush = Brush.verticalGradient(
+//                            listOf(
+//                                Color.Transparent,
+//                                MaterialTheme.colorScheme.surfaceContainer
+//                            )
+//                        )
+//                    )
+//            ) {
+//
+//            }
         }
 
         if (showTimerOptions) {
@@ -1072,7 +1130,7 @@ private fun SaveQueueAsPlaylistSheet(
                                         }
                                     }
                                 },
-                                enabled = hasSelection,
+                                //enabled = hasSelection,
                                 icon = { Icon(Icons.Rounded.Check, contentDescription = "Save") },
                                 text = { Text("Save") },
                             )
@@ -1165,10 +1223,32 @@ private fun QueueMiniPlayer(
     val colors = colorScheme ?: MaterialTheme.colorScheme
     val haptic = LocalHapticFeedback.current
     val bodyTapInteractionSource = remember { MutableInteractionSource() }
+    val corners = 20.dp
+    val albumCorners = 10.dp
+    val shape = AbsoluteSmoothCornerShape(
+        cornerRadiusTR = corners,
+        smoothnessAsPercentTL = 60,
+        cornerRadiusTL = corners,
+        smoothnessAsPercentTR = 60,
+        cornerRadiusBR = corners,
+        smoothnessAsPercentBL = 60,
+        cornerRadiusBL = corners,
+        smoothnessAsPercentBR = 60
+    )
+    val albumShape = AbsoluteSmoothCornerShape(
+        cornerRadiusTR = albumCorners,
+        smoothnessAsPercentTL = 60,
+        cornerRadiusTL = albumCorners,
+        smoothnessAsPercentTR = 60,
+        cornerRadiusBR = albumCorners,
+        smoothnessAsPercentBL = 60,
+        cornerRadiusBL = albumCorners,
+        smoothnessAsPercentBR = 60
+    )
 
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(22.dp),
+        shape = shape,
         tonalElevation = 10.dp,
         color = colors.primaryContainer,
     ) {
@@ -1183,17 +1263,18 @@ private fun QueueMiniPlayer(
                 ) {
                     onTap?.invoke()
                 }
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 12.dp, vertical = 12.dp)
+                .padding(end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             SmartImage(
                 model = song.albumArtUriString ?: R.drawable.rounded_album_24,
-                shape = RoundedCornerShape(14.dp),
+                shape = albumShape,
                 contentDescription = "Carátula",
                 modifier = Modifier
                     .size(56.dp)
-                    .clip(RoundedCornerShape(16.dp)),
+                    .clip(albumShape),
                 contentScale = ContentScale.Crop
             )
 
@@ -1255,6 +1336,7 @@ private fun QueueMiniPlayer(
     }
 }
 
+@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun QueuePlaylistSongItem(
     modifier: Modifier = Modifier,
@@ -1447,7 +1529,7 @@ fun QueuePlaylistSongItem(
 
             Surface(
                 modifier = Modifier
-                    .padding(start = 12.dp, end = 12.dp + capsuleGap)
+                    .padding(start = 12.dp, end = 12.dp)
                     .offset { IntOffset((offsetX - exitOffsetPx).roundToInt(), 0) }
                     .graphicsLayer { alpha = dismissAlpha }
                     .clip(itemShape)
