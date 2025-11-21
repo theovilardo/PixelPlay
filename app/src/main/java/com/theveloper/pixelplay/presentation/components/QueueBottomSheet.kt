@@ -2,14 +2,20 @@ package com.theveloper.pixelplay.presentation.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -17,15 +23,26 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListItemInfo
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Checkbox
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.FractionalThreshold
+import androidx.compose.material.rememberSwipeableState
+import androidx.compose.material.swipeable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -34,22 +51,32 @@ import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FloatingToolbarDefaults
 import androidx.compose.material3.FloatingToolbarExitDirection
 import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.LargeFloatingActionButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.ClearAll
+import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -57,39 +84,73 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.core.view.ViewCompat
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
+import com.theveloper.pixelplay.presentation.components.AutoScrollingText
+import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.components.subcomps.PlayingEqIcon
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
+import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
+import kotlin.math.roundToInt
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.zIndex
+import coil.size.Size
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class,
@@ -98,6 +159,7 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
 @Composable
 fun QueueBottomSheet(
     viewModel: PlayerViewModel = hiltViewModel(),
+    playlistViewModel: PlaylistViewModel = hiltViewModel(),
     queue: List<Song>,
     currentQueueSourceName: String,
     currentSongId: String?,
@@ -129,8 +191,16 @@ fun QueueBottomSheet(
     val colors = MaterialTheme.colorScheme
     var showTimerOptions by rememberSaveable { mutableStateOf(false) }
     var showClearQueueDialog by remember { mutableStateOf(false) }
+    var showSaveQueueSheet by remember { mutableStateOf(false) }
+    var isFabExpanded by rememberSaveable { mutableStateOf(false) }
 
     val stablePlayerState by viewModel.stablePlayerState.collectAsState()
+
+    val albumColorSchemePair by viewModel.currentAlbumArtColorSchemePair.collectAsState()
+    val isDark = isSystemInDarkTheme()
+    val albumColorScheme = remember(albumColorSchemePair, isDark) {
+        albumColorSchemePair?.let { pair -> if (isDark) pair.dark else pair.light }
+    }
 
     val isPlaying = stablePlayerState.isPlaying
 
@@ -138,24 +208,24 @@ fun QueueBottomSheet(
         queue.indexOfFirst { it.id == currentSongId }
     }
 
+    val displayStartIndex = remember(currentSongIndex) { if (currentSongIndex >= 0) currentSongIndex else 0 }
     val displayQueue = remember(queue, currentSongId, currentSongIndex) {
-        if (currentSongIndex != -1) {
-            queue.subList(currentSongIndex, queue.size)
-        } else {
-            queue
-        }
+        queue.drop(displayStartIndex)
     }
 
-    val displayStartIndex = remember(currentSongIndex) { if (currentSongIndex >= 0) currentSongIndex else 0 }
+    val queueSnapshot = remember(queue) { queue.toList() }
 
-    var items by remember(displayQueue) { mutableStateOf(displayQueue) }
+    var items by remember { mutableStateOf(displayQueue) }
+    LaunchedEffect(displayQueue) {
+        items = displayQueue
+    }
 
     val listState = rememberLazyListState()
-    val density = LocalDensity.current
-    val topDragActivationOffsetPx = with(density) { 16.dp.toPx() }
+    val queueListScope = rememberCoroutineScope()
+    var scrollToTopJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     val canDragSheetFromList by remember {
         derivedStateOf {
-            listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset <= topDragActivationOffsetPx
+            listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
         }
     }
     val updatedCanDragSheet by rememberUpdatedState(canDragSheetFromList)
@@ -168,23 +238,29 @@ fun QueueBottomSheet(
     var reorderHandleInUse by remember { mutableStateOf(false) }
     val updatedReorderHandleInUse by rememberUpdatedState(reorderHandleInUse)
 
+    fun mapLazyListIndexToLocal(indexInfo: LazyListItemInfo?): Int? {
+        val key = indexInfo?.key ?: return null
+        val resolvedIndex = items.indexOfFirst { it.id == key }
+        return resolvedIndex.takeIf { it != -1 }
+    }
+
     val reorderableState = rememberReorderableLazyListState(
         lazyListState = listState,
         onMove = { from, to ->
-            val movingSongId = items.getOrNull(from.index)?.id
+            val fromLocalIndex = mapLazyListIndexToLocal(from) ?: return@rememberReorderableLazyListState
+            val toLocalIndex = mapLazyListIndexToLocal(to) ?: return@rememberReorderableLazyListState
+            val movingSongId = items.getOrNull(fromLocalIndex)?.id
             items = items.toMutableList().apply {
-                add(to.index, removeAt(from.index))
+                add(toLocalIndex, removeAt(fromLocalIndex))
             }
             if (lastMovedFrom == null) {
-                lastMovedFrom = from.index
-                lastMovedTo = from.index
+                lastMovedFrom = fromLocalIndex
             }
-            lastMovedTo = to.index
-            if (movingSongId != null) {
+            lastMovedTo = toLocalIndex
+            if (movingSongId != null && pendingReorderSongId == null) {
                 pendingReorderSongId = movingSongId
             }
         },
-        //canDragOver = { _, over -> over.index != 0 }
     )
     val isReordering by remember {
         derivedStateOf { reorderableState.isAnyItemDragging }
@@ -200,6 +276,10 @@ fun QueueBottomSheet(
             val toIndex = lastMovedTo
             val movedSongId = pendingReorderSongId
 
+            lastMovedFrom = null
+            lastMovedTo = null
+            pendingReorderSongId = null
+
             if (fromIndex != null && toIndex != null && movedSongId != null) {
                 val fromOriginalIndex = displayStartIndex + fromIndex
                 val resolvedTargetLocalIndex = items.indexOfFirst { it.id == movedSongId }
@@ -211,12 +291,11 @@ fun QueueBottomSheet(
 
                 if (fromWithinQueue && toWithinQueue && fromOriginalIndex != toOriginalIndex) {
                     onReorder(fromOriginalIndex, toOriginalIndex)
+                    return@LaunchedEffect
                 }
             }
 
-            lastMovedFrom = null
-            lastMovedTo = null
-            pendingReorderSongId = null
+            items = displayQueue
         }
     }
 
@@ -224,10 +303,23 @@ fun QueueBottomSheet(
         exitDirection = FloatingToolbarExitDirection.Bottom
     )
 
+    fun finalizeListDrag(velocity: Float = 0f) {
+        if (draggingSheetFromList) {
+            onQueueRelease(listDragAccumulated, velocity)
+            draggingSheetFromList = false
+            listDragAccumulated = 0f
+        }
+    }
+
     val listDragConnection = remember(updatedCanDragSheet) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 if (updatedIsReordering || updatedReorderHandleInUse) return Offset.Zero
+
+                if (draggingSheetFromList && available.y < 0f) {
+                    finalizeListDrag()
+                    return Offset.Zero
+                }
 
                 if (draggingSheetFromList) {
                     listDragAccumulated += available.y
@@ -251,6 +343,11 @@ fun QueueBottomSheet(
 
             override suspend fun onPreFling(available: Velocity): Velocity {
                 if (updatedIsReordering || updatedReorderHandleInUse) return Velocity.Zero
+
+                if (draggingSheetFromList && available.y < 0f) {
+                    finalizeListDrag(available.y)
+                    return Velocity.Zero
+                }
 
                 if (available.y > 0 && updatedCanDragSheet) {
                     if (!draggingSheetFromList) {
@@ -280,12 +377,7 @@ fun QueueBottomSheet(
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
                 if (updatedIsReordering || updatedReorderHandleInUse) return Velocity.Zero
 
-                if (draggingSheetFromList) {
-                    onQueueRelease(listDragAccumulated, available.y)
-                    draggingSheetFromList = false
-                    listDragAccumulated = 0f
-                    return available
-                }
+                if (draggingSheetFromList) return available.also { finalizeListDrag(available.y) }
                 return Velocity.Zero
             }
         }
@@ -323,11 +415,7 @@ fun QueueBottomSheet(
         }
 
     LaunchedEffect(listState.isScrollInProgress, draggingSheetFromList) {
-        if (draggingSheetFromList && !listState.isScrollInProgress) {
-            onQueueRelease(listDragAccumulated, 0f)
-            draggingSheetFromList = false
-            listDragAccumulated = 0f
-        }
+        if (draggingSheetFromList && !listState.isScrollInProgress) finalizeListDrag()
     }
 
     Surface(
@@ -340,11 +428,49 @@ fun QueueBottomSheet(
             modifier = Modifier.fillMaxSize()
         ) {
             Column {
+                val headerTopPadding = WindowInsets.statusBars
+                    .asPaddingValues()
+                    .calculateTopPadding() + 10.dp
+
+                stablePlayerState.currentSong?.let { nowPlaying ->
+                    QueueMiniPlayer(
+                        song = nowPlaying,
+                        isPlaying = isPlaying,
+                        onPlayPause = { viewModel.playPause() },
+                        onNext = { viewModel.nextSong() },
+                        colorScheme = albumColorScheme,
+                        onTap = {
+                            scrollToTopJob?.cancel()
+                            scrollToTopJob = queueListScope.launch {
+                                try {
+                                    val currentIndex = listState.firstVisibleItemIndex
+                                    if (currentIndex > 6) {
+                                        val warmupIndex = (currentIndex - 6).coerceAtLeast(0)
+                                        listState.scrollToItem(warmupIndex)
+                                    }
+                                    listState.animateScrollToItem(0)
+                                } finally {
+                                    scrollToTopJob = null
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp)
+                            .padding(top = headerTopPadding, bottom = 12.dp)
+                            .then(directSheetDragModifier)
+                    )
+                }
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(12.dp)
-                        .padding(top = 32.dp)
+                        .padding(
+                            start = 12.dp,
+                            end = 12.dp,
+                            top = if (stablePlayerState.currentSong == null) headerTopPadding else 2.dp,
+                            bottom = 12.dp,
+                        )
                         .then(directSheetDragModifier),
                     horizontalArrangement = Arrangement.Absolute.SpaceBetween
                 ) {
@@ -403,7 +529,27 @@ fun QueueBottomSheet(
                                     smoothnessAsPercentBL = 60
                                 )
                             )
-                            .nestedScroll(listDragConnection),
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                shape = AbsoluteSmoothCornerShape(
+                                    cornerRadiusTR = 26.dp,
+                                    smoothnessAsPercentTR = 60,
+                                    cornerRadiusTL = 26.dp,
+                                    smoothnessAsPercentTL = 60,
+                                    cornerRadiusBR = 0.dp,
+                                    smoothnessAsPercentBR = 60,
+                                    cornerRadiusBL = 0.dp,
+                                    smoothnessAsPercentBL = 60
+                                )
+                            )
+                            .then(
+                                if (isReordering || reorderHandleInUse) {
+                                    Modifier
+                                } else {
+                                    Modifier.nestedScroll(listDragConnection)
+                                }
+                            ),
+                        userScrollEnabled = !(isReordering || reorderHandleInUse),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(bottom = 110.dp)
                     ) {
@@ -421,15 +567,11 @@ fun QueueBottomSheet(
                                     targetValue = if (isDragging) 1.05f else 1f,
                                     label = "scaleAnimation"
                                 )
-                                val backgroundColor by animateColorAsState(
-                                    targetValue = if (isDragging) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent,
-                                    label = "backgroundColorAnimation"
-                                )
 
                                 QueuePlaylistSongItem(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 16.dp)
+                                        .padding(horizontal = 0.dp)
                                         .graphicsLayer {
                                             scaleX = scale
                                             scaleY = scale
@@ -443,16 +585,19 @@ fun QueueBottomSheet(
                                     onRemoveClick = { onRemoveSong(song.id) },
                                     isReorderModeEnabled = false,
                                     isDragHandleVisible = index != 0,
-                                    isRemoveButtonVisible = true,
+                                    isRemoveButtonVisible = false,
+                                    enableSwipeToDismiss = index != 0,
+                                    onDismiss = { onRemoveSong(song.id) },
                                     dragHandle = {
                                         IconButton(
                                             onClick = {},
                                             modifier = Modifier
                                                 .draggableHandle(
-                                                    onDragStarted = {
-                                                        reorderHandleInUse = true
-                                                        ViewCompat.performHapticFeedback(
-                                                            view,
+                                                        onDragStarted = {
+                                                            draggingSheetFromList = false
+                                                            reorderHandleInUse = true
+                                                            ViewCompat.performHapticFeedback(
+                                                                view,
                                                             HapticFeedbackConstantsCompat.GESTURE_START
                                                         )
                                                     },
@@ -480,74 +625,217 @@ fun QueueBottomSheet(
                 }
             }
 
-            HorizontalFloatingToolbar(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 24.dp)
-                    .then(directSheetDragModifier),
-                expandedShadowElevation = 0.dp,
-                colors = FloatingToolbarDefaults.standardFloatingToolbarColors(
-                    toolbarContainerColor = MaterialTheme.colorScheme.surfaceVariant
-                ),
-                expanded = true,
-                scrollBehavior = scrollBehavior,
-                floatingActionButton = {
-                    LargeFloatingActionButton(
-                        onClick = { showClearQueueDialog = true },
-                        elevation = FloatingActionButtonDefaults.elevation(0.dp)
+            Box(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                val fabSpacing = 24.dp
+                val menuSpacing = 20.dp
+                val fabRotation by animateFloatAsState(
+                    targetValue = if (isFabExpanded) 45f else 0f,
+                    label = "fabRotation"
+                )
+
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = fabSpacing)
+                        // Usamos IntrinsicSize.Min o una altura fija para asegurar igualdad
+                        .height(70.dp)
+                        .then(directSheetDragModifier),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically // Alinea FAB y Toolbar al centro verticalmente
+                ) {
+                    // 1. Reemplazo manual del HorizontalFloatingToolbar
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxHeight(), // Llena los 60.dp de altura del Row padre
+                        shape = AbsoluteSmoothCornerShape(
+                            cornerRadiusTR = 8.dp,
+                            smoothnessAsPercentTR = 60,
+                            cornerRadiusTL = 50.dp,
+                            smoothnessAsPercentTL = 60,
+                            cornerRadiusBR = 8.dp,
+                            smoothnessAsPercentBR = 60,
+                            cornerRadiusBL = 50.dp,
+                            smoothnessAsPercentBL = 60
+                        ),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        shadowElevation = 0.dp
+                    ) {
+                        // Contenedor para los botones
+                        Row(
+                            modifier = Modifier
+                                .padding(horizontal = 12.dp, vertical = 8.dp), // Padding interno equivalente al content padding
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            // --- Lógica de tus botones ---
+                            val activeColors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            val inactiveColors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            FilledTonalIconButton(
+                                onClick = onToggleShuffle,
+                                colors = if (isShuffleOn) activeColors else inactiveColors,
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Shuffle,
+                                    contentDescription = "Toggle Shuffle",
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            FilledTonalIconButton(
+                                onClick = onToggleRepeat,
+                                colors = if (repeatMode != Player.REPEAT_MODE_OFF) activeColors else inactiveColors,
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                val repeatIcon = when (repeatMode) {
+                                    Player.REPEAT_MODE_ONE -> Icons.Rounded.RepeatOne
+                                    else -> Icons.Rounded.Repeat
+                                }
+                                Icon(
+                                    imageVector = repeatIcon,
+                                    contentDescription = "Toggle Repeat",
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            FilledTonalIconButton(
+                                onClick = { showTimerOptions = true },
+                                colors = if (activeTimerValueDisplay != null) activeColors else inactiveColors,
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Timer,
+                                    contentDescription = "Sleep Timer",
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    FloatingActionButton(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .aspectRatio(1f),
+                        onClick = { isFabExpanded = !isFabExpanded },
+                        shape = AbsoluteSmoothCornerShape(
+                            cornerRadiusTR = 50.dp,
+                            smoothnessAsPercentTR = 60,
+                            cornerRadiusTL = 8.dp,
+                            smoothnessAsPercentTL = 60,
+                            cornerRadiusBR = 50.dp,
+                            smoothnessAsPercentBR = 60,
+                            cornerRadiusBL = 8.dp,
+                            smoothnessAsPercentBL = 60
+                        ),
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                        elevation = FloatingActionButtonDefaults.elevation(0.dp) // Opcional: para igualar elevación flat
                     ) {
                         Icon(
-                            painter = painterResource(id = R.drawable.rounded_clear_all_24),
-                            contentDescription = "Clear Queue"
-                        )
-                    }
-                },
-                content = {
-                    IconButton(onClick = onToggleShuffle) {
-                        Icon(
-                            imageVector = Icons.Rounded.Shuffle,
-                            contentDescription = "Toggle Shuffle",
-                            tint = if (isShuffleOn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    IconButton(onClick = onToggleRepeat) {
-                        val repeatActive = repeatMode != Player.REPEAT_MODE_OFF
-                        val repeatIcon = when (repeatMode) {
-                            Player.REPEAT_MODE_ONE -> Icons.Rounded.RepeatOne
-                            else -> Icons.Rounded.Repeat
-                        }
-                        Icon(
-                            imageVector = repeatIcon,
-                            contentDescription = "Toggle Repeat",
-                            tint = if (repeatActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    IconButton(onClick = { showTimerOptions = true }) {
-                        Icon(
-                            imageVector = Icons.Rounded.Timer,
-                            contentDescription = "Sleep Timer",
-                            tint = if (activeTimerValueDisplay != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = "Queue actions",
+                            modifier = Modifier.rotate(fabRotation)
                         )
                     }
                 }
-            )
 
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(30.dp)
-                    .background(
-                        brush = Brush.verticalGradient(
-                            listOf(
-                                Color.Transparent,
-                                MaterialTheme.colorScheme.surfaceContainer
-                            )
-                        )
+                AnimatedVisibility(
+                    visible = isFabExpanded,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .zIndex(20f)
+                            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.55f))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                isFabExpanded = false
+                            }
                     )
-            ) {
+                }
 
+                AnimatedVisibility(
+                    visible = isFabExpanded,
+                    enter = fadeIn() + slideInVertically(initialOffsetY = { it / 3 }),
+                    exit = fadeOut() + slideOutVertically(targetOffsetY = { it / 3 }),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    listOf(
+                                        Color.Transparent,
+                                        MaterialTheme.colorScheme.surfaceContainerLowest
+                                    )
+                                )
+                            )
+                            .clickable {
+                                isFabExpanded = !isFabExpanded
+                            }
+                            .zIndex(30f),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .wrapContentWidth(Alignment.CenterHorizontally)
+                                .padding(bottom = fabSpacing + menuSpacing),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            QueueToolbarMenuButton(
+                                text = "Clear Queue",
+                                icon = Icons.Filled.ClearAll,
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                                onClick = {
+                                    isFabExpanded = false
+                                    showClearQueueDialog = true
+                                }
+                            )
+                            QueueToolbarMenuButton(
+                                text = "Save as Playlist",
+                                icon = Icons.Filled.LibraryAdd,
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                onClick = {
+                                    isFabExpanded = false
+                                    showSaveQueueSheet = true
+                                }
+                            )
+                        }
+                    }
+                }
             }
+
+//            Box(
+//                modifier = Modifier
+//                    .align(Alignment.BottomCenter)
+//                    .fillMaxWidth()
+//                    .height(30.dp)
+//                    .background(
+//                        brush = Brush.verticalGradient(
+//                            listOf(
+//                                Color.Transparent,
+//                                MaterialTheme.colorScheme.surfaceContainer
+//                            )
+//                        )
+//                    )
+//            ) {
+//
+//            }
         }
 
         if (showTimerOptions) {
@@ -562,6 +850,34 @@ fun QueueBottomSheet(
                 onOpenCustomTimePicker = onOpenCustomTimePicker,
                 onCancelCountedPlay = onCancelCountedPlay,
                 onCancelTimer = onCancelTimer
+            )
+        }
+
+        if (showSaveQueueSheet) {
+            val defaultName = if (currentQueueSourceName.isNotBlank()) {
+                "${currentQueueSourceName} Queue"
+            } else {
+                "Current Queue"
+            }
+            SaveQueueAsPlaylistSheet(
+                songs = queueSnapshot,
+                defaultName = defaultName,
+                onDismiss = {
+                    showSaveQueueSheet = false
+                },
+                onConfirm = { name, selectedIds ->
+                    val orderedSelection = queueSnapshot
+                        .filter { selectedIds.contains(it.id) }
+                        .map { it.id }
+                    if (orderedSelection.isNotEmpty()) {
+                        playlistViewModel.createPlaylist(
+                            name = name,
+                            songIds = orderedSelection,
+                            isQueueGenerated = true
+                        )
+                    }
+                    showSaveQueueSheet = false
+                }
             )
         }
 
@@ -593,6 +909,435 @@ fun QueueBottomSheet(
 }
 
 @Composable
+private fun QueueToolbarMenuButton(
+    text: String,
+    icon: ImageVector,
+    containerColor: Color,
+    contentColor: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val haptic = LocalHapticFeedback.current
+
+    Surface(
+        modifier = modifier
+            .widthIn(min = 184.dp, max = 260.dp)
+            .heightIn(min = 48.dp)
+            .wrapContentWidth()
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() }
+            ) {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onClick()
+            },
+        shape = RoundedCornerShape(18.dp),
+        color = containerColor,
+        tonalElevation = 8.dp,
+        shadowElevation = 8.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = text,
+                tint = contentColor
+            )
+            Text(
+                text = text,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = contentColor
+            )
+        }
+    }
+}
+
+@Composable
+private fun SaveQueueAsPlaylistSheet(
+    songs: List<Song>,
+    defaultName: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String, Set<String>) -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val albumShape = remember {
+        AbsoluteSmoothCornerShape(
+            cornerRadiusTL = 40.dp,
+            smoothnessAsPercentTR = 60,
+            cornerRadiusTR = 40.dp,
+            smoothnessAsPercentBR = 60,
+            cornerRadiusBL = 40.dp,
+            smoothnessAsPercentBL = 60,
+            cornerRadiusBR = 40.dp,
+            smoothnessAsPercentTL = 60
+        )
+    }
+
+    var playlistName by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(defaultName))
+    }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    val selectedSongIds = remember(songs) {
+        mutableStateMapOf<String, Boolean>().apply {
+            songs.forEach { put(it.id, true) }
+        }
+    }
+
+    val filteredSongs = remember(searchQuery, songs) {
+        if (searchQuery.isBlank()) songs
+        else songs.filter {
+            it.title.contains(searchQuery, true) || it.artist.contains(searchQuery, true)
+        }
+    }
+
+    val hasSelection by remember {
+        derivedStateOf { selectedSongIds.any { it.value } }
+    }
+
+    LaunchedEffect(Unit) {
+        // Give the dialog a frame to compose before requesting focus/IME to avoid
+        // premature dismissal when the keyboard appears.
+        withFrameNanos { }
+        focusRequester.requestFocus()
+        keyboardController?.show()
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true,
+            decorFitsSystemWindows = false,
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .imePadding()
+        ) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
+                    ) { onDismiss() }
+                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.56f))
+            )
+
+            AnimatedVisibility(
+                modifier = Modifier.align(Alignment.BottomCenter),
+                visible = true,
+                enter = slideInVertically { it / 2 } + fadeIn(),
+                exit = slideOutVertically { it / 2 } + fadeOut()
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .wrapContentHeight()
+                        .padding(horizontal = 10.dp, vertical = 10.dp),
+                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                    tonalElevation = 12.dp,
+                    shadowElevation = 18.dp,
+                    color = MaterialTheme.colorScheme.surface
+                ) {
+                    Scaffold(
+                        topBar = {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 26.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        text = "Save as Playlist",
+                                        style = MaterialTheme.typography.displaySmall,
+                                        fontFamily = GoogleSansRounded
+                                    )
+                                }
+                                TextField(
+                                    value = playlistName,
+                                    onValueChange = { playlistName = it },
+                                    label = { Text("Playlist name") },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp)
+                                        .focusRequester(focusRequester),
+                                    shape = CircleShape,
+                                    singleLine = true,
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        focusedIndicatorColor = Color.Transparent,
+                                        unfocusedIndicatorColor = Color.Transparent,
+                                        disabledIndicatorColor = Color.Transparent,
+                                    ),
+                                )
+                                TextField(
+                                    value = searchQuery,
+                                    onValueChange = { searchQuery = it },
+                                    label = { Text("Search songs") },
+                                    trailingIcon = {
+                                        if (searchQuery.isNotEmpty()) {
+                                            IconButton(onClick = { searchQuery = "" }) {
+                                                Icon(Icons.Filled.Clear, contentDescription = "Clear search")
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp),
+                                    shape = CircleShape,
+                                    singleLine = true,
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        focusedIndicatorColor = Color.Transparent,
+                                        unfocusedIndicatorColor = Color.Transparent,
+                                        disabledIndicatorColor = Color.Transparent,
+                                        unfocusedTrailingIconColor = Color.Transparent,
+                                        focusedSupportingTextColor = Color.Transparent,
+                                    ),
+                                )
+                            }
+                        },
+                        floatingActionButton = {
+                            ExtendedFloatingActionButton(
+                                modifier = Modifier.padding(bottom = 18.dp, end = 8.dp),
+                                shape = CircleShape,
+                                onClick = {
+                                    if (hasSelection) {
+                                        scope.launch {
+                                            val finalName = playlistName.text.ifBlank { defaultName }
+                                            val chosenIds = selectedSongIds
+                                                .filterValues { it }
+                                                .keys
+                                            onConfirm(finalName, chosenIds)
+                                            onDismiss()
+                                        }
+                                    }
+                                },
+                                //enabled = hasSelection,
+                                icon = { Icon(Icons.Rounded.Check, contentDescription = "Save") },
+                                text = { Text("Save") },
+                            )
+                        }
+                    ) { innerPadding ->
+                        LazyColumn(
+                            modifier = Modifier
+                                .padding(innerPadding)
+                                .padding(horizontal = 14.dp),
+                            contentPadding = PaddingValues(bottom = 110.dp, top = 20.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(filteredSongs, key = { it.id }) { song ->
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clip(CircleShape)
+                                        .clickable {
+                                            val currentSelection = selectedSongIds[song.id] ?: false
+                                            selectedSongIds[song.id] = !currentSelection
+                                        }
+                                        .background(
+                                            color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                                            shape = CircleShape
+                                        )
+                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = selectedSongIds[song.id] ?: false,
+                                        onCheckedChange = { isChecked -> selectedSongIds[song.id] = isChecked }
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .size(56.dp)
+                                            .clip(albumShape)
+                                    ) {
+                                        SmartImage(
+                                            model = song.albumArtUriString,
+                                            contentDescription = song.title,
+                                        shape = albumShape,
+                                            targetSize = Size(168, 168),
+                                            modifier = Modifier.fillMaxSize(),
+                                        )
+                                    }
+                                    Spacer(Modifier.width(16.dp))
+                                    Column {
+                                        Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(
+                                            song.artist,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(30.dp)
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    listOf(
+                                        Color.Transparent,
+                                        MaterialTheme.colorScheme.surface
+                                    )
+                                )
+                            )
+                    ) { }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QueueMiniPlayer(
+    song: Song,
+    isPlaying: Boolean,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+    colorScheme: ColorScheme? = null,
+    onTap: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    val colors = colorScheme ?: MaterialTheme.colorScheme
+    val haptic = LocalHapticFeedback.current
+    val bodyTapInteractionSource = remember { MutableInteractionSource() }
+    val corners = 20.dp
+    val albumCorners = 10.dp
+    val shape = AbsoluteSmoothCornerShape(
+        cornerRadiusTR = corners,
+        smoothnessAsPercentTL = 60,
+        cornerRadiusTL = corners,
+        smoothnessAsPercentTR = 60,
+        cornerRadiusBR = corners,
+        smoothnessAsPercentBL = 60,
+        cornerRadiusBL = corners,
+        smoothnessAsPercentBR = 60
+    )
+    val albumShape = AbsoluteSmoothCornerShape(
+        cornerRadiusTR = albumCorners,
+        smoothnessAsPercentTL = 60,
+        cornerRadiusTL = albumCorners,
+        smoothnessAsPercentTR = 60,
+        cornerRadiusBR = albumCorners,
+        smoothnessAsPercentBL = 60,
+        cornerRadiusBL = albumCorners,
+        smoothnessAsPercentBR = 60
+    )
+
+    Surface(
+        modifier = modifier,
+        shape = shape,
+        tonalElevation = 10.dp,
+        color = colors.primaryContainer,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 78.dp)
+                .clickable(
+                    enabled = onTap != null,
+                    indication = null,
+                    interactionSource = bodyTapInteractionSource
+                ) {
+                    onTap?.invoke()
+                }
+                .padding(horizontal = 12.dp, vertical = 12.dp)
+                .padding(end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            SmartImage(
+                model = song.albumArtUriString ?: R.drawable.rounded_album_24,
+                shape = albumShape,
+                contentDescription = "Carátula",
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(albumShape),
+                contentScale = ContentScale.Crop
+            )
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
+                AutoScrollingText(
+                    text = song.title,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.onPrimaryContainer
+                    ),
+                    gradientEdgeColor = colors.primaryContainer
+                )
+                AutoScrollingText(
+                    text = song.artist,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = colors.onPrimaryContainer.copy(alpha = 0.7f)
+                    ),
+                    gradientEdgeColor = colors.primaryContainer
+                )
+            }
+
+            FilledIconButton(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onPlayPause()
+                },
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = colors.onPrimaryContainer,
+                    contentColor = colors.primaryContainer
+                ),
+                modifier = Modifier.size(44.dp),
+            ) {
+                Icon(
+                    painter = if (isPlaying) painterResource(R.drawable.rounded_pause_24) else painterResource(R.drawable.rounded_play_arrow_24),
+                    contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+                )
+            }
+
+            FilledTonalIconButton(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onNext()
+                },
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = colors.onPrimaryContainer.copy(alpha = 0.12f),
+                    contentColor = colors.onPrimaryContainer
+                ),
+                modifier = Modifier.size(44.dp),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.rounded_skip_next_24),
+                    contentDescription = "Siguiente",
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterialApi::class)
+@Composable
 fun QueuePlaylistSongItem(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
@@ -604,7 +1349,9 @@ fun QueuePlaylistSongItem(
     dragHandle: @Composable () -> Unit,
     isReorderModeEnabled: Boolean,
     isDragHandleVisible: Boolean,
-    isRemoveButtonVisible: Boolean
+    isRemoveButtonVisible: Boolean,
+    enableSwipeToDismiss: Boolean = false,
+    onDismiss: () -> Unit = {}
 ) {
     val colors = MaterialTheme.colorScheme
 
@@ -650,94 +1397,232 @@ fun QueuePlaylistSongItem(
         label = "backgroundColorAnimation"
     )
 
-    Surface(
-        modifier = modifier
-            .clip(itemShape)
-            .clickable {
-                onClick()
-            },
-        shape = itemShape,
-        color = backgroundColor,
-        tonalElevation = elevation,
-        shadowElevation = elevation
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AnimatedVisibility(visible = isDragHandleVisible) {
-                dragHandle()
-            }
+    val density = LocalDensity.current
 
-            val albumArtPadding by animateDpAsState(
-                targetValue = if (isDragHandleVisible) 6.dp else 12.dp,
-                label = "albumArtPadding"
-            )
-            Spacer(Modifier.width(albumArtPadding))
+    BoxWithConstraints(modifier = modifier) {
+        val maxWidthPx = constraints.maxWidth.toFloat()
+        val swipeAnchors = remember(maxWidthPx) {
+            mapOf(0f to SwipeState.Resting, -maxWidthPx to SwipeState.Dismissed)
+        }
+        val capsuleGap = 4.dp
+        val dismissalThreshold = 0.25f
+        val iconRevealThreshold = dismissalThreshold
 
-            SmartImage(
-                model = song.albumArtUriString,
-                shape = albumShape,
-                contentDescription = "Carátula",
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(albumShape),
-                contentScale = ContentScale.Crop
-            )
-
-            Spacer(Modifier.width(16.dp))
-
-            Column(Modifier.weight(1f)) {
-                Text(
-                    song.title, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    color = if (isCurrentSong) colors.primary else colors.onSurface,
-                    fontWeight = if (isCurrentSong) FontWeight.Bold else FontWeight.Normal,
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Text(
-                    song.artist, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (isCurrentSong) colors.primary.copy(alpha = 0.8f) else colors.onSurfaceVariant
-                )
-            }
-
-            if (isCurrentSong) {
-                if (isPlaying != null) {
-                    PlayingEqIcon(
-                        modifier = Modifier
-                            .padding(start = 8.dp)
-                            .size(width = 18.dp, height = 16.dp), // similar al tamaño del ícono
-                        color = colors.primary,
-                        isPlaying = isPlaying  // o conectalo a tu estado real de reproducción
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    if (!isRemoveButtonVisible){
-                        Spacer(Modifier.width(8.dp))
-                    }
+        var latestDismissProgress by remember { mutableStateOf(0f) }
+        val swipeableState = rememberSwipeableState(
+            initialValue = SwipeState.Resting,
+            confirmStateChange = { target ->
+                if (target == SwipeState.Dismissed && latestDismissProgress < dismissalThreshold) {
+                    return@rememberSwipeableState false
                 }
-            } else {
-                Spacer(Modifier.width(8.dp))
+                true
+            }
+        )
+
+        val offsetX by remember { derivedStateOf { if (enableSwipeToDismiss) swipeableState.offset.value else 0f } }
+        val dismissProgress by remember { derivedStateOf { (offsetX / -maxWidthPx).coerceIn(0f, 1f) } }
+
+        val capsuleWidth by animateDpAsState(
+            targetValue = with(density) { (maxWidthPx * dismissProgress).toDp() },
+            label = "capsuleWidth"
+        )
+        val iconAlpha by animateFloatAsState(
+            targetValue = if (dismissProgress > iconRevealThreshold) 1f else 0f,
+            label = "dismissIconAlpha"
+        )
+        val iconScale by animateFloatAsState(
+            targetValue = if (dismissProgress > iconRevealThreshold) 1f else 0.8f,
+            label = "dismissIconScale"
+        )
+
+        val hapticView = LocalView.current
+        var dismissHapticPlayed by remember { mutableStateOf(false) }
+
+        LaunchedEffect(dismissProgress, enableSwipeToDismiss) {
+            if (!enableSwipeToDismiss) return@LaunchedEffect
+
+            latestDismissProgress = dismissProgress
+
+            val hapticTriggerProgress = dismissalThreshold
+            val resetThreshold = dismissalThreshold * 0.6f
+
+            if (dismissProgress > hapticTriggerProgress && !dismissHapticPlayed) {
+                dismissHapticPlayed = true
+                ViewCompat.performHapticFeedback(
+                    hapticView,
+                    HapticFeedbackConstantsCompat.GESTURE_END
+                )
+            } else if (dismissProgress < resetThreshold) {
+                dismissHapticPlayed = false
+            }
+        }
+
+        var isDismissAnimating by remember { mutableStateOf(false) }
+        val dismissExitFraction by animateFloatAsState(
+            targetValue = if (isDismissAnimating) 1f else 0f,
+            label = "dismissExitFraction",
+            finishedListener = { fraction ->
+                if (fraction == 1f && isDismissAnimating) {
+                    isDismissAnimating = false
+                    onDismiss()
+                }
+            }
+        )
+
+        val exitOffsetPx by remember { derivedStateOf { maxWidthPx * dismissExitFraction } }
+        val dismissAlpha by remember { derivedStateOf { 1f - dismissExitFraction } }
+
+        LaunchedEffect(enableSwipeToDismiss, swipeableState.currentValue) {
+            if (!enableSwipeToDismiss) {
+                isDismissAnimating = false
+                return@LaunchedEffect
             }
 
-            AnimatedVisibility(visible = isRemoveButtonVisible) {
-                FilledIconButton(
-                    onClick = onRemoveClick,
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = colors.surfaceContainer,
-                        contentColor = colors.onSurface
-                    ),
+            if (swipeableState.currentValue == SwipeState.Dismissed && !isDismissAnimating) {
+                isDismissAnimating = true
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .swipeable(
+                    enabled = enableSwipeToDismiss && !isDragging,
+                    state = swipeableState,
+                    anchors = swipeAnchors,
+                    thresholds = { _, _ -> FractionalThreshold(dismissalThreshold) },
+                    velocityThreshold = 1200.dp,
+                    orientation = Orientation.Horizontal,
+                    resistance = null,
+                )
+        ) {
+            Row(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(itemShape)
+                    .padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Spacer(modifier = Modifier.width(capsuleGap))
+
+                Box(
                     modifier = Modifier
-                        .width(40.dp)
-                        .height(40.dp)
-                        .padding(start = 4.dp, end = 8.dp)
+                        .fillMaxHeight()
+                        .width(capsuleWidth)
+                        .clip(CircleShape)
+                        .background(colors.errorContainer),
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        modifier = Modifier.size(18.dp),
                         painter = painterResource(R.drawable.rounded_close_24),
-                        contentDescription = "Remove from playlist",
+                        contentDescription = "Dismiss song",
+                        modifier = Modifier.graphicsLayer {
+                            scaleX = iconScale
+                            scaleY = iconScale
+                            alpha = iconAlpha
+                        },
+                        tint = colors.onErrorContainer
                     )
+                }
+            }
+
+            Surface(
+                modifier = Modifier
+                    .padding(start = 12.dp, end = 12.dp)
+                    .offset { IntOffset((offsetX - exitOffsetPx).roundToInt(), 0) }
+                    .graphicsLayer { alpha = dismissAlpha }
+                    .clip(itemShape)
+                    .clickable(enabled = offsetX == 0f && !isDismissAnimating) {
+                        onClick()
+                    },
+                shape = itemShape,
+                color = backgroundColor,
+                tonalElevation = elevation,
+                shadowElevation = elevation
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AnimatedVisibility(visible = isDragHandleVisible) {
+                        dragHandle()
+                    }
+
+                    val albumArtPadding by animateDpAsState(
+                        targetValue = if (isDragHandleVisible) 6.dp else 12.dp,
+                        label = "albumArtPadding"
+                    )
+                    Spacer(Modifier.width(albumArtPadding))
+
+                    SmartImage(
+                        model = song.albumArtUriString,
+                        shape = albumShape,
+                        contentDescription = "Carátula",
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(albumShape),
+                        contentScale = ContentScale.Crop
+                    )
+
+                    Spacer(Modifier.width(16.dp))
+
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            song.title, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            color = if (isCurrentSong) colors.primary else colors.onSurface,
+                            fontWeight = if (isCurrentSong) FontWeight.Bold else FontWeight.Normal,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            song.artist, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (isCurrentSong) colors.primary.copy(alpha = 0.8f) else colors.onSurfaceVariant
+                        )
+                    }
+
+                    if (isCurrentSong) {
+                        if (isPlaying != null) {
+                            PlayingEqIcon(
+                                modifier = Modifier
+                                    .padding(start = 8.dp)
+                                    .size(width = 18.dp, height = 16.dp),
+                                color = colors.primary,
+                                isPlaying = isPlaying
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            if (!isRemoveButtonVisible){
+                                Spacer(Modifier.width(8.dp))
+                            }
+                        }
+                    } else {
+                        Spacer(Modifier.width(8.dp))
+                    }
+
+                    AnimatedVisibility(visible = isRemoveButtonVisible && !enableSwipeToDismiss) {
+                        FilledIconButton(
+                            onClick = onRemoveClick,
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = colors.surfaceContainer,
+                                contentColor = colors.onSurface
+                            ),
+                            modifier = Modifier
+                                .width(40.dp)
+                                .height(40.dp)
+                                .padding(start = 4.dp, end = 8.dp)
+                        ) {
+                            Icon(
+                                modifier = Modifier.size(18.dp),
+                                painter = painterResource(R.drawable.rounded_close_24),
+                                contentDescription = "Remove from playlist",
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 }
+
+@OptIn(ExperimentalMaterialApi::class)
+private enum class SwipeState { Resting, Dismissed }

@@ -154,8 +154,8 @@ fun TimerOptionsBottomSheet(
                             shape = RoundedCornerShape(
                                 topEnd = 18.dp,
                                 topStart = 18.dp,
-                                bottomStart = 6.dp,
-                                bottomEnd = 6.dp
+                                bottomStart = 18.dp,
+                                bottomEnd = 18.dp
                             )
                         )
                 ) {

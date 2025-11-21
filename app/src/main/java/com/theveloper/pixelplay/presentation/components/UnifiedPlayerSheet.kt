@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -86,6 +87,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
@@ -110,6 +112,7 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import timber.log.Timber
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.math.sign
 
 internal val LocalMaterialTheme = staticCompositionLocalOf<ColorScheme> { error("No ColorScheme provided") }
@@ -490,7 +493,7 @@ fun UnifiedPlayerSheet(
     }
 
     var showQueueSheet by remember { mutableStateOf(false) }
-    val queueSheetOffset = remember { Animatable(0f) }
+    val queueSheetOffset = remember(screenHeightPx) { Animatable(screenHeightPx) }
     var queueSheetHeightPx by remember { mutableFloatStateOf(0f) }
     val queueHiddenOffsetPx by remember(currentBottomPadding, queueSheetHeightPx, density) {
         derivedStateOf {
@@ -509,10 +512,13 @@ fun UnifiedPlayerSheet(
     var accumulatedDragYSinceStart by remember { mutableFloatStateOf(0f) }
 
     LaunchedEffect(queueHiddenOffsetPx) {
-        if (queueHiddenOffsetPx > 0f && queueSheetOffset.value == 0f) {
-            queueSheetOffset.snapTo(queueHiddenOffsetPx)
-            showQueueSheet = false
+        if (queueHiddenOffsetPx <= 0f) return@LaunchedEffect
+        val targetOffset = if (showQueueSheet) {
+            queueSheetOffset.value.coerceIn(0f, queueHiddenOffsetPx)
+        } else {
+            queueHiddenOffsetPx
         }
+        queueSheetOffset.snapTo(targetOffset)
     }
 
     fun animateQueueSheet(targetExpanded: Boolean) {
@@ -549,6 +555,22 @@ fun UnifiedPlayerSheet(
     }
 
     val hapticFeedback = LocalHapticFeedback.current
+    val updatedQueueImpactHaptics by rememberUpdatedState(hapticFeedback)
+
+    LaunchedEffect(queueHiddenOffsetPx, showQueueSheet) {
+        if (queueHiddenOffsetPx == 0f) return@LaunchedEffect
+        var hasHitTopEdge = showQueueSheet && queueSheetOffset.value <= 0.5f
+        snapshotFlow { queueSheetOffset.value to showQueueSheet }
+            .collectLatest { (offset, isShown) ->
+                val isFullyOpen = isShown && offset <= 0.5f
+                if (isFullyOpen && !hasHitTopEdge) {
+                    updatedQueueImpactHaptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    hasHitTopEdge = true
+                } else if (!isFullyOpen) {
+                    hasHitTopEdge = false
+                }
+            }
+    }
 
     PredictiveBackHandler(
         enabled = showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED && !isDragging
@@ -591,6 +613,12 @@ fun UnifiedPlayerSheet(
 
     val isQueueVisible by remember(showQueueSheet, queueHiddenOffsetPx) {
         derivedStateOf { showQueueSheet && queueHiddenOffsetPx > 0f && queueSheetOffset.value < queueHiddenOffsetPx }
+    }
+
+    val queueOpenFraction by remember(queueSheetOffset, queueHiddenOffsetPx) {
+        derivedStateOf {
+            if (queueHiddenOffsetPx == 0f) 0f else (1f - (queueSheetOffset.value / queueHiddenOffsetPx)).coerceIn(0f, 1f)
+        }
     }
 
     var internalIsKeyboardVisible by remember { mutableStateOf(false) }
@@ -1049,9 +1077,14 @@ fun UnifiedPlayerSheet(
                                     CompositionLocalProvider(
                                         LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
                                     ) {
+                                        val fullPlayerScale by remember(queueOpenFraction) {
+                                            derivedStateOf { lerp(1f, 0.95f, queueOpenFraction) }
+                                        }
                                         Box(modifier = Modifier.graphicsLayer {
                                             alpha = fullPlayerContentAlpha
                                             translationY = fullPlayerTranslationY
+                                            scaleX = fullPlayerScale
+                                            scaleY = fullPlayerScale
                                         }) {
                                             FullPlayerContent(
                                                 currentSong = currentSongNonNull,
@@ -1117,8 +1150,8 @@ fun UnifiedPlayerSheet(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
+                        .offset { IntOffset(x = 0, y = queueSheetOffset.value.roundToInt()) }
                         .graphicsLayer {
-                            translationY = if (queueHiddenOffsetPx == 0f) queueSheetOffset.value else queueSheetOffset.value
                             alpha = if (queueHiddenOffsetPx == 0f || !showQueueSheet) 0f else 1f
                         }
                         .onGloballyPositioned { coordinates ->
