@@ -458,7 +458,7 @@ fun PlaylistDetailScreen(
                                 QueuePlaylistSongItem(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 12.dp)
+                                        .padding(horizontal = 0.dp)
                                         .graphicsLayer {
                                             scaleX = scale
                                             scaleY = scale
