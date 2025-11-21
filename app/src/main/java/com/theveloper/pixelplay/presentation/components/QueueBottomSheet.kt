@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -76,6 +77,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
@@ -1017,16 +1019,19 @@ fun SaveQueueAsPlaylistSheet(
             decorFitsSystemWindows = false
         )
     ) {
+        val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
         Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.surface),
+                .background(MaterialTheme.colorScheme.surface)
+                .nestedScroll(scrollBehavior.nestedScrollConnection),
             tonalElevation = 12.dp,
             color = MaterialTheme.colorScheme.surface,
         ) {
             Scaffold(
                 modifier = Modifier.fillMaxSize(),
                 containerColor = MaterialTheme.colorScheme.surface,
+                contentWindowInsets = WindowInsets.safeDrawing,
                 topBar = {
                     LargeTopAppBar(
                         title = {
@@ -1071,12 +1076,18 @@ fun SaveQueueAsPlaylistSheet(
                                     enabled = hasSelection
                                 )
                             }
-                        }
+                        },
+                        scrollBehavior = scrollBehavior
                     )
                 },
                 floatingActionButton = {
                     ExtendedFloatingActionButton(
-                        modifier = Modifier.padding(bottom = 18.dp, end = 12.dp),
+                        modifier = Modifier
+                            .padding(end = 12.dp)
+                            .windowInsetsPadding(
+                                WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)
+                            )
+                            .imePadding(),
                         shape = CircleShape,
                         onClick = {
                             if (hasSelection) {
@@ -1092,82 +1103,106 @@ fun SaveQueueAsPlaylistSheet(
                         icon = { Icon(Icons.Rounded.Check, contentDescription = "Save") },
                         text = { Text("Save playlist") },
                     )
-                },
-                contentWindowInsets = WindowInsets(0)
+                }
             ) { innerPadding ->
-                Column(
+                val contentPadding = PaddingValues(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = innerPadding.calculateTopPadding() + 8.dp,
+                    bottom = innerPadding.calculateBottomPadding() + 148.dp
+                )
+
+                LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(innerPadding)
-                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
+                        .padding(bottom = 8.dp)
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
                         .imePadding()
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                        .consumeWindowInsets(innerPadding),
+                    contentPadding = contentPadding,
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(28.dp),
-                        tonalElevation = 8.dp,
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                    item {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(28.dp),
+                            tonalElevation = 8.dp,
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh
                         ) {
-                            TextField(
-                                value = playlistName,
-                                onValueChange = { playlistName = it },
-                                label = { Text("Playlist name") },
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .focusRequester(focusRequester),
-                                shape = CircleShape,
-                                singleLine = true,
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                    disabledContainerColor = MaterialTheme.colorScheme.surface,
-                                    focusedIndicatorColor = Color.Transparent,
-                                    unfocusedIndicatorColor = Color.Transparent,
-                                    disabledIndicatorColor = Color.Transparent,
-                                ),
-                            )
-                            TextField(
-                                value = searchQuery,
-                                onValueChange = { searchQuery = it },
-                                label = { Text("Search songs") },
-                                leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-                                trailingIcon = {
-                                    if (searchQuery.isNotEmpty()) {
-                                        IconButton(onClick = { searchQuery = "" }) {
-                                            Icon(Icons.Filled.Clear, contentDescription = "Clear search")
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                TextField(
+                                    value = playlistName,
+                                    onValueChange = { playlistName = it },
+                                    label = { Text("Playlist name") },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .focusRequester(focusRequester),
+                                    shape = CircleShape,
+                                    singleLine = true,
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        disabledContainerColor = MaterialTheme.colorScheme.surface,
+                                        focusedIndicatorColor = Color.Transparent,
+                                        unfocusedIndicatorColor = Color.Transparent,
+                                        disabledIndicatorColor = Color.Transparent,
+                                    ),
+                                )
+                                TextField(
+                                    value = searchQuery,
+                                    onValueChange = { searchQuery = it },
+                                    label = { Text("Search songs") },
+                                    leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                                    trailingIcon = {
+                                        if (searchQuery.isNotEmpty()) {
+                                            IconButton(onClick = { searchQuery = "" }) {
+                                                Icon(Icons.Filled.Clear, contentDescription = "Clear search")
+                                            }
                                         }
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = CircleShape,
-                                singleLine = true,
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                    disabledContainerColor = MaterialTheme.colorScheme.surface,
-                                    focusedIndicatorColor = Color.Transparent,
-                                    unfocusedIndicatorColor = Color.Transparent,
-                                    disabledIndicatorColor = Color.Transparent,
-                                ),
-                            )
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = CircleShape,
+                                    singleLine = true,
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        disabledContainerColor = MaterialTheme.colorScheme.surface,
+                                        focusedIndicatorColor = Color.Transparent,
+                                        unfocusedIndicatorColor = Color.Transparent,
+                                        disabledIndicatorColor = Color.Transparent,
+                                    ),
+                                )
+                            }
                         }
                     }
 
-                    LazyColumn(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                        contentPadding = PaddingValues(bottom = 120.dp, top = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
+                    if (filteredSongs.isEmpty()) {
+                        item {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Search,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "No songs match your search",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    } else {
                         items(filteredSongs, key = { it.id }) { song ->
                             Surface(
                                 modifier = Modifier
