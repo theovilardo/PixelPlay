@@ -77,6 +77,7 @@ fun SongInfoBottomSheet(
     onDismiss: () -> Unit,
     onPlaySong: () -> Unit,
     onAddToQueue: () -> Unit,
+    onAddNextToQueue: () -> Unit,
     onAddToPlayList: () -> Unit,
     onDeleteFromDevice: (activity: Activity, song: Song, onResult: (Boolean) -> Unit) -> Unit,
     onNavigateToAlbum: () -> Unit,
@@ -274,11 +275,11 @@ fun SongInfoBottomSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Botón de Añadir a la Cola
+                // Botón de Añadir al Final de la Cola
                 FilledTonalButton(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(0.75f)
+                        .weight(0.4f)
                         .heightIn(min = 66.dp), // Altura mínima recomendada para botones
                     colors = ButtonDefaults.filledTonalButtonColors(
                         containerColor = MaterialTheme.colorScheme.tertiaryContainer,
@@ -293,6 +294,26 @@ fun SongInfoBottomSheet(
                     )
                     Spacer(Modifier.width(8.dp))
                     Text("Add to Queue")
+                }
+                // Botón de Añadir Siguiente en la Cola
+                FilledTonalButton(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(0.35f)
+                        .heightIn(min = 66.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.tertiary,
+                        contentColor = MaterialTheme.colorScheme.onTertiary
+                    ),
+                    shape = CircleShape,
+                    onClick = onAddNextToQueue
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.QueueMusic,
+                        contentDescription = "Add next in queue icon"
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Play Next")
                 }
                 FilledTonalButton(
                     modifier = Modifier
