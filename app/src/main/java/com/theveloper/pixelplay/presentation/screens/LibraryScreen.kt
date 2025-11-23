@@ -763,6 +763,11 @@ fun LibraryScreen(
                     showSongInfoBottomSheet = false
                     playerViewModel.sendToast("Added to the queue")
                 },
+                onAddNextToQueue = {
+                    playerViewModel.addSongNextToQueue(currentSong)
+                    showSongInfoBottomSheet = false
+                    playerViewModel.sendToast("Will play next")
+                },
                 onAddToPlayList = {
                     showPlaylistBottomSheet = true;
                 },

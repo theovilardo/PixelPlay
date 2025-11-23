@@ -2591,6 +2591,30 @@ class PlayerViewModel @Inject constructor(
             controller.addMediaItem(mediaItem)
         }
     }
+
+    fun addSongNextToQueue(song: Song) {
+        mediaController?.let { controller ->
+            val mediaItem = MediaItem.Builder()
+                .setMediaId(song.id)
+                .setUri(song.contentUriString.toUri())
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setTitle(song.title)
+                        .setArtist(song.artist)
+                        .setArtworkUri(song.albumArtUriString?.toUri())
+                        .build()
+                )
+                .build()
+
+            val insertionIndex = if (controller.currentMediaItemIndex != C.INDEX_UNSET) {
+                (controller.currentMediaItemIndex + 1).coerceAtMost(controller.mediaItemCount)
+            } else {
+                controller.mediaItemCount
+            }
+
+            controller.addMediaItem(insertionIndex, mediaItem)
+        }
+    }
     private suspend fun showMaterialDeleteConfirmation(activity: Activity, song: Song): Boolean {
         return withContext(Dispatchers.Main) {
             try {

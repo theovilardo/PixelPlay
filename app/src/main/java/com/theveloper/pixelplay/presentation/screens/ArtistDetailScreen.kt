@@ -287,6 +287,10 @@ fun ArtistDetailScreen(
                     playerViewModel.addSongToQueue(currentSong)
                     showSongInfoBottomSheet = false
                 },
+                onAddNextToQueue = {
+                    playerViewModel.addSongNextToQueue(currentSong)
+                    showSongInfoBottomSheet = false
+                },
                 onAddToPlayList = {
                     showPlaylistBottomSheet = true;
                 },

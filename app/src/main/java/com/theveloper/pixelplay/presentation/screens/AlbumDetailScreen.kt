@@ -290,6 +290,10 @@ fun AlbumDetailScreen(
                     playerViewModel.addSongToQueue(currentSong)
                     showSongInfoBottomSheet = false
                 },
+                onAddNextToQueue = {
+                    playerViewModel.addSongNextToQueue(currentSong)
+                    showSongInfoBottomSheet = false
+                },
                 onAddToPlayList = {
                     showPlaylistBottomSheet = true;
                 },
