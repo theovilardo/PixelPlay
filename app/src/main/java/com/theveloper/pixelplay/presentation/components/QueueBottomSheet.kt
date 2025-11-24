@@ -1023,12 +1023,8 @@ fun SaveQueueAsPlaylistSheet(
         derivedStateOf { selectedSongIds.isNotEmpty() && selectedSongIds.all { it.value } }
     }
 
-    var isVisible by remember { mutableStateOf(false) }
+    var isVisible by rememberSaveable { mutableStateOf(true) }
     val duration = 400
-
-    LaunchedEffect(Unit) {
-        isVisible = true
-    }
 
     LaunchedEffect(isVisible) {
         if (isVisible) {
