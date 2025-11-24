@@ -150,6 +150,7 @@ import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.aspectRatio
@@ -1029,6 +1030,13 @@ fun SaveQueueAsPlaylistSheet(
         isVisible = true
     }
 
+    LaunchedEffect(isVisible) {
+        if (isVisible) {
+            delay(duration.toLong())
+            focusRequester.requestFocus()
+        }
+    }
+
     fun triggerDismiss() {
         isVisible = false
     }
@@ -1036,7 +1044,7 @@ fun SaveQueueAsPlaylistSheet(
     // Wait for exit animation to finish before calling onDismiss
     LaunchedEffect(isVisible) {
         if (!isVisible) {
-            kotlinx.coroutines.delay(duration.toLong())
+            delay(duration.toLong())
             if (!isVisible) onDismiss()
         }
     }
@@ -1072,9 +1080,6 @@ fun SaveQueueAsPlaylistSheet(
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentWindowInsets = WindowInsets.safeDrawing,
                 topBar = {
-                    LaunchedEffect(Unit) {
-                        focusRequester.requestFocus()
-                    }
                     Column {
                         MediumTopAppBar(
                             title = {
