@@ -1023,33 +1023,17 @@ fun SaveQueueAsPlaylistSheet(
         derivedStateOf { selectedSongIds.isNotEmpty() && selectedSongIds.all { it.value } }
     }
 
-    var isVisible by rememberSaveable { mutableStateOf(true) }
-    val duration = 400
-
-    LaunchedEffect(isVisible) {
-        if (isVisible) {
-            delay(duration.toLong())
-            focusRequester.requestFocus()
-        }
+    LaunchedEffect(Unit) {
+        // Give the dialog a moment to settle before requesting focus so the IME opens once
+        delay(250)
+        focusRequester.requestFocus()
     }
 
-    fun triggerDismiss() {
-        isVisible = false
-    }
-
-    // Wait for exit animation to finish before calling onDismiss
-    LaunchedEffect(isVisible) {
-        if (!isVisible) {
-            delay(duration.toLong())
-            if (!isVisible) onDismiss()
-        }
-    }
-
-    // Override back handler to animate out
-    BackHandler(onBack = { triggerDismiss() })
+    // Override back handler to dismiss the dialog directly
+    BackHandler(onBack = { onDismiss() })
 
     Dialog(
-        onDismissRequest = { triggerDismiss() },
+        onDismissRequest = { onDismiss() },
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             dismissOnClickOutside = false,
@@ -1058,18 +1042,7 @@ fun SaveQueueAsPlaylistSheet(
     ) {
         val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
-        AnimatedVisibility(
-            visible = isVisible,
-            enter = slideInVertically(
-                initialOffsetY = { it },
-                animationSpec = tween(duration)
-            ) + fadeIn(animationSpec = tween(duration)),
-            exit = slideOutVertically(
-                targetOffsetY = { it },
-                animationSpec = tween(duration)
-            ) + fadeOut(animationSpec = tween(duration))
-        ) {
-            Scaffold(
+        Scaffold(
                 modifier = Modifier
                     .fillMaxSize()
                     .nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -1091,7 +1064,7 @@ fun SaveQueueAsPlaylistSheet(
                             navigationIcon = {
                                 FilledTonalIconButton(
                                     modifier = Modifier.padding(start = 8.dp),
-                                    onClick = { triggerDismiss() },
+                                    onClick = { onDismiss() },
                                     colors = IconButtonDefaults.filledTonalIconButtonColors(
                                         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                                         contentColor = MaterialTheme.colorScheme.onSurface
