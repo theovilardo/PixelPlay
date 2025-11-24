@@ -126,7 +126,7 @@ object LyricsUtils {
                     last.line + "\n" + stripped
                 }
                 // Conservamos la lista de palabras sincronizadas si existía.
-                val merged = if (last.words.isNotEmpty()) {
+                val merged = if (last.words?.isNotEmpty() == true) {
                     SyncedLine(last.time, mergedLineText, last.words)
                 } else {
                     SyncedLine(last.time, mergedLineText)

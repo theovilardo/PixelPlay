@@ -77,6 +77,7 @@ fun SongInfoBottomSheet(
     onDismiss: () -> Unit,
     onPlaySong: () -> Unit,
     onAddToQueue: () -> Unit,
+    onAddNextToQueue: () -> Unit,
     onAddToPlayList: () -> Unit,
     onDeleteFromDevice: (activity: Activity, song: Song, onResult: (Boolean) -> Unit) -> Unit,
     onNavigateToAlbum: () -> Unit,
@@ -267,41 +268,67 @@ fun SongInfoBottomSheet(
                 }
 
             Spacer(modifier = Modifier.height(10.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(IntrinsicSize.Min), // Asegura que todos los hijos puedan tener la misma altura
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // Botón de Añadir a la Cola
-                FilledTonalButton(
+            Column {
+                Row(
                     modifier = Modifier
+                        //.weight(0.5f)
                         .fillMaxWidth()
-                        .weight(0.75f)
-                        .heightIn(min = 66.dp), // Altura mínima recomendada para botones
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                    ),
-                    shape = CircleShape, // O considera RoundedCornerShape(16.dp)
-                    onClick = onAddToQueue
+                        .height(IntrinsicSize.Min), // Asegura que todos los hijos puedan tener la misma altura
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(
-                        Icons.AutoMirrored.Rounded.QueueMusic,
-                        contentDescription = "Add to Queue icon"
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text("Add to Queue")
+                    // Botón de Añadir al Final de la Cola
+                    FilledTonalButton(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(0.4f)
+                            .heightIn(min = 66.dp), // Altura mínima recomendada para botones
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                        ),
+                        shape = CircleShape, // O considera RoundedCornerShape(16.dp)
+                        onClick = onAddToQueue
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Rounded.QueueMusic,
+                            contentDescription = "Add to Queue icon"
+                        )
+                        Spacer(Modifier.width(14.dp))
+                        Text("Add to Queue")
+                    }
+                    // Botón de Añadir Siguiente en la Cola
+                    FilledTonalButton(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(0.35f)
+                            .heightIn(min = 66.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.tertiary,
+                            contentColor = MaterialTheme.colorScheme.onTertiary
+                        ),
+                        shape = CircleShape,
+                        onClick = onAddNextToQueue
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.QueueMusic,
+                            contentDescription = "Add next in queue icon"
+                        )
+                        Spacer(Modifier.width(14.dp))
+                        Text("Play Next")
+                    }
                 }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
                 FilledTonalButton(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(0.25f)
+                        //.weight(0.5f)
                         .heightIn(min = 66.dp), // Altura mínima recomendada para botones
                     colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                     ),
                     shape = CircleShape, // O considera RoundedCornerShape(16.dp)
                     onClick = onAddToPlayList
@@ -310,12 +337,12 @@ fun SongInfoBottomSheet(
                         Icons.AutoMirrored.Rounded.PlaylistAdd,
                         contentDescription = "Add to Playlist icon"
                     )
-//                    Spacer(Modifier.width(8.dp))
-//                    Text("Add to a Playlist")
+                    Spacer(Modifier.width(14.dp))
+                    Text("Add to a Playlist")
                 }
             }
 
-                Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             FilledTonalButton(
                 modifier = Modifier
