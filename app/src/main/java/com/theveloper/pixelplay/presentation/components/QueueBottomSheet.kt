@@ -613,6 +613,8 @@ fun QueueBottomSheet(
                                     isRemoveButtonVisible = false,
                                     enableSwipeToDismiss = index != 0,
                                     onDismiss = { onRemoveSong(song.id) },
+                                    isFromPlaylist = false,
+                                    onMoreOptionsClick = {},
                                     dragHandle = {
                                         IconButton(
                                             onClick = {},
@@ -1528,7 +1530,7 @@ fun QueuePlaylistSongItem(
     isDragHandleVisible: Boolean,
     isRemoveButtonVisible: Boolean,
     enableSwipeToDismiss: Boolean = false,
-    onDismiss: () -> Unit = {}
+    onDismiss: () -> Unit = {},
     isFromPlaylist: Boolean
 ) {
     val colors = MaterialTheme.colorScheme
