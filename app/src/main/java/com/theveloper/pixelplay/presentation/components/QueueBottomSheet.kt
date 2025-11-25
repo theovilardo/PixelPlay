@@ -1044,8 +1044,8 @@ fun SaveQueueAsPlaylistSheet(
 
         Scaffold(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .nestedScroll(scrollBehavior.nestedScrollConnection),
+                    .fillMaxSize(),
+                    //.nestedScroll(scrollBehavior.nestedScrollConnection),
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentWindowInsets = WindowInsets.safeDrawing,
                 topBar = {
@@ -1053,6 +1053,7 @@ fun SaveQueueAsPlaylistSheet(
                         MediumTopAppBar(
                             title = {
                                 Text(
+                                    modifier = Modifier.padding(start = 4.dp),
                                     text = "Save as playlist",
                                     style = MaterialTheme.typography.headlineMedium,
                                     fontFamily = GoogleSansRounded,
@@ -1128,7 +1129,7 @@ fun SaveQueueAsPlaylistSheet(
                                 containerColor = MaterialTheme.colorScheme.surface,
                                 scrolledContainerColor = MaterialTheme.colorScheme.surface
                             ),
-                            scrollBehavior = scrollBehavior
+                            //scrollBehavior = scrollBehavior
                         )
                         // Input section pinned to the top
                         Column(
@@ -1360,7 +1361,6 @@ fun SaveQueueAsPlaylistSheet(
             }
         }
     }
-}
 
 @Composable
 private fun QueueMiniPlayer(
