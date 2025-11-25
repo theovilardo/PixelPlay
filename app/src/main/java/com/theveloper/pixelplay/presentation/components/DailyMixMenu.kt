@@ -12,15 +12,22 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DailyMixMenu(
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onApplyPrompt: (String) -> Unit,
+    isLoading: Boolean
 ) {
     val sheetState = rememberModalBottomSheetState()
+    var prompt by remember { mutableStateOf("") }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -40,19 +47,21 @@ fun DailyMixMenu(
             )
             Spacer(modifier = Modifier.height(16.dp))
             TextField(
-                value = "",
-                onValueChange = {},
-                label = { Text("¿Qué quieres escuchar hoy?") },
+                value = prompt,
+                onValueChange = { prompt = it },
+                label = { Text("Dile a la IA qué quieres escuchar hoy") },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = false
+                supportingText = { Text("Usamos una muestra pequeña para mantener los costos bajos") }
             )
             Spacer(modifier = Modifier.height(16.dp))
             Button(
-                onClick = { /*TODO*/ },
+                onClick = {
+                    onApplyPrompt(prompt)
+                },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = false
+                enabled = prompt.isNotBlank() && !isLoading
             ) {
-                Text("Añadir canciones")
+                Text(if (isLoading) "Actualizando..." else "Actualizar Daily Mix")
             }
         }
     }
