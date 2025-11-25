@@ -2245,7 +2245,7 @@ class PlayerViewModel @Inject constructor(
                     if (metadataArtist == null) metadataArtist = fallback.artist
                     if (metadataAlbum == null) metadataAlbum = fallback.album
                     if (genre.isNullOrBlank()) genre = fallback.genre
-                    if (metadataDuration == null || metadataDuration <= 0) {
+                    if (metadataDuration == null || metadataDuration!! <= 0) {
                         metadataDuration = fallback.durationMs
                     }
                     if (metadataTrack == null) metadataTrack = fallback.trackNumber
@@ -3411,7 +3411,19 @@ class PlayerViewModel @Inject constructor(
             _aiError.value = null
 
             try {
-                val result = aiPlaylistGenerator.generate(prompt, allSongsFlow.value, minLength, maxLength)
+                val candidatePool = dailyMixManager.generateDailyMix(
+                    allSongs = allSongsFlow.value,
+                    favoriteSongIds = favoriteSongIds.value,
+                    limit = 120
+                )
+
+                val result = aiPlaylistGenerator.generate(
+                    userPrompt = prompt,
+                    allSongs = allSongsFlow.value,
+                    minLength = minLength,
+                    maxLength = maxLength,
+                    candidateSongs = candidatePool
+                )
 
                 result.onSuccess { generatedSongs ->
                     if (generatedSongs.isNotEmpty()) {
@@ -3444,6 +3456,53 @@ class PlayerViewModel @Inject constructor(
                     } else {
                         "AI Error: ${error.message}"
                     }
+                }
+            } finally {
+                _isGeneratingAiPlaylist.value = false
+            }
+        }
+    }
+
+    fun regenerateDailyMixWithPrompt(prompt: String) {
+        viewModelScope.launch {
+            if (prompt.isBlank()) {
+                sendToast("Escribe una idea para tu Daily Mix")
+                return@launch
+            }
+
+            _isGeneratingAiPlaylist.value = true
+            _aiError.value = null
+
+            try {
+                val desiredSize = _dailyMixSongs.value.size.takeIf { it > 0 } ?: 25
+                val minLength = (desiredSize * 0.6).toInt().coerceAtLeast(10)
+                val maxLength = desiredSize.coerceAtLeast(20)
+                val candidatePool = dailyMixManager.generateDailyMix(
+                    allSongs = allSongsFlow.value,
+                    favoriteSongIds = favoriteSongIds.value,
+                    limit = 100
+                )
+
+                val result = aiPlaylistGenerator.generate(
+                    userPrompt = prompt,
+                    allSongs = allSongsFlow.value,
+                    minLength = minLength,
+                    maxLength = maxLength,
+                    candidateSongs = candidatePool
+                )
+
+                result.onSuccess { generatedSongs ->
+                    if (generatedSongs.isNotEmpty()) {
+                        val updatedMix = generatedSongs.toImmutableList()
+                        _dailyMixSongs.value = updatedMix
+                        userPreferencesRepository.saveDailyMixSongIds(updatedMix.map { it.id })
+                        sendToast("Daily Mix actualizado con IA")
+                    } else {
+                        sendToast("La IA no encontró canciones para este mix")
+                    }
+                }.onFailure { error ->
+                    _aiError.value = error.message
+                    sendToast("No se pudo actualizar: ${error.message}")
                 }
             } finally {
                 _isGeneratingAiPlaylist.value = false

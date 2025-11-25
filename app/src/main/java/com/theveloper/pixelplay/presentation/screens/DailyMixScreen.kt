@@ -112,7 +112,14 @@ fun DailyMixScreen(
     var showDailyMixMenu by remember { mutableStateOf(false) }
 
     if (showDailyMixMenu) {
-        DailyMixMenu(onDismiss = { showDailyMixMenu = false })
+        DailyMixMenu(
+            onDismiss = { showDailyMixMenu = false },
+            onApplyPrompt = { prompt ->
+                playerViewModel.regenerateDailyMixWithPrompt(prompt)
+                showDailyMixMenu = false
+            },
+            isLoading = isGeneratingAiPlaylist
+        )
     }
 
     if (showAiSheet) {

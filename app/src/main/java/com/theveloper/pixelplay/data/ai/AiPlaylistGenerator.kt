@@ -9,22 +9,35 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import kotlin.Result
+import kotlin.math.max
 
 class AiPlaylistGenerator @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val dailyMixManager: DailyMixManager,
     private val json: Json
 ) {
+    private val promptCache: MutableMap<String, List<String>> = mutableMapOf()
+
     suspend fun generate(
         userPrompt: String,
         allSongs: List<Song>,
         minLength: Int,
-        maxLength: Int
+        maxLength: Int,
+        candidateSongs: List<Song>? = null
     ): Result<List<Song>> {
         return try {
             val apiKey = userPreferencesRepository.geminiApiKey.first()
             if (apiKey.isBlank()) {
                 return Result.failure(Exception("API Key not configured."))
+            }
+
+            val normalizedPrompt = userPrompt.trim().lowercase()
+            promptCache[normalizedPrompt]?.let { cachedIds ->
+                val songMap = allSongs.associateBy { it.id }
+                val cachedSongs = cachedIds.mapNotNull { songMap[it] }
+                if (cachedSongs.isNotEmpty()) {
+                    return Result.success(cachedSongs)
+                }
             }
 
             val selectedModel = userPreferencesRepository.geminiModel.first()
@@ -35,8 +48,22 @@ class AiPlaylistGenerator @Inject constructor(
                 apiKey = apiKey
             )
 
-            // To optimize, send a random sample of songs instead of the whole library
-            val songSample = allSongs.shuffled().take(200)
+            val samplingPool = when {
+                candidateSongs.isNullOrEmpty().not() -> candidateSongs ?: allSongs
+                else -> {
+                    // Prefer a cost-aware ranked list before falling back to the whole library
+                    val rankedForPrompt = dailyMixManager.generateDailyMix(
+                        allSongs = allSongs,
+                        favoriteSongIds = emptySet(),
+                        limit = 200
+                    )
+                    if (rankedForPrompt.isNotEmpty()) rankedForPrompt else allSongs
+                }
+            }
+
+            // To optimize cost, cap the context size and shuffle it a bit for diversity
+            val sampleSize = max(minLength, 80).coerceAtMost(200)
+            val songSample = samplingPool.shuffled().take(sampleSize)
 
             val availableSongsJson = songSample.joinToString(separator = ",\n") { song ->
                 // Calculate score for each song. This might be slow if it's a real-time calculation.
@@ -94,6 +121,10 @@ class AiPlaylistGenerator @Inject constructor(
             // Map the returned IDs to the actual Song objects
             val songMap = allSongs.associateBy { it.id }
             val generatedPlaylist = songIds.mapNotNull { songMap[it] }
+
+            if (generatedPlaylist.isNotEmpty()) {
+                promptCache[normalizedPrompt] = generatedPlaylist.map { it.id }
+            }
 
             Result.success(generatedPlaylist)
 
