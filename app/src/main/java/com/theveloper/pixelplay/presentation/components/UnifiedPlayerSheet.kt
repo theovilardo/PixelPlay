@@ -722,7 +722,7 @@ fun UnifiedPlayerSheet(
             }
     }
 
-    val actuallyShowSheetContent = shouldShowSheet && !internalIsKeyboardVisible
+    val actuallyShowSheetContent = shouldShowSheet && (!internalIsKeyboardVisible || pendingSaveQueueOverlay != null)
 
     // val currentAlbumColorSchemePair by playerViewModel.currentAlbumArtColorSchemePair.collectAsState() // Replaced by activePlayerColorSchemePair
     val activePlayerSchemePair by playerViewModel.activePlayerColorSchemePair.collectAsState()
@@ -766,7 +766,7 @@ fun UnifiedPlayerSheet(
     val dens = rememberUpdatedState(LocalDensity.current) // opcional; útil para thresholds
 
     AnimatedVisibility(
-        visible = showPlayerContentArea && playerContentExpansionFraction.value > 0f && !internalIsKeyboardVisible,
+        visible = showPlayerContentArea && playerContentExpansionFraction.value > 0f && (!internalIsKeyboardVisible || pendingSaveQueueOverlay != null),
         enter = fadeIn(animationSpec = tween(ANIMATION_DURATION_MS)),
         exit = fadeOut(animationSpec = tween(ANIMATION_DURATION_MS))
     ) {
