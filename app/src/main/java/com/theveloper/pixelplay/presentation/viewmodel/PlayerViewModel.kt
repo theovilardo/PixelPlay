@@ -2245,7 +2245,7 @@ class PlayerViewModel @Inject constructor(
                     if (metadataArtist == null) metadataArtist = fallback.artist
                     if (metadataAlbum == null) metadataAlbum = fallback.album
                     if (genre.isNullOrBlank()) genre = fallback.genre
-                    if (metadataDuration == null || metadataDuration <= 0) {
+                    if (metadataDuration == null || metadataDuration!! <= 0) {
                         metadataDuration = fallback.durationMs
                     }
                     if (metadataTrack == null) metadataTrack = fallback.trackNumber

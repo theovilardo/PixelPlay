@@ -1764,7 +1764,7 @@ fun QueuePlaylistSongItem(
                             ),
                             modifier = Modifier
                                 .size(36.dp)
-                                .padding(end = 4.dp)
+                                .padding(end = 14.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.MoreVert,
