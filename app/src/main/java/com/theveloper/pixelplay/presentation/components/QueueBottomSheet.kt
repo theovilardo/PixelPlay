@@ -1624,24 +1624,6 @@ fun QueuePlaylistSongItem(
                 }
             }
         )
-            if (isFromPlaylist){
-                FilledIconButton(
-                    onClick = { onMoreOptionsClick(song) },
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = mvContainerColor,
-                        contentColor = mvContentColor.copy(alpha = 0.7f)
-                    ),
-                    modifier = Modifier
-                        .size(36.dp)
-                        .padding(end = 4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.MoreVert,
-                        contentDescription = "More options for ${song.title}",
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
 
         val exitOffsetPx by remember { derivedStateOf { maxWidthPx * dismissExitFraction } }
         val dismissAlpha by remember { derivedStateOf { 1f - dismissExitFraction } }
@@ -1771,6 +1753,25 @@ fun QueuePlaylistSongItem(
                         }
                     } else {
                         Spacer(Modifier.width(8.dp))
+                    }
+
+                    if (isFromPlaylist) {
+                        FilledIconButton(
+                            onClick = { onMoreOptionsClick(song) },
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = mvContainerColor,
+                                contentColor = mvContentColor.copy(alpha = 0.7f)
+                            ),
+                            modifier = Modifier
+                                .size(36.dp)
+                                .padding(end = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.MoreVert,
+                                contentDescription = "More options for ${song.title}",
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
 
                     AnimatedVisibility(visible = isRemoveButtonVisible && !enableSwipeToDismiss) {
