@@ -66,6 +66,9 @@ import coil.size.Size
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import androidx.core.graphics.drawable.toBitmap
+import com.theveloper.pixelplay.data.github.GitHubContributorService
+import androidx.hilt.navigation.compose.hiltViewModel
+import timber.log.Timber
 
 // Data class to hold information about each person in the acknowledgements section
 data class Contributor(
@@ -154,17 +157,38 @@ fun AboutScreen(
         Contributor(name = "Theo Vilardo", githubUrl = "https://github.com/theovilardo", telegramUrl = "https://t.me/thevelopersupport", avatarUrl = "https://avatars.githubusercontent.com/u/26845343?v=4"),
     )
 
-    val contributors = listOf(
-        Contributor(name = "BeanVortex", githubUrl = "https://github.com/BeanVortex", avatarUrl = "https://avatars.githubusercontent.com/u/47008296?v=4"),
-        Contributor(name = "Colby Cabrera", githubUrl = "https://github.com/ColbyCabrera", avatarUrl = "https://avatars.githubusercontent.com/u/77089439?v=4"),
-        Contributor(name = "Dexter Reed", githubUrl = "https://github.com/sungsphinx", avatarUrl = "https://avatars.githubusercontent.com/u/80914457?v=4"),
-        Contributor(name = "Mazen", githubUrl = "https://github.com/Natour-Mazen", avatarUrl = "https://avatars.githubusercontent.com/u/115185120?v=4"),
-        Contributor(name = "OpenSource Guy", githubUrl = "https://github.com/os-guy-original", avatarUrl = "https://avatars.githubusercontent.com/u/228935929?v=4"),
-        Contributor(name = "Ori Spokoini", githubUrl = "https://github.com/orispok", avatarUrl = "https://avatars.githubusercontent.com/u/85396245?v=4"),
-        Contributor(name = "Ravishanker", githubUrl = "https://github.com/thequantumquirk", avatarUrl = "https://avatars.githubusercontent.com/u/175215931?v=4"),
-        Contributor(name = "Sjoerd Vermeulen", githubUrl = "https://github.com/SjVer", avatarUrl = "https://avatars.githubusercontent.com/u/72567996?v=4"),
-        Contributor(name = "Will", githubUrl = "https://github.com/goonerDroid", avatarUrl = "https://avatars.githubusercontent.com/u/4929917?v=4")
-    )
+    // State to hold fetched contributors
+    var contributors by remember { mutableStateOf<List<Contributor>>(emptyList()) }
+    var isLoadingContributors by remember { mutableStateOf(true) }
+    
+    val githubService = remember { GitHubContributorService() }
+    
+    // Fetch contributors from GitHub API
+    LaunchedEffect(Unit) {
+        try {
+            val result = githubService.fetchContributors()
+            result.onSuccess { githubContributors ->
+                // Convert GitHub contributors to our Contributor model
+                contributors = githubContributors
+                    .filter { it.login != "theovilardo" } // Remove author from contributors list
+                    .map { github ->
+                        Contributor(
+                            name = github.login,
+                            role = "",
+                            avatarUrl = github.avatar_url,
+                            githubUrl = github.html_url
+                        )
+                    }
+            }
+            result.onFailure { exception ->
+                Timber.e(exception, "Failed to fetch contributors from GitHub")
+                // Fall back to empty list if fetch fails
+                contributors = emptyList()
+            }
+        } finally {
+            isLoadingContributors = false
+        }
+    }
 
     // Correctly initialize MutableTransitionState
     val transitionState = remember { MutableTransitionState(false) }
@@ -369,11 +393,24 @@ fun AboutScreen(
                 }
             }
 
-            items(
-                items = contributors,
-                key = { it.name }
-            ) { contributor ->
-                ContributorCard(contributor)
+            if (isLoadingContributors) {
+                item(key = "contributors_loading") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+            } else {
+                items(
+                    items = contributors,
+                    key = { it.name }
+                ) { contributor ->
+                    ContributorCard(contributor)
+                }
             }
         }
         AboutTopBar(
