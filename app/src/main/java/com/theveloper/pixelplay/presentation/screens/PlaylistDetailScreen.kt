@@ -34,6 +34,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicOff
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.rounded.Add
@@ -81,6 +82,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
@@ -146,6 +148,8 @@ fun PlaylistDetailScreen(
     var isReorderModeEnabled by remember { mutableStateOf(false) }
     var isRemoveModeEnabled by remember { mutableStateOf(false) }
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
+    var showPlaylistOptionsSheet by remember { mutableStateOf(false) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
     val selectedSongForInfo by playerViewModel.selectedSongForInfo.collectAsState()
     val favoriteIds by playerViewModel.favoriteSongIds.collectAsState() // Reintroducir favoriteIds aquí
     val stableOnMoreOptionsClick: (Song) -> Unit = remember {
@@ -236,25 +240,13 @@ fun PlaylistDetailScreen(
                 actions = {
                     if (!isFolderPlaylist) {
                         FilledTonalIconButton(
-                            colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                contentColor = MaterialTheme.colorScheme.onSurface
-                            ),
-                            onClick = { showRenameDialog = true }
-                        ) { Icon(Icons.Filled.Edit, "Renombrar") }
-                        FilledTonalIconButton(
                             modifier = Modifier.padding(end = 10.dp),
                             colors = IconButtonDefaults.filledIconButtonColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                                 contentColor = MaterialTheme.colorScheme.onSurface
                             ),
-                            onClick = {
-                                currentPlaylist?.let { playlistViewModel.deletePlaylist(it.id) }
-                                onDeletePlayListClick()
-                            }
-                        ) {
-                            Icon(Icons.Filled.DeleteOutline, "Eliminar Playlist")
-                        }
+                            onClick = { showPlaylistOptionsSheet = true }
+                        ) { Icon(Icons.Filled.MoreVert, "Más opciones") }
                     }
                 },
                 scrollBehavior = scrollBehavior
@@ -602,6 +594,72 @@ fun PlaylistDetailScreen(
             }
         )
     }
+    if (showPlaylistOptionsSheet && !isFolderPlaylist) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+        ModalBottomSheet(
+            onDismissRequest = { showPlaylistOptionsSheet = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surface,
+            tonalElevation = 2.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+            ) {
+                PlaylistActionItem(
+                    icon = Icons.Filled.Edit,
+                    label = "Editar nombre",
+                    onClick = {
+                        showPlaylistOptionsSheet = false
+                        showRenameDialog = true
+                    }
+                )
+                PlaylistActionItem(
+                    icon = Icons.Filled.DeleteOutline,
+                    label = "Eliminar playlist",
+                    onClick = {
+                        showPlaylistOptionsSheet = false
+                        showDeleteConfirmation = true
+                    }
+                )
+                PlaylistActionItem(
+                    icon = Icons.Rounded.Check,
+                    label = "Set default transition",
+                    onClick = {
+                        showPlaylistOptionsSheet = false
+                        playerViewModel.sendToast("Coming soon…")
+                    }
+                )
+            }
+        }
+    }
+    if (showDeleteConfirmation && currentPlaylist != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = { Text("Delete playlist?") },
+            text = {
+                Text("Are you sure you want to delete this playlist?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        playlistViewModel.deletePlaylist(currentPlaylist.id)
+                        onDeletePlayListClick()
+                        showDeleteConfirmation = false
+                    }
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmation = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
     if (showRenameDialog && currentPlaylist != null) {
         RenamePlaylistDialog(
             currentName = currentPlaylist.name,
@@ -695,6 +753,33 @@ fun PlaylistDetailScreen(
         }
     }
 
+}
+
+@Composable
+private fun PlaylistActionItem(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 24.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
