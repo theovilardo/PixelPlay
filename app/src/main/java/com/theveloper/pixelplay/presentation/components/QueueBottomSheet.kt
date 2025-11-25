@@ -150,6 +150,7 @@ import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.aspectRatio
@@ -1022,30 +1023,17 @@ fun SaveQueueAsPlaylistSheet(
         derivedStateOf { selectedSongIds.isNotEmpty() && selectedSongIds.all { it.value } }
     }
 
-    var isVisible by remember { mutableStateOf(false) }
-    val duration = 400
-
     LaunchedEffect(Unit) {
-        isVisible = true
+        // Give the dialog a moment to settle before requesting focus so the IME opens once
+        delay(250)
+        focusRequester.requestFocus()
     }
 
-    fun triggerDismiss() {
-        isVisible = false
-    }
-
-    // Wait for exit animation to finish before calling onDismiss
-    LaunchedEffect(isVisible) {
-        if (!isVisible) {
-            kotlinx.coroutines.delay(duration.toLong())
-            if (!isVisible) onDismiss()
-        }
-    }
-
-    // Override back handler to animate out
-    BackHandler(onBack = { triggerDismiss() })
+    // Override back handler to dismiss the dialog directly
+    BackHandler(onBack = { onDismiss() })
 
     Dialog(
-        onDismissRequest = { triggerDismiss() },
+        onDismissRequest = { onDismiss() },
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             dismissOnClickOutside = false,
@@ -1054,31 +1042,18 @@ fun SaveQueueAsPlaylistSheet(
     ) {
         val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
-        AnimatedVisibility(
-            visible = isVisible,
-            enter = slideInVertically(
-                initialOffsetY = { it },
-                animationSpec = tween(duration)
-            ) + fadeIn(animationSpec = tween(duration)),
-            exit = slideOutVertically(
-                targetOffsetY = { it },
-                animationSpec = tween(duration)
-            ) + fadeOut(animationSpec = tween(duration))
-        ) {
-            Scaffold(
+        Scaffold(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .nestedScroll(scrollBehavior.nestedScrollConnection),
+                    .fillMaxSize(),
+                    //.nestedScroll(scrollBehavior.nestedScrollConnection),
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentWindowInsets = WindowInsets.safeDrawing,
                 topBar = {
-                    LaunchedEffect(Unit) {
-                        focusRequester.requestFocus()
-                    }
                     Column {
                         MediumTopAppBar(
                             title = {
                                 Text(
+                                    modifier = Modifier.padding(start = 4.dp),
                                     text = "Save as playlist",
                                     style = MaterialTheme.typography.headlineMedium,
                                     fontFamily = GoogleSansRounded,
@@ -1090,7 +1065,7 @@ fun SaveQueueAsPlaylistSheet(
                             navigationIcon = {
                                 FilledTonalIconButton(
                                     modifier = Modifier.padding(start = 8.dp),
-                                    onClick = { triggerDismiss() },
+                                    onClick = { onDismiss() },
                                     colors = IconButtonDefaults.filledTonalIconButtonColors(
                                         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                                         contentColor = MaterialTheme.colorScheme.onSurface
@@ -1154,7 +1129,7 @@ fun SaveQueueAsPlaylistSheet(
                                 containerColor = MaterialTheme.colorScheme.surface,
                                 scrolledContainerColor = MaterialTheme.colorScheme.surface
                             ),
-                            scrollBehavior = scrollBehavior
+                            //scrollBehavior = scrollBehavior
                         )
                         // Input section pinned to the top
                         Column(
@@ -1386,7 +1361,6 @@ fun SaveQueueAsPlaylistSheet(
             }
         }
     }
-}
 
 @Composable
 private fun QueueMiniPlayer(
