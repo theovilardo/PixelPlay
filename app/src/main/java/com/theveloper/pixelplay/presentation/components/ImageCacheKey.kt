@@ -6,7 +6,10 @@ import coil.size.Size
 fun buildCacheKey(data: Any?, targetSize: Size, prefix: String = "img"): String? {
     val base = data?.toString() ?: return null
 
-    fun Dimension.asPixels(): Int = pxOrElse { -1 }
+    fun Dimension.asPixels(): Int = when (this) {
+        is Dimension.Pixels -> px
+        Dimension.Undefined -> -1
+    }
 
     val sizePart = when (targetSize) {
         Size.ORIGINAL -> "original"
