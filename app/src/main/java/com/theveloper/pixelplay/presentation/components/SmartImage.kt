@@ -33,7 +33,6 @@ import coil.size.Size // Import Coil's Size
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
 import com.theveloper.pixelplay.R
-import coil.Coil
 
 @Composable
 fun SmartImage(
@@ -55,10 +54,6 @@ fun SmartImage(
 ) {
     val context = LocalContext.current
     val clippedModifier = modifier.clip(shape)
-    val cacheKeyData = when (model) {
-        is ImageRequest -> model.data
-        else -> model
-    }
 
     @Suppress("NAME_SHADOWING")
     val model = when (model) {
@@ -86,19 +81,15 @@ fun SmartImage(
     }
 
     val request = when (model) {
-        is ImageRequest -> model.newBuilder()
-            .memoryCacheKey(buildCacheKey(cacheKeyData, targetSize))
-            .diskCacheKey(buildCacheKey(cacheKeyData, targetSize))
-            .build()
+        is ImageRequest -> model
         else -> ImageRequest.Builder(context)
             .data(model)
             .crossfade(crossfadeDurationMillis)
             .diskCachePolicy(if (useDiskCache) CachePolicy.ENABLED else CachePolicy.DISABLED)
             .memoryCachePolicy(if (useMemoryCache) CachePolicy.ENABLED else CachePolicy.DISABLED)
-            .networkCachePolicy(CachePolicy.ENABLED)
             .allowHardware(allowHardware)
-            .memoryCacheKey(buildCacheKey(cacheKeyData, targetSize))
-            .diskCacheKey(buildCacheKey(cacheKeyData, targetSize))
+            .memoryCacheKey(model?.toString()?.plus("_${targetSize.width}x${targetSize.height}"))
+            .diskCacheKey(model?.toString()?.plus("_${targetSize.width}x${targetSize.height}"))
             .apply {
                 size(targetSize)
             }
@@ -111,8 +102,7 @@ fun SmartImage(
         modifier = clippedModifier,
         contentScale = contentScale,
         colorFilter = colorFilter,
-        alpha = alpha,
-        imageLoader = Coil.imageLoader(context)
+        alpha = alpha
     ) {
         val state = painter.state
 

@@ -19,7 +19,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.painterResource
-import coil.Coil
 import coil.annotation.ExperimentalCoilApi
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
@@ -37,7 +36,6 @@ fun OptimizedAlbumArt(
     targetSize: Size = Size.ORIGINAL
 ) {
     val context = LocalContext.current
-    val cacheKey = buildCacheKey(uri, targetSize, prefix = "album")
 
     if (renderDirectAlbumArt(
             model = uri,
@@ -49,7 +47,6 @@ fun OptimizedAlbumArt(
     }
 
     val painter = rememberAsyncImagePainter(
-        imageLoader = Coil.imageLoader(context),
         model = when (uri) {
             is ImageRequest -> uri
             else -> ImageRequest.Builder(context)
@@ -60,47 +57,25 @@ fun OptimizedAlbumArt(
                 .size(targetSize)
                 .memoryCachePolicy(CachePolicy.ENABLED)
                 .diskCachePolicy(CachePolicy.ENABLED)
-                .networkCachePolicy(CachePolicy.ENABLED)
-                .memoryCacheKey(cacheKey)
-                .diskCacheKey(cacheKey)
                 .build()
         }
     )
 
-    val painterState = painter.state
-    val successPainter = (painterState as? AsyncImagePainter.State.Success)?.painter
-
     Crossfade(
-        targetState = successPainter,
+        targetState = painter.state,
         modifier = modifier, // el padre le dará fillMaxSize()
         animationSpec = tween(350),
         label = "AlbumArtCrossfade"
-    ) { crossfadePainter ->
-        when {
-            crossfadePainter != null -> Image(
-                painter = crossfadePainter,
+    ) { state ->
+        when (state) {
+            is AsyncImagePainter.State.Success -> Image(
+                painter = state.painter,
                 contentDescription = "Album art of $title",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
-
-            painterState is AsyncImagePainter.State.Error -> Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.errorContainer),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(R.drawable.rounded_broken_image_24),
-                    contentDescription = "Error loading album art for $title",
-                    contentScale = ContentScale.Fit,
-                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(
-                        MaterialTheme.colorScheme.onErrorContainer
-                    )
-                )
-            }
-
-            else -> Box(
+            is AsyncImagePainter.State.Loading,
+            is AsyncImagePainter.State.Empty -> Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.surfaceContainerHigh),
@@ -113,6 +88,21 @@ fun OptimizedAlbumArt(
                     colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(
                         MaterialTheme.colorScheme.onSurfaceVariant
                     ),
+                )
+            }
+            is AsyncImagePainter.State.Error -> Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.errorContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.rounded_broken_image_24),
+                    contentDescription = "Error loading album art for $title",
+                    contentScale = ContentScale.Fit,
+                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(
+                        MaterialTheme.colorScheme.onErrorContainer
+                    )
                 )
             }
         }
