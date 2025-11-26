@@ -124,7 +124,7 @@ fun LyricsSheet(
             onDismiss = {
                 showFetchLyricsDialog = false
                 onDismissLyricsSearch()
-            },
+             },
             onImport = onImportLyrics
         )
     }
@@ -244,12 +244,7 @@ fun LyricsSheet(
                                     onDismissRequest = { expanded = false }
                                 ) {
                                     DropdownMenuItem(
-                                        leadingIcon = {
-                                            Icon(
-                                                painter = painterResource(R.drawable.outline_restart_alt_24),
-                                                contentDescription = null
-                                            )
-                                        },
+                                        leadingIcon = { Icon(painter = painterResource(R.drawable.outline_restart_alt_24), contentDescription = null) },
                                         text = { Text(text = "Reset imported lyrics") },
                                         onClick = {
                                             expanded = false
@@ -258,7 +253,8 @@ fun LyricsSheet(
                                     )
                                 }
                             }
-                        },
+                        }
+                        ,
                         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                             containerColor = Color.Transparent
                         )
@@ -398,7 +394,6 @@ fun LyricsSheet(
                         }
                     }
                 }
-
                 true -> {
                     lyrics?.synced?.let { synced ->
                         SyncedLyricsList(
@@ -420,7 +415,7 @@ fun LyricsSheet(
                             highlightOffsetDp = highlightOffsetDp,
                             autoscrollAnimationSpec = autoscrollAnimationSpec,
                             footer = {
-                                if (lyrics?.areFromRemote == true) {
+                                if (lyrics!!.areFromRemote) {
                                     item(key = "provider_text") {
                                         ProviderText(
                                             providerText = context.resources.getString(R.string.lyrics_provided_by),
@@ -436,7 +431,6 @@ fun LyricsSheet(
                         )
                     }
                 }
-
                 false -> {
                     lyrics?.plain?.let { plain ->
                         LazyColumn(
