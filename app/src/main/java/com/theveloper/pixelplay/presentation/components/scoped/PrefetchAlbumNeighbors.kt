@@ -12,6 +12,7 @@ import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Size
 import com.theveloper.pixelplay.data.model.Song
+import com.theveloper.pixelplay.presentation.components.buildCacheKey
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.flow.distinctUntilChanged
 
@@ -19,11 +20,12 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 fun PrefetchAlbumNeighborsImg(
     current: Song?,
     queue: ImmutableList<Song>,
-    radius: Int = 1
+    radius: Int = 1,
+    targetSize: Size = Size(600, 600)
 ) {
     if (current == null) return
     val context = LocalContext.current
-    val loader = remember { coil.ImageLoader(context) }
+    val loader = remember { Coil.imageLoader(context) }
     val index = remember(current, queue) { queue.indexOfFirst { it.id == current.id } }
     LaunchedEffect(index, queue) {
         if (index == -1) return@LaunchedEffect
@@ -31,11 +33,15 @@ fun PrefetchAlbumNeighborsImg(
         for (i in bounds) {
             if (i == index) continue
             queue[i].albumArtUriString?.let { data ->
+                val cacheKey = buildCacheKey(data, targetSize, prefix = "album")
                 val req = coil.request.ImageRequest.Builder(context)
                     .data(data)
-                    .memoryCacheKey("album:$data")
-                    .diskCacheKey("album:$data")
-                    .size(coil.size.Size.ORIGINAL)
+                    .memoryCacheKey(cacheKey)
+                    .diskCacheKey(cacheKey)
+                    .size(targetSize)
+                    .memoryCachePolicy(CachePolicy.ENABLED)
+                    .diskCachePolicy(CachePolicy.ENABLED)
+                    .networkCachePolicy(CachePolicy.ENABLED)
                     .build()
                 loader.enqueue(req)
             }
@@ -64,12 +70,15 @@ fun PrefetchAlbumNeighbors(
                     .filter { it in queue.indices && it != page }
                 indices.forEach { idx ->
                     queue[idx].albumArtUriString?.let { uri ->
+                        val cacheKey = buildCacheKey(uri, targetSize, prefix = "album")
                         val req = coil.request.ImageRequest.Builder(context)
                             .data(uri)
                             .size(targetSize)
                             .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
                             .diskCachePolicy(coil.request.CachePolicy.ENABLED)
                             .networkCachePolicy(coil.request.CachePolicy.ENABLED)
+                            .memoryCacheKey(cacheKey)
+                            .diskCacheKey(cacheKey)
                             .allowHardware(true)
                             .build()
                         imageLoader.enqueue(req) // fire-and-forget
