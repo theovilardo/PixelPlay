@@ -146,7 +146,10 @@ class TransitionController @Inject constructor(
                 // Calculate transition point
                 // Ensure effective duration isn't longer than the song itself
                 val effectiveDuration = effectiveSettings.durationMs.coerceAtMost(duration.toInt()).coerceAtLeast(500)
-                val transitionPoint = duration - effectiveDuration
+                // Add a safety buffer to ensure the transition finishes before the song actually ends,
+                // preventing Player A from auto-pausing (and potentially losing audio focus) before we can hand off.
+                val safetyBuffer = 500
+                val transitionPoint = (duration - effectiveDuration - safetyBuffer).coerceAtLeast(0)
 
                 Timber.tag("TransitionDebug").d(
                     "Scheduled %s at %d ms (Duration: %d, Effective: %d)",
@@ -160,9 +163,10 @@ class TransitionController @Inject constructor(
 
                 if (transitionPoint <= player.currentPosition) {
                      val remaining = duration - player.currentPosition
-                     if (remaining > 500) {
+                     // We need enough time to actually perform a transition
+                     if (remaining > safetyBuffer + 200) {
                          Timber.tag("TransitionDebug").w("Already past transition point! Triggering immediately.")
-                         engine.performTransition(effectiveSettings.copy(durationMs = remaining.toInt()))
+                         engine.performTransition(effectiveSettings.copy(durationMs = (remaining - safetyBuffer).toInt()))
                      } else {
                          Timber.tag("TransitionDebug").w("Too close to end (%d ms left). Skipping to avoid glitch.", remaining)
                          engine.setPauseAtEndOfMediaItems(false)
