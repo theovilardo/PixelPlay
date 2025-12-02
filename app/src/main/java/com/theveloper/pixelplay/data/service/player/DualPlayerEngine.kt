@@ -36,6 +36,7 @@ class DualPlayerEngine @Inject constructor(
 ) {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var transitionJob: Job? = null
+    private var transitionRunning = false
 
     private val playerA: ExoPlayer
     private val playerB: ExoPlayer
@@ -43,6 +44,8 @@ class DualPlayerEngine @Inject constructor(
     /** The master player instance that should be connected to the MediaSession. */
     val masterPlayer: Player
         get() = playerA
+
+    fun isTransitionRunning(): Boolean = transitionRunning
 
     init {
         // Player A must handle audio focus to be the "master"
@@ -104,6 +107,8 @@ class DualPlayerEngine @Inject constructor(
      * If a track was pre-buffered in Player B, this cancels it.
      */
     fun cancelNext() {
+        transitionJob?.cancel()
+        transitionRunning = false
         if (playerB.mediaItemCount > 0) {
             Timber.tag("TransitionDebug").d("Engine: Cancelling next player")
             playerB.stop()
@@ -119,6 +124,7 @@ class DualPlayerEngine @Inject constructor(
      */
     fun performTransition(settings: TransitionSettings) {
         transitionJob?.cancel()
+        transitionRunning = true
         transitionJob = scope.launch {
             try {
                 // Force Overlap for now as per instructions
@@ -129,6 +135,8 @@ class DualPlayerEngine @Inject constructor(
                 playerA.volume = 1f
                 setPauseAtEndOfMediaItems(false)
                 playerB.stop()
+            } finally {
+                transitionRunning = false
             }
         }
     }
@@ -161,6 +169,10 @@ class DualPlayerEngine @Inject constructor(
         // 1. Start Player B and ramp volumes
         playerB.volume = 0f
         playerA.volume = 1f
+        if (!playerA.isPlaying && playerA.playbackState == Player.STATE_READY) {
+            // Ensure the outgoing track keeps rendering during the crossfade window
+            playerA.play()
+        }
         playerB.playWhenReady = true
         playerB.play()
 
@@ -189,15 +201,11 @@ class DualPlayerEngine @Inject constructor(
         }
 
         val duration = settings.durationMs.toLong()
+        val stepMs = 16L
         var elapsed = 0L
-        val startTime = System.currentTimeMillis()
+        var lastLog = 0L
 
-        // Safety brake: Monitor playerA state. If it ends naturally, break loop.
-
-        while (elapsed < duration) {
-            // Recalculate elapsed to be precise
-            elapsed = System.currentTimeMillis() - startTime
-
+        while (elapsed <= duration) {
             val progress = (elapsed.toFloat() / duration).coerceIn(0f, 1f)
             val volA = 1f - envelope(progress, settings.curveOut)
             val volB = envelope(progress, settings.curveIn)
@@ -205,20 +213,18 @@ class DualPlayerEngine @Inject constructor(
             playerA.volume = volA
             playerB.volume = volB
 
-            if (elapsed % 500 < 50) {
+            if (elapsed - lastLog >= 500) {
                 Timber.tag("TransitionDebug").v("Loop: Progress=%.2f, VolA=%.2f, VolB=%.2f", progress, volA, volB)
+                lastLog = elapsed
             }
 
-            // Note: If playerA pauses (because it reached end of item due to pauseAtEndOfMediaItems),
-            // isPlaying becomes false. We should allow that state if we are near the end.
-            // But if it stopped for other reasons (user pause), we break.
-            if (!playerA.isPlaying && playerA.playbackState != Player.STATE_ENDED && playerA.playbackState != Player.STATE_READY) {
-                 // STATE_READY + !isPlaying = Paused.
-                 Timber.tag("TransitionDebug").w("Player A stopped playing prematurely during transition! State: %d", playerA.playbackState)
-                 break
+            if (!playerA.isPlaying && playerA.playbackState !in listOf(Player.STATE_READY, Player.STATE_BUFFERING, Player.STATE_ENDED)) {
+                Timber.tag("TransitionDebug").w("Player A stopped unexpectedly (state=%d) during transition", playerA.playbackState)
+                break
             }
 
-            delay(32L) // ~30fps update for smooth volume
+            delay(stepMs)
+            elapsed += stepMs
         }
 
         Timber.tag("TransitionDebug").d("Overlap loop finished. Swapping.")
