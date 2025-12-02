@@ -13,6 +13,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import com.theveloper.pixelplay.data.model.TransitionSettings
 import com.theveloper.pixelplay.utils.envelope
 import dagger.hilt.android.qualifiers.ApplicationContext
+import timber.log.Timber
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -100,7 +101,13 @@ class DualPlayerEngine @Inject constructor(
     }
 
     private suspend fun performFadeInOutTransition(settings: TransitionSettings) {
-        if (playerB.mediaItemCount == 0) return
+        if (playerB.mediaItemCount == 0) {
+            Timber.d("[Transitions] Skipping fade in/out - next player not prepared")
+            return
+        }
+        if (playerB.playbackState == Player.STATE_IDLE) {
+            playerB.prepare()
+        }
         val halfDuration = settings.durationMs.toLong() / 2
         if (halfDuration <= 0) return
 
@@ -113,7 +120,7 @@ class DualPlayerEngine @Inject constructor(
             elapsed += 50L
         }
         playerA.volume = 0f
-        playerA.stop()
+        playerA.pause()
 
         // 2. Start Player B (already prepared) and fade it in.
         playerB.volume = 0f
@@ -127,12 +134,11 @@ class DualPlayerEngine @Inject constructor(
         }
         playerB.volume = 1f
 
-        // 3. Handover to Player A.
-        // Player A is the master player and its timeline is managed by the MediaController.
-        // We just need to tell it to move to the next item and sync its state with Player B.
+        // 3. Handover to Player A, keeping the existing queue.
         if (playerA.hasNextMediaItem()) {
+            val handoffPosition = playerB.currentPosition
             playerA.seekToNextMediaItem()
-            playerA.seekTo(playerB.currentPosition)
+            playerA.seekTo(handoffPosition)
             playerA.volume = 1f
             playerA.play()
         }
@@ -143,7 +149,13 @@ class DualPlayerEngine @Inject constructor(
     }
 
     private suspend fun performOverlapTransition(settings: TransitionSettings) {
-        if (playerB.mediaItemCount == 0) return
+        if (playerB.mediaItemCount == 0) {
+            Timber.d("[Transitions] Skipping overlap - next player not prepared")
+            return
+        }
+        if (playerB.playbackState == Player.STATE_IDLE) {
+            playerB.prepare()
+        }
 
         // 1. Start Player B and ramp volumes
         playerB.volume = 0f
@@ -161,18 +173,17 @@ class DualPlayerEngine @Inject constructor(
         playerA.volume = 0f
         playerB.volume = 1f
 
-        // 2. Stop Player A after fade-out is complete
-        playerA.stop()
-
-        // 3. Handover to Player A.
+        // 2. Handover to Player A keeping the queue intact
         if (playerA.hasNextMediaItem()) {
+            val handoffPosition = playerB.currentPosition
+            playerA.pause()
             playerA.seekToNextMediaItem()
-            playerA.seekTo(playerB.currentPosition)
+            playerA.seekTo(handoffPosition)
             playerA.volume = 1f
             playerA.play()
         }
 
-        // 4. Clean up Player B
+        // 3. Clean up Player B
         playerB.stop()
         playerB.clearMediaItems()
     }

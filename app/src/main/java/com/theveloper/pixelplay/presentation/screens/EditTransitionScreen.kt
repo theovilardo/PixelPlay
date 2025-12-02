@@ -8,11 +8,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesomeMotion
@@ -121,38 +123,47 @@ fun EditTransitionScreen(
                 CircularProgressIndicator()
             }
         } else {
-            Column(
+            LazyColumn(
                 modifier = Modifier
                     .padding(paddingValues)
-                    .padding(16.dp),
+                    .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                TransitionSummaryCard(
-                    isPlaylistScope = isPlaylistScope,
-                    hasCustomRule = hasCustomRule,
-                    followingGlobal = uiState.useGlobalDefaults,
-                    onResetToGlobal = { viewModel.useGlobalDefaults() },
-                    onEnableOverride = { viewModel.enablePlaylistOverride() },
-                    enabled = isPlaylistScope
-                )
+                item {
+                    TransitionSummaryCard(
+                        isPlaylistScope = isPlaylistScope,
+                        hasCustomRule = hasCustomRule,
+                        followingGlobal = uiState.useGlobalDefaults,
+                        onResetToGlobal = { viewModel.useGlobalDefaults() },
+                        onEnableOverride = { viewModel.enablePlaylistOverride() },
+                        enabled = isPlaylistScope
+                    )
+                }
 
-                TransitionModeSection(
-                    selected = displayedSettings.mode,
-                    onModeSelected = viewModel::updateMode
-                )
+                item {
+                    TransitionModeSection(
+                        selected = displayedSettings.mode,
+                        onModeSelected = viewModel::updateMode
+                    )
+                }
 
-                TransitionDurationSection(
-                    settings = displayedSettings,
-                    onDurationChange = viewModel::updateDuration
-                )
+                item {
+                    TransitionDurationSection(
+                        settings = displayedSettings,
+                        onDurationChange = viewModel::updateDuration
+                    )
+                }
 
-                Divider()
+                item { Divider() }
 
-                TransitionCurvesSection(
-                    settings = displayedSettings,
-                    onCurveInSelected = viewModel::updateCurveIn,
-                    onCurveOutSelected = viewModel::updateCurveOut
-                )
+                item {
+                    TransitionCurvesSection(
+                        settings = displayedSettings,
+                        onCurveInSelected = viewModel::updateCurveIn,
+                        onCurveOutSelected = viewModel::updateCurveOut
+                    )
+                }
+                item { Spacer(modifier = Modifier.padding(bottom = 8.dp)) }
             }
         }
     }
