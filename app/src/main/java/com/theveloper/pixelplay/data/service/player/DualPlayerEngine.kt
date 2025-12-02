@@ -84,9 +84,11 @@ class DualPlayerEngine @Inject constructor(
             Timber.tag("TransitionDebug").d("Engine: prepareNext called for %s", mediaItem.mediaId)
             playerB.stop()
             playerB.clearMediaItems()
+            playerB.playWhenReady = false
             playerB.setMediaItem(mediaItem)
             playerB.prepare()
             playerB.volume = 0f // Start silent
+            playerB.pause() // Keep it paused until the overlap begins
             if (startPositionMs > 0) {
                 playerB.seekTo(startPositionMs)
             } else {
@@ -139,20 +141,45 @@ class DualPlayerEngine @Inject constructor(
             return
         }
 
-        // Wait for B to be ready if it isn't
-        if (playerB.playbackState != Player.STATE_READY) {
-             Timber.tag("TransitionDebug").d("Player B not ready yet. State: %d", playerB.playbackState)
+        // Ensure B is fully buffered and paused at the starting position
+        if (playerB.playbackState == Player.STATE_IDLE) {
+            Timber.tag("TransitionDebug").d("Player B idle. Preparing now.")
+            playerB.prepare()
         }
 
-        if (playerB.playbackState == Player.STATE_IDLE) {
-            playerB.prepare()
+        var readinessChecks = 0
+        while (playerB.playbackState == Player.STATE_BUFFERING && readinessChecks < 80) {
+            Timber.tag("TransitionDebug").v("Waiting for Player B to buffer (state=%d)", playerB.playbackState)
+            delay(25)
+            readinessChecks++
+        }
+
+        if (playerB.playbackState != Player.STATE_READY && playerB.playbackState != Player.STATE_BUFFERING) {
+            Timber.tag("TransitionDebug").w("Player B not ready. State=%d", playerB.playbackState)
         }
 
         // 1. Start Player B and ramp volumes
         playerB.volume = 0f
+        playerA.volume = 1f
+        playerB.playWhenReady = true
         playerB.play()
 
         Timber.tag("TransitionDebug").d("Player B started. Playing: %s", playerB.isPlaying)
+
+        // Ensure Player B is actually outputting audio before we begin the fade
+        var playChecks = 0
+        while (!playerB.isPlaying && playChecks < 80) {
+            Timber.tag("TransitionDebug").v("Waiting for Player B to start rendering audio (state=%d)", playerB.playbackState)
+            delay(25)
+            playChecks++
+        }
+
+        if (!playerB.isPlaying) {
+            Timber.tag("TransitionDebug").e("Player B failed to start in time. Aborting crossfade.")
+            playerA.volume = 1f
+            setPauseAtEndOfMediaItems(false)
+            return
+        }
 
         // Give Player B a moment to actually start outputting audio before we fade
         var warmupChecks = 0
