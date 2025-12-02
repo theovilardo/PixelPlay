@@ -13,9 +13,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -42,8 +42,11 @@ class TransitionController @Inject constructor(
     fun initialize() {
         if (transitionListener != null) return // Already initialized
 
+        Timber.tag("TransitionDebug").d("Initializing TransitionController...")
+
         transitionListener = object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                Timber.tag("TransitionDebug").d("onMediaItemTransition: %s (reason=%d)", mediaItem?.mediaId, reason)
                 if (mediaItem != null) {
                     scheduleTransitionFor(mediaItem)
                 }
@@ -53,21 +56,20 @@ class TransitionController @Inject constructor(
                 val job = transitionSchedulerJob
                 if (isPlaying && (job == null || job.isCompleted)) {
                     // If playback resumes and no transition is scheduled, schedule one.
+                    Timber.tag("TransitionDebug").d("Playback resumed. Checking if transition needs scheduling.")
                     engine.masterPlayer.currentMediaItem?.let { scheduleTransitionFor(it) }
-                } else if (!isPlaying) {
-                    // If playback is paused, cancel any pending transition.
-                    job?.cancel()
                 }
             }
 
             override fun onTimelineChanged(timeline: Timeline, reason: Int) {
                 if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) {
                     // The queue has changed (e.g., reordered, item removed).
-                    // We cancel any pending transition to let the player simply move to the
-                    // next track in the new order. The transition will be rescheduled in
-                    // onMediaItemTransition.
+                    Timber.tag("TransitionDebug").d("Timeline changed (reason=%d). Cancelling pending transition.", reason)
                     transitionSchedulerJob?.cancel()
                     engine.cancelNext()
+
+                    // Try to reschedule for the current item
+                     engine.masterPlayer.currentMediaItem?.let { scheduleTransitionFor(it) }
                 }
             }
         }.also {
@@ -76,71 +78,108 @@ class TransitionController @Inject constructor(
     }
 
     private fun scheduleTransitionFor(currentMediaItem: MediaItem) {
+        // Cancel any existing job first
         transitionSchedulerJob?.cancel()
+
         transitionSchedulerJob = scope.launch {
             val player = engine.masterPlayer
             val nextIndex = player.currentMediaItemIndex + 1
 
             // If there is no next track, cancel any pending transition and stop.
             if (nextIndex >= player.mediaItemCount) {
+                Timber.tag("TransitionDebug").d("No next track (index=%d, count=%d). No transition.", nextIndex, player.mediaItemCount)
                 engine.cancelNext()
                 return@launch
             }
 
             val nextMediaItem = player.getMediaItemAt(nextIndex)
+            Timber.tag("TransitionDebug").d("Preparing next track: %s (Index: %d)", nextMediaItem.mediaId, nextIndex)
             engine.prepareNext(nextMediaItem)
 
             val playlistId = currentMediaItem.mediaMetadata.extras?.getString("playlistId")
             val fromTrackId = currentMediaItem.mediaId
             val toTrackId = nextMediaItem.mediaId
 
+            Timber.tag("TransitionDebug").d("Resolving settings for playlistId=%s, %s -> %s", playlistId, fromTrackId, toTrackId)
+
             // Use collectLatest to automatically cancel and restart the logic if settings change.
             val settingsFlow = if (playlistId != null) {
                 transitionRepository.resolveTransitionSettings(playlistId, fromTrackId, toTrackId)
             } else {
-                Timber.d("[Transitions] Missing playlistId metadata for %s -> %s. Falling back to global settings.", fromTrackId, toTrackId)
+                Timber.tag("TransitionDebug").d("Missing playlistId. Using global settings.")
                 transitionRepository.getGlobalSettings()
             }
 
-            settingsFlow.collectLatest { settings ->
+            settingsFlow
+                .distinctUntilChanged() // Crucial: prevents restarting the job if the same settings are emitted again
+                .collectLatest { settings ->
+
+                Timber.tag("TransitionDebug").d("Settings resolved: Mode=%s, Duration=%dms", settings.mode, settings.durationMs)
+
                 // If transition is disabled or has no duration, do nothing.
                 if (settings.mode == TransitionMode.NONE || settings.durationMs <= 0) {
-                    Timber.d("[Transitions] Skipping transition for %s -> %s (mode=%s, duration=%d)", fromTrackId, toTrackId, settings.mode, settings.durationMs)
+                    Timber.tag("TransitionDebug").d("Transition disabled or zero duration.")
                     return@collectLatest
+                }
+
+                // FORCE OVERLAP MODE FOR DEBUGGING
+                val effectiveSettings = if (settings.mode != TransitionMode.NONE) {
+                    settings.copy(mode = TransitionMode.OVERLAP)
+                } else {
+                    settings
                 }
 
                 // Wait for the player to report a valid duration.
                 var duration = player.duration
-                while (duration == C.TIME_UNSET && isActive) {
-                    delay(100)
+                while ((duration == C.TIME_UNSET || duration <= 0) && isActive) {
+                    delay(500)
                     duration = player.duration
+                    Timber.tag("TransitionDebug").v("Waiting for duration... (%d)", duration)
                 }
 
-                val effectiveDuration = settings.durationMs.coerceAtMost(duration.toInt()).coerceAtLeast(500)
+                if (!isActive) return@collectLatest
+
+                // Calculate transition point
+                // Ensure effective duration isn't longer than the song itself
+                val effectiveDuration = effectiveSettings.durationMs.coerceAtMost(duration.toInt()).coerceAtLeast(500)
                 val transitionPoint = duration - effectiveDuration
 
-                if (transitionPoint <= player.currentPosition || transitionPoint <= 0) {
-                    Timber.d(
-                        "[Transitions] Transition point passed (duration=%d, current=%d). Triggering %s immediately with effectiveDuration=%d",
-                        duration,
-                        player.currentPosition,
-                        settings.mode,
-                        effectiveDuration
-                    )
-                    engine.performTransition(settings.copy(durationMs = effectiveDuration))
+                Timber.tag("TransitionDebug").d(
+                    "Scheduled %s at %d ms (Duration: %d, Effective: %d)",
+                    effectiveSettings.mode, transitionPoint, duration, effectiveDuration
+                )
+
+                if (transitionPoint <= player.currentPosition) {
+                     val remaining = duration - player.currentPosition
+                     if (remaining > 500) {
+                         Timber.tag("TransitionDebug").w("Already past transition point! Triggering immediately.")
+                         engine.performTransition(effectiveSettings.copy(durationMs = remaining.toInt()))
+                     } else {
+                         Timber.tag("TransitionDebug").w("Too close to end (%d ms left). Skipping to avoid glitch.", remaining)
+                     }
                     return@collectLatest
                 }
 
-                Timber.d("[Transitions] Scheduling %s for playlist %s (%s -> %s) at %d ms (effectiveDuration=%d)", settings.mode, playlistId ?: "global", fromTrackId, toTrackId, transitionPoint, effectiveDuration)
-
-                // Wait until the playback position reaches the transition point.
+                // Wait loop with adaptive sleep
                 while (player.currentPosition < transitionPoint && isActive) {
-                    delay(250) // Check periodically.
+                    val remaining = transitionPoint - player.currentPosition
+                    val sleep = when {
+                        remaining > 5000 -> 1000L
+                        remaining > 1000 -> 250L
+                        else -> 50L // Tight loop near the end
+                    }
+                    if (remaining < 2000 && remaining % 500 < 50) {
+                        Timber.tag("TransitionDebug").v("Countdown: %d ms to transition", remaining)
+                    }
+                    delay(sleep)
                 }
 
                 // Final check to ensure the job wasn't cancelled while waiting.
                 if (isActive) {
-                    engine.performTransition(settings.copy(durationMs = effectiveDuration))
+                    Timber.tag("TransitionDebug").d("FIRING TRANSITION NOW!")
+                    engine.performTransition(effectiveSettings.copy(durationMs = effectiveDuration))
+                } else {
+                    Timber.tag("TransitionDebug").d("Job cancelled before firing.")
                 }
             }
         }
@@ -150,6 +189,7 @@ class TransitionController @Inject constructor(
      * Cleans up resources and listeners.
      */
     fun release() {
+        Timber.tag("TransitionDebug").d("Releasing controller.")
         transitionSchedulerJob?.cancel()
         transitionListener?.let { engine.masterPlayer.removeListener(it) }
         transitionListener = null

@@ -264,7 +264,9 @@ private fun TransitionModeSection(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            TransitionMode.entries.forEach { mode ->
+            // Only show Overlap (Crossfade) and None as per debugging request
+            val debugModes = listOf(TransitionMode.OVERLAP, TransitionMode.NONE)
+            debugModes.forEach { mode ->
                 AssistChip(
                     onClick = { onModeSelected(mode) },
                     leadingIcon = {
@@ -276,7 +278,11 @@ private fun TransitionModeSection(
                         }
                         Icon(icon, contentDescription = null)
                     },
-                    label = { Text(mode.name.replace('_', ' ').lowercase().replaceFirstChar { it.titlecase() }) },
+                    label = {
+                        // Rename OVERLAP to Crossfade for clarity
+                        val label = if (mode == TransitionMode.OVERLAP) "Crossfade" else mode.name.replace('_', ' ').lowercase().replaceFirstChar { it.titlecase() }
+                        Text(label)
+                    },
                     colors = AssistChipDefaults.assistChipColors(
                         containerColor = if (selected == mode) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow
                     )
