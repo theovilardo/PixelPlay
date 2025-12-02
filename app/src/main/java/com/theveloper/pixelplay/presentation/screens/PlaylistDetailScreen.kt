@@ -37,8 +37,8 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicOff
 import androidx.compose.material.icons.filled.RemoveCircleOutline
-import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.DragIndicator
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Shuffle
@@ -49,8 +49,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -61,6 +59,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
@@ -251,25 +250,6 @@ fun PlaylistDetailScreen(
                 },
                 scrollBehavior = scrollBehavior
             )
-        },
-        floatingActionButtonPosition = FabPosition.Center,
-        floatingActionButton = {
-            if (!isFolderPlaylist) {
-                ExtendedFloatingActionButton(
-                    modifier = Modifier
-                        .height(if (playerStableState.isPlaying || playerStableState.currentSong != null) MiniPlayerHeight + 60.dp else 66.dp)
-                        .padding(
-                            bottom = if (playerStableState.isPlaying || playerStableState.currentSong != null) MiniPlayerHeight else 10.dp,
-                            //end = 10.dp
-                        ),
-                    shape = CircleShape,
-                    onClick = { showAddSongsSheet = true },
-                    icon = { Icon(Icons.Rounded.Add, "Añadir canciones") },
-                    text = { Text("Add Songs") },
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                )
-            }
         }
     ) { innerPadding ->
         if (uiState.isLoading && currentPlaylist == null) {
@@ -290,6 +270,7 @@ fun PlaylistDetailScreen(
                     .fillMaxSize()
                     .padding(top = innerPadding.calculateTopPadding())
             ) {
+                val actionButtonsHeight = 68.dp
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -372,8 +353,8 @@ fun PlaylistDetailScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 0.dp),
-                        horizontalArrangement = Arrangement.End,
+                            .padding(horizontal = 20.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         val reorderCornerRadius by animateDpAsState(
@@ -403,17 +384,42 @@ fun PlaylistDetailScreen(
                         )
 
                         Button(
+                            onClick = { showAddSongsSheet = true },
+                            shape = RoundedCornerShape(16.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(actionButtonsHeight)
+                                .animateContentSize()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Add,
+                                contentDescription = "Add songs",
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Add songs",
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
+
+                        Button(
                             onClick = { isRemoveModeEnabled = !isRemoveModeEnabled },
                             shape = RoundedCornerShape(removeCornerRadius),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = removeButtonColor,
                                 contentColor = removeIconColor
                             ),
                             modifier = Modifier
-                                .align(Alignment.CenterVertically)
+                                .weight(1f)
+                                .height(actionButtonsHeight)
                                 .animateContentSize()
-                                .padding(bottom = 8.dp)
                                 .clip(RoundedCornerShape(removeCornerRadius))
                         ) {
                             Icon(
@@ -431,20 +437,18 @@ fun PlaylistDetailScreen(
                             )
                         }
 
-                        Spacer(Modifier.width(8.dp))
-
                         Button(
                             onClick = { isReorderModeEnabled = !isReorderModeEnabled },
                             shape = RoundedCornerShape(reorderCornerRadius),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = reorderButtonColor,
                                 contentColor = reorderIconColor
                             ),
                             modifier = Modifier
-                                .align(Alignment.CenterVertically)
+                                .weight(1f)
+                                .height(actionButtonsHeight)
                                 .animateContentSize()
-                                .padding(bottom = 8.dp)
                                 .clip(RoundedCornerShape(reorderCornerRadius))
                         ) {
                             Icon(
@@ -499,7 +503,11 @@ fun PlaylistDetailScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(
                             top = 12.dp,
-                            bottom = if (playerStableState.isPlaying || playerStableState.currentSong != null) MiniPlayerHeight + 32.dp + 104.dp else 10.dp + 104.dp
+                            bottom = if (playerStableState.isPlaying || playerStableState.currentSong != null) {
+                                MiniPlayerHeight + 32.dp + actionButtonsHeight
+                            } else {
+                                10.dp + actionButtonsHeight
+                            }
                         )
                     ) {
                         itemsIndexed(
@@ -600,14 +608,38 @@ fun PlaylistDetailScreen(
         ModalBottomSheet(
             onDismissRequest = { showPlaylistOptionsSheet = false },
             sheetState = sheetState,
-            containerColor = MaterialTheme.colorScheme.surface,
-            tonalElevation = 2.dp
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            tonalElevation = 4.dp,
+            dragHandle = {
+                SheetDefaults.DragHandle(
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp)
+                    .padding(vertical = 12.dp)
             ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = "Playlist options",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    currentPlaylist?.name?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
                 PlaylistActionItem(
                     icon = Icons.Filled.Edit,
                     label = "Editar nombre",
@@ -764,16 +796,27 @@ private fun PlaylistActionItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .clickable(onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 14.dp),
+            .padding(horizontal = 18.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.width(16.dp))
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
+        Spacer(modifier = Modifier.width(14.dp))
         Text(
             text = label,
             style = MaterialTheme.typography.titleMedium,
