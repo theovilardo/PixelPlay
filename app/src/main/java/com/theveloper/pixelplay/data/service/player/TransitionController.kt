@@ -117,11 +117,11 @@ class TransitionController @Inject constructor(
                 .distinctUntilChanged() // Crucial: prevents restarting the job if the same settings are emitted again
                 .collectLatest { settings ->
 
-                Timber.tag("TransitionDebug").d("Settings resolved: Mode=%s, Duration=%dms", settings.mode, settings.durationMs)
+                Timber.tag("TransitionDebug").i("COLLECT LATEST: Settings emitted. Mode=%s, Duration=%dms", settings.mode, settings.durationMs)
 
                 // If transition is disabled or has no duration, do nothing.
                 if (settings.mode == TransitionMode.NONE || settings.durationMs <= 0) {
-                    Timber.tag("TransitionDebug").d("Transition disabled or zero duration.")
+                    Timber.tag("TransitionDebug").i("Transition disabled or zero duration. Mode=%s, Duration=%d", settings.mode, settings.durationMs)
                     engine.setPauseAtEndOfMediaItems(false)
                     return@collectLatest
                 }
@@ -138,15 +138,23 @@ class TransitionController @Inject constructor(
                 while ((duration == C.TIME_UNSET || duration <= 0) && isActive) {
                     delay(500)
                     duration = player.duration
-                    Timber.tag("TransitionDebug").v("Waiting for duration... (%d)", duration)
+                    Timber.tag("TransitionDebug").w("Waiting for duration... Currently: %d", duration)
                 }
 
-                if (!isActive) return@collectLatest
+                if (!isActive) {
+                    Timber.tag("TransitionDebug").d("Job inactive after waiting for duration.")
+                    return@collectLatest
+                }
+
+                Timber.tag("TransitionDebug").i("Duration obtained: %d ms", duration)
 
                 // Calculate transition point
                 // Ensure effective duration isn't longer than the song itself
                 val effectiveDuration = effectiveSettings.durationMs.coerceAtMost(duration.toInt()).coerceAtLeast(500)
-                val transitionPoint = duration - effectiveDuration
+                // Add a safety buffer to ensure the transition finishes before the song actually ends,
+                // preventing Player A from auto-pausing (and potentially losing audio focus) before we can hand off.
+                val safetyBuffer = 500
+                val transitionPoint = (duration - effectiveDuration - safetyBuffer).coerceAtLeast(0)
 
                 Timber.tag("TransitionDebug").d(
                     "Scheduled %s at %d ms (Duration: %d, Effective: %d)",
@@ -160,9 +168,10 @@ class TransitionController @Inject constructor(
 
                 if (transitionPoint <= player.currentPosition) {
                      val remaining = duration - player.currentPosition
-                     if (remaining > 500) {
+                     // We need enough time to actually perform a transition
+                     if (remaining > safetyBuffer + 200) {
                          Timber.tag("TransitionDebug").w("Already past transition point! Triggering immediately.")
-                         engine.performTransition(effectiveSettings.copy(durationMs = remaining.toInt()))
+                         engine.performTransition(effectiveSettings.copy(durationMs = (remaining - safetyBuffer).toInt()))
                      } else {
                          Timber.tag("TransitionDebug").w("Too close to end (%d ms left). Skipping to avoid glitch.", remaining)
                          engine.setPauseAtEndOfMediaItems(false)
@@ -171,6 +180,7 @@ class TransitionController @Inject constructor(
                 }
 
                 // Wait loop with adaptive sleep
+                Timber.tag("TransitionDebug").i("Entering wait loop. Current: %d, Target: %d", player.currentPosition, transitionPoint)
                 while (player.currentPosition < transitionPoint && isActive) {
                     val remaining = transitionPoint - player.currentPosition
                     val sleep = when {
@@ -178,8 +188,8 @@ class TransitionController @Inject constructor(
                         remaining > 1000 -> 250L
                         else -> 50L // Tight loop near the end
                     }
-                    if (remaining < 2000 && remaining % 500 < 50) {
-                        Timber.tag("TransitionDebug").v("Countdown: %d ms to transition", remaining)
+                    if (remaining < 5000 && remaining % 1000 < 100) {
+                        Timber.tag("TransitionDebug").v("Countdown: %d ms to transition (Pos: %d)", remaining, player.currentPosition)
                     }
                     delay(sleep)
                 }
