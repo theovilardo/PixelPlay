@@ -91,13 +91,14 @@ class DualPlayerEngine @Inject constructor(
             playerB.setMediaItem(mediaItem)
             playerB.prepare()
             playerB.volume = 0f // Start silent
-            playerB.pause() // Keep it paused until the overlap begins
             if (startPositionMs > 0) {
                 playerB.seekTo(startPositionMs)
             } else {
                 playerB.seekTo(0)
             }
-            Timber.tag("TransitionDebug").d("Engine: Player B prepared and silent.")
+            // Critical: leave B paused so it can start instantly when asked
+            playerB.pause()
+            Timber.tag("TransitionDebug").d("Engine: Player B prepared, paused, volume=0f")
         } catch (e: Exception) {
             Timber.tag("TransitionDebug").e(e, "Failed to prepare next player")
         }
@@ -155,28 +156,32 @@ class DualPlayerEngine @Inject constructor(
             playerB.prepare()
         }
 
+        // Wait until READY (or until it is clearly failing) to guarantee instant start
         var readinessChecks = 0
-        while (playerB.playbackState == Player.STATE_BUFFERING && readinessChecks < 80) {
+        while (playerB.playbackState == Player.STATE_BUFFERING && readinessChecks < 120) {
             Timber.tag("TransitionDebug").v("Waiting for Player B to buffer (state=%d)", playerB.playbackState)
             delay(25)
             readinessChecks++
         }
 
-        if (playerB.playbackState != Player.STATE_READY && playerB.playbackState != Player.STATE_BUFFERING) {
-            Timber.tag("TransitionDebug").w("Player B not ready. State=%d", playerB.playbackState)
+        if (playerB.playbackState != Player.STATE_READY) {
+            Timber.tag("TransitionDebug").w("Player B not ready for overlap. State=%d", playerB.playbackState)
+            return
         }
 
-        // 1. Start Player B and ramp volumes
+        // 1. Start Player B paused with volume=0 then immediately request play so overlap is audible
         playerB.volume = 0f
         playerA.volume = 1f
         if (!playerA.isPlaying && playerA.playbackState == Player.STATE_READY) {
             // Ensure the outgoing track keeps rendering during the crossfade window
             playerA.play()
         }
+
+        // Make sure PlayWhenReady is honored even if we had paused earlier
         playerB.playWhenReady = true
         playerB.play()
 
-        Timber.tag("TransitionDebug").d("Player B started. Playing: %s", playerB.isPlaying)
+        Timber.tag("TransitionDebug").d("Player B started for overlap. Playing=%s state=%d", playerB.isPlaying, playerB.playbackState)
 
         // Ensure Player B is actually outputting audio before we begin the fade
         var playChecks = 0
@@ -193,12 +198,8 @@ class DualPlayerEngine @Inject constructor(
             return
         }
 
-        // Give Player B a moment to actually start outputting audio before we fade
-        var warmupChecks = 0
-        while (playerB.playbackState == Player.STATE_BUFFERING && warmupChecks < 40) {
-            delay(25)
-            warmupChecks++
-        }
+        // Small warmup to guarantee audible overlap (some devices output a few ms late)
+        delay(75)
 
         val duration = settings.durationMs.toLong()
         val stepMs = 16L
