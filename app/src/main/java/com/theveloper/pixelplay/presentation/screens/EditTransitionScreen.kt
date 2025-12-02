@@ -369,8 +369,8 @@ private fun TransitionCurvesSection(
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-            CurveCard(title = "Fade in", selected = settings.curveIn, onCurveSelected = onCurveInSelected)
-            CurveCard(title = "Fade out", selected = settings.curveOut, onCurveSelected = onCurveOutSelected)
+            CurveCard(modifier = Modifier.weight(1f), title = "Fade in", selected = settings.curveIn, onCurveSelected = onCurveInSelected)
+            CurveCard(modifier = Modifier.weight(1f), title = "Fade out", selected = settings.curveOut, onCurveSelected = onCurveOutSelected)
         }
     }
 }
@@ -378,11 +378,12 @@ private fun TransitionCurvesSection(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CurveCard(
+    modifier: Modifier,
     title: String,
     selected: Curve,
     onCurveSelected: (Curve) -> Unit
 ) {
-    ElevatedCard(modifier = Modifier.weight(1f)) {
+    ElevatedCard(modifier = modifier) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
             FlowRow(
