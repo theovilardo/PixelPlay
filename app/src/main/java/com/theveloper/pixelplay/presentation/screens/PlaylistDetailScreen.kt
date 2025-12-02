@@ -651,7 +651,7 @@ fun PlaylistDetailScreen(
                     }
                 )
                 PlaylistActionItem(
-                    icon = painterResource(R.drawable.rounded_auto_delete_24),
+                    icon = painterResource(R.drawable.rounded_delete_24),
                     label = "Eliminar playlist",
                     onClick = {
                         showPlaylistOptionsSheet = false
