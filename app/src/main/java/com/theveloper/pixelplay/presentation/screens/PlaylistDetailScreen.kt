@@ -49,6 +49,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -59,7 +60,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SheetDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
@@ -81,6 +81,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalView
@@ -270,13 +271,14 @@ fun PlaylistDetailScreen(
                     .fillMaxSize()
                     .padding(top = innerPadding.calculateTopPadding())
             ) {
-                val actionButtonsHeight = 68.dp
+                val actionButtonsHeight = 42.dp
+                val playbackControlBottomPadding = if (isFolderPlaylist) 8.dp else 6.dp
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(62.dp)
                         .padding(horizontal = 20.dp)
-                        .padding(bottom = 6.dp),
+                        .padding(bottom = playbackControlBottomPadding),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
@@ -353,8 +355,8 @@ fun PlaylistDetailScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            .padding(start = 20.dp, end = 20.dp, bottom = 8.dp, top = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         val reorderCornerRadius by animateDpAsState(
@@ -385,14 +387,14 @@ fun PlaylistDetailScreen(
 
                         Button(
                             onClick = { showAddSongsSheet = true },
-                            shape = RoundedCornerShape(16.dp),
+                            shape = CircleShape,
                             contentPadding = PaddingValues(horizontal = 12.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                                 contentColor = MaterialTheme.colorScheme.onTertiaryContainer
                             ),
                             modifier = Modifier
-                                .weight(1f)
+                                .weight(0.75f)
                                 .height(actionButtonsHeight)
                                 .animateContentSize()
                         ) {
@@ -401,9 +403,9 @@ fun PlaylistDetailScreen(
                                 contentDescription = "Add songs",
                                 modifier = Modifier.size(20.dp)
                             )
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(4.dp))
                             Text(
-                                text = "Add songs",
+                                text = "Add",
                                 style = MaterialTheme.typography.labelLarge
                             )
                         }
@@ -610,11 +612,11 @@ fun PlaylistDetailScreen(
             sheetState = sheetState,
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             tonalElevation = 4.dp,
-            dragHandle = {
-                SheetDefaults.DragHandle(
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+//            dragHandle = {
+//                SheetDefaults.DragHandle(
+//                    color = MaterialTheme.colorScheme.onSurfaceVariant
+//                )
+//            }
         ) {
             Column(
                 modifier = Modifier
@@ -641,7 +643,7 @@ fun PlaylistDetailScreen(
                     }
                 }
                 PlaylistActionItem(
-                    icon = Icons.Filled.Edit,
+                    icon = painterResource(R.drawable.rounded_edit_24),
                     label = "Editar nombre",
                     onClick = {
                         showPlaylistOptionsSheet = false
@@ -649,7 +651,7 @@ fun PlaylistDetailScreen(
                     }
                 )
                 PlaylistActionItem(
-                    icon = Icons.Filled.DeleteOutline,
+                    icon = painterResource(R.drawable.rounded_auto_delete_24),
                     label = "Eliminar playlist",
                     onClick = {
                         showPlaylistOptionsSheet = false
@@ -657,7 +659,7 @@ fun PlaylistDetailScreen(
                     }
                 )
                 PlaylistActionItem(
-                    icon = Icons.Rounded.Check,
+                    icon = painterResource(R.drawable.outline_graph_1_24),
                     label = "Set default transition",
                     onClick = {
                         showPlaylistOptionsSheet = false
@@ -789,7 +791,7 @@ fun PlaylistDetailScreen(
 
 @Composable
 private fun PlaylistActionItem(
-    icon: ImageVector,
+    icon: Painter,
     label: String,
     onClick: () -> Unit
 ) {
@@ -800,7 +802,7 @@ private fun PlaylistActionItem(
             .clip(RoundedCornerShape(18.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -811,7 +813,7 @@ private fun PlaylistActionItem(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = icon,
+                painter = icon,
                 contentDescription = label,
                 tint = MaterialTheme.colorScheme.primary
             )
