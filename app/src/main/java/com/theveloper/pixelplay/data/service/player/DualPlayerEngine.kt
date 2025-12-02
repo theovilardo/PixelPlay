@@ -68,10 +68,15 @@ class DualPlayerEngine @Inject constructor(
      * Prepares the auxiliary player (Player B) with the next media item.
      */
     fun prepareNext(mediaItem: MediaItem) {
-        playerB.stop()
-        playerB.clearMediaItems()
-        playerB.setMediaItem(mediaItem)
-        playerB.prepare()
+        try {
+            playerB.stop()
+            playerB.clearMediaItems()
+            playerB.setMediaItem(mediaItem)
+            playerB.prepare()
+            playerB.volume = 0f // Start silent
+        } catch (e: Exception) {
+            Timber.e(e, "[Transitions] Failed to prepare next player")
+        }
     }
 
     /**
@@ -82,6 +87,8 @@ class DualPlayerEngine @Inject constructor(
             playerB.stop()
             playerB.clearMediaItems()
         }
+        // Ensure master player is full volume if we cancel
+        playerA.volume = 1f
     }
 
     /**
@@ -90,17 +97,25 @@ class DualPlayerEngine @Inject constructor(
     fun performTransition(settings: TransitionSettings) {
         transitionJob?.cancel()
         transitionJob = scope.launch {
-            when (settings.mode) {
-                com.theveloper.pixelplay.data.model.TransitionMode.FADE_IN_OUT -> performFadeInOutTransition(settings)
-                com.theveloper.pixelplay.data.model.TransitionMode.OVERLAP, com.theveloper.pixelplay.data.model.TransitionMode.SMOOTH -> performOverlapTransition(settings)
-                com.theveloper.pixelplay.data.model.TransitionMode.NONE -> {
-                    // No transition logic needed, the default player behavior should suffice.
+            try {
+                when (settings.mode) {
+                    com.theveloper.pixelplay.data.model.TransitionMode.FADE_IN_OUT -> performFadeInOutTransition(settings)
+                    com.theveloper.pixelplay.data.model.TransitionMode.OVERLAP, com.theveloper.pixelplay.data.model.TransitionMode.SMOOTH -> performOverlapTransition(settings)
+                    com.theveloper.pixelplay.data.model.TransitionMode.NONE -> {
+                        // No transition logic needed, the default player behavior should suffice.
+                    }
                 }
+            } catch (e: Exception) {
+                Timber.e(e, "[Transitions] Error performing transition")
+                // Fallback: Restore volume
+                playerA.volume = 1f
+                playerB.stop()
             }
         }
     }
 
     private suspend fun performFadeInOutTransition(settings: TransitionSettings) {
+        Timber.d("[Transitions] Starting Fade In/Out")
         if (playerB.mediaItemCount == 0) {
             Timber.d("[Transitions] Skipping fade in/out - next player not prepared")
             return
@@ -134,21 +149,12 @@ class DualPlayerEngine @Inject constructor(
         }
         playerB.volume = 1f
 
-        // 3. Handover to Player A, keeping the existing queue.
-        if (playerA.hasNextMediaItem()) {
-            val handoffPosition = playerB.currentPosition
-            playerA.seekToNextMediaItem()
-            playerA.seekTo(handoffPosition)
-            playerA.volume = 1f
-            playerA.play()
-        }
-
-        // 4. Clean up Player B
-        playerB.stop()
-        playerB.clearMediaItems()
+        finalizeTransition()
     }
 
     private suspend fun performOverlapTransition(settings: TransitionSettings) {
+        Timber.d("[Transitions] Starting Overlap. Duration: %d", settings.durationMs)
+
         if (playerB.mediaItemCount == 0) {
             Timber.d("[Transitions] Skipping overlap - next player not prepared")
             return
@@ -163,24 +169,55 @@ class DualPlayerEngine @Inject constructor(
 
         val duration = settings.durationMs.toLong()
         var elapsed = 0L
+        val startTime = System.currentTimeMillis()
+
+        // Safety brake: Monitor playerA state. If it ends naturally, break loop.
+
         while (elapsed < duration) {
-            val progress = elapsed.toFloat() / duration
+            // Recalculate elapsed to be precise
+            elapsed = System.currentTimeMillis() - startTime
+
+            val progress = (elapsed.toFloat() / duration).coerceIn(0f, 1f)
             playerA.volume = 1f - envelope(progress, settings.curveOut)
             playerB.volume = envelope(progress, settings.curveIn)
-            delay(50L)
-            elapsed += 50L
+
+            if (!playerA.isPlaying) {
+                 Timber.w("[Transitions] Player A stopped playing prematurely during transition!")
+                 break
+            }
+
+            delay(32L) // ~30fps update for smooth volume
         }
+
+        Timber.d("[Transitions] Overlap loop finished. Swapping.")
         playerA.volume = 0f
         playerB.volume = 1f
 
-        // 2. Handover to Player A keeping the queue intact
+        finalizeTransition()
+    }
+
+    private fun finalizeTransition() {
+         // 2. Handover to Player A keeping the queue intact
         if (playerA.hasNextMediaItem()) {
             val handoffPosition = playerB.currentPosition
+            Timber.d("[Transitions] Handoff: Seek A to next item at %d ms", handoffPosition)
+
+            // To avoid a glitch, we seek first, then volume up?
+            // Player A is currently paused or volume 0.
+
             playerA.pause()
             playerA.seekToNextMediaItem()
+
+            // Critical: If we just seek, ExoPlayer might take a moment to buffer.
+            // But since it's the same file (usually cached), it should be fast.
+            // Ideally we'd wait for STATE_READY, but we'll try immediate.
+
             playerA.seekTo(handoffPosition)
             playerA.volume = 1f
             playerA.play()
+        } else {
+             Timber.w("[Transitions] Player A has no next item?")
+             playerA.volume = 1f // restore just in case
         }
 
         // 3. Clean up Player B
