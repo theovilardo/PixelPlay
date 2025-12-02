@@ -63,6 +63,8 @@ class DualPlayerEngine @Inject constructor(
         return ExoPlayer.Builder(context, renderersFactory).build().apply {
             setAudioAttributes(audioAttributes, handleAudioFocus)
             setHandleAudioBecomingNoisy(handleAudioFocus)
+            // Explicitly keep both players live so they can overlap without affecting each other
+            playWhenReady = false
         }
     }
 
@@ -77,7 +79,7 @@ class DualPlayerEngine @Inject constructor(
     /**
      * Prepares the auxiliary player (Player B) with the next media item.
      */
-    fun prepareNext(mediaItem: MediaItem) {
+    fun prepareNext(mediaItem: MediaItem, startPositionMs: Long = 0L) {
         try {
             Timber.tag("TransitionDebug").d("Engine: prepareNext called for %s", mediaItem.mediaId)
             playerB.stop()
@@ -85,6 +87,11 @@ class DualPlayerEngine @Inject constructor(
             playerB.setMediaItem(mediaItem)
             playerB.prepare()
             playerB.volume = 0f // Start silent
+            if (startPositionMs > 0) {
+                playerB.seekTo(startPositionMs)
+            } else {
+                playerB.seekTo(0)
+            }
             Timber.tag("TransitionDebug").d("Engine: Player B prepared and silent.")
         } catch (e: Exception) {
             Timber.tag("TransitionDebug").e(e, "Failed to prepare next player")
@@ -147,6 +154,13 @@ class DualPlayerEngine @Inject constructor(
 
         Timber.tag("TransitionDebug").d("Player B started. Playing: %s", playerB.isPlaying)
 
+        // Give Player B a moment to actually start outputting audio before we fade
+        var warmupChecks = 0
+        while (playerB.playbackState == Player.STATE_BUFFERING && warmupChecks < 40) {
+            delay(25)
+            warmupChecks++
+        }
+
         val duration = settings.durationMs.toLong()
         var elapsed = 0L
         val startTime = System.currentTimeMillis()
@@ -187,7 +201,7 @@ class DualPlayerEngine @Inject constructor(
         finalizeTransition()
     }
 
-    private fun finalizeTransition() {
+    private suspend fun finalizeTransition() {
          // 2. Handover to Player A keeping the queue intact
         if (playerA.hasNextMediaItem()) {
             val handoffPosition = playerB.currentPosition
@@ -205,7 +219,22 @@ class DualPlayerEngine @Inject constructor(
             playerA.seekTo(handoffPosition)
             playerA.volume = 1f
             playerA.play()
-            Timber.tag("TransitionDebug").d("Player A resumed on next track.")
+
+            // Keep B alive until A actually starts rendering audio to avoid gaps
+            var safetyChecks = 0
+            while (playerA.playbackState == Player.STATE_BUFFERING && safetyChecks < 40) {
+                Timber.tag("TransitionDebug").v("Waiting for Player A to start after handoff (state=%d)", playerA.playbackState)
+                delay(25)
+                safetyChecks++
+            }
+            safetyChecks = 0
+            while (!playerA.isPlaying && playerA.playbackState != Player.STATE_ENDED && safetyChecks < 80) {
+                Timber.tag("TransitionDebug").v("Player A not playing yet after handoff (state=%d)", playerA.playbackState)
+                delay(25)
+                safetyChecks++
+            }
+
+            Timber.tag("TransitionDebug").d("Player A resumed on next track. State=%d, playing=%s", playerA.playbackState, playerA.isPlaying)
         } else {
              Timber.tag("TransitionDebug").w("Player A has no next item?")
              playerA.volume = 1f // restore just in case
@@ -213,6 +242,7 @@ class DualPlayerEngine @Inject constructor(
         }
 
         // 3. Clean up Player B
+        playerB.pause()
         playerB.stop()
         playerB.clearMediaItems()
         Timber.tag("TransitionDebug").d("Player B stopped and cleared.")
