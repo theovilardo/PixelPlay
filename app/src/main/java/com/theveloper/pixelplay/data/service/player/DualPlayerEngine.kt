@@ -143,10 +143,10 @@ class DualPlayerEngine @Inject constructor(
     }
 
     private suspend fun performOverlapTransition(settings: TransitionSettings) {
-        Timber.tag("TransitionDebug").d("Starting Overlap/Crossfade. Duration: %d ms", settings.durationMs)
+        Timber.tag("TransitionDebug").i("Starting Overlap/Crossfade. Duration: %d ms", settings.durationMs)
 
         if (playerB.mediaItemCount == 0) {
-            Timber.tag("TransitionDebug").w("Skipping overlap - next player not prepared (count=0)")
+            Timber.tag("TransitionDebug").e("Skipping overlap - next player not prepared (count=0)")
             return
         }
 
