@@ -34,10 +34,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicOff
 import androidx.compose.material.icons.filled.RemoveCircleOutline
-import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.DragIndicator
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Shuffle
@@ -49,7 +50,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -81,6 +81,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
@@ -146,6 +148,8 @@ fun PlaylistDetailScreen(
     var isReorderModeEnabled by remember { mutableStateOf(false) }
     var isRemoveModeEnabled by remember { mutableStateOf(false) }
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
+    var showPlaylistOptionsSheet by remember { mutableStateOf(false) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
     val selectedSongForInfo by playerViewModel.selectedSongForInfo.collectAsState()
     val favoriteIds by playerViewModel.favoriteSongIds.collectAsState() // Reintroducir favoriteIds aquí
     val stableOnMoreOptionsClick: (Song) -> Unit = remember {
@@ -236,48 +240,17 @@ fun PlaylistDetailScreen(
                 actions = {
                     if (!isFolderPlaylist) {
                         FilledTonalIconButton(
-                            colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                contentColor = MaterialTheme.colorScheme.onSurface
-                            ),
-                            onClick = { showRenameDialog = true }
-                        ) { Icon(Icons.Filled.Edit, "Renombrar") }
-                        FilledTonalIconButton(
                             modifier = Modifier.padding(end = 10.dp),
                             colors = IconButtonDefaults.filledIconButtonColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                                 contentColor = MaterialTheme.colorScheme.onSurface
                             ),
-                            onClick = {
-                                currentPlaylist?.let { playlistViewModel.deletePlaylist(it.id) }
-                                onDeletePlayListClick()
-                            }
-                        ) {
-                            Icon(Icons.Filled.DeleteOutline, "Eliminar Playlist")
-                        }
+                            onClick = { showPlaylistOptionsSheet = true }
+                        ) { Icon(Icons.Filled.MoreVert, "Más opciones") }
                     }
                 },
                 scrollBehavior = scrollBehavior
             )
-        },
-        floatingActionButtonPosition = FabPosition.Center,
-        floatingActionButton = {
-            if (!isFolderPlaylist) {
-                ExtendedFloatingActionButton(
-                    modifier = Modifier
-                        .height(if (playerStableState.isPlaying || playerStableState.currentSong != null) MiniPlayerHeight + 60.dp else 66.dp)
-                        .padding(
-                            bottom = if (playerStableState.isPlaying || playerStableState.currentSong != null) MiniPlayerHeight else 10.dp,
-                            //end = 10.dp
-                        ),
-                    shape = CircleShape,
-                    onClick = { showAddSongsSheet = true },
-                    icon = { Icon(Icons.Rounded.Add, "Añadir canciones") },
-                    text = { Text("Add Songs") },
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                )
-            }
         }
     ) { innerPadding ->
         if (uiState.isLoading && currentPlaylist == null) {
@@ -298,12 +271,14 @@ fun PlaylistDetailScreen(
                     .fillMaxSize()
                     .padding(top = innerPadding.calculateTopPadding())
             ) {
+                val actionButtonsHeight = 42.dp
+                val playbackControlBottomPadding = if (isFolderPlaylist) 8.dp else 6.dp
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(62.dp)
                         .padding(horizontal = 20.dp)
-                        .padding(bottom = 6.dp),
+                        .padding(bottom = playbackControlBottomPadding),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
@@ -380,8 +355,8 @@ fun PlaylistDetailScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 0.dp),
-                        horizontalArrangement = Arrangement.End,
+                            .padding(start = 20.dp, end = 20.dp, bottom = 8.dp, top = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         val reorderCornerRadius by animateDpAsState(
@@ -411,17 +386,42 @@ fun PlaylistDetailScreen(
                         )
 
                         Button(
+                            onClick = { showAddSongsSheet = true },
+                            shape = CircleShape,
+                            contentPadding = PaddingValues(horizontal = 12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                            ),
+                            modifier = Modifier
+                                .weight(0.75f)
+                                .height(actionButtonsHeight)
+                                .animateContentSize()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Add,
+                                contentDescription = "Add songs",
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text = "Add",
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
+
+                        Button(
                             onClick = { isRemoveModeEnabled = !isRemoveModeEnabled },
                             shape = RoundedCornerShape(removeCornerRadius),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = removeButtonColor,
                                 contentColor = removeIconColor
                             ),
                             modifier = Modifier
-                                .align(Alignment.CenterVertically)
+                                .weight(1f)
+                                .height(actionButtonsHeight)
                                 .animateContentSize()
-                                .padding(bottom = 8.dp)
                                 .clip(RoundedCornerShape(removeCornerRadius))
                         ) {
                             Icon(
@@ -439,20 +439,18 @@ fun PlaylistDetailScreen(
                             )
                         }
 
-                        Spacer(Modifier.width(8.dp))
-
                         Button(
                             onClick = { isReorderModeEnabled = !isReorderModeEnabled },
                             shape = RoundedCornerShape(reorderCornerRadius),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = reorderButtonColor,
                                 contentColor = reorderIconColor
                             ),
                             modifier = Modifier
-                                .align(Alignment.CenterVertically)
+                                .weight(1f)
+                                .height(actionButtonsHeight)
                                 .animateContentSize()
-                                .padding(bottom = 8.dp)
                                 .clip(RoundedCornerShape(reorderCornerRadius))
                         ) {
                             Icon(
@@ -507,7 +505,11 @@ fun PlaylistDetailScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(
                             top = 12.dp,
-                            bottom = if (playerStableState.isPlaying || playerStableState.currentSong != null) MiniPlayerHeight + 32.dp + 104.dp else 10.dp + 104.dp
+                            bottom = if (playerStableState.isPlaying || playerStableState.currentSong != null) {
+                                MiniPlayerHeight + 32.dp + actionButtonsHeight
+                            } else {
+                                10.dp + actionButtonsHeight
+                            }
                         )
                     ) {
                         itemsIndexed(
@@ -599,6 +601,96 @@ fun PlaylistDetailScreen(
             onConfirm = { selectedIds ->
                 playlistViewModel.addSongsToPlaylist(currentPlaylist.id, selectedIds.toList())
                 showAddSongsSheet = false
+            }
+        )
+    }
+    if (showPlaylistOptionsSheet && !isFolderPlaylist) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+        ModalBottomSheet(
+            onDismissRequest = { showPlaylistOptionsSheet = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            tonalElevation = 4.dp,
+//            dragHandle = {
+//                SheetDefaults.DragHandle(
+//                    color = MaterialTheme.colorScheme.onSurfaceVariant
+//                )
+//            }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = "Playlist options",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    currentPlaylist?.name?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                PlaylistActionItem(
+                    icon = painterResource(R.drawable.rounded_edit_24),
+                    label = "Editar nombre",
+                    onClick = {
+                        showPlaylistOptionsSheet = false
+                        showRenameDialog = true
+                    }
+                )
+                PlaylistActionItem(
+                    icon = painterResource(R.drawable.rounded_auto_delete_24),
+                    label = "Eliminar playlist",
+                    onClick = {
+                        showPlaylistOptionsSheet = false
+                        showDeleteConfirmation = true
+                    }
+                )
+                PlaylistActionItem(
+                    icon = painterResource(R.drawable.outline_graph_1_24),
+                    label = "Set default transition",
+                    onClick = {
+                        showPlaylistOptionsSheet = false
+                        playerViewModel.sendToast("Coming soon…")
+                    }
+                )
+            }
+        }
+    }
+    if (showDeleteConfirmation && currentPlaylist != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = { Text("Delete playlist?") },
+            text = {
+                Text("Are you sure you want to delete this playlist?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        playlistViewModel.deletePlaylist(currentPlaylist.id)
+                        onDeletePlayListClick()
+                        showDeleteConfirmation = false
+                    }
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmation = false }) {
+                    Text("Cancel")
+                }
             }
         )
     }
@@ -695,6 +787,44 @@ fun PlaylistDetailScreen(
         }
     }
 
+}
+
+@Composable
+private fun PlaylistActionItem(
+    icon: Painter,
+    label: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                painter = icon,
+                contentDescription = label,
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
+        Spacer(modifier = Modifier.width(14.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
