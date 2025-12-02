@@ -1723,7 +1723,7 @@ fun AlbumGridItemRedesigned(
                 Box(contentAlignment = Alignment.BottomStart) {
                     var isLoadingImage by remember { mutableStateOf(true) }
                     SmartImage(
-                        model = album.albumArtUriString ?: R.drawable.rounded_album_24,
+                        model = album.albumArtUriString,
                         contentDescription = "Carátula de ${album.title}",
                         contentScale = ContentScale.Crop,
                             // Reducido el tamaño para mejorar el rendimiento del scroll, como se sugiere en el informe.

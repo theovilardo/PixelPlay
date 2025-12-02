@@ -342,7 +342,7 @@ fun SongListItemFavs(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 SmartImage(
-                    model = albumArtUrl ?: Icons.Filled.MusicNote,
+                    model = albumArtUrl,
                     contentDescription = "Carátula de $title",
                     contentScale = ContentScale.Crop,
                     shape = RoundedCornerShape(8.dp),

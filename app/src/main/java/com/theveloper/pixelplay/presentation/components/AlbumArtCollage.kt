@@ -62,8 +62,8 @@ fun AlbumArtCollage(
                     .data(it)
                     .dispatcher(Dispatchers.IO)
                     .crossfade(true)
-                    //.placeholder(R.drawable.rounded_album_24)
-                    .error(R.drawable.rounded_album_24)
+                    //.placeholder(R.drawable.ic_music_placeholder)
+                    .error(R.drawable.ic_music_placeholder)
                     .build()
             }
         }.toImmutableList()
@@ -97,7 +97,7 @@ fun AlbumArtCollage(
                     topConfigs.forEachIndexed { idx, cfg ->
                         songsToShow.getOrNull(idx)?.let { song ->
                             SmartImage(
-                                model = requests[idx] ?: R.drawable.rounded_album_24,
+                                model = requests[idx],
                                 contentDescription = null,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
@@ -119,7 +119,7 @@ fun AlbumArtCollage(
                     bottomConfigs.forEachIndexed { j, cfg ->
                         songsToShow.getOrNull(j + 3)?.let { song ->
                             SmartImage(
-                                model = requests[j + 3] ?: R.drawable.rounded_album_24,
+                                model = requests[j + 3],
                                 contentDescription = null,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier

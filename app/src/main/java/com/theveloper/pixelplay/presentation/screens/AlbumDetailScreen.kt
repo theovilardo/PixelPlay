@@ -382,7 +382,7 @@ private fun CollapsingAlbumTopBar(
                 .graphicsLayer { alpha = headerContentAlpha }
         ) {
             SmartImage(
-                model = album.albumArtUriString ?: R.drawable.rounded_album_24,
+                model = album.albumArtUriString,
                 contentDescription = "Cover of ${album.title}",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
