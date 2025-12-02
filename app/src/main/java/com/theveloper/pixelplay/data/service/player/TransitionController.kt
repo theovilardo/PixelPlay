@@ -7,6 +7,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.data.model.TransitionMode
+import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.TransitionRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +16,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -31,6 +33,7 @@ import javax.inject.Singleton
 class TransitionController @Inject constructor(
     private val engine: DualPlayerEngine,
     private val transitionRepository: TransitionRepository,
+    private val userPreferencesRepository: UserPreferencesRepository,
 ) {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var transitionListener: Player.Listener? = null
@@ -105,6 +108,9 @@ class TransitionController @Inject constructor(
 
             Timber.tag("TransitionDebug").d("Resolving settings for playlistId=%s, %s -> %s", playlistId, fromTrackId, toTrackId)
 
+            // Check global crossfade toggle first
+            val isCrossfadeEnabledFlow = userPreferencesRepository.isCrossfadeEnabledFlow
+
             // Use collectLatest to automatically cancel and restart the logic if settings change.
             val settingsFlow = if (playlistId != null) {
                 transitionRepository.resolveTransitionSettings(playlistId, fromTrackId, toTrackId)
@@ -113,11 +119,21 @@ class TransitionController @Inject constructor(
                 transitionRepository.getGlobalSettings()
             }
 
-            settingsFlow
-                .distinctUntilChanged() // Crucial: prevents restarting the job if the same settings are emitted again
-                .collectLatest { settings ->
+            kotlinx.coroutines.flow.combine(settingsFlow, isCrossfadeEnabledFlow) { settings, isEnabled ->
+                Pair(settings, isEnabled)
+            }.distinctUntilChanged() // Crucial: prevents restarting the job if the same settings are emitted again
+            .collectLatest { (settings, isEnabled) ->
 
-                Timber.tag("TransitionDebug").d("Settings resolved: Mode=%s, Duration=%dms", settings.mode, settings.durationMs)
+                Timber.tag("TransitionDebug").d("Settings resolved: Mode=%s, Duration=%dms, GlobalEnabled=%s", settings.mode, settings.durationMs, isEnabled)
+
+                // If globally disabled, use no transition (or maybe we just let ExoPlayer handle it naturally)
+                if (!isEnabled) {
+                    Timber.tag("TransitionDebug").d("Crossfade globally disabled. Using default gap.")
+                    engine.setPauseAtEndOfMediaItems(false)
+                    // If we wanted to enforce a specific gap (e.g. 1ms), we would handle it here,
+                    // but disabling pauseAtEnd allows ExoPlayer to proceed naturally which usually has a tiny gap.
+                    return@collectLatest
+                }
 
                 // If transition is disabled or has no duration, do nothing.
                 if (settings.mode == TransitionMode.NONE || settings.durationMs <= 0) {
@@ -126,12 +142,7 @@ class TransitionController @Inject constructor(
                     return@collectLatest
                 }
 
-                // FORCE OVERLAP MODE FOR DEBUGGING
-                val effectiveSettings = if (settings.mode != TransitionMode.NONE) {
-                    settings.copy(mode = TransitionMode.OVERLAP)
-                } else {
-                    settings
-                }
+                val effectiveSettings = settings
 
                 // Wait for the player to report a valid duration.
                 var duration = player.duration
@@ -144,9 +155,14 @@ class TransitionController @Inject constructor(
                 if (!isActive) return@collectLatest
 
                 // Calculate transition point
+
+                // Calculate transition point
                 // Ensure effective duration isn't longer than the song itself
                 val effectiveDuration = effectiveSettings.durationMs.coerceAtMost(duration.toInt()).coerceAtLeast(500)
-                val transitionPoint = duration - effectiveDuration
+                // Add a safety buffer to ensure the transition finishes before the song actually ends,
+                // preventing Player A from auto-pausing (and potentially losing audio focus) before we can hand off.
+                val safetyBuffer = 500
+                val transitionPoint = (duration - effectiveDuration - safetyBuffer).coerceAtLeast(0)
 
                 Timber.tag("TransitionDebug").d(
                     "Scheduled %s at %d ms (Duration: %d, Effective: %d)",
@@ -160,9 +176,10 @@ class TransitionController @Inject constructor(
 
                 if (transitionPoint <= player.currentPosition) {
                      val remaining = duration - player.currentPosition
-                     if (remaining > 500) {
+                     // We need enough time to actually perform a transition
+                     if (remaining > safetyBuffer + 200) {
                          Timber.tag("TransitionDebug").w("Already past transition point! Triggering immediately.")
-                         engine.performTransition(effectiveSettings.copy(durationMs = remaining.toInt()))
+                         engine.performTransition(effectiveSettings.copy(durationMs = (remaining - safetyBuffer).toInt()))
                      } else {
                          Timber.tag("TransitionDebug").w("Too close to end (%d ms left). Skipping to avoid glitch.", remaining)
                          engine.setPauseAtEndOfMediaItems(false)
