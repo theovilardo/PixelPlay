@@ -20,7 +20,9 @@ data class TransitionUiState(
     val rule: TransitionRule? = null,
     val globalSettings: TransitionSettings = TransitionSettings(),
     val isLoading: Boolean = true,
-    val isSaved: Boolean = false
+    val isSaved: Boolean = false,
+    val useGlobalDefaults: Boolean = false,
+    val playlistId: String? = null
 )
 
 @HiltViewModel
@@ -48,14 +50,22 @@ class TransitionViewModel @Inject constructor(
                 it.copy(
                     rule = playlistRule,
                     globalSettings = globalSettings,
-                    isLoading = false
+                    isLoading = false,
+                    useGlobalDefaults = playlistRule == null,
+                    isSaved = false,
+                    playlistId = playlistId
                 )
             }
         }
     }
 
     private fun getCurrentSettings(): TransitionSettings {
-        return _uiState.value.rule?.settings ?: _uiState.value.globalSettings
+        val state = _uiState.value
+        return if (state.useGlobalDefaults) {
+            state.globalSettings
+        } else {
+            state.rule?.settings ?: state.globalSettings
+        }
     }
 
     fun updateDuration(durationMs: Int) {
@@ -70,9 +80,15 @@ class TransitionViewModel @Inject constructor(
         updateRuleWithNewSettings(newSettings)
     }
 
-    fun updateCurve(curve: Curve) {
+    fun updateCurveIn(curve: Curve) {
         val currentSettings = getCurrentSettings()
-        val newSettings = currentSettings.copy(curveIn = curve, curveOut = curve)
+        val newSettings = currentSettings.copy(curveIn = curve)
+        updateRuleWithNewSettings(newSettings)
+    }
+
+    fun updateCurveOut(curve: Curve) {
+        val currentSettings = getCurrentSettings()
+        val newSettings = currentSettings.copy(curveOut = curve)
         updateRuleWithNewSettings(newSettings)
     }
 
@@ -82,7 +98,38 @@ class TransitionViewModel @Inject constructor(
             settings = TransitionSettings()
         )
         _uiState.update {
-            it.copy(rule = ruleToUpdate.copy(settings = newSettings), isSaved = false)
+            it.copy(
+                rule = ruleToUpdate.copy(settings = newSettings),
+                isSaved = false,
+                useGlobalDefaults = false
+            )
+        }
+    }
+
+    fun useGlobalDefaults() {
+        if (playlistId == null) return
+        _uiState.update {
+            it.copy(
+                rule = null,
+                useGlobalDefaults = true,
+                isSaved = false
+            )
+        }
+    }
+
+    fun enablePlaylistOverride() {
+        if (playlistId == null) return
+        val baseSettings = getCurrentSettings()
+        val rule = _uiState.value.rule ?: TransitionRule(
+            playlistId = playlistId,
+            settings = baseSettings
+        )
+        _uiState.update {
+            it.copy(
+                rule = rule.copy(settings = baseSettings),
+                useGlobalDefaults = false,
+                isSaved = false
+            )
         }
     }
 
@@ -91,12 +138,11 @@ class TransitionViewModel @Inject constructor(
             val ruleToSave = _uiState.value.rule
 
             if (playlistId != null) {
-                if (ruleToSave != null) {
-                    if (ruleToSave.settings.mode == TransitionMode.NONE) {
+                when {
+                    _uiState.value.useGlobalDefaults -> transitionRepository.deletePlaylistDefaultRule(playlistId)
+                    ruleToSave != null && ruleToSave.settings.mode == TransitionMode.NONE ->
                         transitionRepository.deletePlaylistDefaultRule(playlistId)
-                    } else {
-                        transitionRepository.saveRule(ruleToSave)
-                    }
+                    ruleToSave != null -> transitionRepository.saveRule(ruleToSave)
                 }
             } else {
                 transitionRepository.saveGlobalSettings(getCurrentSettings())

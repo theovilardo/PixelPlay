@@ -18,6 +18,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -95,12 +96,16 @@ class TransitionController @Inject constructor(
             val toTrackId = nextMediaItem.mediaId
 
             // If no playlist context, we can't resolve rules.
-            if (playlistId == null) return@launch
+            if (playlistId == null) {
+                Timber.d("[Transitions] Missing playlistId metadata for %s -> %s", fromTrackId, toTrackId)
+                return@launch
+            }
 
             // Use collectLatest to automatically cancel and restart the logic if settings change.
             transitionRepository.resolveTransitionSettings(playlistId, fromTrackId, toTrackId).collectLatest { settings ->
                 // If transition is disabled or has no duration, do nothing.
                 if (settings.mode == TransitionMode.NONE || settings.durationMs <= 0) {
+                    Timber.d("[Transitions] Skipping transition for %s -> %s (mode=%s, duration=%d)", fromTrackId, toTrackId, settings.mode, settings.durationMs)
                     return@collectLatest
                 }
 
@@ -112,10 +117,13 @@ class TransitionController @Inject constructor(
                 }
 
                 val transitionPoint = duration - settings.durationMs
-                if (transitionPoint <= player.currentPosition) {
+                if (transitionPoint <= player.currentPosition || transitionPoint <= 0) {
                     // Already past the transition point, so don't attempt transition.
+                    Timber.d("[Transitions] Skipping - transition point %.0fms already passed (duration=%d, current=%d)", transitionPoint.toFloat(), duration, player.currentPosition)
                     return@collectLatest
                 }
+
+                Timber.d("[Transitions] Scheduling %s for playlist %s (%s -> %s) at %d ms", settings.mode, playlistId, fromTrackId, toTrackId, transitionPoint)
 
                 // Wait until the playback position reaches the transition point.
                 while (player.currentPosition < transitionPoint && isActive) {
