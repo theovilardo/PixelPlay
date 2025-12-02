@@ -53,7 +53,7 @@ fun OptimizedAlbumArt(
                 .data(uri)
                 .crossfade(false)
                 .placeholder(R.drawable.ic_music_placeholder)
-                .error(R.drawable.rounded_broken_image_24)
+                .error(R.drawable.ic_music_placeholder)
                 .size(targetSize)
                 .memoryCachePolicy(CachePolicy.ENABLED)
                 .diskCachePolicy(CachePolicy.ENABLED)
@@ -93,15 +93,15 @@ fun OptimizedAlbumArt(
             is AsyncImagePainter.State.Error -> Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.errorContainer),
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                 contentAlignment = Alignment.Center
             ) {
                 Image(
-                    painter = painterResource(R.drawable.rounded_broken_image_24),
-                    contentDescription = "Error loading album art for $title",
+                    painter = painterResource(R.drawable.ic_music_placeholder),
+                    contentDescription = "$title placeholder",
                     contentScale = ContentScale.Fit,
                     colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(
-                        MaterialTheme.colorScheme.onErrorContainer
+                        MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
             }

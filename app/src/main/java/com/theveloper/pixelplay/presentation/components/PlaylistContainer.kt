@@ -189,6 +189,17 @@ fun PlaylistItems(
 ) {
     val listState = rememberLazyListState()
 
+    androidx.compose.runtime.LaunchedEffect(filteredPlaylists) {
+        val firstVisible = listState.layoutInfo.visibleItemsInfo.firstOrNull()
+        if (firstVisible != null) {
+            val key = firstVisible.key
+            val targetIndex = filteredPlaylists.indexOfFirst { it.id == key }
+            if (targetIndex >= 0) {
+                listState.scrollToItem(targetIndex, firstVisible.offset)
+            }
+        }
+    }
+
     LazyColumn(
         modifier = Modifier
             .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)

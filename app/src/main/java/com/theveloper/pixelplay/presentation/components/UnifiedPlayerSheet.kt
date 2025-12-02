@@ -1413,7 +1413,7 @@ private fun MiniPlayerContentInternal(
         verticalAlignment = Alignment.CenterVertically
     ) {
         SmartImage(
-            model = song.albumArtUriString ?: R.drawable.rounded_album_24,
+            model = song.albumArtUriString,
             contentDescription = "Carátula de ${song.title}",
             shape = CircleShape,
             targetSize = Size(150, 150),
