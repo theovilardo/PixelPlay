@@ -31,6 +31,9 @@ class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Pr
     override fun onCreate() {
         super.onCreate()
 
+        // Always plant DebugTree for now to ensure we see logs in the provided environment
+        Timber.plant(Timber.DebugTree())
+
 //        if (BuildConfig.DEBUG) {
 //            Timber.plant(Timber.DebugTree())
 //            StrictMode.setThreadPolicy(
