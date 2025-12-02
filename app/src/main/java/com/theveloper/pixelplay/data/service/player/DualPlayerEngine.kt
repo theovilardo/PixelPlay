@@ -31,6 +31,7 @@ import javax.inject.Singleton
  * After a transition, Player A adopts the state of Player B, ensuring continuity.
  */
 @OptIn(UnstableApi::class)
+@Singleton
 class DualPlayerEngine @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
@@ -38,8 +39,10 @@ class DualPlayerEngine @Inject constructor(
     private var transitionJob: Job? = null
     private var transitionRunning = false
 
-    private val playerA: ExoPlayer
-    private val playerB: ExoPlayer
+    private var playerA: ExoPlayer
+    private var playerB: ExoPlayer
+
+    var onPlayerSwapped: ((Player) -> Unit)? = null
 
     /** The master player instance that should be connected to the MediaSession. */
     val masterPlayer: Player
@@ -169,7 +172,8 @@ class DualPlayerEngine @Inject constructor(
             return
         }
 
-        // 1. Start Player B paused with volume=0 then immediately request play so overlap is audible
+        // 1. Start Player B (Next Song) paused with volume=0 then immediately request play so overlap is audible
+        // NOTE: playerA is currently playing "Old Song". playerB is "Next Song".
         playerB.volume = 0f
         playerA.volume = 1f
         if (!playerA.isPlaying && playerA.playbackState == Player.STATE_READY) {
@@ -198,7 +202,46 @@ class DualPlayerEngine @Inject constructor(
             return
         }
 
-        // Small warmup to guarantee audible overlap (some devices output a few ms late)
+        // --- SWAP PLAYERS IMMEDIATELY ---
+        // We want the UI to see "Next Song" (which is on playerB) as the current item immediately.
+        // So we swap the references. Now 'playerA' will point to the one playing 'Next Song'.
+        // 'playerB' will point to the one playing 'Old Song'.
+
+        // 1. Capture the rest of the queue from Old A (now becoming B)
+        val currentAIndex = playerA.currentMediaItemIndex
+        val queueToTransfer = mutableListOf<MediaItem>()
+        // We start from currentAIndex + 2 because:
+        // currentAIndex is the Old Song (currently fading out on Old A).
+        // currentAIndex + 1 is the Next Song (currently playing on New A).
+        // We only want the songs AFTER the Next Song.
+        if (currentAIndex < playerA.mediaItemCount - 2) {
+            for (i in (currentAIndex + 2) until playerA.mediaItemCount) {
+                queueToTransfer.add(playerA.getMediaItemAt(i))
+            }
+        }
+
+        // 2. Perform Swap
+        val oldPlayer = playerA
+        val newPlayer = playerB
+        playerA = newPlayer
+        playerB = oldPlayer
+
+        // 3. Transfer Queue to New A
+        if (queueToTransfer.isNotEmpty()) {
+             // Note: playerA (new) already has "Next Song" at index 0 (because we prepared it with setMediaItem).
+             // We append the rest of the queue.
+             playerA.addMediaItems(queueToTransfer)
+             // If we wanted to be super precise, we'd verify indexes, but simple append is usually correct for sequential play.
+        }
+
+        // 4. Notify Service to update MediaSession
+        onPlayerSwapped?.invoke(playerA)
+        Timber.tag("TransitionDebug").d("Players swapped. UI should now show next song.")
+
+        // Unpause the auto-pause lock on the OLD player (now B) if it was set, although it doesn't matter much as we control volume
+        // Actually, we want B to finish playing so we can leave it alone.
+
+        // Small warmup to guarantee audible overlap
         delay(75)
 
         val duration = settings.durationMs.toLong()
@@ -208,19 +251,22 @@ class DualPlayerEngine @Inject constructor(
 
         while (elapsed <= duration) {
             val progress = (elapsed.toFloat() / duration).coerceIn(0f, 1f)
-            val volA = 1f - envelope(progress, settings.curveOut)
-            val volB = envelope(progress, settings.curveIn)
+            // CAREFUL: Logic flipped because references flipped.
+            // playerA is NEW (Fading IN). playerB is OLD (Fading OUT).
+            val volIn = envelope(progress, settings.curveIn)  // A (New)
+            val volOut = 1f - envelope(progress, settings.curveOut) // B (Old)
 
-            playerA.volume = volA
-            playerB.volume = volB
+            playerA.volume = volIn
+            playerB.volume = volOut
 
             if (elapsed - lastLog >= 500) {
-                Timber.tag("TransitionDebug").v("Loop: Progress=%.2f, VolA=%.2f, VolB=%.2f", progress, volA, volB)
+                Timber.tag("TransitionDebug").v("Loop: Progress=%.2f, VolNew=%.2f, VolOld=%.2f", progress, volIn, volOut)
                 lastLog = elapsed
             }
 
-            if (!playerA.isPlaying && playerA.playbackState !in listOf(Player.STATE_READY, Player.STATE_BUFFERING, Player.STATE_ENDED)) {
-                Timber.tag("TransitionDebug").w("Player A stopped unexpectedly (state=%d) during transition", playerA.playbackState)
+            // Check if OLD player stopped unexpectedly
+            if (!playerB.isPlaying && playerB.playbackState !in listOf(Player.STATE_READY, Player.STATE_BUFFERING, Player.STATE_ENDED)) {
+                Timber.tag("TransitionDebug").w("Old Player (B) stopped unexpectedly (state=%d) during transition", playerB.playbackState)
                 break
             }
 
@@ -228,58 +274,18 @@ class DualPlayerEngine @Inject constructor(
             elapsed += stepMs
         }
 
-        Timber.tag("TransitionDebug").d("Overlap loop finished. Swapping.")
-        playerA.volume = 0f
-        playerB.volume = 1f
+        Timber.tag("TransitionDebug").d("Overlap loop finished.")
+        playerB.volume = 0f
+        playerA.volume = 1f
 
-        finalizeTransition()
-    }
-
-    private suspend fun finalizeTransition() {
-         // 2. Handover to Player A keeping the queue intact
-        if (playerA.hasNextMediaItem()) {
-            val handoffPosition = playerB.currentPosition
-            Timber.tag("TransitionDebug").d("Handoff: Seek A to next item at %d ms", handoffPosition)
-
-            // Unpause the auto-pause lock
-            setPauseAtEndOfMediaItems(false)
-
-            playerA.pause() // Should be redundant if it auto-paused, but safe
-            playerA.seekToNextMediaItem()
-
-            // Critical: If we just seek, ExoPlayer might take a moment to buffer.
-            // But since it's the same file (usually cached), it should be fast.
-
-            playerA.seekTo(handoffPosition)
-            playerA.volume = 1f
-            playerA.play()
-
-            // Keep B alive until A actually starts rendering audio to avoid gaps
-            var safetyChecks = 0
-            while (playerA.playbackState == Player.STATE_BUFFERING && safetyChecks < 40) {
-                Timber.tag("TransitionDebug").v("Waiting for Player A to start after handoff (state=%d)", playerA.playbackState)
-                delay(25)
-                safetyChecks++
-            }
-            safetyChecks = 0
-            while (!playerA.isPlaying && playerA.playbackState != Player.STATE_ENDED && safetyChecks < 80) {
-                Timber.tag("TransitionDebug").v("Player A not playing yet after handoff (state=%d)", playerA.playbackState)
-                delay(25)
-                safetyChecks++
-            }
-
-            Timber.tag("TransitionDebug").d("Player A resumed on next track. State=%d, playing=%s", playerA.playbackState, playerA.isPlaying)
-        } else {
-             Timber.tag("TransitionDebug").w("Player A has no next item?")
-             playerA.volume = 1f // restore just in case
-             setPauseAtEndOfMediaItems(false)
-        }
-
-        // 3. Clean up Player B
+        // 5. Clean up Old Player (B)
         playerB.pause()
         playerB.stop()
         playerB.clearMediaItems()
-        Timber.tag("TransitionDebug").d("Player B stopped and cleared.")
+        Timber.tag("TransitionDebug").d("Old Player (B) stopped and cleared.")
+
+        // Ensure New Player (A) is fully active and unrestricted
+        setPauseAtEndOfMediaItems(false)
     }
 
     /**

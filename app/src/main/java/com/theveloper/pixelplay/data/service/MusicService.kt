@@ -96,6 +96,22 @@ class MusicService : MediaSessionService() {
         super.onCreate()
 
         engine.masterPlayer.addListener(playerListener)
+
+        // Handle player swaps (crossfade) to keep MediaSession in sync
+        engine.onPlayerSwapped = { newPlayer ->
+            serviceScope.launch(Dispatchers.Main) {
+                val oldPlayer = mediaSession?.player
+                oldPlayer?.removeListener(playerListener)
+
+                mediaSession?.player = newPlayer
+                newPlayer.addListener(playerListener)
+
+                Timber.tag("MusicService").d("Swapped MediaSession player to new instance.")
+                requestWidgetFullUpdate(force = true)
+                mediaSession?.let { onUpdateNotification(it) }
+            }
+        }
+
         controller.initialize()
         serviceScope.launch {
             userPreferencesRepository.keepPlayingInBackgroundFlow.collect { enabled ->
