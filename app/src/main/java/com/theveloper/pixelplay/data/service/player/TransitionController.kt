@@ -90,19 +90,19 @@ class TransitionController @Inject constructor(
             val nextMediaItem = player.getMediaItemAt(nextIndex)
             engine.prepareNext(nextMediaItem)
 
-            // Resolve transition settings. Assumes playlistId is stored in media metadata extras.
             val playlistId = currentMediaItem.mediaMetadata.extras?.getString("playlistId")
             val fromTrackId = currentMediaItem.mediaId
             val toTrackId = nextMediaItem.mediaId
 
-            // If no playlist context, we can't resolve rules.
-            if (playlistId == null) {
-                Timber.d("[Transitions] Missing playlistId metadata for %s -> %s", fromTrackId, toTrackId)
-                return@launch
+            // Use collectLatest to automatically cancel and restart the logic if settings change.
+            val settingsFlow = if (playlistId != null) {
+                transitionRepository.resolveTransitionSettings(playlistId, fromTrackId, toTrackId)
+            } else {
+                Timber.d("[Transitions] Missing playlistId metadata for %s -> %s. Falling back to global settings.", fromTrackId, toTrackId)
+                transitionRepository.getGlobalSettings()
             }
 
-            // Use collectLatest to automatically cancel and restart the logic if settings change.
-            transitionRepository.resolveTransitionSettings(playlistId, fromTrackId, toTrackId).collectLatest { settings ->
+            settingsFlow.collectLatest { settings ->
                 // If transition is disabled or has no duration, do nothing.
                 if (settings.mode == TransitionMode.NONE || settings.durationMs <= 0) {
                     Timber.d("[Transitions] Skipping transition for %s -> %s (mode=%s, duration=%d)", fromTrackId, toTrackId, settings.mode, settings.durationMs)
@@ -116,14 +116,22 @@ class TransitionController @Inject constructor(
                     duration = player.duration
                 }
 
-                val transitionPoint = duration - settings.durationMs
+                val effectiveDuration = settings.durationMs.coerceAtMost(duration.toInt()).coerceAtLeast(500)
+                val transitionPoint = duration - effectiveDuration
+
                 if (transitionPoint <= player.currentPosition || transitionPoint <= 0) {
-                    // Already past the transition point, so don't attempt transition.
-                    Timber.d("[Transitions] Skipping - transition point %.0fms already passed (duration=%d, current=%d)", transitionPoint.toFloat(), duration, player.currentPosition)
+                    Timber.d(
+                        "[Transitions] Transition point passed (duration=%d, current=%d). Triggering %s immediately with effectiveDuration=%d",
+                        duration,
+                        player.currentPosition,
+                        settings.mode,
+                        effectiveDuration
+                    )
+                    engine.performTransition(settings.copy(durationMs = effectiveDuration))
                     return@collectLatest
                 }
 
-                Timber.d("[Transitions] Scheduling %s for playlist %s (%s -> %s) at %d ms", settings.mode, playlistId, fromTrackId, toTrackId, transitionPoint)
+                Timber.d("[Transitions] Scheduling %s for playlist %s (%s -> %s) at %d ms (effectiveDuration=%d)", settings.mode, playlistId ?: "global", fromTrackId, toTrackId, transitionPoint, effectiveDuration)
 
                 // Wait until the playback position reaches the transition point.
                 while (player.currentPosition < transitionPoint && isActive) {
@@ -132,7 +140,7 @@ class TransitionController @Inject constructor(
 
                 // Final check to ensure the job wasn't cancelled while waiting.
                 if (isActive) {
-                    engine.performTransition(settings)
+                    engine.performTransition(settings.copy(durationMs = effectiveDuration))
                 }
             }
         }
