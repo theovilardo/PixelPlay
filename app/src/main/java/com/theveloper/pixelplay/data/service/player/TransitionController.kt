@@ -7,6 +7,8 @@ import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.data.model.TransitionMode
+import com.theveloper.pixelplay.data.model.TransitionResolution
+import com.theveloper.pixelplay.data.model.TransitionSource
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.TransitionRepository
 import kotlinx.coroutines.CoroutineScope
@@ -18,6 +20,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -134,22 +137,31 @@ class TransitionController @Inject constructor(
                 transitionRepository.resolveTransitionSettings(playlistId, fromTrackId, toTrackId)
             } else {
                 Timber.tag("TransitionDebug").d("Missing playlistId. Using global settings.")
-                transitionRepository.getGlobalSettings()
+                transitionRepository.getGlobalSettings().map {
+                    TransitionResolution(
+                        settings = it,
+                        source = TransitionSource.GLOBAL_DEFAULT
+                    )
+                }
             }
 
-            kotlinx.coroutines.flow.combine(settingsFlow, isCrossfadeEnabledFlow) { settings, isEnabled ->
-                Pair(settings, isEnabled)
+            kotlinx.coroutines.flow.combine(settingsFlow, isCrossfadeEnabledFlow) { resolution, isEnabled ->
+                Pair(resolution, isEnabled)
             }.distinctUntilChanged() // Crucial: prevents restarting the job if the same settings are emitted again
-            .collectLatest { (settings, isEnabled) ->
+            .collectLatest { (resolution, isEnabled) ->
 
-                Timber.tag("TransitionDebug").d("Settings resolved: Mode=%s, Duration=%dms, GlobalEnabled=%s", settings.mode, settings.durationMs, isEnabled)
+                val settings = resolution.settings
+                Timber.tag("TransitionDebug").d(
+                    "Settings resolved: Mode=%s, Duration=%dms, GlobalEnabled=%s, Source=%s",
+                    settings.mode, settings.durationMs, isEnabled, resolution.source
+                )
 
-                // If globally disabled, use no transition (or maybe we just let ExoPlayer handle it naturally)
-                if (!isEnabled) {
+                val isGloballyDisabled = resolution.source == TransitionSource.GLOBAL_DEFAULT && !isEnabled
+
+                // If globally disabled and we are using the global defaults, use no transition.
+                if (isGloballyDisabled) {
                     Timber.tag("TransitionDebug").d("Crossfade globally disabled. Using default gap.")
                     engine.setPauseAtEndOfMediaItems(false)
-                    // If we wanted to enforce a specific gap (e.g. 1ms), we would handle it here,
-                    // but disabling pauseAtEnd allows ExoPlayer to proceed naturally which usually has a tiny gap.
                     return@collectLatest
                 }
 
@@ -159,8 +171,6 @@ class TransitionController @Inject constructor(
                     engine.setPauseAtEndOfMediaItems(false)
                     return@collectLatest
                 }
-
-                val effectiveSettings = settings
 
                 // Wait for the player to report a valid duration.
                 var duration = player.duration
@@ -172,21 +182,25 @@ class TransitionController @Inject constructor(
 
                 if (!isActive) return@collectLatest
 
-                // Calculate transition point
+                val minFade = 500L
+                val guardWindow = 150L
 
-                // "Fade In Next" Logic:
-                // We want the current song (A) to finish completely (or almost).
-                // Then the next song (B) starts at Volume 0 and fades in.
-                // We trigger the transition just before the end of A to ensure gapless start.
-                val triggerBuffer = 500 // Trigger 500ms before end
-                val transitionPoint = (duration - triggerBuffer).coerceAtLeast(0)
+                if (duration < minFade + guardWindow) {
+                    Timber.tag("TransitionDebug").w("Track too short for crossfade (duration=%d).", duration)
+                    engine.setPauseAtEndOfMediaItems(false)
+                    return@collectLatest
+                }
 
-                // We pass the full user-configured duration to the engine for the Fade In ramp.
-                val effectiveDuration = effectiveSettings.durationMs.coerceAtLeast(500)
+                val maxFadeDuration = (duration - guardWindow).coerceAtLeast(minFade)
+                val effectiveDuration = settings.durationMs.toLong()
+                    .coerceAtLeast(minFade)
+                    .coerceAtMost(maxFadeDuration)
+
+                val transitionPoint = duration - effectiveDuration
 
                 Timber.tag("TransitionDebug").d(
-                    "Scheduled %s at %d ms (SongDur: %d). Next song fade-in: %d ms",
-                    effectiveSettings.mode, transitionPoint, duration, effectiveDuration
+                    "Scheduled %s at %d ms (SongDur: %d). Fade duration: %d ms",
+                    settings.mode, transitionPoint, duration, effectiveDuration
                 )
 
                 // --- CRITICAL FIX: Enable Pause At End ---
@@ -195,15 +209,15 @@ class TransitionController @Inject constructor(
                 Timber.tag("TransitionDebug").d("Enabled pauseAtEndOfMediaItems to prevent auto-skip.")
 
                 if (transitionPoint <= player.currentPosition) {
-                     val remaining = duration - player.currentPosition
-                     // We need enough time to actually perform a transition
-                     if (remaining > safetyBuffer + 200) {
-                         Timber.tag("TransitionDebug").w("Already past transition point! Triggering immediately.")
-                         engine.performTransition(effectiveSettings.copy(durationMs = (remaining - safetyBuffer).toInt()))
-                     } else {
-                         Timber.tag("TransitionDebug").w("Too close to end (%d ms left). Skipping to avoid glitch.", remaining)
-                         engine.setPauseAtEndOfMediaItems(false)
-                     }
+                    val remaining = duration - player.currentPosition
+                    val adjustedDuration = (remaining - guardWindow).coerceAtLeast(minFade)
+                    if (remaining > guardWindow + minFade / 2) {
+                        Timber.tag("TransitionDebug").w("Already past transition point! Triggering immediately.")
+                        engine.performTransition(settings.copy(durationMs = adjustedDuration.toInt()))
+                    } else {
+                        Timber.tag("TransitionDebug").w("Too close to end (%d ms left). Skipping to avoid glitch.", remaining)
+                        engine.setPauseAtEndOfMediaItems(false)
+                    }
                     return@collectLatest
                 }
 
@@ -224,7 +238,7 @@ class TransitionController @Inject constructor(
                 // Final check to ensure the job wasn't cancelled while waiting.
                 if (isActive) {
                     Timber.tag("TransitionDebug").d("FIRING TRANSITION NOW!")
-                    engine.performTransition(effectiveSettings.copy(durationMs = effectiveDuration))
+                    engine.performTransition(settings.copy(durationMs = effectiveDuration.toInt()))
                 } else {
                     Timber.tag("TransitionDebug").d("Job cancelled before firing.")
                     engine.setPauseAtEndOfMediaItems(false)

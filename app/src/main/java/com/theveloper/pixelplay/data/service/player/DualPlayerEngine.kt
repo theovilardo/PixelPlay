@@ -356,7 +356,7 @@ class DualPlayerEngine @Inject constructor(
         // Small warmup to guarantee audible overlap
         delay(75)
 
-        val duration = settings.durationMs.toLong()
+        val duration = settings.durationMs.toLong().coerceAtLeast(500L)
         val stepMs = 16L
         var elapsed = 0L
         var lastLog = 0L
@@ -366,12 +366,10 @@ class DualPlayerEngine @Inject constructor(
             // CAREFUL: Logic flipped because references flipped.
             // playerA is NEW (Fading IN). playerB is OLD (Fading OUT).
             val volIn = envelope(progress, settings.curveIn)  // A (New)
-            // We keep the Old Player (B) at full volume so it finishes naturally without fading out.
-            // The New Player (A) fades in from 0 to 1.
-            val volOut = 1f
+            val volOut = 1f - envelope(progress, settings.curveOut) // B (Old)
 
             playerA.volume = volIn
-            playerB.volume = volOut
+            playerB.volume = volOut.coerceIn(0f, 1f)
 
             if (elapsed - lastLog >= 250) {
                 Timber.tag("TransitionDebug").v("Loop: Progress=%.2f, VolNew=%.2f (Act: %.2f), VolOld=%.2f (Act: %.2f)",
@@ -379,10 +377,9 @@ class DualPlayerEngine @Inject constructor(
                 lastLog = elapsed
             }
 
-            // Check if NEW player stopped unexpectedly.
-            // We do NOT break if Old Player (B) stops, as we expect it to finish naturally during the fade-in of A.
-            if (!playerA.isPlaying && playerA.playbackState !in listOf(Player.STATE_READY, Player.STATE_BUFFERING)) {
-                Timber.tag("TransitionDebug").w("New Player (A) stopped unexpectedly (state=%d) during transition", playerA.playbackState)
+            // Break early if either player stops in a non-ready state to avoid stuck fades.
+            if (playerA.playbackState == Player.STATE_ENDED || playerB.playbackState == Player.STATE_ENDED) {
+                Timber.tag("TransitionDebug").w("One of the players ended during crossfade (A=%d, B=%d)", playerA.playbackState, playerB.playbackState)
                 break
             }
 

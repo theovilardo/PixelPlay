@@ -31,6 +31,21 @@ enum class Curve {
 }
 
 /**
+ * Indicates where a transition configuration came from so callers can resolve
+ * priority (playlist-specific rules should override global defaults).
+ */
+enum class TransitionSource {
+    /** Fallback to the global default transition settings. */
+    GLOBAL_DEFAULT,
+
+    /** A playlist-wide default rule. */
+    PLAYLIST_DEFAULT,
+
+    /** A rule targeted to the specific track combination. */
+    PLAYLIST_SPECIFIC,
+}
+
+/**
  * Holds the settings for a specific transition.
  *
  * @param mode The type of transition to apply.
@@ -43,6 +58,14 @@ data class TransitionSettings(
     val durationMs: Int = 6000,
     val curveIn: Curve = Curve.S_CURVE,
     val curveOut: Curve = Curve.S_CURVE,
+)
+
+/**
+ * Wraps transition settings with the source they were resolved from.
+ */
+data class TransitionResolution(
+    val settings: TransitionSettings,
+    val source: TransitionSource,
 )
 
 /**
