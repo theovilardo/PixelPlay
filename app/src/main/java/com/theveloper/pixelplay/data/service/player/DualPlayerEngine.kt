@@ -160,6 +160,47 @@ class DualPlayerEngine @Inject constructor(
         }
     }
 
+    private fun promoteIncomingPlayer(outgoing: ExoPlayer, incoming: ExoPlayer) {
+        // Capture playlist context from the outgoing master before swapping
+        val currentAIndex = outgoing.currentMediaItemIndex
+
+        val historyToTransfer = mutableListOf<MediaItem>()
+        for (i in 0..currentAIndex) {
+            historyToTransfer.add(outgoing.getMediaItemAt(i))
+        }
+
+        val futureToTransfer = mutableListOf<MediaItem>()
+        if (currentAIndex < outgoing.mediaItemCount - 2) {
+            for (i in (currentAIndex + 2) until outgoing.mediaItemCount) {
+                futureToTransfer.add(outgoing.getMediaItemAt(i))
+            }
+        }
+
+        outgoing.removeListener(masterPlayerListener)
+
+        playerA = incoming
+        playerB = outgoing
+
+        playerA.addListener(masterPlayerListener)
+
+        if (playerA.playWhenReady) {
+            requestAudioFocus()
+        }
+
+        if (historyToTransfer.isNotEmpty()) {
+            playerA.addMediaItems(0, historyToTransfer)
+            Timber.tag("TransitionDebug").d("Transferred %d history items to new player.", historyToTransfer.size)
+        }
+
+        if (futureToTransfer.isNotEmpty()) {
+            playerA.addMediaItems(futureToTransfer)
+            Timber.tag("TransitionDebug").d("Transferred %d future items to new player.", futureToTransfer.size)
+        }
+
+        onPlayerSwappedListeners.forEach { it(playerA) }
+        Timber.tag("TransitionDebug").d("Players swapped at crossfade start. UI should now show incoming song.")
+    }
+
     /**
      * Enables or disables pausing at the end of media items for the master player.
      * This is crucial for controlling the transition manually.
@@ -260,36 +301,43 @@ class DualPlayerEngine @Inject constructor(
 
         // 1. Start Player B (Next Song) paused with volume=0 then immediately request play so overlap is audible
         // NOTE: playerA is currently playing "Old Song". playerB is "Next Song".
-        playerB.volume = 0f
-        playerA.volume = 1f
-        if (!playerA.isPlaying && playerA.playbackState == Player.STATE_READY) {
+        val outgoing = playerA
+        val incoming = playerB
+
+        incoming.volume = 0f
+        outgoing.volume = 1f
+        if (!outgoing.isPlaying && outgoing.playbackState == Player.STATE_READY) {
             // Ensure the outgoing track keeps rendering during the crossfade window
-            playerA.play()
+            outgoing.play()
         }
 
         // Make sure PlayWhenReady is honored even if we had paused earlier
-        playerB.playWhenReady = true
-        playerB.play()
+        incoming.playWhenReady = true
+        incoming.play()
 
-        Timber.tag("TransitionDebug").d("Player B started for overlap. Playing=%s state=%d", playerB.isPlaying, playerB.playbackState)
+        Timber.tag("TransitionDebug").d("Player B started for overlap. Playing=%s state=%d", incoming.isPlaying, incoming.playbackState)
 
         // Ensure Player B is actually outputting audio before we begin the fade
         var playChecks = 0
-        while (!playerB.isPlaying && playChecks < 80) {
-            Timber.tag("TransitionDebug").v("Waiting for Player B to start rendering audio (state=%d)", playerB.playbackState)
+        while (!incoming.isPlaying && playChecks < 80) {
+            Timber.tag("TransitionDebug").v("Waiting for Player B to start rendering audio (state=%d)", incoming.playbackState)
             delay(25)
             playChecks++
         }
 
-        if (!playerB.isPlaying) {
+        if (!incoming.isPlaying) {
             Timber.tag("TransitionDebug").e("Player B failed to start in time. Aborting crossfade.")
-            playerA.volume = 1f
+            outgoing.volume = 1f
             setPauseAtEndOfMediaItems(false)
             return
         }
 
         // Small warmup to guarantee audible overlap
         delay(75)
+
+        // Promote the incoming player to the MediaSession as soon as it starts rendering audio
+        // so the UI reflects the song that is actually playing during the overlap window.
+        promoteIncomingPlayer(outgoing, incoming)
 
         val duration = settings.durationMs.toLong().coerceAtLeast(500L)
         val stepMs = 16L
@@ -298,11 +346,11 @@ class DualPlayerEngine @Inject constructor(
 
         while (elapsed <= duration) {
             val progress = (elapsed.toFloat() / duration).coerceIn(0f, 1f)
-            val volIn = envelope(progress, settings.curveIn)  // playerB (incoming)
-            val volOut = 1f - envelope(progress, settings.curveOut) // playerA (outgoing)
+            val volIn = envelope(progress, settings.curveIn)  // incoming
+            val volOut = 1f - envelope(progress, settings.curveOut) // outgoing
 
-            playerB.volume = volIn
-            playerA.volume = volOut.coerceIn(0f, 1f)
+            incoming.volume = volIn
+            outgoing.volume = volOut.coerceIn(0f, 1f)
 
             if (elapsed - lastLog >= 250) {
                 Timber.tag("TransitionDebug").v("Loop: Progress=%.2f, VolNew=%.2f (Act: %.2f), VolOld=%.2f (Act: %.2f)",
@@ -311,8 +359,8 @@ class DualPlayerEngine @Inject constructor(
             }
 
             // Break early if either player stops in a non-ready state to avoid stuck fades.
-            if (playerA.playbackState == Player.STATE_ENDED || playerB.playbackState == Player.STATE_ENDED) {
-                Timber.tag("TransitionDebug").w("One of the players ended during crossfade (A=%d, B=%d)", playerA.playbackState, playerB.playbackState)
+            if (outgoing.playbackState == Player.STATE_ENDED || incoming.playbackState == Player.STATE_ENDED) {
+                Timber.tag("TransitionDebug").w("One of the players ended during crossfade (out=%d, in=%d)", outgoing.playbackState, incoming.playbackState)
                 break
             }
 
@@ -321,59 +369,10 @@ class DualPlayerEngine @Inject constructor(
         }
 
         Timber.tag("TransitionDebug").d("Overlap loop finished.")
-        playerA.volume = 0f
-        playerB.volume = 1f
+        outgoing.volume = 0f
+        incoming.volume = 1f
 
-        // --- SWAP PLAYERS AFTER FADE ---
-        // 1. Capture History and Future from Old A (outgoing)
-        val currentAIndex = playerA.currentMediaItemIndex
-
-        // History: All songs up to and including the current one (Old Song)
-        val historyToTransfer = mutableListOf<MediaItem>()
-        for (i in 0..currentAIndex) {
-            historyToTransfer.add(playerA.getMediaItemAt(i))
-        }
-
-        // Future: Songs AFTER the Next Song
-        val futureToTransfer = mutableListOf<MediaItem>()
-        if (currentAIndex < playerA.mediaItemCount - 2) {
-            for (i in (currentAIndex + 2) until playerA.mediaItemCount) {
-                futureToTransfer.add(playerA.getMediaItemAt(i))
-            }
-        }
-
-        val oldPlayer = playerA
-        val newPlayer = playerB
-
-        // Move manual focus management to the new master player
-        oldPlayer.removeListener(masterPlayerListener)
-
-        playerA = newPlayer
-        playerB = oldPlayer
-
-        playerA.addListener(masterPlayerListener)
-        // Ensure we hold focus for the new master
-        if (playerA.playWhenReady) {
-             requestAudioFocus()
-        }
-
-        // 3. Transfer History to New A (Prepend)
-        if (historyToTransfer.isNotEmpty()) {
-             playerA.addMediaItems(0, historyToTransfer)
-             Timber.tag("TransitionDebug").d("Transferred %d history items to new player.", historyToTransfer.size)
-        }
-
-        // 4. Transfer Future to New A (Append)
-        if (futureToTransfer.isNotEmpty()) {
-             playerA.addMediaItems(futureToTransfer)
-             Timber.tag("TransitionDebug").d("Transferred %d future items to new player.", futureToTransfer.size)
-        }
-
-        // 5. Notify Service to update MediaSession
-        onPlayerSwappedListeners.forEach { it(playerA) }
-        Timber.tag("TransitionDebug").d("Players swapped. UI should now show next song.")
-
-        // Clean up Old Player (now B)
+        // Clean up Old Player (now auxiliary)
         playerB.pause()
         playerB.stop()
         playerB.clearMediaItems()
