@@ -196,10 +196,12 @@ class TransitionController @Inject constructor(
 
                 if (transitionPoint <= player.currentPosition) {
                      val remaining = duration - player.currentPosition
-                     // We need enough time to actually perform a transition
-                     if (remaining > safetyBuffer + 200) {
+                     // If we are slightly past the point but still have enough time to start the next player, fire it.
+                     // We use a lower threshold (100ms) because we just want to start B before A dies.
+                     if (remaining > 100) {
                          Timber.tag("TransitionDebug").w("Already past transition point! Triggering immediately.")
-                         engine.performTransition(effectiveSettings.copy(durationMs = (remaining - safetyBuffer).toInt()))
+                         // We use full effectiveDuration for the fade-in of the next song, regardless of how little time is left for the current song.
+                         engine.performTransition(effectiveSettings)
                      } else {
                          Timber.tag("TransitionDebug").w("Too close to end (%d ms left). Skipping to avoid glitch.", remaining)
                          engine.setPauseAtEndOfMediaItems(false)
