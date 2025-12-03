@@ -1,6 +1,5 @@
 package com.theveloper.pixelplay.data.repository
 
-import com.theveloper.pixelplay.data.model.TransitionResolution
 import com.theveloper.pixelplay.data.model.TransitionRule
 import com.theveloper.pixelplay.data.model.TransitionSettings
 import kotlinx.coroutines.flow.Flow
@@ -22,7 +21,7 @@ interface TransitionRepository {
         playlistId: String,
         fromTrackId: String,
         toTrackId: String
-    ): Flow<TransitionResolution>
+    ): Flow<TransitionSettings>
 
     /**
      * Gets all rules defined for a specific playlist.

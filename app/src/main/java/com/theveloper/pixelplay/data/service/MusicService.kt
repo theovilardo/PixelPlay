@@ -112,6 +112,21 @@ class MusicService : MediaSessionService() {
             }
         }
 
+        engine.addActivePlayerListener { activePlayer ->
+            serviceScope.launch(Dispatchers.Main) {
+                val current = mediaSession?.player
+                if (current != activePlayer) {
+                    current?.removeListener(playerListener)
+                    mediaSession?.player = activePlayer
+                    activePlayer.addListener(playerListener)
+
+                    Timber.tag("MusicService").d("Active player changed. UI should reflect currently sounding track.")
+                    requestWidgetFullUpdate(force = true)
+                    mediaSession?.let { onUpdateNotification(it) }
+                }
+            }
+        }
+
         controller.initialize()
         serviceScope.launch {
             userPreferencesRepository.keepPlayingInBackgroundFlow.collect { enabled ->
