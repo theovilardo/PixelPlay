@@ -508,6 +508,26 @@ fun SettingsScreen(
                                 )
                             }
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        ThemeSelectorItem(
+                            label = "Crossfade",
+                            description = "Enable smooth transition between songs.",
+                            options = mapOf(
+                                "true" to "Enabled",
+                                "false" to "Disabled"
+                            ),
+                            selectedKey = if (uiState.isCrossfadeEnabled) "true" else "false",
+                            onSelectionChanged = { key ->
+                                settingsViewModel.setCrossfadeEnabled(key.toBoolean())
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.crossfade_24),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            }
+                        )
                     }
                 }
             }

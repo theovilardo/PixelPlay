@@ -30,6 +30,7 @@ data class SettingsUiState(
     val carouselStyle: String = CarouselStyle.ONE_PEEK,
     val launchTab: String = LaunchTab.HOME,
     val keepPlayingInBackground: Boolean = true,
+    val isCrossfadeEnabled: Boolean = true,
     val availableModels: List<GeminiModel> = emptyList(),
     val isLoadingModels: Boolean = false,
     val modelsFetchError: String? = null
@@ -104,6 +105,12 @@ class SettingsViewModel @Inject constructor(
             }
         }
 
+        viewModelScope.launch {
+            userPreferencesRepository.isCrossfadeEnabledFlow.collect { enabled ->
+                _uiState.update { it.copy(isCrossfadeEnabled = enabled) }
+            }
+        }
+
         loadDirectoryPreferences()
     }
 
@@ -175,6 +182,12 @@ class SettingsViewModel @Inject constructor(
     fun setKeepPlayingInBackground(enabled: Boolean) {
         viewModelScope.launch {
             userPreferencesRepository.setKeepPlayingInBackground(enabled)
+        }
+    }
+
+    fun setCrossfadeEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setCrossfadeEnabled(enabled)
         }
     }
 
