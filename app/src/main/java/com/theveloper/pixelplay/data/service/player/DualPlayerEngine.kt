@@ -45,6 +45,7 @@ class DualPlayerEngine @Inject constructor(
     private var playerB: ExoPlayer
 
     private val onPlayerSwappedListeners = mutableListOf<(Player) -> Unit>()
+    private val onActivePlayerListeners = mutableListOf<(Player) -> Unit>()
 
     // Audio Focus Management
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -96,6 +97,18 @@ class DualPlayerEngine @Inject constructor(
 
     fun removePlayerSwapListener(listener: (Player) -> Unit) {
         onPlayerSwappedListeners.remove(listener)
+    }
+
+    fun addActivePlayerListener(listener: (Player) -> Unit) {
+        onActivePlayerListeners.add(listener)
+    }
+
+    fun removeActivePlayerListener(listener: (Player) -> Unit) {
+        onActivePlayerListeners.remove(listener)
+    }
+
+    private fun notifyActivePlayerChanged(player: Player) {
+        onActivePlayerListeners.forEach { it(player) }
     }
 
     /** The master player instance that should be connected to the MediaSession. */
@@ -288,73 +301,11 @@ class DualPlayerEngine @Inject constructor(
             return
         }
 
-        // --- SWAP PLAYERS IMMEDIATELY ---
-        // We want the UI to see "Next Song" (which is on playerB) as the current item immediately.
-        // So we swap the references. Now 'playerA' will point to the one playing 'Next Song'.
-        // 'playerB' will point to the one playing 'Old Song'.
-
-        // 1. Capture History and Future from Old A (now becoming B)
-        val currentAIndex = playerA.currentMediaItemIndex
-
-        // History: All songs up to and including the current one (Old Song)
-        val historyToTransfer = mutableListOf<MediaItem>()
-        for (i in 0..currentAIndex) {
-            historyToTransfer.add(playerA.getMediaItemAt(i))
-        }
-
-        // Future: Songs AFTER the Next Song
-        // We start from currentAIndex + 2 because:
-        // currentAIndex is the Old Song (currently fading out on Old A).
-        // currentAIndex + 1 is the Next Song (currently playing on New A).
-        // We only want the songs AFTER the Next Song.
-        val futureToTransfer = mutableListOf<MediaItem>()
-        if (currentAIndex < playerA.mediaItemCount - 2) {
-            for (i in (currentAIndex + 2) until playerA.mediaItemCount) {
-                futureToTransfer.add(playerA.getMediaItemAt(i))
-            }
-        }
-
-        // 2. Perform Swap
-        val oldPlayer = playerA
-        val newPlayer = playerB
-
-        // Move manual focus management to the new master player
-        oldPlayer.removeListener(masterPlayerListener)
-
-        playerA = newPlayer
-        playerB = oldPlayer
-
-        playerA.addListener(masterPlayerListener)
-        // Ensure we hold focus for the new master
-        if (playerA.playWhenReady) {
-             requestAudioFocus()
-        }
-
-        // 3. Transfer History to New A (Prepend)
-        // New A currently has [NextSong] at index 0.
-        // We want [History..., NextSong, Future...]
-        if (historyToTransfer.isNotEmpty()) {
-             // Inserting at 0 shifts existing items (NextSong) to the right.
-             // ExoPlayer automatically updates the current item index so playback continues uninterrupted on NextSong.
-             playerA.addMediaItems(0, historyToTransfer)
-             Timber.tag("TransitionDebug").d("Transferred %d history items to new player.", historyToTransfer.size)
-        }
-
-        // 4. Transfer Future to New A (Append)
-        if (futureToTransfer.isNotEmpty()) {
-             playerA.addMediaItems(futureToTransfer)
-             Timber.tag("TransitionDebug").d("Transferred %d future items to new player.", futureToTransfer.size)
-        }
-
-        // 4. Notify Service to update MediaSession
-        onPlayerSwappedListeners.forEach { it(playerA) }
-        Timber.tag("TransitionDebug").d("Players swapped. UI should now show next song.")
-
-        // Unpause the auto-pause lock on the OLD player (now B) if it was set, although it doesn't matter much as we control volume
-        // Actually, we want B to finish playing so we can leave it alone.
-
         // Small warmup to guarantee audible overlap
         delay(75)
+
+        // Tell observers that playback is now sourced from the incoming player for UI sync
+        notifyActivePlayerChanged(playerB)
 
         val duration = settings.durationMs.toLong()
         val stepMs = 16L
@@ -363,26 +314,19 @@ class DualPlayerEngine @Inject constructor(
 
         while (elapsed <= duration) {
             val progress = (elapsed.toFloat() / duration).coerceIn(0f, 1f)
-            // CAREFUL: Logic flipped because references flipped.
-            // playerA is NEW (Fading IN). playerB is OLD (Fading OUT).
-            val volIn = envelope(progress, settings.curveIn)  // A (New)
-            // We keep the Old Player (B) at full volume so it finishes naturally without fading out.
-            // The New Player (A) fades in from 0 to 1.
-            val volOut = 1f
+            val volA = 1f - envelope(progress, settings.curveOut)
+            val volB = envelope(progress, settings.curveIn)
 
-            playerA.volume = volIn
-            playerB.volume = volOut
+            playerA.volume = volA
+            playerB.volume = volB
 
-            if (elapsed - lastLog >= 250) {
-                Timber.tag("TransitionDebug").v("Loop: Progress=%.2f, VolNew=%.2f (Act: %.2f), VolOld=%.2f (Act: %.2f)",
-                    progress, volIn, playerA.volume, volOut, playerB.volume)
+            if (elapsed - lastLog >= 500) {
+                Timber.tag("TransitionDebug").v("Loop: Progress=%.2f, VolA=%.2f, VolB=%.2f", progress, volA, volB)
                 lastLog = elapsed
             }
 
-            // Check if NEW player stopped unexpectedly.
-            // We do NOT break if Old Player (B) stops, as we expect it to finish naturally during the fade-in of A.
-            if (!playerA.isPlaying && playerA.playbackState !in listOf(Player.STATE_READY, Player.STATE_BUFFERING)) {
-                Timber.tag("TransitionDebug").w("New Player (A) stopped unexpectedly (state=%d) during transition", playerA.playbackState)
+            if (!playerA.isPlaying && playerA.playbackState !in listOf(Player.STATE_READY, Player.STATE_BUFFERING, Player.STATE_ENDED)) {
+                Timber.tag("TransitionDebug").w("Player A stopped unexpectedly (state=%d) during transition", playerA.playbackState)
                 break
             }
 
@@ -390,23 +334,60 @@ class DualPlayerEngine @Inject constructor(
             elapsed += stepMs
         }
 
-        Timber.tag("TransitionDebug").d("Overlap loop finished.")
-        playerB.volume = 0f
-        playerA.volume = 1f
+        Timber.tag("TransitionDebug").d("Overlap loop finished. Swapping.")
+        playerA.volume = 0f
+        playerB.volume = 1f
 
-        // 5. Clean up Old Player (B)
+        finalizeTransition()
+    }
+
+    private suspend fun finalizeTransition() {
+         // 2. Handover to Player A keeping the queue intact
+        if (playerA.hasNextMediaItem()) {
+            val handoffPosition = playerB.currentPosition
+            Timber.tag("TransitionDebug").d("Handoff: Seek A to next item at %d ms", handoffPosition)
+
+            // Unpause the auto-pause lock
+            setPauseAtEndOfMediaItems(false)
+
+            playerA.pause() // Should be redundant if it auto-paused, but safe
+            playerA.seekToNextMediaItem()
+
+            // Critical: If we just seek, ExoPlayer might take a moment to buffer.
+            // But since it's the same file (usually cached), it should be fast.
+
+            playerA.seekTo(handoffPosition)
+            playerA.volume = 1f
+            playerA.play()
+
+            // Keep B alive until A actually starts rendering audio to avoid gaps
+            var safetyChecks = 0
+            while (playerA.playbackState == Player.STATE_BUFFERING && safetyChecks < 40) {
+                Timber.tag("TransitionDebug").v("Waiting for Player A to start after handoff (state=%d)", playerA.playbackState)
+                delay(25)
+                safetyChecks++
+            }
+            safetyChecks = 0
+            while (!playerA.isPlaying && playerA.playbackState != Player.STATE_ENDED && safetyChecks < 80) {
+                Timber.tag("TransitionDebug").v("Player A not playing yet after handoff (state=%d)", playerA.playbackState)
+                delay(25)
+                safetyChecks++
+            }
+
+            Timber.tag("TransitionDebug").d("Player A resumed on next track. State=%d, playing=%s", playerA.playbackState, playerA.isPlaying)
+        } else {
+             Timber.tag("TransitionDebug").w("Player A has no next item?")
+             playerA.volume = 1f // restore just in case
+             setPauseAtEndOfMediaItems(false)
+        }
+
+        notifyActivePlayerChanged(playerA)
+
+        // 3. Clean up Player B
         playerB.pause()
         playerB.stop()
         playerB.clearMediaItems()
-
-        // Fresh Player Strategy: Release and recreate playerB to avoid OEM "stale session" tracking
-        // or resource contention issues (e.g. OplusAudioFade killing reused players).
-        playerB.release()
-        playerB = buildPlayer(handleAudioFocus = false)
-        Timber.tag("TransitionDebug").d("Old Player (B) released and recreated fresh.")
-
-        // Ensure New Player (A) is fully active and unrestricted
-        setPauseAtEndOfMediaItems(false)
+        Timber.tag("TransitionDebug").d("Player B stopped and cleared.")
     }
 
     /**
