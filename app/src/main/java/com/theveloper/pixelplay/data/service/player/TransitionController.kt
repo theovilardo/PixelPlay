@@ -7,6 +7,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.data.model.TransitionMode
+import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.TransitionRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +16,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -31,10 +33,26 @@ import javax.inject.Singleton
 class TransitionController @Inject constructor(
     private val engine: DualPlayerEngine,
     private val transitionRepository: TransitionRepository,
+    private val userPreferencesRepository: UserPreferencesRepository,
 ) {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var transitionListener: Player.Listener? = null
     private var transitionSchedulerJob: Job? = null
+    private var currentObservedPlayer: Player? = null
+
+    private val swapListener: (Player) -> Unit = { newPlayer ->
+        Timber.tag("TransitionDebug").d("Controller detected player swap. Moving listener.")
+        transitionListener?.let { listener ->
+            currentObservedPlayer?.removeListener(listener)
+            currentObservedPlayer = newPlayer
+            newPlayer.addListener(listener)
+
+            // Trigger check for the new player immediately
+            if (newPlayer.isPlaying) {
+                newPlayer.currentMediaItem?.let { scheduleTransitionFor(it) }
+            }
+        }
+    }
 
     /**
      * Attaches the controller to the player engine to start listening for state changes.
@@ -75,9 +93,12 @@ class TransitionController @Inject constructor(
                      engine.masterPlayer.currentMediaItem?.let { scheduleTransitionFor(it) }
                 }
             }
-        }.also {
-            engine.masterPlayer.addListener(it)
         }
+
+        // Initial setup
+        currentObservedPlayer = engine.masterPlayer
+        currentObservedPlayer?.addListener(transitionListener!!)
+        engine.addPlayerSwapListener(swapListener)
     }
 
     private fun scheduleTransitionFor(currentMediaItem: MediaItem) {
@@ -105,6 +126,9 @@ class TransitionController @Inject constructor(
 
             Timber.tag("TransitionDebug").d("Resolving settings for playlistId=%s, %s -> %s", playlistId, fromTrackId, toTrackId)
 
+            // Check global crossfade toggle first
+            val isCrossfadeEnabledFlow = userPreferencesRepository.isCrossfadeEnabledFlow
+
             // Use collectLatest to automatically cancel and restart the logic if settings change.
             val settingsFlow = if (playlistId != null) {
                 transitionRepository.resolveTransitionSettings(playlistId, fromTrackId, toTrackId)
@@ -113,11 +137,21 @@ class TransitionController @Inject constructor(
                 transitionRepository.getGlobalSettings()
             }
 
-            settingsFlow
-                .distinctUntilChanged() // Crucial: prevents restarting the job if the same settings are emitted again
-                .collectLatest { settings ->
+            kotlinx.coroutines.flow.combine(settingsFlow, isCrossfadeEnabledFlow) { settings, isEnabled ->
+                Pair(settings, isEnabled)
+            }.distinctUntilChanged() // Crucial: prevents restarting the job if the same settings are emitted again
+            .collectLatest { (settings, isEnabled) ->
 
-                Timber.tag("TransitionDebug").d("Settings resolved: Mode=%s, Duration=%dms", settings.mode, settings.durationMs)
+                Timber.tag("TransitionDebug").d("Settings resolved: Mode=%s, Duration=%dms, GlobalEnabled=%s", settings.mode, settings.durationMs, isEnabled)
+
+                // If globally disabled, use no transition (or maybe we just let ExoPlayer handle it naturally)
+                if (!isEnabled) {
+                    Timber.tag("TransitionDebug").d("Crossfade globally disabled. Using default gap.")
+                    engine.setPauseAtEndOfMediaItems(false)
+                    // If we wanted to enforce a specific gap (e.g. 1ms), we would handle it here,
+                    // but disabling pauseAtEnd allows ExoPlayer to proceed naturally which usually has a tiny gap.
+                    return@collectLatest
+                }
 
                 // If transition is disabled or has no duration, do nothing.
                 if (settings.mode == TransitionMode.NONE || settings.durationMs <= 0) {
@@ -126,12 +160,7 @@ class TransitionController @Inject constructor(
                     return@collectLatest
                 }
 
-                // FORCE OVERLAP MODE FOR DEBUGGING
-                val effectiveSettings = if (settings.mode != TransitionMode.NONE) {
-                    settings.copy(mode = TransitionMode.OVERLAP)
-                } else {
-                    settings
-                }
+                val effectiveSettings = settings
 
                 // Wait for the player to report a valid duration.
                 var duration = player.duration
@@ -144,12 +173,19 @@ class TransitionController @Inject constructor(
                 if (!isActive) return@collectLatest
 
                 // Calculate transition point
-                // Ensure effective duration isn't longer than the song itself
-                val effectiveDuration = effectiveSettings.durationMs.coerceAtMost(duration.toInt()).coerceAtLeast(500)
-                val transitionPoint = duration - effectiveDuration
+
+                // "Fade In Next" Logic:
+                // We want the current song (A) to finish completely (or almost).
+                // Then the next song (B) starts at Volume 0 and fades in.
+                // We trigger the transition just before the end of A to ensure gapless start.
+                val triggerBuffer = 500 // Trigger 500ms before end
+                val transitionPoint = (duration - triggerBuffer).coerceAtLeast(0)
+
+                // We pass the full user-configured duration to the engine for the Fade In ramp.
+                val effectiveDuration = effectiveSettings.durationMs.coerceAtLeast(500)
 
                 Timber.tag("TransitionDebug").d(
-                    "Scheduled %s at %d ms (Duration: %d, Effective: %d)",
+                    "Scheduled %s at %d ms (SongDur: %d). Next song fade-in: %d ms",
                     effectiveSettings.mode, transitionPoint, duration, effectiveDuration
                 )
 
@@ -160,9 +196,10 @@ class TransitionController @Inject constructor(
 
                 if (transitionPoint <= player.currentPosition) {
                      val remaining = duration - player.currentPosition
-                     if (remaining > 500) {
+                     // We need enough time to actually perform a transition
+                     if (remaining > safetyBuffer + 200) {
                          Timber.tag("TransitionDebug").w("Already past transition point! Triggering immediately.")
-                         engine.performTransition(effectiveSettings.copy(durationMs = remaining.toInt()))
+                         engine.performTransition(effectiveSettings.copy(durationMs = (remaining - safetyBuffer).toInt()))
                      } else {
                          Timber.tag("TransitionDebug").w("Too close to end (%d ms left). Skipping to avoid glitch.", remaining)
                          engine.setPauseAtEndOfMediaItems(false)
@@ -202,8 +239,10 @@ class TransitionController @Inject constructor(
     fun release() {
         Timber.tag("TransitionDebug").d("Releasing controller.")
         transitionSchedulerJob?.cancel()
-        transitionListener?.let { engine.masterPlayer.removeListener(it) }
+        engine.removePlayerSwapListener(swapListener)
+        transitionListener?.let { currentObservedPlayer?.removeListener(it) }
         transitionListener = null
+        currentObservedPlayer = null
         scope.cancel()
     }
 }
