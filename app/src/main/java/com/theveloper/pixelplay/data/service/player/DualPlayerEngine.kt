@@ -288,12 +288,44 @@ class DualPlayerEngine @Inject constructor(
             return
         }
 
-        // --- SWAP PLAYERS IMMEDIATELY ---
-        // We want the UI to see "Next Song" (which is on playerB) as the current item immediately.
-        // So we swap the references. Now 'playerA' will point to the one playing 'Next Song'.
-        // 'playerB' will point to the one playing 'Old Song'.
+        // Small warmup to guarantee audible overlap
+        delay(75)
 
-        // 1. Capture History and Future from Old A (now becoming B)
+        val duration = settings.durationMs.toLong().coerceAtLeast(500L)
+        val stepMs = 16L
+        var elapsed = 0L
+        var lastLog = 0L
+
+        while (elapsed <= duration) {
+            val progress = (elapsed.toFloat() / duration).coerceIn(0f, 1f)
+            val volIn = envelope(progress, settings.curveIn)  // playerB (incoming)
+            val volOut = 1f - envelope(progress, settings.curveOut) // playerA (outgoing)
+
+            playerB.volume = volIn
+            playerA.volume = volOut.coerceIn(0f, 1f)
+
+            if (elapsed - lastLog >= 250) {
+                Timber.tag("TransitionDebug").v("Loop: Progress=%.2f, VolNew=%.2f (Act: %.2f), VolOld=%.2f (Act: %.2f)",
+                    progress, volIn, playerB.volume, volOut, playerA.volume)
+                lastLog = elapsed
+            }
+
+            // Break early if either player stops in a non-ready state to avoid stuck fades.
+            if (playerA.playbackState == Player.STATE_ENDED || playerB.playbackState == Player.STATE_ENDED) {
+                Timber.tag("TransitionDebug").w("One of the players ended during crossfade (A=%d, B=%d)", playerA.playbackState, playerB.playbackState)
+                break
+            }
+
+            delay(stepMs)
+            elapsed += stepMs
+        }
+
+        Timber.tag("TransitionDebug").d("Overlap loop finished.")
+        playerA.volume = 0f
+        playerB.volume = 1f
+
+        // --- SWAP PLAYERS AFTER FADE ---
+        // 1. Capture History and Future from Old A (outgoing)
         val currentAIndex = playerA.currentMediaItemIndex
 
         // History: All songs up to and including the current one (Old Song)
@@ -303,10 +335,6 @@ class DualPlayerEngine @Inject constructor(
         }
 
         // Future: Songs AFTER the Next Song
-        // We start from currentAIndex + 2 because:
-        // currentAIndex is the Old Song (currently fading out on Old A).
-        // currentAIndex + 1 is the Next Song (currently playing on New A).
-        // We only want the songs AFTER the Next Song.
         val futureToTransfer = mutableListOf<MediaItem>()
         if (currentAIndex < playerA.mediaItemCount - 2) {
             for (i in (currentAIndex + 2) until playerA.mediaItemCount) {
@@ -314,7 +342,6 @@ class DualPlayerEngine @Inject constructor(
             }
         }
 
-        // 2. Perform Swap
         val oldPlayer = playerA
         val newPlayer = playerB
 
@@ -331,11 +358,7 @@ class DualPlayerEngine @Inject constructor(
         }
 
         // 3. Transfer History to New A (Prepend)
-        // New A currently has [NextSong] at index 0.
-        // We want [History..., NextSong, Future...]
         if (historyToTransfer.isNotEmpty()) {
-             // Inserting at 0 shifts existing items (NextSong) to the right.
-             // ExoPlayer automatically updates the current item index so playback continues uninterrupted on NextSong.
              playerA.addMediaItems(0, historyToTransfer)
              Timber.tag("TransitionDebug").d("Transferred %d history items to new player.", historyToTransfer.size)
         }
@@ -346,58 +369,16 @@ class DualPlayerEngine @Inject constructor(
              Timber.tag("TransitionDebug").d("Transferred %d future items to new player.", futureToTransfer.size)
         }
 
-        // 4. Notify Service to update MediaSession
+        // 5. Notify Service to update MediaSession
         onPlayerSwappedListeners.forEach { it(playerA) }
         Timber.tag("TransitionDebug").d("Players swapped. UI should now show next song.")
 
-        // Unpause the auto-pause lock on the OLD player (now B) if it was set, although it doesn't matter much as we control volume
-        // Actually, we want B to finish playing so we can leave it alone.
-
-        // Small warmup to guarantee audible overlap
-        delay(75)
-
-        val duration = settings.durationMs.toLong().coerceAtLeast(500L)
-        val stepMs = 16L
-        var elapsed = 0L
-        var lastLog = 0L
-
-        while (elapsed <= duration) {
-            val progress = (elapsed.toFloat() / duration).coerceIn(0f, 1f)
-            // CAREFUL: Logic flipped because references flipped.
-            // playerA is NEW (Fading IN). playerB is OLD (Fading OUT).
-            val volIn = envelope(progress, settings.curveIn)  // A (New)
-            val volOut = 1f - envelope(progress, settings.curveOut) // B (Old)
-
-            playerA.volume = volIn
-            playerB.volume = volOut.coerceIn(0f, 1f)
-
-            if (elapsed - lastLog >= 250) {
-                Timber.tag("TransitionDebug").v("Loop: Progress=%.2f, VolNew=%.2f (Act: %.2f), VolOld=%.2f (Act: %.2f)",
-                    progress, volIn, playerA.volume, volOut, playerB.volume)
-                lastLog = elapsed
-            }
-
-            // Break early if either player stops in a non-ready state to avoid stuck fades.
-            if (playerA.playbackState == Player.STATE_ENDED || playerB.playbackState == Player.STATE_ENDED) {
-                Timber.tag("TransitionDebug").w("One of the players ended during crossfade (A=%d, B=%d)", playerA.playbackState, playerB.playbackState)
-                break
-            }
-
-            delay(stepMs)
-            elapsed += stepMs
-        }
-
-        Timber.tag("TransitionDebug").d("Overlap loop finished.")
-        playerB.volume = 0f
-        playerA.volume = 1f
-
-        // 5. Clean up Old Player (B)
+        // Clean up Old Player (now B)
         playerB.pause()
         playerB.stop()
         playerB.clearMediaItems()
 
         // Fresh Player Strategy: Release and recreate playerB to avoid OEM "stale session" tracking
-        // or resource contention issues (e.g. OplusAudioFade killing reused players).
         playerB.release()
         playerB = buildPlayer(handleAudioFocus = false)
         Timber.tag("TransitionDebug").d("Old Player (B) released and recreated fresh.")
