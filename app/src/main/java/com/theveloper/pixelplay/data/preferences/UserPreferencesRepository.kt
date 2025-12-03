@@ -86,6 +86,16 @@ class UserPreferencesRepository @Inject constructor(
         val IS_FOLDER_FILTER_ACTIVE = booleanPreferencesKey("is_folder_filter_active")
         val IS_FOLDERS_PLAYLIST_VIEW = booleanPreferencesKey("is_folders_playlist_view")
         val KEEP_PLAYING_IN_BACKGROUND = booleanPreferencesKey("keep_playing_in_background")
+        val IS_CROSSFADE_ENABLED = booleanPreferencesKey("is_crossfade_enabled")
+    }
+
+    val isCrossfadeEnabledFlow: Flow<Boolean> = dataStore.data
+        .map { preferences -> preferences[PreferencesKeys.IS_CROSSFADE_ENABLED] ?: true }
+
+    suspend fun setCrossfadeEnabled(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.IS_CROSSFADE_ENABLED] = enabled
+        }
     }
 
     val globalTransitionSettingsFlow: Flow<TransitionSettings> = dataStore.data
