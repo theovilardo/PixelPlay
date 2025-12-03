@@ -291,6 +291,60 @@ class DualPlayerEngine @Inject constructor(
         // Small warmup to guarantee audible overlap
         delay(75)
 
+        // --- SWAP LOGIC START (Early Swap) ---
+        // We swap the player references NOW, so the UI and MediaSession see the "incoming" song
+        // as the active one immediately.
+        // But we keep local references (outgoingPlayer, incomingPlayer) to manage the fade.
+
+        val outgoingPlayer = playerA
+        val incomingPlayer = playerB
+
+        // 1. Capture History and Future from Outgoing Player
+        val currentAIndex = outgoingPlayer.currentMediaItemIndex
+
+        // History: All songs up to and including the current one (Old Song)
+        val historyToTransfer = mutableListOf<MediaItem>()
+        for (i in 0..currentAIndex) {
+            historyToTransfer.add(outgoingPlayer.getMediaItemAt(i))
+        }
+
+        // Future: Songs AFTER the Next Song
+        val futureToTransfer = mutableListOf<MediaItem>()
+        if (currentAIndex < outgoingPlayer.mediaItemCount - 2) {
+            for (i in (currentAIndex + 2) until outgoingPlayer.mediaItemCount) {
+                futureToTransfer.add(outgoingPlayer.getMediaItemAt(i))
+            }
+        }
+
+        // 2. Perform the variable swap
+        outgoingPlayer.removeListener(masterPlayerListener)
+        playerA = incomingPlayer
+        playerB = outgoingPlayer
+        playerA.addListener(masterPlayerListener)
+
+        // Ensure we hold focus for the new master
+        if (playerA.playWhenReady) {
+            requestAudioFocus()
+        }
+
+        // 3. Transfer History to New Master (Prepend)
+        if (historyToTransfer.isNotEmpty()) {
+            playerA.addMediaItems(0, historyToTransfer)
+            Timber.tag("TransitionDebug").d("Transferred %d history items to new player.", historyToTransfer.size)
+        }
+
+        // 4. Transfer Future to New Master (Append)
+        if (futureToTransfer.isNotEmpty()) {
+            playerA.addMediaItems(futureToTransfer)
+            Timber.tag("TransitionDebug").d("Transferred %d future items to new player.", futureToTransfer.size)
+        }
+
+        // 5. Notify Service to update MediaSession IMMEDIATELY
+        // This ensures the UI updates to show the new song while the crossfade is happening.
+        Timber.tag("TransitionDebug").d("Notifying listeners of player swap (Early Swap).")
+        onPlayerSwappedListeners.forEach { it(playerA) }
+
+        // --- FADE LOOP ---
         val duration = settings.durationMs.toLong().coerceAtLeast(500L)
         val stepMs = 16L
         var elapsed = 0L
@@ -298,21 +352,21 @@ class DualPlayerEngine @Inject constructor(
 
         while (elapsed <= duration) {
             val progress = (elapsed.toFloat() / duration).coerceIn(0f, 1f)
-            val volIn = envelope(progress, settings.curveIn)  // playerB (incoming)
-            val volOut = 1f - envelope(progress, settings.curveOut) // playerA (outgoing)
+            val volIn = envelope(progress, settings.curveIn)  // incomingPlayer (now playerA)
+            val volOut = 1f - envelope(progress, settings.curveOut) // outgoingPlayer (now playerB)
 
-            playerB.volume = volIn
-            playerA.volume = volOut.coerceIn(0f, 1f)
+            incomingPlayer.volume = volIn
+            outgoingPlayer.volume = volOut.coerceIn(0f, 1f)
 
             if (elapsed - lastLog >= 250) {
                 Timber.tag("TransitionDebug").v("Loop: Progress=%.2f, VolNew=%.2f (Act: %.2f), VolOld=%.2f (Act: %.2f)",
-                    progress, volIn, playerB.volume, volOut, playerA.volume)
+                    progress, volIn, incomingPlayer.volume, volOut, outgoingPlayer.volume)
                 lastLog = elapsed
             }
 
             // Break early if either player stops in a non-ready state to avoid stuck fades.
-            if (playerA.playbackState == Player.STATE_ENDED || playerB.playbackState == Player.STATE_ENDED) {
-                Timber.tag("TransitionDebug").w("One of the players ended during crossfade (A=%d, B=%d)", playerA.playbackState, playerB.playbackState)
+            if (outgoingPlayer.playbackState == Player.STATE_ENDED || incomingPlayer.playbackState == Player.STATE_ENDED) {
+                Timber.tag("TransitionDebug").w("One of the players ended during crossfade.")
                 break
             }
 
@@ -321,62 +375,15 @@ class DualPlayerEngine @Inject constructor(
         }
 
         Timber.tag("TransitionDebug").d("Overlap loop finished.")
-        playerA.volume = 0f
-        playerB.volume = 1f
+        outgoingPlayer.volume = 0f
+        incomingPlayer.volume = 1f
 
-        // --- SWAP PLAYERS AFTER FADE ---
-        // 1. Capture History and Future from Old A (outgoing)
-        val currentAIndex = playerA.currentMediaItemIndex
-
-        // History: All songs up to and including the current one (Old Song)
-        val historyToTransfer = mutableListOf<MediaItem>()
-        for (i in 0..currentAIndex) {
-            historyToTransfer.add(playerA.getMediaItemAt(i))
-        }
-
-        // Future: Songs AFTER the Next Song
-        val futureToTransfer = mutableListOf<MediaItem>()
-        if (currentAIndex < playerA.mediaItemCount - 2) {
-            for (i in (currentAIndex + 2) until playerA.mediaItemCount) {
-                futureToTransfer.add(playerA.getMediaItemAt(i))
-            }
-        }
-
-        val oldPlayer = playerA
-        val newPlayer = playerB
-
-        // Move manual focus management to the new master player
-        oldPlayer.removeListener(masterPlayerListener)
-
-        playerA = newPlayer
-        playerB = oldPlayer
-
-        playerA.addListener(masterPlayerListener)
-        // Ensure we hold focus for the new master
-        if (playerA.playWhenReady) {
-             requestAudioFocus()
-        }
-
-        // 3. Transfer History to New A (Prepend)
-        if (historyToTransfer.isNotEmpty()) {
-             playerA.addMediaItems(0, historyToTransfer)
-             Timber.tag("TransitionDebug").d("Transferred %d history items to new player.", historyToTransfer.size)
-        }
-
-        // 4. Transfer Future to New A (Append)
-        if (futureToTransfer.isNotEmpty()) {
-             playerA.addMediaItems(futureToTransfer)
-             Timber.tag("TransitionDebug").d("Transferred %d future items to new player.", futureToTransfer.size)
-        }
-
-        // 5. Notify Service to update MediaSession
-        onPlayerSwappedListeners.forEach { it(playerA) }
-        Timber.tag("TransitionDebug").d("Players swapped. UI should now show next song.")
-
-        // Clean up Old Player (now B)
-        playerB.pause()
-        playerB.stop()
-        playerB.clearMediaItems()
+        // --- CLEANUP ---
+        // Clean up Outgoing Player (which is now stored in 'playerB')
+        // We use the local reference 'outgoingPlayer' which points to the same object as 'playerB'
+        outgoingPlayer.pause()
+        outgoingPlayer.stop()
+        outgoingPlayer.clearMediaItems()
 
         // Fresh Player Strategy: Release and recreate playerB to avoid OEM "stale session" tracking
         playerB.release()
