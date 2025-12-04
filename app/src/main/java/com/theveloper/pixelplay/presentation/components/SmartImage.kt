@@ -40,7 +40,7 @@ fun SmartImage(
     contentDescription: String?,
     modifier: Modifier = Modifier,
     placeholderResId: Int = R.drawable.ic_music_placeholder,
-    errorResId: Int = R.drawable.rounded_broken_image_24,
+    errorResId: Int = R.drawable.ic_music_placeholder,
     shape: Shape = RectangleShape,
     contentScale: ContentScale = ContentScale.Crop,
     crossfadeDurationMillis: Int = 300,
@@ -130,8 +130,8 @@ fun SmartImage(
                     modifier = Modifier.fillMaxSize(),
                     drawableResId = errorResId,
                     contentDescription = contentDescription,
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    iconColor = MaterialTheme.colorScheme.onErrorContainer,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     alpha = alpha
                 )
             }

@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -19,6 +20,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
 import coil.annotation.ExperimentalCoilApi
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
@@ -53,7 +55,7 @@ fun OptimizedAlbumArt(
                 .data(uri)
                 .crossfade(false)
                 .placeholder(R.drawable.ic_music_placeholder)
-                .error(R.drawable.rounded_broken_image_24)
+                .error(R.drawable.ic_music_placeholder)
                 .size(targetSize)
                 .memoryCachePolicy(CachePolicy.ENABLED)
                 .diskCachePolicy(CachePolicy.ENABLED)
@@ -85,6 +87,7 @@ fun OptimizedAlbumArt(
                     painter = painterResource(R.drawable.ic_music_placeholder),
                     contentDescription = "$title placeholder",
                     contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(96.dp),
                     colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(
                         MaterialTheme.colorScheme.onSurfaceVariant
                     ),
@@ -93,15 +96,16 @@ fun OptimizedAlbumArt(
             is AsyncImagePainter.State.Error -> Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.errorContainer),
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                 contentAlignment = Alignment.Center
             ) {
                 Image(
-                    painter = painterResource(R.drawable.rounded_broken_image_24),
-                    contentDescription = "Error loading album art for $title",
+                    painter = painterResource(R.drawable.ic_music_placeholder),
+                    contentDescription = "$title placeholder",
                     contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(96.dp),
                     colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(
-                        MaterialTheme.colorScheme.onErrorContainer
+                        MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
             }

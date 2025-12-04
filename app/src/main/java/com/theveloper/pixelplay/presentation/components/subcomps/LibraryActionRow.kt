@@ -336,13 +336,7 @@ fun Breadcrumbs(
                     color = if (isLast) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
                         .clip(CircleShape)
-                        .clickable(enabled = !isLast) {
-                            if (isFirst){
-                                onNavigateBack()
-                            } else {
-                                onFolderClick(path)
-                            }
-                        }
+                        .clickable(enabled = !isLast) { onFolderClick(path) }
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
                 if (!isLast) {

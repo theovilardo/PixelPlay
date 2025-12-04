@@ -169,7 +169,7 @@ fun DailyMixHeader(thumbnails: ImmutableList<Song>) {
                             .border(2.dp, MaterialTheme.colorScheme.surface, threeShapeSwitch(index))
                     ) {
                         SmartImage(
-                            model = song.albumArtUriString ?: R.drawable.rounded_album_24,
+                            model = song.albumArtUriString,
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()

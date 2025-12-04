@@ -657,7 +657,12 @@ class MusicRepositoryImpl @Inject constructor(
                 return MusicFolder(
                     path = tempFolder.path,
                     name = tempFolder.name,
-                    songs = tempFolder.songs.sortedBy { it.title }.toImmutableList(),
+                    songs = tempFolder.songs
+                        .sortedWith(
+                            compareBy<Song> { if (it.trackNumber > 0) it.trackNumber else Int.MAX_VALUE }
+                                .thenBy { it.title.lowercase() }
+                        )
+                        .toImmutableList(),
                     subFolders = subFolders
                 )
             }

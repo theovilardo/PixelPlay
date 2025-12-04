@@ -3263,6 +3263,17 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun navigateToFolder(path: String) {
+        val storageRootPath = android.os.Environment.getExternalStorageDirectory().path
+        if (path == storageRootPath) {
+            _playerUiState.update {
+                it.copy(
+                    currentFolderPath = null,
+                    currentFolder = null
+                )
+            }
+            return
+        }
+
         val folder = findFolder(path, _playerUiState.value.musicFolders)
         if (folder != null) {
             _playerUiState.update {

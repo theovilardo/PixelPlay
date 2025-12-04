@@ -63,7 +63,7 @@ fun PlaylistArtCollage(
             when (songs.size) {
                 1 -> {
                     SmartImage(
-                        model = songs[0].albumArtUriString ?: R.drawable.rounded_album_24,
+                        model = songs[0].albumArtUriString,
                         contentDescription = songs[0].title,
                         contentScale = ContentScale.Crop,
                         targetSize = Size(256, 256),
@@ -79,7 +79,7 @@ fun PlaylistArtCollage(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         SmartImage(
-                            model = songs[0].albumArtUriString ?: R.drawable.rounded_album_24,
+                            model = songs[0].albumArtUriString,
                             contentDescription = songs[0].title,
                             contentScale = ContentScale.Crop,
                             targetSize = Size(128, 128),
@@ -89,7 +89,7 @@ fun PlaylistArtCollage(
                                 .clip(CircleShape)
                         )
                         SmartImage(
-                            model = songs[1].albumArtUriString ?: R.drawable.rounded_album_24,
+                            model = songs[1].albumArtUriString,
                             contentDescription = songs[1].title,
                             contentScale = ContentScale.Crop,
                             targetSize = Size(128, 128),
@@ -105,7 +105,7 @@ fun PlaylistArtCollage(
                         content = {
                             songs.take(3).forEach { song ->
                                 SmartImage(
-                                    model = song.albumArtUriString ?: R.drawable.rounded_album_24,
+                                    model = song.albumArtUriString,
                                     contentDescription = song.title,
                                     contentScale = ContentScale.Crop,
                                     targetSize = Size(128, 128),
@@ -170,8 +170,7 @@ fun PlaylistArtCollage(
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             SmartImage(
-                                model = songs[0].albumArtUriString
-                                    ?: R.drawable.rounded_album_24,
+                                model = songs[0].albumArtUriString,
                                 contentDescription = songs[0].title,
                                 contentScale = ContentScale.Crop,
                                 targetSize = Size(128, 128),
@@ -181,8 +180,7 @@ fun PlaylistArtCollage(
                                     .clip(CircleShape)
                             )
                             SmartImage(
-                                model = songs[1].albumArtUriString
-                                    ?: R.drawable.rounded_album_24,
+                                model = songs[1].albumArtUriString,
                                 contentDescription = songs[1].title,
                                 contentScale = ContentScale.Crop,
                                 targetSize = Size(128, 128),
@@ -197,8 +195,7 @@ fun PlaylistArtCollage(
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             SmartImage(
-                                model = songs[2].albumArtUriString
-                                    ?: R.drawable.rounded_album_24,
+                                model = songs[2].albumArtUriString,
                                 contentDescription = songs[2].title,
                                 contentScale = ContentScale.Crop,
                                 targetSize = Size(128, 128),
@@ -208,8 +205,7 @@ fun PlaylistArtCollage(
                                     .clip(CircleShape)
                             )
                             SmartImage(
-                                model = songs[3].albumArtUriString
-                                    ?: R.drawable.rounded_album_24,
+                                model = songs[3].albumArtUriString,
                                 contentDescription = songs[3].title,
                                 contentScale = ContentScale.Crop,
                                 targetSize = Size(128, 128),
