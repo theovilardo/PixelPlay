@@ -133,12 +133,18 @@ fun FullPlayerContent(
     onQueueDrag: (Float) -> Unit,
     onQueueRelease: (Float, Float) -> Unit,
     onShowCastClicked: () -> Unit,
-    onShowTrackVolumeClicked: () -> Unit,
     onShuffleToggle: () -> Unit,
     onRepeatToggle: () -> Unit,
     onFavoriteToggle: () -> Unit
 ) {
-    val song = currentSong ?: return // Early exit if no song
+    var retainedSong by remember { mutableStateOf(currentSong) }
+    LaunchedEffect(currentSong?.id) {
+        if (currentSong != null) {
+            retainedSong = currentSong
+        }
+    }
+
+    val song = currentSong ?: retainedSong ?: return // Keep the player visible while transitioning
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     var showLyricsSheet by remember { mutableStateOf(false) }
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
@@ -322,50 +328,40 @@ fun FullPlayerContent(
                             .padding(end = 14.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        // Cast Button
-//                        Box(
-//                            modifier = Modifier
-//                                .size(height = 42.dp, width = 50.dp)
-//                                .clip(
-//                                    RoundedCornerShape(
-//                                        topStart = 50.dp,
-//                                        topEnd = 6.dp,
-//                                        bottomStart = 50.dp,
-//                                        bottomEnd = 6.dp
-//                                    )
-//                                )
-//                                .background(LocalMaterialTheme.current.onPrimary)
-//                                .clickable { onShowCastClicked() },
-//                            contentAlignment = Alignment.Center
-//                        ) {
-//                            Icon(
-//                                painter = painterResource(R.drawable.rounded_cast_24),
-//                                contentDescription = "Cast",
-//                                tint = LocalMaterialTheme.current.primary
-//                            )
-//                        }
-
-                        // Track Volume Button
+                        val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
+                        val selectedRouteName by playerViewModel.selectedRoute.map { it?.name }.collectAsState(initial = null)
                         Box(
                             modifier = Modifier
-                                .size(height = 42.dp, width = 50.dp)
+                                .size(height = 42.dp, width = 56.dp)
                                 .clip(
                                     RoundedCornerShape(
                                         topStart = 50.dp,
-                                        topEnd = 6.dp,
+                                        topEnd = 10.dp,
                                         bottomStart = 50.dp,
-                                        bottomEnd = 6.dp
+                                        bottomEnd = 10.dp
                                     )
                                 )
-                                .background(LocalMaterialTheme.current.onPrimary)
-                                .clickable { onShowTrackVolumeClicked() },
+                                .background(
+                                    if (isRemotePlaybackActive) LocalMaterialTheme.current.primaryContainer else LocalMaterialTheme.current.onPrimary
+                                )
+                                .clickable { onShowCastClicked() },
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                painter = painterResource(R.drawable.rounded_volume_up_24),
-                                contentDescription = "Track Volume",
-                                tint = LocalMaterialTheme.current.primary
-                            )
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    painter = painterResource(R.drawable.rounded_cast_24),
+                                    contentDescription = "Cast",
+                                    tint = if (isRemotePlaybackActive) LocalMaterialTheme.current.onPrimaryContainer else LocalMaterialTheme.current.primary
+                                )
+                                AnimatedVisibility(visible = isRemotePlaybackActive && selectedRouteName != null) {
+                                    Text(
+                                        text = selectedRouteName ?: "",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = LocalMaterialTheme.current.onPrimaryContainer,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
                         }
 
                         // Queue Button
@@ -436,11 +432,11 @@ fun FullPlayerContent(
 
                 DeferAt(expansionFraction, 0.34f) {
                     AlbumCarouselSection(
-                        currentSong = currentSong,
+                        currentSong = song,
                         queue = currentPlaybackQueue,
                         expansionFraction = expansionFraction,
                         onSongSelected = { newSong ->
-                            if (newSong.id != currentSong.id) {
+                            if (newSong.id != song.id) {
                                 playerViewModel.showAndPlaySong(
                                     song = newSong,
                                     contextSongs = currentPlaybackQueue,
@@ -460,7 +456,7 @@ fun FullPlayerContent(
                     .align(Alignment.Start)
                     .padding(start = 0.dp),
                 onClickLyrics = onLyricsClick,
-                song = currentSong, // currentSong is from stablePlayerState
+                song = song,
                 expansionFraction = expansionFraction,
                 textColor = LocalMaterialTheme.current.onPrimaryContainer,
                 artistTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.8f),
@@ -661,8 +657,9 @@ private fun PlayerProgressBarSection(
     val isExpanded = currentSheetState == PlayerSheetState.EXPANDED &&
         expansionFraction >= 0.995f
 
+    val durationForCalc = totalDurationValue.coerceAtLeast(1L)
     val rawPosition = currentPositionProvider()
-    val rawProgress = (rawPosition.coerceAtLeast(0) / totalDurationValue.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
+    val rawProgress = (rawPosition.coerceAtLeast(0) / durationForCalc.toFloat()).coerceIn(0f, 1f)
 
     val (smoothProgress, _) = rememberSmoothProgress(
         isPlayingProvider = isPlayingProvider,
@@ -694,7 +691,7 @@ private fun PlayerProgressBarSection(
     }
 
     val effectiveProgress = animatedProgress.value
-    val effectivePosition = (effectiveProgress * totalDurationValue).roundToLong()
+    val effectivePosition = (effectiveProgress * durationForCalc).roundToLong().coerceIn(0L, totalDurationValue.coerceAtLeast(0L))
 
     Column(
         modifier = modifier
@@ -709,7 +706,7 @@ private fun PlayerProgressBarSection(
                 onValueChange = { newValue -> sliderDragValue = newValue },
                 onValueChangeFinished = {
                     sliderDragValue?.let { finalValue ->
-                        onSeek((finalValue * totalDurationValue).roundToLong())
+                        onSeek((finalValue * durationForCalc).roundToLong())
                     }
                     sliderDragValue = null
                 },

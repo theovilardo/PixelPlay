@@ -67,12 +67,13 @@ fun rememberSmoothProgress(
     val latestIsPlayingProvider by rememberUpdatedState(newValue = isPlayingProvider)
 
     val safeDuration = totalDuration.coerceAtLeast(1L)
+    val safeUpperBound = totalDuration.coerceAtLeast(0L)
 
     LaunchedEffect(totalDuration, sampleWhilePlayingMs, sampleWhilePausedMs) {
         while (isActive) {
             val isPlaying = latestIsPlayingProvider()
             val rawPosition = latestPositionProvider()
-            val clampedPosition = rawPosition.coerceIn(0L, totalDuration)
+            val clampedPosition = rawPosition.coerceIn(0L, safeUpperBound)
 
             sampledPosition = clampedPosition
             targetFraction = (clampedPosition / safeDuration.toFloat()).coerceIn(0f, 1f)

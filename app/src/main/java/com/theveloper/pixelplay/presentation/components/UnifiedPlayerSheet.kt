@@ -565,7 +565,6 @@ fun UnifiedPlayerSheet(
     }
     var pendingSaveQueueOverlay by remember { mutableStateOf<SaveQueueOverlayData?>(null) }
     var showCastSheet by remember { mutableStateOf(false) }
-    var showTrackVolumeSheet by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
     var isDraggingPlayerArea by remember { mutableStateOf(false) }
     val velocityTracker = remember { VelocityTracker() }
@@ -1181,9 +1180,6 @@ fun UnifiedPlayerSheet(
                                                         )
                                                     },
                                                     onShowCastClicked = { showCastSheet = true },
-                                                    onShowTrackVolumeClicked = {
-                                                        showTrackVolumeSheet = true
-                                                    },
                                                     onShuffleToggle = playerViewModel::toggleShuffle,
                                                     onRepeatToggle = playerViewModel::cycleRepeatMode,
                                                     onFavoriteToggle = playerViewModel::toggleFavorite,
@@ -1241,7 +1237,6 @@ fun UnifiedPlayerSheet(
                                     onCollapse = {},
 //                                onQueueSheetVisibilityChange = {},
                                     onShowCastClicked = {},
-                                    onShowTrackVolumeClicked = {},
                                     onShuffleToggle = playerViewModel::toggleShuffle,
                                     onRepeatToggle = playerViewModel::cycleRepeatMode,
                                     onFavoriteToggle = playerViewModel::toggleFavorite,
@@ -1351,22 +1346,6 @@ fun UnifiedPlayerSheet(
                 CastBottomSheet(
                     playerViewModel = playerViewModel,
                     onDismiss = { showCastSheet = false }
-                )
-            }
-        }
-
-        if (showTrackVolumeSheet) {
-            val trackVolume by playerViewModel.trackVolume.collectAsState()
-            CompositionLocalProvider(
-                LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
-            ) {
-                TrackVolumeBottomSheet(
-                    theme = LocalMaterialTheme,
-                    initialVolume = trackVolume,
-                    onDismiss = { showTrackVolumeSheet = false },
-                    onVolumeChange = { newVolume ->
-                        playerViewModel.setTrackVolume(newVolume)
-                    }
                 )
             }
         }
