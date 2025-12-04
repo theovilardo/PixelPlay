@@ -528,6 +528,16 @@ fun SettingsScreen(
                                 )
                             }
                         )
+                        if (uiState.isCrossfadeEnabled) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            SliderSettingsItem(
+                                label = "Crossfade Duration",
+                                value = uiState.crossfadeDuration.toFloat(),
+                                valueRange = 2000f..12000f,
+                                onValueChange = { settingsViewModel.setCrossfadeDuration(it.toInt()) },
+                                valueText = { value -> "${(value / 1000).toInt()}s" }
+                            )
+                        }
                     }
                 }
             }
@@ -919,6 +929,56 @@ fun ThemeSelectorItem(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun SliderSettingsItem(
+    label: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    onValueChange: (Float) -> Unit,
+    valueText: (Float) -> String
+) {
+    var sliderValue by remember(value) { mutableStateOf(value) }
+
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .fillMaxWidth()
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = valueText(sliderValue),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            androidx.compose.material3.Slider(
+                value = sliderValue,
+                onValueChange = { sliderValue = it },
+                onValueChangeFinished = { onValueChange(sliderValue) },
+                valueRange = valueRange,
+                steps = ((valueRange.endInclusive - valueRange.start) / 500).toInt() - 1,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }

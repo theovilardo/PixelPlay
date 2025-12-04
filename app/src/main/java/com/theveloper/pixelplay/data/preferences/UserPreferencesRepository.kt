@@ -87,6 +87,7 @@ class UserPreferencesRepository @Inject constructor(
         val IS_FOLDERS_PLAYLIST_VIEW = booleanPreferencesKey("is_folders_playlist_view")
         val KEEP_PLAYING_IN_BACKGROUND = booleanPreferencesKey("keep_playing_in_background")
         val IS_CROSSFADE_ENABLED = booleanPreferencesKey("is_crossfade_enabled")
+        val CROSSFADE_DURATION = intPreferencesKey("crossfade_duration")
     }
 
     val isCrossfadeEnabledFlow: Flow<Boolean> = dataStore.data
@@ -98,15 +99,27 @@ class UserPreferencesRepository @Inject constructor(
         }
     }
 
+    val crossfadeDurationFlow: Flow<Int> = dataStore.data
+        .map { preferences -> preferences[PreferencesKeys.CROSSFADE_DURATION] ?: 6000 }
+
+    suspend fun setCrossfadeDuration(duration: Int) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.CROSSFADE_DURATION] = duration
+        }
+    }
+
     val globalTransitionSettingsFlow: Flow<TransitionSettings> = dataStore.data
         .map { preferences ->
-            preferences[PreferencesKeys.GLOBAL_TRANSITION_SETTINGS]?.let { jsonString ->
+            val duration = preferences[PreferencesKeys.CROSSFADE_DURATION] ?: 6000
+            val settings = preferences[PreferencesKeys.GLOBAL_TRANSITION_SETTINGS]?.let { jsonString ->
                 try {
                     json.decodeFromString<TransitionSettings>(jsonString)
                 } catch (e: Exception) {
                     TransitionSettings() // Return default on error
                 }
             } ?: TransitionSettings() // Return default if not set
+
+            settings.copy(durationMs = duration)
         }
 
     suspend fun saveGlobalTransitionSettings(settings: TransitionSettings) {

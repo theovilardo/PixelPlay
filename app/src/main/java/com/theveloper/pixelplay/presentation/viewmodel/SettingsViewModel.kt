@@ -31,6 +31,7 @@ data class SettingsUiState(
     val launchTab: String = LaunchTab.HOME,
     val keepPlayingInBackground: Boolean = true,
     val isCrossfadeEnabled: Boolean = true,
+    val crossfadeDuration: Int = 6000,
     val availableModels: List<GeminiModel> = emptyList(),
     val isLoadingModels: Boolean = false,
     val modelsFetchError: String? = null
@@ -111,6 +112,12 @@ class SettingsViewModel @Inject constructor(
             }
         }
 
+        viewModelScope.launch {
+            userPreferencesRepository.crossfadeDurationFlow.collect { duration ->
+                _uiState.update { it.copy(crossfadeDuration = duration) }
+            }
+        }
+
         loadDirectoryPreferences()
     }
 
@@ -188,6 +195,12 @@ class SettingsViewModel @Inject constructor(
     fun setCrossfadeEnabled(enabled: Boolean) {
         viewModelScope.launch {
             userPreferencesRepository.setCrossfadeEnabled(enabled)
+        }
+    }
+
+    fun setCrossfadeDuration(duration: Int) {
+        viewModelScope.launch {
+            userPreferencesRepository.setCrossfadeDuration(duration)
         }
     }
 
