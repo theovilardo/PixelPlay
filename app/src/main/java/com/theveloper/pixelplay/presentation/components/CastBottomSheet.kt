@@ -16,11 +16,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -117,7 +118,9 @@ fun CastBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 16.dp)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             AnimatedVisibility(visible = isRefreshing) {
@@ -466,14 +469,12 @@ private fun DeviceSection(
             )
         }
 
-        if (routes.isEmpty() && !isRefreshing) {
+        val availableRoutes = routes.filterNot { it.isDefault }
+        if (availableRoutes.isEmpty() && !isRefreshing) {
             EmptyDeviceState()
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(
-                    items = routes.filterNot { it.isDefault },
-                    key = { it.id }
-                ) { route ->
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                availableRoutes.forEach { route ->
                     CastDeviceCard(
                         route = route,
                         isSelected = selectedRoute?.id == route.id,
