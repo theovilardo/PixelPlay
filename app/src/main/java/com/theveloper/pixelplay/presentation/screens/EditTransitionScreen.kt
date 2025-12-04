@@ -41,6 +41,7 @@ import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -68,12 +69,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Curve
 import com.theveloper.pixelplay.data.model.TransitionMode
 import com.theveloper.pixelplay.data.model.TransitionSettings
@@ -121,14 +124,30 @@ fun EditTransitionScreen(
             LargeTopAppBar(
                 title = {
                     Text(
+                        modifier = Modifier.padding(start = 4.dp),
                         text = if (isPlaylistScope) "Playlist rules" else "Global transitions",
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.navigateUp() }) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                    FilledIconButton(
+                        modifier = Modifier
+                            .padding(start = 10.dp),
+                        onClick = { navController.navigateUp() },
+                        colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+                    ) {
+                        Icon(painterResource(R.drawable.rounded_arrow_back_24), contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    FilledTonalIconButton(
+                        modifier = Modifier.padding(end = 10.dp),
+                        onClick = { viewModel.saveSettings() },
+                        enabled = !uiState.isLoading,
+                        colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer, contentColor = MaterialTheme.colorScheme.onTertiaryContainer)
+                    ){
+                        Icon(Icons.Rounded.Save, contentDescription = "Save")
                     }
                 },
                 scrollBehavior = scrollBehavior,
@@ -139,16 +158,17 @@ fun EditTransitionScreen(
             )
         },
         floatingActionButton = {
-            if (!uiState.isLoading) {
-                ExtendedFloatingActionButton(
-                    onClick = { viewModel.saveSettings() },
-                    icon = { Icon(Icons.Rounded.Save, contentDescription = null) },
-                    text = { Text("Save changes") },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    elevation = androidx.compose.material3.FloatingActionButtonDefaults.elevation(0.dp) // Flat style for consistency
-                )
-            }
+//            if (!uiState.isLoading) {
+//                ExtendedFloatingActionButton(
+//                    modifier = Modifier.padding(),
+//                    onClick = { viewModel.saveSettings() },
+//                    icon = { Icon(Icons.Rounded.Save, contentDescription = null) },
+//                    text = { Text("Save changes") },
+//                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+//                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+//                    elevation = androidx.compose.material3.FloatingActionButtonDefaults.elevation(0.dp) // Flat style for consistency
+//                )
+//            }
         }
     ) { paddingValues ->
         if (uiState.isLoading) {
@@ -286,7 +306,9 @@ private fun TransitionSummaryCard(
                             .fillMaxWidth()
                             .padding(16.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                        Column(modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 16.dp)) {
                             Text("Custom Override", style = MaterialTheme.typography.titleMedium)
                             Text(
                                 text = "Enable to set specific rules for this playlist.",
@@ -558,7 +580,7 @@ private fun CrossfadeVisualizer(durationMs: Int) {
                             .weight(1f)
                             .fillMaxSize()
                             .background(
-                                color = MaterialTheme.colorScheme.tertiary.copy(alpha=0.3f),
+                                color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f),
                                 shape = AbsoluteSmoothCornerShape(
                                     cornerRadiusTR = 0.dp,
                                     smoothnessAsPercentTL = 60,
@@ -577,7 +599,7 @@ private fun CrossfadeVisualizer(durationMs: Int) {
                             .weight(1f)
                             .fillMaxSize()
                             .background(
-                                color = MaterialTheme.colorScheme.secondary.copy(alpha=0.3f),
+                                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f),
                                 shape = AbsoluteSmoothCornerShape(
                                     cornerRadiusTR = 50.dp,
                                     smoothnessAsPercentTL = 60,
@@ -595,7 +617,9 @@ private fun CrossfadeVisualizer(durationMs: Int) {
                 Icon(
                     Icons.Rounded.AutoAwesomeMotion,
                     contentDescription = null,
-                    modifier = Modifier.align(Alignment.Center).size(16.dp),
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(16.dp),
                     tint = MaterialTheme.colorScheme.onSurface
                 )
             }
