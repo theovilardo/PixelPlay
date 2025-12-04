@@ -1,6 +1,7 @@
 package com.theveloper.pixelplay.presentation.components.player
 
 import android.annotation.SuppressLint
+import android.content.res.Configuration
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -18,13 +19,18 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -34,16 +40,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.drag
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -52,17 +52,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -70,9 +73,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
-import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavHostController
@@ -98,7 +98,6 @@ import com.theveloper.pixelplay.utils.formatDuration
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import timber.log.Timber
 import kotlin.math.roundToLong
@@ -182,6 +181,9 @@ fun FullPlayerContent(
     val controlTintPlayPauseIcon = LocalMaterialTheme.current.onPrimary
     val controlTintOtherIcons = LocalMaterialTheme.current.primary
 
+    val isLandscape =
+        LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+
     // Lógica para el botón de Lyrics en el reproductor expandido
     val onLyricsClick = {
         val lyrics = stablePlayerState.lyrics
@@ -233,6 +235,184 @@ fun FullPlayerContent(
 
     val gestureScope = rememberCoroutineScope()
 
+    @Composable
+    fun AlbumCoverSection(modifier: Modifier = Modifier) {
+        BoxWithConstraints(
+            modifier = modifier
+                .padding(vertical = lerp(4.dp, 8.dp, expansionFraction))
+                .graphicsLayer {
+                    alpha = expansionFraction
+                }
+        ) {
+            val carouselHeight = when (carouselStyle) {
+                CarouselStyle.NO_PEEK -> maxWidth
+                CarouselStyle.ONE_PEEK -> maxWidth * 0.8f
+                CarouselStyle.TWO_PEEK -> maxWidth * 0.6f // Main item is 60% of width
+                else -> maxWidth * 0.8f
+            }
+
+            AlbumCarouselSection(
+                currentSong = currentSong,
+                queue = currentPlaybackQueue,
+                expansionFraction = expansionFraction,
+                onSongSelected = { newSong ->
+                    if (newSong.id != currentSong.id) {
+                        playerViewModel.showAndPlaySong(
+                            song = newSong,
+                            contextSongs = currentPlaybackQueue,
+                            queueName = currentQueueSourceName
+                        )
+                    }
+                },
+                carouselStyle = carouselStyle,
+                modifier = Modifier.height(carouselHeight)
+            )
+
+        }
+    }
+
+    @Composable
+    fun ControlsSection() {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            AnimatedPlaybackControls(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                isPlayingProvider = isPlayingProvider,
+                onPrevious = onPrevious,
+                onPlayPause = onPlayPause,
+                onNext = onNext,
+                height = 80.dp,
+                pressAnimationSpec = stableControlAnimationSpec,
+                releaseDelay = 220L,
+                colorOtherButtons = controlOtherButtonsColor,
+                colorPlayPause = controlPlayPauseColor,
+                tintPlayPauseIcon = controlTintPlayPauseIcon,
+                tintOtherIcons = controlTintOtherIcons
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            BottomToggleRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 58.dp, max = 78.dp)
+                    .padding(horizontal = 26.dp, vertical = 0.dp)
+                    .padding(bottom = 6.dp),
+                isShuffleEnabled = isShuffleEnabled,
+                repeatMode = repeatMode,
+                isFavoriteProvider = isFavoriteProvider,
+                onShuffleToggle = onShuffleToggle,
+                onRepeatToggle = onRepeatToggle,
+                onFavoriteToggle = onFavoriteToggle
+            )
+        }
+    }
+
+    @Composable
+    fun PlayerProgressBarSection() {
+        PlayerProgressBarSection(
+            currentPositionProvider = currentPositionProvider,
+            totalDurationValue = totalDurationValue,
+            onSeek = onSeek,
+            expansionFraction = expansionFraction,
+            isPlayingProvider = isPlayingProvider,
+            currentSheetState = currentSheetState,
+            activeTrackColor = LocalMaterialTheme.current.primary,
+            inactiveTrackColor = LocalMaterialTheme.current.primary.copy(alpha = 0.2f),
+            thumbColor = LocalMaterialTheme.current.primary,
+            timeTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f)
+        )
+    }
+
+    @Composable
+    fun SongMetadataDisplaySection() {
+        SongMetadataDisplaySection(
+            onClickLyrics = onLyricsClick,
+            song = currentSong,
+            expansionFraction = expansionFraction,
+            textColor = LocalMaterialTheme.current.onPrimaryContainer,
+            artistTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.8f),
+            navController = navController,
+            onCollapse = onCollapse,
+            gradientEdgeColor = LocalMaterialTheme.current.primaryContainer,
+            showQueueButton = isLandscape,
+            onClickQueue = onShowQueueClicked
+        )
+    }
+
+    @Composable
+    fun FullPlayerPortraitContent(paddingValues: PaddingValues) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(
+                    horizontal = lerp(8.dp, 24.dp, expansionFraction),
+                    vertical = lerp(0.dp, 0.dp, expansionFraction),
+                ),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            AlbumCoverSection()
+            SongMetadataDisplaySection()
+            DeferAt(expansionFraction, 0.32f) {
+                PlayerProgressBarSection(
+                    currentPositionProvider = currentPositionProvider,
+                    totalDurationValue = totalDurationValue,
+                    onSeek = onSeek,
+                    expansionFraction = expansionFraction,
+                    isPlayingProvider = isPlayingProvider,
+                    currentSheetState = currentSheetState,
+                    activeTrackColor = LocalMaterialTheme.current.primary,
+                    inactiveTrackColor = LocalMaterialTheme.current.primary.copy(alpha = 0.2f),
+                    thumbColor = LocalMaterialTheme.current.primary,
+                    timeTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f)
+                )
+            }
+            DeferAt(expansionFraction, 0.42f) {
+                ControlsSection()
+            }
+        }
+    }
+
+    @Composable
+    fun FullPlayerLandscapeContent(paddingValues: PaddingValues) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(
+                    horizontal = lerp(8.dp, 24.dp, expansionFraction),
+                    vertical = lerp(0.dp, 0.dp, expansionFraction)
+                ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AlbumCoverSection(
+                Modifier
+                    .fillMaxHeight()
+            )
+            Spacer(Modifier.width(9.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .weight(1f)
+                    .padding(
+                        horizontal = 0.dp,
+                        vertical = lerp(0.dp, 0.dp, expansionFraction)
+                    ),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceEvenly
+            ) {
+                SongMetadataDisplaySection()
+                DeferAt(expansionFraction, 0.05f) {
+                    PlayerProgressBarSection()
+                }
+                DeferAt(expansionFraction, 0.05f) {
+                    ControlsSection()
+                }
+            }
+        }
+    }
     Scaffold(
         containerColor = Color.Transparent,
         modifier = Modifier.pointerInput(currentSheetState, expansionFraction) {
@@ -274,7 +454,7 @@ fun FullPlayerContent(
             }
         },
         topBar = {
-            TopAppBar(
+            if (!isLandscape) TopAppBar(
                 modifier = Modifier.alpha(expansionFraction.coerceIn(0f, 1f)),
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent,
@@ -398,130 +578,15 @@ fun FullPlayerContent(
             )
         }
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(
-                    horizontal = lerp(8.dp, 24.dp, expansionFraction),
-                    vertical = lerp(0.dp, 0.dp, expansionFraction)
-                ),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceAround
-        ) {
-            DeferAt(expansionFraction, 0.08f) {
-                PrefetchAlbumNeighborsImg(
-                    current = currentSong,
-                    queue = currentPlaybackQueue,
-                    radius = 2 // prev/next 2
-                )
-            }
-
-
-            // Album Cover section
-            BoxWithConstraints(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = lerp(4.dp, 8.dp, expansionFraction))
-                    .graphicsLayer {
-                        alpha = expansionFraction
-                    }
-            ) {
-                val carouselHeight = when (carouselStyle) {
-                    CarouselStyle.NO_PEEK -> maxWidth
-                    CarouselStyle.ONE_PEEK -> maxWidth * 0.8f
-                    CarouselStyle.TWO_PEEK -> maxWidth * 0.6f // Main item is 60% of width
-                    else -> maxWidth * 0.8f
-                }
-
-                DeferAt(expansionFraction, 0.34f) {
-                    AlbumCarouselSection(
-                        currentSong = currentSong,
-                        queue = currentPlaybackQueue,
-                        expansionFraction = expansionFraction,
-                        onSongSelected = { newSong ->
-                            if (newSong.id != currentSong.id) {
-                                playerViewModel.showAndPlaySong(
-                                    song = newSong,
-                                    contextSongs = currentPlaybackQueue,
-                                    queueName = currentQueueSourceName
-                                )
-                            }
-                        },
-                        carouselStyle = carouselStyle,
-                        modifier = Modifier.height(carouselHeight) // Apply calculated height
-                    )
-                }
-            }
-
-            // Song Info - uses new Composable
-            SongMetadataDisplaySection(
-                modifier = Modifier
-                    .align(Alignment.Start)
-                    .padding(start = 0.dp),
-                onClickLyrics = onLyricsClick,
-                song = currentSong, // currentSong is from stablePlayerState
-                expansionFraction = expansionFraction,
-                textColor = LocalMaterialTheme.current.onPrimaryContainer,
-                artistTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.8f),
-                navController = navController,
-                onCollapse = onCollapse,
-                gradientEdgeColor = LocalMaterialTheme.current.primaryContainer
-                // modifier for PlayerSongInfo is internal to SongMetadataDisplaySection if needed, or pass one
+        DeferAt(expansionFraction, 0.08f) {
+            PrefetchAlbumNeighborsImg(
+                current = currentSong,
+                queue = currentPlaybackQueue,
+                radius = 2 // prev/next 2
             )
-
-            // Progress Bar and Times - this section *will* recompose with currentPosition
-            DeferAt(expansionFraction, 0.32f) {
-                PlayerProgressBarSection(
-                    currentPositionProvider = currentPositionProvider,
-                    totalDurationValue = totalDurationValue,
-                    onSeek = onSeek,
-                    expansionFraction = expansionFraction,
-                    isPlayingProvider = isPlayingProvider,
-                    currentSheetState = currentSheetState,
-                    activeTrackColor = LocalMaterialTheme.current.primary,
-                    inactiveTrackColor = LocalMaterialTheme.current.primary.copy(alpha = 0.2f),
-                    thumbColor = LocalMaterialTheme.current.primary,
-                    timeTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f)
-                )
-            }
-
-            DeferAt(expansionFraction, 0.42f) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    AnimatedPlaybackControls(
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        isPlayingProvider = isPlayingProvider,
-                        onPrevious = onPrevious,
-                        onPlayPause = onPlayPause,
-                        onNext = onNext,
-                        height = 80.dp,
-                        pressAnimationSpec = stableControlAnimationSpec,
-                        releaseDelay = 220L,
-                        colorOtherButtons = controlOtherButtonsColor,
-                        colorPlayPause = controlPlayPauseColor,
-                        tintPlayPauseIcon = controlTintPlayPauseIcon,
-                        tintOtherIcons = controlTintOtherIcons
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    BottomToggleRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 58.dp, max = 78.dp)
-                            .padding(horizontal = 26.dp, vertical = 0.dp)
-                            .padding(bottom = 6.dp),
-                        isShuffleEnabled = isShuffleEnabled,
-                        repeatMode = repeatMode,
-                        isFavoriteProvider = isFavoriteProvider,
-                        onShuffleToggle = onShuffleToggle,
-                        onRepeatToggle = onRepeatToggle,
-                        onFavoriteToggle = onFavoriteToggle
-                    )
-                }
-            }
         }
+        if (isLandscape) FullPlayerLandscapeContent(paddingValues)
+        else FullPlayerPortraitContent(paddingValues)
     }
     AnimatedVisibility(
         visible = showLyricsSheet,
@@ -570,6 +635,8 @@ private fun SongMetadataDisplaySection(
     onClickLyrics: () -> Unit,
     navController: NavHostController,
     onCollapse: () -> Unit,
+    showQueueButton: Boolean, // in landscape layout
+    onClickQueue: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -600,20 +667,53 @@ private fun SongMetadataDisplaySection(
             modifier = Modifier
                 .width(8.dp)
         )
-        FilledIconButton(
-            modifier = Modifier
-                .weight(0.15f)
-                .size(width = 48.dp, height = 48.dp),
-            colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = LocalMaterialTheme.current.onPrimary,
-                contentColor = LocalMaterialTheme.current.primary
-            ),
-            onClick = onClickLyrics,
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Icon(
-                painter = painterResource(R.drawable.rounded_lyrics_24),
-                contentDescription = "Lyrics"
-            )
+
+            Box(
+                modifier = Modifier
+                    .size(height = 42.dp, width = 50.dp)
+                    .clip(
+                        if (showQueueButton) RoundedCornerShape(
+                            topStart = 50.dp,
+                            topEnd = 6.dp,
+                            bottomStart = 50.dp,
+                            bottomEnd = 6.dp
+                        ) else RoundedCornerShape(50.dp)
+                    )
+                    .background(LocalMaterialTheme.current.onPrimary)
+                    .clickable { onClickLyrics() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.rounded_lyrics_24),
+                    contentDescription = "Lyrics",
+                    tint = LocalMaterialTheme.current.primary
+                )
+            }
+            if (showQueueButton) Box(
+                modifier = Modifier
+                    .size(height = 42.dp, width = 50.dp)
+                    .clip(
+                        RoundedCornerShape(
+                            topStart = 6.dp,
+                            topEnd = 50.dp,
+                            bottomStart = 6.dp,
+                            bottomEnd = 50.dp
+                        )
+                    )
+                    .background(LocalMaterialTheme.current.onPrimary)
+                    .clickable { onClickQueue() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.rounded_queue_music_24),
+                    contentDescription = "Queue",
+                    tint = LocalMaterialTheme.current.primary
+                )
+            }
         }
     }
 //    Spacer(modifier = Modifier.width(8.dp))

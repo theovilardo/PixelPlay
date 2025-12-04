@@ -33,4 +33,6 @@
     <string name="next_track">Next track</string>
     <string name="pause_playback">Pause playback</string>
     <string name="play_playback">Play</string>
+    <string name="lyrics_tab_synced">Synced</string>
+    <string name="lyrics_tab_static">Static</string>
 </resources>
