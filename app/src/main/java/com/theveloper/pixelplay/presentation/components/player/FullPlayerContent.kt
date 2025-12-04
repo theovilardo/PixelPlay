@@ -657,8 +657,9 @@ private fun PlayerProgressBarSection(
     val isExpanded = currentSheetState == PlayerSheetState.EXPANDED &&
         expansionFraction >= 0.995f
 
+    val durationForCalc = totalDurationValue.coerceAtLeast(1L)
     val rawPosition = currentPositionProvider()
-    val rawProgress = (rawPosition.coerceAtLeast(0) / totalDurationValue.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
+    val rawProgress = (rawPosition.coerceAtLeast(0) / durationForCalc.toFloat()).coerceIn(0f, 1f)
 
     val (smoothProgress, _) = rememberSmoothProgress(
         isPlayingProvider = isPlayingProvider,
@@ -690,7 +691,7 @@ private fun PlayerProgressBarSection(
     }
 
     val effectiveProgress = animatedProgress.value
-    val effectivePosition = (effectiveProgress * totalDurationValue).roundToLong()
+    val effectivePosition = (effectiveProgress * durationForCalc).roundToLong().coerceIn(0L, totalDurationValue.coerceAtLeast(0L))
 
     Column(
         modifier = modifier
@@ -705,7 +706,7 @@ private fun PlayerProgressBarSection(
                 onValueChange = { newValue -> sliderDragValue = newValue },
                 onValueChangeFinished = {
                     sliderDragValue?.let { finalValue ->
-                        onSeek((finalValue * totalDurationValue).roundToLong())
+                        onSeek((finalValue * durationForCalc).roundToLong())
                     }
                     sliderDragValue = null
                 },

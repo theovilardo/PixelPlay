@@ -16,12 +16,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -64,7 +65,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -115,63 +115,71 @@ fun CastBottomSheet(
             )
         }
     ) {
-        val scrollState = rememberScrollState()
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 16.dp)
-                .verticalScroll(scrollState),
+                .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            AnimatedVisibility(visible = isRefreshing) {
-                LinearProgressIndicator(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(24.dp)),
-                    trackColor = colors.primary.copy(alpha = 0.1f)
+            item {
+                AnimatedVisibility(visible = isRefreshing) {
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(24.dp)),
+                        trackColor = colors.primary.copy(alpha = 0.1f)
+                    )
+                }
+            }
+
+            item {
+                CastStatusHeader(
+                    isRemote = isRemoteSession,
+                    routeName = activeRoute?.name ?: "This device",
+                    isPlaying = playerViewModel.stablePlayerState.collectAsState().value.isPlaying,
+                    onDisconnect = { playerViewModel.disconnect() },
+                    onRefresh = { playerViewModel.refreshCastRoutes() }
                 )
             }
 
-            CastStatusHeader(
-                isRemote = isRemoteSession,
-                routeName = activeRoute?.name ?: "This device",
-                isPlaying = playerViewModel.stablePlayerState.collectAsState().value.isPlaying,
-                onDisconnect = { playerViewModel.disconnect() },
-                onRefresh = { playerViewModel.refreshCastRoutes() }
-            )
+            item {
+                DeviceSection(
+                    routes = routes,
+                    selectedRoute = activeRoute,
+                    onRouteSelected = playerViewModel::selectRoute,
+                    onDisconnect = playerViewModel::disconnect,
+                    routeVolume = routeVolume,
+                    isRefreshing = isRefreshing,
+                    onRouteVolumeChange = playerViewModel::setRouteVolume
+                )
+            }
 
-            DeviceSection(
-                routes = routes,
-                selectedRoute = activeRoute,
-                onRouteSelected = playerViewModel::selectRoute,
-                onDisconnect = playerViewModel::disconnect,
-                routeVolume = routeVolume,
-                isRefreshing = isRefreshing,
-                onRouteVolumeChange = playerViewModel::setRouteVolume
-            )
+            item {
+                VolumeCard(
+                    isRemote = isRemoteSession,
+                    volume = sliderPosition,
+                    onVolumeChange = { newVolume ->
+                        sliderPosition = newVolume
+                        if (isRemoteSession) {
+                            playerViewModel.setRouteVolume(newVolume.toInt())
+                        } else {
+                            playerViewModel.setTrackVolume(newVolume)
+                        }
+                    },
+                    route = activeRoute,
+                    localVolumeRange = 0f..1f
+                )
+            }
 
-            VolumeCard(
-                isRemote = isRemoteSession,
-                volume = sliderPosition,
-                onVolumeChange = { newVolume ->
-                    sliderPosition = newVolume
-                    if (isRemoteSession) {
-                        playerViewModel.setRouteVolume(newVolume.toInt())
-                    } else {
-                        playerViewModel.setTrackVolume(newVolume)
-                    }
-                },
-                route = activeRoute,
-                localVolumeRange = 0f..1f
-            )
-
-            ServiceStatusRow(
-                isWifiEnabled = isWifiEnabled,
-                isBluetoothEnabled = isBluetoothEnabled,
-                onEnableWifi = { playerViewModel.refreshCastRoutes() },
-                onEnableBluetooth = { playerViewModel.refreshCastRoutes() }
-            )
+            item {
+                ServiceStatusRow(
+                    isWifiEnabled = isWifiEnabled,
+                    isBluetoothEnabled = isBluetoothEnabled,
+                    onEnableWifi = { playerViewModel.refreshCastRoutes() },
+                    onEnableBluetooth = { playerViewModel.refreshCastRoutes() }
+                )
+            }
         }
     }
 }
@@ -474,8 +482,11 @@ private fun DeviceSection(
         if (availableRoutes.isEmpty() && !isRefreshing) {
             EmptyDeviceState()
         } else {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                availableRoutes.forEach { route ->
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.heightIn(max = 340.dp)
+            ) {
+                items(availableRoutes, key = { it.id }) { route ->
                     CastDeviceCard(
                         route = route,
                         isSelected = selectedRoute?.id == route.id,
@@ -572,17 +583,12 @@ private fun CastDeviceCard(
                     modifier = Modifier
                         .size(42.dp)
                         .background(
-                            brush = Brush.linearGradient(
-                                listOf(
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
-                                )
-                            ),
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.16f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
                             shape = CircleShape
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(deviceIcon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Icon(deviceIcon, contentDescription = null, tint = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.primary)
                 }
                 Column {
                     Text(
@@ -605,7 +611,7 @@ private fun CastDeviceCard(
                             colors = AssistChipDefaults.assistChipColors(
                                 disabledLabelColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                                 disabledLeadingIconColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                disabledContainerColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.18f)
+                                disabledContainerColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.14f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.18f)
                             )
                         )
                         if (route.connectionState == MediaRouter.RouteInfo.CONNECTION_STATE_CONNECTED) {

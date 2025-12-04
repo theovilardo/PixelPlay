@@ -1041,7 +1041,11 @@ class PlayerViewModel @Inject constructor(
                 val isPlaying = mediaStatus.playerState == MediaStatus.PLAYER_STATE_PLAYING
                 lastKnownRemoteIsPlaying = isPlaying
                 val streamPosition = mediaStatus.streamPosition
-                val streamDuration = remoteMediaClient.streamDuration.takeIf { it > 0 } ?: currentSong?.duration ?: 0L
+                val streamDuration = listOf(
+                    remoteMediaClient.streamDuration,
+                    currentSong?.duration ?: 0L,
+                    0L
+                ).maxOrNull() ?: 0L
                 listeningStatsTracker.ensureSession(
                     song = currentSong,
                     positionMs = streamPosition,
@@ -1057,7 +1061,7 @@ class PlayerViewModel @Inject constructor(
                         isShuffleEnabled = mediaStatus.queueRepeatMode == MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE,
                         repeatMode = mediaStatus.queueRepeatMode,
                         currentSong = currentSong,
-                        totalDuration = remoteMediaClient.streamDuration
+                        totalDuration = streamDuration
                     )
                 }
             }
