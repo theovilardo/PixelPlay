@@ -74,6 +74,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -488,7 +489,28 @@ fun SettingsScreen(
                                 )
                             }
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+                }
+            }
+
+            item(key = "spacer_2") { Spacer(modifier = Modifier.height(16.dp)) }
+
+            item(key = "playback_section") {
+                SettingsSection(
+                    title = "Playback",
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Palette,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                ) {
+                    Column(
+                        Modifier
+                            .background(color = Color.Transparent, shape = RoundedCornerShape(24.dp))
+                            .clip(shape = RoundedCornerShape(24.dp))
+                    ) {
                         ThemeSelectorItem(
                             label = "Keep playing after closing",
                             description = "If off, removing the app from recents will stop playback.",
@@ -522,7 +544,7 @@ fun SettingsScreen(
                             },
                             leadingIcon = {
                                 Icon(
-                                    painter = painterResource(id = R.drawable.crossfade_24),
+                                    painter = painterResource(id = R.drawable.rounded_align_justify_space_even_24),
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.secondary
                                 )
@@ -541,8 +563,6 @@ fun SettingsScreen(
                     }
                 }
             }
-
-            item(key = "spacer_2") { Spacer(modifier = Modifier.height(16.dp)) }
 
             item(key = "ai_section") {
                 SettingsSection(
@@ -971,7 +991,11 @@ fun SliderSettingsItem(
                 )
             }
 
-            androidx.compose.material3.Slider(
+            Spacer(
+                modifier = Modifier.height(8.dp)
+            )
+
+            Slider(
                 value = sliderValue,
                 onValueChange = { sliderValue = it },
                 onValueChangeFinished = { onValueChange(sliderValue) },
