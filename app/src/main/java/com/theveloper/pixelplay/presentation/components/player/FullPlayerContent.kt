@@ -133,7 +133,6 @@ fun FullPlayerContent(
     onQueueDrag: (Float) -> Unit,
     onQueueRelease: (Float, Float) -> Unit,
     onShowCastClicked: () -> Unit,
-    onShowTrackVolumeClicked: () -> Unit,
     onShuffleToggle: () -> Unit,
     onRepeatToggle: () -> Unit,
     onFavoriteToggle: () -> Unit
@@ -322,50 +321,40 @@ fun FullPlayerContent(
                             .padding(end = 14.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        // Cast Button
-//                        Box(
-//                            modifier = Modifier
-//                                .size(height = 42.dp, width = 50.dp)
-//                                .clip(
-//                                    RoundedCornerShape(
-//                                        topStart = 50.dp,
-//                                        topEnd = 6.dp,
-//                                        bottomStart = 50.dp,
-//                                        bottomEnd = 6.dp
-//                                    )
-//                                )
-//                                .background(LocalMaterialTheme.current.onPrimary)
-//                                .clickable { onShowCastClicked() },
-//                            contentAlignment = Alignment.Center
-//                        ) {
-//                            Icon(
-//                                painter = painterResource(R.drawable.rounded_cast_24),
-//                                contentDescription = "Cast",
-//                                tint = LocalMaterialTheme.current.primary
-//                            )
-//                        }
-
-                        // Track Volume Button
+                        val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
+                        val selectedRouteName by playerViewModel.selectedRoute.map { it?.name }.collectAsState(initial = null)
                         Box(
                             modifier = Modifier
-                                .size(height = 42.dp, width = 50.dp)
+                                .size(height = 42.dp, width = 56.dp)
                                 .clip(
                                     RoundedCornerShape(
                                         topStart = 50.dp,
-                                        topEnd = 6.dp,
+                                        topEnd = 10.dp,
                                         bottomStart = 50.dp,
-                                        bottomEnd = 6.dp
+                                        bottomEnd = 10.dp
                                     )
                                 )
-                                .background(LocalMaterialTheme.current.onPrimary)
-                                .clickable { onShowTrackVolumeClicked() },
+                                .background(
+                                    if (isRemotePlaybackActive) LocalMaterialTheme.current.primaryContainer else LocalMaterialTheme.current.onPrimary
+                                )
+                                .clickable { onShowCastClicked() },
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                painter = painterResource(R.drawable.rounded_volume_up_24),
-                                contentDescription = "Track Volume",
-                                tint = LocalMaterialTheme.current.primary
-                            )
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    painter = painterResource(R.drawable.rounded_cast_24),
+                                    contentDescription = "Cast",
+                                    tint = if (isRemotePlaybackActive) LocalMaterialTheme.current.onPrimaryContainer else LocalMaterialTheme.current.primary
+                                )
+                                AnimatedVisibility(visible = isRemotePlaybackActive && selectedRouteName != null) {
+                                    Text(
+                                        text = selectedRouteName ?: "",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = LocalMaterialTheme.current.onPrimaryContainer,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
                         }
 
                         // Queue Button
