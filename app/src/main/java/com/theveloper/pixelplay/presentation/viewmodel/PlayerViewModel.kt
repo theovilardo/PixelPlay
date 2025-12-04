@@ -1098,6 +1098,7 @@ class PlayerViewModel @Inject constructor(
                         val mediaInfo = MediaInfo.Builder(mediaUrl)
                             .setStreamType(MediaInfo.STREAM_TYPE_BUFFERED)
                             .setContentType("audio/mpeg")
+                            .setStreamDuration(song.duration)
                             .setMetadata(mediaMetadata)
                             .build()
                         MediaQueueItem.Builder(mediaInfo).setCustomData(JSONObject().put("songId", song.id)).build()
