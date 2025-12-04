@@ -2,8 +2,10 @@ package com.theveloper.pixelplay.data.repository
 
 import com.theveloper.pixelplay.data.database.TransitionDao
 import com.theveloper.pixelplay.data.database.TransitionRuleEntity
+import com.theveloper.pixelplay.data.model.TransitionResolution
 import com.theveloper.pixelplay.data.model.TransitionRule
 import com.theveloper.pixelplay.data.model.TransitionSettings
+import com.theveloper.pixelplay.data.model.TransitionSource
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -24,18 +26,33 @@ class TransitionRepositoryImpl @Inject constructor(
         playlistId: String,
         fromTrackId: String,
         toTrackId: String
-    ): Flow<TransitionSettings> {
+    ): Flow<TransitionResolution> {
         // Chain the lookups according to priority: specific -> playlist -> global
         return transitionDao.getSpecificRule(playlistId, fromTrackId, toTrackId)
             .flatMapLatest { specificRule ->
                 if (specificRule != null) {
-                    flowOf(specificRule.settings)
+                    flowOf(
+                        TransitionResolution(
+                            settings = specificRule.settings,
+                            source = TransitionSource.PLAYLIST_SPECIFIC,
+                        )
+                    )
                 } else {
                     transitionDao.getPlaylistDefaultRule(playlistId).flatMapLatest { playlistRule ->
                         if (playlistRule != null) {
-                            flowOf(playlistRule.settings)
+                            flowOf(
+                                TransitionResolution(
+                                    settings = playlistRule.settings,
+                                    source = TransitionSource.PLAYLIST_DEFAULT,
+                                )
+                            )
                         } else {
-                            userPreferences.globalTransitionSettingsFlow
+                            userPreferences.globalTransitionSettingsFlow.map { settings ->
+                                TransitionResolution(
+                                    settings = settings,
+                                    source = TransitionSource.GLOBAL_DEFAULT,
+                                )
+                            }
                         }
                     }
                 }

@@ -74,6 +74,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -488,7 +489,28 @@ fun SettingsScreen(
                                 )
                             }
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+                }
+            }
+
+            item(key = "spacer_2") { Spacer(modifier = Modifier.height(16.dp)) }
+
+            item(key = "playback_section") {
+                SettingsSection(
+                    title = "Playback",
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Palette,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                ) {
+                    Column(
+                        Modifier
+                            .background(color = Color.Transparent, shape = RoundedCornerShape(24.dp))
+                            .clip(shape = RoundedCornerShape(24.dp))
+                    ) {
                         ThemeSelectorItem(
                             label = "Keep playing after closing",
                             description = "If off, removing the app from recents will stop playback.",
@@ -508,11 +530,39 @@ fun SettingsScreen(
                                 )
                             }
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        ThemeSelectorItem(
+                            label = "Crossfade",
+                            description = "Enable smooth transition between songs.",
+                            options = mapOf(
+                                "true" to "Enabled",
+                                "false" to "Disabled"
+                            ),
+                            selectedKey = if (uiState.isCrossfadeEnabled) "true" else "false",
+                            onSelectionChanged = { key ->
+                                settingsViewModel.setCrossfadeEnabled(key.toBoolean())
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.rounded_align_justify_space_even_24),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            }
+                        )
+                        if (uiState.isCrossfadeEnabled) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            SliderSettingsItem(
+                                label = "Crossfade Duration",
+                                value = uiState.crossfadeDuration.toFloat(),
+                                valueRange = 2000f..12000f,
+                                onValueChange = { settingsViewModel.setCrossfadeDuration(it.toInt()) },
+                                valueText = { value -> "${(value / 1000).toInt()}s" }
+                            )
+                        }
                     }
                 }
             }
-
-            item(key = "spacer_2") { Spacer(modifier = Modifier.height(16.dp)) }
 
             item(key = "ai_section") {
                 SettingsSection(
@@ -899,6 +949,60 @@ fun ThemeSelectorItem(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun SliderSettingsItem(
+    label: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    onValueChange: (Float) -> Unit,
+    valueText: (Float) -> String
+) {
+    var sliderValue by remember(value) { mutableStateOf(value) }
+
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .fillMaxWidth()
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = valueText(sliderValue),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(
+                modifier = Modifier.height(8.dp)
+            )
+
+            Slider(
+                value = sliderValue,
+                onValueChange = { sliderValue = it },
+                onValueChangeFinished = { onValueChange(sliderValue) },
+                valueRange = valueRange,
+                steps = ((valueRange.endInclusive - valueRange.start) / 500).toInt() - 1,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }

@@ -663,7 +663,7 @@ fun PlaylistDetailScreen(
                     label = "Set default transition",
                     onClick = {
                         showPlaylistOptionsSheet = false
-                        playerViewModel.sendToast("Coming soon…")
+                        navController.navigate(Screen.EditTransition.createRoute(playlistId))
                     }
                 )
             }
