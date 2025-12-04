@@ -3054,6 +3054,7 @@ class PlayerViewModel @Inject constructor(
                 isRemotelySeeking.value = false
             }
             // Optimistically update the UI state for responsiveness
+            _remotePosition.value = position
             _playerUiState.update { it.copy(currentPosition = position) }
         } else {
             mediaController?.seekTo(position)

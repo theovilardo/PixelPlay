@@ -115,12 +115,13 @@ fun CastBottomSheet(
             )
         }
     ) {
+        val scrollState = rememberScrollState()
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
                 .padding(horizontal = 20.dp, vertical = 16.dp)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             AnimatedVisibility(visible = isRefreshing) {
@@ -134,10 +135,20 @@ fun CastBottomSheet(
 
             CastStatusHeader(
                 isRemote = isRemoteSession,
-                routeName = activeRoute?.name ?: "Este dispositivo",
+                routeName = activeRoute?.name ?: "This device",
                 isPlaying = playerViewModel.stablePlayerState.collectAsState().value.isPlaying,
                 onDisconnect = { playerViewModel.disconnect() },
                 onRefresh = { playerViewModel.refreshCastRoutes() }
+            )
+
+            DeviceSection(
+                routes = routes,
+                selectedRoute = activeRoute,
+                onRouteSelected = playerViewModel::selectRoute,
+                onDisconnect = playerViewModel::disconnect,
+                routeVolume = routeVolume,
+                isRefreshing = isRefreshing,
+                onRouteVolumeChange = playerViewModel::setRouteVolume
             )
 
             VolumeCard(
@@ -160,16 +171,6 @@ fun CastBottomSheet(
                 isBluetoothEnabled = isBluetoothEnabled,
                 onEnableWifi = { playerViewModel.refreshCastRoutes() },
                 onEnableBluetooth = { playerViewModel.refreshCastRoutes() }
-            )
-
-            DeviceSection(
-                routes = routes,
-                selectedRoute = activeRoute,
-                onRouteSelected = playerViewModel::selectRoute,
-                onDisconnect = playerViewModel::disconnect,
-                routeVolume = routeVolume,
-                isRefreshing = isRefreshing,
-                onRouteVolumeChange = playerViewModel::setRouteVolume
             )
         }
     }
@@ -209,7 +210,7 @@ private fun CastStatusHeader(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (isRemote) "Transmitiendo en" else "Reproduciendo en",
+                    text = if (isRemote) "Casting on" else "Playing on",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
@@ -232,7 +233,7 @@ private fun CastStatusHeader(
                     onClick = {},
                     enabled = false,
                     label = {
-                        Text(if (isPlaying) "En vivo" else "Pausado")
+                        Text(if (isPlaying) "Live" else "Paused")
                     },
                     leadingIcon = {
                         Icon(
@@ -258,7 +259,7 @@ private fun CastStatusHeader(
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 ) {
-                    Icon(Icons.Default.Refresh, contentDescription = "Actualizar dispositivos")
+                    Icon(Icons.Default.Refresh, contentDescription = "Refresh devices")
                 }
                 FilledTonalButton(
                     onClick = onDisconnect,
@@ -268,7 +269,7 @@ private fun CastStatusHeader(
                         contentColor = MaterialTheme.colorScheme.onPrimary
                     )
                 ) {
-                    Text(if (isRemote) "Volver al teléfono" else "Listo")
+                    Text(if (isRemote) "Return to phone" else "Close")
                 }
             }
         }
@@ -293,8 +294,8 @@ private fun VolumeCard(
         smoothnessAsPercentBL = 40,
         smoothnessAsPercentBR = 55
     )
-    val label = if (isRemote) "Volumen del dispositivo" else "Volumen local"
-    val subtitle = route?.name ?: "Teléfono"
+    val label = if (isRemote) "Device volume" else "Phone volume"
+    val subtitle = route?.name ?: "Phone"
     val (rangeStart, rangeEnd) = if (isRemote && route != null) {
         0f to route.volumeMax.toFloat().coerceAtLeast(1f)
     } else {
@@ -334,7 +335,7 @@ private fun VolumeCard(
                 AssistChip(
                     onClick = {},
                     enabled = false,
-                    label = { Text(if (isRemote) "Remoto" else "Local") },
+                    label = { Text(if (isRemote) "Remote" else "Local") },
                     leadingIcon = {
                         Icon(
                             imageVector = if (isRemote) Icons.Default.Cast else Icons.Rounded.Headphones,
@@ -422,7 +423,7 @@ private fun ServiceBadge(
             Column(modifier = Modifier.weight(1f)) {
                 Text(label, style = MaterialTheme.typography.titleSmall)
                 Text(
-                    text = if (enabled) "Activado" else "Necesario para buscar",
+                    text = if (enabled) "Enabled" else "Required for discovery",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -456,13 +457,13 @@ private fun DeviceSection(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Dispositivos cercanos",
+                text = "Nearby devices",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
             AssistChip(
                 onClick = onDisconnect,
-                label = { Text("Volver aquí") },
+                label = { Text("Play here") },
                 leadingIcon = {
                     Icon(Icons.Default.Cast, contentDescription = null)
                 }
@@ -510,12 +511,12 @@ private fun EmptyDeviceState() {
                 modifier = Modifier.size(36.dp)
             )
             Text(
-                text = "Buscando dispositivos...",
+                text = "Searching for devices...",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = "Asegúrate de que tu TV o parlante esté encendido y en la misma red.",
+                text = "Make sure your TV or speaker is on and on the same network.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -594,7 +595,7 @@ private fun CastDeviceCard(
                         AssistChip(
                             onClick = {},
                             enabled = false,
-                            label = { Text(if (isSelected) "Conectado" else "Disponible") },
+                            label = { Text(if (isSelected) "Connected" else "Available") },
                             leadingIcon = {
                                 Icon(
                                     painter = painterResource(id = if (route.playbackType == MediaRouter.RouteInfo.PLAYBACK_TYPE_REMOTE) R.drawable.rounded_wifi_24 else R.drawable.rounded_bluetooth_24),
@@ -611,7 +612,7 @@ private fun CastDeviceCard(
                             AssistChip(
                                 onClick = {},
                                 enabled = false,
-                                label = { Text("Sesión activa") },
+                                label = { Text("Active session") },
                                 leadingIcon = {
                                     Icon(Icons.Rounded.PlayCircle, contentDescription = null)
                                 }

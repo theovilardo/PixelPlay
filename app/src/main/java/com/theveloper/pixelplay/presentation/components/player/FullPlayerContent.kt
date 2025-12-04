@@ -137,7 +137,14 @@ fun FullPlayerContent(
     onRepeatToggle: () -> Unit,
     onFavoriteToggle: () -> Unit
 ) {
-    val song = currentSong ?: return // Early exit if no song
+    var retainedSong by remember { mutableStateOf(currentSong) }
+    LaunchedEffect(currentSong?.id) {
+        if (currentSong != null) {
+            retainedSong = currentSong
+        }
+    }
+
+    val song = currentSong ?: retainedSong ?: return // Keep the player visible while transitioning
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     var showLyricsSheet by remember { mutableStateOf(false) }
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
@@ -425,11 +432,11 @@ fun FullPlayerContent(
 
                 DeferAt(expansionFraction, 0.34f) {
                     AlbumCarouselSection(
-                        currentSong = currentSong,
+                        currentSong = song,
                         queue = currentPlaybackQueue,
                         expansionFraction = expansionFraction,
                         onSongSelected = { newSong ->
-                            if (newSong.id != currentSong.id) {
+                            if (newSong.id != song.id) {
                                 playerViewModel.showAndPlaySong(
                                     song = newSong,
                                     contextSongs = currentPlaybackQueue,
@@ -449,7 +456,7 @@ fun FullPlayerContent(
                     .align(Alignment.Start)
                     .padding(start = 0.dp),
                 onClickLyrics = onLyricsClick,
-                song = currentSong, // currentSong is from stablePlayerState
+                song = song,
                 expansionFraction = expansionFraction,
                 textColor = LocalMaterialTheme.current.onPrimaryContainer,
                 artistTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.8f),
