@@ -3121,8 +3121,9 @@ class PlayerViewModel @Inject constructor(
                 }
 
                 // Check if we've reached the end of a CUE track
+                // Use a small tolerance (100ms) to avoid cutting off the end due to timing precision
                 val currentSong = _stablePlayerState.value.currentSong
-                if (currentSong?.cueEndMs != null && position >= currentSong.cueEndMs) {
+                if (currentSong?.cueEndMs != null && position >= currentSong.cueEndMs - 100) {
                     // We've reached the end of this CUE track, advance to next
                     controller.seekToNext()
                 }

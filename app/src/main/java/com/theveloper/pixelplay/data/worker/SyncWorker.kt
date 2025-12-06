@@ -216,8 +216,10 @@ class SyncWorker @AssistedInject constructor(
                     Log.i(TAG, "Found CUE sheet for $filePath with ${cueSheet.tracks.size} tracks")
                     
                     cueSheet.tracks.forEach { cueTrack ->
-                        // Generate unique ID for CUE track (original ID + track number)
-                        val cueTrackId = id * 10000 + cueTrack.trackNumber
+                        // Generate unique ID for CUE track using bit shifting
+                        // Use upper 48 bits for original ID, lower 16 bits for track number
+                        // This allows up to 65535 tracks per file while maintaining uniqueness
+                        val cueTrackId = (id shl 16) or cueTrack.trackNumber.toLong()
                         
                         songs.add(
                             SongEntity(

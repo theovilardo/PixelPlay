@@ -163,7 +163,7 @@ class CueParserTest {
             TRACK 01 AUDIO
               INDEX 01 00:00:00
             TRACK 02 AUDIO
-              INDEX 01 01:30:75
+              INDEX 01 01:30:74
         """.trimIndent()
 
         val cueSheet = CueParser.parseCueContent(cueContent)
@@ -171,9 +171,9 @@ class CueParserTest {
         assertNotNull(cueSheet)
         assertEquals(2, cueSheet!!.tracks.size)
         
-        // 1 minute 30 seconds 75 frames (note: 75 frames = 1 second at 75 fps)
-        // = 1*60*1000 + 30*1000 + 75*1000/75 = 60000 + 30000 + 1000 = 91000
-        val expectedMs = 1 * 60 * 1000L + 30 * 1000L + (75 * 1000.0 / 75.0).toLong()
+        // 1 minute 30 seconds 74 frames (74 frames at 75 fps)
+        // = 1*60*1000 + 30*1000 + 74*1000/75 = 60000 + 30000 + 986 = 90986
+        val expectedMs = 1 * 60 * 1000L + 30 * 1000L + (74 * 1000.0 / 75.0).toLong()
         assertEquals(expectedMs, cueSheet.tracks[1].startMs)
     }
 
