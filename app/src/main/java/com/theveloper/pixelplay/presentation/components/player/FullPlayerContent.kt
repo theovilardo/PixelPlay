@@ -332,13 +332,13 @@ fun FullPlayerContent(
                         val selectedRouteName by playerViewModel.selectedRoute.map { it?.name }.collectAsState(initial = null)
                         Box(
                             modifier = Modifier
-                                .size(height = 42.dp, width = 56.dp)
+                                .size(height = 42.dp, width = 50.dp)
                                 .clip(
                                     RoundedCornerShape(
                                         topStart = 50.dp,
-                                        topEnd = 10.dp,
+                                        topEnd = 6.dp,
                                         bottomStart = 50.dp,
-                                        bottomEnd = 10.dp
+                                        bottomEnd = 6.dp
                                     )
                                 )
                                 .background(

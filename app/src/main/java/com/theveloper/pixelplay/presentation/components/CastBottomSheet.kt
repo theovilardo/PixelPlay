@@ -250,12 +250,12 @@ private fun CastStatusHeader(
                             tint = MaterialTheme.colorScheme.onSecondaryContainer
                         )
                     },
-                    colors = AssistChipDefaults.assistChipColors(
-                        containerColor = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.08f),
-                        disabledContainerColor = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.08f),
-                        disabledLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        disabledLeadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
+//                    colors = AssistChipDefaults.assistChipColors(
+//                        containerColor = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.08f),
+//                        disabledContainerColor = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.08f),
+//                        disabledLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+//                        disabledLeadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer
+//                    )
                 )
             }
 
@@ -406,9 +406,9 @@ private fun ServiceBadge(
     Card(
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = badgeColor),
-        border = CardDefaults.outlinedCardBorder(strokeColor = strokeColor),
+        //border = CardDefaults.outlinedCardBorder(strokeColor = strokeColor),
         modifier = Modifier
-            .weight(1f)
+            //.weight(1f)
             .clickable(onClick = onClick)
     ) {
         Row(
@@ -557,7 +557,7 @@ private fun CastDeviceCard(
     val deviceIcon = when (route.deviceType) {
         MediaRouter.RouteInfo.DEVICE_TYPE_TV -> Icons.Rounded.Tv
         MediaRouter.RouteInfo.DEVICE_TYPE_REMOTE_SPEAKER, MediaRouter.RouteInfo.DEVICE_TYPE_BUILTIN_SPEAKER -> Icons.Rounded.Speaker
-        MediaRouter.RouteInfo.DEVICE_TYPE_BLUETOOTH -> Icons.Rounded.Bluetooth
+        MediaRouter.RouteInfo.DEVICE_TYPE_BLUETOOTH_A2DP -> Icons.Rounded.Bluetooth
         else -> Icons.Default.Cast
     }
 
@@ -608,11 +608,11 @@ private fun CastDeviceCard(
                                     contentDescription = null
                                 )
                             },
-                            colors = AssistChipDefaults.assistChipColors(
-                                disabledLabelColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                disabledLeadingIconColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                disabledContainerColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.14f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.18f)
-                            )
+//                            colors = AssistChipDefaults.assistChipColors(
+//                                disabledLabelColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+//                                disabledLeadingIconColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+//                                disabledContainerColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.14f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.18f)
+//                            )
                         )
                         if (route.connectionState == MediaRouter.RouteInfo.CONNECTION_STATE_CONNECTED) {
                             AssistChip(
