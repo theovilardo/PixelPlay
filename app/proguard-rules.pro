@@ -46,6 +46,10 @@
 # [NUEVO] Regla general para mantener metadatos de Kotlin, puede ayudar a R8
 -keep class kotlin.Metadata { *; }
 
+# ExoPlayer FFmpeg extension
+-keep class androidx.media3.decoder.ffmpeg.** { *; }
+-keep class androidx.media3.exoplayer.ffmpeg.** { *; }
+
 # Please add these rules to your existing keep rules in order to suppress warnings.
 # This is generated automatically by the Android Gradle plugin.
 

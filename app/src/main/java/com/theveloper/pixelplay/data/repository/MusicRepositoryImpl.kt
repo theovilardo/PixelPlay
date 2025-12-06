@@ -224,7 +224,7 @@ class MusicRepositoryImpl @Inject constructor(
         directoryScanMutex.withLock {
             val directories = mutableSetOf<String>()
             val projection = arrayOf(MediaStore.Audio.Media.DATA)
-            val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
+            val selection = "(${MediaStore.Audio.Media.IS_MUSIC} != 0 OR ${MediaStore.Audio.Media.DATA} LIKE '%.m4a' OR ${MediaStore.Audio.Media.DATA} LIKE '%.flac')"
             context.contentResolver.query(
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                 projection, selection, null, null
