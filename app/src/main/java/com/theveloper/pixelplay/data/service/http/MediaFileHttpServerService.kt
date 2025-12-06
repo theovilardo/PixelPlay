@@ -4,7 +4,9 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
+import android.os.Build
 import android.os.IBinder
+import androidx.annotation.RequiresApi
 import androidx.core.net.toUri
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import dagger.hilt.android.AndroidEntryPoint
@@ -45,6 +47,7 @@ class MediaFileHttpServerService : Service() {
         var serverAddress: String? = null
     }
 
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START_SERVER -> startServer()
@@ -53,6 +56,7 @@ class MediaFileHttpServerService : Service() {
         return START_NOT_STICKY
     }
 
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     private fun startServer() {
         if (server?.application?.isActive != true) {
             serviceScope.launch {
