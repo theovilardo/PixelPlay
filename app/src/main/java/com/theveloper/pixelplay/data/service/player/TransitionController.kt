@@ -129,7 +129,10 @@ class TransitionController @Inject constructor(
 
             val nextMediaItem = player.getMediaItemAt(nextIndex)
             Timber.tag("TransitionDebug").d("Preparing next track: %s (Index: %d)", nextMediaItem.mediaId, nextIndex)
-            engine.prepareNext(nextMediaItem)
+            
+            // Extract CUE start position if available
+            val cueStartMs = nextMediaItem.mediaMetadata.extras?.getLong("cueStartMs", 0L) ?: 0L
+            engine.prepareNext(nextMediaItem, cueStartMs)
 
             val playlistId = currentMediaItem.mediaMetadata.extras?.getString("playlistId")
             val fromTrackId = currentMediaItem.mediaId

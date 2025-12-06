@@ -2391,14 +2391,18 @@ class PlayerViewModel @Inject constructor(
             val playSongsAction = {
                 mediaController?.let { controller ->
                     val mediaItems = songsToPlay.map { song ->
+                        val extras = Bundle()
+                        playlistId?.let {
+                            extras.putString("playlistId", it)
+                        }
+                        // Add CUE track information
+                        song.cueStartMs?.let { extras.putLong("cueStartMs", it) }
+                        song.cueEndMs?.let { extras.putLong("cueEndMs", it) }
+                        
                         val metadataBuilder = MediaMetadata.Builder()
                             .setTitle(song.title)
                             .setArtist(song.artist)
-                        playlistId?.let {
-                            val extras = Bundle()
-                            extras.putString("playlistId", it)
-                            metadataBuilder.setExtras(extras)
-                        }
+                            .setExtras(extras)
                         song.albumArtUriString?.toUri()?.let { uri ->
                             metadataBuilder.setArtworkUri(uri)
                         }
@@ -2412,7 +2416,9 @@ class PlayerViewModel @Inject constructor(
                     val startIndex = songsToPlay.indexOf(startSong).coerceAtLeast(0)
 
                     if (mediaItems.isNotEmpty()) {
-                        controller.setMediaItems(mediaItems, startIndex, 0L)
+                        // If the start song is a CUE track, seek to its start position
+                        val startPositionMs = startSong.cueStartMs ?: 0L
+                        controller.setMediaItems(mediaItems, startIndex, startPositionMs)
                         controller.prepare()
                         controller.play()
                         _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
@@ -2483,6 +2489,9 @@ class PlayerViewModel @Inject constructor(
             putString(EXTERNAL_EXTRA_MIME_TYPE, song.mimeType)
             putInt(EXTERNAL_EXTRA_BITRATE, song.bitrate ?: 0)
             putInt(EXTERNAL_EXTRA_SAMPLE_RATE, song.sampleRate ?: 0)
+            // Add CUE track information
+            song.cueStartMs?.let { putLong("cueStartMs", it) }
+            song.cueEndMs?.let { putLong("cueEndMs", it) }
         }
 
         metadataBuilder.setExtras(extras)
@@ -3109,6 +3118,13 @@ class PlayerViewModel @Inject constructor(
                 if (position != lastPublishedPosition) {
                     _playerUiState.update { it.copy(currentPosition = position) }
                     lastPublishedPosition = position
+                }
+
+                // Check if we've reached the end of a CUE track
+                val currentSong = _stablePlayerState.value.currentSong
+                if (currentSong?.cueEndMs != null && position >= currentSong.cueEndMs) {
+                    // We've reached the end of this CUE track, advance to next
+                    controller.seekToNext()
                 }
 
                 val isActivelyPlaying = controller.isPlaying
