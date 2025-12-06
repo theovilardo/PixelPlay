@@ -50,7 +50,7 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 fun LibrarySortBottomSheet(
     title: String,
     options: List<SortOption>,
-    selectedOption: SortOption,
+    selectedOption: SortOption?,
     onDismiss: () -> Unit,
     onOptionSelected: (SortOption) -> Unit,
     showViewToggle: Boolean = false,
@@ -96,8 +96,13 @@ fun LibrarySortBottomSheet(
                 modifier = Modifier.padding(start = 2.dp, top = 8.dp, bottom = 16.dp)
             )
 
-            options.forEach { option ->
-                val isSelected = option.storageKey == selectedOption.storageKey
+            // Cast to nullable list to handle potential runtime nulls, then filter
+            @Suppress("UNCHECKED_CAST")
+            val safeOptions = (options as List<SortOption?>).filterNotNull()
+            
+            safeOptions.forEach { option ->
+                // Defensive null-check for selectedOption in case it's null at runtime
+                val isSelected = selectedOption?.storageKey == option.storageKey
                 val containerColor = remember(isSelected) {
                     if (isSelected) selectedColor else unselectedColor
                 }

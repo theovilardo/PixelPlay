@@ -32,6 +32,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
@@ -114,6 +115,8 @@ import com.theveloper.pixelplay.utils.formatTotalDuration
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
+import com.theveloper.pixelplay.presentation.components.LibrarySortBottomSheet
+import com.theveloper.pixelplay.data.model.SortOption
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(
@@ -239,6 +242,16 @@ fun PlaylistDetailScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = {
+                            playerViewModel.showSortingSheet() 
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.Sort,
+                            contentDescription = "Sort Songs"
+                        )
+                    }
                     if (!isFolderPlaylist) {
                         FilledTonalIconButton(
                             modifier = Modifier.padding(end = 10.dp),
@@ -247,7 +260,7 @@ fun PlaylistDetailScreen(
                                 contentColor = MaterialTheme.colorScheme.onSurface
                             ),
                             onClick = { showPlaylistOptionsSheet = true }
-                        ) { Icon(Icons.Filled.MoreVert, "Más opciones") }
+                        ) { Icon(Icons.Filled.MoreVert, "More Options") }
                     }
                 },
                 scrollBehavior = scrollBehavior
@@ -788,7 +801,37 @@ fun PlaylistDetailScreen(
         }
     }
 
+    val isSortSheetVisible by playerViewModel.isSortingSheetVisible.collectAsState()
+
+    if (isSortSheetVisible) {
+        val rawOption = uiState.currentPlaylistSongsSortOption
+        // Defensive check: ensure we never pass a null, even if one somehow slipped into the state
+        val currentSortOption = if ((isFolderPlaylist || currentPlaylist != null) && rawOption != null) rawOption else SortOption.SongTitleAZ
+
+        // Build options list inline to avoid potential static initialization issues
+        val songSortOptions = listOf(
+            SortOption.SongTitleAZ,
+            SortOption.SongTitleZA,
+            SortOption.SongArtist,
+            SortOption.SongAlbum,
+            SortOption.SongDateAdded,
+            SortOption.SongDuration
+        )
+
+        LibrarySortBottomSheet(
+            title = "Sort Songs",
+            options = songSortOptions,
+            selectedOption = currentSortOption,
+            onDismiss = { playerViewModel.hideSortingSheet() },
+            onOptionSelected = { option ->
+                 playlistViewModel.sortPlaylistSongs(option)
+                 playerViewModel.hideSortingSheet()
+            },
+            showViewToggle = false 
+        )
+    }
 }
+
 
 @Composable
 private fun PlaylistActionItem(
