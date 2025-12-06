@@ -44,6 +44,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -94,6 +95,7 @@ fun CastBottomSheet(
     val isWifiEnabled by playerViewModel.isWifiEnabled.collectAsState()
     val isBluetoothEnabled by playerViewModel.isBluetoothEnabled.collectAsState()
     val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
+    val isCastConnecting by playerViewModel.isCastConnecting.collectAsState()
     val trackVolume by playerViewModel.trackVolume.collectAsState()
 
     val activeRoute = selectedRoute?.takeUnless { it.isDefault }
@@ -136,6 +138,7 @@ fun CastBottomSheet(
             item {
                 CastStatusHeader(
                     isRemote = isRemoteSession,
+                    isConnecting = isCastConnecting,
                     routeName = activeRoute?.name ?: "This device",
                     isPlaying = playerViewModel.stablePlayerState.collectAsState().value.isPlaying,
                     onDisconnect = { playerViewModel.disconnect() },
@@ -218,7 +221,11 @@ private fun CastStatusHeader(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (isRemote) "Casting on" else "Playing on",
+                    text = when {
+                        isConnecting -> "Connecting to"
+                        isRemote -> "Casting on"
+                        else -> "Playing on"
+                    },
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
@@ -260,6 +267,13 @@ private fun CastStatusHeader(
             }
 
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (isConnecting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(28.dp),
+                        strokeWidth = 3.dp,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
                 FilledIconButton(
                     onClick = onRefresh,
                     colors = IconButtonDefaults.filledIconButtonColors(
