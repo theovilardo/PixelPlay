@@ -56,7 +56,9 @@ data class SongEntity(
     @ColumnInfo(name = "date_added", defaultValue = "0") val dateAdded: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "mime_type") val mimeType: String? = null,
     @ColumnInfo(name = "bitrate") val bitrate: Int? = null, // bits per second
-    @ColumnInfo(name = "sample_rate") val sampleRate: Int? = null // Hz
+    @ColumnInfo(name = "sample_rate") val sampleRate: Int? = null, // Hz
+    @ColumnInfo(name = "cue_start_ms", defaultValue = "null") val cueStartMs: Long? = null, // Start time for CUE tracks
+    @ColumnInfo(name = "cue_end_ms", defaultValue = "null") val cueEndMs: Long? = null // End time for CUE tracks
 )
 
 fun SongEntity.toSong(): Song {
@@ -79,7 +81,9 @@ fun SongEntity.toSong(): Song {
         year = this.year,
         mimeType = this.mimeType,
         bitrate = this.bitrate,
-        sampleRate = this.sampleRate
+        sampleRate = this.sampleRate,
+        cueStartMs = this.cueStartMs,
+        cueEndMs = this.cueEndMs
         // filePath no está en el modelo Song, se usa internamente en el repo o SSoT
     )
 }
@@ -110,7 +114,9 @@ fun Song.toEntity(filePathFromMediaStore: String, parentDirFromMediaStore: Strin
         year = this.year,
         mimeType = this.mimeType,
         bitrate = this.bitrate,
-        sampleRate = this.sampleRate
+        sampleRate = this.sampleRate,
+        cueStartMs = this.cueStartMs,
+        cueEndMs = this.cueEndMs
     )
 }
 
@@ -135,6 +141,8 @@ fun Song.toEntityWithoutPaths(): SongEntity {
         year = this.year,
         mimeType = this.mimeType,
         bitrate = this.bitrate,
-        sampleRate = this.sampleRate
+        sampleRate = this.sampleRate,
+        cueStartMs = this.cueStartMs,
+        cueEndMs = this.cueEndMs
     )
 }
