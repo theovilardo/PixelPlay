@@ -15,6 +15,7 @@ import com.theveloper.pixelplay.data.database.AlbumEntity
 import com.theveloper.pixelplay.data.database.ArtistEntity
 import com.theveloper.pixelplay.data.database.MusicDao
 import com.theveloper.pixelplay.data.database.SongEntity
+import com.theveloper.pixelplay.data.local.cue.CueParser
 import com.theveloper.pixelplay.utils.AlbumArtUtils
 import com.theveloper.pixelplay.utils.AudioMetaUtils.getAudioMetadata
 import com.theveloper.pixelplay.utils.normalizeMetadataText
@@ -206,34 +207,117 @@ class SyncWorker @AssistedInject constructor(
                 val deepScan = inputData.getBoolean(SyncWorker.INPUT_FORCE_METADATA, false)
                 val albumArtUriString = AlbumArtUtils.getAlbumArtUri(applicationContext, musicDao, filePath, albumId, id, deepScan)
                 val audioMetadata = getAudioMetadata(musicDao,id, filePath, deepScan)
-                songs.add(
-                    SongEntity(
-                        id = id,
-                        title = cursor.getString(titleCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Title" },
-                        artistName = cursor.getString(artistCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Artist" },
-                        artistId = songArtistId,
-                        albumName = cursor.getString(albumCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Album" },
-                        albumId = albumId,
-                        contentUriString = contentUriString,
-                        albumArtUriString = albumArtUriString,
-                        duration = cursor.getLong(durationCol),
-                        genre = if (genreCol != -1) cursor.getString(genreCol).normalizeMetadataText() else null,
-                        filePath = filePath,
-                        parentDirectoryPath = parentDir,
-                        trackNumber = cursor.getInt(trackCol),
-                        year = cursor.getInt(yearCol),
-                        dateAdded = cursor.getLong(dateAddedCol).let { seconds ->
-                            if (seconds > 0) TimeUnit.SECONDS.toMillis(seconds) else System.currentTimeMillis()
-                        },
-                        mimeType = audioMetadata.mimeType,
-                        sampleRate = audioMetadata.sampleRate,
-                        bitrate = audioMetadata.bitrate
+                
+                // Check for CUE file
+                val cueSheet = findAndParseCueFile(filePath)
+                
+                if (cueSheet != null && cueSheet.tracks.isNotEmpty()) {
+                    // Create multiple tracks from CUE sheet
+                    Log.i(TAG, "Found CUE sheet for $filePath with ${cueSheet.tracks.size} tracks")
+                    
+                    cueSheet.tracks.forEach { cueTrack ->
+                        // Generate unique ID for CUE track (original ID + track number)
+                        val cueTrackId = id * 10000 + cueTrack.trackNumber
+                        
+                        songs.add(
+                            SongEntity(
+                                id = cueTrackId,
+                                title = cueTrack.title ?: "Track ${cueTrack.trackNumber}",
+                                artistName = cueTrack.performer ?: cursor.getString(artistCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Artist" },
+                                artistId = songArtistId,
+                                albumName = cueSheet.albumTitle ?: cursor.getString(albumCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Album" },
+                                albumId = albumId,
+                                contentUriString = contentUriString,
+                                albumArtUriString = albumArtUriString,
+                                duration = if (cueTrack.endMs != null) {
+                                    cueTrack.endMs - cueTrack.startMs
+                                } else {
+                                    // For the last track, use remaining duration
+                                    cursor.getLong(durationCol) - cueTrack.startMs
+                                },
+                                genre = if (genreCol != -1) cursor.getString(genreCol).normalizeMetadataText() else null,
+                                filePath = filePath,
+                                parentDirectoryPath = parentDir,
+                                trackNumber = cueTrack.trackNumber,
+                                year = cursor.getInt(yearCol),
+                                dateAdded = cursor.getLong(dateAddedCol).let { seconds ->
+                                    if (seconds > 0) TimeUnit.SECONDS.toMillis(seconds) else System.currentTimeMillis()
+                                },
+                                mimeType = audioMetadata.mimeType,
+                                sampleRate = audioMetadata.sampleRate,
+                                bitrate = audioMetadata.bitrate,
+                                cueStartMs = cueTrack.startMs,
+                                cueEndMs = cueTrack.endMs
+                            )
+                        )
+                    }
+                } else {
+                    // No CUE file, create single track entry
+                    songs.add(
+                        SongEntity(
+                            id = id,
+                            title = cursor.getString(titleCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Title" },
+                            artistName = cursor.getString(artistCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Artist" },
+                            artistId = songArtistId,
+                            albumName = cursor.getString(albumCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Album" },
+                            albumId = albumId,
+                            contentUriString = contentUriString,
+                            albumArtUriString = albumArtUriString,
+                            duration = cursor.getLong(durationCol),
+                            genre = if (genreCol != -1) cursor.getString(genreCol).normalizeMetadataText() else null,
+                            filePath = filePath,
+                            parentDirectoryPath = parentDir,
+                            trackNumber = cursor.getInt(trackCol),
+                            year = cursor.getInt(yearCol),
+                            dateAdded = cursor.getLong(dateAddedCol).let { seconds ->
+                                if (seconds > 0) TimeUnit.SECONDS.toMillis(seconds) else System.currentTimeMillis()
+                            },
+                            mimeType = audioMetadata.mimeType,
+                            sampleRate = audioMetadata.sampleRate,
+                            bitrate = audioMetadata.bitrate,
+                            cueStartMs = null,
+                            cueEndMs = null
+                        )
                     )
-                )
+                }
             }
         }
         Trace.endSection() // End SyncWorker.fetchAllMusicData
         return songs
+    }
+
+    /**
+     * Finds and parses a CUE file associated with the given audio file.
+     * Looks for a .cue file with the same base name in the same directory.
+     *
+     * @param audioFilePath The path to the audio file
+     * @return A CueSheet object if found and parsed successfully, null otherwise
+     */
+    private fun findAndParseCueFile(audioFilePath: String): com.theveloper.pixelplay.data.local.cue.CueSheet? {
+        try {
+            val audioFile = java.io.File(audioFilePath)
+            if (!audioFile.exists()) {
+                return null
+            }
+            
+            val parentDir = audioFile.parentFile ?: return null
+            val baseName = audioFile.nameWithoutExtension
+            
+            // Try to find a CUE file with the same base name (case-insensitive)
+            val cueFile = parentDir.listFiles()?.firstOrNull { file ->
+                file.extension.equals("cue", ignoreCase = true) &&
+                file.nameWithoutExtension.equals(baseName, ignoreCase = true)
+            }
+            
+            if (cueFile != null && cueFile.exists()) {
+                Log.d(TAG, "Found CUE file: ${cueFile.absolutePath} for audio file: $audioFilePath")
+                return CueParser.parseCueFile(cueFile.absolutePath)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error finding/parsing CUE file for $audioFilePath", e)
+        }
+        
+        return null
     }
 
 

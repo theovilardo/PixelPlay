@@ -15,7 +15,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ArtistEntity::class,
         TransitionRuleEntity::class
     ],
-    version = 9, // Incremented version for audio metadata cols
+    version = 10, // Incremented version for CUE support
     exportSchema = false
 )
 abstract class PixelPlayDatabase : RoomDatabase() {
@@ -47,6 +47,13 @@ abstract class PixelPlayDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE songs ADD COLUMN mime_type TEXT")
                 db.execSQL("ALTER TABLE songs ADD COLUMN bitrate INTEGER")
                 db.execSQL("ALTER TABLE songs ADD COLUMN sample_rate INTEGER")
+            }
+        }
+
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE songs ADD COLUMN cue_start_ms INTEGER")
+                db.execSQL("ALTER TABLE songs ADD COLUMN cue_end_ms INTEGER")
             }
         }
     }

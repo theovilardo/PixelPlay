@@ -24,6 +24,8 @@ data class Song(
     val mimeType: String?,
     val bitrate: Int?,
     val sampleRate: Int?,
+    val cueStartMs: Long? = null,
+    val cueEndMs: Long? = null
 ) {
     companion object {
         fun emptySong(): Song {
@@ -46,7 +48,9 @@ data class Song(
                 dateAdded = 0,
                 mimeType = "-",
                 bitrate = 0,
-                sampleRate = 0
+                sampleRate = 0,
+                cueStartMs = null,
+                cueEndMs = null
             )
         }
     }
