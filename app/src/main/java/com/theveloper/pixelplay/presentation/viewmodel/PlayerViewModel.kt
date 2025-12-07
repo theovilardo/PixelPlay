@@ -1203,6 +1203,18 @@ class PlayerViewModel @Inject constructor(
                         val lastPlayedRemoteItem = lastKnownStatus.getQueueItemById(lastItemId)
                         val lastPlayedSongId = lastPlayedRemoteItem?.customData?.optString("songId")
                         val startIndex = finalQueue.indexOfFirst { it.id == lastPlayedSongId }.coerceAtLeast(0)
+                        val currentLocalSong = finalQueue.getOrNull(startIndex)
+
+                        _playerUiState.update {
+                            it.copy(
+                                currentPlaybackQueue = finalQueue.toImmutableList(),
+                                currentPosition = lastPosition
+                            )
+                        }
+                        if (finalQueue.isNotEmpty()) {
+                            _isSheetVisible.value = true
+                        }
+
                         val mediaItems = finalQueue.map { song ->
                             MediaItem.Builder()
                                 .setMediaId(song.id)
@@ -1224,11 +1236,21 @@ class PlayerViewModel @Inject constructor(
                         }
                         localPlayer.setMediaItems(mediaItems, startIndex, lastPosition)
                         localPlayer.prepare()
+
+                        val totalDuration = (lastKnownStatus.mediaInfo?.streamDuration
+                            ?: currentLocalSong?.duration
+                            ?: 0L).coerceAtLeast(0L)
+                        _stablePlayerState.update {
+                            it.copy(
+                                currentSong = currentLocalSong,
+                                totalDuration = totalDuration,
+                                isPlaying = wasPlaying
+                            )
+                        }
+
                         if (wasPlaying) {
                             localPlayer.play()
                             startProgressUpdates()
-                        } else {
-                            _playerUiState.update { it.copy(currentPosition = lastPosition) }
                         }
                     }
                 }
