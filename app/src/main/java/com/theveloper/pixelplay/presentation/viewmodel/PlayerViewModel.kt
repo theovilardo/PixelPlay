@@ -386,6 +386,10 @@ class PlayerViewModel @Inject constructor(
     private val _remotePosition = MutableStateFlow(0L)
     val remotePosition: StateFlow<Long> = _remotePosition.asStateFlow()
     private var lastRemoteMediaStatus: MediaStatus? = null
+    private var lastRemoteQueue: List<Song> = emptyList()
+    private var lastRemoteSongId: String? = null
+    private var lastRemoteStreamPosition: Long = 0L
+    private var lastRemoteRepeatMode: Int = Player.REPEAT_MODE_OFF
     private val _trackVolume = MutableStateFlow(1.0f)
     val trackVolume: StateFlow<Float> = _trackVolume.asStateFlow()
     private val isRemotelySeeking = MutableStateFlow(false)
@@ -1025,6 +1029,7 @@ class PlayerViewModel @Inject constructor(
         remoteProgressListener = RemoteMediaClient.ProgressListener { progress, _ ->
             if (!isRemotelySeeking.value) {
                 _remotePosition.value = progress
+                lastRemoteStreamPosition = progress
                 listeningStatsTracker.onProgress(progress, lastKnownRemoteIsPlaying)
             }
         }
@@ -1044,6 +1049,12 @@ class PlayerViewModel @Inject constructor(
                 val currentRemoteItem = mediaStatus.getQueueItemById(currentItemId)
                 val currentSongId = currentRemoteItem?.customData?.optString("songId")
                 val currentSong = currentSongId?.let { songMap[it] }
+                if (newQueue.isNotEmpty()) {
+                    lastRemoteQueue = newQueue
+                }
+                if (currentSongId != null) {
+                    lastRemoteSongId = currentSongId
+                }
                 if (currentSong?.id != _stablePlayerState.value.currentSong?.id) {
                     viewModelScope.launch {
                         currentSong?.albumArtUriString?.toUri()?.let { uri ->
@@ -1069,6 +1080,8 @@ class PlayerViewModel @Inject constructor(
                 val isPlaying = mediaStatus.playerState == MediaStatus.PLAYER_STATE_PLAYING
                 lastKnownRemoteIsPlaying = isPlaying
                 val streamPosition = mediaStatus.streamPosition
+                lastRemoteStreamPosition = streamPosition
+                lastRemoteRepeatMode = mediaStatus.queueRepeatMode
                 val streamDuration = listOf(
                     remoteMediaClient.streamDuration,
                     currentSong?.duration ?: 0L,
@@ -1115,6 +1128,10 @@ class PlayerViewModel @Inject constructor(
                     }
 
                     lastRemoteMediaStatus = null
+                    lastRemoteQueue = emptyList()
+                    lastRemoteSongId = null
+                    lastRemoteStreamPosition = 0L
+                    lastRemoteRepeatMode = Player.REPEAT_MODE_OFF
 
                     _isSheetVisible.value = true
 
@@ -1181,10 +1198,12 @@ class PlayerViewModel @Inject constructor(
                 val session = _castSession.value ?: return
                 val remoteMediaClient = session.remoteMediaClient ?: return
                 val lastKnownStatus = remoteMediaClient.mediaStatus ?: lastRemoteMediaStatus
-                val lastPosition = _remotePosition.value
-                val wasPlaying = lastKnownStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING
+                val lastPosition = (lastKnownStatus?.streamPosition ?: lastRemoteStreamPosition)
+                    .takeIf { it > 0 } ?: _remotePosition.value
+                val wasPlaying = (lastKnownStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING)
+                    || lastKnownRemoteIsPlaying
                 val lastItemId = lastKnownStatus?.currentItemId
-                val lastRepeatMode = lastKnownStatus?.queueRepeatMode ?: Player.REPEAT_MODE_OFF
+                val lastRepeatMode = lastKnownStatus?.queueRepeatMode ?: lastRemoteRepeatMode
                 val isShuffleEnabled = lastRepeatMode == MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE
                 remoteProgressObserverJob?.cancel()
                 remoteMediaClient.removeProgressListener(remoteProgressListener!!)
@@ -1196,62 +1215,71 @@ class PlayerViewModel @Inject constructor(
                 context.stopService(Intent(context, MediaFileHttpServerService::class.java))
                 disconnect()
                 val localPlayer = mediaController ?: return
-                if (lastKnownStatus != null && lastItemId != null) {
-                    val songMap = _masterAllSongs.value.associateBy { it.id }
-                    val finalQueue = lastKnownStatus.queueItems.mapNotNull { item ->
+                val fallbackQueue = if (lastKnownStatus?.queueItems?.isNotEmpty() == true) {
+                    lastKnownStatus.queueItems.mapNotNull { item ->
                         item.customData?.optString("songId")?.let { songId ->
-                            songMap[songId]
+                            _masterAllSongs.value.firstOrNull { it.id == songId }
                         }
                     }
-                    if (finalQueue.isNotEmpty()) {
-                        val lastPlayedRemoteItem = lastKnownStatus.getQueueItemById(lastItemId)
-                        val lastPlayedSongId = lastPlayedRemoteItem?.customData?.optString("songId")
-                        val startIndex = finalQueue.indexOfFirst { it.id == lastPlayedSongId }.coerceAtLeast(0)
-                        val mediaItems = finalQueue.map { song ->
-                            MediaItem.Builder()
-                                .setMediaId(song.id)
-                                .setUri(song.contentUriString.toUri())
-                                .setMediaMetadata(
-                                    MediaMetadata.Builder()
-                                        .setTitle(song.title)
-                                        .setArtist(song.artist)
-                                        .setArtworkUri(song.albumArtUriString?.toUri())
-                                        .build()
-                                )
-                                .build()
-                        }
-                        localPlayer.shuffleModeEnabled = isShuffleEnabled
-                        localPlayer.repeatMode = when (lastRepeatMode) {
-                            MediaStatus.REPEAT_MODE_REPEAT_SINGLE -> Player.REPEAT_MODE_ONE
-                            MediaStatus.REPEAT_MODE_REPEAT_ALL, MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE -> Player.REPEAT_MODE_ALL
-                            else -> Player.REPEAT_MODE_OFF
-                        }
-                        localPlayer.setMediaItems(mediaItems, startIndex, lastPosition)
-                        localPlayer.prepare()
-                        _playerUiState.update {
-                            it.copy(
-                                currentPlaybackQueue = finalQueue,
-                                currentPosition = lastPosition
+                } else {
+                    lastRemoteQueue
+                }
+                val songMap = _masterAllSongs.value.associateBy { it.id }
+                val finalQueue = fallbackQueue.ifEmpty { lastRemoteQueue }.mapNotNull { song ->
+                    songMap[song.id]
+                }
+                val targetSongId = lastKnownStatus?.getQueueItemById(lastItemId ?: 0)?.customData?.optString("songId")
+                    ?: lastRemoteSongId
+                if (finalQueue.isNotEmpty() && targetSongId != null) {
+                    val songMap = _masterAllSongs.value.associateBy { it.id }
+                    val startIndex = finalQueue.indexOfFirst { it.id == targetSongId }.coerceAtLeast(0)
+                    val mediaItems = finalQueue.map { song ->
+                        MediaItem.Builder()
+                            .setMediaId(song.id)
+                            .setUri(song.contentUriString.toUri())
+                            .setMediaMetadata(
+                                MediaMetadata.Builder()
+                                    .setTitle(song.title)
+                                    .setArtist(song.artist)
+                                    .setArtworkUri(song.albumArtUriString?.toUri())
+                                    .build()
                             )
-                        }
-                        _stablePlayerState.update {
-                            it.copy(
-                                currentSong = finalQueue.getOrNull(startIndex),
-                                isPlaying = wasPlaying,
-                                totalDuration = finalQueue.getOrNull(startIndex)?.duration ?: it.totalDuration,
-                                isShuffleEnabled = isShuffleEnabled,
-                                repeatMode = localPlayer.repeatMode
-                            )
-                        }
-                        if (wasPlaying) {
-                            localPlayer.play()
-                            startProgressUpdates()
-                        } else {
-                            _playerUiState.update { it.copy(currentPosition = lastPosition) }
-                        }
+                            .build()
+                    }
+                    localPlayer.shuffleModeEnabled = isShuffleEnabled
+                    localPlayer.repeatMode = when (lastRepeatMode) {
+                        MediaStatus.REPEAT_MODE_REPEAT_SINGLE -> Player.REPEAT_MODE_ONE
+                        MediaStatus.REPEAT_MODE_REPEAT_ALL, MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE -> Player.REPEAT_MODE_ALL
+                        else -> Player.REPEAT_MODE_OFF
+                    }
+                    localPlayer.setMediaItems(mediaItems, startIndex, lastPosition)
+                    localPlayer.prepare()
+                    _playerUiState.update {
+                        it.copy(
+                            currentPlaybackQueue = finalQueue.toImmutableList(),
+                            currentPosition = lastPosition
+                        )
+                    }
+                    _stablePlayerState.update {
+                        it.copy(
+                            currentSong = finalQueue.getOrNull(startIndex),
+                            isPlaying = wasPlaying,
+                            totalDuration = finalQueue.getOrNull(startIndex)?.duration ?: it.totalDuration,
+                            isShuffleEnabled = isShuffleEnabled,
+                            repeatMode = localPlayer.repeatMode
+                        )
+                    }
+                    if (wasPlaying) {
+                        localPlayer.play()
+                        startProgressUpdates()
+                    } else {
+                        _playerUiState.update { it.copy(currentPosition = lastPosition) }
                     }
                 }
                 lastRemoteMediaStatus = null
+                lastRemoteQueue = emptyList()
+                lastRemoteSongId = null
+                lastRemoteStreamPosition = 0L
             }
 
             override fun onSessionEnded(session: CastSession, error: Int) {
