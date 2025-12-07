@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -14,6 +15,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
@@ -290,12 +292,15 @@ fun FullPlayerContent(
                     navigationIconContentColor = LocalMaterialTheme.current.onPrimaryContainer
                 ),
                 title = {
-                    Text(
-                        modifier = Modifier.padding(start = 18.dp),
-                        text = "Now Playing",
-                        style = MaterialTheme.typography.labelLargeEmphasized,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
+                    AnimatedVisibility(visible = !isRemotePlaybackActive) {
+                        Text(
+                            modifier = Modifier.padding(start = 18.dp),
+                            text = "Now Playing",
+                            style = MaterialTheme.typography.labelLargeEmphasized,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 },
                 navigationIcon = {
                     Box(
@@ -332,50 +337,73 @@ fun FullPlayerContent(
                         val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
                         val isCastConnecting by playerViewModel.isCastConnecting.collectAsState()
                         val selectedRouteName by playerViewModel.selectedRoute.map { it?.name }.collectAsState(initial = null)
+                        val castButtonWidth by animateDpAsState(
+                            targetValue = if (isRemotePlaybackActive) 176.dp else 96.dp,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+                        )
+                        val castTopStart by animateDpAsState(
+                            targetValue = if (isRemotePlaybackActive) 21.dp else 50.dp,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+                        )
+                        val castTopEnd by animateDpAsState(
+                            targetValue = if (isRemotePlaybackActive) 21.dp else 6.dp,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+                        )
+                        val castContainerColor by animateColorAsState(
+                            targetValue = LocalMaterialTheme.current.onPrimary,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
+                        )
                         Box(
                             modifier = Modifier
-                                .size(height = 42.dp, width = 50.dp)
+                                .height(42.dp)
+                                .width(castButtonWidth)
                                 .clip(
                                     RoundedCornerShape(
-                                        topStart = 50.dp,
-                                        topEnd = 6.dp,
-                                        bottomStart = 50.dp,
-                                        bottomEnd = 6.dp
+                                        topStart = castTopStart,
+                                        topEnd = castTopEnd,
+                                        bottomStart = castTopStart,
+                                        bottomEnd = castTopEnd
                                     )
                                 )
-                                .background(
-                                    if (isRemotePlaybackActive) LocalMaterialTheme.current.primaryContainer else LocalMaterialTheme.current.onPrimary
-                                )
+                                .background(castContainerColor)
                                 .clickable { onShowCastClicked() },
-                            contentAlignment = Alignment.Center
+                            contentAlignment = Alignment.CenterStart
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
                                 Icon(
                                     painter = painterResource(R.drawable.rounded_cast_24),
                                     contentDescription = "Cast",
-                                    tint = if (isRemotePlaybackActive) LocalMaterialTheme.current.onPrimaryContainer else LocalMaterialTheme.current.primary
+                                    tint = LocalMaterialTheme.current.primary
                                 )
-                                AnimatedVisibility(visible = isCastConnecting) {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(12.dp),
-                                            strokeWidth = 2.dp,
-                                            color = LocalMaterialTheme.current.onPrimaryContainer
-                                        )
-                                        Text(
-                                            text = "Connecting…",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = LocalMaterialTheme.current.onPrimaryContainer,
-                                            maxLines = 1
-                                        )
-                                    }
-                                }
-                                AnimatedVisibility(visible = !isCastConnecting && isRemotePlaybackActive && selectedRouteName != null) {
+                                AnimatedContent(
+                                    targetState = when {
+                                        isCastConnecting -> "Connecting…"
+                                        isRemotePlaybackActive && selectedRouteName != null -> selectedRouteName ?: ""
+                                        else -> "Cast"
+                                    },
+                                    transitionSpec = {
+                                        fadeIn(animationSpec = tween(150)) togetherWith fadeOut(animationSpec = tween(120))
+                                    },
+                                    label = "castButtonLabel"
+                                ) { label ->
                                     Text(
-                                        text = selectedRouteName ?: "",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = LocalMaterialTheme.current.onPrimaryContainer,
+                                        text = label,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = LocalMaterialTheme.current.primary,
                                         maxLines = 1
+                                    )
+                                }
+                                AnimatedVisibility(visible = isCastConnecting) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(14.dp),
+                                        strokeWidth = 2.dp,
+                                        color = LocalMaterialTheme.current.primary
                                     )
                                 }
                             }

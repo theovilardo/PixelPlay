@@ -1,6 +1,7 @@
 package com.theveloper.pixelplay.presentation.components
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -43,6 +44,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -63,11 +65,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.painterResource
@@ -75,6 +79,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.media3.common.util.UnstableApi
 import androidx.mediarouter.media.MediaRouter
 import com.theveloper.pixelplay.R
@@ -105,7 +111,7 @@ fun CastBottomSheet(
     val isPlaying = playerViewModel.stablePlayerState.collectAsState().value.isPlaying
 
     val activeRoute = selectedRoute?.takeUnless { it.isDefault }
-    val isRemoteSession = isRemotePlaybackActive && activeRoute != null
+    val isRemoteSession = (isRemotePlaybackActive || isCastConnecting) && activeRoute != null
 
     val availableRoutes = routes.filterNot { it.isDefault }
     val devices = availableRoutes.map { route ->
@@ -229,10 +235,10 @@ private fun CastSheetContent(
 ) {
     val colors = MaterialTheme.colorScheme
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         SheetHeader(
@@ -355,6 +361,13 @@ private fun ActiveDeviceHero(
 ) {
     var sliderValue by remember(device.id, device.volume) { mutableFloatStateOf(device.volume) }
     LaunchedEffect(device.volume) { sliderValue = device.volume }
+    val haptics = LocalHapticFeedback.current
+
+    val discreteSteps = remember(device.volumeRange) {
+        val span = device.volumeRange.endInclusive - device.volumeRange.start
+        if (span <= 1f) 20 else span.toInt().coerceAtLeast(0) - 1
+    }.coerceAtLeast(0)
+    var lastStep by remember(device.id) { mutableIntStateOf(-1) }
 
     val heroShape = AbsoluteSmoothCornerShape(
         cornerRadiusTL = 38.dp,
@@ -382,25 +395,31 @@ private fun ActiveDeviceHero(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Box(
                     modifier = Modifier
-                        .size(58.dp)
+                        .size(68.dp)
                         .background(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
                             shape = CircleShape
                         ),
                     contentAlignment = Alignment.Center
                 ) {
+                    if (device.isConnecting) {
+                        ConnectingHalo()
+                    }
                     Icon(
                         imageVector = device.icon,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     Text(
                         text = device.title,
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
@@ -411,7 +430,7 @@ private fun ActiveDeviceHero(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(
                             modifier = Modifier
                                 .size(12.dp)
@@ -425,15 +444,41 @@ private fun ActiveDeviceHero(
                         )
                     }
                 }
-                Button(
-                    onClick = onDisconnect,
-                    shape = RoundedCornerShape(50),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                ) {
-                    Text(if (device.isRemote) "Disconnect" else "Close")
+                AnimatedVisibility(visible = device.isConnecting && device.isRemote) {
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "Connecting…",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
+                        )
+                    }
+                }
+                if (device.isRemote) {
+                    Button(
+                        onClick = onDisconnect,
+                        shape = RoundedCornerShape(50),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        modifier = Modifier
+                            .height(46.dp)
+                            .padding(start = 4.dp)
+                    ) {
+                        Text("Disconnect")
+                    }
                 }
             }
 
@@ -456,11 +501,21 @@ private fun ActiveDeviceHero(
                 }
                 Slider(
                     value = sliderValue.coerceIn(device.volumeRange.start, device.volumeRange.endInclusive),
-                    onValueChange = {
-                        sliderValue = it
-                        onVolumeChange(it)
+                    onValueChange = { newValue ->
+                        sliderValue = newValue
+                        val quantized = if (device.volumeRange.endInclusive <= 1f) {
+                            (newValue * 20).toInt()
+                        } else {
+                            newValue.toInt()
+                        }
+                        if (quantized != lastStep) {
+                            lastStep = quantized
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        }
+                        onVolumeChange(newValue)
                     },
                     valueRange = device.volumeRange,
+                    steps = discreteSteps,
                     track = { sliderState ->
                         SliderDefaults.Track(
                             sliderState = sliderState,
@@ -474,6 +529,12 @@ private fun ActiveDeviceHero(
                             )
                         )
                     },
+                    thumb = { sliderState ->
+                        SliderDefaults.Thumb(
+                            interactionSource = sliderState.interactionSource,
+                            colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.onPrimaryContainer)
+                        )
+                    },
                     colors = SliderDefaults.colors(
                         activeTrackColor = MaterialTheme.colorScheme.primary,
                         inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
@@ -483,6 +544,32 @@ private fun ActiveDeviceHero(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ConnectingHalo() {
+    val infiniteTransition = rememberInfiniteTransition(label = "connectingHalo")
+    val radius by infiniteTransition.animateFloat(
+        initialValue = 0.72f,
+        targetValue = 1.12f,
+        animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing)),
+        label = "haloRadius"
+    )
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.18f,
+        targetValue = 0.05f,
+        animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing)),
+        label = "haloAlpha"
+    )
+    Canvas(modifier = Modifier.matchParentSize()) {
+        val baseRadius = size.minDimension / 2
+        drawCircle(
+            color = MaterialTheme.colorScheme.primary.copy(alpha = alpha),
+            radius = baseRadius * radius,
+            center = Offset(size.minDimension / 2, size.minDimension / 2),
+            style = Stroke(width = 6.dp.toPx())
+        )
     }
 }
 
