@@ -1218,17 +1218,25 @@ class PlayerViewModel @Inject constructor(
 
             private fun stopServerAndTransferBack() {
                 val session = _castSession.value ?: return
-                val remoteMediaClient = session.remoteMediaClient ?: return
-                val lastKnownStatus = remoteMediaClient.mediaStatus ?: lastRemoteMediaStatus
-                val lastPosition = (lastKnownStatus?.streamPosition ?: lastRemoteStreamPosition)
+                val remoteMediaClient = session.remoteMediaClient
+                val liveStatus = remoteMediaClient?.mediaStatus
+                val lastKnownStatus = liveStatus ?: lastRemoteMediaStatus
+                val lastPosition = (
+                    liveStatus?.streamPosition
+                        ?: lastKnownStatus?.streamPosition
+                        ?: lastRemoteStreamPosition
+                    )
                     .takeIf { it > 0 } ?: _remotePosition.value
-                val wasPlaying = (lastKnownStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING)
+                val wasPlaying = (liveStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING)
+                    || (lastKnownStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING)
                     || lastKnownRemoteIsPlaying
-                val lastItemId = lastKnownStatus?.currentItemId
-                val lastRepeatMode = lastKnownStatus?.queueRepeatMode ?: lastRemoteRepeatMode
+                val lastItemId = liveStatus?.currentItemId ?: lastKnownStatus?.currentItemId
+                val lastRepeatMode = liveStatus?.queueRepeatMode
+                    ?: lastKnownStatus?.queueRepeatMode
+                    ?: lastRemoteRepeatMode
                 val isShuffleEnabled = lastRepeatMode == MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE
                 Timber.tag(CAST_LOG_TAG)
-                    .d(
+                    .i(
                         "Transfer back start: lastStatus=%s lastItemId=%s lastSongId=%s position=%d playing=%s repeat=%d shuffle=%s",
                         lastKnownStatus != null,
                         lastItemId,
@@ -1239,8 +1247,8 @@ class PlayerViewModel @Inject constructor(
                         isShuffleEnabled
                     )
                 remoteProgressObserverJob?.cancel()
-                remoteMediaClient.removeProgressListener(remoteProgressListener!!)
-                remoteMediaClient.unregisterCallback(remoteMediaClientCallback!!)
+                remoteMediaClient?.removeProgressListener(remoteProgressListener!!)
+                remoteMediaClient?.unregisterCallback(remoteMediaClientCallback!!)
                 castPlayer = null
                 _castSession.value = null
                 _isRemotePlaybackActive.value = false
@@ -1264,7 +1272,7 @@ class PlayerViewModel @Inject constructor(
                 val targetSongId = lastKnownStatus?.getQueueItemById(lastItemId ?: 0)?.customData?.optString("songId")
                     ?: lastRemoteSongId
                 Timber.tag(CAST_LOG_TAG)
-                    .d(
+                    .i(
                         "Finalized transfer data: queueSize=%d fallbackQueueSize=%d targetSongId=%s lastRemoteQueueSize=%d",
                         finalQueue.size,
                         fallbackQueue.size,
@@ -1275,7 +1283,7 @@ class PlayerViewModel @Inject constructor(
                     val songMap = _masterAllSongs.value.associateBy { it.id }
                     val startIndex = finalQueue.indexOfFirst { it.id == targetSongId }.coerceAtLeast(0)
                     Timber.tag(CAST_LOG_TAG)
-                        .d(
+                        .i(
                             "Restoring local playback: startIndex=%d position=%d songId=%s",
                             startIndex,
                             lastPosition,
@@ -1320,10 +1328,10 @@ class PlayerViewModel @Inject constructor(
                     if (wasPlaying) {
                         localPlayer.play()
                         startProgressUpdates()
-                        Timber.tag(CAST_LOG_TAG).d("Local playback resumed with play at position=%d", lastPosition)
+                        Timber.tag(CAST_LOG_TAG).i("Local playback resumed with play at position=%d", lastPosition)
                     } else {
                         _playerUiState.update { it.copy(currentPosition = lastPosition) }
-                        Timber.tag(CAST_LOG_TAG).d("Local playback prepared without play at position=%d", lastPosition)
+                        Timber.tag(CAST_LOG_TAG).i("Local playback prepared without play at position=%d", lastPosition)
                     }
                 }
                 lastRemoteMediaStatus = null
