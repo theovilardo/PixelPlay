@@ -381,6 +381,8 @@ class PlayerViewModel @Inject constructor(
     private var castPlayer: CastPlayer? = null
     private val _isRemotePlaybackActive = MutableStateFlow(false)
     val isRemotePlaybackActive: StateFlow<Boolean> = _isRemotePlaybackActive.asStateFlow()
+    private val _isCastConnecting = MutableStateFlow(false)
+    val isCastConnecting: StateFlow<Boolean> = _isCastConnecting.asStateFlow()
     private val _remotePosition = MutableStateFlow(0L)
     val remotePosition: StateFlow<Long> = _remotePosition.asStateFlow()
     private val _trackVolume = MutableStateFlow(1.0f)
@@ -1047,8 +1049,20 @@ class PlayerViewModel @Inject constructor(
                         }
                     }
                 }
-                _playerUiState.update {
-                    it.copy(currentPlaybackQueue = newQueue)
+                val previousQueue = _playerUiState.value.currentPlaybackQueue
+                val isSubsetOfPrevious =
+                    previousQueue.isNotEmpty() && newQueue.isNotEmpty() && newQueue.all { song ->
+                        previousQueue.any { it.id == song.id }
+                    }
+                val queueForUi = when {
+                    newQueue.isEmpty() -> previousQueue
+                    isSubsetOfPrevious && newQueue.size < previousQueue.size -> previousQueue
+                    else -> newQueue
+                }
+                if (queueForUi.isNotEmpty() || previousQueue.isNotEmpty()) {
+                    _playerUiState.update {
+                        it.copy(currentPlaybackQueue = queueForUi)
+                    }
                 }
                 val isPlaying = mediaStatus.playerState == MediaStatus.PLAYER_STATE_PLAYING
                 lastKnownRemoteIsPlaying = isPlaying
@@ -1082,16 +1096,23 @@ class PlayerViewModel @Inject constructor(
         castSessionManagerListener = object : SessionManagerListener<CastSession> {
             private fun transferPlayback(session: CastSession) {
                 viewModelScope.launch {
+                    _isCastConnecting.value = true
                     if (!ensureHttpServerRunning()) {
                         sendToast("Could not start cast server. Check connection.")
+                        _isCastConnecting.value = false
                         disconnect()
                         return@launch
                     }
 
-                    val serverAddress = MediaFileHttpServerService.serverAddress ?: return@launch
-                    val localPlayer = mediaController ?: return@launch
+                    val serverAddress = MediaFileHttpServerService.serverAddress
+                    val localPlayer = mediaController
                     val currentQueue = _playerUiState.value.currentPlaybackQueue
-                    if (currentQueue.isEmpty()) return@launch
+                    if (serverAddress == null || localPlayer == null || currentQueue.isEmpty()) {
+                        _isCastConnecting.value = false
+                        return@launch
+                    }
+
+                    _isSheetVisible.value = true
 
                     val wasPlaying = localPlayer.isPlaying
                     val currentSongIndex = localPlayer.currentMediaItemIndex
@@ -1112,7 +1133,7 @@ class PlayerViewModel @Inject constructor(
 
                     castPlayer = CastPlayer(session)
                     _castSession.value = session
-                    _isRemotePlaybackActive.value = true
+                    _isRemotePlaybackActive.value = false
 
                     castPlayer?.loadQueue(
                         songs = currentQueue,
@@ -1125,7 +1146,10 @@ class PlayerViewModel @Inject constructor(
                             if (!success) {
                                 sendToast("Failed to load media on cast device.")
                                 disconnect()
+                                _isCastConnecting.value = false
                             }
+                            _isRemotePlaybackActive.value = success
+                            _isCastConnecting.value = false
                         }
                     )
 
@@ -1164,6 +1188,7 @@ class PlayerViewModel @Inject constructor(
                 castPlayer = null
                 _castSession.value = null
                 _isRemotePlaybackActive.value = false
+                _isCastConnecting.value = false
                 context.stopService(Intent(context, MediaFileHttpServerService::class.java))
                 disconnect()
                 val localPlayer = mediaController ?: return
@@ -1178,6 +1203,18 @@ class PlayerViewModel @Inject constructor(
                         val lastPlayedRemoteItem = lastKnownStatus.getQueueItemById(lastItemId)
                         val lastPlayedSongId = lastPlayedRemoteItem?.customData?.optString("songId")
                         val startIndex = finalQueue.indexOfFirst { it.id == lastPlayedSongId }.coerceAtLeast(0)
+                        val currentLocalSong = finalQueue.getOrNull(startIndex)
+
+                        _playerUiState.update {
+                            it.copy(
+                                currentPlaybackQueue = finalQueue.toImmutableList(),
+                                currentPosition = lastPosition
+                            )
+                        }
+                        if (finalQueue.isNotEmpty()) {
+                            _isSheetVisible.value = true
+                        }
+
                         val mediaItems = finalQueue.map { song ->
                             MediaItem.Builder()
                                 .setMediaId(song.id)
@@ -1199,11 +1236,21 @@ class PlayerViewModel @Inject constructor(
                         }
                         localPlayer.setMediaItems(mediaItems, startIndex, lastPosition)
                         localPlayer.prepare()
+
+                        val totalDuration = (lastKnownStatus.mediaInfo?.streamDuration
+                            ?: currentLocalSong?.duration
+                            ?: 0L).coerceAtLeast(0L)
+                        _stablePlayerState.update {
+                            it.copy(
+                                currentSong = currentLocalSong,
+                                totalDuration = totalDuration,
+                                isPlaying = wasPlaying
+                            )
+                        }
+
                         if (wasPlaying) {
                             localPlayer.play()
                             startProgressUpdates()
-                        } else {
-                            _playerUiState.update { it.copy(currentPosition = lastPosition) }
                         }
                     }
                 }
@@ -1218,11 +1265,21 @@ class PlayerViewModel @Inject constructor(
             }
 
             // Other listener methods can be overridden if needed
-            override fun onSessionStarting(session: CastSession) {}
-            override fun onSessionStartFailed(session: CastSession, error: Int) {}
-            override fun onSessionEnding(session: CastSession) {}
-            override fun onSessionResuming(session: CastSession, sessionId: String) {}
-            override fun onSessionResumeFailed(session: CastSession, error: Int) {}
+            override fun onSessionStarting(session: CastSession) {
+                _isCastConnecting.value = true
+            }
+            override fun onSessionStartFailed(session: CastSession, error: Int) {
+                _isCastConnecting.value = false
+            }
+            override fun onSessionEnding(session: CastSession) {
+                _isCastConnecting.value = false
+            }
+            override fun onSessionResuming(session: CastSession, sessionId: String) {
+                _isCastConnecting.value = true
+            }
+            override fun onSessionResumeFailed(session: CastSession, error: Int) {
+                _isCastConnecting.value = false
+            }
         }
         sessionManager.addSessionManagerListener(castSessionManagerListener as SessionManagerListener<CastSession>, CastSession::class.java)
         _castSession.value = sessionManager.currentCastSession
@@ -3511,6 +3568,7 @@ class PlayerViewModel @Inject constructor(
     fun disconnect() {
         mediaRouter.selectRoute(mediaRouter.defaultRoute)
         _isRemotePlaybackActive.value = false
+        _isCastConnecting.value = false
     }
 
     fun setRouteVolume(volume: Int) {
