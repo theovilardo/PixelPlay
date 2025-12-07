@@ -77,6 +77,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -171,7 +172,7 @@ fun CastBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        containerColor = Color.Transparent,
         dragHandle = { DragHandlePill() }
     ) {
         CastSheetContent(
@@ -236,10 +237,9 @@ private fun CastSheetContent(
 ) {
     val colors = MaterialTheme.colorScheme
     Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         SheetHeader(
@@ -696,11 +696,17 @@ private fun CastDeviceRow(
                     text = device.name,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = onContainer
+                    color = onContainer,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             },
             supportingContent = {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     BadgeChip(
                         text = if (device.connectionState == MediaRouter.RouteInfo.CONNECTION_STATE_CONNECTED) "Connected" else "Available",
                         icon = if (device.playbackType == MediaRouter.RouteInfo.PLAYBACK_TYPE_REMOTE) R.drawable.rounded_wifi_24 else R.drawable.rounded_bluetooth_24,

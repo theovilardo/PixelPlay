@@ -338,12 +338,26 @@ fun FullPlayerContent(
                         val isCastConnecting by playerViewModel.isCastConnecting.collectAsState()
                         val selectedRouteName by playerViewModel.selectedRoute.map { it?.name }.collectAsState(initial = null)
                         val showCastLabel = isCastConnecting || (isRemotePlaybackActive && selectedRouteName != null)
-                        val castButtonWidth by animateDpAsState(
-                            targetValue = if (showCastLabel) 176.dp else 50.dp,
+                        val castCornersExpanded = 50.dp
+                        val castCornersCompact = 6.dp
+                        val castTopStart by animateDpAsState(
+                            targetValue = if (showCastLabel) castCornersExpanded else castCornersExpanded,
                             animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
                         )
-                        val castCorner by animateDpAsState(
-                            targetValue = if (showCastLabel) 21.dp else 50.dp,
+                        val castTopEnd by animateDpAsState(
+                            targetValue = if (showCastLabel) castCornersExpanded else castCornersCompact,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+                        )
+                        val castBottomStart by animateDpAsState(
+                            targetValue = if (showCastLabel) castCornersExpanded else castCornersExpanded,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+                        )
+                        val castBottomEnd by animateDpAsState(
+                            targetValue = if (showCastLabel) castCornersExpanded else castCornersCompact,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+                        )
+                        val castButtonWidth by animateDpAsState(
+                            targetValue = if (showCastLabel) 176.dp else 50.dp,
                             animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
                         )
                         val castContainerColor by animateColorAsState(
@@ -356,10 +370,10 @@ fun FullPlayerContent(
                                 .width(castButtonWidth)
                                 .clip(
                                     RoundedCornerShape(
-                                        topStart = castCorner,
-                                        topEnd = castCorner,
-                                        bottomStart = castCorner,
-                                        bottomEnd = castCorner
+                                        topStart = castTopStart,
+                                        topEnd = castTopEnd,
+                                        bottomStart = castBottomStart,
+                                        bottomEnd = castBottomEnd
                                     )
                                 )
                                 .background(castContainerColor)
@@ -372,35 +386,48 @@ fun FullPlayerContent(
                                     .padding(horizontal = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.rounded_cast_24),
-                                    contentDescription = "Cast",
-                                    tint = LocalMaterialTheme.current.primary
-                                )
-                                AnimatedVisibility(visible = showCastLabel) {
-                                    AnimatedContent(
-                                        targetState = when {
-                                            isCastConnecting -> "Connecting…"
-                                            isRemotePlaybackActive && selectedRouteName != null -> selectedRouteName ?: ""
-                                            else -> ""
-                                        },
-                                        transitionSpec = {
-                                            fadeIn(animationSpec = tween(150)) togetherWith fadeOut(animationSpec = tween(120))
-                                        },
-                                        label = "castButtonLabel"
-                                    ) { label ->
-                                        Text(
-                                            text = label,
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = LocalMaterialTheme.current.primary,
-                                            maxLines = 1
-                                        )
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.rounded_cast_24),
+                                        contentDescription = "Cast",
+                                        tint = LocalMaterialTheme.current.primary
+                                    )
+                                    AnimatedVisibility(visible = showCastLabel) {
+                                        AnimatedContent(
+                                            targetState = when {
+                                                isCastConnecting -> "Connecting…"
+                                                isRemotePlaybackActive && selectedRouteName != null -> selectedRouteName ?: ""
+                                                else -> ""
+                                            },
+                                            transitionSpec = {
+                                                fadeIn(animationSpec = tween(150)) togetherWith fadeOut(animationSpec = tween(120))
+                                            },
+                                            label = "castButtonLabel"
+                                        ) { label ->
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                if (isRemotePlaybackActive && !isCastConnecting) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(8.dp)
+                                                            .clip(CircleShape)
+                                                            .background(MaterialTheme.colorScheme.tertiary)
+                                                    )
+                                                }
+                                                Text(
+                                                    text = label,
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = LocalMaterialTheme.current.primary,
+                                                    maxLines = 1
+                                                )
+                                            }
+                                        }
                                     }
-                                }
-                                AnimatedVisibility(visible = isCastConnecting) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(14.dp),
+                                    AnimatedVisibility(visible = isCastConnecting) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(14.dp),
                                         strokeWidth = 2.dp,
                                         color = LocalMaterialTheme.current.primary
                                     )
