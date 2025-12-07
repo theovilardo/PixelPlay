@@ -1162,20 +1162,9 @@ class PlayerViewModel @Inject constructor(
                         return@launch
                     }
 
-                    lastRemoteMediaStatus = null
-                    lastRemoteQueue = emptyList()
-                    lastRemoteSongId = null
-                    lastRemoteStreamPosition = 0L
-                    lastRemoteRepeatMode = Player.REPEAT_MODE_OFF
-
-                    _isSheetVisible.value = true
-
                     val wasPlaying = localPlayer.isPlaying
                     val currentSongIndex = localPlayer.currentMediaItemIndex
                     val currentPosition = localPlayer.currentPosition
-
-                    localPlayer.pause()
-                    stopProgressUpdates()
 
                     val castRepeatMode = if (localPlayer.shuffleModeEnabled) {
                         MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE
@@ -1186,6 +1175,17 @@ class PlayerViewModel @Inject constructor(
                             else -> MediaStatus.REPEAT_MODE_REPEAT_OFF
                         }
                     }
+
+                    lastRemoteMediaStatus = null
+                    lastRemoteQueue = currentQueue
+                    lastRemoteSongId = currentQueue.getOrNull(currentSongIndex)?.id
+                    lastRemoteStreamPosition = currentPosition
+                    lastRemoteRepeatMode = castRepeatMode
+
+                    _isSheetVisible.value = true
+
+                    localPlayer.pause()
+                    stopProgressUpdates()
 
                     castPlayer = CastPlayer(session)
                     _castSession.value = session
