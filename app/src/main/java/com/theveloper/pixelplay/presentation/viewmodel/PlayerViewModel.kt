@@ -1062,8 +1062,21 @@ class PlayerViewModel @Inject constructor(
                 val currentSongId = currentRemoteItem?.customData?.optString("songId")
                 val currentSong = currentSongId?.let { songMap[it] }
                 if (newQueue.isNotEmpty()) {
-                    lastRemoteQueue = newQueue
-                    Timber.tag(CAST_LOG_TAG).d("Cached remote queue items: %d", newQueue.size)
+                    val isShrunkSubset =
+                        newQueue.size < lastRemoteQueue.size && newQueue.all { song ->
+                            lastRemoteQueue.any { it.id == song.id }
+                        }
+                    if (!isShrunkSubset || lastRemoteQueue.isEmpty()) {
+                        lastRemoteQueue = newQueue
+                        Timber.tag(CAST_LOG_TAG).d("Cached remote queue items: %d", newQueue.size)
+                    } else {
+                        Timber.tag(CAST_LOG_TAG)
+                            .d(
+                                "Skipping remote queue cache shrink: cached=%d new=%d",
+                                lastRemoteQueue.size,
+                                newQueue.size
+                            )
+                    }
                 }
                 if (currentSongId != null) {
                     lastRemoteSongId = currentSongId
@@ -1265,8 +1278,15 @@ class PlayerViewModel @Inject constructor(
                 } else {
                     lastRemoteQueue
                 }
+                val chosenQueue = when {
+                    fallbackQueue.isEmpty() -> lastRemoteQueue
+                    fallbackQueue.size < lastRemoteQueue.size && fallbackQueue.all { song ->
+                        lastRemoteQueue.any { it.id == song.id }
+                    } -> lastRemoteQueue
+                    else -> fallbackQueue
+                }
                 val songMap = _masterAllSongs.value.associateBy { it.id }
-                val finalQueue = fallbackQueue.ifEmpty { lastRemoteQueue }.mapNotNull { song ->
+                val finalQueue = chosenQueue.mapNotNull { song ->
                     songMap[song.id]
                 }
                 val targetSongId = lastKnownStatus?.getQueueItemById(lastItemId ?: 0)?.customData?.optString("songId")
