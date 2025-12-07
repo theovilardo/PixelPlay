@@ -43,6 +43,7 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -329,6 +330,7 @@ fun FullPlayerContent(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
+                        val isCastConnecting by playerViewModel.isCastConnecting.collectAsState()
                         val selectedRouteName by playerViewModel.selectedRoute.map { it?.name }.collectAsState(initial = null)
                         Box(
                             modifier = Modifier
@@ -353,7 +355,22 @@ fun FullPlayerContent(
                                     contentDescription = "Cast",
                                     tint = if (isRemotePlaybackActive) LocalMaterialTheme.current.onPrimaryContainer else LocalMaterialTheme.current.primary
                                 )
-                                AnimatedVisibility(visible = isRemotePlaybackActive && selectedRouteName != null) {
+                                AnimatedVisibility(visible = isCastConnecting) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(12.dp),
+                                            strokeWidth = 2.dp,
+                                            color = LocalMaterialTheme.current.onPrimaryContainer
+                                        )
+                                        Text(
+                                            text = "Connecting…",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = LocalMaterialTheme.current.onPrimaryContainer,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                                AnimatedVisibility(visible = !isCastConnecting && isRemotePlaybackActive && selectedRouteName != null) {
                                     Text(
                                         text = selectedRouteName ?: "",
                                         style = MaterialTheme.typography.labelSmall,
