@@ -337,16 +337,13 @@ fun FullPlayerContent(
                         val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
                         val isCastConnecting by playerViewModel.isCastConnecting.collectAsState()
                         val selectedRouteName by playerViewModel.selectedRoute.map { it?.name }.collectAsState(initial = null)
+                        val showCastLabel = isCastConnecting || (isRemotePlaybackActive && selectedRouteName != null)
                         val castButtonWidth by animateDpAsState(
-                            targetValue = if (isRemotePlaybackActive) 176.dp else 96.dp,
+                            targetValue = if (showCastLabel) 176.dp else 50.dp,
                             animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
                         )
-                        val castTopStart by animateDpAsState(
-                            targetValue = if (isRemotePlaybackActive) 21.dp else 50.dp,
-                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
-                        )
-                        val castTopEnd by animateDpAsState(
-                            targetValue = if (isRemotePlaybackActive) 21.dp else 6.dp,
+                        val castCorner by animateDpAsState(
+                            targetValue = if (showCastLabel) 21.dp else 50.dp,
                             animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
                         )
                         val castContainerColor by animateColorAsState(
@@ -359,10 +356,10 @@ fun FullPlayerContent(
                                 .width(castButtonWidth)
                                 .clip(
                                     RoundedCornerShape(
-                                        topStart = castTopStart,
-                                        topEnd = castTopEnd,
-                                        bottomStart = castTopStart,
-                                        bottomEnd = castTopEnd
+                                        topStart = castCorner,
+                                        topEnd = castCorner,
+                                        bottomStart = castCorner,
+                                        bottomEnd = castCorner
                                     )
                                 )
                                 .background(castContainerColor)
@@ -381,23 +378,25 @@ fun FullPlayerContent(
                                     contentDescription = "Cast",
                                     tint = LocalMaterialTheme.current.primary
                                 )
-                                AnimatedContent(
-                                    targetState = when {
-                                        isCastConnecting -> "Connecting…"
-                                        isRemotePlaybackActive && selectedRouteName != null -> selectedRouteName ?: ""
-                                        else -> "Cast"
-                                    },
-                                    transitionSpec = {
-                                        fadeIn(animationSpec = tween(150)) togetherWith fadeOut(animationSpec = tween(120))
-                                    },
-                                    label = "castButtonLabel"
-                                ) { label ->
-                                    Text(
-                                        text = label,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = LocalMaterialTheme.current.primary,
-                                        maxLines = 1
-                                    )
+                                AnimatedVisibility(visible = showCastLabel) {
+                                    AnimatedContent(
+                                        targetState = when {
+                                            isCastConnecting -> "Connecting…"
+                                            isRemotePlaybackActive && selectedRouteName != null -> selectedRouteName ?: ""
+                                            else -> ""
+                                        },
+                                        transitionSpec = {
+                                            fadeIn(animationSpec = tween(150)) togetherWith fadeOut(animationSpec = tween(120))
+                                        },
+                                        label = "castButtonLabel"
+                                    ) { label ->
+                                        Text(
+                                            text = label,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = LocalMaterialTheme.current.primary,
+                                            maxLines = 1
+                                        )
+                                    }
                                 }
                                 AnimatedVisibility(visible = isCastConnecting) {
                                     CircularProgressIndicator(

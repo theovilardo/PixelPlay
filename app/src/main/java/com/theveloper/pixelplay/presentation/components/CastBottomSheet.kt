@@ -419,17 +419,19 @@ private fun ActiveDeviceHero(
                 }
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
                         text = device.title,
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2
                     )
                     Text(
                         text = device.subtitle,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2
                     )
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(
@@ -441,44 +443,42 @@ private fun ActiveDeviceHero(
                         Text(
                             text = device.connectionLabel,
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                AnimatedVisibility(visible = device.isConnecting && device.isRemote) {
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = "Connecting…",
-                            style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1
                         )
                     }
-                }
-                if (device.isRemote) {
-                    Button(
-                        onClick = onDisconnect,
-                        shape = RoundedCornerShape(50),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        ),
-                        modifier = Modifier
-                            .height(46.dp)
-                            .padding(start = 4.dp)
-                    ) {
-                        Text("Disconnect")
+                    AnimatedVisibility(visible = device.isConnecting && device.isRemote) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Connecting…",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                    if (device.isRemote) {
+                        Button(
+                            onClick = onDisconnect,
+                            shape = RoundedCornerShape(50),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            ),
+                            modifier = Modifier
+                                .height(46.dp)
+                                .padding(top = 4.dp)
+                        ) {
+                            Text("Disconnect")
+                        }
                     }
                 }
             }
@@ -532,7 +532,7 @@ private fun ActiveDeviceHero(
                     },
                     thumb = { sliderState ->
                         SliderDefaults.Thumb(
-                            interactionSource = sliderState.interactionSource,
+                            sliderState = sliderState,
                             colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.onPrimaryContainer)
                         )
                     },
