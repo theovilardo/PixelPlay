@@ -1274,7 +1274,7 @@ class PlayerViewModel @Inject constructor(
                         item.customData?.optString("songId")?.let { songId ->
                             _masterAllSongs.value.firstOrNull { it.id == songId }
                         }
-                    }
+                    }.toImmutableList()
                 } else {
                     lastRemoteQueue
                 }
