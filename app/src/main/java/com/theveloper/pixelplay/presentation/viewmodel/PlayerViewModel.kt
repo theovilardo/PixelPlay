@@ -385,6 +385,7 @@ class PlayerViewModel @Inject constructor(
     val isCastConnecting: StateFlow<Boolean> = _isCastConnecting.asStateFlow()
     private val _remotePosition = MutableStateFlow(0L)
     val remotePosition: StateFlow<Long> = _remotePosition.asStateFlow()
+    private var lastRemoteMediaStatus: MediaStatus? = null
     private val _trackVolume = MutableStateFlow(1.0f)
     val trackVolume: StateFlow<Float> = _trackVolume.asStateFlow()
     private val isRemotelySeeking = MutableStateFlow(false)
@@ -1032,6 +1033,7 @@ class PlayerViewModel @Inject constructor(
             override fun onStatusUpdated() {
                 val remoteMediaClient = _castSession.value?.remoteMediaClient ?: return
                 val mediaStatus = remoteMediaClient.mediaStatus ?: return
+                lastRemoteMediaStatus = mediaStatus
                 val songMap = _masterAllSongs.value.associateBy { it.id }
                 val newQueue = mediaStatus.queueItems.mapNotNull { item ->
                     item.customData?.optString("songId")?.let { songId ->
@@ -1112,6 +1114,8 @@ class PlayerViewModel @Inject constructor(
                         return@launch
                     }
 
+                    lastRemoteMediaStatus = null
+
                     _isSheetVisible.value = true
 
                     val wasPlaying = localPlayer.isPlaying
@@ -1176,7 +1180,7 @@ class PlayerViewModel @Inject constructor(
             private fun stopServerAndTransferBack() {
                 val session = _castSession.value ?: return
                 val remoteMediaClient = session.remoteMediaClient ?: return
-                val lastKnownStatus = remoteMediaClient.mediaStatus
+                val lastKnownStatus = remoteMediaClient.mediaStatus ?: lastRemoteMediaStatus
                 val lastPosition = _remotePosition.value
                 val wasPlaying = lastKnownStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING
                 val lastItemId = lastKnownStatus?.currentItemId
@@ -1247,6 +1251,7 @@ class PlayerViewModel @Inject constructor(
                         }
                     }
                 }
+                lastRemoteMediaStatus = null
             }
 
             override fun onSessionEnded(session: CastSession, error: Int) {
