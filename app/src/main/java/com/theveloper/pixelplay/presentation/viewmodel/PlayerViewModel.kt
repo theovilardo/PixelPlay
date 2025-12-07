@@ -1224,6 +1224,21 @@ class PlayerViewModel @Inject constructor(
                         }
                         localPlayer.setMediaItems(mediaItems, startIndex, lastPosition)
                         localPlayer.prepare()
+                        _playerUiState.update {
+                            it.copy(
+                                currentPlaybackQueue = finalQueue,
+                                currentPosition = lastPosition
+                            )
+                        }
+                        _stablePlayerState.update {
+                            it.copy(
+                                currentSong = finalQueue.getOrNull(startIndex),
+                                isPlaying = wasPlaying,
+                                totalDuration = finalQueue.getOrNull(startIndex)?.duration ?: it.totalDuration,
+                                isShuffleEnabled = isShuffleEnabled,
+                                repeatMode = localPlayer.repeatMode
+                            )
+                        }
                         if (wasPlaying) {
                             localPlayer.play()
                             startProgressUpdates()
