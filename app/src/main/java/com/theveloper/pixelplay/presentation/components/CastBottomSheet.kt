@@ -192,6 +192,7 @@ private fun CastStatusHeader(
     isRemote: Boolean,
     routeName: String,
     isPlaying: Boolean,
+    isConnecting: Boolean,
     onDisconnect: () -> Unit,
     onRefresh: () -> Unit
 ) {
