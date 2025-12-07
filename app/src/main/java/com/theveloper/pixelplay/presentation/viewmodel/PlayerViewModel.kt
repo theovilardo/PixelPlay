@@ -175,6 +175,7 @@ private const val EXTERNAL_EXTRA_DATE_ADDED = EXTERNAL_EXTRA_PREFIX + "DATE_ADDE
 private const val EXTERNAL_EXTRA_MIME_TYPE = EXTERNAL_EXTRA_PREFIX + "MIME_TYPE"
 private const val EXTERNAL_EXTRA_BITRATE = EXTERNAL_EXTRA_PREFIX + "BITRATE"
 private const val EXTERNAL_EXTRA_SAMPLE_RATE = EXTERNAL_EXTRA_PREFIX + "SAMPLE_RATE"
+private const val CAST_LOG_TAG = "PlayerCastTransfer"
 
 enum class PlayerSheetState {
     COLLAPSED,
@@ -1031,6 +1032,7 @@ class PlayerViewModel @Inject constructor(
                 _remotePosition.value = progress
                 lastRemoteStreamPosition = progress
                 listeningStatsTracker.onProgress(progress, lastKnownRemoteIsPlaying)
+                Timber.tag(CAST_LOG_TAG).d("Remote progress update: %d", progress)
             }
         }
 
@@ -1038,6 +1040,16 @@ class PlayerViewModel @Inject constructor(
             override fun onStatusUpdated() {
                 val remoteMediaClient = _castSession.value?.remoteMediaClient ?: return
                 val mediaStatus = remoteMediaClient.mediaStatus ?: return
+                Timber.tag(CAST_LOG_TAG)
+                    .d(
+                        "Remote status: state=%d position=%d duration=%d repeat=%d queueCount=%d currentItemId=%d",
+                        mediaStatus.playerState,
+                        mediaStatus.streamPosition,
+                        remoteMediaClient.streamDuration,
+                        mediaStatus.queueRepeatMode,
+                        mediaStatus.queueItemCount,
+                        mediaStatus.currentItemId
+                    )
                 lastRemoteMediaStatus = mediaStatus
                 val songMap = _masterAllSongs.value.associateBy { it.id }
                 val newQueue = mediaStatus.queueItems.mapNotNull { item ->
@@ -1051,9 +1063,11 @@ class PlayerViewModel @Inject constructor(
                 val currentSong = currentSongId?.let { songMap[it] }
                 if (newQueue.isNotEmpty()) {
                     lastRemoteQueue = newQueue
+                    Timber.tag(CAST_LOG_TAG).d("Cached remote queue items: %d", newQueue.size)
                 }
                 if (currentSongId != null) {
                     lastRemoteSongId = currentSongId
+                    Timber.tag(CAST_LOG_TAG).d("Cached current remote song id: %s", currentSongId)
                 }
                 if (currentSong?.id != _stablePlayerState.value.currentSong?.id) {
                     viewModelScope.launch {
@@ -1082,6 +1096,14 @@ class PlayerViewModel @Inject constructor(
                 val streamPosition = mediaStatus.streamPosition
                 lastRemoteStreamPosition = streamPosition
                 lastRemoteRepeatMode = mediaStatus.queueRepeatMode
+                Timber.tag(CAST_LOG_TAG)
+                    .d(
+                        "Status update applied: song=%s position=%d repeat=%d playing=%s",
+                        currentSongId,
+                        streamPosition,
+                        mediaStatus.queueRepeatMode,
+                        isPlaying
+                    )
                 val streamDuration = listOf(
                     remoteMediaClient.streamDuration,
                     currentSong?.duration ?: 0L,
@@ -1205,6 +1227,17 @@ class PlayerViewModel @Inject constructor(
                 val lastItemId = lastKnownStatus?.currentItemId
                 val lastRepeatMode = lastKnownStatus?.queueRepeatMode ?: lastRemoteRepeatMode
                 val isShuffleEnabled = lastRepeatMode == MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE
+                Timber.tag(CAST_LOG_TAG)
+                    .d(
+                        "Transfer back start: lastStatus=%s lastItemId=%s lastSongId=%s position=%d playing=%s repeat=%d shuffle=%s",
+                        lastKnownStatus != null,
+                        lastItemId,
+                        lastRemoteSongId,
+                        lastPosition,
+                        wasPlaying,
+                        lastRepeatMode,
+                        isShuffleEnabled
+                    )
                 remoteProgressObserverJob?.cancel()
                 remoteMediaClient.removeProgressListener(remoteProgressListener!!)
                 remoteMediaClient.unregisterCallback(remoteMediaClientCallback!!)
@@ -1230,9 +1263,24 @@ class PlayerViewModel @Inject constructor(
                 }
                 val targetSongId = lastKnownStatus?.getQueueItemById(lastItemId ?: 0)?.customData?.optString("songId")
                     ?: lastRemoteSongId
+                Timber.tag(CAST_LOG_TAG)
+                    .d(
+                        "Finalized transfer data: queueSize=%d fallbackQueueSize=%d targetSongId=%s lastRemoteQueueSize=%d",
+                        finalQueue.size,
+                        fallbackQueue.size,
+                        targetSongId,
+                        lastRemoteQueue.size
+                    )
                 if (finalQueue.isNotEmpty() && targetSongId != null) {
                     val songMap = _masterAllSongs.value.associateBy { it.id }
                     val startIndex = finalQueue.indexOfFirst { it.id == targetSongId }.coerceAtLeast(0)
+                    Timber.tag(CAST_LOG_TAG)
+                        .d(
+                            "Restoring local playback: startIndex=%d position=%d songId=%s",
+                            startIndex,
+                            lastPosition,
+                            targetSongId
+                        )
                     val mediaItems = finalQueue.map { song ->
                         MediaItem.Builder()
                             .setMediaId(song.id)
@@ -1272,8 +1320,10 @@ class PlayerViewModel @Inject constructor(
                     if (wasPlaying) {
                         localPlayer.play()
                         startProgressUpdates()
+                        Timber.tag(CAST_LOG_TAG).d("Local playback resumed with play at position=%d", lastPosition)
                     } else {
                         _playerUiState.update { it.copy(currentPosition = lastPosition) }
+                        Timber.tag(CAST_LOG_TAG).d("Local playback prepared without play at position=%d", lastPosition)
                     }
                 }
                 lastRemoteMediaStatus = null
