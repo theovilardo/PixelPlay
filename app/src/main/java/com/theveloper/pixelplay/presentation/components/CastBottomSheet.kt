@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -549,6 +550,7 @@ private fun ActiveDeviceHero(
 
 @Composable
 private fun ConnectingHalo() {
+    val primary = MaterialTheme.colorScheme.primary
     val infiniteTransition = rememberInfiniteTransition(label = "connectingHalo")
     val radius by infiniteTransition.animateFloat(
         initialValue = 0.72f,
@@ -565,7 +567,7 @@ private fun ConnectingHalo() {
     Canvas(modifier = Modifier.matchParentSize()) {
         val baseRadius = size.minDimension / 2
         drawCircle(
-            color = MaterialTheme.colorScheme.primary.copy(alpha = alpha),
+            color = primary.copy(alpha = alpha),
             radius = baseRadius * radius,
             center = Offset(size.minDimension / 2, size.minDimension / 2),
             style = Stroke(width = 6.dp.toPx())
