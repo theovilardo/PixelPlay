@@ -76,6 +76,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.coerceAtLeast
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavHostController
@@ -242,6 +244,8 @@ fun FullPlayerContent(
 
     val gestureScope = rememberCoroutineScope()
 
+    val isCastConnecting by playerViewModel.isCastConnecting.collectAsState()
+
     Scaffold(
         containerColor = Color.Transparent,
         modifier = Modifier.pointerInput(currentSheetState, expansionFraction) {
@@ -293,13 +297,15 @@ fun FullPlayerContent(
                 ),
                 title = {
                     val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
-                    AnimatedVisibility(visible = !isRemotePlaybackActive) {
-                        Text(
-                            modifier = Modifier.padding(start = 18.dp),
-                            text = "Now Playing",
-                            style = MaterialTheme.typography.labelLargeEmphasized,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                    if (!isCastConnecting) {
+                        AnimatedVisibility(visible = (!isRemotePlaybackActive)) {
+                            Text(
+                                modifier = Modifier.padding(start = 18.dp),
+                                text = "Now Playing",
+                                style = MaterialTheme.typography.labelLargeEmphasized,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                 },
                 navigationIcon = {
@@ -335,7 +341,6 @@ fun FullPlayerContent(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
-                        val isCastConnecting by playerViewModel.isCastConnecting.collectAsState()
                         val selectedRouteName by playerViewModel.selectedRoute.map { it?.name }.collectAsState(initial = null)
                         val showCastLabel = isCastConnecting || (isRemotePlaybackActive && selectedRouteName != null)
                         val castCornersExpanded = 50.dp
@@ -370,10 +375,10 @@ fun FullPlayerContent(
                                 .width(castButtonWidth)
                                 .clip(
                                     RoundedCornerShape(
-                                        topStart = castTopStart,
-                                        topEnd = castTopEnd,
-                                        bottomStart = castBottomStart,
-                                        bottomEnd = castBottomEnd
+                                        topStart = castTopStart.coerceAtLeast(0.dp),
+                                        topEnd = castTopEnd.coerceAtLeast(0.dp),
+                                        bottomStart = castBottomStart.coerceAtLeast(0.dp),
+                                        bottomEnd = castBottomEnd.coerceAtLeast(0.dp)
                                     )
                                 )
                                 .background(castContainerColor)
@@ -383,14 +388,17 @@ fun FullPlayerContent(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 12.dp),
+                                    .padding(start = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                horizontalArrangement = Arrangement.Absolute.SpaceBetween
                                 ) {
                                     Icon(
                                         painter = painterResource(R.drawable.rounded_cast_24),
                                         contentDescription = "Cast",
                                         tint = LocalMaterialTheme.current.primary
+                                    )
+                                    Spacer(
+                                        Modifier.width(4.dp)
                                     )
                                     AnimatedVisibility(visible = showCastLabel) {
                                         AnimatedContent(
@@ -405,34 +413,45 @@ fun FullPlayerContent(
                                             label = "castButtonLabel"
                                         ) { label ->
                                             Row(
+                                                modifier = Modifier.padding(end = 16.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                                             ) {
+                                                Text(
+                                                    text = label,
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = LocalMaterialTheme.current.primary,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                AnimatedVisibility(visible = isCastConnecting) {
+                                                    CircularProgressIndicator(
+                                                        modifier = Modifier
+                                                            .size(14.dp),
+                                                        strokeWidth = 2.dp,
+                                                        color = LocalMaterialTheme.current.primary
+                                                    )
+                                                }
                                                 if (isRemotePlaybackActive && !isCastConnecting) {
                                                     Box(
                                                         modifier = Modifier
                                                             .size(8.dp)
                                                             .clip(CircleShape)
-                                                            .background(MaterialTheme.colorScheme.tertiary)
+                                                            .background(Color(0xFF38C450))
                                                     )
                                                 }
-                                                Text(
-                                                    text = label,
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    color = LocalMaterialTheme.current.primary,
-                                                    maxLines = 1
-                                                )
                                             }
                                         }
                                     }
-                                    AnimatedVisibility(visible = isCastConnecting) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(14.dp),
-                                        strokeWidth = 2.dp,
-                                        color = LocalMaterialTheme.current.primary
-                                    )
+//                                    AnimatedVisibility(visible = isCastConnecting) {
+//                                        CircularProgressIndicator(
+//                                            modifier = Modifier
+//                                                .size(14.dp),
+//                                            strokeWidth = 2.dp,
+//                                            color = LocalMaterialTheme.current.primary
+//                                        )
+//                                    }
                                 }
-                            }
                         }
 
                         // Queue Button

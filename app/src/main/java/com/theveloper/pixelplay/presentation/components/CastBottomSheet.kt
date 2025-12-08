@@ -15,15 +15,18 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -75,6 +78,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -172,8 +176,7 @@ fun CastBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color.Transparent,
-        dragHandle = { DragHandlePill() }
+        //dragHandle = { DragHandlePill() }
     ) {
         CastSheetContent(
             state = uiState,
@@ -211,7 +214,7 @@ private data class ActiveDeviceUi(
     val title: String,
     val subtitle: String,
     val isRemote: Boolean,
-    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val icon: ImageVector,
     val isConnecting: Boolean,
     val volume: Float,
     val volumeRange: ClosedFloatingPointRange<Float>,
@@ -334,7 +337,7 @@ private fun SheetHeader(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ScanningIndicator(isActive = scanning)
                     Text(
-                        text = if (scanning) "Scanning nearby" else "Devices nearby",
+                        text = if (scanning) "Scanning nearby" else "Current device",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -354,6 +357,7 @@ private fun SheetHeader(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ActiveDeviceHero(
     device: ActiveDeviceUi,
@@ -394,29 +398,40 @@ private fun ActiveDeviceHero(
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // CAMBIO CLAVE: height(IntrinsicSize.Min) permite a los hijos medir su altura según el vecino más alto
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(68.dp)
+                        // CAMBIO: Quitamos size(68.dp) fijo.
+                        // Usamos fillMaxHeight para llenar la altura determinada por el texto
+                        // y aspectRatio(1f) para mantener la proporción 1:1 (círculo)
+                        .fillMaxHeight()
+                        .width(62.dp)
                         .background(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
                             shape = CircleShape
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (device.isConnecting) {
-                        ConnectingHalo()
-                    }
+//                    if (device.isConnecting) {
+//                        ConnectingHalo(
+//                            modifier = Modifier.matchParentSize()
+//                        )
+//                    }
                     Icon(
                         imageVector = device.icon,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
+
+                // La columna de texto dicta la altura de la Row
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -433,12 +448,13 @@ private fun ActiveDeviceHero(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2
                     )
+
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(
                             modifier = Modifier
                                 .size(12.dp)
                                 .clip(CircleShape)
-                                .background(if (device.isConnecting) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary)
+                                .background(if (device.isConnecting) MaterialTheme.colorScheme.primary else Color(0xFF38C450))
                         )
                         Text(
                             text = device.connectionLabel,
@@ -447,6 +463,7 @@ private fun ActiveDeviceHero(
                             maxLines = 1
                         )
                     }
+
                     AnimatedVisibility(visible = device.isConnecting && device.isRemote) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -470,20 +487,30 @@ private fun ActiveDeviceHero(
                             onClick = onDisconnect,
                             shape = RoundedCornerShape(50),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer
                             ),
                             modifier = Modifier
                                 .height(46.dp)
                                 .padding(top = 4.dp)
                         ) {
+                            Icon(
+                                modifier = Modifier.size(22.dp),
+                                painter = painterResource(R.drawable.rounded_mimo_disconnect_24),
+                                contentDescription = "disconnect_icon",
+                            )
+                            Spacer(
+                                modifier = Modifier.width(6.dp)
+                            )
                             Text("Disconnect")
                         }
                     }
                 }
             }
 
+            // Sección de Volumen (Sin cambios)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // ... (Código del slider idéntico al original)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -500,6 +527,7 @@ private fun ActiveDeviceHero(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                val interactionSource = remember { MutableInteractionSource() }
                 Slider(
                     value = sliderValue.coerceIn(device.volumeRange.start, device.volumeRange.endInclusive),
                     onValueChange = { newValue ->
@@ -516,12 +544,11 @@ private fun ActiveDeviceHero(
                         onVolumeChange(newValue)
                     },
                     valueRange = device.volumeRange,
-                    steps = discreteSteps,
                     track = { sliderState ->
                         SliderDefaults.Track(
                             sliderState = sliderState,
                             modifier = Modifier
-                                .height(18.dp)
+                                .height(30.dp)
                                 .clip(RoundedCornerShape(12.dp)),
                             colors = SliderDefaults.colors(
                                 activeTrackColor = MaterialTheme.colorScheme.primary,
@@ -532,6 +559,9 @@ private fun ActiveDeviceHero(
                     },
                     thumb = { sliderState ->
                         SliderDefaults.Thumb(
+                            modifier = Modifier
+                                .height(36.dp),
+                            interactionSource = interactionSource,
                             sliderState = sliderState,
                             colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.onPrimaryContainer)
                         )
@@ -546,10 +576,187 @@ private fun ActiveDeviceHero(
             }
         }
     }
+//    Card(
+//        shape = heroShape,
+//        colors = CardDefaults.cardColors(
+//            containerColor = if (device.isRemote) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.secondaryContainer
+//        ),
+//        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+//    ) {
+//        Column(
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .padding(20.dp),
+//            verticalArrangement = Arrangement.spacedBy(16.dp)
+//        ) {
+//            Row(
+//                verticalAlignment = Alignment.CenterVertically,
+//                horizontalArrangement = Arrangement.spacedBy(14.dp),
+//                modifier = Modifier.fillMaxWidth()
+//            ) {
+//                Box(
+//                    modifier = Modifier
+//                        .size(68.dp)
+//                        .background(
+//                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+//                            shape = CircleShape
+//                        ),
+//                    contentAlignment = Alignment.Center
+//                ) {
+//                    if (device.isConnecting) {
+//                        ConnectingHalo(
+//                            modifier = Modifier.matchParentSize()
+//                        )
+//                    }
+//                    Icon(
+//                        imageVector = device.icon,
+//                        contentDescription = null,
+//                        tint = MaterialTheme.colorScheme.onSurface
+//                    )
+//                }
+//                Column(
+//                    modifier = Modifier.weight(1f),
+//                    verticalArrangement = Arrangement.spacedBy(8.dp)
+//                ) {
+//                    Text(
+//                        text = device.title,
+//                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+//                        color = MaterialTheme.colorScheme.onSurface,
+//                        maxLines = 2
+//                    )
+//                    Text(
+//                        text = device.subtitle,
+//                        style = MaterialTheme.typography.bodyMedium,
+//                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+//                        maxLines = 2
+//                    )
+//                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+//                        Box(
+//                            modifier = Modifier
+//                                .size(12.dp)
+//                                .clip(CircleShape)
+//                                .background(if (device.isConnecting) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary)
+//                        )
+//                        Text(
+//                            text = device.connectionLabel,
+//                            style = MaterialTheme.typography.labelMedium,
+//                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+//                            maxLines = 1
+//                        )
+//                    }
+//                    AnimatedVisibility(visible = device.isConnecting && device.isRemote) {
+//                        Row(
+//                            verticalAlignment = Alignment.CenterVertically,
+//                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+//                        ) {
+//                            CircularProgressIndicator(
+//                                modifier = Modifier.size(18.dp),
+//                                strokeWidth = 2.dp,
+//                                color = MaterialTheme.colorScheme.primary
+//                            )
+//                            Text(
+//                                text = "Connecting…",
+//                                style = MaterialTheme.typography.labelMedium,
+//                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+//                                maxLines = 1
+//                            )
+//                        }
+//                    }
+//                    if (device.isRemote) {
+//                        Button(
+//                            onClick = onDisconnect,
+//                            shape = RoundedCornerShape(50),
+//                            colors = ButtonDefaults.buttonColors(
+//                                containerColor = MaterialTheme.colorScheme.errorContainer,
+//                                contentColor = MaterialTheme.colorScheme.onErrorContainer
+//                            ),
+//                            modifier = Modifier
+//                                .height(46.dp)
+//                                .padding(top = 4.dp)
+//                        ) {
+//                            Icon(
+//                                painter = painterResource(R.drawable.rounded_mimo_disconnect_24),
+//                                contentDescription = "disconnect_icon",
+//                            )
+//                            Text("Disconnect")
+//                        }
+//                    }
+//                }
+//            }
+//
+//            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+//                Row(
+//                    modifier = Modifier.fillMaxWidth(),
+//                    horizontalArrangement = Arrangement.SpaceBetween,
+//                    verticalAlignment = Alignment.CenterVertically
+//                ) {
+//                    Text(
+//                        text = if (device.isRemote) "Device volume" else "Phone volume",
+//                        style = MaterialTheme.typography.titleSmall,
+//                        color = MaterialTheme.colorScheme.onSurfaceVariant
+//                    )
+//                    Text(
+//                        text = buildVolumeLabel(sliderValue, device.volumeRange.endInclusive),
+//                        style = MaterialTheme.typography.labelMedium,
+//                        color = MaterialTheme.colorScheme.onSurfaceVariant
+//                    )
+//                }
+//                val interactionSource = remember { MutableInteractionSource() }
+//                Slider(
+//                    value = sliderValue.coerceIn(device.volumeRange.start, device.volumeRange.endInclusive),
+//                    onValueChange = { newValue ->
+//                        sliderValue = newValue
+//                        val quantized = if (device.volumeRange.endInclusive <= 1f) {
+//                            (newValue * 20).toInt()
+//                        } else {
+//                            newValue.toInt()
+//                        }
+//                        if (quantized != lastStep) {
+//                            lastStep = quantized
+//                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+//                        }
+//                        onVolumeChange(newValue)
+//                    },
+//                    valueRange = device.volumeRange,
+//                    //steps = discreteSteps,
+//                    track = { sliderState ->
+//                        SliderDefaults.Track(
+//                            sliderState = sliderState,
+//                            modifier = Modifier
+//                                .height(30.dp)
+//                                .clip(RoundedCornerShape(12.dp)),
+//                            colors = SliderDefaults.colors(
+//                                activeTrackColor = MaterialTheme.colorScheme.primary,
+//                                inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+//                                thumbColor = MaterialTheme.colorScheme.primary
+//                            )
+//                        )
+//                    },
+//                    thumb = { sliderState ->
+//                        SliderDefaults.Thumb(
+//                            modifier = Modifier
+//                                .height(36.dp),
+//                            interactionSource = interactionSource,
+//                            sliderState = sliderState,
+//                            colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.onPrimaryContainer)
+//                        )
+//                    },
+//                    colors = SliderDefaults.colors(
+//                        activeTrackColor = MaterialTheme.colorScheme.primary,
+//                        inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+//                        thumbColor = MaterialTheme.colorScheme.onPrimary
+//                    ),
+//                    modifier = Modifier.fillMaxWidth()
+//                )
+//            }
+//        }
+//    }
 }
 
 @Composable
-private fun ConnectingHalo() {
+private fun ConnectingHalo(
+    modifier: Modifier
+) {
     val primary = MaterialTheme.colorScheme.primary
     val infiniteTransition = rememberInfiniteTransition(label = "connectingHalo")
     val radius by infiniteTransition.animateFloat(
@@ -564,7 +771,7 @@ private fun ConnectingHalo() {
         animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing)),
         label = "haloAlpha"
     )
-    Canvas(modifier = Modifier.matchParentSize()) {
+    Canvas(modifier = modifier) {
         val baseRadius = size.minDimension / 2
         drawCircle(
             color = primary.copy(alpha = alpha),
@@ -592,7 +799,10 @@ private fun DeviceList(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 6.dp)
+            ,
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -600,6 +810,9 @@ private fun DeviceList(
                 Text(
                     text = "Nearby devices",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                )
+                Spacer(
+                    modifier = Modifier.height(6.dp)
                 )
                 Text(
                     text = if (devices.isEmpty()) "No devices yet" else "Tap to connect",
@@ -673,7 +886,7 @@ private fun CastDeviceRow(
     onSelect: () -> Unit,
     onDisconnect: () -> Unit
 ) {
-    val leafShape = RoundedCornerShape(topStart = 28.dp, topEnd = 4.dp, bottomEnd = 28.dp, bottomStart = 4.dp)
+    val leafShape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomEnd = 24.dp, bottomStart = 24.dp)
     val containerColor = if (device.isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
     val onContainer = if (device.isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
     val deviceIcon = when (device.deviceType) {
@@ -685,7 +898,7 @@ private fun CastDeviceRow(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(leafShape)
+            .clip(CircleShape)
             .clickable(onClick = if (device.isSelected) onDisconnect else onSelect),
         color = containerColor,
         tonalElevation = 2.dp
@@ -703,7 +916,9 @@ private fun CastDeviceRow(
             },
             supportingContent = {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp, bottom = 2.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -712,20 +927,14 @@ private fun CastDeviceRow(
                         icon = if (device.playbackType == MediaRouter.RouteInfo.PLAYBACK_TYPE_REMOTE) R.drawable.rounded_wifi_24 else R.drawable.rounded_bluetooth_24,
                         contentColor = onContainer
                     )
-                    if (device.connectionState == MediaRouter.RouteInfo.CONNECTION_STATE_CONNECTED) {
-                        BadgeChip(
-                            text = "Active session",
-                            iconVector = Icons.Rounded.PlayCircle,
-                            contentColor = onContainer
-                        )
-                    }
                 }
             },
             leadingContent = {
                 Box(
                     modifier = Modifier
                         .size(46.dp)
-                        .background(color = onContainer.copy(alpha = 0.12f), shape = CircleShape),
+                        .background(color = onContainer.copy(alpha = 0.12f), shape = CircleShape)
+                        .padding(vertical = 10.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(imageVector = deviceIcon, contentDescription = null, tint = onContainer)
@@ -749,7 +958,7 @@ private fun CastDeviceRow(
 private fun BadgeChip(
     text: String,
     icon: Int? = null,
-    iconVector: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    iconVector: ImageVector? = null,
     contentColor: Color = MaterialTheme.colorScheme.onSurface
 ) {
     Row(
@@ -764,7 +973,12 @@ private fun BadgeChip(
             icon != null -> Icon(painterResource(id = icon), contentDescription = null, tint = contentColor, modifier = Modifier.size(16.dp))
             iconVector != null -> Icon(iconVector, contentDescription = null, tint = contentColor, modifier = Modifier.size(16.dp))
         }
-        Text(text = text, style = MaterialTheme.typography.labelMedium, color = contentColor)
+        Text(
+            text = text,
+            maxLines = 1,
+            style = MaterialTheme.typography.labelMedium,
+            color = contentColor
+        )
     }
 }
 
@@ -804,14 +1018,17 @@ private fun WifiOffIllustration(onTurnOnWifi: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            val prim1 = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+            val prim2 = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+            val prim3 = MaterialTheme.colorScheme.primary
             Canvas(modifier = Modifier.size(120.dp)) {
-                drawCircle(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), radius = size.minDimension / 2)
+                drawCircle(color = prim1, radius = size.minDimension / 2)
                 drawCircle(
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                    color = prim2,
                     radius = size.minDimension / 3,
                     style = Stroke(width = 10.dp.toPx())
                 )
-                drawCircle(color = MaterialTheme.colorScheme.primary, radius = size.minDimension / 6)
+                drawCircle(color = prim3, radius = size.minDimension / 6)
             }
             Text(
                 text = "Wi‑Fi is off",
@@ -845,7 +1062,14 @@ private fun ScanningPlaceholderList() {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(68.dp)
-                    .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 4.dp, bottomEnd = 28.dp, bottomStart = 4.dp))
+                    .clip(
+                        RoundedCornerShape(
+                            topStart = 28.dp,
+                            topEnd = 4.dp,
+                            bottomEnd = 28.dp,
+                            bottomStart = 4.dp
+                        )
+                    )
             )
         }
     }
@@ -860,6 +1084,7 @@ private fun ScanningIndicator(isActive: Boolean) {
         animationSpec = infiniteRepeatable(tween(durationMillis = 900, easing = FastOutSlowInEasing)),
         label = "pulse"
     )
+    val prim = MaterialTheme.colorScheme.primary
     Box(
         modifier = Modifier
             .size(18.dp)
@@ -868,7 +1093,7 @@ private fun ScanningIndicator(isActive: Boolean) {
     ) {
         Canvas(modifier = Modifier.size(18.dp)) {
             drawCircle(
-                color = MaterialTheme.colorScheme.primary,
+                color = prim,
                 radius = (size.minDimension / 2) * if (isActive) pulse else 0.8f,
                 alpha = if (isActive) 0.8f else 0.4f
             )
