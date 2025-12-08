@@ -108,6 +108,12 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import timber.log.Timber
 import kotlin.math.roundToLong
 
+private sealed interface CastUiState {
+    data object Local : CastUiState
+    data class Connecting(val routeName: String?) : CastUiState
+    data class Remote(val routeName: String) : CastUiState
+}
+
 @androidx.annotation.OptIn(UnstableApi::class)
 @SuppressLint("StateFlowValueCalledInComposition")
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -153,6 +159,8 @@ fun FullPlayerContent(
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     var showLyricsSheet by remember { mutableStateOf(false) }
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
+    val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
+    val selectedRouteName by playerViewModel.selectedRoute.map { it?.name }.collectAsState(initial = null)
     val lyricsSearchUiState by playerViewModel.lyricsSearchUiState.collectAsState()
 
     var showFetchLyricsDialog by remember { mutableStateOf(false) }
@@ -245,6 +253,11 @@ fun FullPlayerContent(
     val gestureScope = rememberCoroutineScope()
 
     val isCastConnecting by playerViewModel.isCastConnecting.collectAsState()
+    val castUiState = when {
+        isCastConnecting -> CastUiState.Connecting(selectedRouteName)
+        isRemotePlaybackActive && selectedRouteName != null -> CastUiState.Remote(selectedRouteName)
+        else -> CastUiState.Local
+    }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -296,7 +309,6 @@ fun FullPlayerContent(
                     navigationIconContentColor = LocalMaterialTheme.current.onPrimaryContainer
                 ),
                 title = {
-                    val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
                     if (!isCastConnecting) {
                         AnimatedVisibility(visible = (!isRemotePlaybackActive)) {
                             Text(
@@ -340,8 +352,6 @@ fun FullPlayerContent(
                             .padding(end = 14.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
-                        val selectedRouteName by playerViewModel.selectedRoute.map { it?.name }.collectAsState(initial = null)
                         val showCastLabel = isCastConnecting || (isRemotePlaybackActive && selectedRouteName != null)
                         val castCornersExpanded = 50.dp
                         val castCornersCompact = 6.dp
@@ -495,9 +505,26 @@ fun FullPlayerContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceAround
         ) {
+            AnimatedContent(
+                modifier = Modifier.fillMaxWidth(),
+                targetState = castUiState,
+                transitionSpec = {
+                    (fadeIn(animationSpec = tween(220)) + slideInVertically { it / 3 }) togetherWith
+                        (fadeOut(animationSpec = tween(200)) + slideOutVertically { it / 3 })
+                },
+                label = "castStateTransition"
+            ) { state ->
+                CastStateBanner(
+                    state = state,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                )
+            }
+
             DeferAt(expansionFraction, 0.08f) {
                 PrefetchAlbumNeighborsImg(
-                    current = currentSong,
+                    current = song,
                     queue = currentPlaybackQueue,
                     radius = 2 // prev/next 2
                 )
@@ -1019,5 +1046,95 @@ fun ToggleSegmentButton(
             tint = if (active) activeContentColor else LocalMaterialTheme.current.primary,
             modifier = Modifier.size(24.dp)
         )
+    }
+}
+
+@Composable
+private fun CastStateBanner(
+    state: CastUiState,
+    modifier: Modifier = Modifier,
+) {
+    val backgroundColor by animateColorAsState(
+        targetValue = when (state) {
+            CastUiState.Local -> LocalMaterialTheme.current.onPrimary.copy(alpha = 0.08f)
+            is CastUiState.Connecting -> LocalMaterialTheme.current.onPrimary.copy(alpha = 0.14f)
+            is CastUiState.Remote -> LocalMaterialTheme.current.primary.copy(alpha = 0.15f)
+        },
+        animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
+        label = "castBannerBackground"
+    )
+    val contentColor by animateColorAsState(
+        targetValue = when (state) {
+            CastUiState.Local -> LocalMaterialTheme.current.onPrimaryContainer
+            else -> LocalMaterialTheme.current.primary
+        },
+        animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
+        label = "castBannerContent"
+    )
+    val indicatorColor by animateColorAsState(
+        targetValue = when (state) {
+            CastUiState.Local -> LocalMaterialTheme.current.onPrimary.copy(alpha = 0.6f)
+            is CastUiState.Connecting -> LocalMaterialTheme.current.primary.copy(alpha = 0.9f)
+            is CastUiState.Remote -> Color(0xFF38C450)
+        },
+        animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
+        label = "castBannerIndicator"
+    )
+
+    val statusText = when (state) {
+        CastUiState.Local -> "Playing on this device"
+        is CastUiState.Connecting -> state.routeName?.let { "Connecting to $it" } ?: "Connecting to device"
+        is CastUiState.Remote -> "Casting to ${state.routeName}"
+    }
+
+    val iconId = when (state) {
+        CastUiState.Local -> R.drawable.rounded_speaker_24
+        else -> R.drawable.rounded_cast_24
+    }
+
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(backgroundColor)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(
+                painter = painterResource(iconId),
+                contentDescription = null,
+                tint = contentColor
+            )
+            Text(
+                text = statusText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = contentColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        when (state) {
+            is CastUiState.Connecting -> {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp,
+                    color = contentColor
+                )
+            }
+            else -> {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(indicatorColor)
+                )
+            }
+        }
     }
 }
