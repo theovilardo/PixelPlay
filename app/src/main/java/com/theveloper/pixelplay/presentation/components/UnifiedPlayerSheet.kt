@@ -104,7 +104,6 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import kotlinx.collections.immutable.persistentListOf
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -161,6 +160,12 @@ fun UnifiedPlayerSheet(
     val positionToDisplay = if (isRemotePlaybackActive) remotePosition else currentPosition
     val isFavorite by playerViewModel.isCurrentSongFavorite.collectAsState()
 
+    val fallbackQueueSong by remember {
+        playerViewModel.playerUiState
+            .map { it.currentPlaybackQueue.firstOrNull() }
+            .distinctUntilChanged()
+    }.collectAsState(initial = null)
+
     var retainedCurrentSong by remember { mutableStateOf<Song?>(null) }
     LaunchedEffect(stablePlayerState.currentSong, isCastConnecting, isRemotePlaybackActive, stablePlayerState.isPlaying) {
         stablePlayerState.currentSong?.let { retainedCurrentSong = it }
@@ -175,7 +180,7 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val currentSongForUi = stablePlayerState.currentSong ?: retainedCurrentSong
+    val currentSongForUi = stablePlayerState.currentSong ?: retainedCurrentSong ?: fallbackQueueSong
 
     val currentPlaybackQueue by remember {
         playerViewModel.playerUiState.map { it.currentPlaybackQueue }.distinctUntilChanged()
