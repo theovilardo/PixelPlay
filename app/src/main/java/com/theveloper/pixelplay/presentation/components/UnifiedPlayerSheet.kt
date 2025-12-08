@@ -167,14 +167,19 @@ fun UnifiedPlayerSheet(
     }.collectAsState(initial = null)
 
     var retainedCurrentSong by remember { mutableStateOf<Song?>(null) }
-    LaunchedEffect(stablePlayerState.currentSong, isCastConnecting, isRemotePlaybackActive, stablePlayerState.isPlaying) {
+    LaunchedEffect(
+        stablePlayerState.currentSong,
+        isCastConnecting,
+        isRemotePlaybackActive,
+        fallbackQueueSong
+    ) {
         stablePlayerState.currentSong?.let { retainedCurrentSong = it }
 
         if (
             stablePlayerState.currentSong == null &&
             !isCastConnecting &&
             !isRemotePlaybackActive &&
-            !stablePlayerState.isPlaying
+            fallbackQueueSong == null
         ) {
             retainedCurrentSong = null
         }
