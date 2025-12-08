@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -80,12 +81,18 @@ fun TrackVolumeBottomSheet(
             }
             Spacer(modifier = Modifier.height(24.dp))
 
+    val lastHapticStep = remember { mutableIntStateOf(-1) }
+
             Slider(
                 value = sliderPosition,
                 onValueChange = { newValue ->
                     sliderPosition = newValue
                     onVolumeChange(newValue)
-                    hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    val currentStep = (newValue * 100).toInt()
+                    if (currentStep != lastHapticStep.intValue) {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        lastHapticStep.intValue = currentStep
+                    }
                 },
                 onValueChangeFinished = {
                     onVolumeChange(sliderPosition)
