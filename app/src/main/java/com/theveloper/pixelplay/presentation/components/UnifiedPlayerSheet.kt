@@ -215,7 +215,11 @@ fun UnifiedPlayerSheet(
     val miniPlayerAndSpacerHeightPx =
         remember(density, MiniPlayerHeight) { with(density) { MiniPlayerHeight.toPx() } }
 
-    val showPlayerContentArea by remember { derivedStateOf { stablePlayerState.currentSong != null } }
+    val isCastConnecting by playerViewModel.isCastConnecting.collectAsState()
+
+    val showPlayerContentArea by remember {
+        derivedStateOf { stablePlayerState.currentSong != null || isCastConnecting }
+    }
 
     // Use the granular showDismissUndoBar here
     val isPlayerSlotOccupied by remember(showPlayerContentArea, showDismissUndoBar) {
@@ -1122,6 +1126,7 @@ fun UnifiedPlayerSheet(
                                                     song = currentSongNonNull, // Use non-null version
                                                     cornerRadiusAlb = (overallSheetTopCornerRadius.value * 0.5).dp,
                                                     isPlaying = stablePlayerState.isPlaying, // from top-level stablePlayerState
+                                                    isCastConnecting = isCastConnecting,
                                                     onPlayPause = { playerViewModel.playPause() },
                                                     onNext = { playerViewModel.nextSong() },
                                                     modifier = Modifier.fillMaxSize()
@@ -1375,6 +1380,7 @@ fun getNavigationBarHeight(): Dp {
 private fun MiniPlayerContentInternal(
     song: Song,
     isPlaying: Boolean,
+    isCastConnecting: Boolean,
     onPlayPause: () -> Unit,
     cornerRadiusAlb: Dp,
     onNext: () -> Unit,
@@ -1391,14 +1397,24 @@ private fun MiniPlayerContentInternal(
             .padding(start = 10.dp, end = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        SmartImage(
-            model = song.albumArtUriString,
-            contentDescription = "Carátula de ${song.title}",
-            shape = CircleShape,
-            targetSize = Size(150, 150),
-            modifier = Modifier
-                .size(44.dp)
-        )
+        Box(contentAlignment = Alignment.Center) {
+            SmartImage(
+                model = song.albumArtUriString,
+                contentDescription = "Carátula de ${song.title}",
+                shape = CircleShape,
+                targetSize = Size(150, 150),
+                modifier = Modifier
+                    .size(44.dp)
+                    .alpha(if (isCastConnecting) 0.5f else 1f)
+            )
+            if (isCastConnecting) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    strokeWidth = 2.dp,
+                    color = LocalMaterialTheme.current.onPrimaryContainer
+                )
+            }
+        }
         Spacer(modifier = Modifier.width(12.dp))
         Column(
             modifier = Modifier.weight(1f),
@@ -1419,7 +1435,7 @@ private fun MiniPlayerContentInternal(
             )
 
             AutoScrollingText(
-                text = song.title,
+                text = if (isCastConnecting) "Connecting to device…" else song.title,
                 style = titleStyle,
                 gradientEdgeColor = LocalMaterialTheme.current.primaryContainer
             )
@@ -1438,7 +1454,8 @@ private fun MiniPlayerContentInternal(
                 .background(LocalMaterialTheme.current.primary)
                 .clickable(
                     interactionSource = interaction,
-                    indication = indication
+                    indication = indication,
+                    enabled = !isCastConnecting
                 ) {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onPlayPause()
@@ -1462,7 +1479,8 @@ private fun MiniPlayerContentInternal(
                 .background(LocalMaterialTheme.current.primary.copy(alpha = 0.2f))
                 .clickable(
                     interactionSource = interaction,
-                    indication = indication
+                    indication = indication,
+                    enabled = !isCastConnecting
                 ) { onNext() },
             contentAlignment = Alignment.Center
         ) {

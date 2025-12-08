@@ -1132,11 +1132,16 @@ class PlayerViewModel @Inject constructor(
                     listeningStatsTracker.onPlaybackStopped()
                 }
                 _stablePlayerState.update {
+                    var nextSong = currentSong
+                    // Prevent clearing the song if we are in the middle of a connection attempt
+                    if (_isCastConnecting.value && nextSong == null) {
+                        nextSong = it.currentSong
+                    }
                     it.copy(
                         isPlaying = isPlaying,
                         isShuffleEnabled = mediaStatus.queueRepeatMode == MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE,
                         repeatMode = mediaStatus.queueRepeatMode,
-                        currentSong = currentSong,
+                        currentSong = nextSong,
                         totalDuration = streamDuration
                     )
                 }
@@ -1265,9 +1270,8 @@ class PlayerViewModel @Inject constructor(
                 castPlayer = null
                 _castSession.value = null
                 _isRemotePlaybackActive.value = false
-                _isCastConnecting.value = false
                 context.stopService(Intent(context, MediaFileHttpServerService::class.java))
-                disconnect()
+                disconnect(resetConnecting = false) // Don't reset connecting flag yet
                 val localPlayer = mediaController ?: return
                 val fallbackQueue = if (lastKnownStatus?.queueItems?.isNotEmpty() == true) {
                     lastKnownStatus.queueItems.mapNotNull { item ->
@@ -1358,6 +1362,7 @@ class PlayerViewModel @Inject constructor(
                 lastRemoteQueue = emptyList()
                 lastRemoteSongId = null
                 lastRemoteStreamPosition = 0L
+                _isCastConnecting.value = false // NOW we reset the flag
             }
 
             override fun onSessionEnded(session: CastSession, error: Int) {
@@ -2069,8 +2074,12 @@ class PlayerViewModel @Inject constructor(
                             }
                             loadLyricsForCurrentSong()
                         }
-                    } ?: _stablePlayerState.update {
-                        it.copy(currentSong = null, isPlaying = false)
+                    } ?: run {
+                        if (!_isCastConnecting.value) {
+                            _stablePlayerState.update {
+                                it.copy(currentSong = null, isPlaying = false)
+                            }
+                        }
                     }
                 }
             }
@@ -2085,9 +2094,11 @@ class PlayerViewModel @Inject constructor(
                     listeningStatsTracker.finalizeCurrentSession()
                 }
                 if (playbackState == Player.STATE_IDLE && playerCtrl.mediaItemCount == 0) {
-                    listeningStatsTracker.onPlaybackStopped()
-                    _stablePlayerState.update { it.copy(currentSong = null, isPlaying = false) }
-                    _playerUiState.update { it.copy(currentPosition = 0L) }
+                    if (!_isCastConnecting.value) {
+                        listeningStatsTracker.onPlaybackStopped()
+                        _stablePlayerState.update { it.copy(currentSong = null, isPlaying = false) }
+                        _playerUiState.update { it.copy(currentPosition = 0L) }
+                    }
                 }
             }
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
@@ -3669,10 +3680,12 @@ class PlayerViewModel @Inject constructor(
         mediaRouter.selectRoute(route)
     }
 
-    fun disconnect() {
+    fun disconnect(resetConnecting: Boolean = true) {
         mediaRouter.selectRoute(mediaRouter.defaultRoute)
         _isRemotePlaybackActive.value = false
-        _isCastConnecting.value = false
+        if (resetConnecting) {
+            _isCastConnecting.value = false
+        }
     }
 
     fun setRouteVolume(volume: Int) {
