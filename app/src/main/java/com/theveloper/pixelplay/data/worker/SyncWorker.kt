@@ -15,6 +15,7 @@ import com.theveloper.pixelplay.data.database.AlbumEntity
 import com.theveloper.pixelplay.data.database.ArtistEntity
 import com.theveloper.pixelplay.data.database.MusicDao
 import com.theveloper.pixelplay.data.database.SongEntity
+import com.theveloper.pixelplay.data.media.AudioMetadataReader
 import com.theveloper.pixelplay.utils.AlbumArtUtils
 import com.theveloper.pixelplay.utils.AudioMetaUtils.getAudioMetadata
 import com.theveloper.pixelplay.utils.normalizeMetadataText
@@ -204,15 +205,46 @@ class SyncWorker @AssistedInject constructor(
 //                    }
 //                }
                 val deepScan = inputData.getBoolean(SyncWorker.INPUT_FORCE_METADATA, false)
-                val albumArtUriString = AlbumArtUtils.getAlbumArtUri(applicationContext, musicDao, filePath, albumId, id, deepScan)
+                var albumArtUriString = AlbumArtUtils.getAlbumArtUri(applicationContext, musicDao, filePath, albumId, id, deepScan)
                 val audioMetadata = getAudioMetadata(musicDao,id, filePath, deepScan)
+
+                var title = cursor.getString(titleCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Title" }
+                var artist = cursor.getString(artistCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Artist" }
+                var album = cursor.getString(albumCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Album" }
+                var trackNumber = cursor.getInt(trackCol)
+                var year = cursor.getInt(yearCol)
+
+
+                // Fix for WAV files (Issue #462): Read metadata directly from file if it is a WAV
+                if (filePath.endsWith(".wav", ignoreCase = true)) {
+                    val file = java.io.File(filePath)
+                    if (file.exists()) {
+                        try {
+                            AudioMetadataReader.read(file)?.let { meta ->
+                                if (!meta.title.isNullOrBlank()) title = meta.title
+                                if (!meta.artist.isNullOrBlank()) artist = meta.artist
+                                if (!meta.album.isNullOrBlank()) album = meta.album
+                                if (meta.trackNumber != null) trackNumber = meta.trackNumber
+                                if (meta.year != null) year = meta.year
+
+                                meta.artwork?.let { art ->
+                                    val uri = AlbumArtUtils.saveAlbumArtToCache(applicationContext, art.bytes, id)
+                                    albumArtUriString = uri.toString()
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to read WAV metadata for $filePath", e)
+                        }
+                    }
+                }
+
                 songs.add(
                     SongEntity(
                         id = id,
-                        title = cursor.getString(titleCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Title" },
-                        artistName = cursor.getString(artistCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Artist" },
+                        title = title,
+                        artistName = artist,
                         artistId = songArtistId,
-                        albumName = cursor.getString(albumCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Album" },
+                        albumName = album,
                         albumId = albumId,
                         contentUriString = contentUriString,
                         albumArtUriString = albumArtUriString,
@@ -220,8 +252,8 @@ class SyncWorker @AssistedInject constructor(
                         genre = if (genreCol != -1) cursor.getString(genreCol).normalizeMetadataText() else null,
                         filePath = filePath,
                         parentDirectoryPath = parentDir,
-                        trackNumber = cursor.getInt(trackCol),
-                        year = cursor.getInt(yearCol),
+                        trackNumber = trackNumber,
+                        year = year,
                         dateAdded = cursor.getLong(dateAddedCol).let { seconds ->
                             if (seconds > 0) TimeUnit.SECONDS.toMillis(seconds) else System.currentTimeMillis()
                         },

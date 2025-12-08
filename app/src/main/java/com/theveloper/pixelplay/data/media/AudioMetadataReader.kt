@@ -25,14 +25,25 @@ data class AudioMetadataArtwork(
 object AudioMetadataReader {
 
     fun read(context: Context, uri: Uri): AudioMetadata? {
-        val tempFile = createTempAudioFileFromUri(context, uri)
-        if (tempFile == null) {
+        val tempFile = createTempAudioFileFromUri(context, uri) ?: run {
             Timber.tag("AudioMetadataReader").w("Unable to create temp file for uri: $uri")
             return null
         }
 
         return try {
-            val audioFile = AudioFileIO.read(tempFile)
+            read(tempFile)
+        } finally {
+            try {
+                tempFile.delete()
+            } catch (e: Exception) {
+                Timber.tag("AudioMetadataReader").w(e, "Failed to delete temp file")
+            }
+        }
+    }
+
+    fun read(file: java.io.File): AudioMetadata? {
+        return try {
+            val audioFile = AudioFileIO.read(file)
             val tag = audioFile.tagOrCreateDefault
 
             val title = tag.getFirst(FieldKey.TITLE).takeIf { it.isNotBlank() }
@@ -68,10 +79,8 @@ object AudioMetadataReader {
                 artwork = artwork
             )
         } catch (error: Exception) {
-            Timber.tag("AudioMetadataReader").e(error, "Unable to read metadata from uri: $uri")
+            Timber.tag("AudioMetadataReader").e(error, "Unable to read metadata from file: ${file.absolutePath}")
             null
-        } finally {
-            tempFile?.delete()
         }
     }
 }
