@@ -162,9 +162,15 @@ fun UnifiedPlayerSheet(
     val isFavorite by playerViewModel.isCurrentSongFavorite.collectAsState()
 
     var retainedCurrentSong by remember { mutableStateOf<Song?>(null) }
-    LaunchedEffect(stablePlayerState.currentSong, isCastConnecting, isRemotePlaybackActive) {
+    LaunchedEffect(stablePlayerState.currentSong, isCastConnecting, isRemotePlaybackActive, stablePlayerState.isPlaying) {
         stablePlayerState.currentSong?.let { retainedCurrentSong = it }
-        if (stablePlayerState.currentSong == null && !isCastConnecting && !isRemotePlaybackActive) {
+
+        if (
+            stablePlayerState.currentSong == null &&
+            !isCastConnecting &&
+            !isRemotePlaybackActive &&
+            !stablePlayerState.isPlaying
+        ) {
             retainedCurrentSong = null
         }
     }
