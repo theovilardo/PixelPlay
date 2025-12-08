@@ -127,6 +127,8 @@ fun FullPlayerContent(
     currentPositionProvider: () -> Long,
     isPlayingProvider: () -> Boolean,
     isFavoriteProvider: () -> Boolean,
+    // State
+    isCastConnecting: Boolean = false,
     // Event Handlers
     onPlayPause: () -> Unit,
     onSeek: (Long) -> Unit,
@@ -306,6 +308,13 @@ fun FullPlayerContent(
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
+                    } else {
+                        Text(
+                            modifier = Modifier.padding(start = 18.dp),
+                            text = "Connecting...",
+                            style = MaterialTheme.typography.labelLargeEmphasized,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 },
                 navigationIcon = {
