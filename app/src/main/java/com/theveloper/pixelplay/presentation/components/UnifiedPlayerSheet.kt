@@ -157,8 +157,19 @@ fun UnifiedPlayerSheet(
     }.collectAsState(initial = 0L)
     val remotePosition by playerViewModel.remotePosition.collectAsState()
     val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
+    val isCastConnecting by playerViewModel.isCastConnecting.collectAsState()
     val positionToDisplay = if (isRemotePlaybackActive) remotePosition else currentPosition
     val isFavorite by playerViewModel.isCurrentSongFavorite.collectAsState()
+
+    var retainedCurrentSong by remember { mutableStateOf<Song?>(null) }
+    LaunchedEffect(stablePlayerState.currentSong, isCastConnecting, isRemotePlaybackActive) {
+        stablePlayerState.currentSong?.let { retainedCurrentSong = it }
+        if (stablePlayerState.currentSong == null && !isCastConnecting && !isRemotePlaybackActive) {
+            retainedCurrentSong = null
+        }
+    }
+
+    val currentSongForUi = stablePlayerState.currentSong ?: retainedCurrentSong
 
     val currentPlaybackQueue by remember {
         playerViewModel.playerUiState.map { it.currentPlaybackQueue }.distinctUntilChanged()
@@ -215,7 +226,9 @@ fun UnifiedPlayerSheet(
     val miniPlayerAndSpacerHeightPx =
         remember(density, MiniPlayerHeight) { with(density) { MiniPlayerHeight.toPx() } }
 
-    val showPlayerContentArea by remember { derivedStateOf { stablePlayerState.currentSong != null } }
+    val showPlayerContentArea by remember {
+        derivedStateOf { currentSongForUi != null }
+    }
 
     // Use the granular showDismissUndoBar here
     val isPlayerSlotOccupied by remember(showPlayerContentArea, showDismissUndoBar) {
@@ -460,7 +473,7 @@ fun UnifiedPlayerSheet(
         showPlayerContentArea,
         playerContentExpansionFraction,
         stablePlayerState.isPlaying,
-        stablePlayerState.currentSong,
+        currentSongForUi,
         predictiveBackCollapseProgress,
         currentSheetContentState,
         swipeDismissProgress.value,
@@ -488,7 +501,7 @@ fun UnifiedPlayerSheet(
                             26.dp
                         }
                     } else {
-                        if (!stablePlayerState.isPlaying || stablePlayerState.currentSong == null) {
+                        if (!stablePlayerState.isPlaying || currentSongForUi == null) {
                             if (isNavBarHidden) 32.dp else navBarCornerRadius.dp
                         } else {
                             if (isNavBarHidden) 32.dp else 12.dp
@@ -1105,8 +1118,7 @@ fun UnifiedPlayerSheet(
                                 }
                         ) {
                             if (showPlayerContentArea) {
-                                // stablePlayerState.currentSong is already available from the top-level collection
-                                stablePlayerState.currentSong?.let { currentSongNonNull ->
+                                currentSongForUi?.let { currentSongNonNull ->
                                     if (miniAlpha > 0.01f) {
                                         CompositionLocalProvider(
                                             LocalMaterialTheme provides albumColorScheme
@@ -1281,7 +1293,7 @@ fun UnifiedPlayerSheet(
                                     },
                                 queue = currentPlaybackQueue, // Use granular state
                                 currentQueueSourceName = currentQueueSourceName, // Use granular state
-                                currentSongId = stablePlayerState.currentSong?.id, // stablePlayerState is fine here
+                                currentSongId = currentSongForUi?.id,
                                 onDismiss = { animateQueueSheet(false) },
                                 onPlaySong = { song ->
                                     playerViewModel.playSongs(
