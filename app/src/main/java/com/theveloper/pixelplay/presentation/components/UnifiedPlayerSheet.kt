@@ -177,6 +177,15 @@ fun UnifiedPlayerSheet(
 
     val navBarCornerRadius by playerViewModel.navBarCornerRadius.collectAsState()
     val navBarStyle by playerViewModel.navBarStyle.collectAsState()
+
+    var retainedCurrentSong by remember { mutableStateOf<Song?>(null) }
+    LaunchedEffect(stablePlayerState.currentSong?.id) {
+        stablePlayerState.currentSong?.let { currentSong ->
+            retainedCurrentSong = currentSong
+        }
+    }
+
+    val currentSongForUi = stablePlayerState.currentSong ?: retainedCurrentSong
     val carouselStyle by playerViewModel.carouselStyle.collectAsState()
     LaunchedEffect(stablePlayerState.currentSong?.id) {
         if (stablePlayerState.currentSong != null) {
@@ -215,7 +224,9 @@ fun UnifiedPlayerSheet(
     val miniPlayerAndSpacerHeightPx =
         remember(density, MiniPlayerHeight) { with(density) { MiniPlayerHeight.toPx() } }
 
-    val showPlayerContentArea by remember { derivedStateOf { stablePlayerState.currentSong != null } }
+    val showPlayerContentArea by remember(currentSongForUi) {
+        derivedStateOf { currentSongForUi != null }
+    }
 
     // Use the granular showDismissUndoBar here
     val isPlayerSlotOccupied by remember(showPlayerContentArea, showDismissUndoBar) {
@@ -460,7 +471,7 @@ fun UnifiedPlayerSheet(
         showPlayerContentArea,
         playerContentExpansionFraction,
         stablePlayerState.isPlaying,
-        stablePlayerState.currentSong,
+        currentSongForUi,
         predictiveBackCollapseProgress,
         currentSheetContentState,
         swipeDismissProgress.value,
@@ -488,7 +499,7 @@ fun UnifiedPlayerSheet(
                             26.dp
                         }
                     } else {
-                        if (!stablePlayerState.isPlaying || stablePlayerState.currentSong == null) {
+                        if (!stablePlayerState.isPlaying || currentSongForUi == null) {
                             if (isNavBarHidden) 32.dp else navBarCornerRadius.dp
                         } else {
                             if (isNavBarHidden) 32.dp else 12.dp
@@ -1105,8 +1116,7 @@ fun UnifiedPlayerSheet(
                                 }
                         ) {
                             if (showPlayerContentArea) {
-                                // stablePlayerState.currentSong is already available from the top-level collection
-                                stablePlayerState.currentSong?.let { currentSongNonNull ->
+                                currentSongForUi?.let { currentSongNonNull ->
                                     if (miniAlpha > 0.01f) {
                                         CompositionLocalProvider(
                                             LocalMaterialTheme provides albumColorScheme
