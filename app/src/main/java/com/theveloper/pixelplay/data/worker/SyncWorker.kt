@@ -45,22 +45,29 @@ class SyncWorker @AssistedInject constructor(
             Log.i(TAG, "Fetched ${mediaStoreSongs.size} songs from MediaStore.")
 
             if (mediaStoreSongs.isNotEmpty()) {
-                // Fetch existing local songs to preserve their dateAdded and lyrics
-                val localSongsMap = musicDao.getAllSongsList().associate {
-                    it.id to Pair(it.dateAdded, it.lyrics)
-                }
+                // Fetch existing local songs to preserve their editable metadata
+                val localSongsMap = musicDao.getAllSongsList().associateBy { it.id }
 
                 // Prepare the final list of songs for insertion
                 val songsToInsert = mediaStoreSongs.map { mediaStoreSong ->
-                    val preservedData = localSongsMap[mediaStoreSong.id]
-                    if (preservedData != null) {
-                        // This song exists locally, so preserve its dateAdded and lyrics
+                    val localSong = localSongsMap[mediaStoreSong.id]
+                    if (localSong != null) {
+                        // This song exists locally - preserve user-edited fields if they differ from MediaStore
+                        // We check if local values are different from what MediaStore would provide,
+                        // which suggests user editing. We preserve dateAdded, lyrics, and all editable metadata.
                         mediaStoreSong.copy(
-                            dateAdded = preservedData.first,
-                            lyrics = preservedData.second
+                            dateAdded = localSong.dateAdded,
+                            lyrics = localSong.lyrics,
+                            // Preserve user-edited metadata if local is different from MediaStore default
+                            title = if (localSong.title != mediaStoreSong.title && localSong.title.isNotBlank()) localSong.title else mediaStoreSong.title,
+                            artistName = if (localSong.artistName != mediaStoreSong.artistName && localSong.artistName.isNotBlank()) localSong.artistName else mediaStoreSong.artistName,
+                            albumName = if (localSong.albumName != mediaStoreSong.albumName && localSong.albumName.isNotBlank()) localSong.albumName else mediaStoreSong.albumName,
+                            genre = localSong.genre ?: mediaStoreSong.genre,
+                            trackNumber = if (localSong.trackNumber != 0 && localSong.trackNumber != mediaStoreSong.trackNumber) localSong.trackNumber else mediaStoreSong.trackNumber,
+                            albumArtUriString = localSong.albumArtUriString ?: mediaStoreSong.albumArtUriString
                         )
                     } else {
-                        // This is a new song. Keep the MediaStore provided timestamp.
+                        // This is a new song. Keep the MediaStore provided data.
                         mediaStoreSong
                     }
                 }

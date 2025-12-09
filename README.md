@@ -44,7 +44,7 @@ PixelPlay is a modern, offline-first music player for Android, built with Kotlin
 - **Asynchronous Operations**: [Kotlin Coroutines & Flow](https://kotlinlang.org/docs/coroutines-guide.html) for managing asynchronous operations.
 - **Networking**: [Retrofit](https://square.github.io/retrofit/) for making HTTP requests.
 - **Image Loading**: [Coil](https://coil-kt.github.io/coil/) for loading and caching images.
-- **Metadata**: [JAudioTagger](http://www.jthink.net/jaudiotagger/) for reading and writing audio file metadata.
+- **Metadata**: [TagLib](https://github.com/Kyant0/taglib) for reading and writing audio file metadata (supports MP3, FLAC, M4A, and more).
 - **Audio Processing**: [Amplituda](https://github.com/lincollincol/Amplituda) for audio processing and waveform generation.
 
 ## 🚀 Getting Started

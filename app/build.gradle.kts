@@ -228,9 +228,8 @@ dependencies {
     // Timber
     implementation(libs.timber)
 
-    // JAudioTagger for metadata editing
-    implementation("org.jflac:jflac-codec:1.5.2")
-    implementation(libs.jaudiotagger)
+    // TagLib for metadata editing (supports mp3, flac, m4a, etc.)
+    implementation(libs.taglib)
 
     // Retrofit & OkHttp
     implementation(libs.retrofit)

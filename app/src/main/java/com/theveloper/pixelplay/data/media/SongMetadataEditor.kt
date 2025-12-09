@@ -4,19 +4,13 @@ import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.media.MediaScannerConnection
+import android.os.ParcelFileDescriptor
 import android.provider.MediaStore
 import androidx.core.net.toUri
+import com.kyant.taglib.Picture
+import com.kyant.taglib.TagLib
 import com.theveloper.pixelplay.data.database.MusicDao
 import kotlinx.coroutines.runBlocking
-import org.jaudiotagger.audio.AudioFile
-import org.jaudiotagger.audio.AudioFileIO
-import org.jaudiotagger.audio.exceptions.CannotReadException
-import org.jaudiotagger.audio.exceptions.CannotWriteException
-import org.jaudiotagger.tag.FieldKey
-import org.jaudiotagger.tag.Tag
-import org.jaudiotagger.tag.images.Artwork
-import org.jaudiotagger.tag.images.ArtworkFactory
-import org.jaudiotagger.tag.reference.PictureTypes
 import timber.log.Timber
 import java.io.File
 import java.io.FileOutputStream
@@ -34,8 +28,8 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
         coverArtUpdate: CoverArtUpdate? = null,
     ): SongMetadataEditResult {
         return try {
-            // 1. FIRST: Update the actual file with ALL metadata using JAudioTagger
-            val fileUpdateSuccess = updateFileMetadataWithJAudioTagger(
+            // 1. FIRST: Update the actual file with ALL metadata using TagLib
+            val fileUpdateSuccess = updateFileMetadataWithTagLib(
                 songId = songId,
                 newTitle = newTitle,
                 newArtist = newArtist,
@@ -93,7 +87,7 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
         }
     }
 
-    private fun updateFileMetadataWithJAudioTagger(
+    private fun updateFileMetadataWithTagLib(
         songId: Long,
         newTitle: String,
         newArtist: String,
@@ -116,67 +110,51 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
                 return false
             }
 
-            // Read and update the audio file
-            val audioFileIO: AudioFile = AudioFileIO.read(audioFile)
-            val tag: Tag = audioFileIO.tagOrCreateAndSetDefault
+            // Open file with read/write permissions
+            ParcelFileDescriptor.open(audioFile, ParcelFileDescriptor.MODE_READ_WRITE).use { fd ->
+                // Get existing metadata or create empty map
+                val existingMetadata = TagLib.getMetadata(fd.dup().detachFd())
+                val propertyMap = HashMap(existingMetadata?.propertyMap ?: emptyMap())
 
-            // Update ALL metadata fields
-            tag.setField(FieldKey.TITLE, newTitle)
-            tag.setField(FieldKey.ARTIST, newArtist)
-            tag.setField(FieldKey.ALBUM, newAlbum)
-            tag.setField(FieldKey.GENRE, newGenre)
-            tag.setField(FieldKey.LYRICS, newLyrics)
-            tag.setField(FieldKey.TRACK, newTrackNumber.toString())
+                // Update metadata fields
+                propertyMap["TITLE"] = arrayOf(newTitle)
+                propertyMap["ARTIST"] = arrayOf(newArtist)
+                propertyMap["ALBUM"] = arrayOf(newAlbum)
+                propertyMap["GENRE"] = arrayOf(newGenre)
+                propertyMap["LYRICS"] = arrayOf(newLyrics)
+                propertyMap["TRACKNUMBER"] = arrayOf(newTrackNumber.toString())
+                propertyMap["ALBUMARTIST"] = arrayOf(newArtist)
 
-            // Also set album artist for better compatibility
-            tag.setField(FieldKey.ALBUM_ARTIST, newArtist)
+                // Save metadata
+                val metadataSaved = TagLib.savePropertyMap(fd.dup().detachFd(), propertyMap)
+                if (!metadataSaved) {
+                    Timber.e("Failed to save metadata for songId: $songId")
+                    return false
+                }
 
-            // Update cover art if provided
-            coverArtUpdate?.let { update ->
-                updateEmbeddedCoverArt(tag, update)
+                // Update cover art if provided
+                coverArtUpdate?.let { update ->
+                    val picture = Picture(
+                        data = update.bytes,
+                        description = "Front Cover",
+                        pictureType = "Front Cover",
+                        mimeType = update.mimeType
+                    )
+                    val coverSaved = TagLib.savePictures(fd.detachFd(), arrayOf(picture))
+                    if (!coverSaved) {
+                        Timber.w("Failed to save cover art, but metadata was saved for songId: $songId")
+                    } else {
+                        Timber.d("Successfully embedded cover art for songId: $songId")
+                    }
+                }
             }
 
-            // Save changes
-            audioFileIO.commit()
             Timber.d("Successfully updated file metadata: ${audioFile.path}")
             true
 
-        } catch (e: CannotReadException) {
-            Timber.e(e, "Cannot read audio file for songId: $songId")
-            false
-        } catch (e: CannotWriteException) {
-            Timber.e(e, "Cannot write to audio file for songId: $songId")
-            false
         } catch (e: Exception) {
             Timber.e(e, "Error updating file metadata for songId: $songId")
             false
-        }
-    }
-
-    private fun updateEmbeddedCoverArt(tag: Tag, coverArtUpdate: CoverArtUpdate) {
-        try {
-            // Remove existing artwork
-            try {
-                tag.deleteArtworkField()
-                Timber.d("Removed existing artwork")
-            } catch (e: Exception) {
-                Timber.v("No existing artwork to remove")
-            }
-
-            // Create and set new artwork
-            val artwork: Artwork = ArtworkFactory.getNew().apply {
-                binaryData = coverArtUpdate.bytes
-                mimeType = coverArtUpdate.mimeType
-                description = "Cover Art"
-                pictureType = PictureTypes.DEFAULT_ID
-            }
-
-            tag.setField(artwork)
-            Timber.d("Successfully embedded cover art")
-
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to embed cover art")
-            throw e
         }
     }
 
