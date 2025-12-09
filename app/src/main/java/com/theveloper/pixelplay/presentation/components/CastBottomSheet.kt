@@ -6,8 +6,11 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -88,8 +91,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -106,6 +111,7 @@ import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import android.content.pm.PackageManager
+import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(
@@ -213,6 +219,7 @@ fun CastBottomSheet(
         wifiEnabled = isWifiEnabled,
         wifiSsid = wifiName,
         isScanning = isRefreshing && availableRoutes.isEmpty(),
+        isRefreshing = isRefreshing,
         devices = devices,
         activeDevice = activeDevice,
         isBluetoothEnabled = isBluetoothEnabled,
@@ -289,6 +296,7 @@ private data class CastSheetUiState(
     val wifiEnabled: Boolean,
     val wifiSsid: String? = null,
     val isScanning: Boolean,
+    val isRefreshing: Boolean,
     val devices: List<CastDeviceUi>,
     val activeDevice: ActiveDeviceUi,
     val isBluetoothEnabled: Boolean,
@@ -428,6 +436,21 @@ private fun CastSheetContent(
             onRefresh = onRefresh
         )
 
+        AnimatedVisibility(
+            visible = state.isRefreshing,
+            enter = fadeIn(animationSpec = tween(200, easing = FastOutSlowInEasing)),
+            exit = fadeOut(animationSpec = tween(180)),
+            label = "refreshIndicator"
+        ) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp)),
+                color = colors.primary,
+                trackColor = colors.primary.copy(alpha = 0.12f)
+            )
+        }
+
         QuickSettingsRow(
             wifiEnabled = state.wifiEnabled,
             wifiSsid = state.wifiSsid,
@@ -468,15 +491,7 @@ private fun CastSheetContent(
             }
         }
 
-        if (state.isScanning && state.devices.isNotEmpty()) {
-            LinearProgressIndicator(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp)),
-                color = colors.primary,
-                trackColor = colors.primary.copy(alpha = 0.12f)
-            )
-        }
+        Spacer(modifier = Modifier.height(4.dp))
     }
 }
 
@@ -595,27 +610,37 @@ private fun ActiveDeviceHero(
             ) {
                 Box(
                     modifier = Modifier
-                        // CAMBIO: Quitamos size(68.dp) fijo.
-                        // Usamos fillMaxHeight para llenar la altura determinada por el texto
-                        // y aspectRatio(1f) para mantener la proporción 1:1 (círculo)
                         .fillMaxHeight()
-                        .width(62.dp)
-                        .background(
-                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.12f),
-                            shape = CircleShape
-                        ),
+                        .width(62.dp),
                     contentAlignment = Alignment.Center
                 ) {
-//                    if (device.isConnecting) {
-//                        ConnectingHalo(
-//                            modifier = Modifier.matchParentSize()
-//                        )
-//                    }
-                    Icon(
-                        imageVector = device.icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onTertiaryContainer
-                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(
+                                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(
+                                    alpha = if (device.isConnecting) 0.18f else 0.12f
+                                ),
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (device.isConnecting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(34.dp),
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                trackColor = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.2f),
+                                strokeWidth = 4.dp,
+                                strokeCap = StrokeCap.Round
+                            )
+                        } else {
+                            Icon(
+                                imageVector = device.icon,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                    }
                 }
 
                 // La columna de texto dicta la altura de la Row
@@ -633,15 +658,11 @@ private fun ActiveDeviceHero(
                     val statusText = buildString {
                         append(device.subtitle)
                         append(" • ")
-                        if (device.isConnecting && device.isRemote) {
-                            append("Connecting…")
-                        } else {
-                            append(device.connectionLabel)
-                        }
+                        append(device.connectionLabel)
                     }
 
                     Text(
-                        text = statusText,
+                        text = if (device.isConnecting && device.isRemote) "Connecting..." else statusText,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onTertiaryContainer,
                         maxLines = 1
@@ -651,8 +672,8 @@ private fun ActiveDeviceHero(
                             onClick = onDisconnect,
                             shape = RoundedCornerShape(50),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                contentColor = MaterialTheme.colorScheme.secondaryContainer
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer
                             ),
                             modifier = Modifier
                                 .height(46.dp)
@@ -738,35 +759,6 @@ private fun ActiveDeviceHero(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun ConnectingHalo(
-    modifier: Modifier
-) {
-    val primary = MaterialTheme.colorScheme.primary
-    val infiniteTransition = rememberInfiniteTransition(label = "connectingHalo")
-    val radius by infiniteTransition.animateFloat(
-        initialValue = 0.72f,
-        targetValue = 1.12f,
-        animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing)),
-        label = "haloRadius"
-    )
-    val alpha by infiniteTransition.animateFloat(
-        initialValue = 0.18f,
-        targetValue = 0.05f,
-        animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing)),
-        label = "haloAlpha"
-    )
-    Canvas(modifier = modifier) {
-        val baseRadius = size.minDimension / 2
-        drawCircle(
-            color = primary.copy(alpha = alpha),
-            radius = baseRadius * radius,
-            center = Offset(size.minDimension / 2, size.minDimension / 2),
-            style = Stroke(width = 6.dp.toPx())
-        )
     }
 }
 
@@ -873,6 +865,23 @@ private fun CastDeviceRow(
     val leafShape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomEnd = 24.dp, bottomStart = 24.dp)
     val containerColor = if (device.isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
     val onContainer = if (device.isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+    val isActiveDevice = device.isSelected && device.connectionState == MediaRouter.RouteInfo.CONNECTION_STATE_CONNECTED
+    val scallopShape = RoundedStarShape(sides = 8, curve = 0.10, rotation = 0f)
+    val infiniteRotation = rememberInfiniteTransition(label = "activeDeviceRotation")
+    val rotation by infiniteRotation.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 9000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "deviceRotation"
+    )
+    val backgroundScale by animateFloatAsState(
+        targetValue = if (isActiveDevice) 1.16f else 1f,
+        animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing),
+        label = "activeDeviceScale"
+    )
     val deviceIcon = when (device.deviceType) {
         MediaRouter.RouteInfo.DEVICE_TYPE_TV -> Icons.Rounded.Tv
         MediaRouter.RouteInfo.DEVICE_TYPE_REMOTE_SPEAKER, MediaRouter.RouteInfo.DEVICE_TYPE_BUILTIN_SPEAKER -> Icons.Rounded.Speaker
@@ -916,12 +925,29 @@ private fun CastDeviceRow(
             leadingContent = {
                 Box(
                     modifier = Modifier
-                        .size(46.dp)
-                        .background(color = onContainer.copy(alpha = 0.12f), shape = CircleShape)
-                        .padding(vertical = 10.dp),
+                        .size(50.dp), //it should have dynamic size and padding, ditch list item and make it variable size so CircleShape and scallop are the same size
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(imageVector = deviceIcon, contentDescription = null, tint = onContainer)
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .graphicsLayer(
+                                rotationZ = if (isActiveDevice) rotation else 0f,
+                                scaleX = backgroundScale,
+                                scaleY = backgroundScale
+                            )
+                            .background(
+                                color = onContainer.copy(alpha = 0.12f),
+                                shape = if (isActiveDevice) scallopShape else CircleShape
+                            )
+                    )
+
+                    Icon(
+                        imageVector = deviceIcon,
+                        contentDescription = null,
+                        tint = onContainer,
+                        modifier = Modifier.padding(vertical = 10.dp)
+                    )
                 }
             },
             trailingContent = {
@@ -933,7 +959,8 @@ private fun CastDeviceRow(
                     )
                 }
             },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            //contentPadding = PaddingValues(16.dp)
         )
     }
 }
@@ -1172,6 +1199,7 @@ private fun CastSheetScanningPreview() {
         wifiEnabled = true,
         wifiSsid = "Home Wi-Fi",
         isScanning = true,
+        isRefreshing = true,
         devices = emptyList(),
         activeDevice = ActiveDeviceUi(
             id = "phone",
@@ -1229,6 +1257,7 @@ private fun CastSheetDevicesPreview() {
         wifiEnabled = true,
         wifiSsid = "Office 5G",
         isScanning = false,
+        isRefreshing = false,
         devices = devices,
         activeDevice = ActiveDeviceUi(
             id = "2",
@@ -1261,6 +1290,7 @@ private fun CastSheetWifiOffPreview() {
     val state = CastSheetUiState(
         wifiEnabled = false,
         isScanning = false,
+        isRefreshing = false,
         devices = emptyList(),
         activeDevice = ActiveDeviceUi(
             id = "phone",
