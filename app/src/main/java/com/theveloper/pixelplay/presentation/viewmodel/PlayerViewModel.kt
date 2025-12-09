@@ -29,6 +29,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.BroadcastReceiver
@@ -887,10 +888,10 @@ class PlayerViewModel @Inject constructor(
             return
         }
 
-        val connectedDevice = bluetoothManager.getConnectedDevices(BluetoothProfile.A2DP).firstOrNull()
-            ?: bluetoothManager.getConnectedDevices(BluetoothProfile.HEADSET).firstOrNull()
+        val connectedDevice = safeGetConnectedDevices(BluetoothProfile.A2DP).firstOrNull()
+            ?: safeGetConnectedDevices(BluetoothProfile.HEADSET).firstOrNull()
             ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                bluetoothManager.getConnectedDevices(BluetoothProfile.LE_AUDIO).firstOrNull()
+                safeGetConnectedDevices(BluetoothProfile.LE_AUDIO).firstOrNull()
             } else {
                 null
             }
@@ -909,6 +910,10 @@ class PlayerViewModel @Inject constructor(
             resolvedName != null -> _bluetoothName.value = resolvedName
             forceClear || !(bluetoothAdapter?.isEnabled ?: false) -> _bluetoothName.value = null
         }
+    }
+
+    private fun safeGetConnectedDevices(profile: Int): List<BluetoothDevice> {
+        return runCatching { bluetoothManager.getConnectedDevices(profile) }.getOrElse { emptyList() }
     }
 
     fun refreshLocalConnectionInfo() {
