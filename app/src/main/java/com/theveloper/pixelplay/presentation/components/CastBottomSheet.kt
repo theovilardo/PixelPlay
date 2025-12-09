@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.presentation.components
 
+import android.Manifest
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
@@ -13,7 +14,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import android.content.Intent
+import android.content.Context
+import android.os.Build
 import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -75,6 +80,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -93,11 +99,13 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.core.content.ContextCompat
 import androidx.media3.common.util.UnstableApi
 import androidx.mediarouter.media.MediaRouter
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
+import android.content.pm.PackageManager
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(
@@ -124,6 +132,32 @@ fun CastBottomSheet(
     val trackVolume by playerViewModel.trackVolume.collectAsState()
     val isPlaying = playerViewModel.stablePlayerState.collectAsState().value.isPlaying
     val context = LocalContext.current
+
+    val requiredPermissions = remember {
+        buildList {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                add(Manifest.permission.BLUETOOTH_CONNECT)
+            }
+            add(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+    var missingPermissions by remember { mutableStateOf(missingCastPermissions(context, requiredPermissions)) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        missingPermissions = missingCastPermissions(context, requiredPermissions)
+        if (missingPermissions.isEmpty()) {
+            playerViewModel.refreshLocalConnectionInfo()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        missingPermissions = missingCastPermissions(context, requiredPermissions)
+        if (missingPermissions.isEmpty()) {
+            playerViewModel.refreshLocalConnectionInfo()
+        }
+    }
 
     val activeRoute = selectedRoute?.takeUnless { it.isDefault }
     val isRemoteSession = (isRemotePlaybackActive || isCastConnecting) && activeRoute != null
@@ -190,31 +224,40 @@ fun CastBottomSheet(
         sheetState = sheetState,
         //dragHandle = { DragHandlePill() }
     ) {
-        CastSheetContent(
-            state = uiState,
-            onSelectDevice = { id ->
-                routes.firstOrNull { it.id == id }?.let { playerViewModel.selectRoute(it) }
-            },
-            onDisconnect = { playerViewModel.disconnect() },
-            onVolumeChange = { value ->
-                if (uiState.activeDevice.isRemote) {
-                    playerViewModel.setRouteVolume(value.toInt())
-                } else {
-                    playerViewModel.setTrackVolume(value)
+        if (missingPermissions.isNotEmpty()) {
+            CastPermissionStep(
+                missingPermissions = missingPermissions,
+                onRequestPermissions = {
+                    permissionLauncher.launch(missingPermissions.toTypedArray())
                 }
-            },
-            onTurnOnWifi = {
-                val intent = Intent(Settings.ACTION_WIFI_SETTINGS)
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(intent)
-            },
-            onOpenBluetoothSettings = {
-                val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(intent)
-            },
-            onRefresh = { playerViewModel.refreshCastRoutes() }
-        )
+            )
+        } else {
+            CastSheetContent(
+                state = uiState,
+                onSelectDevice = { id ->
+                    routes.firstOrNull { it.id == id }?.let { playerViewModel.selectRoute(it) }
+                },
+                onDisconnect = { playerViewModel.disconnect() },
+                onVolumeChange = { value ->
+                    if (uiState.activeDevice.isRemote) {
+                        playerViewModel.setRouteVolume(value.toInt())
+                    } else {
+                        playerViewModel.setTrackVolume(value)
+                    }
+                },
+                onTurnOnWifi = {
+                    val intent = Intent(Settings.ACTION_WIFI_SETTINGS)
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(intent)
+                },
+                onOpenBluetoothSettings = {
+                    val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(intent)
+                },
+                onRefresh = { playerViewModel.refreshCastRoutes() }
+            )
+        }
     }
 }
 
@@ -251,6 +294,116 @@ private data class CastSheetUiState(
     val isBluetoothEnabled: Boolean,
     val bluetoothName: String? = null
 )
+
+@Composable
+private fun CastPermissionStep(
+    missingPermissions: List<String>,
+    onRequestPermissions: () -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = 20.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        Text(
+            text = "Get ready to connect",
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+        )
+        Text(
+            text = "Allow PixelPlay to see your nearby devices and current Wi‑Fi so we can keep your cast, Bluetooth audio, and speakers in sync.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.onSurfaceVariant
+        )
+
+        Card(
+            shape = RoundedCornerShape(26.dp),
+            colors = CardDefaults.cardColors(containerColor = colors.surfaceContainerHigh),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                PermissionHighlight(
+                    icon = Icons.Rounded.Bluetooth,
+                    title = "Nearby devices",
+                    description = "Needed to read and control your connected Bluetooth audio gear."
+                )
+                PermissionHighlight(
+                    icon = Icons.Rounded.Wifi,
+                    title = "Location for Wi‑Fi",
+                    description = "Android requires Location to share the Wi‑Fi network (SSID) you're on so we can find compatible cast devices."
+                )
+            }
+        }
+
+        Button(
+            onClick = onRequestPermissions,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(50)
+        ) {
+            Text(text = "Allow access")
+        }
+
+        if (missingPermissions.isNotEmpty()) {
+            Text(
+                text = "We only use these permissions for device interconnectivity — casting, controlling nearby speakers, and keeping audio in sync.",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun PermissionHighlight(
+    icon: ImageVector,
+    title: String,
+    description: String
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+private fun missingCastPermissions(context: Context, permissions: List<String>): List<String> {
+    return permissions.filter {
+        ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
+    }
+}
 
 @Composable
 private fun CastSheetContent(
