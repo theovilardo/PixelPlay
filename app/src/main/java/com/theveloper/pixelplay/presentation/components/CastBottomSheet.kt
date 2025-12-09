@@ -90,6 +90,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
@@ -612,13 +613,6 @@ private fun ActiveDeviceHero(
                         .width(62.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (device.isConnecting) {
-                        ConnectingHalo(
-                            modifier = Modifier
-                                .matchParentSize()
-                                .padding(2.dp)
-                        )
-                    }
                     Box(
                         modifier = Modifier
                             .matchParentSize()
@@ -630,11 +624,21 @@ private fun ActiveDeviceHero(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = device.icon,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onTertiaryContainer
-                        )
+                        if (device.isConnecting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(34.dp),
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                trackColor = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.2f),
+                                strokeWidth = 4.dp,
+                                strokeCap = StrokeCap.Round
+                            )
+                        } else {
+                            Icon(
+                                imageVector = device.icon,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
                     }
                 }
 
@@ -653,15 +657,11 @@ private fun ActiveDeviceHero(
                     val statusText = buildString {
                         append(device.subtitle)
                         append(" • ")
-                        if (device.isConnecting && device.isRemote) {
-                            append("Connecting…")
-                        } else {
-                            append(device.connectionLabel)
-                        }
+                        append(device.connectionLabel)
                     }
 
                     Text(
-                        text = statusText,
+                        text = if (device.isConnecting && device.isRemote) "Connecting..." else statusText,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onTertiaryContainer,
                         maxLines = 1
@@ -758,35 +758,6 @@ private fun ActiveDeviceHero(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun ConnectingHalo(
-    modifier: Modifier
-) {
-    val primary = MaterialTheme.colorScheme.primary
-    val infiniteTransition = rememberInfiniteTransition(label = "connectingHalo")
-    val radius by infiniteTransition.animateFloat(
-        initialValue = 0.72f,
-        targetValue = 1.12f,
-        animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing)),
-        label = "haloRadius"
-    )
-    val alpha by infiniteTransition.animateFloat(
-        initialValue = 0.18f,
-        targetValue = 0.05f,
-        animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing)),
-        label = "haloAlpha"
-    )
-    Canvas(modifier = modifier) {
-        val baseRadius = size.minDimension / 2
-        drawCircle(
-            color = primary.copy(alpha = alpha),
-            radius = baseRadius * radius,
-            center = Offset(size.minDimension / 2, size.minDimension / 2),
-            style = Stroke(width = 6.dp.toPx())
-        )
     }
 }
 
@@ -948,16 +919,25 @@ private fun CastDeviceRow(
             leadingContent = {
                 Box(
                     modifier = Modifier
-                        .size(46.dp)
-                        .graphicsLayer(rotationZ = if (isActiveDevice) rotation else 0f)
-                        .background(
-                            color = onContainer.copy(alpha = 0.12f),
-                            shape = if (isActiveDevice) scallopShape else CircleShape
-                        )
-                        .padding(vertical = 10.dp),
+                        .size(50.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(imageVector = deviceIcon, contentDescription = null, tint = onContainer)
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .graphicsLayer(rotationZ = if (isActiveDevice) rotation else 0f)
+                            .background(
+                                color = onContainer.copy(alpha = 0.12f),
+                                shape = if (isActiveDevice) scallopShape else CircleShape
+                            )
+                    )
+
+                    Icon(
+                        imageVector = deviceIcon,
+                        contentDescription = null,
+                        tint = onContainer,
+                        modifier = Modifier.padding(vertical = 10.dp)
+                    )
                 }
             },
             trailingContent = {
