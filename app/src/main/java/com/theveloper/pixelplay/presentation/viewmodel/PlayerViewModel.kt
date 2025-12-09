@@ -847,7 +847,15 @@ class PlayerViewModel @Inject constructor(
             if (rawSsid != null && rawSsid != "<unknown ssid>") {
                 _wifiName.value = rawSsid.trim('"')
             } else {
-                _wifiName.value = null
+                // Fallback to WifiManager for older APIs or if transportInfo failed
+                val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+                val info = wifiManager?.connectionInfo
+                val fallbackSsid = info?.ssid
+                if (fallbackSsid != null && fallbackSsid != "<unknown ssid>") {
+                    _wifiName.value = fallbackSsid.trim('"')
+                } else {
+                    _wifiName.value = null
+                }
             }
         }
     }
@@ -858,7 +866,8 @@ class PlayerViewModel @Inject constructor(
             it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
                 it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
                 it.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET ||
-                it.type == android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER
+                it.type == android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER ||
+                it.type == android.media.AudioDeviceInfo.TYPE_HEARING_AID
         }
         _bluetoothName.value = btDevice?.productName?.toString()
     }
@@ -1065,14 +1074,25 @@ class PlayerViewModel @Inject constructor(
         // Bluetooth listener
         bluetoothStateReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action == BluetoothAdapter.ACTION_STATE_CHANGED) {
-                    val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
-                    _isBluetoothEnabled.value = state == BluetoothAdapter.STATE_ON
-                    if (state == BluetoothAdapter.STATE_OFF) _bluetoothName.value = null
+                when (intent?.action) {
+                    BluetoothAdapter.ACTION_STATE_CHANGED -> {
+                        val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
+                        _isBluetoothEnabled.value = state == BluetoothAdapter.STATE_ON
+                        if (state == BluetoothAdapter.STATE_OFF) _bluetoothName.value = null
+                        else updateBluetoothName()
+                    }
+                    android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED,
+                    android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
+                        updateBluetoothName()
+                    }
                 }
             }
         }
-        context.registerReceiver(bluetoothStateReceiver, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
+        val btFilter = IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED).apply {
+            addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED)
+            addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED)
+        }
+        context.registerReceiver(bluetoothStateReceiver, btFilter)
 
         audioDeviceCallback = object : android.media.AudioDeviceCallback() {
             override fun onAudioDevicesAdded(addedDevices: Array<out android.media.AudioDeviceInfo>?) {
