@@ -959,7 +959,8 @@ private fun CastDeviceRow(
                     )
                 }
             },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            contentPadding = PaddingValues(16.dp)
         )
     }
 }
