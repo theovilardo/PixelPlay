@@ -12,6 +12,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -40,10 +42,13 @@ import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.rounded.Bluetooth
+import androidx.compose.material.icons.rounded.BluetoothDisabled
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.Speaker
 import androidx.compose.material.icons.rounded.Tv
+import androidx.compose.material.icons.rounded.Wifi
+import androidx.compose.material.icons.rounded.WifiOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -85,6 +90,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.media3.common.util.UnstableApi
@@ -110,11 +116,14 @@ fun CastBottomSheet(
     val routeVolume by playerViewModel.routeVolume.collectAsState()
     val isRefreshing by playerViewModel.isRefreshingRoutes.collectAsState()
     val isWifiEnabled by playerViewModel.isWifiEnabled.collectAsState()
+    val wifiName by playerViewModel.wifiName.collectAsState()
     val isBluetoothEnabled by playerViewModel.isBluetoothEnabled.collectAsState()
+    val bluetoothName by playerViewModel.bluetoothName.collectAsState()
     val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
     val isCastConnecting by playerViewModel.isCastConnecting.collectAsState()
     val trackVolume by playerViewModel.trackVolume.collectAsState()
     val isPlaying = playerViewModel.stablePlayerState.collectAsState().value.isPlaying
+    val context = LocalContext.current
 
     val activeRoute = selectedRoute?.takeUnless { it.isDefault }
     val isRemoteSession = (isRemotePlaybackActive || isCastConnecting) && activeRoute != null
@@ -167,10 +176,12 @@ fun CastBottomSheet(
 
     val uiState = CastSheetUiState(
         wifiEnabled = isWifiEnabled,
+        wifiSsid = wifiName,
         isScanning = isRefreshing && availableRoutes.isEmpty(),
         devices = devices,
         activeDevice = activeDevice,
-        isBluetoothEnabled = isBluetoothEnabled
+        isBluetoothEnabled = isBluetoothEnabled,
+        bluetoothName = bluetoothName
     )
 
     ModalBottomSheet(
@@ -191,7 +202,16 @@ fun CastBottomSheet(
                     playerViewModel.setTrackVolume(value)
                 }
             },
-            onTurnOnWifi = { playerViewModel.refreshCastRoutes() },
+            onTurnOnWifi = {
+                val intent = Intent(Settings.ACTION_WIFI_SETTINGS)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+            },
+            onOpenBluetoothSettings = {
+                val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+            },
             onRefresh = { playerViewModel.refreshCastRoutes() }
         )
     }
@@ -223,10 +243,12 @@ private data class ActiveDeviceUi(
 
 private data class CastSheetUiState(
     val wifiEnabled: Boolean,
+    val wifiSsid: String? = null,
     val isScanning: Boolean,
     val devices: List<CastDeviceUi>,
     val activeDevice: ActiveDeviceUi,
-    val isBluetoothEnabled: Boolean
+    val isBluetoothEnabled: Boolean,
+    val bluetoothName: String? = null
 )
 
 @Composable
@@ -236,6 +258,7 @@ private fun CastSheetContent(
     onDisconnect: () -> Unit,
     onVolumeChange: (Float) -> Unit,
     onTurnOnWifi: () -> Unit,
+    onOpenBluetoothSettings: () -> Unit,
     onRefresh: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
@@ -246,8 +269,18 @@ private fun CastSheetContent(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         SheetHeader(
+            modifier = Modifier.padding(bottom = 8.dp),
             isScanning = state.isScanning,
             onRefresh = onRefresh
+        )
+
+        QuickSettingsRow(
+            wifiEnabled = state.wifiEnabled,
+            wifiSsid = state.wifiSsid,
+            onWifiClick = onTurnOnWifi,
+            bluetoothEnabled = state.isBluetoothEnabled,
+            bluetoothName = state.bluetoothName,
+            onBluetoothClick = onOpenBluetoothSettings
         )
 
         if (!state.wifiEnabled) {
@@ -313,36 +346,37 @@ private fun DragHandlePill() {
 
 @Composable
 private fun SheetHeader(
+    modifier: Modifier,
     isScanning: Boolean,
     onRefresh: () -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
                 text = "Connect device",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontSize = 28.sp)
             )
-            AnimatedContent(
-                targetState = isScanning,
-                transitionSpec = {
-                    fadeIn(animationSpec = tween(180, easing = FastOutSlowInEasing)) togetherWith
-                        fadeOut(animationSpec = tween(140))
-                },
-                label = "scanState"
-            ) { scanning ->
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ScanningIndicator(isActive = scanning)
-                    Text(
-                        text = if (scanning) "Scanning nearby" else "Current device",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+//            AnimatedContent(
+//                targetState = isScanning,
+//                transitionSpec = {
+//                    fadeIn(animationSpec = tween(180, easing = FastOutSlowInEasing)) togetherWith
+//                        fadeOut(animationSpec = tween(140))
+//                },
+//                label = "scanState"
+//            ) { scanning ->
+//                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+//                    ScanningIndicator(isActive = scanning)
+//                    Text(
+//                        text = if (scanning) "Scanning nearby" else "Current device",
+//                        style = MaterialTheme.typography.bodyMedium,
+//                        color = MaterialTheme.colorScheme.onSurfaceVariant
+//                    )
+//                }
+//            }
         }
         IconButton(
             onClick = onRefresh,
@@ -375,20 +409,20 @@ private fun ActiveDeviceHero(
     var lastStep by remember(device.id) { mutableIntStateOf(-1) }
 
     val heroShape = AbsoluteSmoothCornerShape(
-        cornerRadiusTL = 38.dp,
-        cornerRadiusTR = 18.dp,
+        cornerRadiusTL = 42.dp,
+        cornerRadiusTR = 20.dp,
         cornerRadiusBL = 20.dp,
         cornerRadiusBR = 42.dp,
         smoothnessAsPercentTL = 70,
-        smoothnessAsPercentTR = 40,
-        smoothnessAsPercentBL = 45,
-        smoothnessAsPercentBR = 72
+        smoothnessAsPercentTR = 70,
+        smoothnessAsPercentBL = 70,
+        smoothnessAsPercentBR = 70
     )
 
     Card(
         shape = heroShape,
         colors = CardDefaults.cardColors(
-            containerColor = if (device.isRemote) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.secondaryContainer
+            containerColor = if (device.isRemote) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.tertiaryContainer
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
@@ -398,7 +432,6 @@ private fun ActiveDeviceHero(
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // CAMBIO CLAVE: height(IntrinsicSize.Min) permite a los hijos medir su altura según el vecino más alto
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -414,7 +447,7 @@ private fun ActiveDeviceHero(
                         .fillMaxHeight()
                         .width(62.dp)
                         .background(
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.12f),
                             shape = CircleShape
                         ),
                     contentAlignment = Alignment.Center
@@ -427,7 +460,7 @@ private fun ActiveDeviceHero(
                     Icon(
                         imageVector = device.icon,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurface
+                        tint = MaterialTheme.colorScheme.onTertiaryContainer
                     )
                 }
 
@@ -439,56 +472,33 @@ private fun ActiveDeviceHero(
                     Text(
                         text = device.title,
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 2
-                    )
-                    Text(
-                        text = device.subtitle,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
                         maxLines = 2
                     )
 
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Box(
-                            modifier = Modifier
-                                .size(12.dp)
-                                .clip(CircleShape)
-                                .background(if (device.isConnecting) MaterialTheme.colorScheme.primary else Color(0xFF38C450))
-                        )
-                        Text(
-                            text = device.connectionLabel,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1
-                        )
-                    }
-
-                    AnimatedVisibility(visible = device.isConnecting && device.isRemote) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Text(
-                                text = "Connecting…",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1
-                            )
+                    val statusText = buildString {
+                        append(device.subtitle)
+                        append(" • ")
+                        if (device.isConnecting && device.isRemote) {
+                            append("Connecting…")
+                        } else {
+                            append(device.connectionLabel)
                         }
                     }
+
+                    Text(
+                        text = statusText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        maxLines = 1
+                    )
                     if (device.isRemote) {
                         Button(
                             onClick = onDisconnect,
                             shape = RoundedCornerShape(50),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer,
-                                contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                containerColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.secondaryContainer
                             ),
                             modifier = Modifier
                                 .height(46.dp)
@@ -510,7 +520,6 @@ private fun ActiveDeviceHero(
 
             // Sección de Volumen (Sin cambios)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // ... (Código del slider idéntico al original)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -519,12 +528,12 @@ private fun ActiveDeviceHero(
                     Text(
                         text = if (device.isRemote) "Device volume" else "Phone volume",
                         style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
                     )
                     Text(
                         text = buildVolumeLabel(sliderValue, device.volumeRange.endInclusive),
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
                     )
                 }
                 val interactionSource = remember { MutableInteractionSource() }
@@ -551,9 +560,9 @@ private fun ActiveDeviceHero(
                                 .height(30.dp)
                                 .clip(RoundedCornerShape(12.dp)),
                             colors = SliderDefaults.colors(
-                                activeTrackColor = MaterialTheme.colorScheme.primary,
-                                inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                thumbColor = MaterialTheme.colorScheme.primary
+                                activeTrackColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                inactiveTrackColor = MaterialTheme.colorScheme.onTertiary.copy(alpha = 0.2f),
+                                thumbColor = MaterialTheme.colorScheme.onTertiary
                             )
                         )
                     },
@@ -563,194 +572,19 @@ private fun ActiveDeviceHero(
                                 .height(36.dp),
                             interactionSource = interactionSource,
                             sliderState = sliderState,
-                            colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.onPrimaryContainer)
+                            colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.onTertiaryContainer)
                         )
                     },
                     colors = SliderDefaults.colors(
-                        activeTrackColor = MaterialTheme.colorScheme.primary,
-                        inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                        thumbColor = MaterialTheme.colorScheme.onPrimary
+                        activeTrackColor = MaterialTheme.colorScheme.tertiary,
+                        inactiveTrackColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f),
+                        thumbColor = MaterialTheme.colorScheme.onTertiary
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         }
     }
-//    Card(
-//        shape = heroShape,
-//        colors = CardDefaults.cardColors(
-//            containerColor = if (device.isRemote) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.secondaryContainer
-//        ),
-//        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
-//    ) {
-//        Column(
-//            modifier = Modifier
-//                .fillMaxWidth()
-//                .padding(20.dp),
-//            verticalArrangement = Arrangement.spacedBy(16.dp)
-//        ) {
-//            Row(
-//                verticalAlignment = Alignment.CenterVertically,
-//                horizontalArrangement = Arrangement.spacedBy(14.dp),
-//                modifier = Modifier.fillMaxWidth()
-//            ) {
-//                Box(
-//                    modifier = Modifier
-//                        .size(68.dp)
-//                        .background(
-//                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-//                            shape = CircleShape
-//                        ),
-//                    contentAlignment = Alignment.Center
-//                ) {
-//                    if (device.isConnecting) {
-//                        ConnectingHalo(
-//                            modifier = Modifier.matchParentSize()
-//                        )
-//                    }
-//                    Icon(
-//                        imageVector = device.icon,
-//                        contentDescription = null,
-//                        tint = MaterialTheme.colorScheme.onSurface
-//                    )
-//                }
-//                Column(
-//                    modifier = Modifier.weight(1f),
-//                    verticalArrangement = Arrangement.spacedBy(8.dp)
-//                ) {
-//                    Text(
-//                        text = device.title,
-//                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-//                        color = MaterialTheme.colorScheme.onSurface,
-//                        maxLines = 2
-//                    )
-//                    Text(
-//                        text = device.subtitle,
-//                        style = MaterialTheme.typography.bodyMedium,
-//                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-//                        maxLines = 2
-//                    )
-//                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-//                        Box(
-//                            modifier = Modifier
-//                                .size(12.dp)
-//                                .clip(CircleShape)
-//                                .background(if (device.isConnecting) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary)
-//                        )
-//                        Text(
-//                            text = device.connectionLabel,
-//                            style = MaterialTheme.typography.labelMedium,
-//                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-//                            maxLines = 1
-//                        )
-//                    }
-//                    AnimatedVisibility(visible = device.isConnecting && device.isRemote) {
-//                        Row(
-//                            verticalAlignment = Alignment.CenterVertically,
-//                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-//                        ) {
-//                            CircularProgressIndicator(
-//                                modifier = Modifier.size(18.dp),
-//                                strokeWidth = 2.dp,
-//                                color = MaterialTheme.colorScheme.primary
-//                            )
-//                            Text(
-//                                text = "Connecting…",
-//                                style = MaterialTheme.typography.labelMedium,
-//                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-//                                maxLines = 1
-//                            )
-//                        }
-//                    }
-//                    if (device.isRemote) {
-//                        Button(
-//                            onClick = onDisconnect,
-//                            shape = RoundedCornerShape(50),
-//                            colors = ButtonDefaults.buttonColors(
-//                                containerColor = MaterialTheme.colorScheme.errorContainer,
-//                                contentColor = MaterialTheme.colorScheme.onErrorContainer
-//                            ),
-//                            modifier = Modifier
-//                                .height(46.dp)
-//                                .padding(top = 4.dp)
-//                        ) {
-//                            Icon(
-//                                painter = painterResource(R.drawable.rounded_mimo_disconnect_24),
-//                                contentDescription = "disconnect_icon",
-//                            )
-//                            Text("Disconnect")
-//                        }
-//                    }
-//                }
-//            }
-//
-//            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-//                Row(
-//                    modifier = Modifier.fillMaxWidth(),
-//                    horizontalArrangement = Arrangement.SpaceBetween,
-//                    verticalAlignment = Alignment.CenterVertically
-//                ) {
-//                    Text(
-//                        text = if (device.isRemote) "Device volume" else "Phone volume",
-//                        style = MaterialTheme.typography.titleSmall,
-//                        color = MaterialTheme.colorScheme.onSurfaceVariant
-//                    )
-//                    Text(
-//                        text = buildVolumeLabel(sliderValue, device.volumeRange.endInclusive),
-//                        style = MaterialTheme.typography.labelMedium,
-//                        color = MaterialTheme.colorScheme.onSurfaceVariant
-//                    )
-//                }
-//                val interactionSource = remember { MutableInteractionSource() }
-//                Slider(
-//                    value = sliderValue.coerceIn(device.volumeRange.start, device.volumeRange.endInclusive),
-//                    onValueChange = { newValue ->
-//                        sliderValue = newValue
-//                        val quantized = if (device.volumeRange.endInclusive <= 1f) {
-//                            (newValue * 20).toInt()
-//                        } else {
-//                            newValue.toInt()
-//                        }
-//                        if (quantized != lastStep) {
-//                            lastStep = quantized
-//                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-//                        }
-//                        onVolumeChange(newValue)
-//                    },
-//                    valueRange = device.volumeRange,
-//                    //steps = discreteSteps,
-//                    track = { sliderState ->
-//                        SliderDefaults.Track(
-//                            sliderState = sliderState,
-//                            modifier = Modifier
-//                                .height(30.dp)
-//                                .clip(RoundedCornerShape(12.dp)),
-//                            colors = SliderDefaults.colors(
-//                                activeTrackColor = MaterialTheme.colorScheme.primary,
-//                                inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-//                                thumbColor = MaterialTheme.colorScheme.primary
-//                            )
-//                        )
-//                    },
-//                    thumb = { sliderState ->
-//                        SliderDefaults.Thumb(
-//                            modifier = Modifier
-//                                .height(36.dp),
-//                            interactionSource = interactionSource,
-//                            sliderState = sliderState,
-//                            colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.onPrimaryContainer)
-//                        )
-//                    },
-//                    colors = SliderDefaults.colors(
-//                        activeTrackColor = MaterialTheme.colorScheme.primary,
-//                        inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-//                        thumbColor = MaterialTheme.colorScheme.onPrimary
-//                    ),
-//                    modifier = Modifier.fillMaxWidth()
-//                )
-//            }
-//        }
-//    }
 }
 
 @Composable
@@ -819,10 +653,6 @@ private fun DeviceList(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ServiceDot(label = "Wi‑Fi", enabled = true)
-                ServiceDot(label = "BT", enabled = bluetoothEnabled)
             }
         }
 
@@ -983,15 +813,91 @@ private fun BadgeChip(
 }
 
 @Composable
-private fun ServiceDot(label: String, enabled: Boolean) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(
-            modifier = Modifier
-                .size(10.dp)
-                .clip(CircleShape)
-                .background(if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
+private fun QuickSettingsRow(
+    wifiEnabled: Boolean,
+    wifiSsid: String?,
+    onWifiClick: () -> Unit,
+    bluetoothEnabled: Boolean,
+    bluetoothName: String?,
+    onBluetoothClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        QuickSettingTile(
+            label = "Wi-Fi",
+            subtitle = if (wifiEnabled) wifiSsid ?: "On" else "Off",
+            icon = if (wifiEnabled) Icons.Rounded.Wifi else Icons.Rounded.WifiOff,
+            isActive = wifiEnabled,
+            onClick = onWifiClick,
+            modifier = Modifier.weight(1f)
         )
-        Text(text = label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        QuickSettingTile(
+            label = "Bluetooth",
+            subtitle = if (bluetoothEnabled) bluetoothName ?: "On" else "Off",
+            icon = if (bluetoothEnabled) Icons.Rounded.Bluetooth else Icons.Rounded.BluetoothDisabled,
+            isActive = bluetoothEnabled,
+            onClick = onBluetoothClick,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun QuickSettingTile(
+    label: String,
+    subtitle: String,
+    icon: ImageVector,
+    isActive: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val containerColor = if (isActive) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainer
+    val contentColor = if (isActive) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
+
+    Surface(
+        modifier = modifier
+            .height(72.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick),
+        color = containerColor,
+        contentColor = contentColor
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(contentColor.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Column(verticalArrangement = Arrangement.Center) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = contentColor.copy(alpha = 0.8f)
+                )
+            }
+        }
     }
 }
 
@@ -1106,6 +1012,7 @@ private fun ScanningIndicator(isActive: Boolean) {
 private fun CastSheetScanningPreview() {
     val state = CastSheetUiState(
         wifiEnabled = true,
+        wifiSsid = "Home Wi-Fi",
         isScanning = true,
         devices = emptyList(),
         activeDevice = ActiveDeviceUi(
@@ -1119,7 +1026,8 @@ private fun CastSheetScanningPreview() {
             volumeRange = 0f..1f,
             connectionLabel = "Playing"
         ),
-        isBluetoothEnabled = true
+        isBluetoothEnabled = true,
+        bluetoothName = "Headphones"
     )
     CastSheetContent(
         state = state,
@@ -1127,6 +1035,7 @@ private fun CastSheetScanningPreview() {
         onDisconnect = {},
         onVolumeChange = {},
         onTurnOnWifi = {},
+        onOpenBluetoothSettings = {},
         onRefresh = {}
     )
 }
@@ -1160,6 +1069,7 @@ private fun CastSheetDevicesPreview() {
     )
     val state = CastSheetUiState(
         wifiEnabled = true,
+        wifiSsid = "Office 5G",
         isScanning = false,
         devices = devices,
         activeDevice = ActiveDeviceUi(
@@ -1173,7 +1083,8 @@ private fun CastSheetDevicesPreview() {
             volumeRange = 0f..25f,
             connectionLabel = "Connected"
         ),
-        isBluetoothEnabled = true
+        isBluetoothEnabled = true,
+        bluetoothName = "Pixel Buds Pro"
     )
     CastSheetContent(
         state = state,
@@ -1181,6 +1092,7 @@ private fun CastSheetDevicesPreview() {
         onDisconnect = {},
         onVolumeChange = {},
         onTurnOnWifi = {},
+        onOpenBluetoothSettings = {},
         onRefresh = {}
     )
 }
@@ -1211,6 +1123,7 @@ private fun CastSheetWifiOffPreview() {
         onDisconnect = {},
         onVolumeChange = {},
         onTurnOnWifi = {},
+        onOpenBluetoothSettings = {},
         onRefresh = {}
     )
 }

@@ -308,13 +308,6 @@ fun FullPlayerContent(
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
-                    } else {
-                        Text(
-                            modifier = Modifier.padding(start = 18.dp),
-                            text = "Connecting...",
-                            style = MaterialTheme.typography.labelLargeEmphasized,
-                            fontWeight = FontWeight.SemiBold
-                        )
                     }
                 },
                 navigationIcon = {

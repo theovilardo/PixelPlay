@@ -367,8 +367,13 @@ class PlayerViewModel @Inject constructor(
 
     private val _isWifiEnabled = MutableStateFlow(false)
     val isWifiEnabled: StateFlow<Boolean> = _isWifiEnabled.asStateFlow()
+    private val _wifiName = MutableStateFlow<String?>(null)
+    val wifiName: StateFlow<String?> = _wifiName.asStateFlow()
+
     private val _isBluetoothEnabled = MutableStateFlow(false)
     val isBluetoothEnabled: StateFlow<Boolean> = _isBluetoothEnabled.asStateFlow()
+    private val _bluetoothName = MutableStateFlow<String?>(null)
+    val bluetoothName: StateFlow<String?> = _bluetoothName.asStateFlow()
 
     private val mediaRouter: MediaRouter
     private val mediaRouterCallback: MediaRouter.Callback
@@ -376,6 +381,8 @@ class PlayerViewModel @Inject constructor(
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private val bluetoothAdapter: BluetoothAdapter?
     private var bluetoothStateReceiver: BroadcastReceiver? = null
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+    private val audioDeviceCallback: android.media.AudioDeviceCallback
     private val sessionManager: SessionManager = CastContext.getSharedInstance(context).sessionManager
     private var castSessionManagerListener: SessionManagerListener<CastSession>? = null
     private val _castSession = MutableStateFlow<CastSession?>(null)
@@ -831,6 +838,31 @@ class PlayerViewModel @Inject constructor(
         return SortOption.fromStorageKey(optionKey, allowed, fallback)
     }
 
+    private fun updateWifiInfo(network: Network) {
+        val caps = connectivityManager.getNetworkCapabilities(network)
+        if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
+            val wifiInfo = caps.transportInfo as? android.net.wifi.WifiInfo
+            val rawSsid = wifiInfo?.ssid
+            // Android sometimes returns <unknown ssid> if no location permission
+            if (rawSsid != null && rawSsid != "<unknown ssid>") {
+                _wifiName.value = rawSsid.trim('"')
+            } else {
+                _wifiName.value = null
+            }
+        }
+    }
+
+    private fun updateBluetoothName() {
+        val devices = audioManager.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS)
+        val btDevice = devices.firstOrNull {
+            it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                it.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                it.type == android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER
+        }
+        _bluetoothName.value = btDevice?.productName?.toString()
+    }
+
     init {
         Log.i("PlayerViewModel", "init started.")
 
@@ -993,7 +1025,12 @@ class PlayerViewModel @Inject constructor(
         val activeNetwork = connectivityManager.activeNetwork
         val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
         _isWifiEnabled.value = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+        if (_isWifiEnabled.value && activeNetwork != null) {
+            updateWifiInfo(activeNetwork)
+        }
+
         _isBluetoothEnabled.value = bluetoothAdapter?.isEnabled ?: false
+        updateBluetoothName()
 
         // Wi-Fi listener
         networkCallback = object : ConnectivityManager.NetworkCallback() {
@@ -1001,6 +1038,14 @@ class PlayerViewModel @Inject constructor(
                 val caps = connectivityManager.getNetworkCapabilities(network)
                 if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
                     _isWifiEnabled.value = true
+                    updateWifiInfo(network)
+                }
+            }
+
+            override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
+                if (networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+                    _isWifiEnabled.value = true
+                    updateWifiInfo(network)
                 }
             }
 
@@ -1009,6 +1054,7 @@ class PlayerViewModel @Inject constructor(
                 val currentNetwork = connectivityManager.activeNetwork
                 val caps = connectivityManager.getNetworkCapabilities(currentNetwork)
                 _isWifiEnabled.value = caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+                if (!_isWifiEnabled.value) _wifiName.value = null
             }
         }
         val networkRequest = NetworkRequest.Builder()
@@ -1022,10 +1068,21 @@ class PlayerViewModel @Inject constructor(
                 if (intent?.action == BluetoothAdapter.ACTION_STATE_CHANGED) {
                     val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
                     _isBluetoothEnabled.value = state == BluetoothAdapter.STATE_ON
+                    if (state == BluetoothAdapter.STATE_OFF) _bluetoothName.value = null
                 }
             }
         }
         context.registerReceiver(bluetoothStateReceiver, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
+
+        audioDeviceCallback = object : android.media.AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(addedDevices: Array<out android.media.AudioDeviceInfo>?) {
+                updateBluetoothName()
+            }
+            override fun onAudioDevicesRemoved(removedDevices: Array<out android.media.AudioDeviceInfo>?) {
+                updateBluetoothName()
+            }
+        }
+        audioManager.registerAudioDeviceCallback(audioDeviceCallback, null)
 
         remoteProgressListener = RemoteMediaClient.ProgressListener { progress, _ ->
             if (!isRemotelySeeking.value) {
@@ -3735,6 +3792,7 @@ class PlayerViewModel @Inject constructor(
         mediaRouter.removeCallback(mediaRouterCallback)
         networkCallback?.let { connectivityManager.unregisterNetworkCallback(it) }
         bluetoothStateReceiver?.let { context.unregisterReceiver(it) }
+        audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
         sessionManager.removeSessionManagerListener(castSessionManagerListener as SessionManagerListener<CastSession>, CastSession::class.java)
     }
 
