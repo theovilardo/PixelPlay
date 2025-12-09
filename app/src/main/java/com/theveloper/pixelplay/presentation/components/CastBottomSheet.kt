@@ -672,8 +672,8 @@ private fun ActiveDeviceHero(
                             onClick = onDisconnect,
                             shape = RoundedCornerShape(50),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                contentColor = MaterialTheme.colorScheme.secondaryContainer
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer
                             ),
                             modifier = Modifier
                                 .height(46.dp)
@@ -866,7 +866,7 @@ private fun CastDeviceRow(
     val containerColor = if (device.isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
     val onContainer = if (device.isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
     val isActiveDevice = device.isSelected && device.connectionState == MediaRouter.RouteInfo.CONNECTION_STATE_CONNECTED
-    val scallopShape = RoundedStarShape(sides = 14, curve = 0.16, rotation = 0f)
+    val scallopShape = RoundedStarShape(sides = 8, curve = 0.10, rotation = 0f)
     val infiniteRotation = rememberInfiniteTransition(label = "activeDeviceRotation")
     val rotation by infiniteRotation.animateFloat(
         initialValue = 0f,
@@ -925,7 +925,7 @@ private fun CastDeviceRow(
             leadingContent = {
                 Box(
                     modifier = Modifier
-                        .size(50.dp),
+                        .size(50.dp), //it should have dynamic size and padding, ditch list item and make it variable size so CircleShape and scallop are the same size
                     contentAlignment = Alignment.Center
                 ) {
                     Box(
@@ -960,7 +960,7 @@ private fun CastDeviceRow(
                 }
             },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-            contentPadding = PaddingValues(16.dp)
+            //contentPadding = PaddingValues(16.dp)
         )
     }
 }
