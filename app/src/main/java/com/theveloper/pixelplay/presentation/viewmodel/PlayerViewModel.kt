@@ -27,8 +27,10 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
+import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothProfile
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -39,6 +41,7 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.os.Build
 import android.os.Bundle
+import android.content.pm.PackageManager
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import androidx.appcompat.app.AlertDialog
@@ -380,6 +383,7 @@ class PlayerViewModel @Inject constructor(
     private val connectivityManager: ConnectivityManager
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private val bluetoothAdapter: BluetoothAdapter?
+    private val bluetoothManager: BluetoothManager
     private var bluetoothStateReceiver: BroadcastReceiver? = null
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
     private val audioDeviceCallback: android.media.AudioDeviceCallback
@@ -838,7 +842,24 @@ class PlayerViewModel @Inject constructor(
         return SortOption.fromStorageKey(optionKey, allowed, fallback)
     }
 
-    private fun updateWifiInfo(network: Network) {
+    private fun hasBluetoothPermission(): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun hasLocationPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun updateWifiInfo(network: Network?) {
+        if (!hasLocationPermission()) {
+            _wifiName.value = null
+            return
+        }
+        if (network == null) {
+            _wifiName.value = null
+            return
+        }
         val caps = connectivityManager.getNetworkCapabilities(network)
         if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
             val wifiInfo = caps.transportInfo as? android.net.wifi.WifiInfo
@@ -860,16 +881,44 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    private fun updateBluetoothName() {
-        val devices = audioManager.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS)
-        val btDevice = devices.firstOrNull {
+    private fun updateBluetoothName(forceClear: Boolean = false) {
+        if (!hasBluetoothPermission()) {
+            if (forceClear) _bluetoothName.value = null
+            return
+        }
+
+        val connectedDevice = bluetoothManager.getConnectedDevices(BluetoothProfile.A2DP).firstOrNull()
+            ?: bluetoothManager.getConnectedDevices(BluetoothProfile.HEADSET).firstOrNull()
+            ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                bluetoothManager.getConnectedDevices(BluetoothProfile.LE_AUDIO).firstOrNull()
+            } else {
+                null
+            }
+
+        val audioDevices = audioManager.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS)
+        val activeBluetoothAudioName = audioDevices.firstOrNull {
             it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-                it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
                 it.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET ||
                 it.type == android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER ||
                 it.type == android.media.AudioDeviceInfo.TYPE_HEARING_AID
+        }?.productName?.toString()
+
+        val resolvedName = connectedDevice?.name ?: activeBluetoothAudioName
+
+        when {
+            resolvedName != null -> _bluetoothName.value = resolvedName
+            forceClear || !(bluetoothAdapter?.isEnabled ?: false) -> _bluetoothName.value = null
         }
-        _bluetoothName.value = btDevice?.productName?.toString()
+    }
+
+    fun refreshLocalConnectionInfo() {
+        val currentNetwork = connectivityManager.activeNetwork
+        val currentCaps = connectivityManager.getNetworkCapabilities(currentNetwork)
+        _isWifiEnabled.value = currentCaps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+        if (_isWifiEnabled.value) updateWifiInfo(currentNetwork)
+
+        _isBluetoothEnabled.value = bluetoothAdapter?.isEnabled ?: false
+        updateBluetoothName()
     }
 
     init {
@@ -1027,14 +1076,14 @@ class PlayerViewModel @Inject constructor(
 
         // Connectivity listeners
         connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         bluetoothAdapter = bluetoothManager.adapter
 
         // Initial state check
         val activeNetwork = connectivityManager.activeNetwork
         val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
         _isWifiEnabled.value = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
-        if (_isWifiEnabled.value && activeNetwork != null) {
+        if (_isWifiEnabled.value) {
             updateWifiInfo(activeNetwork)
         }
 
@@ -1079,11 +1128,11 @@ class PlayerViewModel @Inject constructor(
                         val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
                         _isBluetoothEnabled.value = state == BluetoothAdapter.STATE_ON
                         if (state == BluetoothAdapter.STATE_OFF) _bluetoothName.value = null
-                        else updateBluetoothName()
+                        else updateBluetoothName(forceClear = false)
                     }
                     android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED,
                     android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
-                        updateBluetoothName()
+                        updateBluetoothName(forceClear = intent?.action == android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED)
                     }
                 }
             }
@@ -1099,7 +1148,12 @@ class PlayerViewModel @Inject constructor(
                 updateBluetoothName()
             }
             override fun onAudioDevicesRemoved(removedDevices: Array<out android.media.AudioDeviceInfo>?) {
-                updateBluetoothName()
+                updateBluetoothName(forceClear = removedDevices?.any {
+                    it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                        it.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                        it.type == android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER ||
+                        it.type == android.media.AudioDeviceInfo.TYPE_HEARING_AID
+                } == true)
             }
         }
         audioManager.registerAudioDeviceCallback(audioDeviceCallback, null)
