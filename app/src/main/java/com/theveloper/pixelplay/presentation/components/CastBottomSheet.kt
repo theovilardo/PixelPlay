@@ -161,12 +161,13 @@ fun CastBottomSheet(
             connectionLabel = if (isCastConnecting) "Connecting" else "Connected"
         )
     } else {
+        val isBluetoothAudio = isBluetoothEnabled && !bluetoothName.isNullOrEmpty()
         ActiveDeviceUi(
             id = "phone",
-            title = "This phone",
-            subtitle = "Local playback",
+            title = if (isBluetoothAudio) bluetoothName!! else "This phone",
+            subtitle = if (isBluetoothAudio) "Bluetooth audio" else "Local playback",
             isRemote = false,
-            icon = Icons.Rounded.Headphones,
+            icon = if (isBluetoothAudio) Icons.Rounded.Bluetooth else Icons.Rounded.Headphones,
             isConnecting = false,
             volume = trackVolume,
             volumeRange = 0f..1f,
@@ -826,16 +827,20 @@ private fun QuickSettingsRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         QuickSettingTile(
-            label = "Wi-Fi",
-            subtitle = if (wifiEnabled) wifiSsid ?: "On" else "Off",
+            label = if (wifiEnabled && !wifiSsid.isNullOrEmpty()) wifiSsid else "Wi-Fi",
+            subtitle = if (wifiEnabled) {
+                if (!wifiSsid.isNullOrEmpty()) "Connected" else "On"
+            } else "Off",
             icon = if (wifiEnabled) Icons.Rounded.Wifi else Icons.Rounded.WifiOff,
             isActive = wifiEnabled,
             onClick = onWifiClick,
             modifier = Modifier.weight(1f)
         )
         QuickSettingTile(
-            label = "Bluetooth",
-            subtitle = if (bluetoothEnabled) bluetoothName ?: "On" else "Off",
+            label = if (bluetoothEnabled && !bluetoothName.isNullOrEmpty()) bluetoothName else "Bluetooth",
+            subtitle = if (bluetoothEnabled) {
+                if (!bluetoothName.isNullOrEmpty()) "Connected" else "On"
+            } else "Off",
             icon = if (bluetoothEnabled) Icons.Rounded.Bluetooth else Icons.Rounded.BluetoothDisabled,
             isActive = bluetoothEnabled,
             onClick = onBluetoothClick,
