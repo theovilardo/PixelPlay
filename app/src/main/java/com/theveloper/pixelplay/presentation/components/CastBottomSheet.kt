@@ -8,6 +8,7 @@ import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -876,6 +877,11 @@ private fun CastDeviceRow(
         ),
         label = "deviceRotation"
     )
+    val backgroundScale by animateFloatAsState(
+        targetValue = if (isActiveDevice) 1.16f else 1f,
+        animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing),
+        label = "activeDeviceScale"
+    )
     val deviceIcon = when (device.deviceType) {
         MediaRouter.RouteInfo.DEVICE_TYPE_TV -> Icons.Rounded.Tv
         MediaRouter.RouteInfo.DEVICE_TYPE_REMOTE_SPEAKER, MediaRouter.RouteInfo.DEVICE_TYPE_BUILTIN_SPEAKER -> Icons.Rounded.Speaker
@@ -925,7 +931,11 @@ private fun CastDeviceRow(
                     Box(
                         modifier = Modifier
                             .matchParentSize()
-                            .graphicsLayer(rotationZ = if (isActiveDevice) rotation else 0f)
+                            .graphicsLayer(
+                                rotationZ = if (isActiveDevice) rotation else 0f,
+                                scaleX = backgroundScale,
+                                scaleY = backgroundScale
+                            )
                             .background(
                                 color = onContainer.copy(alpha = 0.12f),
                                 shape = if (isActiveDevice) scallopShape else CircleShape
