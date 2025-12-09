@@ -37,6 +37,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
@@ -367,11 +368,27 @@ class PlayerViewModel @Inject constructor(
 
     private val _isWifiEnabled = MutableStateFlow(false)
     val isWifiEnabled: StateFlow<Boolean> = _isWifiEnabled.asStateFlow()
+    private val _wifiNetworkName = MutableStateFlow<String?>(null)
+    val wifiNetworkName: StateFlow<String?> = _wifiNetworkName.asStateFlow()
+
     private val _isBluetoothEnabled = MutableStateFlow(false)
     val isBluetoothEnabled: StateFlow<Boolean> = _isBluetoothEnabled.asStateFlow()
+    private val _bluetoothDeviceName = MutableStateFlow<String?>(null)
+    val bluetoothDeviceName: StateFlow<String?> = _bluetoothDeviceName.asStateFlow()
 
     private val mediaRouter: MediaRouter
     private val mediaRouterCallback: MediaRouter.Callback
+
+    private fun updateWifiInfo() {
+        val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+        val info = wifiManager?.connectionInfo
+        var ssid = info?.ssid
+        if (ssid != null && ssid.startsWith("\"") && ssid.endsWith("\"")) {
+            ssid = ssid.substring(1, ssid.length - 1)
+        }
+        if (ssid == "<unknown ssid>") ssid = null
+        _wifiNetworkName.value = ssid
+    }
     private val connectivityManager: ConnectivityManager
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private val bluetoothAdapter: BluetoothAdapter?
@@ -954,6 +971,12 @@ class PlayerViewModel @Inject constructor(
                 _castRoutes.value = routes
                 _selectedRoute.value = router.selectedRoute
                 _routeVolume.value = router.selectedRoute.volume
+
+                if (router.selectedRoute.deviceType == MediaRouter.RouteInfo.DEVICE_TYPE_BLUETOOTH_A2DP) {
+                    _bluetoothDeviceName.value = router.selectedRoute.name
+                } else {
+                    _bluetoothDeviceName.value = null
+                }
             }
 
             override fun onRouteAdded(router: MediaRouter, route: MediaRouter.RouteInfo) { updateRoutes(router) }
@@ -993,6 +1016,8 @@ class PlayerViewModel @Inject constructor(
         val activeNetwork = connectivityManager.activeNetwork
         val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
         _isWifiEnabled.value = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+        if (_isWifiEnabled.value) updateWifiInfo()
+
         _isBluetoothEnabled.value = bluetoothAdapter?.isEnabled ?: false
 
         // Wi-Fi listener
@@ -1001,6 +1026,13 @@ class PlayerViewModel @Inject constructor(
                 val caps = connectivityManager.getNetworkCapabilities(network)
                 if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
                     _isWifiEnabled.value = true
+                    updateWifiInfo()
+                }
+            }
+
+            override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
+                if (networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+                    updateWifiInfo()
                 }
             }
 
@@ -1008,7 +1040,9 @@ class PlayerViewModel @Inject constructor(
                 // A specific network was lost; check if another Wi-Fi network is active.
                 val currentNetwork = connectivityManager.activeNetwork
                 val caps = connectivityManager.getNetworkCapabilities(currentNetwork)
-                _isWifiEnabled.value = caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+                val stillConnected = caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+                _isWifiEnabled.value = stillConnected
+                if (stillConnected) updateWifiInfo() else _wifiNetworkName.value = null
             }
         }
         val networkRequest = NetworkRequest.Builder()

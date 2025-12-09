@@ -116,7 +116,9 @@ fun CastBottomSheet(
     val routeVolume by playerViewModel.routeVolume.collectAsState()
     val isRefreshing by playerViewModel.isRefreshingRoutes.collectAsState()
     val isWifiEnabled by playerViewModel.isWifiEnabled.collectAsState()
+    val wifiNetworkName by playerViewModel.wifiNetworkName.collectAsState()
     val isBluetoothEnabled by playerViewModel.isBluetoothEnabled.collectAsState()
+    val bluetoothDeviceName by playerViewModel.bluetoothDeviceName.collectAsState()
     val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
     val isCastConnecting by playerViewModel.isCastConnecting.collectAsState()
     val trackVolume by playerViewModel.trackVolume.collectAsState()
@@ -174,10 +176,12 @@ fun CastBottomSheet(
 
     val uiState = CastSheetUiState(
         wifiEnabled = isWifiEnabled,
+        wifiSsid = wifiNetworkName,
         isScanning = isRefreshing && availableRoutes.isEmpty(),
         devices = devices,
         activeDevice = activeDevice,
-        isBluetoothEnabled = isBluetoothEnabled
+        isBluetoothEnabled = isBluetoothEnabled,
+        bluetoothDeviceName = bluetoothDeviceName
     )
 
     ModalBottomSheet(
@@ -200,6 +204,11 @@ fun CastBottomSheet(
             },
             onTurnOnWifi = {
                 val intent = Intent(Settings.ACTION_WIFI_SETTINGS)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+            },
+            onTurnOnBluetooth = {
+                val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 context.startActivity(intent)
             },
@@ -234,10 +243,12 @@ private data class ActiveDeviceUi(
 
 private data class CastSheetUiState(
     val wifiEnabled: Boolean,
+    val wifiSsid: String?,
     val isScanning: Boolean,
     val devices: List<CastDeviceUi>,
     val activeDevice: ActiveDeviceUi,
-    val isBluetoothEnabled: Boolean
+    val isBluetoothEnabled: Boolean,
+    val bluetoothDeviceName: String?
 )
 
 @Composable
@@ -247,6 +258,7 @@ private fun CastSheetContent(
     onDisconnect: () -> Unit,
     onVolumeChange: (Float) -> Unit,
     onTurnOnWifi: () -> Unit,
+    onTurnOnBluetooth: () -> Unit,
     onRefresh: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
@@ -263,7 +275,11 @@ private fun CastSheetContent(
 
         QuickSettingsRow(
             wifiEnabled = state.wifiEnabled,
-            bluetoothEnabled = state.isBluetoothEnabled
+            wifiSsid = state.wifiSsid,
+            bluetoothEnabled = state.isBluetoothEnabled,
+            bluetoothDeviceName = state.bluetoothDeviceName,
+            onWifiClick = onTurnOnWifi,
+            onBluetoothClick = onTurnOnBluetooth
         )
 
         if (!state.wifiEnabled) {
@@ -974,7 +990,11 @@ private fun BadgeChip(
 @Composable
 private fun QuickSettingsRow(
     wifiEnabled: Boolean,
-    bluetoothEnabled: Boolean
+    wifiSsid: String?,
+    bluetoothEnabled: Boolean,
+    bluetoothDeviceName: String?,
+    onWifiClick: () -> Unit,
+    onBluetoothClick: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -982,14 +1002,18 @@ private fun QuickSettingsRow(
     ) {
         QuickSettingTile(
             label = "Wi-Fi",
+            secondaryLabel = if (wifiEnabled) wifiSsid ?: "Connected" else "Off",
             icon = if (wifiEnabled) Icons.Rounded.Wifi else Icons.Rounded.WifiOff,
             isActive = wifiEnabled,
+            onClick = onWifiClick,
             modifier = Modifier.weight(1f)
         )
         QuickSettingTile(
             label = "Bluetooth",
+            secondaryLabel = if (bluetoothEnabled) bluetoothDeviceName ?: "On" else "Off",
             icon = if (bluetoothEnabled) Icons.Rounded.Bluetooth else Icons.Rounded.BluetoothDisabled,
             isActive = bluetoothEnabled,
+            onClick = onBluetoothClick,
             modifier = Modifier.weight(1f)
         )
     }
@@ -998,16 +1022,21 @@ private fun QuickSettingsRow(
 @Composable
 private fun QuickSettingTile(
     label: String,
+    secondaryLabel: String,
     icon: ImageVector,
     isActive: Boolean,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val containerColor = if (isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer
     val contentColor = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+    val secondaryColor = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
 
     Surface(
-        modifier = modifier.height(72.dp),
-        shape = RoundedCornerShape(24.dp),
+        modifier = modifier
+            .height(72.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .clickable(onClick = onClick),
         color = containerColor,
         contentColor = contentColor
     ) {
@@ -1029,12 +1058,21 @@ private fun QuickSettingTile(
                     modifier = Modifier.size(20.dp)
                 )
             }
-            Text(
-                text = label,
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Column(verticalArrangement = Arrangement.Center) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = secondaryLabel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = secondaryColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
@@ -1150,6 +1188,7 @@ private fun ScanningIndicator(isActive: Boolean) {
 private fun CastSheetScanningPreview() {
     val state = CastSheetUiState(
         wifiEnabled = true,
+        wifiSsid = "Home Network 5G",
         isScanning = true,
         devices = emptyList(),
         activeDevice = ActiveDeviceUi(
@@ -1163,7 +1202,8 @@ private fun CastSheetScanningPreview() {
             volumeRange = 0f..1f,
             connectionLabel = "Playing"
         ),
-        isBluetoothEnabled = true
+        isBluetoothEnabled = true,
+        bluetoothDeviceName = "Wireless Buds"
     )
     CastSheetContent(
         state = state,
@@ -1171,6 +1211,7 @@ private fun CastSheetScanningPreview() {
         onDisconnect = {},
         onVolumeChange = {},
         onTurnOnWifi = {},
+        onTurnOnBluetooth = {},
         onRefresh = {}
     )
 }
@@ -1204,6 +1245,7 @@ private fun CastSheetDevicesPreview() {
     )
     val state = CastSheetUiState(
         wifiEnabled = true,
+        wifiSsid = "Office Wi-Fi",
         isScanning = false,
         devices = devices,
         activeDevice = ActiveDeviceUi(
@@ -1217,7 +1259,8 @@ private fun CastSheetDevicesPreview() {
             volumeRange = 0f..25f,
             connectionLabel = "Connected"
         ),
-        isBluetoothEnabled = true
+        isBluetoothEnabled = true,
+        bluetoothDeviceName = "Pixel Buds Pro"
     )
     CastSheetContent(
         state = state,
@@ -1225,6 +1268,7 @@ private fun CastSheetDevicesPreview() {
         onDisconnect = {},
         onVolumeChange = {},
         onTurnOnWifi = {},
+        onTurnOnBluetooth = {},
         onRefresh = {}
     )
 }
@@ -1234,6 +1278,7 @@ private fun CastSheetDevicesPreview() {
 private fun CastSheetWifiOffPreview() {
     val state = CastSheetUiState(
         wifiEnabled = false,
+        wifiSsid = null,
         isScanning = false,
         devices = emptyList(),
         activeDevice = ActiveDeviceUi(
@@ -1247,7 +1292,8 @@ private fun CastSheetWifiOffPreview() {
             volumeRange = 0f..1f,
             connectionLabel = "Paused"
         ),
-        isBluetoothEnabled = false
+        isBluetoothEnabled = false,
+        bluetoothDeviceName = null
     )
     CastSheetContent(
         state = state,
@@ -1255,6 +1301,7 @@ private fun CastSheetWifiOffPreview() {
         onDisconnect = {},
         onVolumeChange = {},
         onTurnOnWifi = {},
+        onTurnOnBluetooth = {},
         onRefresh = {}
     )
 }
