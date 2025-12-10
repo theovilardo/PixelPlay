@@ -170,23 +170,29 @@ fun CastBottomSheet(
     val activeRoute = selectedRoute?.takeUnless { it.isDefault }
     val isRemoteSession = (isRemotePlaybackActive || isCastConnecting) && activeRoute != null
 
-    val availableRoutes = routes.filterNot { it.isDefault }
+    val availableRoutes = if (isWifiEnabled) {
+        routes.filterNot { it.isDefault }
+    } else {
+        emptyList()
+    }
     val devices = buildList {
-        addAll(
-            availableRoutes.map { route ->
-                CastDeviceUi(
-                    id = route.id,
-                    name = route.name,
-                    deviceType = route.deviceType,
-                    playbackType = route.playbackType,
-                    connectionState = route.connectionState,
-                    volumeHandling = route.volumeHandling,
-                    volume = route.volume,
-                    volumeMax = route.volumeMax,
-                    isSelected = activeRoute?.id == route.id
-                )
-            }
-        )
+        if (isWifiEnabled) {
+            addAll(
+                availableRoutes.map { route ->
+                    CastDeviceUi(
+                        id = route.id,
+                        name = route.name,
+                        deviceType = route.deviceType,
+                        playbackType = route.playbackType,
+                        connectionState = route.connectionState,
+                        volumeHandling = route.volumeHandling,
+                        volume = route.volume,
+                        volumeMax = route.volumeMax,
+                        isSelected = activeRoute?.id == route.id
+                    )
+                }
+            )
+        }
 
         if (isBluetoothEnabled) {
             val bluetoothNames = (bluetoothAudioDevices + listOfNotNull(bluetoothName))
@@ -459,6 +465,7 @@ private fun CastSheetContent(
     onRefresh: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
+    val allConnectivityOff = !state.wifiEnabled && !state.isBluetoothEnabled
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -486,17 +493,22 @@ private fun CastSheetContent(
             )
         }
 
-        QuickSettingsRow(
-            wifiEnabled = state.wifiEnabled,
-            wifiSsid = state.wifiSsid,
-            onWifiClick = onTurnOnWifi,
-            bluetoothEnabled = state.isBluetoothEnabled,
-            bluetoothName = state.bluetoothName,
-            onBluetoothClick = onOpenBluetoothSettings
-        )
+        if (!allConnectivityOff) {
+            QuickSettingsRow(
+                wifiEnabled = state.wifiEnabled,
+                wifiSsid = state.wifiSsid,
+                onWifiClick = onTurnOnWifi,
+                bluetoothEnabled = state.isBluetoothEnabled,
+                bluetoothName = state.bluetoothName,
+                onBluetoothClick = onOpenBluetoothSettings
+            )
+        }
 
-        if (!state.wifiEnabled) {
-            WifiOffIllustration(onTurnOnWifi = onTurnOnWifi)
+        if (allConnectivityOff) {
+            WifiOffIllustration(
+                onTurnOnWifi = onTurnOnWifi,
+                onOpenBluetoothSettings = onOpenBluetoothSettings
+            )
             Spacer(modifier = Modifier.height(8.dp))
             return
         }
@@ -1158,7 +1170,10 @@ private fun QuickSettingTile(
 }
 
 @Composable
-private fun WifiOffIllustration(onTurnOnWifi: () -> Unit) {
+private fun WifiOffIllustration(
+    onTurnOnWifi: () -> Unit,
+    onOpenBluetoothSettings: () -> Unit
+) {
     val shape = AbsoluteSmoothCornerShape(
         cornerRadiusTL = 38.dp,
         cornerRadiusTR = 20.dp,
@@ -1193,24 +1208,37 @@ private fun WifiOffIllustration(onTurnOnWifi: () -> Unit) {
                 drawCircle(color = prim3, radius = size.minDimension / 6)
             }
             Text(
-                text = "Wi‑Fi is off",
+                text = "Connections are off",
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
             )
             Text(
-                text = "Turn on Wi‑Fi to discover nearby devices",
+                text = "Turn on Wi‑Fi or Bluetooth to discover nearby devices",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 lineHeight = 20.sp
             )
-            Button(
-                onClick = onTurnOnWifi,
-                shape = RoundedCornerShape(50),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                )
-            ) {
-                Text("Turn on Wi‑Fi")
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(
+                    onClick = onTurnOnWifi,
+                    shape = RoundedCornerShape(50),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                ) {
+                    Text("Turn on Wi‑Fi")
+                }
+
+                Button(
+                    onClick = onOpenBluetoothSettings,
+                    shape = RoundedCornerShape(50),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                ) {
+                    Text("Open Bluetooth")
+                }
             }
         }
     }
