@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.FolderOff
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -66,6 +67,8 @@ fun FileExplorerBottomSheet(
     onNavigateUp: () -> Unit,
     onNavigateHome: () -> Unit,
     onToggleAllowed: (File) -> Unit,
+    onRefresh: () -> Unit,
+    onDone: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -82,12 +85,26 @@ fun FileExplorerBottomSheet(
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = "Select music folders",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(horizontal = 4.dp)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Select music folders",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+
+                IconButton(onClick = onRefresh) {
+                    Icon(
+                        imageVector = Icons.Rounded.Refresh,
+                        contentDescription = "Refresh",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
             FileExplorerHeader(
                 currentPath = currentPath,
@@ -130,6 +147,19 @@ fun FileExplorerBottomSheet(
                         }
                     }
                 }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            androidx.compose.material3.ExtendedFloatingActionButton(
+                onClick = onDone,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier
+                    .align(Alignment.End)
+                    .padding(bottom = 8.dp)
+            ) {
+                Text(text = "Done")
             }
         }
     }
@@ -364,37 +394,33 @@ private fun FileExplorerItem(
         }
 
         Column(modifier = Modifier.weight(1f)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = file.name.ifEmpty { file.path },
-                    style = MaterialTheme.typography.titleMedium,
-                    color = contentColor,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Box(
-                    modifier = Modifier
-                        .clip(AbsoluteSmoothCornerShape(cornerRadius = 10.dp, smoothnessAsPercent = 70))
-                        .background(badgeColor.copy(alpha = 0.16f))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = if (audioCount == 1) "1 song" else "$audioCount songs",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = badgeColor,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
+            Text(
+                text = file.name.ifEmpty { file.path },
+                style = MaterialTheme.typography.titleMedium,
+                color = contentColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
             Text(
                 text = file.absolutePath,
                 style = MaterialTheme.typography.bodySmall,
                 color = if (isAllowed) contentColor.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .clip(AbsoluteSmoothCornerShape(cornerRadius = 10.dp, smoothnessAsPercent = 70))
+                .background(badgeColor.copy(alpha = 0.16f))
+                .padding(horizontal = 10.dp, vertical = 6.dp)
+        ) {
+            val displayCount = if (audioCount > 99) "99+" else audioCount.toString()
+            Text(
+                text = if (audioCount == 1) "1 song" else "$displayCount songs",
+                style = MaterialTheme.typography.labelMedium,
+                color = badgeColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

@@ -719,6 +719,8 @@ fun SettingsScreen(
             onNavigateUp = settingsViewModel::navigateUp,
             onNavigateHome = { settingsViewModel.loadDirectory(settingsViewModel.explorerRoot()) },
             onToggleAllowed = settingsViewModel::toggleDirectoryAllowed,
+            onRefresh = settingsViewModel::refreshExplorer,
+            onDone = { showDirectoryDialog = false },
             onDismiss = { showDirectoryDialog = false }
         )
     }

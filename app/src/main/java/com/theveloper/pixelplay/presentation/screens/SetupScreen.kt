@@ -216,6 +216,7 @@ fun SetupScreen(
                         explorerRoot = setupViewModel.explorerRoot(),
                         onNavigateTo = setupViewModel::loadDirectory,
                         onNavigateUp = setupViewModel::navigateUp,
+                        onRefresh = setupViewModel::refreshCurrentDirectory,
                         onSkip = {
                             scope.launch {
                                 pagerState.animateScrollToPage(pagerState.currentPage + 1)
@@ -243,6 +244,7 @@ fun DirectorySelectionPage(
     explorerRoot: File,
     onNavigateTo: (File) -> Unit,
     onNavigateUp: () -> Unit,
+    onRefresh: () -> Unit,
     onSkip: () -> Unit,
     onToggleAllowed: (File) -> Unit,
 ) {
@@ -305,6 +307,8 @@ fun DirectorySelectionPage(
             onNavigateUp = onNavigateUp,
             onNavigateHome = { onNavigateTo(explorerRoot) },
             onToggleAllowed = onToggleAllowed,
+            onRefresh = onRefresh,
+            onDone = { showDirectoryPicker = false },
             onDismiss = { showDirectoryPicker = false }
         )
     }

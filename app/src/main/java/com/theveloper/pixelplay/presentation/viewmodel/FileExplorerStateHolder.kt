@@ -2,12 +2,12 @@ package com.theveloper.pixelplay.presentation.viewmodel
 
 import android.os.Environment
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import java.io.File
@@ -24,6 +24,8 @@ class FileExplorerStateHolder(
 ) {
 
     private val rootCanonicalPath: String = runCatching { visibleRoot.canonicalPath }.getOrDefault(visibleRoot.absolutePath)
+    private val audioCountCache = mutableMapOf<String, Int>()
+    private val directoryChildrenCache = mutableMapOf<String, List<DirectoryEntry>>()
 
     private val _currentPath = MutableStateFlow(visibleRoot)
     val currentPath: StateFlow<File> = _currentPath.asStateFlow()
@@ -51,26 +53,39 @@ class FileExplorerStateHolder(
     }
 
     fun refreshCurrentDirectory() {
-        loadDirectory(_currentPath.value, updatePath = false)
+        loadDirectory(_currentPath.value, updatePath = false, forceRefresh = true)
     }
 
-    fun loadDirectory(file: File, updatePath: Boolean = true) {
+    fun loadDirectory(file: File, updatePath: Boolean = true, forceRefresh: Boolean = false) {
         scope.launch {
             val target = if (file.isDirectory) file else visibleRoot
+            val targetKey = runCatching { target.canonicalPath }.getOrDefault(target.absolutePath)
 
             if (updatePath) {
                 _currentPath.value = target
             }
 
+            if (!forceRefresh) {
+                directoryChildrenCache[targetKey]?.let { cached ->
+                    _currentDirectoryChildren.value = cached
+                    _isLoading.value = false
+                    if (!updatePath) {
+                        _currentPath.value = target
+                    }
+                    return@launch
+                }
+            }
+
             _isLoading.value = true
             _currentDirectoryChildren.value = emptyList()
 
-            val children = withContext(Dispatchers.IO) {
+            val cachedChildren = if (forceRefresh) null else directoryChildrenCache[targetKey]
+            val children = cachedChildren ?: withContext(Dispatchers.IO) {
                 runCatching {
                     target.listFiles()
                         ?.mapNotNull { child ->
                             if (child.isDirectory && !child.isHidden) {
-                                val count = countAudioFiles(child)
+                                val count = countAudioFiles(child, forceRefresh)
                                 if (count > 0) DirectoryEntry(child, count) else null
                             } else {
                                 null
@@ -79,6 +94,7 @@ class FileExplorerStateHolder(
                         ?.sortedWith(compareBy({ it.file.name.lowercase() }))
                         ?: emptyList()
                 }.getOrElse { emptyList() }
+                    .also { directoryChildrenCache[targetKey] = it }
             }
 
             if (!updatePath) {
@@ -115,7 +131,12 @@ class FileExplorerStateHolder(
         }
     }
 
-    private fun countAudioFiles(directory: File): Int {
+    private fun countAudioFiles(directory: File, forceRefresh: Boolean): Int {
+        val key = runCatching { directory.canonicalPath }.getOrDefault(directory.absolutePath)
+        if (!forceRefresh) {
+            audioCountCache[key]?.let { return it }
+        }
+
         val filesQueue: ArrayDeque<File> = ArrayDeque()
         filesQueue.add(directory)
 
@@ -131,10 +152,15 @@ class FileExplorerStateHolder(
                 } else {
                     val extension = child.extension.lowercase()
                     if (audioExtensions.contains(extension)) count++
+                    if (count > 100) {
+                        audioCountCache[key] = count
+                        return count
+                    }
                 }
             }
         }
 
+        audioCountCache[key] = count
         return count
     }
 
