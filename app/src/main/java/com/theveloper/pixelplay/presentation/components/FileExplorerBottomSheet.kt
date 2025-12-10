@@ -28,8 +28,6 @@ import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.FolderOff
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material3.BottomSheetDefaults
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -184,59 +182,61 @@ private fun FileExplorerHeader(
                 }
             }
 
-            FilledTonalButton(
-                onClick = onNavigateHome,
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                ),
-                modifier = Modifier.height(44.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Home,
-                    contentDescription = "Go to root",
-                    modifier = Modifier.padding(end = 6.dp)
-                )
-                Text(text = rootLabel)
-            }
-        }
+            if (!isAtRoot) {
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .horizontalScroll(scrollState),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    breadcrumbs.forEachIndexed { index, file ->
+                        val isRoot = file.path == rootDirectory.path
+                        val isLast = index == breadcrumbs.lastIndex
+                        val label = when {
+                            isRoot -> rootLabel
+                            else -> file.name.ifEmpty { file.path }
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .clip(AbsoluteSmoothCornerShape(cornerRadius = 12.dp, smoothnessAsPercent = 70))
+                                    .clickable(enabled = !isLast) {
+                                        if (isRoot) onNavigateHome() else onNavigateTo(file)
+                                    }
+                                    .background(
+                                        color = if (isLast) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceContainerHigh
+                                    )
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                if (isRoot) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Home,
+                                        contentDescription = "Go to root",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(end = 4.dp)
+                                    )
+                                }
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal),
+                                    color = if (isLast) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
 
-        if (!isAtRoot) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(scrollState),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                breadcrumbs.forEachIndexed { index, file ->
-                    val isLast = index == breadcrumbs.lastIndex
-                    val label = when (file.path) {
-                        rootDirectory.path -> rootLabel
-                        else -> file.name.ifEmpty { file.path }
-                    }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal),
-                            color = if (isLast) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier
-                                .clip(AbsoluteSmoothCornerShape(cornerRadius = 12.dp, smoothnessAsPercent = 70))
-                                .clickable(enabled = !isLast) { onNavigateTo(file) }
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
-                        )
-
-                        if (!isLast) {
-                            Icon(
-                                imageVector = Icons.Rounded.ChevronRight,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            if (!isLast) {
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
