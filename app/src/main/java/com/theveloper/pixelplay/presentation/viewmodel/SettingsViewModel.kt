@@ -31,6 +31,7 @@ data class SettingsUiState(
     val disableCastAutoplay: Boolean = false,
     val isCrossfadeEnabled: Boolean = true,
     val crossfadeDuration: Int = 6000,
+    val allowedDirectories: Set<String> = emptySet(),
     val availableModels: List<GeminiModel> = emptyList(),
     val isLoadingModels: Boolean = false,
     val modelsFetchError: String? = null
