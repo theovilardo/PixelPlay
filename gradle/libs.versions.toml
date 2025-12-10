@@ -14,6 +14,7 @@ composeAudiowaveform = "1.1.2"
 composeDnd = "0.3.0"
 constraintlayoutCompose = "1.1.1"
 coreSplashscreen = "1.0.1"
+desugarJdkLibs = "2.1.4"
 duktapeAndroid = "1.3.0"
 foundation = "1.8.1"
 glance = "1.2.0-alpha01"
@@ -51,7 +52,7 @@ roomKtx = "2.7.1"
 roomRuntime = "2.7.1"
 accompanist = "0.37.3"
 checkerframework = "3.49.5" # O la versión más reciente que encuentres
-jaudiotagger = "3.0.1"
+taglib = "1.0.5"
 
 # DI
 dagger = "2.53.1"
@@ -88,6 +89,7 @@ google-genai = { group = "com.google.genai", name = "google-genai", version.ref 
 google-play-services-cast-framework = { group = "com.google.android.gms", name = "play-services-cast-framework", version.ref = "googlePlayServicesCast" }
 amplituda = { module = "com.github.lincollincol:amplituda", version.ref = "amplituda" }
 androidx-animation = { module = "androidx.compose.animation:animation", version.ref = "animation" }
+desugar-jdk-libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 androidx-constraintlayout-compose = { module = "androidx.constraintlayout:constraintlayout-compose", version.ref = "constraintlayoutCompose" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -105,6 +107,7 @@ androidx-media3-exoplayer = { module = "androidx.media3:media3-exoplayer", versi
 androidx-media3-session = { module = "androidx.media3:media3-session", version.ref = "media3Session" }
 androidx-media3-transformer = { module = "androidx.media3:media3-transformer", version.ref = "media3Transformer" }
 androidx-media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3Session" }
+androidx-media3-exoplayer-ffmpeg = { module = "org.jellyfin.media3:media3-ffmpeg-decoder", version = "1.3.1+2" }
 androidx-media-router = { module = "androidx.mediarouter:mediarouter", version.ref = "mediaRouter" }
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
 androidx-palette-ktx = { module = "androidx.palette:palette-ktx", version.ref = "paletteKtx" }
@@ -156,7 +159,7 @@ tensorflow-lite-support = { module = "org.tensorflow:tensorflow-lite-support", v
 timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
 wavy-slider = { module = "ir.mahozad.multiplatform:wavy-slider", version.ref = "wavySlider" }
 checker-qual = { group = "org.checkerframework", name = "checker-qual", version.ref = "checkerframework" }
-jaudiotagger = { group = "net.jthink", name = "jaudiotagger", version.ref = "jaudiotagger" }
+taglib = { group = "io.github.kyant0", name = "taglib", version.ref = "taglib" }
 reorderables = { group = "sh.calvin.reorderable", name = "reorderable", version.ref = "reorderables" }
 generativeai = { group = "com.google.ai.client.generativeai", name = "generativeai", version.ref = "generativeai" }
 retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }

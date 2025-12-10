@@ -184,7 +184,7 @@ object AlbumArtUtils {
     /**
      * Save embedded art to cache with unique naming
      */
-    private fun saveAlbumArtToCache(appContext: Context, bytes: ByteArray, songId: Long): Uri {
+    fun saveAlbumArtToCache(appContext: Context, bytes: ByteArray, songId: Long): Uri {
         val file = File(appContext.cacheDir, "song_art_${songId}.jpg")
 
         file.outputStream().use { outputStream ->

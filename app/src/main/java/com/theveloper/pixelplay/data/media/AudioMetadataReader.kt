@@ -2,9 +2,11 @@ package com.theveloper.pixelplay.data.media
 
 import android.content.Context
 import android.net.Uri
-import org.jaudiotagger.audio.AudioFileIO
-import org.jaudiotagger.tag.FieldKey
+import android.os.ParcelFileDescriptor
+import com.kyant.taglib.TagLib
 import timber.log.Timber
+import java.io.File
+import java.io.FileOutputStream
 
 data class AudioMetadata(
     val title: String?,
@@ -25,53 +27,68 @@ data class AudioMetadataArtwork(
 object AudioMetadataReader {
 
     fun read(context: Context, uri: Uri): AudioMetadata? {
-        val tempFile = createTempAudioFileFromUri(context, uri)
-        if (tempFile == null) {
+        val tempFile = createTempAudioFileFromUri(context, uri) ?: run {
             Timber.tag("AudioMetadataReader").w("Unable to create temp file for uri: $uri")
             return null
         }
 
         return try {
-            val audioFile = AudioFileIO.read(tempFile)
-            val tag = audioFile.tagOrCreateDefault
+            read(tempFile)
+        } finally {
+            try {
+                tempFile.delete()
+            } catch (e: Exception) {
+                Timber.tag("AudioMetadataReader").w(e, "Failed to delete temp file")
+            }
+        }
+    }
 
-            val title = tag.getFirst(FieldKey.TITLE).takeIf { it.isNotBlank() }
-            val artist = tag.getFirst(FieldKey.ARTIST).takeIf { it.isNotBlank() }
-            val album = tag.getFirst(FieldKey.ALBUM).takeIf { it.isNotBlank() }
-            val genre = tag.getFirst(FieldKey.GENRE).takeIf { it.isNotBlank() }
-            val trackString = tag.getFirst(FieldKey.TRACK).takeIf { it.isNotBlank() }
-            val trackNumber = trackString
-                ?.substringBefore('/')
-                ?.toIntOrNull()
-            val year = tag.getFirst(FieldKey.YEAR).takeIf { it.isNotBlank() }?.toIntOrNull()
-            val durationSeconds = runCatching { audioFile.audioHeader.trackLength }.getOrNull()
-            val durationMs = durationSeconds?.takeIf { it > 0 }?.let { it * 1000L }
+    fun read(file: File): AudioMetadata? {
+        return try {
+            ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
+                // Get audio properties for duration
+                val audioProperties = TagLib.getAudioProperties(fd.dup().detachFd())
+                val durationMs = audioProperties?.length?.takeIf { it > 0 }?.let { it * 1000L }
 
-            val artworkTag = tag.firstArtwork
-            val artworkData = artworkTag?.binaryData?.takeIf { it.isNotEmpty() }
-            val artwork = artworkData
-                ?.takeIf { isValidImageData(it) }
-                ?.let { data ->
-                    val mimeType = artworkTag.mimeType?.takeIf { it.isNotBlank() }
-                        ?: guessImageMimeType(data)
-                    AudioMetadataArtwork(bytes = data, mimeType = mimeType)
+                // Get metadata
+                val metadata = TagLib.getMetadata(fd.dup().detachFd(), readPictures = false)
+                val propertyMap = metadata?.propertyMap ?: emptyMap()
+
+                val title = propertyMap["TITLE"]?.firstOrNull()?.takeIf { it.isNotBlank() }
+                val artist = propertyMap["ARTIST"]?.firstOrNull()?.takeIf { it.isNotBlank() }
+                val album = propertyMap["ALBUM"]?.firstOrNull()?.takeIf { it.isNotBlank() }
+                val genre = propertyMap["GENRE"]?.firstOrNull()?.takeIf { it.isNotBlank() }
+                val trackString = propertyMap["TRACKNUMBER"]?.firstOrNull()?.takeIf { it.isNotBlank() }
+                    ?: propertyMap["TRACK"]?.firstOrNull()?.takeIf { it.isNotBlank() }
+                val trackNumber = trackString?.substringBefore('/')?.toIntOrNull()
+                val year = propertyMap["DATE"]?.firstOrNull()?.takeIf { it.isNotBlank() }?.take(4)?.toIntOrNull()
+                    ?: propertyMap["YEAR"]?.firstOrNull()?.takeIf { it.isNotBlank() }?.toIntOrNull()
+
+                // Get artwork
+                val pictures = TagLib.getPictures(fd.detachFd())
+                val artwork = pictures.firstOrNull()?.let { picture ->
+                    picture.data.takeIf { it.isNotEmpty() && isValidImageData(it) }?.let { data ->
+                        AudioMetadataArtwork(
+                            bytes = data,
+                            mimeType = picture.mimeType.takeIf { it.isNotBlank() } ?: guessImageMimeType(data)
+                        )
+                    }
                 }
 
-            AudioMetadata(
-                title = title,
-                artist = artist,
-                album = album,
-                genre = genre,
-                durationMs = durationMs,
-                trackNumber = trackNumber,
-                year = year,
-                artwork = artwork
-            )
+                AudioMetadata(
+                    title = title,
+                    artist = artist,
+                    album = album,
+                    genre = genre,
+                    durationMs = durationMs,
+                    trackNumber = trackNumber,
+                    year = year,
+                    artwork = artwork
+                )
+            }
         } catch (error: Exception) {
-            Timber.tag("AudioMetadataReader").e(error, "Unable to read metadata from uri: $uri")
+            Timber.tag("AudioMetadataReader").e(error, "Unable to read metadata from file: ${file.absolutePath}")
             null
-        } finally {
-            tempFile?.delete()
         }
     }
 }

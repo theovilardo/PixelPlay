@@ -4311,7 +4311,8 @@ class PlayerViewModel @Inject constructor(
                     }
                 }
 
-                syncManager.sync()
+                // No need for full library sync - file, MediaStore, and local DB are already updated
+                // syncManager.sync() was removed to avoid unnecessary wait time
                 _toastEvents.emit("Metadata updated successfully")
             } else {
                 _toastEvents.emit("Failed to update metadata")

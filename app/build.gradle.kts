@@ -45,6 +45,7 @@ android {
         }
     }
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
@@ -71,6 +72,7 @@ android {
 }
 
 dependencies {
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -166,7 +168,7 @@ dependencies {
     implementation(libs.androidx.media3.session)
     implementation(libs.androidx.media.router)
     implementation(libs.google.play.services.cast.framework)
-//    implementation(libs.androidx.media3.exoplayer.ffmpeg)
+    implementation(libs.androidx.media3.exoplayer.ffmpeg)
 
     // Palette API for color extraction
     implementation(libs.androidx.palette.ktx)
@@ -226,9 +228,8 @@ dependencies {
     // Timber
     implementation(libs.timber)
 
-    // JAudioTagger for metadata editing
-    implementation("org.jflac:jflac-codec:1.5.2")
-    implementation(libs.jaudiotagger)
+    // TagLib for metadata editing (supports mp3, flac, m4a, etc.)
+    implementation(libs.taglib)
 
     // Retrofit & OkHttp
     implementation(libs.retrofit)

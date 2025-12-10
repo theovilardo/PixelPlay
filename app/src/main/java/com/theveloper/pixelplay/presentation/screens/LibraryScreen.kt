@@ -846,6 +846,10 @@ fun LibraryFoldersTab(
         }
     }
 
+    LaunchedEffect(currentSortOption) {
+        listState.scrollToItem(0)
+    }
+
     AnimatedContent(
         targetState = Pair(isPlaylistView, currentFolder?.path ?: "root"),
         label = "FolderNavigation",
@@ -857,12 +861,31 @@ fun LibraryFoldersTab(
         val isRoot = targetPath == "root"
         val activeFolder = if (isRoot) null else currentFolder
         val showPlaylistCards = playlistMode && activeFolder == null
-        val itemsToShow = when {
-            showPlaylistCards -> flattenedFolders
-            activeFolder != null -> activeFolder.subFolders
-            else -> folders
-        }
-        val songsToShow = activeFolder?.songs ?: emptyList()
+        val itemsToShow = remember(activeFolder, folders, flattenedFolders, currentSortOption) {
+            when {
+                showPlaylistCards -> flattenedFolders
+                activeFolder != null -> {
+                    when (currentSortOption) {
+                        SortOption.FolderNameZA -> activeFolder.subFolders.sortedByDescending { it.name }
+                        else -> activeFolder.subFolders.sortedBy { it.name }
+                    }
+                }
+                else -> {
+                     when (currentSortOption) {
+                        SortOption.FolderNameZA -> folders.sortedByDescending { it.name }
+                        else -> folders.sortedBy { it.name }
+                    }
+                }
+            }
+        }.toImmutableList()
+
+        val songsToShow = remember(activeFolder, currentSortOption) {
+            val songs = activeFolder?.songs ?: emptyList()
+            when (currentSortOption) {
+                SortOption.FolderNameZA -> songs.sortedByDescending { it.title }
+                else -> songs.sortedBy { it.title }
+            }
+        }.toImmutableList()
         val shouldShowLoading = isLoading && itemsToShow.isEmpty() && songsToShow.isEmpty() && isRoot
 
         Column(modifier = Modifier.fillMaxSize()) {

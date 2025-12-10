@@ -15,6 +15,7 @@ import com.theveloper.pixelplay.data.database.AlbumEntity
 import com.theveloper.pixelplay.data.database.ArtistEntity
 import com.theveloper.pixelplay.data.database.MusicDao
 import com.theveloper.pixelplay.data.database.SongEntity
+import com.theveloper.pixelplay.data.media.AudioMetadataReader
 import com.theveloper.pixelplay.utils.AlbumArtUtils
 import com.theveloper.pixelplay.utils.AudioMetaUtils.getAudioMetadata
 import com.theveloper.pixelplay.utils.normalizeMetadataText
@@ -44,22 +45,29 @@ class SyncWorker @AssistedInject constructor(
             Log.i(TAG, "Fetched ${mediaStoreSongs.size} songs from MediaStore.")
 
             if (mediaStoreSongs.isNotEmpty()) {
-                // Fetch existing local songs to preserve their dateAdded and lyrics
-                val localSongsMap = musicDao.getAllSongsList().associate {
-                    it.id to Pair(it.dateAdded, it.lyrics)
-                }
+                // Fetch existing local songs to preserve their editable metadata
+                val localSongsMap = musicDao.getAllSongsList().associateBy { it.id }
 
                 // Prepare the final list of songs for insertion
                 val songsToInsert = mediaStoreSongs.map { mediaStoreSong ->
-                    val preservedData = localSongsMap[mediaStoreSong.id]
-                    if (preservedData != null) {
-                        // This song exists locally, so preserve its dateAdded and lyrics
+                    val localSong = localSongsMap[mediaStoreSong.id]
+                    if (localSong != null) {
+                        // This song exists locally - preserve user-edited fields if they differ from MediaStore
+                        // We check if local values are different from what MediaStore would provide,
+                        // which suggests user editing. We preserve dateAdded, lyrics, and all editable metadata.
                         mediaStoreSong.copy(
-                            dateAdded = preservedData.first,
-                            lyrics = preservedData.second
+                            dateAdded = localSong.dateAdded,
+                            lyrics = localSong.lyrics,
+                            // Preserve user-edited metadata if local is different from MediaStore default
+                            title = if (localSong.title != mediaStoreSong.title && localSong.title.isNotBlank()) localSong.title else mediaStoreSong.title,
+                            artistName = if (localSong.artistName != mediaStoreSong.artistName && localSong.artistName.isNotBlank()) localSong.artistName else mediaStoreSong.artistName,
+                            albumName = if (localSong.albumName != mediaStoreSong.albumName && localSong.albumName.isNotBlank()) localSong.albumName else mediaStoreSong.albumName,
+                            genre = localSong.genre ?: mediaStoreSong.genre,
+                            trackNumber = if (localSong.trackNumber != 0 && localSong.trackNumber != mediaStoreSong.trackNumber) localSong.trackNumber else mediaStoreSong.trackNumber,
+                            albumArtUriString = localSong.albumArtUriString ?: mediaStoreSong.albumArtUriString
                         )
                     } else {
-                        // This is a new song. Keep the MediaStore provided timestamp.
+                        // This is a new song. Keep the MediaStore provided data.
                         mediaStoreSong
                     }
                 }
@@ -159,7 +167,7 @@ class SyncWorker @AssistedInject constructor(
             MediaStore.Audio.Media.YEAR,
             MediaStore.Audio.Media.DATE_MODIFIED
         )
-        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ?"
+        val selection = "((${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ?) OR ${MediaStore.Audio.Media.DATA} LIKE '%.m4a' OR ${MediaStore.Audio.Media.DATA} LIKE '%.flac')"
         val selectionArgs = arrayOf("10000")
         val sortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
 
@@ -204,15 +212,46 @@ class SyncWorker @AssistedInject constructor(
 //                    }
 //                }
                 val deepScan = inputData.getBoolean(SyncWorker.INPUT_FORCE_METADATA, false)
-                val albumArtUriString = AlbumArtUtils.getAlbumArtUri(applicationContext, musicDao, filePath, albumId, id, deepScan)
+                var albumArtUriString = AlbumArtUtils.getAlbumArtUri(applicationContext, musicDao, filePath, albumId, id, deepScan)
                 val audioMetadata = getAudioMetadata(musicDao,id, filePath, deepScan)
+
+                var title = cursor.getString(titleCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Title" }
+                var artist = cursor.getString(artistCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Artist" }
+                var album = cursor.getString(albumCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Album" }
+                var trackNumber = cursor.getInt(trackCol)
+                var year = cursor.getInt(yearCol)
+
+
+                // Fix for WAV files (Issue #462): Read metadata directly from file if it is a WAV
+                if (filePath.endsWith(".wav", ignoreCase = true)) {
+                    val file = java.io.File(filePath)
+                    if (file.exists()) {
+                        try {
+                            AudioMetadataReader.read(file)?.let { meta ->
+                                if (!meta.title.isNullOrBlank()) title = meta.title
+                                if (!meta.artist.isNullOrBlank()) artist = meta.artist
+                                if (!meta.album.isNullOrBlank()) album = meta.album
+                                if (meta.trackNumber != null) trackNumber = meta.trackNumber
+                                if (meta.year != null) year = meta.year
+
+                                meta.artwork?.let { art ->
+                                    val uri = AlbumArtUtils.saveAlbumArtToCache(applicationContext, art.bytes, id)
+                                    albumArtUriString = uri.toString()
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to read WAV metadata for $filePath", e)
+                        }
+                    }
+                }
+
                 songs.add(
                     SongEntity(
                         id = id,
-                        title = cursor.getString(titleCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Title" },
-                        artistName = cursor.getString(artistCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Artist" },
+                        title = title,
+                        artistName = artist,
                         artistId = songArtistId,
-                        albumName = cursor.getString(albumCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Album" },
+                        albumName = album,
                         albumId = albumId,
                         contentUriString = contentUriString,
                         albumArtUriString = albumArtUriString,
@@ -220,8 +259,8 @@ class SyncWorker @AssistedInject constructor(
                         genre = if (genreCol != -1) cursor.getString(genreCol).normalizeMetadataText() else null,
                         filePath = filePath,
                         parentDirectoryPath = parentDir,
-                        trackNumber = cursor.getInt(trackCol),
-                        year = cursor.getInt(yearCol),
+                        trackNumber = trackNumber,
+                        year = year,
                         dateAdded = cursor.getLong(dateAddedCol).let { seconds ->
                             if (seconds > 0) TimeUnit.SECONDS.toMillis(seconds) else System.currentTimeMillis()
                         },

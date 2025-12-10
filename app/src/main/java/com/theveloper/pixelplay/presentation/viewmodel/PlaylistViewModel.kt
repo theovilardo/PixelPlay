@@ -32,7 +32,8 @@ data class PlaylistUiState(
     val canLoadMoreSongsForSelection: Boolean = true, // Nuevo: para saber si hay más canciones para cargar
 
     //Sort option
-    val currentPlaylistSortOption: SortOption = SortOption.PlaylistNameAZ
+    val currentPlaylistSortOption: SortOption = SortOption.PlaylistNameAZ,
+    val currentPlaylistSongsSortOption: SortOption = SortOption.SongTitleAZ
 )
 
 @HiltViewModel
@@ -197,7 +198,7 @@ class PlaylistViewModel @Inject constructor(
                         _uiState.update {
                             it.copy(
                                 currentPlaylistDetails = pseudoPlaylist,
-                                currentPlaylistSongs = songsList,
+                                currentPlaylistSongs = applySortToSongs(songsList, it.currentPlaylistSongsSortOption),
                                 isLoading = false
                             )
                         }
@@ -219,7 +220,7 @@ class PlaylistViewModel @Inject constructor(
                         _uiState.update {
                             it.copy(
                                 currentPlaylistDetails = playlist,
-                                currentPlaylistSongs = songsList, // Asignar la List<Song>
+                                currentPlaylistSongs = applySortToSongs(songsList, it.currentPlaylistSongsSortOption), // Apply sort
                                 isLoading = false
                             )
                         }
@@ -346,6 +347,26 @@ class PlaylistViewModel @Inject constructor(
         }
     }
 
+    fun sortPlaylistSongs(sortOption: SortOption) {
+        _uiState.update { it.copy(currentPlaylistSongsSortOption = sortOption) }
+
+        val currentSongs = _uiState.value.currentPlaylistSongs
+        val sortedSongs = when (sortOption) {
+            SortOption.SongTitleAZ -> currentSongs.sortedBy { it.title }
+            SortOption.SongTitleZA -> currentSongs.sortedByDescending { it.title }
+            SortOption.SongArtist -> currentSongs.sortedBy { it.artist }
+            SortOption.SongAlbum -> currentSongs.sortedBy { it.album }
+            SortOption.SongDuration -> currentSongs.sortedBy { it.duration }
+            SortOption.SongDateAdded -> currentSongs.sortedByDescending { it.dateAdded } // Or dateModified if available/relevant
+            else -> currentSongs
+        }
+
+        _uiState.update { it.copy(currentPlaylistSongs = sortedSongs) }
+        
+        // Persist local sort preference if needed (optional, not requested but good UX)
+        // For now, we keep it in memory as per request focus.
+    }
+
     private fun isFolderPlaylistId(playlistId: String): Boolean =
         playlistId.startsWith(FOLDER_PLAYLIST_PREFIX)
 
@@ -366,5 +387,17 @@ class PlaylistViewModel @Inject constructor(
 
     private fun com.theveloper.pixelplay.data.model.MusicFolder.collectAllSongs(): List<Song> {
         return songs + subFolders.flatMap { it.collectAllSongs() }
+    }
+
+    private fun applySortToSongs(songs: List<Song>, sortOption: SortOption): List<Song> {
+        return when (sortOption) {
+            SortOption.SongTitleAZ -> songs.sortedBy { it.title }
+            SortOption.SongTitleZA -> songs.sortedByDescending { it.title }
+            SortOption.SongArtist -> songs.sortedBy { it.artist }
+            SortOption.SongAlbum -> songs.sortedBy { it.album }
+            SortOption.SongDuration -> songs.sortedBy { it.duration }
+            SortOption.SongDateAdded -> songs.sortedByDescending { it.dateAdded }
+            else -> songs
+        }
     }
 }

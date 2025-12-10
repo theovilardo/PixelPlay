@@ -2,9 +2,11 @@ package com.theveloper.pixelplay.data.repository
 
 import android.content.Context
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
 import android.util.LruCache
 import androidx.core.net.toUri
+import com.kyant.taglib.TagLib
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.database.MusicDao
 import com.theveloper.pixelplay.data.model.Lyrics
@@ -16,8 +18,6 @@ import com.theveloper.pixelplay.utils.LyricsUtils
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.jaudiotagger.audio.AudioFileIO
-import org.jaudiotagger.tag.FieldKey
 import retrofit2.HttpException
 import java.io.File
 import java.io.FileOutputStream
@@ -187,19 +187,20 @@ class LyricsRepositoryImpl @Inject constructor(
             }
 
             try {
-                val audioFile = AudioFileIO.read(tempFile)
-                val tag = audioFile.tag
-                val lyricsField = tag?.getFirst(FieldKey.LYRICS)
-                
-                if (!lyricsField.isNullOrBlank()) {
-                    val parsedLyrics = LyricsUtils.parseLyrics(lyricsField)
-                    if (parsedLyrics.isValid()) {
-                        parsedLyrics.copy(areFromRemote = false)
+                ParcelFileDescriptor.open(tempFile, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
+                    val metadata = TagLib.getMetadata(fd.detachFd())
+                    val lyricsField = metadata?.propertyMap?.get("LYRICS")?.firstOrNull()
+                    
+                    if (!lyricsField.isNullOrBlank()) {
+                        val parsedLyrics = LyricsUtils.parseLyrics(lyricsField)
+                        if (parsedLyrics.isValid()) {
+                            parsedLyrics.copy(areFromRemote = false)
+                        } else {
+                            null
+                        }
                     } else {
                         null
                     }
-                } else {
-                    null
                 }
             } finally {
                 tempFile.delete()

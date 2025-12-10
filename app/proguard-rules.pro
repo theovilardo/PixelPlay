@@ -37,14 +37,15 @@
 # -keep class com.google.auto.value.** { *; }
 # -keep interface com.google.auto.value.** { *; }
 
-# Rules for JFLAC and JAudioTagger
--keep class org.jflac.** { *; }
--keep interface org.jflac.** { *; }
--keep class org.jaudiotagger.** { *; }
--keep interface org.jaudiotagger.** { *; }
+# Rules for TagLib
+-keep class com.kyant.taglib.** { *; }
 
 # [NUEVO] Regla general para mantener metadatos de Kotlin, puede ayudar a R8
 -keep class kotlin.Metadata { *; }
+
+# ExoPlayer FFmpeg extension
+-keep class androidx.media3.decoder.ffmpeg.** { *; }
+-keep class androidx.media3.exoplayer.ffmpeg.** { *; }
 
 # Please add these rules to your existing keep rules in order to suppress warnings.
 # This is generated automatically by the Android Gradle plugin.
