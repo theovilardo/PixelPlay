@@ -122,6 +122,10 @@ class SetupViewModel @Inject constructor(
         fileExplorerStateHolder.loadDirectory(file)
     }
 
+    fun refreshCurrentDirectory() {
+        fileExplorerStateHolder.refreshCurrentDirectory()
+    }
+
     fun navigateUp() {
         fileExplorerStateHolder.navigateUp()
     }
