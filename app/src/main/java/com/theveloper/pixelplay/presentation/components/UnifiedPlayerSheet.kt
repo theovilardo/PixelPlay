@@ -289,6 +289,18 @@ fun UnifiedPlayerSheet(
         }
     }
 
+    LaunchedEffect(sheetCollapsedTargetY) {
+        val adjustedY = lerp(
+            sheetCollapsedTargetY,
+            sheetExpandedTargetY,
+            playerContentExpansionFraction.value
+        )
+
+        sheetAnimationMutex.mutate {
+            currentSheetTranslationY.snapTo(adjustedY)
+        }
+    }
+
     LaunchedEffect(showPlayerContentArea, currentSheetContentState) {
         val targetExpanded = showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED
 
