@@ -332,6 +332,13 @@ class PlayerViewModel @Inject constructor(
             initialValue = CarouselStyle.ONE_PEEK
         )
 
+    private val disableCastAutoplay: StateFlow<Boolean> = userPreferencesRepository.disableCastAutoplayFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = false
+        )
+
     private val _isInitialThemePreloadComplete = MutableStateFlow(false)
     val isInitialThemePreloadComplete: StateFlow<Boolean> = _isInitialThemePreloadComplete.asStateFlow()
 
@@ -378,6 +385,9 @@ class PlayerViewModel @Inject constructor(
     val isBluetoothEnabled: StateFlow<Boolean> = _isBluetoothEnabled.asStateFlow()
     private val _bluetoothName = MutableStateFlow<String?>(null)
     val bluetoothName: StateFlow<String?> = _bluetoothName.asStateFlow()
+
+    private val _bluetoothAudioDevices = MutableStateFlow<List<String>>(emptyList())
+    val bluetoothAudioDevices: StateFlow<List<String>> = _bluetoothAudioDevices.asStateFlow()
 
     private val mediaRouter: MediaRouter
     private val mediaRouterCallback: MediaRouter.Callback
@@ -885,6 +895,7 @@ class PlayerViewModel @Inject constructor(
     private fun updateBluetoothName(forceClear: Boolean = false) {
         if (!hasBluetoothPermission()) {
             if (forceClear) _bluetoothName.value = null
+            _bluetoothAudioDevices.value = emptyList()
             return
         }
 
@@ -910,6 +921,35 @@ class PlayerViewModel @Inject constructor(
             resolvedName != null -> _bluetoothName.value = resolvedName
             forceClear || !(bluetoothAdapter?.isEnabled ?: false) -> _bluetoothName.value = null
         }
+
+        updateBluetoothAudioDevices()
+    }
+
+    private fun updateBluetoothAudioDevices() {
+        if (!hasBluetoothPermission()) {
+            _bluetoothAudioDevices.value = emptyList()
+            return
+        }
+
+        val connectedDevices = buildSet {
+            safeGetConnectedDevices(BluetoothProfile.A2DP).mapNotNullTo(this) { it.name }
+            safeGetConnectedDevices(BluetoothProfile.HEADSET).mapNotNullTo(this) { it.name }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                safeGetConnectedDevices(BluetoothProfile.LE_AUDIO).mapNotNullTo(this) { it.name }
+            }
+
+            audioManager.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS)
+                .filter {
+                    it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                        it.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                        it.type == android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER ||
+                        it.type == android.media.AudioDeviceInfo.TYPE_HEARING_AID
+                }
+                .mapNotNull { it.productName?.toString() }
+                .forEach { add(it) }
+        }
+
+        _bluetoothAudioDevices.value = connectedDevices.toList().sorted()
     }
 
     private fun safeGetConnectedDevices(profile: Int): List<BluetoothDevice> {
@@ -924,6 +964,7 @@ class PlayerViewModel @Inject constructor(
 
         _isBluetoothEnabled.value = bluetoothAdapter?.isEnabled ?: false
         updateBluetoothName()
+        updateBluetoothAudioDevices()
     }
 
     init {
@@ -1132,8 +1173,10 @@ class PlayerViewModel @Inject constructor(
                     BluetoothAdapter.ACTION_STATE_CHANGED -> {
                         val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
                         _isBluetoothEnabled.value = state == BluetoothAdapter.STATE_ON
-                        if (state == BluetoothAdapter.STATE_OFF) _bluetoothName.value = null
-                        else updateBluetoothName(forceClear = false)
+                        if (state == BluetoothAdapter.STATE_OFF) {
+                            _bluetoothName.value = null
+                            _bluetoothAudioDevices.value = emptyList()
+                        } else updateBluetoothName(forceClear = false)
                     }
                     android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED,
                     android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
@@ -1307,6 +1350,8 @@ class PlayerViewModel @Inject constructor(
                     val currentSongIndex = localPlayer.currentMediaItemIndex
                     val currentPosition = localPlayer.currentPosition
 
+                    val shouldAutoPlayOnCast = wasPlaying && !disableCastAutoplay.value
+
                     val castRepeatMode = if (localPlayer.shuffleModeEnabled) {
                         MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE
                     } else {
@@ -1338,7 +1383,7 @@ class PlayerViewModel @Inject constructor(
                         startPosition = currentPosition,
                         repeatMode = castRepeatMode,
                         serverAddress = serverAddress,
-                        autoPlay = wasPlaying,
+                        autoPlay = shouldAutoPlayOnCast,
                         onComplete = { success ->
                             if (!success) {
                                 sendToast("Failed to load media on cast device.")
@@ -1384,6 +1429,7 @@ class PlayerViewModel @Inject constructor(
                 val wasPlaying = (liveStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING)
                     || (lastKnownStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING)
                     || lastKnownRemoteIsPlaying
+                val shouldResumePlaying = wasPlaying && !disableCastAutoplay.value
                 val lastItemId = liveStatus?.currentItemId ?: lastKnownStatus?.currentItemId
                 val lastRepeatMode = liveStatus?.queueRepeatMode
                     ?: lastKnownStatus?.queueRepeatMode
@@ -1479,13 +1525,13 @@ class PlayerViewModel @Inject constructor(
                     _stablePlayerState.update {
                         it.copy(
                             currentSong = finalQueue.getOrNull(startIndex),
-                            isPlaying = wasPlaying,
+                            isPlaying = shouldResumePlaying,
                             totalDuration = finalQueue.getOrNull(startIndex)?.duration ?: it.totalDuration,
                             isShuffleEnabled = isShuffleEnabled,
                             repeatMode = localPlayer.repeatMode
                         )
                     }
-                    if (wasPlaying) {
+                    if (shouldResumePlaying) {
                         localPlayer.play()
                         startProgressUpdates()
                         Timber.tag(CAST_LOG_TAG).i("Local playback resumed with play at position=%d", lastPosition)
