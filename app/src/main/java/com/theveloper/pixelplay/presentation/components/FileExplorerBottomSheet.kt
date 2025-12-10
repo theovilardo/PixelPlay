@@ -156,6 +156,13 @@ private fun FileExplorerHeader(
         segments.reversed()
     }
 
+    val rootLabel = remember(rootDirectory) {
+        when (rootDirectory.name) {
+            "0", "" -> "Internal storage"
+            else -> rootDirectory.name
+        }
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -190,42 +197,47 @@ private fun FileExplorerHeader(
                     contentDescription = "Go to root",
                     modifier = Modifier.padding(end = 6.dp)
                 )
-                Text(text = rootDirectory.name.ifEmpty { "Storage" })
+                Text(text = rootLabel)
             }
         }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(scrollState),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            breadcrumbs.forEachIndexed { index, file ->
-                val isLast = index == breadcrumbs.lastIndex
-                val label = file.name.ifEmpty { file.path }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal),
-                        color = if (isLast) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .clip(AbsoluteSmoothCornerShape(cornerRadius = 12.dp, smoothnessAsPercent = 70))
-                            .clickable(enabled = !isLast) { onNavigateTo(file) }
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                    )
-
-                    if (!isLast) {
-                        Icon(
-                            imageVector = Icons.Rounded.ChevronRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        if (!isAtRoot) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(scrollState),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                breadcrumbs.forEachIndexed { index, file ->
+                    val isLast = index == breadcrumbs.lastIndex
+                    val label = when (file.path) {
+                        rootDirectory.path -> rootLabel
+                        else -> file.name.ifEmpty { file.path }
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal),
+                            color = if (isLast) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .clip(AbsoluteSmoothCornerShape(cornerRadius = 12.dp, smoothnessAsPercent = 70))
+                                .clickable(enabled = !isLast) { onNavigateTo(file) }
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
                         )
+
+                        if (!isLast) {
+                            Icon(
+                                imageVector = Icons.Rounded.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
