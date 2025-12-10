@@ -12,6 +12,11 @@ import kotlinx.coroutines.withContext
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import java.io.File
 
+data class DirectoryEntry(
+    val file: File,
+    val audioCount: Int
+)
+
 class FileExplorerStateHolder(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val scope: CoroutineScope,
@@ -23,8 +28,8 @@ class FileExplorerStateHolder(
     private val _currentPath = MutableStateFlow(visibleRoot)
     val currentPath: StateFlow<File> = _currentPath.asStateFlow()
 
-    private val _currentDirectoryChildren = MutableStateFlow<List<File>>(emptyList())
-    val currentDirectoryChildren: StateFlow<List<File>> = _currentDirectoryChildren.asStateFlow()
+    private val _currentDirectoryChildren = MutableStateFlow<List<DirectoryEntry>>(emptyList())
+    val currentDirectoryChildren: StateFlow<List<DirectoryEntry>> = _currentDirectoryChildren.asStateFlow()
 
     private val _allowedDirectories = MutableStateFlow<Set<String>>(emptySet())
     val allowedDirectories: StateFlow<Set<String>> = _allowedDirectories.asStateFlow()
@@ -63,8 +68,15 @@ class FileExplorerStateHolder(
             val children = withContext(Dispatchers.IO) {
                 runCatching {
                     target.listFiles()
-                        ?.filter { it.isDirectory && !it.isHidden && directoryContainsAudio(it) }
-                        ?.sortedBy { it.name.lowercase() }
+                        ?.mapNotNull { child ->
+                            if (child.isDirectory && !child.isHidden) {
+                                val count = countAudioFiles(child)
+                                if (count > 0) DirectoryEntry(child, count) else null
+                            } else {
+                                null
+                            }
+                        }
+                        ?.sortedWith(compareBy({ it.file.name.lowercase() }))
                         ?: emptyList()
                 }.getOrElse { emptyList() }
             }
@@ -103,9 +115,11 @@ class FileExplorerStateHolder(
         }
     }
 
-    private fun directoryContainsAudio(directory: File): Boolean {
+    private fun countAudioFiles(directory: File): Int {
         val filesQueue: ArrayDeque<File> = ArrayDeque()
         filesQueue.add(directory)
+
+        var count = 0
 
         while (filesQueue.isNotEmpty()) {
             val current = filesQueue.removeFirst()
@@ -116,12 +130,12 @@ class FileExplorerStateHolder(
                     filesQueue.add(child)
                 } else {
                     val extension = child.extension.lowercase()
-                    if (audioExtensions.contains(extension)) return true
+                    if (audioExtensions.contains(extension)) count++
                 }
             }
         }
 
-        return false
+        return count
     }
 
     fun isAtRoot(): Boolean = _currentPath.value.path == visibleRoot.path

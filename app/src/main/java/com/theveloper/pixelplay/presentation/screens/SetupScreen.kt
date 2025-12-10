@@ -89,6 +89,7 @@ import com.theveloper.pixelplay.presentation.components.FileExplorerBottomSheet
 import com.theveloper.pixelplay.presentation.components.PermissionIconCollage
 import com.theveloper.pixelplay.presentation.components.subcomps.MaterialYouVectorDrawable
 import com.theveloper.pixelplay.presentation.components.subcomps.SineWaveLine
+import com.theveloper.pixelplay.presentation.viewmodel.DirectoryEntry
 import com.theveloper.pixelplay.presentation.viewmodel.SetupUiState
 import com.theveloper.pixelplay.presentation.viewmodel.SetupViewModel
 import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
@@ -236,7 +237,7 @@ fun SetupScreen(
 fun DirectorySelectionPage(
     uiState: SetupUiState,
     currentPath: File,
-    directoryChildren: List<File>,
+    directoryChildren: List<DirectoryEntry>,
     allowedDirectories: Set<String>,
     isAtRoot: Boolean,
     explorerRoot: File,

@@ -49,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.theveloper.pixelplay.presentation.viewmodel.DirectoryEntry
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import java.io.File
 
@@ -56,7 +57,7 @@ import java.io.File
 @Composable
 fun FileExplorerBottomSheet(
     currentPath: File,
-    directoryChildren: List<File>,
+    directoryChildren: List<DirectoryEntry>,
     allowedDirectories: Set<String>,
     isLoading: Boolean,
     isAtRoot: Boolean,
@@ -115,13 +116,14 @@ fun FileExplorerBottomSheet(
 
                     else -> {
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            items(children, key = { it.absolutePath }) { file ->
-                                val isAllowed = allowedDirectories.contains(file.absolutePath)
+                            items(children, key = { it.file.absolutePath }) { directoryEntry ->
+                                val isAllowed = allowedDirectories.contains(directoryEntry.file.absolutePath)
                                 FileExplorerItem(
-                                    file = file,
+                                    file = directoryEntry.file,
+                                    audioCount = directoryEntry.audioCount,
                                     isAllowed = isAllowed,
-                                    onNavigate = { onNavigateTo(file) },
-                                    onToggleAllowed = { onToggleAllowed(file) }
+                                    onNavigate = { onNavigateTo(directoryEntry.file) },
+                                    onToggleAllowed = { onToggleAllowed(directoryEntry.file) }
                                 )
                             }
                             item { Spacer(modifier = Modifier.height(6.dp)) }
@@ -303,6 +305,7 @@ private fun ExplorerLoadingState() {
 @Composable
 private fun FileExplorerItem(
     file: File,
+    audioCount: Int,
     isAllowed: Boolean,
     onNavigate: () -> Unit,
     onToggleAllowed: () -> Unit
@@ -330,6 +333,12 @@ private fun FileExplorerItem(
         MaterialTheme.colorScheme.onSurface
     }
 
+    val badgeColor = if (isAllowed) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.secondary
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -355,11 +364,33 @@ private fun FileExplorerItem(
         }
 
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = file.name.ifEmpty { file.path },
-                style = MaterialTheme.typography.titleMedium,
-                color = contentColor
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = file.name.ifEmpty { file.path },
+                    style = MaterialTheme.typography.titleMedium,
+                    color = contentColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Box(
+                    modifier = Modifier
+                        .clip(AbsoluteSmoothCornerShape(cornerRadius = 10.dp, smoothnessAsPercent = 70))
+                        .background(badgeColor.copy(alpha = 0.16f))
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = if (audioCount == 1) "1 song" else "$audioCount songs",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = badgeColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
             Text(
                 text = file.absolutePath,
                 style = MaterialTheme.typography.bodySmall,
