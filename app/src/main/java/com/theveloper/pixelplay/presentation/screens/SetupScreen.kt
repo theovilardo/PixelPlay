@@ -299,8 +299,10 @@ fun DirectorySelectionPage(
             allowedDirectories = allowedDirectories,
             isLoading = uiState.isLoadingDirectories,
             isAtRoot = isAtRoot,
+            rootDirectory = explorerRoot,
             onNavigateTo = onNavigateTo,
             onNavigateUp = onNavigateUp,
+            onNavigateHome = { onNavigateTo(explorerRoot) },
             onToggleAllowed = onToggleAllowed,
             onDismiss = { showDirectoryPicker = false }
         )

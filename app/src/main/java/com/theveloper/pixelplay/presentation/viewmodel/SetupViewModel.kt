@@ -51,11 +51,18 @@ class SetupViewModel @Inject constructor(
     val currentPath = fileExplorerStateHolder.currentPath
     val currentDirectoryChildren = fileExplorerStateHolder.currentDirectoryChildren
     val allowedDirectories = fileExplorerStateHolder.allowedDirectories
+    val isLoadingDirectories = fileExplorerStateHolder.isLoading
 
     init {
         viewModelScope.launch {
             userPreferencesRepository.allowedDirectoriesFlow.collect { allowed ->
                 _uiState.update { it.copy(allowedDirectories = allowed) }
+            }
+        }
+
+        viewModelScope.launch {
+            fileExplorerStateHolder.isLoading.collect { loading ->
+                _uiState.update { it.copy(isLoadingDirectories = loading) }
             }
         }
     }

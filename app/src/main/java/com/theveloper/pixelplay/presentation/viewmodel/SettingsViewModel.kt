@@ -61,6 +61,7 @@ class SettingsViewModel @Inject constructor(
     val currentPath = fileExplorerStateHolder.currentPath
     val currentDirectoryChildren = fileExplorerStateHolder.currentDirectoryChildren
     val allowedDirectories = fileExplorerStateHolder.allowedDirectories
+    val isLoadingDirectories = fileExplorerStateHolder.isLoading
 
     init {
         viewModelScope.launch {
@@ -134,6 +135,12 @@ class SettingsViewModel @Inject constructor(
                 _uiState.update { it.copy(allowedDirectories = allowed) }
             }
         }
+
+        viewModelScope.launch {
+            fileExplorerStateHolder.isLoading.collect { loading ->
+                _uiState.update { it.copy(isLoadingDirectories = loading) }
+            }
+        }
     }
 
     fun toggleDirectoryAllowed(file: File) {
@@ -149,9 +156,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun refreshExplorer() {
-        _uiState.update { it.copy(isLoadingDirectories = true) }
         fileExplorerStateHolder.refreshCurrentDirectory()
-        _uiState.update { it.copy(isLoadingDirectories = false) }
     }
 
     fun isAtRoot(): Boolean = fileExplorerStateHolder.isAtRoot()

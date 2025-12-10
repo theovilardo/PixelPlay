@@ -29,6 +29,9 @@ class FileExplorerStateHolder(
     private val _allowedDirectories = MutableStateFlow<Set<String>>(emptySet())
     val allowedDirectories: StateFlow<Set<String>> = _allowedDirectories.asStateFlow()
 
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
     private val audioExtensions = setOf(
         "mp3", "flac", "m4a", "aac", "wav", "ogg", "opus", "wma", "alac", "aiff", "ape"
     )
@@ -49,6 +52,14 @@ class FileExplorerStateHolder(
     fun loadDirectory(file: File, updatePath: Boolean = true) {
         scope.launch {
             val target = if (file.isDirectory) file else visibleRoot
+
+            if (updatePath) {
+                _currentPath.value = target
+            }
+
+            _isLoading.value = true
+            _currentDirectoryChildren.value = emptyList()
+
             val children = withContext(Dispatchers.IO) {
                 runCatching {
                     target.listFiles()
@@ -58,10 +69,11 @@ class FileExplorerStateHolder(
                 }.getOrElse { emptyList() }
             }
 
-            if (updatePath) {
+            if (!updatePath) {
                 _currentPath.value = target
             }
             _currentDirectoryChildren.value = children
+            _isLoading.value = false
         }
     }
 

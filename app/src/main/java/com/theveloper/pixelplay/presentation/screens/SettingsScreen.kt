@@ -714,8 +714,10 @@ fun SettingsScreen(
             allowedDirectories = allowedDirectories,
             isLoading = uiState.isLoadingDirectories,
             isAtRoot = settingsViewModel.isAtRoot(),
+            rootDirectory = settingsViewModel.explorerRoot(),
             onNavigateTo = settingsViewModel::loadDirectory,
             onNavigateUp = settingsViewModel::navigateUp,
+            onNavigateHome = { settingsViewModel.loadDirectory(settingsViewModel.explorerRoot()) },
             onToggleAllowed = settingsViewModel::toggleDirectoryAllowed,
             onDismiss = { showDirectoryDialog = false }
         )

@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,12 +20,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.FolderOff
+import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -34,6 +40,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,8 +61,10 @@ fun FileExplorerBottomSheet(
     allowedDirectories: Set<String>,
     isLoading: Boolean,
     isAtRoot: Boolean,
+    rootDirectory: File,
     onNavigateTo: (File) -> Unit,
     onNavigateUp: () -> Unit,
+    onNavigateHome: () -> Unit,
     onToggleAllowed: (File) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -82,8 +91,11 @@ fun FileExplorerBottomSheet(
 
             FileExplorerHeader(
                 currentPath = currentPath,
+                rootDirectory = rootDirectory,
                 isAtRoot = isAtRoot,
-                onNavigateUp = onNavigateUp
+                onNavigateUp = onNavigateUp,
+                onNavigateHome = onNavigateHome,
+                onNavigateTo = onNavigateTo
             )
 
             AnimatedContent(
@@ -95,7 +107,7 @@ fun FileExplorerBottomSheet(
             ) { (_, children, loading) ->
                 when {
                     loading -> {
-                        ExplorerEmptyState(text = "Loading folders…", iconColor = MaterialTheme.colorScheme.onSurfaceVariant)
+                        ExplorerLoadingState()
                     }
 
                     children.isEmpty() -> {
@@ -125,43 +137,101 @@ fun FileExplorerBottomSheet(
 @Composable
 private fun FileExplorerHeader(
     currentPath: File,
+    rootDirectory: File,
     isAtRoot: Boolean,
-    onNavigateUp: () -> Unit
+    onNavigateUp: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onNavigateTo: (File) -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        IconButton(
-            onClick = onNavigateUp,
-            enabled = !isAtRoot,
-            colors = IconButtonDefaults.iconButtonColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f),
-                disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.4f)
-            )
+    val scrollState = rememberScrollState()
+    val breadcrumbs = remember(currentPath, rootDirectory) {
+        val segments = mutableListOf<File>()
+        var cursor: File? = currentPath
+        val rootPath = rootDirectory.path
+        while (cursor != null) {
+            segments.add(cursor)
+            if (cursor.path == rootPath) break
+            cursor = cursor.parentFile
+        }
+        segments.reversed()
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Icon(
-                imageVector = Icons.Rounded.ArrowBack,
-                contentDescription = "Navigate up",
-                tint = MaterialTheme.colorScheme.onSurface
-            )
+            if (!isAtRoot) {
+                IconButton(
+                    onClick = onNavigateUp,
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ArrowBack,
+                        contentDescription = "Navigate up",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+
+            FilledTonalButton(
+                onClick = onNavigateHome,
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                ),
+                modifier = Modifier.height(44.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Home,
+                    contentDescription = "Go to root",
+                    modifier = Modifier.padding(end = 6.dp)
+                )
+                Text(text = rootDirectory.name.ifEmpty { "Storage" })
+            }
         }
 
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = currentPath.name.ifEmpty { currentPath.path },
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = currentPath.absolutePath,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(scrollState),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            breadcrumbs.forEachIndexed { index, file ->
+                val isLast = index == breadcrumbs.lastIndex
+                val label = file.name.ifEmpty { file.path }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal),
+                        color = if (isLast) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .clip(AbsoluteSmoothCornerShape(cornerRadius = 12.dp, smoothnessAsPercent = 70))
+                            .clickable(enabled = !isLast) { onNavigateTo(file) }
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+
+                    if (!isLast) {
+                        Icon(
+                            imageVector = Icons.Rounded.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
         }
+
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
     }
 }
 
@@ -186,6 +256,26 @@ private fun ExplorerEmptyState(
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = text,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun ExplorerLoadingState() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 36.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        androidx.compose.material3.CircularProgressIndicator()
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "Loading folders…",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
