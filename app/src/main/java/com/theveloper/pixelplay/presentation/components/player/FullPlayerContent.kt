@@ -390,6 +390,7 @@ fun FullPlayerContent(
             AlbumCoverSection(
                 Modifier
                     .fillMaxHeight()
+                    .weight(1f)
             )
             Spacer(Modifier.width(9.dp))
             Column(
