@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -14,6 +15,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
@@ -43,6 +45,7 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -73,6 +76,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.coerceAtLeast
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavHostController
@@ -122,6 +127,8 @@ fun FullPlayerContent(
     currentPositionProvider: () -> Long,
     isPlayingProvider: () -> Boolean,
     isFavoriteProvider: () -> Boolean,
+    // State
+    isCastConnecting: Boolean = false,
     // Event Handlers
     onPlayPause: () -> Unit,
     onSeek: (Long) -> Unit,
@@ -133,12 +140,18 @@ fun FullPlayerContent(
     onQueueDrag: (Float) -> Unit,
     onQueueRelease: (Float, Float) -> Unit,
     onShowCastClicked: () -> Unit,
-    onShowTrackVolumeClicked: () -> Unit,
     onShuffleToggle: () -> Unit,
     onRepeatToggle: () -> Unit,
     onFavoriteToggle: () -> Unit
 ) {
-    val song = currentSong ?: return // Early exit if no song
+    var retainedSong by remember { mutableStateOf(currentSong) }
+    LaunchedEffect(currentSong?.id) {
+        if (currentSong != null) {
+            retainedSong = currentSong
+        }
+    }
+
+    val song = currentSong ?: retainedSong ?: return // Keep the player visible while transitioning
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     var showLyricsSheet by remember { mutableStateOf(false) }
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
@@ -233,6 +246,8 @@ fun FullPlayerContent(
 
     val gestureScope = rememberCoroutineScope()
 
+    val isCastConnecting by playerViewModel.isCastConnecting.collectAsState()
+
     Scaffold(
         containerColor = Color.Transparent,
         modifier = Modifier.pointerInput(currentSheetState, expansionFraction) {
@@ -283,12 +298,17 @@ fun FullPlayerContent(
                     navigationIconContentColor = LocalMaterialTheme.current.onPrimaryContainer
                 ),
                 title = {
-                    Text(
-                        modifier = Modifier.padding(start = 18.dp),
-                        text = "Now Playing",
-                        style = MaterialTheme.typography.labelLargeEmphasized,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
+                    if (!isCastConnecting) {
+                        AnimatedVisibility(visible = (!isRemotePlaybackActive)) {
+                            Text(
+                                modifier = Modifier.padding(start = 18.dp),
+                                text = "Now Playing",
+                                style = MaterialTheme.typography.labelLargeEmphasized,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
                 },
                 navigationIcon = {
                     Box(
@@ -322,50 +342,131 @@ fun FullPlayerContent(
                             .padding(end = 14.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        // Cast Button
-//                        Box(
-//                            modifier = Modifier
-//                                .size(height = 42.dp, width = 50.dp)
-//                                .clip(
-//                                    RoundedCornerShape(
-//                                        topStart = 50.dp,
-//                                        topEnd = 6.dp,
-//                                        bottomStart = 50.dp,
-//                                        bottomEnd = 6.dp
-//                                    )
-//                                )
-//                                .background(LocalMaterialTheme.current.onPrimary)
-//                                .clickable { onShowCastClicked() },
-//                            contentAlignment = Alignment.Center
-//                        ) {
-//                            Icon(
-//                                painter = painterResource(R.drawable.rounded_cast_24),
-//                                contentDescription = "Cast",
-//                                tint = LocalMaterialTheme.current.primary
-//                            )
-//                        }
-
-                        // Track Volume Button
+                        val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
+                        val selectedRouteName by playerViewModel.selectedRoute.map { it?.name }.collectAsState(initial = null)
+                        val isBluetoothEnabled by playerViewModel.isBluetoothEnabled.collectAsState()
+                        val bluetoothName by playerViewModel.bluetoothName.collectAsState()
+                        val showCastLabel = isCastConnecting || (isRemotePlaybackActive && selectedRouteName != null)
+                        val isBluetoothActive =
+                            isBluetoothEnabled && !bluetoothName.isNullOrEmpty() && !isRemotePlaybackActive && !isCastConnecting
+                        val castIconPainter = when {
+                            isCastConnecting || isRemotePlaybackActive -> painterResource(R.drawable.rounded_cast_24)
+                            isBluetoothActive -> painterResource(R.drawable.rounded_bluetooth_24)
+                            else -> painterResource(R.drawable.rounded_mobile_speaker_24)
+                        }
+                        val castCornersExpanded = 50.dp
+                        val castCornersCompact = 6.dp
+                        val castTopStart by animateDpAsState(
+                            targetValue = if (showCastLabel) castCornersExpanded else castCornersExpanded,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+                        )
+                        val castTopEnd by animateDpAsState(
+                            targetValue = if (showCastLabel) castCornersExpanded else castCornersCompact,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+                        )
+                        val castBottomStart by animateDpAsState(
+                            targetValue = if (showCastLabel) castCornersExpanded else castCornersExpanded,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+                        )
+                        val castBottomEnd by animateDpAsState(
+                            targetValue = if (showCastLabel) castCornersExpanded else castCornersCompact,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+                        )
+                        val castButtonWidth by animateDpAsState(
+                            targetValue = if (showCastLabel) 176.dp else 50.dp,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+                        )
+                        val castContainerColor by animateColorAsState(
+                            targetValue = LocalMaterialTheme.current.onPrimary,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
+                        )
                         Box(
                             modifier = Modifier
-                                .size(height = 42.dp, width = 50.dp)
+                                .height(42.dp)
+                                .width(castButtonWidth)
                                 .clip(
                                     RoundedCornerShape(
-                                        topStart = 50.dp,
-                                        topEnd = 6.dp,
-                                        bottomStart = 50.dp,
-                                        bottomEnd = 6.dp
+                                        topStart = castTopStart.coerceAtLeast(0.dp),
+                                        topEnd = castTopEnd.coerceAtLeast(0.dp),
+                                        bottomStart = castBottomStart.coerceAtLeast(0.dp),
+                                        bottomEnd = castBottomEnd.coerceAtLeast(0.dp)
                                     )
                                 )
-                                .background(LocalMaterialTheme.current.onPrimary)
-                                .clickable { onShowTrackVolumeClicked() },
-                            contentAlignment = Alignment.Center
+                                .background(castContainerColor)
+                                .clickable { onShowCastClicked() },
+                            contentAlignment = Alignment.CenterStart
                         ) {
-                            Icon(
-                                painter = painterResource(R.drawable.rounded_volume_up_24),
-                                contentDescription = "Track Volume",
-                                tint = LocalMaterialTheme.current.primary
-                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Start
+                                ) {
+                                    Icon(
+                                        painter = castIconPainter,
+                                        contentDescription = when {
+                                            isCastConnecting || isRemotePlaybackActive -> "Cast"
+                                            isBluetoothActive -> "Bluetooth"
+                                            else -> "Local playback"
+                                        },
+                                        tint = LocalMaterialTheme.current.primary
+                                    )
+                                    AnimatedVisibility(visible = showCastLabel) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Spacer(Modifier.width(8.dp))
+                                            AnimatedContent(
+                                                targetState = when {
+                                                    isCastConnecting -> "Connecting…"
+                                                    isRemotePlaybackActive && selectedRouteName != null -> selectedRouteName ?: ""
+                                                    else -> ""
+                                                },
+                                                transitionSpec = {
+                                                    fadeIn(animationSpec = tween(150)) togetherWith fadeOut(animationSpec = tween(120))
+                                                },
+                                                label = "castButtonLabel"
+                                            ) { label ->
+                                                Row(
+                                                    modifier = Modifier.padding(end = 16.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                                ) {
+                                                    Text(
+                                                        text = label,
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        color = LocalMaterialTheme.current.primary,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                    AnimatedVisibility(visible = isCastConnecting) {
+                                                        CircularProgressIndicator(
+                                                            modifier = Modifier
+                                                                .size(14.dp),
+                                                            strokeWidth = 2.dp,
+                                                            color = LocalMaterialTheme.current.primary
+                                                        )
+                                                    }
+                                                    if (isRemotePlaybackActive && !isCastConnecting) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(8.dp)
+                                                                .clip(CircleShape)
+                                                                .background(Color(0xFF38C450))
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+//                                    AnimatedVisibility(visible = isCastConnecting) {
+//                                        CircularProgressIndicator(
+//                                            modifier = Modifier
+//                                                .size(14.dp),
+//                                            strokeWidth = 2.dp,
+//                                            color = LocalMaterialTheme.current.primary
+//                                        )
+//                                    }
+                                }
                         }
 
                         // Queue Button
@@ -436,11 +537,11 @@ fun FullPlayerContent(
 
                 DeferAt(expansionFraction, 0.34f) {
                     AlbumCarouselSection(
-                        currentSong = currentSong,
+                        currentSong = song,
                         queue = currentPlaybackQueue,
                         expansionFraction = expansionFraction,
                         onSongSelected = { newSong ->
-                            if (newSong.id != currentSong.id) {
+                            if (newSong.id != song.id) {
                                 playerViewModel.showAndPlaySong(
                                     song = newSong,
                                     contextSongs = currentPlaybackQueue,
@@ -460,7 +561,7 @@ fun FullPlayerContent(
                     .align(Alignment.Start)
                     .padding(start = 0.dp),
                 onClickLyrics = onLyricsClick,
-                song = currentSong, // currentSong is from stablePlayerState
+                song = song,
                 expansionFraction = expansionFraction,
                 textColor = LocalMaterialTheme.current.onPrimaryContainer,
                 artistTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.8f),
@@ -661,8 +762,9 @@ private fun PlayerProgressBarSection(
     val isExpanded = currentSheetState == PlayerSheetState.EXPANDED &&
         expansionFraction >= 0.995f
 
+    val durationForCalc = totalDurationValue.coerceAtLeast(1L)
     val rawPosition = currentPositionProvider()
-    val rawProgress = (rawPosition.coerceAtLeast(0) / totalDurationValue.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
+    val rawProgress = (rawPosition.coerceAtLeast(0) / durationForCalc.toFloat()).coerceIn(0f, 1f)
 
     val (smoothProgress, _) = rememberSmoothProgress(
         isPlayingProvider = isPlayingProvider,
@@ -694,7 +796,7 @@ private fun PlayerProgressBarSection(
     }
 
     val effectiveProgress = animatedProgress.value
-    val effectivePosition = (effectiveProgress * totalDurationValue).roundToLong()
+    val effectivePosition = (effectiveProgress * durationForCalc).roundToLong().coerceIn(0L, totalDurationValue.coerceAtLeast(0L))
 
     Column(
         modifier = modifier
@@ -709,7 +811,7 @@ private fun PlayerProgressBarSection(
                 onValueChange = { newValue -> sliderDragValue = newValue },
                 onValueChangeFinished = {
                     sliderDragValue?.let { finalValue ->
-                        onSeek((finalValue * totalDurationValue).roundToLong())
+                        onSeek((finalValue * durationForCalc).roundToLong())
                     }
                     sliderDragValue = null
                 },

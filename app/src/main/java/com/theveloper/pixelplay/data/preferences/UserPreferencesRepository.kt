@@ -88,6 +88,7 @@ class UserPreferencesRepository @Inject constructor(
         val KEEP_PLAYING_IN_BACKGROUND = booleanPreferencesKey("keep_playing_in_background")
         val IS_CROSSFADE_ENABLED = booleanPreferencesKey("is_crossfade_enabled")
         val CROSSFADE_DURATION = intPreferencesKey("crossfade_duration")
+        val DISABLE_CAST_AUTOPLAY = booleanPreferencesKey("disable_cast_autoplay")
     }
 
     val isCrossfadeEnabledFlow: Flow<Boolean> = dataStore.data
@@ -182,6 +183,9 @@ class UserPreferencesRepository @Inject constructor(
 
     val keepPlayingInBackgroundFlow: Flow<Boolean> = dataStore.data
         .map { preferences -> preferences[PreferencesKeys.KEEP_PLAYING_IN_BACKGROUND] ?: true }
+
+    val disableCastAutoplayFlow: Flow<Boolean> = dataStore.data
+        .map { preferences -> preferences[PreferencesKeys.DISABLE_CAST_AUTOPLAY] ?: false }
 
     val favoriteSongIdsFlow: Flow<Set<String>> = dataStore.data // Nuevo flujo para favoritos
         .map { preferences ->
@@ -632,6 +636,12 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setKeepPlayingInBackground(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.KEEP_PLAYING_IN_BACKGROUND] = enabled
+        }
+    }
+
+    suspend fun setDisableCastAutoplay(disabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.DISABLE_CAST_AUTOPLAY] = disabled
         }
     }
 

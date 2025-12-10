@@ -46,6 +46,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ripple.rememberRipple
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -215,7 +216,11 @@ fun UnifiedPlayerSheet(
     val miniPlayerAndSpacerHeightPx =
         remember(density, MiniPlayerHeight) { with(density) { MiniPlayerHeight.toPx() } }
 
-    val showPlayerContentArea by remember { derivedStateOf { stablePlayerState.currentSong != null } }
+    val isCastConnecting by playerViewModel.isCastConnecting.collectAsState()
+
+    val showPlayerContentArea by remember {
+        derivedStateOf { stablePlayerState.currentSong != null || isCastConnecting }
+    }
 
     // Use the granular showDismissUndoBar here
     val isPlayerSlotOccupied by remember(showPlayerContentArea, showDismissUndoBar) {
@@ -565,7 +570,6 @@ fun UnifiedPlayerSheet(
     }
     var pendingSaveQueueOverlay by remember { mutableStateOf<SaveQueueOverlayData?>(null) }
     var showCastSheet by remember { mutableStateOf(false) }
-    var showTrackVolumeSheet by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
     var isDraggingPlayerArea by remember { mutableStateOf(false) }
     val velocityTracker = remember { VelocityTracker() }
@@ -1123,6 +1127,7 @@ fun UnifiedPlayerSheet(
                                                     song = currentSongNonNull, // Use non-null version
                                                     cornerRadiusAlb = (overallSheetTopCornerRadius.value * 0.5).dp,
                                                     isPlaying = stablePlayerState.isPlaying, // from top-level stablePlayerState
+                                                    isCastConnecting = isCastConnecting,
                                                     onPlayPause = { playerViewModel.playPause() },
                                                     onNext = { playerViewModel.nextSong() },
                                                     modifier = Modifier.fillMaxSize()
@@ -1181,9 +1186,6 @@ fun UnifiedPlayerSheet(
                                                         )
                                                     },
                                                     onShowCastClicked = { showCastSheet = true },
-                                                    onShowTrackVolumeClicked = {
-                                                        showTrackVolumeSheet = true
-                                                    },
                                                     onShuffleToggle = playerViewModel::toggleShuffle,
                                                     onRepeatToggle = playerViewModel::cycleRepeatMode,
                                                     onFavoriteToggle = playerViewModel::toggleFavorite,
@@ -1241,7 +1243,6 @@ fun UnifiedPlayerSheet(
                                     onCollapse = {},
 //                                onQueueSheetVisibilityChange = {},
                                     onShowCastClicked = {},
-                                    onShowTrackVolumeClicked = {},
                                     onShuffleToggle = playerViewModel::toggleShuffle,
                                     onRepeatToggle = playerViewModel::cycleRepeatMode,
                                     onFavoriteToggle = playerViewModel::toggleFavorite,
@@ -1355,22 +1356,6 @@ fun UnifiedPlayerSheet(
             }
         }
 
-        if (showTrackVolumeSheet) {
-            val trackVolume by playerViewModel.trackVolume.collectAsState()
-            CompositionLocalProvider(
-                LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
-            ) {
-                TrackVolumeBottomSheet(
-                    theme = LocalMaterialTheme,
-                    initialVolume = trackVolume,
-                    onDismiss = { showTrackVolumeSheet = false },
-                    onVolumeChange = { newVolume ->
-                        playerViewModel.setTrackVolume(newVolume)
-                    }
-                )
-            }
-        }
-
         pendingSaveQueueOverlay?.let { overlay ->
             SaveQueueAsPlaylistSheet(
                 songs = overlay.songs,
@@ -1396,6 +1381,7 @@ fun getNavigationBarHeight(): Dp {
 private fun MiniPlayerContentInternal(
     song: Song,
     isPlaying: Boolean,
+    isCastConnecting: Boolean,
     onPlayPause: () -> Unit,
     cornerRadiusAlb: Dp,
     onNext: () -> Unit,
@@ -1412,14 +1398,24 @@ private fun MiniPlayerContentInternal(
             .padding(start = 10.dp, end = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        SmartImage(
-            model = song.albumArtUriString,
-            contentDescription = "Carátula de ${song.title}",
-            shape = CircleShape,
-            targetSize = Size(150, 150),
-            modifier = Modifier
-                .size(44.dp)
-        )
+        Box(contentAlignment = Alignment.Center) {
+            SmartImage(
+                model = song.albumArtUriString,
+                contentDescription = "Carátula de ${song.title}",
+                shape = CircleShape,
+                targetSize = Size(150, 150),
+                modifier = Modifier
+                    .size(44.dp)
+                    .alpha(if (isCastConnecting) 0.5f else 1f)
+            )
+            if (isCastConnecting) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    strokeWidth = 2.dp,
+                    color = LocalMaterialTheme.current.onPrimaryContainer
+                )
+            }
+        }
         Spacer(modifier = Modifier.width(12.dp))
         Column(
             modifier = Modifier.weight(1f),
@@ -1440,7 +1436,7 @@ private fun MiniPlayerContentInternal(
             )
 
             AutoScrollingText(
-                text = song.title,
+                text = if (isCastConnecting) "Connecting to device…" else song.title,
                 style = titleStyle,
                 gradientEdgeColor = LocalMaterialTheme.current.primaryContainer
             )
@@ -1459,7 +1455,8 @@ private fun MiniPlayerContentInternal(
                 .background(LocalMaterialTheme.current.primary)
                 .clickable(
                     interactionSource = interaction,
-                    indication = indication
+                    indication = indication,
+                    enabled = !isCastConnecting
                 ) {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onPlayPause()
@@ -1483,7 +1480,8 @@ private fun MiniPlayerContentInternal(
                 .background(LocalMaterialTheme.current.primary.copy(alpha = 0.2f))
                 .clickable(
                     interactionSource = interaction,
-                    indication = indication
+                    indication = indication,
+                    enabled = !isCastConnecting
                 ) { onNext() },
             contentAlignment = Alignment.Center
         ) {

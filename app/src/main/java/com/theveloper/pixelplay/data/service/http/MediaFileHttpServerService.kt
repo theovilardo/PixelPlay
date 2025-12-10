@@ -4,23 +4,29 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
+import android.os.Build
 import android.os.IBinder
+import androidx.annotation.RequiresApi
 import androidx.core.net.toUri
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import dagger.hilt.android.AndroidEntryPoint
 import io.ktor.http.ContentType
+import io.ktor.http.ContentRange
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.net.Inet4Address
 import javax.inject.Inject
 
@@ -41,6 +47,7 @@ class MediaFileHttpServerService : Service() {
         var serverAddress: String? = null
     }
 
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START_SERVER -> startServer()
@@ -49,6 +56,7 @@ class MediaFileHttpServerService : Service() {
         return START_NOT_STICKY
     }
 
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     private fun startServer() {
         if (server?.application?.isActive != true) {
             serviceScope.launch {
@@ -75,11 +83,77 @@ class MediaFileHttpServerService : Service() {
                                     return@get
                                 }
 
-                                contentResolver.openInputStream(song.contentUriString.toUri())?.use { inputStream ->
-                                    call.respondOutputStream(contentType = ContentType.Audio.MPEG) {
-                                        inputStream.copyTo(this)
+                                try {
+                                    val uri = song.contentUriString.toUri()
+                                    // Use 'use' to ensure the FileDescriptor is closed
+                                    contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+                                        val fileSize = pfd.statSize
+                                        val rangeHeader = call.request.headers[HttpHeaders.Range]
+
+                                        if (rangeHeader != null) {
+                                            val rangesSpecifier = io.ktor.http.parseRangesSpecifier(rangeHeader)
+                                            val ranges = rangesSpecifier?.ranges
+
+                                            if (ranges.isNullOrEmpty()) {
+                                                call.respond(HttpStatusCode.BadRequest, "Invalid range")
+                                                return@use
+                                            }
+
+                                            // We only handle the first range request for simplicity
+                                            val range = ranges.first()
+                                            val start = when (range) {
+                                                is io.ktor.http.ContentRange.Bounded -> range.from
+                                                is io.ktor.http.ContentRange.TailFrom -> range.from
+                                                is io.ktor.http.ContentRange.Suffix -> fileSize - range.lastCount
+                                                else -> 0L
+                                            }
+                                            val end = when (range) {
+                                                is io.ktor.http.ContentRange.Bounded -> range.to
+                                                is io.ktor.http.ContentRange.TailFrom -> fileSize - 1
+                                                is io.ktor.http.ContentRange.Suffix -> fileSize - 1
+                                                else -> fileSize - 1
+                                            }
+
+                                            val clampedStart = start.coerceAtLeast(0L)
+                                            val clampedEnd = end.coerceAtMost(fileSize - 1)
+                                            val length = clampedEnd - clampedStart + 1
+
+                                            if (length <= 0) {
+                                                call.respond(HttpStatusCode.RequestedRangeNotSatisfiable, "Range not satisfiable")
+                                                return@use
+                                            }
+
+                                            val inputStream = java.io.FileInputStream(pfd.fileDescriptor)
+
+                                            var skipped = 0L
+                                            while (skipped < clampedStart) {
+                                                val s = inputStream.skip(clampedStart - skipped)
+                                                if (s <= 0) break
+                                                skipped += s
+                                            }
+
+                                            call.response.header(HttpHeaders.ContentRange, "bytes $clampedStart-$clampedEnd/$fileSize")
+                                            call.response.header(HttpHeaders.AcceptRanges, "bytes")
+
+                                            val bytes = withContext(Dispatchers.IO) {
+                                                inputStream.readNBytes(length.toInt())
+                                            }
+
+                                            call.respondBytes(bytes, ContentType.Audio.MPEG, HttpStatusCode.PartialContent)
+                                        } else {
+                                            val inputStream = java.io.FileInputStream(pfd.fileDescriptor)
+                                            call.response.header(HttpHeaders.AcceptRanges, "bytes")
+                                            val bytes = withContext(Dispatchers.IO) {
+                                                inputStream.readBytes()
+                                            }
+                                            call.respondBytes(bytes, ContentType.Audio.MPEG)
+                                        }
+                                    } ?: run {
+                                        call.respond(HttpStatusCode.NotFound, "File not found")
                                     }
-                                } ?: call.respond(HttpStatusCode.InternalServerError, "Could not open song file")
+                                } catch (e: Exception) {
+                                    call.respond(HttpStatusCode.InternalServerError, "Error serving file: ${e.message}")
+                                }
                             }
                             get("/art/{songId}") {
                                 val songId = call.parameters["songId"]
@@ -96,9 +170,10 @@ class MediaFileHttpServerService : Service() {
 
                                 val artUri = song.albumArtUriString.toUri()
                                 contentResolver.openInputStream(artUri)?.use { inputStream ->
-                                    call.respondOutputStream(contentType = ContentType.Image.JPEG) {
-                                        inputStream.copyTo(this)
+                                    val bytes = withContext(Dispatchers.IO) {
+                                        inputStream.readBytes()
                                     }
+                                    call.respondBytes(bytes, ContentType.Image.JPEG)
                                 } ?: call.respond(HttpStatusCode.InternalServerError, "Could not open album art file")
                             }
                         }
