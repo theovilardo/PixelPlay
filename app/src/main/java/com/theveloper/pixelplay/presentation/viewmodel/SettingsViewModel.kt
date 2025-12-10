@@ -2,12 +2,10 @@ package com.theveloper.pixelplay.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.theveloper.pixelplay.data.model.DirectoryItem
 import com.theveloper.pixelplay.data.preferences.AppThemeMode
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
-import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.data.worker.SyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -18,10 +16,10 @@ import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.data.ai.GeminiModelService
 import com.theveloper.pixelplay.data.ai.GeminiModel
 import com.theveloper.pixelplay.data.preferences.LaunchTab
+import java.io.File
 
 data class SettingsUiState(
-    val directoryItems: List<DirectoryItem> = emptyList(),
-    val isLoadingDirectories: Boolean = true,
+    val isLoadingDirectories: Boolean = false,
     val appThemeMode: String = AppThemeMode.FOLLOW_SYSTEM,
     val playerThemePreference: String = ThemePreference.ALBUM_ART,
     val mockGenresEnabled: Boolean = false,
@@ -33,6 +31,7 @@ data class SettingsUiState(
     val disableCastAutoplay: Boolean = false,
     val isCrossfadeEnabled: Boolean = true,
     val crossfadeDuration: Int = 6000,
+    val allowedDirectories: Set<String> = emptySet(),
     val availableModels: List<GeminiModel> = emptyList(),
     val isLoadingModels: Boolean = false,
     val modelsFetchError: String? = null
@@ -41,7 +40,6 @@ data class SettingsUiState(
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val musicRepository: MusicRepository,
     private val syncManager: SyncManager,
     private val geminiModelService: GeminiModelService
 ) : ViewModel() {
@@ -57,6 +55,13 @@ class SettingsViewModel @Inject constructor(
 
     val geminiSystemPrompt: StateFlow<String> = userPreferencesRepository.geminiSystemPrompt
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferencesRepository.DEFAULT_SYSTEM_PROMPT)
+
+    private val fileExplorerStateHolder = FileExplorerStateHolder(userPreferencesRepository, viewModelScope)
+
+    val currentPath = fileExplorerStateHolder.currentPath
+    val currentDirectoryChildren = fileExplorerStateHolder.currentDirectoryChildren
+    val allowedDirectories = fileExplorerStateHolder.allowedDirectories
+    val isLoadingDirectories = fileExplorerStateHolder.isLoading
 
     init {
         viewModelScope.launch {
@@ -125,42 +130,38 @@ class SettingsViewModel @Inject constructor(
             }
         }
 
-        loadDirectoryPreferences()
-    }
-
-    private fun loadDirectoryPreferences() {
         viewModelScope.launch {
-            userPreferencesRepository.allowedDirectoriesFlow.combine(
-                flow {
-                    emit(musicRepository.getAllUniqueAudioDirectories())
-                }.onStart { _uiState.update { it.copy(isLoadingDirectories = true) } }
-            ) { allowedDirs, allFoundDirs ->
-                val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
+            userPreferencesRepository.allowedDirectoriesFlow.collect { allowed ->
+                _uiState.update { it.copy(allowedDirectories = allowed) }
+            }
+        }
 
-                allFoundDirs.map { dirPath ->
-                    val isAllowed = if (!initialSetupDone) true else allowedDirs.contains(dirPath)
-                    DirectoryItem(path = dirPath, isAllowed = isAllowed)
-                }.sortedBy { it.displayName }
-            }.catch { e ->
-                _uiState.update { it.copy(isLoadingDirectories = false, directoryItems = emptyList()) }
-            }.collectLatest { directoryItems ->
-                _uiState.update { it.copy(directoryItems = directoryItems, isLoadingDirectories = false) }
+        viewModelScope.launch {
+            fileExplorerStateHolder.isLoading.collect { loading ->
+                _uiState.update { it.copy(isLoadingDirectories = loading) }
             }
         }
     }
 
-    // Método para alternar el estado de un directorio y guardar en preferencias
-    fun toggleDirectoryAllowed(directoryItem: DirectoryItem) {
-        viewModelScope.launch {
-            val currentAllowed = userPreferencesRepository.allowedDirectoriesFlow.first().toMutableSet()
-            if (directoryItem.isAllowed) {
-                currentAllowed.remove(directoryItem.path)
-            } else {
-                currentAllowed.add(directoryItem.path)
-            }
-            userPreferencesRepository.updateAllowedDirectories(currentAllowed)
-        }
+    fun toggleDirectoryAllowed(file: File) {
+        fileExplorerStateHolder.toggleDirectoryAllowed(file)
     }
+
+    fun loadDirectory(file: File) {
+        fileExplorerStateHolder.loadDirectory(file)
+    }
+
+    fun navigateUp() {
+        fileExplorerStateHolder.navigateUp()
+    }
+
+    fun refreshExplorer() {
+        fileExplorerStateHolder.refreshCurrentDirectory()
+    }
+
+    fun isAtRoot(): Boolean = fileExplorerStateHolder.isAtRoot()
+
+    fun explorerRoot(): File = fileExplorerStateHolder.rootDirectory()
 
     // Método para guardar la preferencia de tema del reproductor
     fun setPlayerThemePreference(preference: String) {

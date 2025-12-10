@@ -85,10 +85,11 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.theveloper.pixelplay.R
-import com.theveloper.pixelplay.data.model.DirectoryItem
+import com.theveloper.pixelplay.presentation.components.FileExplorerBottomSheet
 import com.theveloper.pixelplay.presentation.components.PermissionIconCollage
 import com.theveloper.pixelplay.presentation.components.subcomps.MaterialYouVectorDrawable
 import com.theveloper.pixelplay.presentation.components.subcomps.SineWaveLine
+import com.theveloper.pixelplay.presentation.viewmodel.DirectoryEntry
 import com.theveloper.pixelplay.presentation.viewmodel.SetupUiState
 import com.theveloper.pixelplay.presentation.viewmodel.SetupViewModel
 import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
@@ -96,6 +97,7 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
+import java.io.File
 
 @OptIn(ExperimentalPermissionsApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -106,6 +108,9 @@ fun SetupScreen(
     val context = LocalContext.current
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     val uiState by setupViewModel.uiState.collectAsState()
+    val currentPath by setupViewModel.currentPath.collectAsState()
+    val directoryChildren by setupViewModel.currentDirectoryChildren.collectAsState()
+    val allowedDirectories by setupViewModel.allowedDirectories.collectAsState()
 
     // Re-check permissions when the screen is resumed
     DisposableEffect(lifecycleOwner) {
@@ -204,13 +209,20 @@ fun SetupScreen(
                     SetupPage.MediaPermission -> MediaPermissionPage(uiState)
                     SetupPage.DirectorySelection -> DirectorySelectionPage(
                         uiState = uiState,
-                        onOpenDirectoryPicker = { /* Handled internally now */ },
+                        currentPath = currentPath,
+                        directoryChildren = directoryChildren,
+                        allowedDirectories = allowedDirectories,
+                        isAtRoot = setupViewModel.isAtRoot(),
+                        explorerRoot = setupViewModel.explorerRoot(),
+                        onNavigateTo = setupViewModel::loadDirectory,
+                        onNavigateUp = setupViewModel::navigateUp,
+                        onRefresh = setupViewModel::refreshCurrentDirectory,
                         onSkip = {
                             scope.launch {
                                 pagerState.animateScrollToPage(pagerState.currentPage + 1)
                             }
                         },
-                        onItemToggle = setupViewModel::toggleDirectoryAllowed
+                        onToggleAllowed = setupViewModel::toggleDirectoryAllowed
                     )
                     SetupPage.NotificationsPermission -> NotificationsPermissionPage(uiState)
                     SetupPage.AllFilesPermission -> AllFilesPermissionPage(uiState)
@@ -225,17 +237,48 @@ fun SetupScreen(
 @Composable
 fun DirectorySelectionPage(
     uiState: SetupUiState,
-    onOpenDirectoryPicker: () -> Unit,
+    currentPath: File,
+    directoryChildren: List<DirectoryEntry>,
+    allowedDirectories: Set<String>,
+    isAtRoot: Boolean,
+    explorerRoot: File,
+    onNavigateTo: (File) -> Unit,
+    onNavigateUp: () -> Unit,
+    onRefresh: () -> Unit,
     onSkip: () -> Unit,
-    onItemToggle: (DirectoryItem) -> Unit,
+    onToggleAllowed: (File) -> Unit,
 ) {
     var showDirectoryPicker by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    BackHandler(enabled = showDirectoryPicker) {
+        if (isAtRoot) {
+            showDirectoryPicker = false
+        } else {
+            onNavigateUp()
+        }
+    }
 
     PermissionPageLayout(
         title = "Music Folders",
         description = "Select the folders where your music is stored. If you skip this, you can select them later in settings.",
         buttonText = "Select Folders",
-        onGrantClicked = { showDirectoryPicker = true },
+        onGrantClicked = {
+            val hasMediaPermission = uiState.mediaPermissionGranted
+            val hasAllFilesAccess = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) uiState.allFilesAccessGranted else true
+
+            if (!hasMediaPermission) {
+                Toast.makeText(context, "Grant media permission first", Toast.LENGTH_SHORT).show()
+                return@PermissionPageLayout
+            }
+
+            if (!hasAllFilesAccess) {
+                Toast.makeText(context, "Allow file access to browse folders", Toast.LENGTH_SHORT).show()
+                return@PermissionPageLayout
+            }
+
+            showDirectoryPicker = true
+        },
         icons = persistentListOf(
             R.drawable.rounded_folder_24,
             R.drawable.rounded_music_note_24,
@@ -250,11 +293,23 @@ fun DirectorySelectionPage(
     }
 
     if (showDirectoryPicker) {
-        DirectoryPickerBottomSheet(
-            directoryItems = uiState.directoryItems,
+        LaunchedEffect(Unit) {
+            onNavigateTo(explorerRoot)
+        }
+        FileExplorerBottomSheet(
+            currentPath = currentPath,
+            directoryChildren = directoryChildren,
+            allowedDirectories = allowedDirectories,
             isLoading = uiState.isLoadingDirectories,
-            onDismiss = { showDirectoryPicker = false },
-            onItemToggle = onItemToggle
+            isAtRoot = isAtRoot,
+            rootDirectory = explorerRoot,
+            onNavigateTo = onNavigateTo,
+            onNavigateUp = onNavigateUp,
+            onNavigateHome = { onNavigateTo(explorerRoot) },
+            onToggleAllowed = onToggleAllowed,
+            onRefresh = onRefresh,
+            onDone = { showDirectoryPicker = false },
+            onDismiss = { showDirectoryPicker = false }
         )
     }
 }
