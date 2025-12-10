@@ -70,7 +70,6 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -85,15 +84,15 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.theveloper.pixelplay.R
-import com.theveloper.pixelplay.data.model.DirectoryItem
+import com.theveloper.pixelplay.presentation.components.FileExplorerBottomSheet
 import com.theveloper.pixelplay.presentation.components.PermissionIconCollage
 import com.theveloper.pixelplay.presentation.components.subcomps.MaterialYouVectorDrawable
 import com.theveloper.pixelplay.presentation.components.subcomps.SineWaveLine
 import com.theveloper.pixelplay.presentation.viewmodel.SetupUiState
 import com.theveloper.pixelplay.presentation.viewmodel.SetupViewModel
 import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.persistentListOf
+import java.io.File
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
@@ -106,6 +105,10 @@ fun SetupScreen(
     val context = LocalContext.current
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     val uiState by setupViewModel.uiState.collectAsState()
+    val currentPath by setupViewModel.currentPath.collectAsState()
+    val currentDirectoryChildren by setupViewModel.currentDirectoryChildren.collectAsState()
+    val allowedDirectories by setupViewModel.allowedDirectories.collectAsState()
+    val isExplorerLoading by setupViewModel.isLoadingDirectories.collectAsState()
 
     // Re-check permissions when the screen is resumed
     DisposableEffect(lifecycleOwner) {
@@ -144,6 +147,7 @@ fun SetupScreen(
     val scope = rememberCoroutineScope()
 
     val directorySelectionPageIndex = remember(pages) { pages.indexOf(SetupPage.DirectorySelection) }
+    val allFilesPermissionPageIndex = remember(pages) { pages.indexOf(SetupPage.AllFilesPermission) }
 
     LaunchedEffect(pagerState.currentPage) {
         if (pagerState.currentPage == directorySelectionPageIndex) {
@@ -204,13 +208,33 @@ fun SetupScreen(
                     SetupPage.MediaPermission -> MediaPermissionPage(uiState)
                     SetupPage.DirectorySelection -> DirectorySelectionPage(
                         uiState = uiState,
-                        onOpenDirectoryPicker = { /* Handled internally now */ },
+                        currentPath = currentPath,
+                        children = currentDirectoryChildren,
+                        allowedDirectories = allowedDirectories,
+                        isExplorerLoading = isExplorerLoading,
+                        canNavigateUp = setupViewModel.canNavigateUp(),
+                        onNavigateUp = setupViewModel::navigateUp,
+                        onDirectoryClick = setupViewModel::loadDirectory,
+                        onToggleAllowed = setupViewModel::toggleDirectoryAllowed,
+                        onResetExplorer = setupViewModel::resetExplorerToRoot,
+                        onRequestAllFilesPermission = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && allFilesPermissionPageIndex != -1) {
+                                scope.launch {
+                                    pagerState.animateScrollToPage(allFilesPermissionPageIndex)
+                                }
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    "Storage access is required to browse folders.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        },
                         onSkip = {
                             scope.launch {
                                 pagerState.animateScrollToPage(pagerState.currentPage + 1)
                             }
                         },
-                        onItemToggle = setupViewModel::toggleDirectoryAllowed
                     )
                     SetupPage.NotificationsPermission -> NotificationsPermissionPage(uiState)
                     SetupPage.AllFilesPermission -> AllFilesPermissionPage(uiState)
@@ -225,24 +249,46 @@ fun SetupScreen(
 @Composable
 fun DirectorySelectionPage(
     uiState: SetupUiState,
-    onOpenDirectoryPicker: () -> Unit,
+    currentPath: File,
+    children: List<File>,
+    allowedDirectories: Set<String>,
+    isExplorerLoading: Boolean,
+    canNavigateUp: Boolean,
+    onNavigateUp: () -> Boolean,
+    onDirectoryClick: (File) -> Unit,
+    onToggleAllowed: (File) -> Unit,
+    onResetExplorer: () -> Unit,
+    onRequestAllFilesPermission: () -> Unit,
     onSkip: () -> Unit,
-    onItemToggle: (DirectoryItem) -> Unit,
 ) {
     var showDirectoryPicker by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     PermissionPageLayout(
         title = "Music Folders",
         description = "Select the folders where your music is stored. If you skip this, you can select them later in settings.",
         buttonText = "Select Folders",
-        onGrantClicked = { showDirectoryPicker = true },
-        icons = persistentListOf(
+        onGrantClicked = {
+            val hasExplorerPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                uiState.allFilesAccessGranted
+            } else {
+                uiState.mediaPermissionGranted
+            }
+
+            if (hasExplorerPermission) {
+                onResetExplorer()
+                showDirectoryPicker = true
+            } else {
+                onRequestAllFilesPermission()
+            }
+        },
+        icons = listOf(
             R.drawable.rounded_folder_24,
             R.drawable.rounded_music_note_24,
             R.drawable.rounded_create_new_folder_24,
             R.drawable.rounded_folder_open_24,
             R.drawable.rounded_audio_file_24
-        )
+        ).toImmutableList()
     ) {
         TextButton(onClick = onSkip) {
             Text("Skip for now")
@@ -250,11 +296,30 @@ fun DirectorySelectionPage(
     }
 
     if (showDirectoryPicker) {
-        DirectoryPickerBottomSheet(
-            directoryItems = uiState.directoryItems,
-            isLoading = uiState.isLoadingDirectories,
-            onDismiss = { showDirectoryPicker = false },
-            onItemToggle = onItemToggle
+        BackHandler {
+            if (canNavigateUp) {
+                onNavigateUp()
+            } else {
+                showDirectoryPicker = false
+            }
+        }
+        FileExplorerBottomSheet(
+            currentPath = currentPath,
+            children = children,
+            allowedDirectories = allowedDirectories,
+            isLoading = isExplorerLoading,
+            canNavigateUp = canNavigateUp,
+            onNavigateUp = {
+                if (!onNavigateUp()) {
+                    showDirectoryPicker = false
+                }
+            },
+            onDirectoryClick = onDirectoryClick,
+            onToggleAllowed = onToggleAllowed,
+            onDismiss = {
+                showDirectoryPicker = false
+                Toast.makeText(context, "Folders updated", Toast.LENGTH_SHORT).show()
+            }
         )
     }
 }

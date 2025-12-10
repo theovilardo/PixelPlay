@@ -8,31 +8,22 @@ import android.os.Environment
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.theveloper.pixelplay.data.model.DirectoryItem
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.data.worker.SyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 
 data class SetupUiState(
     val mediaPermissionGranted: Boolean = false,
     val notificationsPermissionGranted: Boolean = false,
     val allFilesAccessGranted: Boolean = false,
-    val directoryItems: ImmutableList<DirectoryItem> = persistentListOf(),
-    val isLoadingDirectories: Boolean = false,
 ) {
     val allPermissionsGranted: Boolean
         get() {
@@ -52,6 +43,13 @@ class SetupViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(SetupUiState())
     val uiState = _uiState.asStateFlow()
+
+    private val fileExplorerStateHolder = FileExplorerStateHolder(userPreferencesRepository, viewModelScope)
+
+    val currentPath = fileExplorerStateHolder.currentPath
+    val currentDirectoryChildren = fileExplorerStateHolder.currentDirectoryChildren
+    val allowedDirectories = fileExplorerStateHolder.allowedDirectories
+    val isLoadingDirectories = fileExplorerStateHolder.isLoading
 
     // init block removed
 
@@ -92,34 +90,26 @@ class SetupViewModel @Inject constructor(
                     userPreferencesRepository.updateAllowedDirectories(allAudioDirs)
                 }
             }
-
-            userPreferencesRepository.allowedDirectoriesFlow.combine(
-                flow {
-                    emit(musicRepository.getAllUniqueAudioDirectories())
-                }.onStart { _uiState.update { it.copy(isLoadingDirectories = true) } }
-            ) { allowedDirs, allFoundDirs ->
-                allFoundDirs.map { dirPath ->
-                    DirectoryItem(path = dirPath, isAllowed = allowedDirs.contains(dirPath))
-                }.sortedBy { it.displayName }
-            }.catch {
-                _uiState.update { it.copy(isLoadingDirectories = false, directoryItems = persistentListOf()) }
-            }.collect { directoryItems ->
-                _uiState.update { it.copy(directoryItems = directoryItems.toImmutableList(), isLoadingDirectories = false) }
-            }
         }
     }
 
-    fun toggleDirectoryAllowed(directoryItem: DirectoryItem) {
-        viewModelScope.launch {
-            val currentAllowed = userPreferencesRepository.allowedDirectoriesFlow.first().toMutableSet()
-            if (directoryItem.isAllowed) {
-                currentAllowed.remove(directoryItem.path)
-            } else {
-                currentAllowed.add(directoryItem.path)
-            }
-            userPreferencesRepository.updateAllowedDirectories(currentAllowed)
-        }
+    fun loadDirectory(file: File) {
+        fileExplorerStateHolder.loadDirectory(file)
     }
+
+    fun navigateUp(): Boolean = fileExplorerStateHolder.navigateUp()
+
+    fun resetExplorerToRoot() {
+        fileExplorerStateHolder.resetToRoot()
+    }
+
+    fun toggleDirectoryAllowed(file: File) {
+        fileExplorerStateHolder.toggleDirectoryAllowed(file)
+    }
+
+    fun canNavigateUp(): Boolean = fileExplorerStateHolder.canNavigateUp()
+
+    fun explorerRoot(): File = fileExplorerStateHolder.rootPath
 
     fun setSetupComplete() {
         viewModelScope.launch {

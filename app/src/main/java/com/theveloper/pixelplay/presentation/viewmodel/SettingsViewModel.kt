@@ -2,7 +2,6 @@ package com.theveloper.pixelplay.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.theveloper.pixelplay.data.model.DirectoryItem
 import com.theveloper.pixelplay.data.preferences.AppThemeMode
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.data.preferences.ThemePreference
@@ -18,10 +17,9 @@ import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.data.ai.GeminiModelService
 import com.theveloper.pixelplay.data.ai.GeminiModel
 import com.theveloper.pixelplay.data.preferences.LaunchTab
+import java.io.File
 
 data class SettingsUiState(
-    val directoryItems: List<DirectoryItem> = emptyList(),
-    val isLoadingDirectories: Boolean = true,
     val appThemeMode: String = AppThemeMode.FOLLOW_SYSTEM,
     val playerThemePreference: String = ThemePreference.ALBUM_ART,
     val mockGenresEnabled: Boolean = false,
@@ -57,6 +55,13 @@ class SettingsViewModel @Inject constructor(
 
     val geminiSystemPrompt: StateFlow<String> = userPreferencesRepository.geminiSystemPrompt
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferencesRepository.DEFAULT_SYSTEM_PROMPT)
+
+    private val fileExplorerStateHolder = FileExplorerStateHolder(userPreferencesRepository, viewModelScope)
+
+    val currentPath = fileExplorerStateHolder.currentPath
+    val currentDirectoryChildren = fileExplorerStateHolder.currentDirectoryChildren
+    val allowedDirectories = fileExplorerStateHolder.allowedDirectories
+    val isLoadingDirectories = fileExplorerStateHolder.isLoading
 
     init {
         viewModelScope.launch {
@@ -125,42 +130,39 @@ class SettingsViewModel @Inject constructor(
             }
         }
 
-        loadDirectoryPreferences()
+        initializeAllowedDirectories()
     }
 
-    private fun loadDirectoryPreferences() {
+    private fun initializeAllowedDirectories() {
         viewModelScope.launch {
-            userPreferencesRepository.allowedDirectoriesFlow.combine(
-                flow {
-                    emit(musicRepository.getAllUniqueAudioDirectories())
-                }.onStart { _uiState.update { it.copy(isLoadingDirectories = true) } }
-            ) { allowedDirs, allFoundDirs ->
-                val initialSetupDone = userPreferencesRepository.initialSetupDoneFlow.first()
-
-                allFoundDirs.map { dirPath ->
-                    val isAllowed = if (!initialSetupDone) true else allowedDirs.contains(dirPath)
-                    DirectoryItem(path = dirPath, isAllowed = isAllowed)
-                }.sortedBy { it.displayName }
-            }.catch { e ->
-                _uiState.update { it.copy(isLoadingDirectories = false, directoryItems = emptyList()) }
-            }.collectLatest { directoryItems ->
-                _uiState.update { it.copy(directoryItems = directoryItems, isLoadingDirectories = false) }
+            if (!userPreferencesRepository.initialSetupDoneFlow.first()) {
+                val allowedDirs = userPreferencesRepository.allowedDirectoriesFlow.first()
+                if (allowedDirs.isEmpty()) {
+                    val allAudioDirs = musicRepository.getAllUniqueAudioDirectories().toSet()
+                    userPreferencesRepository.updateAllowedDirectories(allAudioDirs)
+                }
             }
         }
     }
 
     // Método para alternar el estado de un directorio y guardar en preferencias
-    fun toggleDirectoryAllowed(directoryItem: DirectoryItem) {
-        viewModelScope.launch {
-            val currentAllowed = userPreferencesRepository.allowedDirectoriesFlow.first().toMutableSet()
-            if (directoryItem.isAllowed) {
-                currentAllowed.remove(directoryItem.path)
-            } else {
-                currentAllowed.add(directoryItem.path)
-            }
-            userPreferencesRepository.updateAllowedDirectories(currentAllowed)
-        }
+    fun loadDirectory(file: File) {
+        fileExplorerStateHolder.loadDirectory(file)
     }
+
+    fun navigateUp(): Boolean = fileExplorerStateHolder.navigateUp()
+
+    fun resetExplorerToRoot() {
+        fileExplorerStateHolder.resetToRoot()
+    }
+
+    fun toggleDirectoryAllowed(file: File) {
+        fileExplorerStateHolder.toggleDirectoryAllowed(file)
+    }
+
+    fun canNavigateUp(): Boolean = fileExplorerStateHolder.canNavigateUp()
+
+    fun explorerRoot(): File = fileExplorerStateHolder.rootPath
 
     // Método para guardar la preferencia de tema del reproductor
     fun setPlayerThemePreference(preference: String) {
