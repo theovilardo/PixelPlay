@@ -105,12 +105,14 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.MutatorMutex
+import kotlinx.coroutines.sync.mutate
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
@@ -232,6 +234,13 @@ fun UnifiedPlayerSheet(
     val playerContentExpansionFraction = playerViewModel.playerContentExpansionFraction
     val visualOvershootScaleY = remember { Animatable(1f) }
     val initialFullPlayerOffsetY = remember(density) { with(density) { 24.dp.toPx() } }
+    val sheetAnimationSpec = remember {
+        tween<Float>(
+            durationMillis = ANIMATION_DURATION_MS,
+            easing = FastOutSlowInEasing
+        )
+    }
+    val sheetAnimationMutex = remember { MutatorMutex() }
 
     val fullPlayerContentAlpha by remember {
         derivedStateOf {
@@ -245,22 +254,44 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    LaunchedEffect(showPlayerContentArea, currentSheetContentState) {
-        val targetFraction =
-            if (showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) 1f else 0f
+    suspend fun animatePlayerSheet(
+        targetExpanded: Boolean,
+        animationSpec: androidx.compose.animation.core.AnimationSpec<Float> = sheetAnimationSpec,
+        initialVelocity: Float = 0f
+    ) {
+        val targetFraction = if (showPlayerContentArea && targetExpanded) 1f else 0f
+        val targetY = if (targetExpanded) sheetExpandedTargetY else sheetCollapsedTargetY
+        val velocityScale = (sheetCollapsedTargetY - sheetExpandedTargetY).coerceAtLeast(1f)
 
-        playerContentExpansionFraction.animateTo(
-            targetValue = targetFraction,
-            animationSpec = tween(
-                durationMillis = ANIMATION_DURATION_MS,
-                easing = FastOutSlowInEasing
-            )
-        )
+        sheetAnimationMutex.mutate {
+            coroutineScope {
+                launch {
+                    currentSheetTranslationY.animateTo(
+                        targetValue = targetY,
+                        initialVelocity = initialVelocity,
+                        animationSpec = animationSpec
+                    )
+                }
+                launch {
+                    playerContentExpansionFraction.animateTo(
+                        targetValue = targetFraction,
+                        initialVelocity = initialVelocity / velocityScale,
+                        animationSpec = animationSpec
+                    )
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(showPlayerContentArea, currentSheetContentState) {
+        val targetExpanded = showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED
+
+        animatePlayerSheet(targetExpanded = targetExpanded)
 
         if (showPlayerContentArea) {
             scope.launch {
                 visualOvershootScaleY.snapTo(1f)
-                if (targetFraction == 1f) {
+                if (targetExpanded) {
                     visualOvershootScaleY.animateTo(
                         targetValue = 1f,
                         animationSpec = keyframes {
@@ -284,9 +315,7 @@ fun UnifiedPlayerSheet(
                 }
             }
         } else {
-            scope.launch {
-                visualOvershootScaleY.snapTo(1f)
-            }
+            scope.launch { visualOvershootScaleY.snapTo(1f) }
         }
     }
 
@@ -390,27 +419,6 @@ fun UnifiedPlayerSheet(
     val initialY =
         if (currentSheetContentState == PlayerSheetState.COLLAPSED) sheetCollapsedTargetY else sheetExpandedTargetY
     val currentSheetTranslationY = remember { Animatable(initialY) }
-
-    LaunchedEffect(
-        showPlayerContentArea,
-        currentSheetContentState,
-        sheetCollapsedTargetY,
-        sheetExpandedTargetY
-    ) {
-        val targetY =
-            if (showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                sheetExpandedTargetY
-            } else {
-                sheetCollapsedTargetY
-            }
-        currentSheetTranslationY.animateTo(
-            targetValue = targetY,
-            animationSpec = tween(
-                durationMillis = ANIMATION_DURATION_MS,
-                easing = FastOutSlowInEasing
-            )
-        )
-    }
 
     val visualSheetTranslationY by remember {
         derivedStateOf {
@@ -1033,24 +1041,7 @@ fun UnifiedPlayerSheet(
 
                                             scope.launch {
                                                 if (targetState == PlayerSheetState.EXPANDED) {
-                                                    launch {
-                                                        currentSheetTranslationY.animateTo(
-                                                            targetValue = expandedY.value,
-                                                            animationSpec = tween(
-                                                                durationMillis = ANIMATION_DURATION_MS,
-                                                                easing = FastOutSlowInEasing
-                                                            )
-                                                        )
-                                                    }
-                                                    launch {
-                                                        playerContentExpansionFraction.animateTo(
-                                                            1f,
-                                                            animationSpec = tween(
-                                                                durationMillis = ANIMATION_DURATION_MS,
-                                                                easing = FastOutSlowInEasing
-                                                            )
-                                                        )
-                                                    }
+                                                    launch { animatePlayerSheet(targetExpanded = true) }
                                                     playerViewModel.expandPlayerSheet()
                                                 } else {
                                                     val dynamicDamping = lerp(
@@ -1071,27 +1062,13 @@ fun UnifiedPlayerSheet(
                                                         )
                                                     }
                                                     launch {
-                                                        currentSheetTranslationY.animateTo(
-                                                            targetValue = collapsedY.value,
-                                                            initialVelocity = verticalVelocity,
+                                                        animatePlayerSheet(
+                                                            targetExpanded = false,
                                                             animationSpec = spring(
                                                                 dampingRatio = dynamicDamping,
                                                                 stiffness = Spring.StiffnessLow
-                                                            )
-                                                        )
-                                                    }
-                                                    launch {
-                                                        val denom =
-                                                            (collapsedY.value - expandedY.value).coerceAtLeast(
-                                                                1f
-                                                            )
-                                                        playerContentExpansionFraction.animateTo(
-                                                            0f,
-                                                            initialVelocity = verticalVelocity / denom,
-                                                            animationSpec = spring(
-                                                                dampingRatio = dynamicDamping,
-                                                                stiffness = Spring.StiffnessLow
-                                                            )
+                                                            ),
+                                                            initialVelocity = verticalVelocity
                                                         )
                                                     }
                                                     playerViewModel.collapsePlayerSheet()
