@@ -112,6 +112,7 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import android.content.pm.PackageManager
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.ui.text.style.TextAlign
 import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 
 @androidx.annotation.OptIn(UnstableApi::class)
@@ -874,11 +875,13 @@ private fun EmptyDeviceState() {
             Text(
                 text = "Searching for devices...",
                 style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
                 text = "Make sure your TV or speaker is on and sharing the same Wi‑Fi network.",
                 style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -1214,10 +1217,14 @@ private fun WifiOffIllustration(
             Text(
                 text = "Turn on Wi‑Fi or Bluetooth to discover nearby devices",
                 style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 lineHeight = 20.sp
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 Button(
                     onClick = onTurnOnWifi,
                     shape = RoundedCornerShape(50),
