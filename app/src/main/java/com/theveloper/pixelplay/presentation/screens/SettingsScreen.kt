@@ -1,6 +1,9 @@
 package com.theveloper.pixelplay.presentation.screens
 
 import android.content.Intent
+import android.os.Build
+import android.os.Environment
+import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -38,11 +41,9 @@ import androidx.compose.foundation.shape.AbsoluteRoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.outlined.ClearAll
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material.icons.outlined.FolderOff
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Style
@@ -58,8 +59,6 @@ import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -117,7 +116,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import com.theveloper.pixelplay.R
-import com.theveloper.pixelplay.data.model.DirectoryItem
+import com.theveloper.pixelplay.presentation.components.FileExplorerBottomSheet
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.data.preferences.LaunchTab
 import com.theveloper.pixelplay.data.preferences.AppThemeMode
@@ -129,8 +128,6 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.SettingsViewModel
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import kotlin.math.roundToInt
@@ -188,18 +185,17 @@ fun SettingsScreen(
     val uiState by settingsViewModel.uiState.collectAsState()
     val geminiApiKey by settingsViewModel.geminiApiKey.collectAsState()
     val playerSheetState by playerViewModel.sheetState.collectAsState()
+    val currentPath by settingsViewModel.currentPath.collectAsState()
+    val currentDirectoryChildren by settingsViewModel.currentDirectoryChildren.collectAsState()
+    val allowedDirectories by settingsViewModel.allowedDirectories.collectAsState()
+    val isExplorerLoading by settingsViewModel.isLoadingDirectories.collectAsState()
+    val context = LocalContext.current
     // Estado para controlar la visibilidad del diálogo de directorios
     var showDirectoryDialog by remember { mutableStateOf(false) }
     var showClearLyricsDialog by remember { mutableStateOf(false) }
 
     BackHandler(enabled = playerSheetState == PlayerSheetState.EXPANDED) {
         playerViewModel.collapsePlayerSheet()
-    }
-
-    val directoryItems: ImmutableList<DirectoryItem> = remember(uiState.directoryItems) {
-        val list: List<DirectoryItem> = uiState.directoryItems
-        val immutable: ImmutableList<DirectoryItem> = list.toImmutableList() // Now this should work
-        immutable
     }
 
     // Efecto para animaciones de transición
@@ -324,7 +320,24 @@ fun SettingsScreen(
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             },
-                            onClick = { showDirectoryDialog = true }
+                            onClick = {
+                                val hasAllFilesAccess = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                    Environment.isExternalStorageManager()
+                                } else {
+                                    true
+                                }
+
+                                if (hasAllFilesAccess) {
+                                    settingsViewModel.resetExplorerToRoot()
+                                    showDirectoryDialog = true
+                                } else {
+                                    val intent = Intent(
+                                        Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                                        "package:${context.packageName}".toUri()
+                                    )
+                                    context.startActivity(intent)
+                                }
+                            }
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         SettingsItem(
@@ -692,13 +705,28 @@ fun SettingsScreen(
 
     // Diálogo para seleccionar directorios
     if (showDirectoryDialog) {
-        DirectoryPickerBottomSheet(
-            directoryItems = directoryItems,
-            isLoading = uiState.isLoadingDirectories,
-            onDismiss = { showDirectoryDialog = false },
-            onItemToggle = { directoryItem ->
-                settingsViewModel.toggleDirectoryAllowed(directoryItem)
+        BackHandler {
+            if (settingsViewModel.canNavigateUp()) {
+                settingsViewModel.navigateUp()
+            } else {
+                showDirectoryDialog = false
             }
+        }
+
+        FileExplorerBottomSheet(
+            currentPath = currentPath,
+            children = currentDirectoryChildren,
+            allowedDirectories = allowedDirectories,
+            isLoading = isExplorerLoading,
+            canNavigateUp = settingsViewModel.canNavigateUp(),
+            onNavigateUp = {
+                if (!settingsViewModel.navigateUp()) {
+                    showDirectoryDialog = false
+                }
+            },
+            onDirectoryClick = settingsViewModel::loadDirectory,
+            onToggleAllowed = settingsViewModel::toggleDirectoryAllowed,
+            onDismiss = { showDirectoryDialog = false }
         )
     }
 
@@ -1022,254 +1050,6 @@ fun SliderSettingsItem(
                 valueRange = valueRange,
                 steps = ((valueRange.endInclusive - valueRange.start) / 500).toInt() - 1,
                 modifier = Modifier.fillMaxWidth()
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun DirectoryPickerBottomSheet(
-    directoryItems: ImmutableList<DirectoryItem>,
-    isLoading: Boolean,
-    onDismiss: () -> Unit,
-    onItemToggle: (DirectoryItem) -> Unit
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        sheetState = sheetState,
-        modifier = Modifier.fillMaxHeight(),
-        dragHandle = { BottomSheetDefaults.DragHandle() }
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    //.padding(bottom = 16.dp)
-            ) {
-                // Header
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 24.dp, end = 16.dp, bottom = 22.dp, top = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "Music Folders",
-                        fontFamily = GoogleSansRounded,
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                // Content
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                ) {
-                    when {
-                        isLoading -> {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    CircularProgressIndicator(
-                                        color = MaterialTheme.colorScheme.primary,
-                                        strokeWidth = 4.dp
-                                    )
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    Text(
-                                        text = "Scanning folders...",
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                        directoryItems.isEmpty() -> {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(16.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.FolderOff,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(64.dp)
-                                    )
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    Text(
-                                        text = "No folders with audio files found",
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            }
-                        }
-                        else -> {
-                            LazyColumn(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = 16.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                                contentPadding = PaddingValues(bottom = 106.dp) // Space for the button
-                            ) {
-                                items(directoryItems, key = { it.path }) { item ->
-                                    DirectoryItemCard(
-                                        directoryItem = item,
-                                        onToggle = { onItemToggle(item) }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            FloatingActionButton(
-                onClick = onDismiss,
-                shape = CircleShape,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 26.dp)
-            ) {
-                Text(
-                    modifier = Modifier.padding(horizontal = 26.dp, vertical = 0.dp),
-                    text = "Accept"
-                )
-            }
-
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(30.dp)
-                    .background(
-                        brush = Brush.verticalGradient(
-                            listOf(
-                                Color.Transparent,
-                                MaterialTheme.colorScheme.surfaceContainer
-                            )
-                        )
-                    )
-            ) {
-
-            }
-        }
-    }
-}
-
-
-@Composable
-fun DirectoryItemCard(
-    directoryItem: DirectoryItem,
-    onToggle: () -> Unit
-) {
-    val checkedState = remember { mutableStateOf(directoryItem.isAllowed) }
-
-    val shape = AbsoluteSmoothCornerShape(
-        cornerRadiusTL = 20.dp,
-        smoothnessAsPercentBR = 60,
-        cornerRadiusTR = 20.dp,
-        smoothnessAsPercentBL = 60,
-        cornerRadiusBL = 20.dp,
-        smoothnessAsPercentTR = 60,
-        cornerRadiusBR = 20.dp,
-        smoothnessAsPercentTL = 60
-    )
-
-    LaunchedEffect(directoryItem) {
-        checkedState.value = directoryItem.isAllowed
-    }
-
-    Surface(
-        shape = shape,
-        color = if (checkedState.value)
-            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
-        else
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        border = BorderStroke(
-            width = 2.dp,
-            color = if (checkedState.value)
-                MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f)
-            else
-                Color.Transparent//MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-        ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .clickable {
-                checkedState.value = !checkedState.value
-                onToggle()
-            }
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = if (checkedState.value) Icons.Filled.Folder else Icons.Outlined.Folder,
-                contentDescription = null,
-                tint = if (checkedState.value)
-                    MaterialTheme.colorScheme.secondary
-                else
-                    MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .padding(start = 10.dp)
-                    .size(28.dp)
-            )
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = directoryItem.displayName,
-                    lineHeight = 18.sp,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = if (checkedState.value)
-                        MaterialTheme.colorScheme.onSecondaryContainer
-                    else
-                        MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = directoryItem.path,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.StartEllipsis,
-                    color = if (checkedState.value)
-                        MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
-                    else
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            // Checkbox
-            Checkbox(
-                checked = checkedState.value,
-                onCheckedChange = {
-                    checkedState.value = it
-                    onToggle()
-                },
-                colors = CheckboxDefaults.colors(
-                    checkedColor = MaterialTheme.colorScheme.primary,
-                    uncheckedColor = MaterialTheme.colorScheme.outline,
-                    checkmarkColor = MaterialTheme.colorScheme.onPrimary
-                )
             )
         }
     }
