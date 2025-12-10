@@ -28,7 +28,6 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import android.Manifest
-import android.bluetooth.BluetoothClass
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
@@ -932,22 +931,25 @@ class PlayerViewModel @Inject constructor(
             return
         }
 
-        val bondedDevices = bluetoothAdapter?.bondedDevices.orEmpty()
-        val audioDeviceNames = bondedDevices
-            .filter { device ->
-                device.bluetoothClass?.deviceClass in listOf(
-                    BluetoothClass.Device.AUDIO_VIDEO_WEARABLE_HEADSET,
-                    BluetoothClass.Device.AUDIO_VIDEO_HEADPHONES,
-                    BluetoothClass.Device.AUDIO_VIDEO_CAR_AUDIO,
-                    BluetoothClass.Device.AUDIO_VIDEO_LOUDSPEAKER,
-                    BluetoothClass.Device.AUDIO_VIDEO_PORTABLE_AUDIO,
-                    BluetoothClass.Device.AUDIO_VIDEO_HIFI_AUDIO
-                )
+        val connectedDevices = buildSet {
+            safeGetConnectedDevices(BluetoothProfile.A2DP).mapNotNullTo(this) { it.name }
+            safeGetConnectedDevices(BluetoothProfile.HEADSET).mapNotNullTo(this) { it.name }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                safeGetConnectedDevices(BluetoothProfile.LE_AUDIO).mapNotNullTo(this) { it.name }
             }
-            .mapNotNull { it.name }
-            .sorted()
 
-        _bluetoothAudioDevices.value = audioDeviceNames
+            audioManager.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS)
+                .filter {
+                    it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                        it.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                        it.type == android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER ||
+                        it.type == android.media.AudioDeviceInfo.TYPE_HEARING_AID
+                }
+                .mapNotNull { it.productName?.toString() }
+                .forEach { add(it) }
+        }
+
+        _bluetoothAudioDevices.value = connectedDevices.toList().sorted()
     }
 
     private fun safeGetConnectedDevices(profile: Int): List<BluetoothDevice> {
