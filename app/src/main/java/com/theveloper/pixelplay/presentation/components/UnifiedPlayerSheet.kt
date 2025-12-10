@@ -242,6 +242,12 @@ fun UnifiedPlayerSheet(
     }
     val sheetAnimationMutex = remember { MutatorMutex() }
 
+    val sheetExpandedTargetY = 0f
+
+    val initialY =
+        if (currentSheetContentState == PlayerSheetState.COLLAPSED) sheetCollapsedTargetY else sheetExpandedTargetY
+    val currentSheetTranslationY = remember { Animatable(initialY) }
+
     val fullPlayerContentAlpha by remember {
         derivedStateOf {
             (playerContentExpansionFraction.value - 0.25f).coerceIn(0f, 0.75f) / 0.75f
@@ -413,12 +419,6 @@ fun UnifiedPlayerSheet(
         with(density) { animatedTotalSheetHeightWithShadowPx.toDp() }
 
     //with(density) { animatedTotalSheetHeightPx.toDp() }
-
-    val sheetExpandedTargetY = 0f
-
-    val initialY =
-        if (currentSheetContentState == PlayerSheetState.COLLAPSED) sheetCollapsedTargetY else sheetExpandedTargetY
-    val currentSheetTranslationY = remember { Animatable(initialY) }
 
     val visualSheetTranslationY by remember {
         derivedStateOf {
