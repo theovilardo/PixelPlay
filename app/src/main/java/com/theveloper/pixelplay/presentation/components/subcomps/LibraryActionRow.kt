@@ -80,7 +80,8 @@ fun LibraryActionRow(
     // Breadcrumb parameters
     currentFolder: MusicFolder?,
     onFolderClick: (String) -> Unit,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    isShuffleEnabled: Boolean = false
 ) {
     Row(
         modifier = modifier
@@ -119,6 +120,18 @@ fun LibraryActionRow(
                     label = "GenerateButtonStartCorner"
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Determine button colors based on shuffle state (not for playlist tab)
+                    val buttonContainerColor = if (!isPlaylistTab && isShuffleEnabled) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.tertiaryContainer
+                    }
+                    val buttonContentColor = if (!isPlaylistTab && isShuffleEnabled) {
+                        MaterialTheme.colorScheme.onPrimary
+                    } else {
+                        MaterialTheme.colorScheme.onTertiaryContainer
+                    }
+                    
                     FilledTonalButton(
                         onClick = onMainActionClick,
                         shape = RoundedCornerShape(
@@ -126,14 +139,14 @@ fun LibraryActionRow(
                             topEnd =  newButtonEndCorner, bottomEnd = newButtonEndCorner
                         ),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                            containerColor = buttonContainerColor,
+                            contentColor = buttonContentColor
                         ),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 6.dp),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
                     ) {
                         val icon = if (isPlaylistTab) Icons.Rounded.PlaylistAdd else Icons.Rounded.Shuffle
-                        val text = if (isPlaylistTab) "New" else "Shuffle"
+                        val text = if (isPlaylistTab) "New" else if (isShuffleEnabled) "Shuffle On" else "Shuffle"
                         val contentDesc = if (isPlaylistTab) "Create New Playlist" else "Shuffle Play"
 
                         Row(

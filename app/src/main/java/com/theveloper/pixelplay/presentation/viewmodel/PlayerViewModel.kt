@@ -342,6 +342,10 @@ class PlayerViewModel @Inject constructor(
     private val _isInitialThemePreloadComplete = MutableStateFlow(false)
     val isInitialThemePreloadComplete: StateFlow<Boolean> = _isInitialThemePreloadComplete.asStateFlow()
 
+    // Manual shuffle state - stores original queue order for unshuffling (Spotify-like behavior)
+    private var _originalQueueOrder: List<Song> = emptyList()
+    private var _originalQueueName: String = "None"
+
     // Sleep Timer StateFlows
     private val _sleepTimerEndTimeMillis = MutableStateFlow<Long?>(null)
     val sleepTimerEndTimeMillis: StateFlow<Long?> = _sleepTimerEndTimeMillis.asStateFlow()
@@ -631,22 +635,56 @@ class PlayerViewModel @Inject constructor(
 
     fun shuffleAllSongs() {
         Log.d("ShuffleDebug", "shuffleAllSongs called.")
-        mediaController?.shuffleModeEnabled = true
+        // Don't use ExoPlayer's shuffle mode - we manually shuffle instead
+        val currentSong = _stablePlayerState.value.currentSong
+        val isPlaying = _stablePlayerState.value.isPlaying
+        
+        // If something is playing, just toggle shuffle on current queue
+        if (currentSong != null && isPlaying) {
+            if (!_stablePlayerState.value.isShuffleEnabled) {
+                toggleShuffle()
+            }
+            return
+        }
+        
+        // Otherwise start a new shuffled queue
         val allSongs = _playerUiState.value.allSongs
         if (allSongs.isNotEmpty()) {
             val shuffledList = allSongs.shuffled().toMutableList()
-            val randomSong = shuffledList.first() // Pick the first from the already shuffled list
+            val randomSong = shuffledList.first()
             playSongs(shuffledList, randomSong, "All Songs (Shuffled)")
+            // Enable shuffle after starting playback
+            viewModelScope.launch {
+                kotlinx.coroutines.delay(100)
+                toggleShuffle()
+            }
         }
     }
 
     fun shuffleFavoriteSongs() {
         Log.d("ShuffleDebug", "shuffleFavoriteSongs called.")
-        mediaController?.shuffleModeEnabled = true
+        // Don't use ExoPlayer's shuffle mode - we manually shuffle instead
+        val currentSong = _stablePlayerState.value.currentSong
+        val isPlaying = _stablePlayerState.value.isPlaying
+        
+        // If something is playing, just toggle shuffle on current queue
+        if (currentSong != null && isPlaying) {
+            if (!_stablePlayerState.value.isShuffleEnabled) {
+                toggleShuffle()
+            }
+            return
+        }
+        
+        // Otherwise start a new shuffled queue
         val favSongs = favoriteSongs.value
         if (favSongs.isNotEmpty()) {
             val shuffledList = favSongs.shuffled()
             playSongs(shuffledList, shuffledList.first(), "Liked Songs (Shuffled)")
+            // Enable shuffle after starting playback
+            viewModelScope.launch {
+                kotlinx.coroutines.delay(100)
+                toggleShuffle()
+            }
         }
     }
 
@@ -2284,11 +2322,14 @@ class PlayerViewModel @Inject constructor(
                 }
             }
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
-                _stablePlayerState.update { it.copy(isShuffleEnabled = shuffleModeEnabled) }
-                if (playerCtrl.mediaItemCount == 0 && shuffleModeEnabled) {
-                    val shuffledQueue = createShuffledQueue(_masterAllSongs.value)
-                    if (shuffledQueue.isNotEmpty()) {
-                        playSongs(shuffledQueue, shuffledQueue.first(), "Shuffled Queue", null)
+                // IMPORTANT: We don't use ExoPlayer's shuffle mode anymore
+                // Instead, we manually shuffle the queue to fix crossfade issues
+                // If ExoPlayer's shuffle gets enabled (e.g., from media button), turn it off and use our toggle
+                if (shuffleModeEnabled) {
+                    playerCtrl.shuffleModeEnabled = false
+                    // Trigger our manual shuffle instead
+                    if (!_stablePlayerState.value.isShuffleEnabled) {
+                        toggleShuffle()
                     }
                 }
             }
@@ -2317,6 +2358,11 @@ class PlayerViewModel @Inject constructor(
     fun playSongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None", playlistId: String? = null) {
         viewModelScope.launch {
             transitionSchedulerJob?.cancel()
+            // Store original queue order for unshuffling later
+            _originalQueueOrder = songsToPlay.toList()
+            _originalQueueName = queueName
+            // Reset shuffle state when starting a new queue
+            _stablePlayerState.update { it.copy(isShuffleEnabled = false) }
             internalPlaySongs(songsToPlay, startSong, queueName, playlistId)
         }
     }
@@ -2838,8 +2884,111 @@ class PlayerViewModel @Inject constructor(
             }
             castPlayer?.setRepeatMode(newRepeatMode)
         } else {
-            val newShuffleState = !_stablePlayerState.value.isShuffleEnabled
-            mediaController?.shuffleModeEnabled = newShuffleState
+            // Manual shuffle implementation - fixes crossfade issues by not using ExoPlayer's shuffle
+            val player = mediaController ?: return
+            val currentQueue = _playerUiState.value.currentPlaybackQueue
+            val currentSong = _stablePlayerState.value.currentSong ?: return
+            val isCurrentlyShuffled = _stablePlayerState.value.isShuffleEnabled
+
+            if (!isCurrentlyShuffled) {
+                // SHUFFLE ON: Keep current song at index 0, shuffle the rest
+                Log.d("ShuffleDebug", "Enabling shuffle - current song: ${currentSong.title}")
+                
+                // Store original order if not already stored
+                if (_originalQueueOrder.isEmpty()) {
+                    _originalQueueOrder = currentQueue.toList()
+                    _originalQueueName = _playerUiState.value.currentQueueSourceName
+                }
+
+                val otherSongs = currentQueue.filter { it.id != currentSong.id }.shuffled()
+                val newQueue = listOf(currentSong) + otherSongs
+
+                // Update queue without interrupting playback using add/remove
+                val currentIndex = player.currentMediaItemIndex
+                val currentPosition = player.currentPosition
+
+                // Remove all items except current
+                for (i in player.mediaItemCount - 1 downTo 0) {
+                    if (i != currentIndex) {
+                        player.removeMediaItem(i)
+                    }
+                }
+
+                // Add shuffled songs after current (which is now at index 0)
+                otherSongs.forEachIndexed { index, song ->
+                    val mediaItem = MediaItem.Builder()
+                        .setMediaId(song.id)
+                        .setUri(song.path)
+                        .setMediaMetadata(buildMediaMetadataForSong(song))
+                        .build()
+                    player.addMediaItem(index + 1, mediaItem)
+                }
+
+                // Update UI state
+                _playerUiState.update { it.copy(currentPlaybackQueue = newQueue.toImmutableList()) }
+                _stablePlayerState.update { it.copy(isShuffleEnabled = true) }
+                Log.d("ShuffleDebug", "Shuffle enabled - queue size: ${newQueue.size}")
+
+            } else {
+                // SHUFFLE OFF: Restore original order, current song jumps to its original position
+                Log.d("ShuffleDebug", "Disabling shuffle - restoring original order")
+                
+                if (_originalQueueOrder.isEmpty()) {
+                    // No original order stored, just disable shuffle state
+                    _stablePlayerState.update { it.copy(isShuffleEnabled = false) }
+                    return
+                }
+
+                val originalQueue = _originalQueueOrder
+                val currentPosition = player.currentPosition
+
+                // Find current song's position in original queue
+                val originalIndex = originalQueue.indexOfFirst { it.id == currentSong.id }
+                if (originalIndex == -1) {
+                    _stablePlayerState.update { it.copy(isShuffleEnabled = false) }
+                    return
+                }
+
+                // Remove all items except current
+                val currentPlayerIndex = player.currentMediaItemIndex
+                for (i in player.mediaItemCount - 1 downTo 0) {
+                    if (i != currentPlayerIndex) {
+                        player.removeMediaItem(i)
+                    }
+                }
+
+                // Add songs before current song (in original order)
+                for (i in 0 until originalIndex) {
+                    val song = originalQueue[i]
+                    val mediaItem = MediaItem.Builder()
+                        .setMediaId(song.id)
+                        .setUri(song.path)
+                        .setMediaMetadata(buildMediaMetadataForSong(song))
+                        .build()
+                    player.addMediaItem(i, mediaItem)
+                }
+
+                // Add songs after current song (in original order)
+                for (i in originalIndex + 1 until originalQueue.size) {
+                    val song = originalQueue[i]
+                    val mediaItem = MediaItem.Builder()
+                        .setMediaId(song.id)
+                        .setUri(song.path)
+                        .setMediaMetadata(buildMediaMetadataForSong(song))
+                        .build()
+                    player.addMediaItem(i, mediaItem)
+                }
+
+                // Update UI state
+                _playerUiState.update { 
+                    it.copy(
+                        currentPlaybackQueue = originalQueue.toImmutableList(),
+                        currentQueueSourceName = _originalQueueName
+                    ) 
+                }
+                _stablePlayerState.update { it.copy(isShuffleEnabled = false) }
+                Log.d("ShuffleDebug", "Shuffle disabled - restored to original order, current at index $originalIndex")
+            }
         }
     }
 

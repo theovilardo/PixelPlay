@@ -389,6 +389,7 @@ fun LibraryScreen(
                         }
                         val playerUiState by playerViewModel.playerUiState.collectAsState()
                         val playlistUiState by playlistViewModel.uiState.collectAsState()
+                        val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
 
                         val currentSelectedSortOption: SortOption? = when (currentTabId) {
                             LibraryTabId.SONGS -> playerUiState.currentSongSortOption
@@ -423,8 +424,8 @@ fun LibraryScreen(
                             onMainActionClick = {
                                 when (tabTitles.getOrNull(pagerState.currentPage)?.toLibraryTabIdOrNull()) {
                                     LibraryTabId.PLAYLISTS -> showCreatePlaylistDialog = true
-                                    LibraryTabId.LIKED -> playerViewModel.shuffleFavoriteSongs()
-                                    else -> playerViewModel.shuffleAllSongs()
+                                    LibraryTabId.LIKED -> playerViewModel.toggleShuffle()
+                                    else -> playerViewModel.toggleShuffle()
                                 }
                             },
                             iconRotation = iconRotation,
@@ -436,7 +437,8 @@ fun LibraryScreen(
                             //onFilterClick = { playerViewModel.toggleFolderFilter() },
                             currentFolder = playerUiState.currentFolder,
                             onFolderClick = { playerViewModel.navigateToFolder(it) },
-                            onNavigateBack = { playerViewModel.navigateBackFolder() }
+                            onNavigateBack = { playerViewModel.navigateBackFolder() },
+                            isShuffleEnabled = stablePlayerState.isShuffleEnabled
                         )
 
                         if (isSortSheetVisible && sanitizedSortOptions.isNotEmpty()) {
