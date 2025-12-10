@@ -401,7 +401,7 @@ fun FullPlayerContent(
                                     .fillMaxWidth()
                                     .padding(start = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Absolute.SpaceBetween
+                                horizontalArrangement = Arrangement.Start
                                 ) {
                                     Icon(
                                         painter = castIconPainter,
@@ -412,48 +412,48 @@ fun FullPlayerContent(
                                         },
                                         tint = LocalMaterialTheme.current.primary
                                     )
-                                    Spacer(
-                                        Modifier.width(4.dp)
-                                    )
                                     AnimatedVisibility(visible = showCastLabel) {
-                                        AnimatedContent(
-                                            targetState = when {
-                                                isCastConnecting -> "Connecting…"
-                                                isRemotePlaybackActive && selectedRouteName != null -> selectedRouteName ?: ""
-                                                else -> ""
-                                            },
-                                            transitionSpec = {
-                                                fadeIn(animationSpec = tween(150)) togetherWith fadeOut(animationSpec = tween(120))
-                                            },
-                                            label = "castButtonLabel"
-                                        ) { label ->
-                                            Row(
-                                                modifier = Modifier.padding(end = 16.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                            ) {
-                                                Text(
-                                                    text = label,
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    color = LocalMaterialTheme.current.primary,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                                AnimatedVisibility(visible = isCastConnecting) {
-                                                    CircularProgressIndicator(
-                                                        modifier = Modifier
-                                                            .size(14.dp),
-                                                        strokeWidth = 2.dp,
-                                                        color = LocalMaterialTheme.current.primary
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Spacer(Modifier.width(8.dp))
+                                            AnimatedContent(
+                                                targetState = when {
+                                                    isCastConnecting -> "Connecting…"
+                                                    isRemotePlaybackActive && selectedRouteName != null -> selectedRouteName ?: ""
+                                                    else -> ""
+                                                },
+                                                transitionSpec = {
+                                                    fadeIn(animationSpec = tween(150)) togetherWith fadeOut(animationSpec = tween(120))
+                                                },
+                                                label = "castButtonLabel"
+                                            ) { label ->
+                                                Row(
+                                                    modifier = Modifier.padding(end = 16.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                                ) {
+                                                    Text(
+                                                        text = label,
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        color = LocalMaterialTheme.current.primary,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
                                                     )
-                                                }
-                                                if (isRemotePlaybackActive && !isCastConnecting) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .size(8.dp)
-                                                            .clip(CircleShape)
-                                                            .background(Color(0xFF38C450))
-                                                    )
+                                                    AnimatedVisibility(visible = isCastConnecting) {
+                                                        CircularProgressIndicator(
+                                                            modifier = Modifier
+                                                                .size(14.dp),
+                                                            strokeWidth = 2.dp,
+                                                            color = LocalMaterialTheme.current.primary
+                                                        )
+                                                    }
+                                                    if (isRemotePlaybackActive && !isCastConnecting) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(8.dp)
+                                                                .clip(CircleShape)
+                                                                .background(Color(0xFF38C450))
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }

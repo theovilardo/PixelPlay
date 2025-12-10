@@ -133,6 +133,7 @@ fun CastBottomSheet(
     val wifiName by playerViewModel.wifiName.collectAsState()
     val isBluetoothEnabled by playerViewModel.isBluetoothEnabled.collectAsState()
     val bluetoothName by playerViewModel.bluetoothName.collectAsState()
+    val bluetoothAudioDevices by playerViewModel.bluetoothAudioDevices.collectAsState()
     val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
     val isCastConnecting by playerViewModel.isCastConnecting.collectAsState()
     val trackVolume by playerViewModel.trackVolume.collectAsState()
@@ -186,21 +187,32 @@ fun CastBottomSheet(
             }
         )
 
-        if (isBluetoothEnabled && !bluetoothName.isNullOrEmpty()) {
-            add(
-                CastDeviceUi(
-                    id = "bluetooth_${bluetoothName}",
-                    name = bluetoothName!!,
-                    deviceType = MediaRouter.RouteInfo.DEVICE_TYPE_BLUETOOTH_A2DP,
-                    playbackType = MediaRouter.RouteInfo.PLAYBACK_TYPE_LOCAL,
-                    connectionState = MediaRouter.RouteInfo.CONNECTION_STATE_CONNECTED,
-                    volumeHandling = MediaRouter.RouteInfo.PLAYBACK_VOLUME_VARIABLE,
-                    volume = (trackVolume * 100).toInt(),
-                    volumeMax = 100,
-                    isSelected = !isRemoteSession,
-                    isBluetooth = true
+        if (isBluetoothEnabled) {
+            val bluetoothNames = (bluetoothAudioDevices + listOfNotNull(bluetoothName))
+                .filter { it.isNotEmpty() }
+                .distinct()
+
+            bluetoothNames.forEach { name ->
+                val isConnected = name == bluetoothName
+                add(
+                    CastDeviceUi(
+                        id = "bluetooth_$name",
+                        name = name,
+                        deviceType = MediaRouter.RouteInfo.DEVICE_TYPE_BLUETOOTH_A2DP,
+                        playbackType = MediaRouter.RouteInfo.PLAYBACK_TYPE_LOCAL,
+                        connectionState = if (isConnected) {
+                            MediaRouter.RouteInfo.CONNECTION_STATE_CONNECTED
+                        } else {
+                            MediaRouter.RouteInfo.CONNECTION_STATE_DISCONNECTED
+                        },
+                        volumeHandling = MediaRouter.RouteInfo.PLAYBACK_VOLUME_VARIABLE,
+                        volume = if (isConnected) (trackVolume * 100).toInt() else 0,
+                        volumeMax = 100,
+                        isSelected = isConnected && !isRemoteSession,
+                        isBluetooth = true
+                    )
                 )
-            )
+            }
         }
     }
 
@@ -944,7 +956,7 @@ private fun CastDeviceRow(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 4.dp, bottom = 2.dp),
+                        .padding(top = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -996,7 +1008,7 @@ private fun CastDeviceRow(
                         imageVector = deviceIcon,
                         contentDescription = null,
                         tint = onContainer,
-                        modifier = Modifier.padding(vertical = 10.dp)
+                        modifier = Modifier.size(26.dp)
                     )
                 }
             },
@@ -1010,7 +1022,7 @@ private fun CastDeviceRow(
                 }
             },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-            //contentPadding = PaddingValues(16.dp)
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp)
         )
     }
 }

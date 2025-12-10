@@ -28,6 +28,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import android.Manifest
+import android.bluetooth.BluetoothClass
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
@@ -385,6 +386,9 @@ class PlayerViewModel @Inject constructor(
     val isBluetoothEnabled: StateFlow<Boolean> = _isBluetoothEnabled.asStateFlow()
     private val _bluetoothName = MutableStateFlow<String?>(null)
     val bluetoothName: StateFlow<String?> = _bluetoothName.asStateFlow()
+
+    private val _bluetoothAudioDevices = MutableStateFlow<List<String>>(emptyList())
+    val bluetoothAudioDevices: StateFlow<List<String>> = _bluetoothAudioDevices.asStateFlow()
 
     private val mediaRouter: MediaRouter
     private val mediaRouterCallback: MediaRouter.Callback
@@ -892,6 +896,7 @@ class PlayerViewModel @Inject constructor(
     private fun updateBluetoothName(forceClear: Boolean = false) {
         if (!hasBluetoothPermission()) {
             if (forceClear) _bluetoothName.value = null
+            _bluetoothAudioDevices.value = emptyList()
             return
         }
 
@@ -917,6 +922,32 @@ class PlayerViewModel @Inject constructor(
             resolvedName != null -> _bluetoothName.value = resolvedName
             forceClear || !(bluetoothAdapter?.isEnabled ?: false) -> _bluetoothName.value = null
         }
+
+        updateBluetoothAudioDevices()
+    }
+
+    private fun updateBluetoothAudioDevices() {
+        if (!hasBluetoothPermission()) {
+            _bluetoothAudioDevices.value = emptyList()
+            return
+        }
+
+        val bondedDevices = bluetoothAdapter?.bondedDevices.orEmpty()
+        val audioDeviceNames = bondedDevices
+            .filter { device ->
+                device.bluetoothClass?.deviceClass in listOf(
+                    BluetoothClass.Device.AUDIO_VIDEO_WEARABLE_HEADSET,
+                    BluetoothClass.Device.AUDIO_VIDEO_HEADPHONES,
+                    BluetoothClass.Device.AUDIO_VIDEO_CAR_AUDIO,
+                    BluetoothClass.Device.AUDIO_VIDEO_LOUDSPEAKER,
+                    BluetoothClass.Device.AUDIO_VIDEO_PORTABLE_AUDIO,
+                    BluetoothClass.Device.AUDIO_VIDEO_HIFI_AUDIO
+                )
+            }
+            .mapNotNull { it.name }
+            .sorted()
+
+        _bluetoothAudioDevices.value = audioDeviceNames
     }
 
     private fun safeGetConnectedDevices(profile: Int): List<BluetoothDevice> {
@@ -931,6 +962,7 @@ class PlayerViewModel @Inject constructor(
 
         _isBluetoothEnabled.value = bluetoothAdapter?.isEnabled ?: false
         updateBluetoothName()
+        updateBluetoothAudioDevices()
     }
 
     init {
@@ -1139,8 +1171,10 @@ class PlayerViewModel @Inject constructor(
                     BluetoothAdapter.ACTION_STATE_CHANGED -> {
                         val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
                         _isBluetoothEnabled.value = state == BluetoothAdapter.STATE_ON
-                        if (state == BluetoothAdapter.STATE_OFF) _bluetoothName.value = null
-                        else updateBluetoothName(forceClear = false)
+                        if (state == BluetoothAdapter.STATE_OFF) {
+                            _bluetoothName.value = null
+                            _bluetoothAudioDevices.value = emptyList()
+                        } else updateBluetoothName(forceClear = false)
                     }
                     android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED,
                     android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
