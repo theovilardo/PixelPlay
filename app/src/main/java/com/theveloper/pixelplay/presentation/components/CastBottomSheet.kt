@@ -111,6 +111,7 @@ import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import android.content.pm.PackageManager
+import androidx.compose.animation.animateColorAsState
 import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 
 @androidx.annotation.OptIn(UnstableApi::class)
@@ -461,7 +462,7 @@ private fun CastSheetContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp, vertical = 0.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         SheetHeader(
@@ -496,6 +497,7 @@ private fun CastSheetContent(
 
         if (!state.wifiEnabled) {
             WifiOffIllustration(onTurnOnWifi = onTurnOnWifi)
+            Spacer(modifier = Modifier.height(8.dp))
             return
         }
 
@@ -524,8 +526,6 @@ private fun CastSheetContent(
                 )
             }
         }
-
-        Spacer(modifier = Modifier.height(4.dp))
     }
 }
 
@@ -563,23 +563,6 @@ private fun SheetHeader(
                 text = "Connect device",
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontSize = 28.sp)
             )
-//            AnimatedContent(
-//                targetState = isScanning,
-//                transitionSpec = {
-//                    fadeIn(animationSpec = tween(180, easing = FastOutSlowInEasing)) togetherWith
-//                        fadeOut(animationSpec = tween(140))
-//                },
-//                label = "scanState"
-//            ) { scanning ->
-//                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-//                    ScanningIndicator(isActive = scanning)
-//                    Text(
-//                        text = if (scanning) "Scanning nearby" else "Current device",
-//                        style = MaterialTheme.typography.bodyMedium,
-//                        color = MaterialTheme.colorScheme.onSurfaceVariant
-//                    )
-//                }
-//            }
         }
         IconButton(
             onClick = onRefresh,
@@ -896,14 +879,16 @@ private fun CastDeviceRow(
     onSelect: () -> Unit,
     onDisconnect: () -> Unit
 ) {
-    val leafShape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomEnd = 24.dp, bottomStart = 24.dp)
     val (containerColor, onContainer) = when {
         device.isBluetooth -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
         device.isSelected -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
         else -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurface
     }
+
     val isActiveDevice = device.isSelected && device.connectionState == MediaRouter.RouteInfo.CONNECTION_STATE_CONNECTED
     val scallopShape = RoundedStarShape(sides = 8, curve = 0.10, rotation = 0f)
+
+    // Animaciones
     val infiniteRotation = rememberInfiniteTransition(label = "activeDeviceRotation")
     val rotation by infiniteRotation.animateFloat(
         initialValue = 0f,
@@ -919,30 +904,66 @@ private fun CastDeviceRow(
         animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing),
         label = "activeDeviceScale"
     )
+
     val deviceIcon = when (device.deviceType) {
         MediaRouter.RouteInfo.DEVICE_TYPE_TV -> Icons.Rounded.Tv
         MediaRouter.RouteInfo.DEVICE_TYPE_REMOTE_SPEAKER, MediaRouter.RouteInfo.DEVICE_TYPE_BUILTIN_SPEAKER -> Icons.Rounded.Speaker
         MediaRouter.RouteInfo.DEVICE_TYPE_BLUETOOTH_A2DP -> Icons.Rounded.Bluetooth
         else -> Icons.Filled.Cast
     }
-    val clickAction = if (device.isBluetooth) {
-        {}
-    } else if (device.isSelected) {
-        onDisconnect
-    } else {
-        onSelect
-    }
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(CircleShape)
-            .clickable(enabled = !device.isBluetooth, onClick = clickAction),
+            .clip(CircleShape) // Mantenemos el clip circular para el ripple
+            .clickable(enabled = !device.isBluetooth, onClick = if (device.isSelected) onDisconnect else onSelect),
         color = containerColor,
         tonalElevation = 2.dp
     ) {
-        ListItem(
-            headlineContent = {
+        // Usamos Row con IntrinsicSize.Min para que la altura se adapte al contenido de texto
+        // pero permita que el icono se centre verticalmente de forma real.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min)
+                .padding(12.dp), // Padding uniforme en los 4 lados
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Contenedor del Icono (Leading Content)
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .padding(start = 4.dp), // Tamaño fijo para asegurar simetría
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .graphicsLayer(
+                            rotationZ = if (isActiveDevice) rotation else 0f,
+                            scaleX = backgroundScale,
+                            scaleY = backgroundScale
+                        )
+                        .background(
+                            color = onContainer.copy(alpha = 0.12f),
+                            shape = if (isActiveDevice) scallopShape else CircleShape
+                        )
+                )
+
+                Icon(
+                    imageVector = deviceIcon,
+                    contentDescription = null,
+                    tint = onContainer,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            // Cuerpo de texto
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
                 Text(
                     text = device.name,
                     style = MaterialTheme.typography.titleMedium,
@@ -951,79 +972,34 @@ private fun CastDeviceRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-            },
-            supportingContent = {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val statusText = when {
-                        device.isBluetooth -> "Bluetooth audio"
-                        device.connectionState == MediaRouter.RouteInfo.CONNECTION_STATE_CONNECTED -> "Connected"
-                        else -> "Available"
-                    }
-                    val statusIcon = when {
-                        device.isBluetooth -> R.drawable.rounded_bluetooth_24
-                        device.playbackType == MediaRouter.RouteInfo.PLAYBACK_TYPE_REMOTE -> R.drawable.rounded_wifi_24
-                        else -> R.drawable.rounded_bluetooth_24
-                    }
-                    BadgeChip(
-                        text = statusText,
-                        icon = statusIcon,
-                        contentColor = if (device.isBluetooth) MaterialTheme.colorScheme.onSecondaryContainer else onContainer
-                    )
-                    if (device.isBluetooth) {
-                        BadgeChip(
-                            text = "Local output",
-                            iconVector = Icons.Rounded.Headphones,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    }
-                }
-            },
-            leadingContent = {
-                Box(
-                    modifier = Modifier
-                        .size(50.dp), //it should have dynamic size and padding, ditch list item and make it variable size so CircleShape and scallop are the same size
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .graphicsLayer(
-                                rotationZ = if (isActiveDevice) rotation else 0f,
-                                scaleX = backgroundScale,
-                                scaleY = backgroundScale
-                            )
-                            .background(
-                                color = onContainer.copy(alpha = 0.12f),
-                                shape = if (isActiveDevice) scallopShape else CircleShape
-                            )
-                    )
 
-                    Icon(
-                        imageVector = deviceIcon,
-                        contentDescription = null,
-                        tint = onContainer,
-                        modifier = Modifier.size(26.dp)
-                    )
+                Spacer(modifier = Modifier.height(4.dp))
+
+                val statusText = when {
+                    device.isBluetooth -> "Bluetooth Audio"
+                    device.connectionState == MediaRouter.RouteInfo.CONNECTION_STATE_CONNECTED -> "Connected"
+                    else -> "Available"
                 }
-            },
-            trailingContent = {
-                if (device.volumeHandling == MediaRouter.RouteInfo.PLAYBACK_VOLUME_VARIABLE && device.isSelected) {
-                    Text(
-                        text = "${device.volume.coerceIn(0, device.volumeMax)} / ${device.volumeMax}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = onContainer
-                    )
-                }
-            },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp)
-        )
+
+                val statusIcon = if (device.isBluetooth) R.drawable.rounded_bluetooth_24 else R.drawable.rounded_wifi_24
+
+                BadgeChip(
+                    text = statusText,
+                    icon = statusIcon,
+                    contentColor = onContainer
+                )
+            }
+
+            // Trailing Content (Volumen)
+            if (device.volumeHandling == MediaRouter.RouteInfo.PLAYBACK_VOLUME_VARIABLE && device.isSelected) {
+                Text(
+                    text = "${device.volume}/${device.volumeMax}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = onContainer,
+                    modifier = Modifier.padding(end = 4.dp)
+                )
+            }
+        }
     }
 }
 
@@ -1050,6 +1026,7 @@ private fun BadgeChip(
             text = text,
             maxLines = 1,
             style = MaterialTheme.typography.labelMedium,
+            overflow = TextOverflow.Ellipsis,
             color = contentColor
         )
     }
@@ -1100,13 +1077,39 @@ private fun QuickSettingTile(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val containerColor = if (isActive) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainer
-    val contentColor = if (isActive) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
+    // Definimos la forma específica para el estado activo
+    val activeShape = remember {
+        AbsoluteSmoothCornerShape(
+            cornerRadiusTL = 18.dp,
+            cornerRadiusTR = 18.dp,
+            cornerRadiusBL = 18.dp,
+            cornerRadiusBR = 18.dp,
+            smoothnessAsPercentTL = 70,
+            smoothnessAsPercentTR = 70,
+            smoothnessAsPercentBL = 70,
+            smoothnessAsPercentBR = 70
+        )
+    }
+
+    // El fondo del Tile ahora siempre es surface, pero mantenemos una transición suave si quisieras cambiarlo levemente
+    val containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+    val contentColor = MaterialTheme.colorScheme.onSurface
+
+    // Colores dinámicos para el ICONO (Círculo interno)
+    val iconBoxColor by animateColorAsState(
+        targetValue = if (isActive) MaterialTheme.colorScheme.primary else contentColor.copy(alpha = 0.1f),
+        label = "iconBoxColor"
+    )
+    val iconTint by animateColorAsState(
+        targetValue = if (isActive) MaterialTheme.colorScheme.onPrimary else contentColor,
+        label = "iconTint"
+    )
 
     Surface(
         modifier = modifier
             .height(72.dp)
-            .clip(CircleShape)
+            // Aquí alternamos la forma según el estado
+            .clip(if (isActive) activeShape else CircleShape)
             .clickable(onClick = onClick),
         color = containerColor,
         contentColor = contentColor
@@ -1116,20 +1119,26 @@ private fun QuickSettingTile(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // El contenedor del icono es el que lleva el color primario ahora
             Box(
                 modifier = Modifier
-                    .size(34.dp)
+                    .size(40.dp) // Un poco más grande para lucir la forma y el color
                     .clip(CircleShape)
-                    .background(contentColor.copy(alpha = 0.1f)),
+                    .background(iconBoxColor),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(20.dp),
+                    tint = iconTint
                 )
             }
-            Column(verticalArrangement = Arrangement.Center) {
+
+            Column(
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.weight(1f) // Asegura que el texto ocupe el espacio restante
+            ) {
                 Text(
                     text = label,
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
@@ -1141,7 +1150,7 @@ private fun QuickSettingTile(
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    color = contentColor.copy(alpha = 0.8f)
+                    color = contentColor.copy(alpha = 0.7f)
                 )
             }
         }
@@ -1151,14 +1160,14 @@ private fun QuickSettingTile(
 @Composable
 private fun WifiOffIllustration(onTurnOnWifi: () -> Unit) {
     val shape = AbsoluteSmoothCornerShape(
-        cornerRadiusTL = 32.dp,
-        cornerRadiusTR = 12.dp,
+        cornerRadiusTL = 38.dp,
+        cornerRadiusTR = 20.dp,
         cornerRadiusBL = 20.dp,
-        cornerRadiusBR = 36.dp,
+        cornerRadiusBR = 38.dp,
         smoothnessAsPercentTL = 70,
-        smoothnessAsPercentTR = 45,
-        smoothnessAsPercentBL = 50,
-        smoothnessAsPercentBR = 72
+        smoothnessAsPercentTR = 70,
+        smoothnessAsPercentBL = 70,
+        smoothnessAsPercentBR = 70
     )
     Card(
         modifier = Modifier.fillMaxWidth(),
