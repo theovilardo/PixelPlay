@@ -532,6 +532,26 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         ThemeSelectorItem(
+                            label = "Auto-play on cast connect/disconnect",
+                            description = "Start playing immediately after switching cast connections.",
+                            options = mapOf(
+                                "false" to "Enabled",
+                                "true" to "Disabled"
+                            ),
+                            selectedKey = if (uiState.disableCastAutoplay) "true" else "false",
+                            onSelectionChanged = { key ->
+                                settingsViewModel.setDisableCastAutoplay(key.toBoolean())
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.rounded_cast_24),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        ThemeSelectorItem(
                             label = "Crossfade",
                             description = "Enable smooth transition between songs.",
                             options = mapOf(

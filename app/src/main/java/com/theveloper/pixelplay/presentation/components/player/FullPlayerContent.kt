@@ -344,7 +344,16 @@ fun FullPlayerContent(
                     ) {
                         val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
                         val selectedRouteName by playerViewModel.selectedRoute.map { it?.name }.collectAsState(initial = null)
+                        val isBluetoothEnabled by playerViewModel.isBluetoothEnabled.collectAsState()
+                        val bluetoothName by playerViewModel.bluetoothName.collectAsState()
                         val showCastLabel = isCastConnecting || (isRemotePlaybackActive && selectedRouteName != null)
+                        val isBluetoothActive =
+                            isBluetoothEnabled && !bluetoothName.isNullOrEmpty() && !isRemotePlaybackActive && !isCastConnecting
+                        val castIconPainter = when {
+                            isCastConnecting || isRemotePlaybackActive -> painterResource(R.drawable.rounded_cast_24)
+                            isBluetoothActive -> painterResource(R.drawable.rounded_bluetooth_24)
+                            else -> painterResource(R.drawable.rounded_music_note_24)
+                        }
                         val castCornersExpanded = 50.dp
                         val castCornersCompact = 6.dp
                         val castTopStart by animateDpAsState(
@@ -395,8 +404,12 @@ fun FullPlayerContent(
                                 horizontalArrangement = Arrangement.Absolute.SpaceBetween
                                 ) {
                                     Icon(
-                                        painter = painterResource(R.drawable.rounded_cast_24),
-                                        contentDescription = "Cast",
+                                        painter = castIconPainter,
+                                        contentDescription = when {
+                                            isCastConnecting || isRemotePlaybackActive -> "Cast"
+                                            isBluetoothActive -> "Bluetooth"
+                                            else -> "Local playback"
+                                        },
                                         tint = LocalMaterialTheme.current.primary
                                     )
                                     Spacer(

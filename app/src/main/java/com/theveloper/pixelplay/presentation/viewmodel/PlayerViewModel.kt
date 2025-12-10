@@ -332,6 +332,13 @@ class PlayerViewModel @Inject constructor(
             initialValue = CarouselStyle.ONE_PEEK
         )
 
+    private val disableCastAutoplay: StateFlow<Boolean> = userPreferencesRepository.disableCastAutoplayFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = false
+        )
+
     private val _isInitialThemePreloadComplete = MutableStateFlow(false)
     val isInitialThemePreloadComplete: StateFlow<Boolean> = _isInitialThemePreloadComplete.asStateFlow()
 
@@ -1307,6 +1314,8 @@ class PlayerViewModel @Inject constructor(
                     val currentSongIndex = localPlayer.currentMediaItemIndex
                     val currentPosition = localPlayer.currentPosition
 
+                    val shouldAutoPlayOnCast = wasPlaying && !disableCastAutoplay.value
+
                     val castRepeatMode = if (localPlayer.shuffleModeEnabled) {
                         MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE
                     } else {
@@ -1338,7 +1347,7 @@ class PlayerViewModel @Inject constructor(
                         startPosition = currentPosition,
                         repeatMode = castRepeatMode,
                         serverAddress = serverAddress,
-                        autoPlay = wasPlaying,
+                        autoPlay = shouldAutoPlayOnCast,
                         onComplete = { success ->
                             if (!success) {
                                 sendToast("Failed to load media on cast device.")
@@ -1384,6 +1393,7 @@ class PlayerViewModel @Inject constructor(
                 val wasPlaying = (liveStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING)
                     || (lastKnownStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING)
                     || lastKnownRemoteIsPlaying
+                val shouldResumePlaying = wasPlaying && !disableCastAutoplay.value
                 val lastItemId = liveStatus?.currentItemId ?: lastKnownStatus?.currentItemId
                 val lastRepeatMode = liveStatus?.queueRepeatMode
                     ?: lastKnownStatus?.queueRepeatMode
@@ -1479,13 +1489,13 @@ class PlayerViewModel @Inject constructor(
                     _stablePlayerState.update {
                         it.copy(
                             currentSong = finalQueue.getOrNull(startIndex),
-                            isPlaying = wasPlaying,
+                            isPlaying = shouldResumePlaying,
                             totalDuration = finalQueue.getOrNull(startIndex)?.duration ?: it.totalDuration,
                             isShuffleEnabled = isShuffleEnabled,
                             repeatMode = localPlayer.repeatMode
                         )
                     }
-                    if (wasPlaying) {
+                    if (shouldResumePlaying) {
                         localPlayer.play()
                         startProgressUpdates()
                         Timber.tag(CAST_LOG_TAG).i("Local playback resumed with play at position=%d", lastPosition)

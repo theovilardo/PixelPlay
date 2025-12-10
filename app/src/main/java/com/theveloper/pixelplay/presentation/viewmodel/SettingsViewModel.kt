@@ -30,6 +30,7 @@ data class SettingsUiState(
     val carouselStyle: String = CarouselStyle.ONE_PEEK,
     val launchTab: String = LaunchTab.HOME,
     val keepPlayingInBackground: Boolean = true,
+    val disableCastAutoplay: Boolean = false,
     val isCrossfadeEnabled: Boolean = true,
     val crossfadeDuration: Int = 6000,
     val availableModels: List<GeminiModel> = emptyList(),
@@ -103,6 +104,12 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferencesRepository.keepPlayingInBackgroundFlow.collect { enabled ->
                 _uiState.update { it.copy(keepPlayingInBackground = enabled) }
+            }
+        }
+
+        viewModelScope.launch {
+            userPreferencesRepository.disableCastAutoplayFlow.collect { disabled ->
+                _uiState.update { it.copy(disableCastAutoplay = disabled) }
             }
         }
 
@@ -189,6 +196,12 @@ class SettingsViewModel @Inject constructor(
     fun setKeepPlayingInBackground(enabled: Boolean) {
         viewModelScope.launch {
             userPreferencesRepository.setKeepPlayingInBackground(enabled)
+        }
+    }
+
+    fun setDisableCastAutoplay(disabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setDisableCastAutoplay(disabled)
         }
     }
 

@@ -169,18 +169,39 @@ fun CastBottomSheet(
     val isRemoteSession = (isRemotePlaybackActive || isCastConnecting) && activeRoute != null
 
     val availableRoutes = routes.filterNot { it.isDefault }
-    val devices = availableRoutes.map { route ->
-        CastDeviceUi(
-            id = route.id,
-            name = route.name,
-            deviceType = route.deviceType,
-            playbackType = route.playbackType,
-            connectionState = route.connectionState,
-            volumeHandling = route.volumeHandling,
-            volume = route.volume,
-            volumeMax = route.volumeMax,
-            isSelected = activeRoute?.id == route.id
+    val devices = buildList {
+        addAll(
+            availableRoutes.map { route ->
+                CastDeviceUi(
+                    id = route.id,
+                    name = route.name,
+                    deviceType = route.deviceType,
+                    playbackType = route.playbackType,
+                    connectionState = route.connectionState,
+                    volumeHandling = route.volumeHandling,
+                    volume = route.volume,
+                    volumeMax = route.volumeMax,
+                    isSelected = activeRoute?.id == route.id
+                )
+            }
         )
+
+        if (isBluetoothEnabled && !bluetoothName.isNullOrEmpty()) {
+            add(
+                CastDeviceUi(
+                    id = "bluetooth_${bluetoothName}",
+                    name = bluetoothName!!,
+                    deviceType = MediaRouter.RouteInfo.DEVICE_TYPE_BLUETOOTH_A2DP,
+                    playbackType = MediaRouter.RouteInfo.PLAYBACK_TYPE_LOCAL,
+                    connectionState = MediaRouter.RouteInfo.CONNECTION_STATE_CONNECTED,
+                    volumeHandling = MediaRouter.RouteInfo.PLAYBACK_VOLUME_VARIABLE,
+                    volume = (trackVolume * 100).toInt(),
+                    volumeMax = 100,
+                    isSelected = !isRemoteSession,
+                    isBluetooth = true
+                )
+            )
+        }
     }
 
     val activeDevice = if (isRemoteSession && activeRoute != null) {
@@ -277,7 +298,8 @@ private data class CastDeviceUi(
     val volumeHandling: Int,
     val volume: Int,
     val volumeMax: Int,
-    val isSelected: Boolean
+    val isSelected: Boolean,
+    val isBluetooth: Boolean = false
 )
 
 private data class ActiveDeviceUi(
@@ -863,8 +885,11 @@ private fun CastDeviceRow(
     onDisconnect: () -> Unit
 ) {
     val leafShape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomEnd = 24.dp, bottomStart = 24.dp)
-    val containerColor = if (device.isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-    val onContainer = if (device.isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+    val (containerColor, onContainer) = when {
+        device.isBluetooth -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
+        device.isSelected -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurface
+    }
     val isActiveDevice = device.isSelected && device.connectionState == MediaRouter.RouteInfo.CONNECTION_STATE_CONNECTED
     val scallopShape = RoundedStarShape(sides = 8, curve = 0.10, rotation = 0f)
     val infiniteRotation = rememberInfiniteTransition(label = "activeDeviceRotation")
@@ -888,11 +913,19 @@ private fun CastDeviceRow(
         MediaRouter.RouteInfo.DEVICE_TYPE_BLUETOOTH_A2DP -> Icons.Rounded.Bluetooth
         else -> Icons.Filled.Cast
     }
+    val clickAction = if (device.isBluetooth) {
+        {}
+    } else if (device.isSelected) {
+        onDisconnect
+    } else {
+        onSelect
+    }
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .clip(CircleShape)
-            .clickable(onClick = if (device.isSelected) onDisconnect else onSelect),
+            .clickable(enabled = !device.isBluetooth, onClick = clickAction),
         color = containerColor,
         tonalElevation = 2.dp
     ) {
@@ -915,11 +948,28 @@ private fun CastDeviceRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val statusText = when {
+                        device.isBluetooth -> "Bluetooth audio"
+                        device.connectionState == MediaRouter.RouteInfo.CONNECTION_STATE_CONNECTED -> "Connected"
+                        else -> "Available"
+                    }
+                    val statusIcon = when {
+                        device.isBluetooth -> R.drawable.rounded_bluetooth_24
+                        device.playbackType == MediaRouter.RouteInfo.PLAYBACK_TYPE_REMOTE -> R.drawable.rounded_wifi_24
+                        else -> R.drawable.rounded_bluetooth_24
+                    }
                     BadgeChip(
-                        text = if (device.connectionState == MediaRouter.RouteInfo.CONNECTION_STATE_CONNECTED) "Connected" else "Available",
-                        icon = if (device.playbackType == MediaRouter.RouteInfo.PLAYBACK_TYPE_REMOTE) R.drawable.rounded_wifi_24 else R.drawable.rounded_bluetooth_24,
-                        contentColor = onContainer
+                        text = statusText,
+                        icon = statusIcon,
+                        contentColor = if (device.isBluetooth) MaterialTheme.colorScheme.onSecondaryContainer else onContainer
                     )
+                    if (device.isBluetooth) {
+                        BadgeChip(
+                            text = "Local output",
+                            iconVector = Icons.Rounded.Headphones,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
                 }
             },
             leadingContent = {
