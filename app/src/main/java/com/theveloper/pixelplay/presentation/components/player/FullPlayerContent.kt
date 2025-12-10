@@ -352,7 +352,7 @@ fun FullPlayerContent(
                         val castIconPainter = when {
                             isCastConnecting || isRemotePlaybackActive -> painterResource(R.drawable.rounded_cast_24)
                             isBluetoothActive -> painterResource(R.drawable.rounded_bluetooth_24)
-                            else -> painterResource(R.drawable.rounded_music_note_24)
+                            else -> painterResource(R.drawable.rounded_mobile_speaker_24)
                         }
                         val castCornersExpanded = 50.dp
                         val castCornersCompact = 6.dp
