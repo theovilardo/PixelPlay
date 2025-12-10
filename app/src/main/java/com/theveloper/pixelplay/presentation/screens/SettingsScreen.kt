@@ -295,6 +295,8 @@ fun SettingsScreen(
                     }
                 ) {
                     Column(modifier = Modifier.clip(shape = RoundedCornerShape(24.dp))) {
+                        val context = LocalContext.current
+
                         SettingsItem(
                             title = "Allowed Directories",
                             subtitle = "Choose the directories you want to get the music files from.",
@@ -319,8 +321,8 @@ fun SettingsScreen(
 
                                 if (!hasAllFilesPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                                     val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                                    intent.data = "package:${LocalContext.current.packageName}".toUri()
-                                    LocalContext.current.startActivity(intent)
+                                    intent.data = "package:${context.packageName}".toUri()
+                                    context.startActivity(intent)
                                     return@SettingsItem
                                 }
 
