@@ -18,17 +18,21 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Done
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.FolderOff
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -151,14 +155,24 @@ fun FileExplorerBottomSheet(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            androidx.compose.material3.ExtendedFloatingActionButton(
+            ExtendedFloatingActionButton(
                 onClick = onDone,
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
+                shape = CircleShape,
                 modifier = Modifier
                     .align(Alignment.End)
                     .padding(bottom = 8.dp)
             ) {
+                Icon(
+                    imageVector = Icons.Rounded.Done,
+                    contentDescription = "Done",
+                    tint = MaterialTheme.colorScheme.onPrimary
+                )
+                Spacer(
+                    modifier = Modifier
+                        .width(8.dp)
+                )
                 Text(text = "Done")
             }
         }
@@ -364,7 +378,7 @@ private fun FileExplorerItem(
     }
 
     val badgeColor = if (isAllowed) {
-        MaterialTheme.colorScheme.primary
+        MaterialTheme.colorScheme.onPrimaryContainer
     } else {
         MaterialTheme.colorScheme.secondary
     }
@@ -408,35 +422,39 @@ private fun FileExplorerItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-        }
-
-        Box(
-            modifier = Modifier
-                .clip(AbsoluteSmoothCornerShape(cornerRadius = 10.dp, smoothnessAsPercent = 70))
-                .background(badgeColor.copy(alpha = 0.16f))
-                .padding(horizontal = 10.dp, vertical = 6.dp)
-        ) {
-            val displayCount = if (audioCount > 99) "99+" else audioCount.toString()
-            Text(
-                text = if (audioCount == 1) "1 song" else "$displayCount songs",
-                style = MaterialTheme.typography.labelMedium,
-                color = badgeColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+            Spacer(
+                modifier = Modifier
+                    .height(6.dp)
+                    .fillMaxWidth()
             )
+            Box(
+                modifier = Modifier
+                    .clip(AbsoluteSmoothCornerShape(cornerRadius = 10.dp, smoothnessAsPercent = 70))
+                    .background(badgeColor.copy(alpha = 0.16f))
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+            ) {
+                val displayCount = if (audioCount > 99) "99+" else audioCount.toString()
+                Text(
+                    text = if (audioCount == 1) "1 song" else "$displayCount songs",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = badgeColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
 
         Icon(
             imageVector = Icons.Rounded.ChevronRight,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
+            tint = contentColor
         )
 
         RadioButton(
             selected = isAllowed,
             onClick = onToggleAllowed,
             colors = androidx.compose.material3.RadioButtonDefaults.colors(
-                selectedColor = MaterialTheme.colorScheme.primary,
+                selectedColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
             )
         )

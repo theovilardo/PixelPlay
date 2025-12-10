@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -55,16 +56,20 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuBoxScope
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -1046,6 +1051,404 @@ fun SliderSettingsItem(
                 steps = ((valueRange.endInclusive - valueRange.start) / 500).toInt() - 1,
                 modifier = Modifier.fillMaxWidth()
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GeminiApiKeyItem(
+    apiKey: String,
+    onApiKeyChange: (String) -> Unit,
+    title: String,
+    subtitle: String
+) {
+    val settingsViewModel: SettingsViewModel = hiltViewModel()
+    val uiState by settingsViewModel.uiState.collectAsState()
+    val selectedModel by settingsViewModel.geminiModel.collectAsState()
+    var isModelDropdownExpanded by remember { mutableStateOf(false) }
+    var isApiKeyVisible by remember { mutableStateOf(false) }
+
+    // Fetch models when API key becomes available
+    LaunchedEffect(apiKey) {
+        if (apiKey.isNotBlank() && uiState.availableModels.isEmpty() && !uiState.isLoadingModels) {
+            settingsViewModel.fetchAvailableModels(apiKey)
+        }
+    }
+
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(26.dp))
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth()
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .padding(end = 16.dp)
+                        .size(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.gemini_ai),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary
+                    )
+                }
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = apiKey,
+                onValueChange = onApiKeyChange,
+                label = { Text("API Key") },
+                modifier = Modifier.fillMaxWidth(),
+                leadingIcon = {
+                    Icon(
+                        painter = painterResource(id = R.drawable.rounded_key_vertical_24),
+                        contentDescription = null,
+                    )
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(10.dp),
+                visualTransformation = if (isApiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    IconButton(onClick = { isApiKeyVisible = !isApiKeyVisible }) {
+                        Icon(
+                            imageVector = if (isApiKeyVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                            contentDescription = if (isApiKeyVisible) "Ocultar API Key" else "Mostrar API Key"
+                        )
+                    }
+                }
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            if (apiKey.isBlank()) {
+                val context = LocalContext.current
+                val url = "https://aistudio.google.com/app/apikey"
+                val annotatedString = buildAnnotatedString {
+                    withStyle(style = SpanStyle(color = MaterialTheme.colorScheme.onSurface)) {
+                        append("Get it here: ")
+                    }
+                    withStyle(style = SpanStyle(
+                        color = MaterialTheme.colorScheme.primary,
+                        textDecoration = TextDecoration.Underline)
+                    ) {
+                        append(url)
+                    }
+                }
+
+                Text(
+                    text = annotatedString,
+                    modifier = Modifier.clickable {
+                        val intent = Intent(Intent.ACTION_VIEW, url.toUri())
+                        context.startActivity(intent)
+                    }
+                )
+            } else {
+                // Show model selector when API key is present
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = "Model",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                ExposedDropdownMenuBox(
+                    expanded = isModelDropdownExpanded,
+                    onExpandedChange = {
+                        if (!uiState.isLoadingModels && uiState.availableModels.isNotEmpty()) {
+                            isModelDropdownExpanded = !isModelDropdownExpanded
+                        }
+                    }
+                ) {
+                    OutlinedTextField(
+                        value = uiState.availableModels.find { it.name == selectedModel }?.displayName
+                            ?: selectedModel.ifEmpty { "Select a model" },
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Gemini Model") },
+                        trailingIcon = {
+                            if (uiState.isLoadingModels) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = isModelDropdownExpanded)
+                            }
+                        },
+                        modifier = Modifier
+                            .menuAnchor(),
+//                            .menuAnchor(ExposedDropdownMenuBoxScope.MenuAnchorType.PrimaryNotEditable),
+                        shape = RoundedCornerShape(10.dp),
+                        enabled = !uiState.isLoadingModels && uiState.availableModels.isNotEmpty()
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = isModelDropdownExpanded,
+                        onDismissRequest = { isModelDropdownExpanded = false }
+                    ) {
+                        uiState.availableModels.forEach { model ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = model.displayName,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                },
+                                onClick = {
+                                    settingsViewModel.onGeminiModelChange(model.name)
+                                    isModelDropdownExpanded = false
+                                },
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                            )
+                        }
+                    }
+                }
+
+                if (uiState.isLoadingModels) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Fetching available models...",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                if (uiState.modelsFetchError != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Error: ${uiState.modelsFetchError}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+
+                // System Prompt Section
+                Spacer(modifier = Modifier.height(16.dp))
+
+                val systemPrompt by settingsViewModel.geminiSystemPrompt.collectAsState()
+                var showSystemPromptDialog by remember { mutableStateOf(false) }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "System Prompt",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    TextButton(
+                        onClick = { showSystemPromptDialog = true }
+                    ) {
+                        Text("Modify")
+                    }
+                }
+
+                if (showSystemPromptDialog) {
+                    SystemPromptDialog(
+                        currentPrompt = systemPrompt,
+                        onDismiss = { showSystemPromptDialog = false },
+                        onSave = { newPrompt ->
+                            settingsViewModel.onGeminiSystemPromptChange(newPrompt)
+                            showSystemPromptDialog = false
+                        },
+                        onReset = {
+                            settingsViewModel.resetGeminiSystemPrompt()
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SystemPromptDialog(
+    currentPrompt: String,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit,
+    onReset: () -> Unit
+) {
+    var editedPrompt by remember { mutableStateOf(currentPrompt) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    LaunchedEffect(currentPrompt) {
+        editedPrompt = currentPrompt
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxHeight(1f),
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "System Prompt",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                TextButton(
+                    onClick = {
+                        onReset()
+                        // Reset the edited prompt to the default value immediately
+                        editedPrompt = com.theveloper.pixelplay.data.preferences.UserPreferencesRepository.DEFAULT_SYSTEM_PROMPT
+                    }
+                ) {
+                    Text("Reset")
+                }
+            }
+
+            Text(
+                text = "Customize the AI's behavior and personality by modifying the system prompt.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+
+            // Text field for editing prompt with floating clear button
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                OutlinedTextField(
+                    value = editedPrompt,
+                    onValueChange = { editedPrompt = it },
+                    modifier = Modifier.fillMaxSize(),
+                    placeholder = { Text("Enter system prompt...") },
+                    shape = RoundedCornerShape(16.dp),
+                    minLines = 8,
+                    maxLines = 20,
+                    textStyle = MaterialTheme.typography.bodyMedium
+                )
+
+                // Floating clear button
+                if (editedPrompt.isNotEmpty()) {
+                    FloatingActionButton(
+                        onClick = { editedPrompt = "" },
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(16.dp)
+                            .size(48.dp),
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Delete,
+                            contentDescription = "Clear all text"
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Action buttons
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            sheetState.hide()
+                            onDismiss()
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Cancel")
+                }
+
+                FilledIconButton(
+                    onClick = {
+                        scope.launch {
+                            onSave(editedPrompt)
+                            // Show toast
+                            android.widget.Toast.makeText(
+                                context,
+                                "System prompt saved successfully",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                            // Smooth dismiss animation
+                            sheetState.hide()
+                            onDismiss()
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    ) {
+                        Text(
+                            text = "Save",
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                }
+            }
         }
     }
 }
