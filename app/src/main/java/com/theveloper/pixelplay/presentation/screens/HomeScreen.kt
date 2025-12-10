@@ -106,6 +106,10 @@ fun HomeScreen(
         playerViewModel.stablePlayerState.map { it.currentSong }
     }.collectAsState(initial = null)
 
+    // 3) Observe shuffle state for sync
+    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
+    val isShuffleEnabled = stablePlayerState.isShuffleEnabled
+
     // Padding inferior si hay canción en reproducción
     val bottomPadding = if (currentSong != null) MiniPlayerHeight else 0.dp
 
@@ -149,9 +153,14 @@ fun HomeScreen(
                 item(key = "your_mix_header") {
                     YourMixHeader(
                         song = yourMixSong,
-                        onPlayRandomSong = {
+                        isShuffleEnabled = isShuffleEnabled,
+                        onPlayShuffled = {
                             if (yourMixSongs.isNotEmpty()) {
-                                playerViewModel.showAndPlaySong(yourMixSongs.random(), yourMixSongs, "Your Mix")
+                                // Start playing with shuffle enabled
+                                val shuffledSongs = yourMixSongs.shuffled()
+                                playerViewModel.playSongs(shuffledSongs, shuffledSongs.first(), "Your Mix")
+                                // Enable shuffle mode after starting playback
+                                playerViewModel.toggleShuffle()
                             }
                         }
                     )
@@ -245,9 +254,11 @@ fun HomeScreen(
 @Composable
 fun YourMixHeader(
     song: String,
-    onPlayRandomSong: () -> Unit
+    isShuffleEnabled: Boolean = false,
+    onPlayShuffled: () -> Unit
 ) {
     val buttonCorners = 68.dp
+    val colors = MaterialTheme.colorScheme
 
     Box(
         modifier = Modifier
@@ -276,14 +287,14 @@ fun YourMixHeader(
                 modifier = Modifier.padding(start = 8.dp)
             )
         }
-        // Play Button
+        // Play Button - color changes based on shuffle state
         LargeFloatingActionButton(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(end = 12.dp),
-            onClick = onPlayRandomSong,
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
+            onClick = onPlayShuffled,
+            containerColor = if (isShuffleEnabled) colors.primary else colors.tertiaryContainer,
+            contentColor = if (isShuffleEnabled) colors.onPrimary else colors.onTertiaryContainer,
             shape = AbsoluteSmoothCornerShape(
                 cornerRadiusTL = buttonCorners,
                 smoothnessAsPercentTR = 60,
@@ -297,7 +308,7 @@ fun YourMixHeader(
         ) {
             Icon(
                 painter = painterResource(R.drawable.rounded_shuffle_24),
-                contentDescription = "Reproducir",
+                contentDescription = "Shuffle Play",
                 modifier = Modifier.size(36.dp)
             )
         }
