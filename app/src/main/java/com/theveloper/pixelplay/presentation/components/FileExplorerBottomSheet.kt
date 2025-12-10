@@ -38,6 +38,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -183,6 +184,10 @@ private fun FileExplorerHeader(
             }
 
             if (!isAtRoot) {
+                LaunchedEffect(currentPath) {
+                    scrollState.scrollTo(scrollState.maxValue)
+                }
+
                 Row(
                     modifier = Modifier
                         .weight(1f)
