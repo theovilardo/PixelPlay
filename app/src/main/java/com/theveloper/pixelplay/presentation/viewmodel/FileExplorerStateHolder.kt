@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import java.io.File
 
@@ -27,6 +29,10 @@ class FileExplorerStateHolder(
     private val _allowedDirectories = MutableStateFlow<Set<String>>(emptySet())
     val allowedDirectories: StateFlow<Set<String>> = _allowedDirectories.asStateFlow()
 
+    private val audioExtensions = setOf(
+        "mp3", "flac", "m4a", "aac", "wav", "ogg", "opus", "wma", "alac", "aiff", "ape"
+    )
+
     init {
         scope.launch {
             userPreferencesRepository.allowedDirectoriesFlow.collect { allowed ->
@@ -43,12 +49,14 @@ class FileExplorerStateHolder(
     fun loadDirectory(file: File, updatePath: Boolean = true) {
         scope.launch {
             val target = if (file.isDirectory) file else visibleRoot
-            val children = runCatching {
-                target.listFiles()
-                    ?.filter { it.isDirectory && !it.isHidden }
-                    ?.sortedBy { it.name.lowercase() }
-                    ?: emptyList()
-            }.getOrElse { emptyList() }
+            val children = withContext(Dispatchers.IO) {
+                runCatching {
+                    target.listFiles()
+                        ?.filter { it.isDirectory && !it.isHidden && directoryContainsAudio(it) }
+                        ?.sortedBy { it.name.lowercase() }
+                        ?: emptyList()
+                }.getOrElse { emptyList() }
+            }
 
             if (updatePath) {
                 _currentPath.value = target
@@ -81,6 +89,27 @@ class FileExplorerStateHolder(
             }
             userPreferencesRepository.updateAllowedDirectories(currentAllowed)
         }
+    }
+
+    private fun directoryContainsAudio(directory: File): Boolean {
+        val filesQueue: ArrayDeque<File> = ArrayDeque()
+        filesQueue.add(directory)
+
+        while (filesQueue.isNotEmpty()) {
+            val current = filesQueue.removeFirst()
+            val listed = current.listFiles() ?: continue
+            for (child in listed) {
+                if (child.isHidden) continue
+                if (child.isDirectory) {
+                    filesQueue.add(child)
+                } else {
+                    val extension = child.extension.lowercase()
+                    if (audioExtensions.contains(extension)) return true
+                }
+            }
+        }
+
+        return false
     }
 
     fun isAtRoot(): Boolean = _currentPath.value.path == visibleRoot.path
