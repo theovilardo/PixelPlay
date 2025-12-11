@@ -56,7 +56,6 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -69,13 +68,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -191,7 +188,6 @@ fun SettingsScreen(
     // Estado para controlar la visibilidad del diálogo de directorios
     var showDirectoryDialog by remember { mutableStateOf(false) }
     var showClearLyricsDialog by remember { mutableStateOf(false) }
-    val directorySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     BackHandler(enabled = playerSheetState == PlayerSheetState.EXPANDED) {
         playerViewModel.collapsePlayerSheet()
@@ -218,14 +214,6 @@ fun SettingsScreen(
     val density = LocalDensity.current
     val coroutineScope = rememberCoroutineScope()
     val lazyListState = rememberLazyListState()
-
-    LaunchedEffect(showDirectoryDialog) {
-        if (showDirectoryDialog) {
-            directorySheetState.expand()
-        } else {
-            directorySheetState.hide()
-        }
-    }
 
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val minTopBarHeight = 64.dp + statusBarHeight
@@ -735,7 +723,6 @@ fun SettingsScreen(
             onSmartViewToggle = settingsViewModel::setSmartViewEnabled,
             onDone = { showDirectoryDialog = false },
             onDismiss = { showDirectoryDialog = false },
-            sheetState = directorySheetState,
             isDirectorySelected = { settingsViewModel.isDirectorySelected(it) }
         )
     }

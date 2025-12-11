@@ -32,7 +32,6 @@ import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.FolderOff
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -40,15 +39,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.SheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,6 +56,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.theveloper.pixelplay.presentation.viewmodel.DirectoryEntry
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import java.io.File
@@ -79,21 +80,19 @@ fun FileExplorerBottomSheet(
     onSmartViewToggle: (Boolean) -> Unit,
     onDone: () -> Unit,
     onDismiss: () -> Unit,
-    sheetState: SheetState,
     isDirectorySelected: (File) -> Boolean
 ) {
-    ModalBottomSheet(
+    Dialog(
         onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        sheetState = sheetState,
-        dragHandle = { BottomSheetDefaults.DragHandle() }
+        properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -214,6 +213,7 @@ private fun FileExplorerHeader(
     onNavigateTo: (File) -> Unit
 ) {
     val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
     val breadcrumbs = remember(currentPath, rootDirectory) {
         val segments = mutableListOf<File>()
         var cursor: File? = currentPath
@@ -256,7 +256,10 @@ private fun FileExplorerHeader(
 
             if (!isAtRoot) {
                 LaunchedEffect(currentPath) {
-                    scrollState.scrollTo(scrollState.maxValue)
+                    coroutineScope.launch {
+                        scrollState.scrollTo(scrollState.maxValue)
+                        scrollState.scrollTo(scrollState.maxValue)
+                    }
                 }
 
                 CompositionLocalProvider(LocalOverscrollConfiguration provides null) {

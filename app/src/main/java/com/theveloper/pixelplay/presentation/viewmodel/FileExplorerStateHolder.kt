@@ -161,7 +161,8 @@ class FileExplorerStateHolder(
                 explicit != null -> currentAllowed.removeAll { it == path || it.startsWith("$path/") }
                 ancestor != null -> {
                     currentAllowed.removeAll { it == ancestor || it.startsWith("$ancestor/") }
-                    addCoverageExcluding(ancestor, path, currentAllowed)
+                    val replacement = collectCoverageExcluding(File(ancestor), path)
+                    currentAllowed.addAll(replacement)
                 }
                 else -> {
                     currentAllowed.removeAll { it.startsWith("$path/") }
@@ -323,27 +324,6 @@ class FileExplorerStateHolder(
         return result
     }
 
-    private fun addCoverageExcluding(rootPath: String, excludePath: String, accumulator: MutableSet<String>) {
-        val normalizedExclude = normalizePath(excludePath)
-        val children = getChildrenWithAudio(File(rootPath))
-
-        if (children.isEmpty()) {
-            if (normalizedExclude != rootPath) {
-                accumulator.add(rootPath)
-            }
-            return
-        }
-
-        children.forEach { child ->
-            val childPath = child.canonicalPath
-            if (normalizedExclude == childPath || normalizedExclude.startsWith("$childPath/")) {
-                addCoverageExcluding(childPath, normalizedExclude, accumulator)
-            } else {
-                accumulator.add(childPath)
-            }
-        }
-    }
-
     private fun getChildrenWithAudio(directory: File): List<DirectoryEntry> {
         val targetKey = normalizePath(directory)
         directoryChildrenCache[targetKey]?.let { return it }
@@ -367,6 +347,34 @@ class FileExplorerStateHolder(
     }
 
     private data class AudioCount(val direct: Int, val total: Int)
+
+    private fun collectCoverageExcluding(root: File, excludePath: String): Set<String> {
+        val normalizedExclude = normalizePath(excludePath)
+        val results = mutableSetOf<String>()
+
+        fun visit(node: File) {
+            val nodePath = normalizePath(node)
+            val children = getChildrenWithAudio(node)
+            if (children.isEmpty()) {
+                if (nodePath != normalizedExclude) {
+                    results.add(nodePath)
+                }
+                return
+            }
+
+            children.forEach { child ->
+                val childPath = child.canonicalPath
+                if (normalizedExclude == childPath || normalizedExclude.startsWith("$childPath/")) {
+                    visit(File(childPath))
+                } else {
+                    results.add(childPath)
+                }
+            }
+        }
+
+        visit(root)
+        return results
+    }
 
     private companion object {
         const val GROUPING_THRESHOLD = 40
