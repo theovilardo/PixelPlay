@@ -735,7 +735,8 @@ fun SettingsScreen(
             onSmartViewToggle = settingsViewModel::setSmartViewEnabled,
             onDone = { showDirectoryDialog = false },
             onDismiss = { showDirectoryDialog = false },
-            sheetState = directorySheetState
+            sheetState = directorySheetState,
+            isDirectorySelected = { settingsViewModel.isDirectorySelected(it) }
         )
     }
 

@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -45,6 +46,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.SheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -77,7 +79,8 @@ fun FileExplorerBottomSheet(
     onSmartViewToggle: (Boolean) -> Unit,
     onDone: () -> Unit,
     onDismiss: () -> Unit,
-    sheetState: SheetState
+    sheetState: SheetState,
+    isDirectorySelected: (File) -> Boolean
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -156,7 +159,9 @@ fun FileExplorerBottomSheet(
                     else -> {
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             items(children, key = { it.file.absolutePath }) { directoryEntry ->
-                                val isAllowed = allowedDirectories.any { allowed -> directoryEntry.canonicalPath.startsWith(allowed) }
+                                val isAllowed = remember(allowedDirectories, smartViewEnabled, directoryEntry) {
+                                    isDirectorySelected(directoryEntry.file)
+                                }
                                 val displayCount = if (smartViewEnabled) directoryEntry.directAudioCount else directoryEntry.totalAudioCount
                                 FileExplorerItem(
                                     file = directoryEntry.file,
@@ -254,59 +259,61 @@ private fun FileExplorerHeader(
                     scrollState.scrollTo(scrollState.maxValue)
                 }
 
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .horizontalScroll(scrollState),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    breadcrumbs.forEachIndexed { index, file ->
-                        val isRoot = file.path == rootDirectory.path
-                        val isLast = index == breadcrumbs.lastIndex
-                        val label = when {
-                            isRoot -> rootLabel
-                            else -> file.name.ifEmpty { file.path }
-                        }
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
+                CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .horizontalScroll(scrollState),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        breadcrumbs.forEachIndexed { index, file ->
+                            val isRoot = file.path == rootDirectory.path
+                            val isLast = index == breadcrumbs.lastIndex
+                            val label = when {
+                                isRoot -> rootLabel
+                                else -> file.name.ifEmpty { file.path }
+                            }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .clip(AbsoluteSmoothCornerShape(cornerRadius = 12.dp, smoothnessAsPercent = 70))
-                                    .clickable(enabled = !isLast) {
-                                        if (isRoot) onNavigateHome() else onNavigateTo(file)
-                                    }
-                                    .background(
-                                        color = if (isLast) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceContainerHigh
-                                    )
-                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                if (isRoot) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Home,
-                                        contentDescription = "Go to root",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(end = 4.dp)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .clip(AbsoluteSmoothCornerShape(cornerRadius = 12.dp, smoothnessAsPercent = 70))
+                                        .clickable(enabled = !isLast) {
+                                            if (isRoot) onNavigateHome() else onNavigateTo(file)
+                                        }
+                                        .background(
+                                            color = if (isLast) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceContainerHigh
+                                        )
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    if (isRoot) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Home,
+                                            contentDescription = "Go to root",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(end = 4.dp)
+                                        )
+                                    }
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal),
+                                        color = if (isLast) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
                                     )
                                 }
-                                Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal),
-                                    color = if (isLast) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
 
-                            if (!isLast) {
-                                Icon(
-                                    imageVector = Icons.Rounded.ChevronRight,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                if (!isLast) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.ChevronRight,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }

@@ -120,6 +120,8 @@ class SetupViewModel @Inject constructor(
         fileExplorerStateHolder.toggleDirectoryAllowed(file)
     }
 
+    fun isDirectorySelected(file: File): Boolean = fileExplorerStateHolder.isDirectoryFullySelected(file)
+
     fun loadDirectory(file: File) {
         fileExplorerStateHolder.loadDirectory(file)
     }

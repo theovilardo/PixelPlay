@@ -64,6 +64,8 @@ class SettingsViewModel @Inject constructor(
     val smartViewEnabled = fileExplorerStateHolder.smartViewEnabled
     val isLoadingDirectories = fileExplorerStateHolder.isLoading
 
+    fun isDirectorySelected(file: File): Boolean = fileExplorerStateHolder.isDirectoryFullySelected(file)
+
     init {
         viewModelScope.launch {
             userPreferencesRepository.appThemeModeFlow.collect { appThemeMode ->

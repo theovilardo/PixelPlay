@@ -159,7 +159,10 @@ class FileExplorerStateHolder(
 
             when {
                 explicit != null -> currentAllowed.removeAll { it == path || it.startsWith("$path/") }
-                ancestor != null -> currentAllowed.removeAll { it == ancestor || it.startsWith("$ancestor/") }
+                ancestor != null -> {
+                    currentAllowed.removeAll { it == ancestor || it.startsWith("$ancestor/") }
+                    addCoverageExcluding(ancestor, path, currentAllowed)
+                }
                 else -> {
                     currentAllowed.removeAll { it.startsWith("$path/") }
                     currentAllowed.add(path)
@@ -298,6 +301,70 @@ class FileExplorerStateHolder(
 
     private fun normalizePath(file: File): String = runCatching { file.canonicalPath }.getOrDefault(file.absolutePath)
     private fun normalizePath(path: String): String = runCatching { File(path).canonicalPath }.getOrDefault(path)
+
+    fun isDirectoryFullySelected(file: File): Boolean = isDirectoryFullySelected(normalizePath(file), mutableMapOf())
+
+    private fun isDirectoryFullySelected(path: String, memo: MutableMap<String, Boolean>): Boolean {
+        memo[path]?.let { return it }
+        val allowed = _allowedDirectories.value
+        if (allowed.any { path.startsWith(it) }) {
+            memo[path] = true
+            return true
+        }
+
+        val childEntries = getChildrenWithAudio(File(path))
+        if (childEntries.isEmpty()) {
+            memo[path] = false
+            return false
+        }
+
+        val result = childEntries.all { child -> isDirectoryFullySelected(child.canonicalPath, memo) }
+        memo[path] = result
+        return result
+    }
+
+    private fun addCoverageExcluding(rootPath: String, excludePath: String, accumulator: MutableSet<String>) {
+        val normalizedExclude = normalizePath(excludePath)
+        val children = getChildrenWithAudio(File(rootPath))
+
+        if (children.isEmpty()) {
+            if (normalizedExclude != rootPath) {
+                accumulator.add(rootPath)
+            }
+            return
+        }
+
+        children.forEach { child ->
+            val childPath = child.canonicalPath
+            if (normalizedExclude == childPath || normalizedExclude.startsWith("$childPath/")) {
+                addCoverageExcluding(childPath, normalizedExclude, accumulator)
+            } else {
+                accumulator.add(childPath)
+            }
+        }
+    }
+
+    private fun getChildrenWithAudio(directory: File): List<DirectoryEntry> {
+        val targetKey = normalizePath(directory)
+        directoryChildrenCache[targetKey]?.let { return it }
+
+        val computed = runCatching {
+            directory.listFiles()
+                ?.mapNotNull { child ->
+                    if (child.isDirectory && !child.isHidden) {
+                        val counts = countAudioFiles(child, forceRefresh = false)
+                        if (counts.total > 0) DirectoryEntry(child, counts.direct, counts.total, normalizePath(child)) else null
+                    } else {
+                        null
+                    }
+                }
+                ?.sortedWith(compareBy({ it.file.name.lowercase() }))
+                ?: emptyList()
+        }.getOrElse { emptyList() }
+
+        directoryChildrenCache[targetKey] = computed
+        return computed
+    }
 
     private data class AudioCount(val direct: Int, val total: Int)
 
