@@ -33,7 +33,7 @@ import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.FolderOff
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material3.DialogProperties
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -41,9 +41,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -58,13 +59,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import com.theveloper.pixelplay.presentation.viewmodel.DirectoryEntry
 import java.io.File
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
-@OptIn(ExperimentalAnimationApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun FileExplorerBottomSheet(
     currentPath: File,
@@ -84,29 +84,30 @@ fun FileExplorerBottomSheet(
     onDismiss: () -> Unit,
     isDirectorySelected: (File) -> Boolean
 ) {
-    Dialog(
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        sheetState = sheetState
     ) {
-        Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
-            FileExplorerContent(
-                currentPath = currentPath,
-                directoryChildren = directoryChildren,
-                allowedDirectories = allowedDirectories,
-                smartViewEnabled = smartViewEnabled,
-                isLoading = isLoading,
-                isAtRoot = isAtRoot,
-                rootDirectory = rootDirectory,
-                onNavigateTo = onNavigateTo,
-                onNavigateUp = onNavigateUp,
-                onNavigateHome = onNavigateHome,
-                onToggleAllowed = onToggleAllowed,
-                onRefresh = onRefresh,
-                onSmartViewToggle = onSmartViewToggle,
-                onDone = onDone,
-                isDirectorySelected = isDirectorySelected
-            )
-        }
+        FileExplorerContent(
+            currentPath = currentPath,
+            directoryChildren = directoryChildren,
+            allowedDirectories = allowedDirectories,
+            smartViewEnabled = smartViewEnabled,
+            isLoading = isLoading,
+            isAtRoot = isAtRoot,
+            rootDirectory = rootDirectory,
+            onNavigateTo = onNavigateTo,
+            onNavigateUp = onNavigateUp,
+            onNavigateHome = onNavigateHome,
+            onToggleAllowed = onToggleAllowed,
+            onRefresh = onRefresh,
+            onSmartViewToggle = onSmartViewToggle,
+            onDone = onDone,
+            isDirectorySelected = isDirectorySelected,
+            modifier = Modifier.fillMaxHeight(0.9f)
+        )
     }
 }
 

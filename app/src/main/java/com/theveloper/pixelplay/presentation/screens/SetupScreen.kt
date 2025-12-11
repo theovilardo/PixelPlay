@@ -88,7 +88,7 @@ import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.components.PermissionIconCollage
 import com.theveloper.pixelplay.presentation.components.subcomps.MaterialYouVectorDrawable
 import com.theveloper.pixelplay.presentation.components.subcomps.SineWaveLine
-import com.theveloper.pixelplay.presentation.screens.FolderExplorerScreen
+import com.theveloper.pixelplay.presentation.components.FileExplorerBottomSheet
 import com.theveloper.pixelplay.presentation.viewmodel.DirectoryEntry
 import com.theveloper.pixelplay.presentation.viewmodel.SetupUiState
 import com.theveloper.pixelplay.presentation.viewmodel.SetupViewModel
@@ -292,10 +292,7 @@ fun DirectorySelectionPage(
             onNavigateTo(explorerRoot)
         }
 
-        FolderExplorerScreen(
-            fromSetup = true,
-            onClose = { showDirectoryPicker = false },
-            onDone = { showDirectoryPicker = false },
+        FileExplorerBottomSheet(
             currentPath = currentPath,
             directoryChildren = directoryChildren,
             allowedDirectories = allowedDirectories,
@@ -309,6 +306,8 @@ fun DirectorySelectionPage(
             onToggleAllowed = onToggleAllowed,
             onRefresh = onRefresh,
             onSmartViewToggle = onSmartViewToggle,
+            onDone = { showDirectoryPicker = false },
+            onDismiss = { showDirectoryPicker = false },
             isDirectorySelected = isDirectorySelected
         )
     }

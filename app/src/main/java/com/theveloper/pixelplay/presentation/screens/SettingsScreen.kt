@@ -110,6 +110,7 @@ import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
+import com.theveloper.pixelplay.presentation.components.FileExplorerBottomSheet
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
@@ -181,7 +182,21 @@ fun SettingsScreen(
     val uiState by settingsViewModel.uiState.collectAsState()
     val geminiApiKey by settingsViewModel.geminiApiKey.collectAsState()
     val playerSheetState by playerViewModel.sheetState.collectAsState()
+    val currentPath by settingsViewModel.currentPath.collectAsState()
+    val directoryChildren by settingsViewModel.currentDirectoryChildren.collectAsState()
+    val allowedDirectories by settingsViewModel.allowedDirectories.collectAsState()
+    val smartViewEnabled by settingsViewModel.smartViewEnabled.collectAsState()
+    val isLoadingDirectories by settingsViewModel.isLoadingDirectories.collectAsState()
+    val explorerRoot = settingsViewModel.explorerRoot()
+
     var showClearLyricsDialog by remember { mutableStateOf(false) }
+    var showExplorerSheet by remember { mutableStateOf(false) }
+
+    LaunchedEffect(showExplorerSheet) {
+        if (showExplorerSheet) {
+            settingsViewModel.loadDirectory(settingsViewModel.explorerRoot())
+        }
+    }
 
     BackHandler(enabled = playerSheetState == PlayerSheetState.EXPANDED) {
         playerViewModel.collapsePlayerSheet()
@@ -323,8 +338,7 @@ fun SettingsScreen(
                                     return@SettingsItem
                                 }
 
-                                settingsViewModel.loadDirectory(settingsViewModel.explorerRoot())
-                                navController.navigate(Screen.FolderExplorer.createRoute("settings"))
+                                showExplorerSheet = true
                             }
                         )
                         Spacer(modifier = Modifier.height(4.dp))
@@ -688,6 +702,27 @@ fun SettingsScreen(
             collapseFraction = collapseFraction,
             headerHeight = currentTopBarHeightDp,
             onBackPressed = onNavigationIconClick
+        )
+    }
+
+    if (showExplorerSheet) {
+        FileExplorerBottomSheet(
+            currentPath = currentPath,
+            directoryChildren = directoryChildren,
+            allowedDirectories = allowedDirectories,
+            smartViewEnabled = smartViewEnabled,
+            isLoading = isLoadingDirectories,
+            isAtRoot = settingsViewModel.isAtRoot(),
+            rootDirectory = explorerRoot,
+            onNavigateTo = settingsViewModel::loadDirectory,
+            onNavigateUp = settingsViewModel::navigateUp,
+            onNavigateHome = { settingsViewModel.loadDirectory(explorerRoot) },
+            onToggleAllowed = settingsViewModel::toggleDirectoryAllowed,
+            onRefresh = settingsViewModel::refreshExplorer,
+            onSmartViewToggle = settingsViewModel::setSmartViewEnabled,
+            onDone = { showExplorerSheet = false },
+            onDismiss = { showExplorerSheet = false },
+            isDirectorySelected = { settingsViewModel.isDirectorySelected(it) }
         )
     }
 

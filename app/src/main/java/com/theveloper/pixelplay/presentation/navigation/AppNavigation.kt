@@ -28,7 +28,6 @@ import com.theveloper.pixelplay.presentation.screens.AlbumDetailScreen
 import com.theveloper.pixelplay.presentation.screens.ArtistDetailScreen
 import com.theveloper.pixelplay.presentation.screens.DailyMixScreen
 import com.theveloper.pixelplay.presentation.screens.EditTransitionScreen
-import com.theveloper.pixelplay.presentation.screens.FolderExplorerScreen
 import com.theveloper.pixelplay.presentation.screens.GenreDetailScreen
 import com.theveloper.pixelplay.presentation.screens.HomeScreen
 import com.theveloper.pixelplay.presentation.screens.LibraryScreen
@@ -111,36 +110,6 @@ fun AppNavigation(
                     onNavigationIconClick = {
                         navController.popBackStack()
                     }
-                )
-            }
-            composable(
-                route = Screen.FolderExplorer.route,
-                arguments = listOf(navArgument("origin") { defaultValue = "settings" })
-            ) { backStackEntry ->
-                val origin = backStackEntry.arguments?.getString("origin") ?: "settings"
-                val parentEntry = remember(backStackEntry) {
-                    navController.getBackStackEntry(Screen.Settings.route)
-                }
-                val settingsViewModel: SettingsViewModel = hiltViewModel(parentEntry)
-
-                FolderExplorerScreen(
-                    fromSetup = origin == "setup",
-                    onClose = { navController.popBackStack() },
-                    onDone = { navController.popBackStack() },
-                    currentPath = settingsViewModel.currentPath.collectAsState().value,
-                    directoryChildren = settingsViewModel.currentDirectoryChildren.collectAsState().value,
-                    allowedDirectories = settingsViewModel.allowedDirectories.collectAsState().value,
-                    smartViewEnabled = settingsViewModel.smartViewEnabled.collectAsState().value,
-                    isLoading = settingsViewModel.isLoadingDirectories.collectAsState().value,
-                    isAtRoot = settingsViewModel.isAtRoot(),
-                    rootDirectory = settingsViewModel.explorerRoot(),
-                    onNavigateTo = settingsViewModel::loadDirectory,
-                    onNavigateUp = settingsViewModel::navigateUp,
-                    onNavigateHome = { settingsViewModel.loadDirectory(settingsViewModel.explorerRoot()) },
-                    onToggleAllowed = settingsViewModel::toggleDirectoryAllowed,
-                    onRefresh = settingsViewModel::refreshExplorer,
-                    onSmartViewToggle = settingsViewModel::setSmartViewEnabled,
-                    isDirectorySelected = { settingsViewModel.isDirectorySelected(it) }
                 )
             }
             composable(
