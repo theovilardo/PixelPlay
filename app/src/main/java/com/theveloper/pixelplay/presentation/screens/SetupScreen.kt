@@ -259,25 +259,19 @@ fun DirectorySelectionPage(
         }
     }
 
+    val canOpenDirectoryPicker = hasMediaPermission && hasAllFilesAccess
+
     PermissionPageLayout(
         title = "Music Folders",
         description = "Select the folders where your music is stored. If you skip this, you can select them later in settings.",
         buttonText = "Select Folders",
+        buttonEnabled = canOpenDirectoryPicker,
         onGrantClicked = {
-            val hasMediaPermission = uiState.mediaPermissionGranted
-            val hasAllFilesAccess = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) uiState.allFilesAccessGranted else true
-
-            if (!hasMediaPermission) {
-                Toast.makeText(context, "Grant media permission first", Toast.LENGTH_SHORT).show()
-                return@PermissionPageLayout
+            if (canOpenDirectoryPicker) {
+                showDirectoryPicker = true
+            } else {
+                Toast.makeText(context, "Grant storage permissions first", Toast.LENGTH_SHORT).show()
             }
-
-            if (!hasAllFilesAccess) {
-                Toast.makeText(context, "Allow file access to browse folders", Toast.LENGTH_SHORT).show()
-                return@PermissionPageLayout
-            }
-
-            showDirectoryPicker = true
         },
         icons = persistentListOf(
             R.drawable.rounded_folder_24,
@@ -531,8 +525,9 @@ fun PermissionPageLayout(
     description: String,
     buttonText: String,
     icons: ImmutableList<Int>,
-        onGrantClicked: () -> Unit,
-        content: @Composable () -> Unit = {}
+    buttonEnabled: Boolean = true,
+    onGrantClicked: () -> Unit,
+    content: @Composable () -> Unit = {}
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -549,7 +544,7 @@ fun PermissionPageLayout(
         Spacer(modifier = Modifier.height(32.dp))
         Button(
             onClick = onGrantClicked,
-            enabled = !granted,
+            enabled = buttonEnabled && !granted,
             contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
         ) {
             AnimatedVisibility(visible = granted) {
