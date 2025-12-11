@@ -111,6 +111,7 @@ fun SetupScreen(
     val currentPath by setupViewModel.currentPath.collectAsState()
     val directoryChildren by setupViewModel.currentDirectoryChildren.collectAsState()
     val allowedDirectories by setupViewModel.allowedDirectories.collectAsState()
+    val smartViewEnabled by setupViewModel.smartViewEnabled.collectAsState()
 
     // Re-check permissions when the screen is resumed
     DisposableEffect(lifecycleOwner) {
@@ -131,15 +132,15 @@ fun SetupScreen(
         )
         // Add media permissions page for all versions
         list.add(SetupPage.MediaPermission)
-        // Add directory selection page
+        // Add all files access page for Android 11+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            list.add(SetupPage.AllFilesPermission)
+        }
+        // Add directory selection page after storage permissions
         list.add(SetupPage.DirectorySelection)
         // Add notifications permission page for Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             list.add(SetupPage.NotificationsPermission)
-        }
-        // Add all files access page for Android 11+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            list.add(SetupPage.AllFilesPermission)
         }
         list.add(SetupPage.Finish)
         list
@@ -212,6 +213,7 @@ fun SetupScreen(
                         currentPath = currentPath,
                         directoryChildren = directoryChildren,
                         allowedDirectories = allowedDirectories,
+                        smartViewEnabled = smartViewEnabled,
                         isAtRoot = setupViewModel.isAtRoot(),
                         explorerRoot = setupViewModel.explorerRoot(),
                         onNavigateTo = setupViewModel::loadDirectory,
@@ -222,7 +224,8 @@ fun SetupScreen(
                                 pagerState.animateScrollToPage(pagerState.currentPage + 1)
                             }
                         },
-                        onToggleAllowed = setupViewModel::toggleDirectoryAllowed
+                        onToggleAllowed = setupViewModel::toggleDirectoryAllowed,
+                        onSmartViewToggle = setupViewModel::setSmartViewEnabled
                     )
                     SetupPage.NotificationsPermission -> NotificationsPermissionPage(uiState)
                     SetupPage.AllFilesPermission -> AllFilesPermissionPage(uiState)
@@ -240,6 +243,7 @@ fun DirectorySelectionPage(
     currentPath: File,
     directoryChildren: List<DirectoryEntry>,
     allowedDirectories: Set<String>,
+    smartViewEnabled: Boolean,
     isAtRoot: Boolean,
     explorerRoot: File,
     onNavigateTo: (File) -> Unit,
@@ -247,6 +251,7 @@ fun DirectorySelectionPage(
     onRefresh: () -> Unit,
     onSkip: () -> Unit,
     onToggleAllowed: (File) -> Unit,
+    onSmartViewToggle: (Boolean) -> Unit,
 ) {
     var showDirectoryPicker by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -304,6 +309,8 @@ fun DirectorySelectionPage(
             onNavigateHome = { onNavigateTo(explorerRoot) },
             onToggleAllowed = onToggleAllowed,
             onRefresh = onRefresh,
+            smartViewEnabled = smartViewEnabled,
+            onSmartViewToggle = onSmartViewToggle,
             onDone = { showDirectoryPicker = false },
             onDismiss = { showDirectoryPicker = false }
         )

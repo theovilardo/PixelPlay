@@ -187,6 +187,7 @@ fun SettingsScreen(
     val currentPath by settingsViewModel.currentPath.collectAsState()
     val directoryChildren by settingsViewModel.currentDirectoryChildren.collectAsState()
     val allowedDirectories by settingsViewModel.allowedDirectories.collectAsState()
+    val smartViewEnabled by settingsViewModel.smartViewEnabled.collectAsState()
     // Estado para controlar la visibilidad del diálogo de directorios
     var showDirectoryDialog by remember { mutableStateOf(false) }
     var showClearLyricsDialog by remember { mutableStateOf(false) }
@@ -717,6 +718,7 @@ fun SettingsScreen(
             currentPath = currentPath,
             directoryChildren = directoryChildren,
             allowedDirectories = allowedDirectories,
+            smartViewEnabled = smartViewEnabled,
             isLoading = uiState.isLoadingDirectories,
             isAtRoot = settingsViewModel.isAtRoot(),
             rootDirectory = settingsViewModel.explorerRoot(),
@@ -725,6 +727,7 @@ fun SettingsScreen(
             onNavigateHome = { settingsViewModel.loadDirectory(settingsViewModel.explorerRoot()) },
             onToggleAllowed = settingsViewModel::toggleDirectoryAllowed,
             onRefresh = settingsViewModel::refreshExplorer,
+            onSmartViewToggle = settingsViewModel::setSmartViewEnabled,
             onDone = { showDirectoryDialog = false },
             onDismiss = { showDirectoryDialog = false }
         )

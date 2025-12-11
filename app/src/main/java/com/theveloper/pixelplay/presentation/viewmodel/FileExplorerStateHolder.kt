@@ -14,7 +14,9 @@ import java.io.File
 
 data class DirectoryEntry(
     val file: File,
-    val audioCount: Int
+    val directAudioCount: Int,
+    val totalAudioCount: Int,
+    val canonicalPath: String
 )
 
 class FileExplorerStateHolder(
@@ -23,8 +25,8 @@ class FileExplorerStateHolder(
     private val visibleRoot: File = Environment.getExternalStorageDirectory()
 ) {
 
-    private val rootCanonicalPath: String = runCatching { visibleRoot.canonicalPath }.getOrDefault(visibleRoot.absolutePath)
-    private val audioCountCache = mutableMapOf<String, Int>()
+    private val rootCanonicalPath: String = normalizePath(visibleRoot)
+    private val audioCountCache = mutableMapOf<String, AudioCount>()
     private val directoryChildrenCache = mutableMapOf<String, List<DirectoryEntry>>()
 
     private val _currentPath = MutableStateFlow(visibleRoot)
@@ -36,6 +38,9 @@ class FileExplorerStateHolder(
     private val _allowedDirectories = MutableStateFlow<Set<String>>(emptySet())
     val allowedDirectories: StateFlow<Set<String>> = _allowedDirectories.asStateFlow()
 
+    private val _smartViewEnabled = MutableStateFlow(false)
+    val smartViewEnabled: StateFlow<Boolean> = _smartViewEnabled.asStateFlow()
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
@@ -46,7 +51,7 @@ class FileExplorerStateHolder(
     init {
         scope.launch {
             userPreferencesRepository.allowedDirectoriesFlow.collect { allowed ->
-                _allowedDirectories.value = allowed
+                _allowedDirectories.value = allowed.map(::normalizePath).toSet()
             }
         }
         refreshCurrentDirectory()
@@ -59,7 +64,7 @@ class FileExplorerStateHolder(
     fun loadDirectory(file: File, updatePath: Boolean = true, forceRefresh: Boolean = false) {
         scope.launch {
             val target = if (file.isDirectory) file else visibleRoot
-            val targetKey = runCatching { target.canonicalPath }.getOrDefault(target.absolutePath)
+            val targetKey = normalizePath(target)
 
             if (updatePath) {
                 _currentPath.value = target
@@ -67,7 +72,7 @@ class FileExplorerStateHolder(
 
             if (!forceRefresh) {
                 directoryChildrenCache[targetKey]?.let { cached ->
-                    _currentDirectoryChildren.value = cached
+                    _currentDirectoryChildren.value = applySmartView(cached)
                     _isLoading.value = false
                     if (!updatePath) {
                         _currentPath.value = target
@@ -85,8 +90,8 @@ class FileExplorerStateHolder(
                     target.listFiles()
                         ?.mapNotNull { child ->
                             if (child.isDirectory && !child.isHidden) {
-                                val count = countAudioFiles(child, forceRefresh)
-                                if (count > 0) DirectoryEntry(child, count) else null
+                                val counts = countAudioFiles(child, forceRefresh)
+                                if (counts.total > 0) DirectoryEntry(child, counts.direct, counts.total, normalizePath(child)) else null
                             } else {
                                 null
                             }
@@ -100,7 +105,7 @@ class FileExplorerStateHolder(
             if (!updatePath) {
                 _currentPath.value = target
             }
-            _currentDirectoryChildren.value = children
+            _currentDirectoryChildren.value = applySmartView(children)
             _isLoading.value = false
         }
     }
@@ -120,19 +125,35 @@ class FileExplorerStateHolder(
 
     fun toggleDirectoryAllowed(file: File) {
         scope.launch {
-            val currentAllowed = userPreferencesRepository.allowedDirectoriesFlow.first().toMutableSet()
-            val path = file.absolutePath
+            val currentAllowed = userPreferencesRepository.allowedDirectoriesFlow.first()
+                .map(::normalizePath)
+                .toMutableSet()
+            val path = normalizePath(file)
+
             if (currentAllowed.contains(path)) {
-                currentAllowed.remove(path)
+                currentAllowed.removeAll { it == path || it.startsWith("$path/") }
             } else {
+                currentAllowed.removeAll { it.startsWith("$path/") }
                 currentAllowed.add(path)
             }
             userPreferencesRepository.updateAllowedDirectories(currentAllowed)
         }
     }
 
-    private fun countAudioFiles(directory: File, forceRefresh: Boolean): Int {
-        val key = runCatching { directory.canonicalPath }.getOrDefault(directory.absolutePath)
+    fun setSmartViewEnabled(enabled: Boolean) {
+        if (_smartViewEnabled.value == enabled) return
+        _smartViewEnabled.value = enabled
+
+        val targetKey = normalizePath(_currentPath.value)
+        directoryChildrenCache[targetKey]?.let { cached ->
+            _currentDirectoryChildren.value = applySmartView(cached)
+        }
+    }
+
+    fun isPathAllowed(path: String): Boolean = _allowedDirectories.value.any { path.startsWith(it) }
+
+    private fun countAudioFiles(directory: File, forceRefresh: Boolean): AudioCount {
+        val key = normalizePath(directory)
         if (!forceRefresh) {
             audioCountCache[key]?.let { return it }
         }
@@ -140,7 +161,8 @@ class FileExplorerStateHolder(
         val filesQueue: ArrayDeque<File> = ArrayDeque()
         filesQueue.add(directory)
 
-        var count = 0
+        var totalCount = 0
+        var directCount = 0
 
         while (filesQueue.isNotEmpty()) {
             val current = filesQueue.removeFirst()
@@ -151,20 +173,36 @@ class FileExplorerStateHolder(
                     filesQueue.add(child)
                 } else {
                     val extension = child.extension.lowercase()
-                    if (audioExtensions.contains(extension)) count++
-                    if (count > 100) {
-                        audioCountCache[key] = count
-                        return count
+                    if (audioExtensions.contains(extension)) {
+                        totalCount++
+                        if (current.path == directory.path) {
+                            directCount++
+                        }
+                    }
+                    if (totalCount > 100) {
+                        return AudioCount(directCount, totalCount).also { audioCountCache[key] = it }
                     }
                 }
             }
         }
 
-        audioCountCache[key] = count
-        return count
+        return AudioCount(directCount, totalCount).also { audioCountCache[key] = it }
     }
 
     fun isAtRoot(): Boolean = _currentPath.value.path == visibleRoot.path
 
     fun rootDirectory(): File = visibleRoot
+
+    private fun applySmartView(children: List<DirectoryEntry>): List<DirectoryEntry> {
+        return if (_smartViewEnabled.value) {
+            children.filter { it.directAudioCount > 0 }
+        } else {
+            children
+        }
+    }
+
+    private fun normalizePath(file: File): String = runCatching { file.canonicalPath }.getOrDefault(file.absolutePath)
+    private fun normalizePath(path: String): String = runCatching { File(path).canonicalPath }.getOrDefault(path)
+
+    private data class AudioCount(val direct: Int, val total: Int)
 }

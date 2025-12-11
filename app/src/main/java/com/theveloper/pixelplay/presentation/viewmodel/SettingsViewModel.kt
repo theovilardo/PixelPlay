@@ -61,6 +61,7 @@ class SettingsViewModel @Inject constructor(
     val currentPath = fileExplorerStateHolder.currentPath
     val currentDirectoryChildren = fileExplorerStateHolder.currentDirectoryChildren
     val allowedDirectories = fileExplorerStateHolder.allowedDirectories
+    val smartViewEnabled = fileExplorerStateHolder.smartViewEnabled
     val isLoadingDirectories = fileExplorerStateHolder.isLoading
 
     init {
@@ -157,6 +158,10 @@ class SettingsViewModel @Inject constructor(
 
     fun refreshExplorer() {
         fileExplorerStateHolder.refreshCurrentDirectory()
+    }
+
+    fun setSmartViewEnabled(enabled: Boolean) {
+        fileExplorerStateHolder.setSmartViewEnabled(enabled)
     }
 
     fun isAtRoot(): Boolean = fileExplorerStateHolder.isAtRoot()

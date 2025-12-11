@@ -33,6 +33,7 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -64,6 +65,7 @@ fun FileExplorerBottomSheet(
     currentPath: File,
     directoryChildren: List<DirectoryEntry>,
     allowedDirectories: Set<String>,
+    smartViewEnabled: Boolean,
     isLoading: Boolean,
     isAtRoot: Boolean,
     rootDirectory: File,
@@ -72,6 +74,7 @@ fun FileExplorerBottomSheet(
     onNavigateHome: () -> Unit,
     onToggleAllowed: (File) -> Unit,
     onRefresh: () -> Unit,
+    onSmartViewToggle: (Boolean) -> Unit,
     onDone: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -110,6 +113,22 @@ fun FileExplorerBottomSheet(
                 }
             }
 
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = !smartViewEnabled,
+                    onClick = { onSmartViewToggle(false) },
+                    label = { Text("All folders") }
+                )
+                FilterChip(
+                    selected = smartViewEnabled,
+                    onClick = { onSmartViewToggle(true) },
+                    label = { Text("Smart View") }
+                )
+            }
+
             FileExplorerHeader(
                 currentPath = currentPath,
                 rootDirectory = rootDirectory,
@@ -138,10 +157,11 @@ fun FileExplorerBottomSheet(
                     else -> {
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             items(children, key = { it.file.absolutePath }) { directoryEntry ->
-                                val isAllowed = allowedDirectories.contains(directoryEntry.file.absolutePath)
+                                val isAllowed = allowedDirectories.any { allowed -> directoryEntry.canonicalPath.startsWith(allowed) }
+                                val displayCount = if (smartViewEnabled) directoryEntry.directAudioCount else directoryEntry.totalAudioCount
                                 FileExplorerItem(
                                     file = directoryEntry.file,
-                                    audioCount = directoryEntry.audioCount,
+                                    audioCount = displayCount,
                                     isAllowed = isAllowed,
                                     onNavigate = { onNavigateTo(directoryEntry.file) },
                                     onToggleAllowed = { onToggleAllowed(directoryEntry.file) }
