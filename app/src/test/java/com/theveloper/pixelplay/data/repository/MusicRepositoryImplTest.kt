@@ -77,7 +77,7 @@ class MusicRepositoryImplTest {
     }
 
     @Test
-    fun `getAudioFiles returns all songs if initial setup not done`() = runTest(testDispatcher) {
+    fun `getAudioFiles returns empty list if no allowed directories even before initial setup`() = runTest(testDispatcher) {
         val songEntities = listOf(
             SongEntity(1L, "Song A", "Artist 1", 101L, "Album X", 201L, "uri_a", "art_a", 180, "Pop", "/any/path/songA.mp3"),
             SongEntity(2L, "Song B", "Artist 1", 101L, "Album X", 201L, "uri_b", "art_b", 200, "Pop", "/other/path/songB.mp3")
@@ -87,8 +87,7 @@ class MusicRepositoryImplTest {
         every { mockUserPreferencesRepository.initialSetupDoneFlow } returns flowOf(false) // Setup no completado
 
         val result = musicRepository.getAudioFiles(page = 1, pageSize = 10).first()
-        assertThat(result).hasSize(2)
-        assertThat(result.map { it.id }).containsExactly("1", "2").inOrder()
+        assertThat(result).isEmpty()
     }
 
     @Test

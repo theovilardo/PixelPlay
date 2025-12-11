@@ -61,7 +61,12 @@ class SettingsViewModel @Inject constructor(
     val currentPath = fileExplorerStateHolder.currentPath
     val currentDirectoryChildren = fileExplorerStateHolder.currentDirectoryChildren
     val allowedDirectories = fileExplorerStateHolder.allowedDirectories
+    val smartViewEnabled = fileExplorerStateHolder.smartViewEnabled
     val isLoadingDirectories = fileExplorerStateHolder.isLoading
+    val isExplorerPriming = fileExplorerStateHolder.isPrimingExplorer
+    val isExplorerReady = fileExplorerStateHolder.isExplorerReady
+
+    fun isDirectorySelected(file: File): Boolean = fileExplorerStateHolder.isDirectorySelected(file)
 
     init {
         viewModelScope.launch {
@@ -151,12 +156,20 @@ class SettingsViewModel @Inject constructor(
         fileExplorerStateHolder.loadDirectory(file)
     }
 
+    fun primeExplorer() {
+        fileExplorerStateHolder.primeExplorerRoot()
+    }
+
     fun navigateUp() {
         fileExplorerStateHolder.navigateUp()
     }
 
     fun refreshExplorer() {
         fileExplorerStateHolder.refreshCurrentDirectory()
+    }
+
+    fun setSmartViewEnabled(enabled: Boolean) {
+        fileExplorerStateHolder.setSmartViewEnabled(enabled)
     }
 
     fun isAtRoot(): Boolean = fileExplorerStateHolder.isAtRoot()

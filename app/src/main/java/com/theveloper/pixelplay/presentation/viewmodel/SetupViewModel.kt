@@ -9,7 +9,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
-import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.data.worker.SyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,7 +38,6 @@ data class SetupUiState(
 @HiltViewModel
 class SetupViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val musicRepository: MusicRepository,
     private val syncManager: SyncManager,
 ) : ViewModel() {
 
@@ -51,6 +49,7 @@ class SetupViewModel @Inject constructor(
     val currentPath = fileExplorerStateHolder.currentPath
     val currentDirectoryChildren = fileExplorerStateHolder.currentDirectoryChildren
     val allowedDirectories = fileExplorerStateHolder.allowedDirectories
+    val smartViewEnabled = fileExplorerStateHolder.smartViewEnabled
     val isLoadingDirectories = fileExplorerStateHolder.isLoading
 
     init {
@@ -101,8 +100,11 @@ class SetupViewModel @Inject constructor(
             if (!userPreferencesRepository.initialSetupDoneFlow.first()) {
                 val allowedDirs = userPreferencesRepository.allowedDirectoriesFlow.first()
                 if (allowedDirs.isEmpty()) {
-                    val allAudioDirs = musicRepository.getAllUniqueAudioDirectories().toSet()
-                    userPreferencesRepository.updateAllowedDirectories(allAudioDirs)
+                    val musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
+                    val defaultAllowed = if (musicDir.exists()) {
+                        runCatching { musicDir.canonicalPath }.getOrDefault(musicDir.absolutePath)
+                    } else null
+                    userPreferencesRepository.updateAllowedDirectories(defaultAllowed?.let { setOf(it) } ?: emptySet())
                 }
             }
 
@@ -118,8 +120,14 @@ class SetupViewModel @Inject constructor(
         fileExplorerStateHolder.toggleDirectoryAllowed(file)
     }
 
+    fun isDirectorySelected(file: File): Boolean = fileExplorerStateHolder.isDirectorySelected(file)
+
     fun loadDirectory(file: File) {
         fileExplorerStateHolder.loadDirectory(file)
+    }
+
+    fun setSmartViewEnabled(enabled: Boolean) {
+        fileExplorerStateHolder.setSmartViewEnabled(enabled)
     }
 
     fun refreshCurrentDirectory() {
