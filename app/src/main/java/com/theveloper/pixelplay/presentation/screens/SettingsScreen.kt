@@ -187,14 +187,22 @@ fun SettingsScreen(
     val allowedDirectories by settingsViewModel.allowedDirectories.collectAsState()
     val smartViewEnabled by settingsViewModel.smartViewEnabled.collectAsState()
     val isLoadingDirectories by settingsViewModel.isLoadingDirectories.collectAsState()
+    val isExplorerPriming by settingsViewModel.isExplorerPriming.collectAsState()
+    val isExplorerReady by settingsViewModel.isExplorerReady.collectAsState()
     val explorerRoot = settingsViewModel.explorerRoot()
 
     var showClearLyricsDialog by remember { mutableStateOf(false) }
     var showExplorerSheet by remember { mutableStateOf(false) }
+    var pendingExplorerLaunch by remember { mutableStateOf(false) }
 
-    LaunchedEffect(showExplorerSheet) {
-        if (showExplorerSheet) {
-            settingsViewModel.loadDirectory(settingsViewModel.explorerRoot())
+    LaunchedEffect(Unit) {
+        settingsViewModel.primeExplorer()
+    }
+
+    LaunchedEffect(pendingExplorerLaunch, isExplorerReady) {
+        if (pendingExplorerLaunch && isExplorerReady) {
+            showExplorerSheet = true
+            pendingExplorerLaunch = false
         }
     }
 
@@ -338,7 +346,13 @@ fun SettingsScreen(
                                     return@SettingsItem
                                 }
 
-                                showExplorerSheet = true
+                                pendingExplorerLaunch = true
+                                if (isExplorerReady) {
+                                    showExplorerSheet = true
+                                    pendingExplorerLaunch = false
+                                } else {
+                                    settingsViewModel.primeExplorer()
+                                }
                             }
                         )
                         Spacer(modifier = Modifier.height(4.dp))
@@ -726,6 +740,10 @@ fun SettingsScreen(
         )
     }
 
+    if (pendingExplorerLaunch && !showExplorerSheet && (isExplorerPriming || !isExplorerReady)) {
+        ExplorerWarmupDialog(onCancel = { pendingExplorerLaunch = false })
+    }
+
     // Reset lyrics dialog
     if (showClearLyricsDialog) {
         AlertDialog(
@@ -765,6 +783,26 @@ fun SettingsScreen(
             }
         )
     }
+}
+
+@Composable
+private fun ExplorerWarmupDialog(onCancel: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onCancel) {
+                Text(text = "Cancel")
+            }
+        },
+        icon = {
+            CircularProgressIndicator()
+        },
+        title = { Text(text = "Preparing folders") },
+        text = {
+            Text(text = "Loading your storage map so the explorer opens instantly.")
+        }
+    )
 }
 
 @Composable

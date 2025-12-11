@@ -3,6 +3,7 @@ package com.theveloper.pixelplay.presentation.viewmodel
 import android.os.Environment
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,6 +47,12 @@ class FileExplorerStateHolder(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    private val _isPrimingExplorer = MutableStateFlow(false)
+    val isPrimingExplorer: StateFlow<Boolean> = _isPrimingExplorer.asStateFlow()
+
+    private val _isExplorerReady = MutableStateFlow(false)
+    val isExplorerReady: StateFlow<Boolean> = _isExplorerReady.asStateFlow()
+
     private val audioExtensions = setOf(
         "mp3", "flac", "m4a", "aac", "wav", "ogg", "opus", "wma", "alac", "aiff", "ape"
     )
@@ -63,76 +70,18 @@ class FileExplorerStateHolder(
         loadDirectory(_currentPath.value, updatePath = false, forceRefresh = true)
     }
 
-    fun loadDirectory(file: File, updatePath: Boolean = true, forceRefresh: Boolean = false) {
-        scope.launch {
-            val target = if (file.isDirectory) file else visibleRoot
-            val targetKey = normalizePath(target)
+    fun loadDirectory(file: File, updatePath: Boolean = true, forceRefresh: Boolean = false): Job {
+        return scope.launch { loadDirectoryInternal(file, updatePath, forceRefresh) }
+    }
 
-            if (forceRefresh) {
-                directoryChildrenCache.remove(targetKey)
-                smartViewCache.remove(targetKey)
-            }
+    fun primeExplorerRoot(): Job? {
+        if (_isExplorerReady.value && directoryChildrenCache.containsKey(rootCanonicalPath)) return null
+        if (_isPrimingExplorer.value) return null
 
-            if (updatePath) {
-                _currentPath.value = target
-            }
-
-            if (_smartViewEnabled.value && !forceRefresh) {
-                smartViewCache[targetKey]?.let { cached ->
-                    _currentDirectoryChildren.value = cached
-                    _isLoading.value = false
-                    if (!updatePath) {
-                        _currentPath.value = target
-                    }
-                    return@launch
-                }
-            }
-
-            if (!forceRefresh) {
-                directoryChildrenCache[targetKey]?.let { cached ->
-                    _currentDirectoryChildren.value = cached
-                    _isLoading.value = false
-                    if (!updatePath) {
-                        _currentPath.value = target
-                    }
-                    if (_smartViewEnabled.value) {
-                        val smartChildren = buildSmartViewEntries(target, forceRefresh = false)
-                        _currentDirectoryChildren.value = smartChildren
-                    }
-                    return@launch
-                }
-            }
-
-            _isLoading.value = true
-            _currentDirectoryChildren.value = emptyList()
-
-            val cachedChildren = if (forceRefresh) null else directoryChildrenCache[targetKey]
-            val children = cachedChildren ?: withContext(Dispatchers.IO) {
-                runCatching {
-                    target.listFiles()
-                        ?.mapNotNull { child ->
-                            if (child.isDirectory && !child.isHidden) {
-                                val counts = countAudioFiles(child, forceRefresh)
-                                if (counts.total > 0) DirectoryEntry(child, counts.direct, counts.total, normalizePath(child)) else null
-                            } else {
-                                null
-                            }
-                        }
-                        ?.sortedWith(compareBy({ it.file.name.lowercase() }))
-                        ?: emptyList()
-                }.getOrElse { emptyList() }
-                    .also { directoryChildrenCache[targetKey] = it }
-            }
-
-            if (!updatePath) {
-                _currentPath.value = target
-            }
-            _currentDirectoryChildren.value = if (_smartViewEnabled.value) {
-                buildSmartViewEntries(target, forceRefresh)
-            } else {
-                children
-            }
-            _isLoading.value = false
+        _isPrimingExplorer.value = true
+        return scope.launch {
+            loadDirectoryInternal(visibleRoot, updatePath = true, forceRefresh = false)
+            _isPrimingExplorer.value = false
         }
     }
 
@@ -194,6 +143,80 @@ class FileExplorerStateHolder(
     }
 
     fun isPathAllowed(path: String): Boolean = _allowedDirectories.value.any { path.startsWith(it) }
+
+    private suspend fun loadDirectoryInternal(file: File, updatePath: Boolean, forceRefresh: Boolean) {
+        val target = if (file.isDirectory) file else visibleRoot
+        val targetKey = normalizePath(target)
+
+        if (forceRefresh) {
+            directoryChildrenCache.remove(targetKey)
+            smartViewCache.remove(targetKey)
+        }
+
+        if (updatePath) {
+            _currentPath.value = target
+        }
+
+        if (_smartViewEnabled.value && !forceRefresh) {
+            smartViewCache[targetKey]?.let { cached ->
+                _currentDirectoryChildren.value = cached
+                _isLoading.value = false
+                _isExplorerReady.value = true
+                if (!updatePath) {
+                    _currentPath.value = target
+                }
+                return
+            }
+        }
+
+        if (!forceRefresh) {
+            directoryChildrenCache[targetKey]?.let { cached ->
+                _currentDirectoryChildren.value = cached
+                _isLoading.value = false
+                _isExplorerReady.value = true
+                if (!updatePath) {
+                    _currentPath.value = target
+                }
+                if (_smartViewEnabled.value) {
+                    val smartChildren = buildSmartViewEntries(target, forceRefresh = false)
+                    _currentDirectoryChildren.value = smartChildren
+                }
+                return
+            }
+        }
+
+        _isLoading.value = true
+        _currentDirectoryChildren.value = emptyList()
+
+        val cachedChildren = if (forceRefresh) null else directoryChildrenCache[targetKey]
+        val children = cachedChildren ?: withContext(Dispatchers.IO) {
+            runCatching {
+                target.listFiles()
+                    ?.mapNotNull { child ->
+                        if (child.isDirectory && !child.isHidden) {
+                            val counts = countAudioFiles(child, forceRefresh)
+                            if (counts.total > 0) DirectoryEntry(child, counts.direct, counts.total, normalizePath(child)) else null
+                        } else {
+                            null
+                        }
+                    }
+                    ?.sortedWith(compareBy({ it.file.name.lowercase() }))
+                    ?: emptyList()
+            }.getOrElse { emptyList() }
+                .also { directoryChildrenCache[targetKey] = it }
+        }
+
+        if (!updatePath) {
+            _currentPath.value = target
+        }
+        _currentDirectoryChildren.value = if (_smartViewEnabled.value) {
+            buildSmartViewEntries(target, forceRefresh)
+        } else {
+            children
+        }
+        _isLoading.value = false
+        _isExplorerReady.value = directoryChildrenCache.containsKey(targetKey)
+    }
 
     private fun countAudioFiles(directory: File, forceRefresh: Boolean): AudioCount {
         val key = normalizePath(directory)
