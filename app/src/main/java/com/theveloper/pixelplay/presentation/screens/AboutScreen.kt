@@ -342,6 +342,7 @@ fun AboutScreen(
                             text = "Thanks for using PixelPlayer!",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                         Text(
