@@ -191,6 +191,7 @@ fun SettingsScreen(
     // Estado para controlar la visibilidad del diálogo de directorios
     var showDirectoryDialog by remember { mutableStateOf(false) }
     var showClearLyricsDialog by remember { mutableStateOf(false) }
+    val directorySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     BackHandler(enabled = playerSheetState == PlayerSheetState.EXPANDED) {
         playerViewModel.collapsePlayerSheet()
@@ -217,6 +218,14 @@ fun SettingsScreen(
     val density = LocalDensity.current
     val coroutineScope = rememberCoroutineScope()
     val lazyListState = rememberLazyListState()
+
+    LaunchedEffect(showDirectoryDialog) {
+        if (showDirectoryDialog) {
+            directorySheetState.expand()
+        } else {
+            directorySheetState.hide()
+        }
+    }
 
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val minTopBarHeight = 64.dp + statusBarHeight
@@ -725,7 +734,8 @@ fun SettingsScreen(
             onRefresh = settingsViewModel::refreshExplorer,
             onSmartViewToggle = settingsViewModel::setSmartViewEnabled,
             onDone = { showDirectoryDialog = false },
-            onDismiss = { showDirectoryDialog = false }
+            onDismiss = { showDirectoryDialog = false },
+            sheetState = directorySheetState
         )
     }
 

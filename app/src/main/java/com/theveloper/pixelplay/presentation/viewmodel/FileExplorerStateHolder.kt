@@ -151,16 +151,19 @@ class FileExplorerStateHolder(
 
     fun toggleDirectoryAllowed(file: File) {
         scope.launch {
-            val currentAllowed = userPreferencesRepository.allowedDirectoriesFlow.first()
-                .map(::normalizePath)
-                .toMutableSet()
+            val currentAllowed = _allowedDirectories.value.toMutableSet()
             val path = normalizePath(file)
 
-            if (currentAllowed.contains(path)) {
-                currentAllowed.removeAll { it == path || it.startsWith("$path/") }
-            } else {
-                currentAllowed.removeAll { it.startsWith("$path/") }
-                currentAllowed.add(path)
+            val explicit = currentAllowed.firstOrNull { it == path }
+            val ancestor = currentAllowed.firstOrNull { path != it && path.startsWith("$it/") }
+
+            when {
+                explicit != null -> currentAllowed.removeAll { it == path || it.startsWith("$path/") }
+                ancestor != null -> currentAllowed.removeAll { it == ancestor || it.startsWith("$ancestor/") }
+                else -> {
+                    currentAllowed.removeAll { it.startsWith("$path/") }
+                    currentAllowed.add(path)
+                }
             }
             userPreferencesRepository.updateAllowedDirectories(currentAllowed)
         }

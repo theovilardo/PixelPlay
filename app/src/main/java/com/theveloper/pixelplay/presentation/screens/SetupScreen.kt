@@ -82,6 +82,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.material3.rememberModalBottomSheetState
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.theveloper.pixelplay.R
@@ -293,9 +294,17 @@ fun DirectorySelectionPage(
         }
     }
 
+    val explorerSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
     if (showDirectoryPicker) {
         LaunchedEffect(Unit) {
             onNavigateTo(explorerRoot)
+        }
+
+        LaunchedEffect(showDirectoryPicker) {
+            if (showDirectoryPicker) {
+                explorerSheetState.expand()
+            }
         }
         FileExplorerBottomSheet(
             currentPath = currentPath,
@@ -312,7 +321,8 @@ fun DirectorySelectionPage(
             smartViewEnabled = smartViewEnabled,
             onSmartViewToggle = onSmartViewToggle,
             onDone = { showDirectoryPicker = false },
-            onDismiss = { showDirectoryPicker = false }
+            onDismiss = { showDirectoryPicker = false },
+            sheetState = explorerSheetState
         )
     }
 }
