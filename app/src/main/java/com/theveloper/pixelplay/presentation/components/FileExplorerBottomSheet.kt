@@ -1,11 +1,5 @@
 package com.theveloper.pixelplay.presentation.components
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.ExperimentalAnimationApi
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.foundation.background
@@ -68,7 +62,7 @@ import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.presentation.viewmodel.DirectoryEntry
 import java.io.File
 
-@OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileExplorerBottomSheet(
     currentPath: File,
@@ -111,7 +105,7 @@ fun FileExplorerBottomSheet(
     }
 }
 
-@OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileExplorerContent(
     currentPath: File,
@@ -131,6 +125,8 @@ fun FileExplorerContent(
     leadingContent: @Composable (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val listState = rememberLazyListState()
+
     Scaffold(
         modifier = modifier,
         floatingActionButton = {
@@ -206,31 +202,23 @@ fun FileExplorerContent(
                 isAtRoot = isAtRoot,
                 onNavigateUp = onNavigateUp,
                 onNavigateHome = onNavigateHome,
-                onNavigateTo = onNavigateTo
+                onNavigateTo = onNavigateTo,
+                navigationEnabled = !smartViewEnabled
             )
 
-            AnimatedContent(
-                modifier = Modifier.weight(1f),
-                targetState = Triple(currentPath, directoryChildren, isLoading),
-                label = "directory_content",
-                transitionSpec = {
-                    fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(200))
-                }
-            ) { (_, children, loading) ->
+            Box(modifier = Modifier.weight(1f)) {
                 when {
-                    loading -> ExplorerLoadingState()
+                    isLoading -> ExplorerLoadingState()
 
-                    children.isEmpty() -> ExplorerEmptyState(text = "No subfolders here")
+                    directoryChildren.isEmpty() -> ExplorerEmptyState(text = "No subfolders here")
 
                     else -> {
-                        val listState = rememberLazyListState()
-
                         LazyColumn(
-                            modifier = Modifier.fillMaxHeight(),
+                            modifier = Modifier.fillMaxSize(),
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                             state = listState
                         ) {
-                            items(children, key = { it.file.absolutePath }) { directoryEntry ->
+                            items(directoryChildren, key = { it.file.absolutePath }) { directoryEntry ->
                                 val displayCount = if (smartViewEnabled) {
                                     directoryEntry.directAudioCount
                                 } else {
@@ -243,7 +231,8 @@ fun FileExplorerContent(
                                     displayName = directoryEntry.displayName,
                                     isAllowed = directoryEntry.isSelected,
                                     onNavigate = { onNavigateTo(directoryEntry.file) },
-                                    onToggleAllowed = { onToggleAllowed(directoryEntry.file) }
+                                    onToggleAllowed = { onToggleAllowed(directoryEntry.file) },
+                                    navigationEnabled = !smartViewEnabled
                                 )
                             }
                             item { Spacer(modifier = Modifier.height(6.dp)) }
@@ -263,8 +252,9 @@ private fun FileExplorerHeader(
     isAtRoot: Boolean,
     onNavigateUp: () -> Unit,
     onNavigateHome: () -> Unit,
-    onNavigateTo: (File) -> Unit
-) {
+    onNavigateTo: (File) -> Unit,
+    navigationEnabled: Boolean
+ ) {
     val scrollState = rememberScrollState()
     val breadcrumbs by remember(currentPath, rootDirectory) {
         mutableStateOf(buildList {
@@ -292,7 +282,7 @@ private fun FileExplorerHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            if (!isAtRoot) {
+            if (!isAtRoot && navigationEnabled) {
                 IconButton(
                     onClick = onNavigateUp,
                     colors = IconButtonDefaults.iconButtonColors(
@@ -333,7 +323,7 @@ private fun FileExplorerHeader(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(12.dp))
-                                        .clickable(enabled = !isLast) {
+                                        .clickable(enabled = !isLast && navigationEnabled) {
                                             if (isRoot) onNavigateHome() else onNavigateTo(file)
                                         }
                                         .background(
@@ -443,7 +433,8 @@ private fun FileExplorerItem(
     displayName: String?,
     isAllowed: Boolean,
     onNavigate: () -> Unit,
-    onToggleAllowed: () -> Unit
+    onToggleAllowed: () -> Unit,
+    navigationEnabled: Boolean
 ) {
     val shape = RoundedCornerShape(18.dp)
 
@@ -470,7 +461,7 @@ private fun FileExplorerItem(
             .fillMaxWidth()
             .clip(shape)
             .background(containerColor)
-            .clickable { onNavigate() }
+            .clickable(enabled = navigationEnabled) { onNavigate() }
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -526,11 +517,15 @@ private fun FileExplorerItem(
             }
         }
 
-        Icon(
-            imageVector = Icons.Rounded.ChevronRight,
-            contentDescription = null,
-            tint = contentColor
-        )
+        if (navigationEnabled) {
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = null,
+                tint = contentColor
+            )
+        } else {
+            Spacer(modifier = Modifier.width(8.dp))
+        }
 
         RadioButton(
             selected = isAllowed,

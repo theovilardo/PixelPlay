@@ -40,7 +40,7 @@ fun FolderExplorerScreen(
     onSmartViewToggle: (Boolean) -> Unit
 ) {
     BackHandler(enabled = true) {
-        if (isAtRoot) {
+        if (isAtRoot || smartViewEnabled) {
             onClose()
         } else {
             onNavigateUp()
@@ -65,7 +65,7 @@ fun FolderExplorerScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = {
-                        if (isAtRoot) onClose() else onNavigateUp()
+                        if (isAtRoot || smartViewEnabled) onClose() else onNavigateUp()
                     }) {
                         Icon(
                             imageVector = Icons.Rounded.Close,
