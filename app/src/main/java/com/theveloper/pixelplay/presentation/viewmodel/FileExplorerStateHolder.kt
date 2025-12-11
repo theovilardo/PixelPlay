@@ -16,7 +16,8 @@ data class DirectoryEntry(
     val file: File,
     val directAudioCount: Int,
     val totalAudioCount: Int,
-    val canonicalPath: String
+    val canonicalPath: String,
+    val displayName: String? = null
 )
 
 class FileExplorerStateHolder(
@@ -28,6 +29,7 @@ class FileExplorerStateHolder(
     private val rootCanonicalPath: String = normalizePath(visibleRoot)
     private val audioCountCache = mutableMapOf<String, AudioCount>()
     private val directoryChildrenCache = mutableMapOf<String, List<DirectoryEntry>>()
+    private val smartViewCache = mutableMapOf<String, List<DirectoryEntry>>()
 
     private val _currentPath = MutableStateFlow(visibleRoot)
     val currentPath: StateFlow<File> = _currentPath.asStateFlow()
@@ -66,16 +68,36 @@ class FileExplorerStateHolder(
             val target = if (file.isDirectory) file else visibleRoot
             val targetKey = normalizePath(target)
 
+            if (forceRefresh) {
+                directoryChildrenCache.remove(targetKey)
+                smartViewCache.remove(targetKey)
+            }
+
             if (updatePath) {
                 _currentPath.value = target
             }
 
-            if (!forceRefresh) {
-                directoryChildrenCache[targetKey]?.let { cached ->
-                    _currentDirectoryChildren.value = applySmartView(cached)
+            if (_smartViewEnabled.value && !forceRefresh) {
+                smartViewCache[targetKey]?.let { cached ->
+                    _currentDirectoryChildren.value = cached
                     _isLoading.value = false
                     if (!updatePath) {
                         _currentPath.value = target
+                    }
+                    return@launch
+                }
+            }
+
+            if (!forceRefresh) {
+                directoryChildrenCache[targetKey]?.let { cached ->
+                    _currentDirectoryChildren.value = cached
+                    _isLoading.value = false
+                    if (!updatePath) {
+                        _currentPath.value = target
+                    }
+                    if (_smartViewEnabled.value) {
+                        val smartChildren = buildSmartViewEntries(target, forceRefresh = false)
+                        _currentDirectoryChildren.value = smartChildren
                     }
                     return@launch
                 }
@@ -105,7 +127,11 @@ class FileExplorerStateHolder(
             if (!updatePath) {
                 _currentPath.value = target
             }
-            _currentDirectoryChildren.value = applySmartView(children)
+            _currentDirectoryChildren.value = if (_smartViewEnabled.value) {
+                buildSmartViewEntries(target, forceRefresh)
+            } else {
+                children
+            }
             _isLoading.value = false
         }
     }
@@ -144,9 +170,19 @@ class FileExplorerStateHolder(
         if (_smartViewEnabled.value == enabled) return
         _smartViewEnabled.value = enabled
 
-        val targetKey = normalizePath(_currentPath.value)
-        directoryChildrenCache[targetKey]?.let { cached ->
-            _currentDirectoryChildren.value = applySmartView(cached)
+        scope.launch {
+            val target = _currentPath.value
+            val targetKey = normalizePath(target)
+            if (!enabled) {
+                smartViewCache.remove(targetKey)
+                directoryChildrenCache[targetKey]?.let { cached ->
+                    _currentDirectoryChildren.value = cached
+                }
+                return@launch
+            }
+
+            val smartChildren = buildSmartViewEntries(target, forceRefresh = false)
+            _currentDirectoryChildren.value = smartChildren
         }
     }
 
@@ -193,16 +229,76 @@ class FileExplorerStateHolder(
 
     fun rootDirectory(): File = visibleRoot
 
-    private fun applySmartView(children: List<DirectoryEntry>): List<DirectoryEntry> {
-        return if (_smartViewEnabled.value) {
-            children.filter { it.directAudioCount > 0 }
-        } else {
-            children
+    private suspend fun buildSmartViewEntries(root: File, forceRefresh: Boolean): List<DirectoryEntry> {
+        val key = normalizePath(root)
+        if (!forceRefresh) {
+            smartViewCache[key]?.let { return it }
         }
+
+        val aggregated = withContext(Dispatchers.IO) {
+            val results = mutableListOf<DirectoryEntry>()
+            val queue: ArrayDeque<File> = ArrayDeque()
+            queue.add(root)
+
+            while (queue.isNotEmpty()) {
+                val current = queue.removeFirst()
+                val children = current.listFiles()?.filter { it.isDirectory && !it.isHidden } ?: continue
+
+                val entriesWithAudio = mutableListOf<DirectoryEntry>()
+                val traversable = mutableListOf<File>()
+
+                for (child in children) {
+                    val counts = countAudioFiles(child, forceRefresh)
+                    if (counts.total == 0) continue
+                    traversable.add(child)
+
+                    if (counts.direct > 0) {
+                        entriesWithAudio.add(
+                            DirectoryEntry(
+                                file = child,
+                                directAudioCount = counts.direct,
+                                totalAudioCount = counts.total,
+                                canonicalPath = normalizePath(child)
+                            )
+                        )
+                    }
+                }
+
+                val shouldGroup = current != root && entriesWithAudio.size >= GROUPING_THRESHOLD
+                if (shouldGroup) {
+                    val groupedDirect = entriesWithAudio.sumOf { it.directAudioCount }
+                    val groupedTotal = entriesWithAudio.sumOf { it.totalAudioCount }
+                    results.add(
+                        DirectoryEntry(
+                            file = current,
+                            directAudioCount = groupedDirect,
+                            totalAudioCount = groupedTotal,
+                            canonicalPath = normalizePath(current),
+                            displayName = "${current.name.ifEmpty { current.path }} (${entriesWithAudio.size} subfolders)"
+                        )
+                    )
+                    continue
+                }
+
+                results.addAll(entriesWithAudio)
+                traversable.forEach(queue::add)
+            }
+
+            results
+                .distinctBy { it.canonicalPath }
+                .sortedBy { it.file.name.lowercase() }
+        }
+
+        smartViewCache[key] = aggregated
+        return aggregated
     }
 
     private fun normalizePath(file: File): String = runCatching { file.canonicalPath }.getOrDefault(file.absolutePath)
     private fun normalizePath(path: String): String = runCatching { File(path).canonicalPath }.getOrDefault(path)
 
     private data class AudioCount(val direct: Int, val total: Int)
+
+    private companion object {
+        const val GROUPING_THRESHOLD = 40
+    }
 }

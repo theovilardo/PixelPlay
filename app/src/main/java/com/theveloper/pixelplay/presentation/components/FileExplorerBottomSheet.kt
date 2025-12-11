@@ -162,6 +162,7 @@ fun FileExplorerBottomSheet(
                                 FileExplorerItem(
                                     file = directoryEntry.file,
                                     audioCount = displayCount,
+                                    displayName = directoryEntry.displayName,
                                     isAllowed = isAllowed,
                                     onNavigate = { onNavigateTo(directoryEntry.file) },
                                     onToggleAllowed = { onToggleAllowed(directoryEntry.file) }
@@ -370,6 +371,7 @@ private fun ExplorerLoadingState() {
 private fun FileExplorerItem(
     file: File,
     audioCount: Int,
+    displayName: String?,
     isAllowed: Boolean,
     onNavigate: () -> Unit,
     onToggleAllowed: () -> Unit
@@ -429,7 +431,7 @@ private fun FileExplorerItem(
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = file.name.ifEmpty { file.path },
+                text = displayName ?: file.name.ifEmpty { file.path },
                 style = MaterialTheme.typography.titleMedium,
                 color = contentColor,
                 maxLines = 1,

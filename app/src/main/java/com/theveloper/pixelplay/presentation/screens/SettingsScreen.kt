@@ -710,10 +710,6 @@ fun SettingsScreen(
             }
         }
 
-        LaunchedEffect(Unit) {
-            settingsViewModel.loadDirectory(settingsViewModel.explorerRoot())
-        }
-
         FileExplorerBottomSheet(
             currentPath = currentPath,
             directoryChildren = directoryChildren,
