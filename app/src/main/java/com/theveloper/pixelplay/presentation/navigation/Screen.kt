@@ -35,4 +35,8 @@ sealed class Screen(val route: String) {
     }
 
     object About : Screen("about")
+
+    object FolderExplorer : Screen("folder_explorer/{origin}") {
+        fun createRoute(origin: String = "settings") = "folder_explorer/$origin"
+    }
 }

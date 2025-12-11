@@ -89,117 +89,164 @@ fun FileExplorerBottomSheet(
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+            FileExplorerContent(
+                currentPath = currentPath,
+                directoryChildren = directoryChildren,
+                allowedDirectories = allowedDirectories,
+                smartViewEnabled = smartViewEnabled,
+                isLoading = isLoading,
+                isAtRoot = isAtRoot,
+                rootDirectory = rootDirectory,
+                onNavigateTo = onNavigateTo,
+                onNavigateUp = onNavigateUp,
+                onNavigateHome = onNavigateHome,
+                onToggleAllowed = onToggleAllowed,
+                onRefresh = onRefresh,
+                onSmartViewToggle = onSmartViewToggle,
+                onDone = onDone,
+                isDirectorySelected = isDirectorySelected
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalAnimationApi::class)
+@Composable
+fun FileExplorerContent(
+    currentPath: File,
+    directoryChildren: List<DirectoryEntry>,
+    allowedDirectories: Set<String>,
+    smartViewEnabled: Boolean,
+    isLoading: Boolean,
+    isAtRoot: Boolean,
+    rootDirectory: File,
+    onNavigateTo: (File) -> Unit,
+    onNavigateUp: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onToggleAllowed: (File) -> Unit,
+    onRefresh: () -> Unit,
+    onSmartViewToggle: (Boolean) -> Unit,
+    onDone: () -> Unit,
+    isDirectorySelected: (File) -> Boolean,
+    title: String = "Select music folders",
+    leadingContent: @Composable (() -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "Select music folders",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(horizontal = 4.dp)
-                    )
-
-                    IconButton(onClick = onRefresh) {
-                        Icon(
-                            imageVector = Icons.Rounded.Refresh,
-                            contentDescription = "Refresh",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilterChip(
-                        selected = !smartViewEnabled,
-                        onClick = { onSmartViewToggle(false) },
-                        label = { Text("All folders") }
-                    )
-                    FilterChip(
-                        selected = smartViewEnabled,
-                        onClick = { onSmartViewToggle(true) },
-                        label = { Text("Smart View") }
-                    )
-                }
-
-                FileExplorerHeader(
-                    currentPath = currentPath,
-                    rootDirectory = rootDirectory,
-                    isAtRoot = isAtRoot,
-                    onNavigateUp = onNavigateUp,
-                    onNavigateHome = onNavigateHome,
-                    onNavigateTo = onNavigateTo
+                leadingContent?.invoke()
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 4.dp)
                 )
+            }
 
-                AnimatedContent(
-                    targetState = Triple(currentPath, directoryChildren, isLoading),
-                    label = "directory_content",
-                    transitionSpec = {
-                        fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(200))
-                    }
-                ) { (_, children, loading) ->
-                    when {
-                        loading -> ExplorerLoadingState()
+            IconButton(onClick = onRefresh) {
+                Icon(
+                    imageVector = Icons.Rounded.Refresh,
+                    contentDescription = "Refresh",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
 
-                        children.isEmpty() -> ExplorerEmptyState(text = "No subfolders here")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterChip(
+                selected = !smartViewEnabled,
+                onClick = { onSmartViewToggle(false) },
+                label = { Text("All folders") }
+            )
+            FilterChip(
+                selected = smartViewEnabled,
+                onClick = { onSmartViewToggle(true) },
+                label = { Text("Smart View") }
+            )
+        }
 
-                        else -> {
-                            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                items(children, key = { it.file.absolutePath }) { directoryEntry ->
-                                    val isAllowed = remember(allowedDirectories, smartViewEnabled, directoryEntry) {
-                                        isDirectorySelected(directoryEntry.file)
-                                    }
-                                    val displayCount = if (smartViewEnabled) {
-                                        directoryEntry.directAudioCount
-                                    } else {
-                                        directoryEntry.totalAudioCount
-                                    }
+        FileExplorerHeader(
+            currentPath = currentPath,
+            rootDirectory = rootDirectory,
+            isAtRoot = isAtRoot,
+            onNavigateUp = onNavigateUp,
+            onNavigateHome = onNavigateHome,
+            onNavigateTo = onNavigateTo
+        )
 
-                                    FileExplorerItem(
-                                        file = directoryEntry.file,
-                                        audioCount = displayCount,
-                                        displayName = directoryEntry.displayName,
-                                        isAllowed = isAllowed,
-                                        onNavigate = { onNavigateTo(directoryEntry.file) },
-                                        onToggleAllowed = { onToggleAllowed(directoryEntry.file) }
-                                    )
-                                }
-                                item { Spacer(modifier = Modifier.height(6.dp)) }
+        AnimatedContent(
+            targetState = Triple(currentPath, directoryChildren, isLoading),
+            label = "directory_content",
+            transitionSpec = {
+                fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(200))
+            }
+        ) { (_, children, loading) ->
+            when {
+                loading -> ExplorerLoadingState()
+
+                children.isEmpty() -> ExplorerEmptyState(text = "No subfolders here")
+
+                else -> {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(children, key = { it.file.absolutePath }) { directoryEntry ->
+                            val isAllowed = remember(allowedDirectories, smartViewEnabled, directoryEntry) {
+                                isDirectorySelected(directoryEntry.file)
                             }
+                            val displayCount = if (smartViewEnabled) {
+                                directoryEntry.directAudioCount
+                            } else {
+                                directoryEntry.totalAudioCount
+                            }
+
+                            FileExplorerItem(
+                                file = directoryEntry.file,
+                                audioCount = displayCount,
+                                displayName = directoryEntry.displayName,
+                                isAllowed = isAllowed,
+                                onNavigate = { onNavigateTo(directoryEntry.file) },
+                                onToggleAllowed = { onToggleAllowed(directoryEntry.file) }
+                            )
                         }
+                        item { Spacer(modifier = Modifier.height(6.dp)) }
                     }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                ExtendedFloatingActionButton(
-                    onClick = onDone,
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    shape = CircleShape,
-                    modifier = Modifier
-                        .align(Alignment.End)
-                        .padding(bottom = 8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Done,
-                        contentDescription = "Done",
-                        tint = MaterialTheme.colorScheme.onPrimary
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Done")
                 }
             }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        ExtendedFloatingActionButton(
+            onClick = onDone,
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            shape = CircleShape,
+            modifier = Modifier
+                .align(Alignment.End)
+                .padding(bottom = 8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Done,
+                contentDescription = "Done",
+                tint = MaterialTheme.colorScheme.onPrimary
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(text = "Done")
         }
     }
 }

@@ -110,6 +110,7 @@ import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
+import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.data.preferences.LaunchTab
@@ -117,7 +118,6 @@ import com.theveloper.pixelplay.data.preferences.AppThemeMode
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
-import com.theveloper.pixelplay.presentation.components.FileExplorerBottomSheet
 import com.theveloper.pixelplay.presentation.components.ExpressiveTopBarContent
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
@@ -181,12 +181,6 @@ fun SettingsScreen(
     val uiState by settingsViewModel.uiState.collectAsState()
     val geminiApiKey by settingsViewModel.geminiApiKey.collectAsState()
     val playerSheetState by playerViewModel.sheetState.collectAsState()
-    val currentPath by settingsViewModel.currentPath.collectAsState()
-    val directoryChildren by settingsViewModel.currentDirectoryChildren.collectAsState()
-    val allowedDirectories by settingsViewModel.allowedDirectories.collectAsState()
-    val smartViewEnabled by settingsViewModel.smartViewEnabled.collectAsState()
-    // Estado para controlar la visibilidad del diálogo de directorios
-    var showDirectoryDialog by remember { mutableStateOf(false) }
     var showClearLyricsDialog by remember { mutableStateOf(false) }
 
     BackHandler(enabled = playerSheetState == PlayerSheetState.EXPANDED) {
@@ -330,7 +324,7 @@ fun SettingsScreen(
                                 }
 
                                 settingsViewModel.loadDirectory(settingsViewModel.explorerRoot())
-                                showDirectoryDialog = true
+                                navController.navigate(Screen.FolderExplorer.createRoute("settings"))
                             }
                         )
                         Spacer(modifier = Modifier.height(4.dp))
@@ -694,36 +688,6 @@ fun SettingsScreen(
             collapseFraction = collapseFraction,
             headerHeight = currentTopBarHeightDp,
             onBackPressed = onNavigationIconClick
-        )
-    }
-
-    // Diálogo para seleccionar directorios
-    if (showDirectoryDialog) {
-        BackHandler(enabled = true) {
-            if (settingsViewModel.isAtRoot()) {
-                showDirectoryDialog = false
-            } else {
-                settingsViewModel.navigateUp()
-            }
-        }
-
-        FileExplorerBottomSheet(
-            currentPath = currentPath,
-            directoryChildren = directoryChildren,
-            allowedDirectories = allowedDirectories,
-            smartViewEnabled = smartViewEnabled,
-            isLoading = uiState.isLoadingDirectories,
-            isAtRoot = settingsViewModel.isAtRoot(),
-            rootDirectory = settingsViewModel.explorerRoot(),
-            onNavigateTo = settingsViewModel::loadDirectory,
-            onNavigateUp = settingsViewModel::navigateUp,
-            onNavigateHome = { settingsViewModel.loadDirectory(settingsViewModel.explorerRoot()) },
-            onToggleAllowed = settingsViewModel::toggleDirectoryAllowed,
-            onRefresh = settingsViewModel::refreshExplorer,
-            onSmartViewToggle = settingsViewModel::setSmartViewEnabled,
-            onDone = { showDirectoryDialog = false },
-            onDismiss = { showDirectoryDialog = false },
-            isDirectorySelected = { settingsViewModel.isDirectorySelected(it) }
         )
     }
 

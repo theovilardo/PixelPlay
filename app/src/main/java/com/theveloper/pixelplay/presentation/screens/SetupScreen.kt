@@ -85,10 +85,10 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.theveloper.pixelplay.R
-import com.theveloper.pixelplay.presentation.components.FileExplorerBottomSheet
 import com.theveloper.pixelplay.presentation.components.PermissionIconCollage
 import com.theveloper.pixelplay.presentation.components.subcomps.MaterialYouVectorDrawable
 import com.theveloper.pixelplay.presentation.components.subcomps.SineWaveLine
+import com.theveloper.pixelplay.presentation.screens.FolderExplorerScreen
 import com.theveloper.pixelplay.presentation.viewmodel.DirectoryEntry
 import com.theveloper.pixelplay.presentation.viewmodel.SetupUiState
 import com.theveloper.pixelplay.presentation.viewmodel.SetupViewModel
@@ -258,14 +258,6 @@ fun DirectorySelectionPage(
     var showDirectoryPicker by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
-    BackHandler(enabled = showDirectoryPicker) {
-        if (isAtRoot) {
-            showDirectoryPicker = false
-        } else {
-            onNavigateUp()
-        }
-    }
-
     val hasMediaPermission = uiState.mediaPermissionGranted
     val hasAllFilesAccess = Build.VERSION.SDK_INT < Build.VERSION_CODES.R || uiState.allFilesAccessGranted
     val canOpenDirectoryPicker = hasMediaPermission && hasAllFilesAccess
@@ -300,10 +292,14 @@ fun DirectorySelectionPage(
             onNavigateTo(explorerRoot)
         }
 
-        FileExplorerBottomSheet(
+        FolderExplorerScreen(
+            fromSetup = true,
+            onClose = { showDirectoryPicker = false },
+            onDone = { showDirectoryPicker = false },
             currentPath = currentPath,
             directoryChildren = directoryChildren,
             allowedDirectories = allowedDirectories,
+            smartViewEnabled = smartViewEnabled,
             isLoading = uiState.isLoadingDirectories,
             isAtRoot = isAtRoot,
             rootDirectory = explorerRoot,
@@ -312,10 +308,7 @@ fun DirectorySelectionPage(
             onNavigateHome = { onNavigateTo(explorerRoot) },
             onToggleAllowed = onToggleAllowed,
             onRefresh = onRefresh,
-            smartViewEnabled = smartViewEnabled,
             onSmartViewToggle = onSmartViewToggle,
-            onDone = { showDirectoryPicker = false },
-            onDismiss = { showDirectoryPicker = false },
             isDirectorySelected = isDirectorySelected
         )
     }
