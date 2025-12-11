@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -66,15 +67,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.presentation.viewmodel.DirectoryEntry
 import java.io.File
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun FileExplorerBottomSheet(
     currentPath: File,
     directoryChildren: List<DirectoryEntry>,
-    allowedDirectories: Set<String>,
     smartViewEnabled: Boolean,
     isLoading: Boolean,
     isAtRoot: Boolean,
@@ -86,8 +84,7 @@ fun FileExplorerBottomSheet(
     onRefresh: () -> Unit,
     onSmartViewToggle: (Boolean) -> Unit,
     onDone: () -> Unit,
-    onDismiss: () -> Unit,
-    isDirectorySelected: (File) -> Boolean
+    onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -98,7 +95,6 @@ fun FileExplorerBottomSheet(
         FileExplorerContent(
             currentPath = currentPath,
             directoryChildren = directoryChildren,
-            allowedDirectories = allowedDirectories,
             smartViewEnabled = smartViewEnabled,
             isLoading = isLoading,
             isAtRoot = isAtRoot,
@@ -110,7 +106,6 @@ fun FileExplorerBottomSheet(
             onRefresh = onRefresh,
             onSmartViewToggle = onSmartViewToggle,
             onDone = onDone,
-            isDirectorySelected = isDirectorySelected,
             modifier = Modifier.fillMaxHeight(0.9f)
         )
     }
@@ -121,7 +116,6 @@ fun FileExplorerBottomSheet(
 fun FileExplorerContent(
     currentPath: File,
     directoryChildren: List<DirectoryEntry>,
-    allowedDirectories: Set<String>,
     smartViewEnabled: Boolean,
     isLoading: Boolean,
     isAtRoot: Boolean,
@@ -133,7 +127,6 @@ fun FileExplorerContent(
     onRefresh: () -> Unit,
     onSmartViewToggle: (Boolean) -> Unit,
     onDone: () -> Unit,
-    isDirectorySelected: (File) -> Boolean,
     title: String = "Select music folders",
     leadingContent: @Composable (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -230,15 +223,14 @@ fun FileExplorerContent(
                     children.isEmpty() -> ExplorerEmptyState(text = "No subfolders here")
 
                     else -> {
+                        val listState = rememberLazyListState()
+
                         LazyColumn(
                             modifier = Modifier.fillMaxHeight(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            state = listState
                         ) {
                             items(children, key = { it.file.absolutePath }) { directoryEntry ->
-                                val isAllowed =
-                                    remember(allowedDirectories, smartViewEnabled, directoryEntry) {
-                                        isDirectorySelected(directoryEntry.file)
-                                    }
                                 val displayCount = if (smartViewEnabled) {
                                     directoryEntry.directAudioCount
                                 } else {
@@ -249,7 +241,7 @@ fun FileExplorerContent(
                                     file = directoryEntry.file,
                                     audioCount = displayCount,
                                     displayName = directoryEntry.displayName,
-                                    isAllowed = isAllowed,
+                                    isAllowed = directoryEntry.isSelected,
                                     onNavigate = { onNavigateTo(directoryEntry.file) },
                                     onToggleAllowed = { onToggleAllowed(directoryEntry.file) }
                                 )
@@ -274,20 +266,17 @@ private fun FileExplorerHeader(
     onNavigateTo: (File) -> Unit
 ) {
     val scrollState = rememberScrollState()
-    var breadcrumbs by remember { mutableStateOf<List<File>>(emptyList()) }
-
-    LaunchedEffect(currentPath, rootDirectory) {
-        breadcrumbs = withContext(Dispatchers.IO) {
-            val segments = mutableListOf<File>()
+    val breadcrumbs by remember(currentPath, rootDirectory) {
+        mutableStateOf(buildList {
             var cursor: File? = currentPath
             val rootPath = rootDirectory.path
             while (cursor != null) {
-                segments.add(cursor)
+                add(cursor)
                 if (cursor.path == rootPath) break
                 cursor = cursor.parentFile
             }
-            segments.reversed()
-        }
+            reverse()
+        })
     }
 
     val rootLabel = remember(rootDirectory) {
@@ -320,7 +309,7 @@ private fun FileExplorerHeader(
 
             if (!isAtRoot) {
                 LaunchedEffect(currentPath) {
-                    scrollState.animateScrollTo(scrollState.maxValue)
+                    scrollState.scrollTo(scrollState.maxValue)
                 }
 
                 CompositionLocalProvider(LocalOverscrollConfiguration provides null) {

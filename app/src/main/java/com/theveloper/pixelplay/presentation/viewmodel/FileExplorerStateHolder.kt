@@ -9,11 +9,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 
 data class DirectoryEntry(
@@ -74,6 +78,10 @@ class FileExplorerStateHolder(
         "mp3", "flac", "m4a", "aac", "wav", "ogg", "opus", "wma", "alac", "aiff", "ape"
     )
 
+    private val mapperDispatcher = Dispatchers.Default
+    private val loadMutex = Mutex()
+    private var loadJob: Job? = null
+
     init {
         // Observer for preferences
         userPreferencesRepository.allowedDirectoriesFlow
@@ -88,7 +96,9 @@ class FileExplorerStateHolder(
             _allowedDirectories,
             _smartViewEnabled
         ) { rawEntries, allowed, isSmartView ->
-            withContext(Dispatchers.Default) {
+            Triple(rawEntries, allowed, isSmartView)
+        }
+            .mapLatest { (rawEntries, allowed, isSmartView) ->
                 rawEntries.map { raw ->
                     val isSelected = if (isSmartView) {
                         // Flattened mode: Check exact match
@@ -107,9 +117,10 @@ class FileExplorerStateHolder(
                     )
                 }
             }
-        }.onEach {
-            _currentDirectoryChildren.value = it
-        }.launchIn(scope)
+            .flowOn(mapperDispatcher)
+            .onEach {
+                _currentDirectoryChildren.value = it
+            }.launchIn(scope)
 
         // Initial load
         refreshCurrentDirectory()
@@ -120,7 +131,14 @@ class FileExplorerStateHolder(
     }
 
     fun loadDirectory(file: File, updatePath: Boolean = true, forceRefresh: Boolean = false): Job {
-        return scope.launch { loadDirectoryInternal(file, updatePath, forceRefresh) }
+        loadJob?.cancel()
+        val job = scope.launch {
+            loadMutex.withLock {
+                loadDirectoryInternal(file, updatePath, forceRefresh)
+            }
+        }
+        loadJob = job
+        return job
     }
 
     fun primeExplorerRoot(): Job? {
@@ -129,7 +147,9 @@ class FileExplorerStateHolder(
 
         _isPrimingExplorer.value = true
         return scope.launch {
-            loadDirectoryInternal(visibleRoot, updatePath = true, forceRefresh = false)
+            loadMutex.withLock {
+                loadDirectoryInternal(visibleRoot, updatePath = true, forceRefresh = false)
+            }
             _isPrimingExplorer.value = false
         }
     }
@@ -201,20 +221,6 @@ class FileExplorerStateHolder(
             // Just trigger load, the logic inside handles smart view switch
             loadDirectoryInternal(loadTarget, updatePath = true, forceRefresh = false)
         }
-    }
-
-    // Deprecated for UI use, but kept for compatibility if needed.
-    // The UI should use DirectoryEntry.isSelected instead.
-    fun isDirectorySelected(file: File): Boolean {
-         val path = normalizePath(file)
-         val allowed = _allowedDirectories.value
-         val isSmartView = _smartViewEnabled.value
-
-         return if (isSmartView) {
-             allowed.contains(path)
-         } else {
-             allowed.any { path.startsWith(it) }
-         }
     }
 
     // Fast check for internal logic

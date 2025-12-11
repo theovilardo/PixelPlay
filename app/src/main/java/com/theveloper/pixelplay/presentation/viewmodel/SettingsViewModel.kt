@@ -66,8 +66,6 @@ class SettingsViewModel @Inject constructor(
     val isExplorerPriming = fileExplorerStateHolder.isPrimingExplorer
     val isExplorerReady = fileExplorerStateHolder.isExplorerReady
 
-    fun isDirectorySelected(file: File): Boolean = fileExplorerStateHolder.isDirectorySelected(file)
-
     init {
         viewModelScope.launch {
             userPreferencesRepository.appThemeModeFlow.collect { appThemeMode ->
