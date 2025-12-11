@@ -1,19 +1,31 @@
 package com.theveloper.pixelplay.presentation.viewmodel
 
 import android.os.Environment
+import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import java.io.File
 
 data class DirectoryEntry(
+    val file: File,
+    val directAudioCount: Int,
+    val totalAudioCount: Int,
+    val canonicalPath: String,
+    val displayName: String? = null,
+    val isSelected: Boolean = false
+)
+
+private data class RawDirectoryEntry(
     val file: File,
     val directAudioCount: Int,
     val totalAudioCount: Int,
@@ -29,14 +41,15 @@ class FileExplorerStateHolder(
 
     private val rootCanonicalPath: String = normalizePath(visibleRoot)
     private val audioCountCache = mutableMapOf<String, AudioCount>()
-    private val directoryChildrenCache = mutableMapOf<String, List<DirectoryEntry>>()
-    private val smartViewCache = mutableMapOf<String, List<DirectoryEntry>>()
+
+    // Caches for "Raw" entries (without selection state)
+    private val directoryChildrenCache = mutableMapOf<String, List<RawDirectoryEntry>>()
+    private val smartViewCache = mutableMapOf<String, List<RawDirectoryEntry>>()
 
     private val _currentPath = MutableStateFlow(visibleRoot)
     val currentPath: StateFlow<File> = _currentPath.asStateFlow()
 
-    private val _currentDirectoryChildren = MutableStateFlow<List<DirectoryEntry>>(emptyList())
-    val currentDirectoryChildren: StateFlow<List<DirectoryEntry>> = _currentDirectoryChildren.asStateFlow()
+    private val _rawCurrentDirectoryChildren = MutableStateFlow<List<RawDirectoryEntry>>(emptyList())
 
     private val _allowedDirectories = MutableStateFlow<Set<String>>(emptySet())
     val allowedDirectories: StateFlow<Set<String>> = _allowedDirectories.asStateFlow()
@@ -53,16 +66,52 @@ class FileExplorerStateHolder(
     private val _isExplorerReady = MutableStateFlow(false)
     val isExplorerReady: StateFlow<Boolean> = _isExplorerReady.asStateFlow()
 
+    // Combined flow for UI consumption
+    private val _currentDirectoryChildren = MutableStateFlow<List<DirectoryEntry>>(emptyList())
+    val currentDirectoryChildren: StateFlow<List<DirectoryEntry>> = _currentDirectoryChildren.asStateFlow()
+
     private val audioExtensions = setOf(
         "mp3", "flac", "m4a", "aac", "wav", "ogg", "opus", "wma", "alac", "aiff", "ape"
     )
 
     init {
-        scope.launch {
-            userPreferencesRepository.allowedDirectoriesFlow.collect { allowed ->
+        // Observer for preferences
+        userPreferencesRepository.allowedDirectoriesFlow
+            .onEach { allowed ->
                 _allowedDirectories.value = allowed.map(::normalizePath).toSet()
             }
-        }
+            .launchIn(scope)
+
+        // Combiner to produce final UI list with isSelected state
+        combine(
+            _rawCurrentDirectoryChildren,
+            _allowedDirectories,
+            _smartViewEnabled
+        ) { rawEntries, allowed, isSmartView ->
+            withContext(Dispatchers.Default) {
+                rawEntries.map { raw ->
+                    val isSelected = if (isSmartView) {
+                        // Flattened mode: Check exact match
+                        allowed.contains(raw.canonicalPath)
+                    } else {
+                        // Navigation mode: Check if path or any ancestor is allowed
+                        allowed.any { raw.canonicalPath.startsWith(it) && (raw.canonicalPath.length == it.length || raw.canonicalPath[it.length] == File.separatorChar) }
+                    }
+                    DirectoryEntry(
+                        file = raw.file,
+                        directAudioCount = raw.directAudioCount,
+                        totalAudioCount = raw.totalAudioCount,
+                        canonicalPath = raw.canonicalPath,
+                        displayName = raw.displayName,
+                        isSelected = isSelected
+                    )
+                }
+            }
+        }.onEach {
+            _currentDirectoryChildren.value = it
+        }.launchIn(scope)
+
+        // Initial load
         refreshCurrentDirectory()
     }
 
@@ -102,20 +151,36 @@ class FileExplorerStateHolder(
         scope.launch {
             val currentAllowed = _allowedDirectories.value.toMutableSet()
             val path = normalizePath(file)
+            val isSmartView = _smartViewEnabled.value
 
-            val explicit = currentAllowed.firstOrNull { it == path }
-            val ancestor = currentAllowed.firstOrNull { path != it && path.startsWith("$it/") }
-
-            when {
-                explicit != null -> currentAllowed.removeAll { it == path || it.startsWith("$path/") }
-                ancestor != null -> {
-                    currentAllowed.removeAll { it == ancestor || it.startsWith("$ancestor/") }
-                    val replacement = collectCoverageExcluding(File(ancestor), path)
-                    currentAllowed.addAll(replacement)
-                }
-                else -> {
-                    currentAllowed.removeAll { it.startsWith("$path/") }
+            if (isSmartView) {
+                // Flattened Mode: Independent selection
+                if (currentAllowed.contains(path)) {
+                    currentAllowed.remove(path)
+                } else {
                     currentAllowed.add(path)
+                }
+            } else {
+                // Navigation Mode: Subtree logic
+                val explicit = currentAllowed.firstOrNull { it == path }
+                val ancestor = currentAllowed.firstOrNull { path != it && path.startsWith("$it/") }
+
+                when {
+                    explicit != null -> {
+                        // Deselecting a root
+                        currentAllowed.remove(path)
+                    }
+                    ancestor != null -> {
+                        // Deselecting a child of an existing root -> break the root
+                        currentAllowed.removeAll { it == ancestor || it.startsWith("$ancestor/") }
+                        val replacement = collectCoverageExcluding(File(ancestor), path)
+                        currentAllowed.addAll(replacement)
+                    }
+                    else -> {
+                        // Selecting a new root -> remove any existing children that are now covered
+                        currentAllowed.removeAll { it.startsWith("$path/") }
+                        currentAllowed.add(path)
+                    }
                 }
             }
             userPreferencesRepository.updateAllowedDirectories(currentAllowed)
@@ -127,21 +192,32 @@ class FileExplorerStateHolder(
         _smartViewEnabled.value = enabled
 
         scope.launch {
-            val target = _currentPath.value
-            val targetKey = normalizePath(target)
-            if (!enabled) {
-                smartViewCache.remove(targetKey)
-                directoryChildrenCache[targetKey]?.let { cached ->
-                    _currentDirectoryChildren.value = cached
-                }
-                return@launch
-            }
+            val target = if (enabled) visibleRoot else _currentPath.value // Reset to root for smart view usually? Or keep context?
+            // Actually, smart view is usually global flat list. Let's use visibleRoot for smart view base.
+            // But if user was deep in folders, toggling smart view usually shows everything.
 
-            val smartChildren = buildSmartViewEntries(target, forceRefresh = false)
-            _currentDirectoryChildren.value = smartChildren
+            val loadTarget = if(enabled) visibleRoot else target
+
+            // Just trigger load, the logic inside handles smart view switch
+            loadDirectoryInternal(loadTarget, updatePath = true, forceRefresh = false)
         }
     }
 
+    // Deprecated for UI use, but kept for compatibility if needed.
+    // The UI should use DirectoryEntry.isSelected instead.
+    fun isDirectorySelected(file: File): Boolean {
+         val path = normalizePath(file)
+         val allowed = _allowedDirectories.value
+         val isSmartView = _smartViewEnabled.value
+
+         return if (isSmartView) {
+             allowed.contains(path)
+         } else {
+             allowed.any { path.startsWith(it) }
+         }
+    }
+
+    // Fast check for internal logic
     fun isPathAllowed(path: String): Boolean = _allowedDirectories.value.any { path.startsWith(it) }
 
     private suspend fun loadDirectoryInternal(file: File, updatePath: Boolean, forceRefresh: Boolean) {
@@ -157,65 +233,54 @@ class FileExplorerStateHolder(
             _currentPath.value = target
         }
 
-        if (_smartViewEnabled.value && !forceRefresh) {
-            smartViewCache[targetKey]?.let { cached ->
-                _currentDirectoryChildren.value = cached
-                _isLoading.value = false
-                _isExplorerReady.value = true
-                if (!updatePath) {
-                    _currentPath.value = target
-                }
-                return
-            }
-        }
-
-        if (!forceRefresh) {
-            directoryChildrenCache[targetKey]?.let { cached ->
-                _currentDirectoryChildren.value = cached
-                _isLoading.value = false
-                _isExplorerReady.value = true
-                if (!updatePath) {
-                    _currentPath.value = target
-                }
-                if (_smartViewEnabled.value) {
-                    val smartChildren = buildSmartViewEntries(target, forceRefresh = false)
-                    _currentDirectoryChildren.value = smartChildren
-                }
-                return
-            }
+        // Check Memory Cache
+        if (_smartViewEnabled.value) {
+             val cached = smartViewCache[normalizePath(visibleRoot)] // Smart view is always rooted at visibleRoot effectively
+             if (cached != null && !forceRefresh) {
+                 _rawCurrentDirectoryChildren.value = cached
+                 _isLoading.value = false
+                 _isExplorerReady.value = true
+                 return
+             }
+        } else {
+             val cached = directoryChildrenCache[targetKey]
+             if (cached != null && !forceRefresh) {
+                 _rawCurrentDirectoryChildren.value = cached
+                 _isLoading.value = false
+                 _isExplorerReady.value = true
+                 return
+             }
         }
 
         _isLoading.value = true
-        _currentDirectoryChildren.value = emptyList()
+        _rawCurrentDirectoryChildren.value = emptyList()
 
-        val cachedChildren = if (forceRefresh) null else directoryChildrenCache[targetKey]
-        val children = cachedChildren ?: withContext(Dispatchers.IO) {
-            runCatching {
-                target.listFiles()
-                    ?.mapNotNull { child ->
-                        if (child.isDirectory && !child.isHidden) {
-                            val counts = countAudioFiles(child, forceRefresh)
-                            if (counts.total > 0) DirectoryEntry(child, counts.direct, counts.total, normalizePath(child)) else null
-                        } else {
-                            null
+        val resultEntries = withContext(Dispatchers.IO) {
+            if (_smartViewEnabled.value) {
+                buildSmartViewEntries(visibleRoot, forceRefresh)
+            } else {
+                 runCatching {
+                    target.listFiles()
+                        ?.mapNotNull { child ->
+                            if (child.isDirectory && !child.isHidden) {
+                                val counts = countAudioFiles(child, forceRefresh)
+                                if (counts.total > 0) {
+                                    RawDirectoryEntry(child, counts.direct, counts.total, normalizePath(child))
+                                } else null
+                            } else {
+                                null
+                            }
                         }
-                    }
-                    ?.sortedWith(compareBy({ it.file.name.lowercase() }))
-                    ?: emptyList()
-            }.getOrElse { emptyList() }
-                .also { directoryChildrenCache[targetKey] = it }
+                        ?.sortedWith(compareBy({ it.file.name.lowercase() }))
+                        ?: emptyList()
+                }.getOrElse { emptyList() }
+                 .also { directoryChildrenCache[targetKey] = it }
+            }
         }
 
-        if (!updatePath) {
-            _currentPath.value = target
-        }
-        _currentDirectoryChildren.value = if (_smartViewEnabled.value) {
-            buildSmartViewEntries(target, forceRefresh)
-        } else {
-            children
-        }
+        _rawCurrentDirectoryChildren.value = resultEntries
         _isLoading.value = false
-        _isExplorerReady.value = directoryChildrenCache.containsKey(targetKey)
+        _isExplorerReady.value = true
     }
 
     private fun countAudioFiles(directory: File, forceRefresh: Boolean): AudioCount {
@@ -245,8 +310,21 @@ class FileExplorerStateHolder(
                             directCount++
                         }
                     }
-                    if (totalCount > 100) {
-                        return AudioCount(directCount, totalCount).also { audioCountCache[key] = it }
+                    // Optimization: If we have found enough files to know it's populated, we can stop counting strictly?
+                    // But we need the counts for the UI ("12 songs").
+                    // If the user has 10,000 songs, this loop is slow.
+                    // Let's cap at 500 for display purposes to keep it fast, or rely on MediaStore later?
+                    // For now, let's keep the 100 limit from original code or bump slightly,
+                    // but the original code had `if (totalCount > 100) return`.
+                    // This implies the UI shows "100+" or similar?
+                    // The UI shows `"$displayCount songs"`. If we return 100, it says "100 songs".
+                    // If we stop at 100, the user won't know the real count.
+                    // But for performance, avoiding deep traversal of massive folders is key.
+                    if (totalCount > 99) {
+                         // We can stop here for performance. The UI handles "99+" logic if we want,
+                         // but currently the UI code says: `if (audioCount > 99) "99+" else audioCount.toString()`.
+                         // So we MUST return at least 100 to trigger "99+".
+                         return AudioCount(directCount, totalCount).also { audioCountCache[key] = it }
                     }
                 }
             }
@@ -259,14 +337,15 @@ class FileExplorerStateHolder(
 
     fun rootDirectory(): File = visibleRoot
 
-    private suspend fun buildSmartViewEntries(root: File, forceRefresh: Boolean): List<DirectoryEntry> {
+    private suspend fun buildSmartViewEntries(root: File, forceRefresh: Boolean): List<RawDirectoryEntry> {
         val key = normalizePath(root)
         if (!forceRefresh) {
             smartViewCache[key]?.let { return it }
         }
 
+        // Flattened Mode: "Shows only folders containing audio files directly... all in same level."
         val aggregated = withContext(Dispatchers.IO) {
-            val results = mutableListOf<DirectoryEntry>()
+            val results = mutableListOf<RawDirectoryEntry>()
             val queue: ArrayDeque<File> = ArrayDeque()
             queue.add(root)
 
@@ -274,49 +353,37 @@ class FileExplorerStateHolder(
                 val current = queue.removeFirst()
                 val children = current.listFiles()?.filter { it.isDirectory && !it.isHidden } ?: continue
 
-                val entriesWithAudio = mutableListOf<DirectoryEntry>()
-                val traversable = mutableListOf<File>()
+                // Add children to queue for traversal
+                children.forEach { queue.add(it) }
 
-                for (child in children) {
-                    val counts = countAudioFiles(child, forceRefresh)
-                    if (counts.total == 0) continue
-                    traversable.add(child)
-
-                    if (counts.direct > 0) {
-                        entriesWithAudio.add(
-                            DirectoryEntry(
-                                file = child,
-                                directAudioCount = counts.direct,
-                                totalAudioCount = counts.total,
-                                canonicalPath = normalizePath(child)
-                            )
-                        )
+                // Check direct audio files in THIS folder
+                // We can use a simplified check or reuse countAudioFiles but we only care about DIRECT count here.
+                var directAudioCount = 0
+                val files = current.listFiles()
+                if (files != null) {
+                    for (file in files) {
+                        if (file.isFile && !file.isHidden && audioExtensions.contains(file.extension.lowercase())) {
+                            directAudioCount++
+                            // We don't need to count all of them if we just want to know "exists",
+                            // BUT we need the count for the UI badge.
+                            if (directAudioCount > 99) break
+                        }
                     }
                 }
 
-                val shouldGroup = current != root && entriesWithAudio.size >= GROUPING_THRESHOLD
-                if (shouldGroup) {
-                    val groupedDirect = entriesWithAudio.sumOf { it.directAudioCount }
-                    val groupedTotal = entriesWithAudio.sumOf { it.totalAudioCount }
-                    results.add(
-                        DirectoryEntry(
+                if (directAudioCount > 0) {
+                     results.add(
+                        RawDirectoryEntry(
                             file = current,
-                            directAudioCount = groupedDirect,
-                            totalAudioCount = groupedTotal,
-                            canonicalPath = normalizePath(current),
-                            displayName = "${current.name.ifEmpty { current.path }} (${entriesWithAudio.size} subfolders)"
+                            directAudioCount = directAudioCount,
+                            totalAudioCount = directAudioCount, // In flattened mode, total is direct for that item
+                            canonicalPath = normalizePath(current)
                         )
                     )
-                    continue
                 }
-
-                results.addAll(entriesWithAudio)
-                traversable.forEach(queue::add)
             }
 
-            results
-                .distinctBy { it.canonicalPath }
-                .sortedBy { it.file.name.lowercase() }
+            results.sortedBy { it.file.name.lowercase() }
         }
 
         smartViewCache[key] = aggregated
@@ -326,47 +393,24 @@ class FileExplorerStateHolder(
     private fun normalizePath(file: File): String = runCatching { file.canonicalPath }.getOrDefault(file.absolutePath)
     private fun normalizePath(path: String): String = runCatching { File(path).canonicalPath }.getOrDefault(path)
 
-    fun isDirectoryFullySelected(file: File): Boolean = isDirectoryFullySelected(normalizePath(file), mutableMapOf())
-
-    private fun isDirectoryFullySelected(path: String, memo: MutableMap<String, Boolean>): Boolean {
-        memo[path]?.let { return it }
-        val allowed = _allowedDirectories.value
-        if (allowed.any { path.startsWith(it) }) {
-            memo[path] = true
-            return true
-        }
-
-        val childEntries = getChildrenWithAudio(File(path))
-        if (childEntries.isEmpty()) {
-            memo[path] = false
-            return false
-        }
-
-        val result = childEntries.all { child -> isDirectoryFullySelected(child.canonicalPath, memo) }
-        memo[path] = result
-        return result
-    }
-
-    private fun getChildrenWithAudio(directory: File): List<DirectoryEntry> {
+    // Used for logic when breaking down parents (Nav Mode logic)
+    private fun getChildrenWithAudio(directory: File): List<RawDirectoryEntry> {
         val targetKey = normalizePath(directory)
-        directoryChildrenCache[targetKey]?.let { return it }
+        // We might not have cached raw entries for this specific sub-folder if we haven't visited it.
+        // So we might need to compute it.
 
-        val computed = runCatching {
+        return runCatching {
             directory.listFiles()
                 ?.mapNotNull { child ->
                     if (child.isDirectory && !child.isHidden) {
                         val counts = countAudioFiles(child, forceRefresh = false)
-                        if (counts.total > 0) DirectoryEntry(child, counts.direct, counts.total, normalizePath(child)) else null
+                        if (counts.total > 0) RawDirectoryEntry(child, counts.direct, counts.total, normalizePath(child)) else null
                     } else {
                         null
                     }
                 }
-                ?.sortedWith(compareBy({ it.file.name.lowercase() }))
                 ?: emptyList()
         }.getOrElse { emptyList() }
-
-        directoryChildrenCache[targetKey] = computed
-        return computed
     }
 
     private data class AudioCount(val direct: Int, val total: Int)
@@ -377,29 +421,45 @@ class FileExplorerStateHolder(
 
         fun visit(node: File) {
             val nodePath = normalizePath(node)
+            // Optimization: If nodePath is the exclude path, stop.
+            // If we found the node we want to exclude, we stop and DO NOT add it.
+            // This ensures the subtree starting at this node is not selected.
+            if (nodePath == normalizedExclude) return
+
             val children = getChildrenWithAudio(node)
             if (children.isEmpty()) {
+                // Leaf node (has audio but no children folders with audio)
+                // If this is NOT the excluded path, keep it.
                 if (nodePath != normalizedExclude) {
                     results.add(nodePath)
                 }
                 return
             }
 
-            children.forEach { child ->
+            var coveredByChildren = false
+            for (child in children) {
                 val childPath = child.canonicalPath
                 if (normalizedExclude == childPath || normalizedExclude.startsWith("$childPath/")) {
+                    // This child contains the target to exclude (or IS the target).
+                    // If it IS the target, we should stop and not add it.
+                    // The recursive call will hit `if (nodePath == normalizedExclude) return` at start of visit.
                     visit(File(childPath))
+                    coveredByChildren = true
                 } else {
+                    // This child is disjoint from the excluded path. Keep it whole.
                     results.add(childPath)
                 }
             }
+
+            // Note: If 'node' itself has direct files, they are implicitly deselected because
+            // we are breaking the parent into children.
+            // If the user wants those direct files, they'd need to select 'node'
+            // but that would re-select the excluded child in the recursive model.
+            // This is an inherent limitation of "Set of Roots" model when you want "Root minus Child".
+            // The standard behavior is you get the siblings.
         }
 
         visit(root)
         return results
-    }
-
-    private companion object {
-        const val GROUPING_THRESHOLD = 40
     }
 }
