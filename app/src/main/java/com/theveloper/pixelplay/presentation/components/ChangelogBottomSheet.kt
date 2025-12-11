@@ -63,11 +63,10 @@ val changelog = listOf(
                 items = listOf(
                     "Major navigation redesign",
                     "New file explorer for choosing source directories",
-                    "Landscape mode (thanks to \"leave this blank for now\")",
                     "New Connectivity and casting functionalities",
                     "Seamless continuity between remote devices",
                     "Gapless transition between songs",
-                    "Crossfade",
+                    "Crossfade control",
                     "New Custom Transitions feature (only for playlists)",
                     "Keep playing after closed the app",
                     "UI Optimizations",
