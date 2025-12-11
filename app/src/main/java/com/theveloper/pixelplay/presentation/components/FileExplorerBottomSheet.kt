@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,6 +27,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ChevronRight
@@ -43,14 +46,16 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,8 +66,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.presentation.viewmodel.DirectoryEntry
 import java.io.File
-import kotlinx.coroutines.launch
-import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -111,7 +116,7 @@ fun FileExplorerBottomSheet(
     }
 }
 
-@OptIn(ExperimentalAnimationApi::class)
+@OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun FileExplorerContent(
     currentPath: File,
@@ -133,125 +138,132 @@ fun FileExplorerContent(
     leadingContent: @Composable (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+    Scaffold(
+        modifier = modifier,
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = onDone,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                shape = CircleShape,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Done,
+                    contentDescription = "Done",
+                    tint = MaterialTheme.colorScheme.onPrimary
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = "Done")
+            }
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                leadingContent?.invoke()
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(horizontal = 4.dp)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    leadingContent?.invoke()
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                }
+
+                IconButton(onClick = onRefresh) {
+                    Icon(
+                        imageVector = Icons.Rounded.Refresh,
+                        contentDescription = "Refresh",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = !smartViewEnabled,
+                    onClick = { onSmartViewToggle(false) },
+                    label = { Text("All folders") }
+                )
+                FilterChip(
+                    selected = smartViewEnabled,
+                    onClick = { onSmartViewToggle(true) },
+                    label = { Text("Smart View") }
                 )
             }
 
-            IconButton(onClick = onRefresh) {
-                Icon(
-                    imageVector = Icons.Rounded.Refresh,
-                    contentDescription = "Refresh",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FilterChip(
-                selected = !smartViewEnabled,
-                onClick = { onSmartViewToggle(false) },
-                label = { Text("All folders") }
+            FileExplorerHeader(
+                currentPath = currentPath,
+                rootDirectory = rootDirectory,
+                isAtRoot = isAtRoot,
+                onNavigateUp = onNavigateUp,
+                onNavigateHome = onNavigateHome,
+                onNavigateTo = onNavigateTo
             )
-            FilterChip(
-                selected = smartViewEnabled,
-                onClick = { onSmartViewToggle(true) },
-                label = { Text("Smart View") }
-            )
-        }
 
-        FileExplorerHeader(
-            currentPath = currentPath,
-            rootDirectory = rootDirectory,
-            isAtRoot = isAtRoot,
-            onNavigateUp = onNavigateUp,
-            onNavigateHome = onNavigateHome,
-            onNavigateTo = onNavigateTo
-        )
+            AnimatedContent(
+                modifier = Modifier.weight(1f),
+                targetState = Triple(currentPath, directoryChildren, isLoading),
+                label = "directory_content",
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(200))
+                }
+            ) { (_, children, loading) ->
+                when {
+                    loading -> ExplorerLoadingState()
 
-        AnimatedContent(
-            targetState = Triple(currentPath, directoryChildren, isLoading),
-            label = "directory_content",
-            transitionSpec = {
-                fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(200))
-            }
-        ) { (_, children, loading) ->
-            when {
-                loading -> ExplorerLoadingState()
+                    children.isEmpty() -> ExplorerEmptyState(text = "No subfolders here")
 
-                children.isEmpty() -> ExplorerEmptyState(text = "No subfolders here")
+                    else -> {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxHeight(),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(children, key = { it.file.absolutePath }) { directoryEntry ->
+                                val isAllowed =
+                                    remember(allowedDirectories, smartViewEnabled, directoryEntry) {
+                                        isDirectorySelected(directoryEntry.file)
+                                    }
+                                val displayCount = if (smartViewEnabled) {
+                                    directoryEntry.directAudioCount
+                                } else {
+                                    directoryEntry.totalAudioCount
+                                }
 
-                else -> {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        items(children, key = { it.file.absolutePath }) { directoryEntry ->
-                            val isAllowed = remember(allowedDirectories, smartViewEnabled, directoryEntry) {
-                                isDirectorySelected(directoryEntry.file)
+                                FileExplorerItem(
+                                    file = directoryEntry.file,
+                                    audioCount = displayCount,
+                                    displayName = directoryEntry.displayName,
+                                    isAllowed = isAllowed,
+                                    onNavigate = { onNavigateTo(directoryEntry.file) },
+                                    onToggleAllowed = { onToggleAllowed(directoryEntry.file) }
+                                )
                             }
-                            val displayCount = if (smartViewEnabled) {
-                                directoryEntry.directAudioCount
-                            } else {
-                                directoryEntry.totalAudioCount
-                            }
-
-                            FileExplorerItem(
-                                file = directoryEntry.file,
-                                audioCount = displayCount,
-                                displayName = directoryEntry.displayName,
-                                isAllowed = isAllowed,
-                                onNavigate = { onNavigateTo(directoryEntry.file) },
-                                onToggleAllowed = { onToggleAllowed(directoryEntry.file) }
-                            )
+                            item { Spacer(modifier = Modifier.height(6.dp)) }
                         }
-                        item { Spacer(modifier = Modifier.height(6.dp)) }
                     }
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        ExtendedFloatingActionButton(
-            onClick = onDone,
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            shape = CircleShape,
-            modifier = Modifier
-                .align(Alignment.End)
-                .padding(bottom = 8.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Done,
-                contentDescription = "Done",
-                tint = MaterialTheme.colorScheme.onPrimary
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(text = "Done")
-        }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FileExplorerHeader(
     currentPath: File,
@@ -262,17 +274,20 @@ private fun FileExplorerHeader(
     onNavigateTo: (File) -> Unit
 ) {
     val scrollState = rememberScrollState()
-    val coroutineScope = rememberCoroutineScope()
-    val breadcrumbs = remember(currentPath, rootDirectory) {
-        val segments = mutableListOf<File>()
-        var cursor: File? = currentPath
-        val rootPath = rootDirectory.path
-        while (cursor != null) {
-            segments.add(cursor)
-            if (cursor.path == rootPath) break
-            cursor = cursor.parentFile
+    var breadcrumbs by remember { mutableStateOf<List<File>>(emptyList()) }
+
+    LaunchedEffect(currentPath, rootDirectory) {
+        breadcrumbs = withContext(Dispatchers.IO) {
+            val segments = mutableListOf<File>()
+            var cursor: File? = currentPath
+            val rootPath = rootDirectory.path
+            while (cursor != null) {
+                segments.add(cursor)
+                if (cursor.path == rootPath) break
+                cursor = cursor.parentFile
+            }
+            segments.reversed()
         }
-        segments.reversed()
     }
 
     val rootLabel = remember(rootDirectory) {
@@ -305,10 +320,7 @@ private fun FileExplorerHeader(
 
             if (!isAtRoot) {
                 LaunchedEffect(currentPath) {
-                    coroutineScope.launch {
-                        scrollState.scrollTo(scrollState.maxValue)
-                        scrollState.scrollTo(scrollState.maxValue)
-                    }
+                    scrollState.animateScrollTo(scrollState.maxValue)
                 }
 
                 CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
@@ -331,13 +343,15 @@ private fun FileExplorerHeader(
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier
-                                        .clip(AbsoluteSmoothCornerShape(cornerRadius = 12.dp, smoothnessAsPercent = 70))
+                                        .clip(RoundedCornerShape(12.dp))
                                         .clickable(enabled = !isLast) {
                                             if (isRoot) onNavigateHome() else onNavigateTo(file)
                                         }
                                         .background(
                                             color = if (isLast) {
-                                                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                                                MaterialTheme.colorScheme.secondaryContainer.copy(
+                                                    alpha = 0.5f
+                                                )
                                             } else {
                                                 MaterialTheme.colorScheme.surfaceContainerHigh
                                             }
@@ -442,16 +456,7 @@ private fun FileExplorerItem(
     onNavigate: () -> Unit,
     onToggleAllowed: () -> Unit
 ) {
-    val shape = AbsoluteSmoothCornerShape(
-        cornerRadiusTL = 18.dp,
-        smoothnessAsPercentBR = 90,
-        cornerRadiusTR = 18.dp,
-        smoothnessAsPercentBL = 90,
-        cornerRadiusBL = 18.dp,
-        smoothnessAsPercentTR = 90,
-        cornerRadiusBR = 18.dp,
-        smoothnessAsPercentTL = 90
-    )
+    val shape = RoundedCornerShape(18.dp)
 
     val containerColor = if (isAllowed) {
         MaterialTheme.colorScheme.primaryContainer
@@ -517,7 +522,7 @@ private fun FileExplorerItem(
             )
             Box(
                 modifier = Modifier
-                    .clip(AbsoluteSmoothCornerShape(cornerRadius = 10.dp, smoothnessAsPercent = 70))
+                    .clip(RoundedCornerShape(10.dp))
                     .background(badgeColor.copy(alpha = 0.16f))
                     .padding(horizontal = 10.dp, vertical = 6.dp)
             ) {
