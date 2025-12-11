@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.presentation.components
 
+import android.R
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.foundation.background
@@ -54,6 +55,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -83,6 +85,7 @@ fun FileExplorerBottomSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         onDismissRequest = onDismiss,
         sheetState = sheetState
     ) {
@@ -129,6 +132,7 @@ fun FileExplorerContent(
 
     Scaffold(
         modifier = modifier,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onDone,
@@ -148,9 +152,9 @@ fun FileExplorerContent(
     ) { innerPadding ->
         Column(
             modifier = Modifier
-                .padding(innerPadding)
+                .padding(top = innerPadding.calculateTopPadding())
                 .fillMaxSize()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
+                .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
@@ -192,7 +196,7 @@ fun FileExplorerContent(
                 FilterChip(
                     selected = smartViewEnabled,
                     onClick = { onSmartViewToggle(true) },
-                    label = { Text("Smart View") }
+                    label = { Text("Smart View (Beta)") }
                 )
             }
 
@@ -235,9 +239,25 @@ fun FileExplorerContent(
                                     navigationEnabled = !smartViewEnabled
                                 )
                             }
-                            item { Spacer(modifier = Modifier.height(6.dp)) }
+                            item { Spacer(modifier = Modifier.height(76.dp)) }
                         }
                     }
+                }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(30.dp)
+                        .background(
+                            brush = Brush.verticalGradient(
+                                listOf(
+                                    Color.Transparent,
+                                    MaterialTheme.colorScheme.surfaceContainerLow
+                                )
+                            )
+                        )
+                ) {
+
                 }
             }
         }
@@ -302,7 +322,7 @@ private fun FileExplorerHeader(
                     scrollState.scrollTo(scrollState.maxValue)
                 }
 
-                CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
+                //CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
                     Row(
                         modifier = Modifier
                             .weight(1f)
@@ -322,7 +342,7 @@ private fun FileExplorerHeader(
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(12.dp))
+                                        .clip(CircleShape)
                                         .clickable(enabled = !isLast && navigationEnabled) {
                                             if (isRoot) onNavigateHome() else onNavigateTo(file)
                                         }
@@ -333,7 +353,8 @@ private fun FileExplorerHeader(
                                                 )
                                             } else {
                                                 MaterialTheme.colorScheme.surfaceContainerHigh
-                                            }
+                                            },
+                                            shape = CircleShape
                                         )
                                         .padding(horizontal = 10.dp, vertical = 6.dp)
                                 ) {
@@ -370,7 +391,7 @@ private fun FileExplorerHeader(
                             }
                         }
                     }
-                }
+                //}
             }
         }
 
