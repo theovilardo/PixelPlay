@@ -691,7 +691,7 @@ fun SettingsScreen(
                             .clip(shape = RoundedCornerShape(24.dp))
                     ) {
                         SettingsItem(
-                            title = "About Pixel Play",
+                            title = "About PixelPlayer",
                             subtitle = "App version, credits, and more.",
                             leadingIcon = {
                                 Icon(

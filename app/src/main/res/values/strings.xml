@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">PixelPlay</string>
+    <string name="app_name">PixelPlayer</string>
     <string name="lyrics">Lyrics</string>
     <string name="close_lyrics_sheet">Close Lyrics Sheet</string>
     <string name="loading_lyrics">Loading lyrics…</string>
@@ -8,7 +8,7 @@
     <string name="lrclib_uri">https://lrclib.net/</string>
     <string name="glance_widget_description">Control your music from the home screen.</string>
     <string name="all_files_access_title">Permiso Especial Requerido</string>
-    <string name="all_files_access_description">Para poder editar los metadatos de tus canciones (archivos .mp3), PixelPlay necesita un permiso especial de acceso a todos los archivos. Esto nos permitirá modificar las etiquetas de tus pistas directamente. Por favor, concede este permiso en la siguiente pantalla para habilitar la edición de metadatos.</string>
+    <string name="all_files_access_description">Para poder editar los metadatos de tus canciones (archivos .mp3), PixelPlayer necesita un permiso especial de acceso a todos los archivos. Esto nos permitirá modificar las etiquetas de tus pistas directamente. Por favor, concede este permiso en la siguiente pantalla para habilitar la edición de metadatos.</string>
     <string name="grant_permission_button">Conceder Permiso</string>
     <string name="all_files_access_setting">All Files Access</string>
     <string name="lyrics_not_found">Lyrics not found</string>
