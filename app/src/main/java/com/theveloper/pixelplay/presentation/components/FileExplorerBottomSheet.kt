@@ -1,11 +1,6 @@
 package com.theveloper.pixelplay.presentation.components
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.ExperimentalAnimationApi
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
+import android.R
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.foundation.background
@@ -25,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -59,6 +55,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -66,15 +63,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.presentation.viewmodel.DirectoryEntry
 import java.io.File
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
-@OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileExplorerBottomSheet(
     currentPath: File,
     directoryChildren: List<DirectoryEntry>,
-    allowedDirectories: Set<String>,
     smartViewEnabled: Boolean,
     isLoading: Boolean,
     isAtRoot: Boolean,
@@ -86,19 +80,18 @@ fun FileExplorerBottomSheet(
     onRefresh: () -> Unit,
     onSmartViewToggle: (Boolean) -> Unit,
     onDone: () -> Unit,
-    onDismiss: () -> Unit,
-    isDirectorySelected: (File) -> Boolean
+    onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         onDismissRequest = onDismiss,
         sheetState = sheetState
     ) {
         FileExplorerContent(
             currentPath = currentPath,
             directoryChildren = directoryChildren,
-            allowedDirectories = allowedDirectories,
             smartViewEnabled = smartViewEnabled,
             isLoading = isLoading,
             isAtRoot = isAtRoot,
@@ -110,18 +103,16 @@ fun FileExplorerBottomSheet(
             onRefresh = onRefresh,
             onSmartViewToggle = onSmartViewToggle,
             onDone = onDone,
-            isDirectorySelected = isDirectorySelected,
             modifier = Modifier.fillMaxHeight(0.9f)
         )
     }
 }
 
-@OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileExplorerContent(
     currentPath: File,
     directoryChildren: List<DirectoryEntry>,
-    allowedDirectories: Set<String>,
     smartViewEnabled: Boolean,
     isLoading: Boolean,
     isAtRoot: Boolean,
@@ -133,13 +124,15 @@ fun FileExplorerContent(
     onRefresh: () -> Unit,
     onSmartViewToggle: (Boolean) -> Unit,
     onDone: () -> Unit,
-    isDirectorySelected: (File) -> Boolean,
     title: String = "Select music folders",
     leadingContent: @Composable (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val listState = rememberLazyListState()
+
     Scaffold(
         modifier = modifier,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onDone,
@@ -159,9 +152,9 @@ fun FileExplorerContent(
     ) { innerPadding ->
         Column(
             modifier = Modifier
-                .padding(innerPadding)
+                .padding(top = innerPadding.calculateTopPadding())
                 .fillMaxSize()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
+                .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
@@ -203,7 +196,7 @@ fun FileExplorerContent(
                 FilterChip(
                     selected = smartViewEnabled,
                     onClick = { onSmartViewToggle(true) },
-                    label = { Text("Smart View") }
+                    label = { Text("Smart View (Beta)") }
                 )
             }
 
@@ -213,32 +206,23 @@ fun FileExplorerContent(
                 isAtRoot = isAtRoot,
                 onNavigateUp = onNavigateUp,
                 onNavigateHome = onNavigateHome,
-                onNavigateTo = onNavigateTo
+                onNavigateTo = onNavigateTo,
+                navigationEnabled = !smartViewEnabled
             )
 
-            AnimatedContent(
-                modifier = Modifier.weight(1f),
-                targetState = Triple(currentPath, directoryChildren, isLoading),
-                label = "directory_content",
-                transitionSpec = {
-                    fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(200))
-                }
-            ) { (_, children, loading) ->
+            Box(modifier = Modifier.weight(1f)) {
                 when {
-                    loading -> ExplorerLoadingState()
+                    isLoading -> ExplorerLoadingState()
 
-                    children.isEmpty() -> ExplorerEmptyState(text = "No subfolders here")
+                    directoryChildren.isEmpty() -> ExplorerEmptyState(text = "No subfolders here")
 
                     else -> {
                         LazyColumn(
-                            modifier = Modifier.fillMaxHeight(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            state = listState
                         ) {
-                            items(children, key = { it.file.absolutePath }) { directoryEntry ->
-                                val isAllowed =
-                                    remember(allowedDirectories, smartViewEnabled, directoryEntry) {
-                                        isDirectorySelected(directoryEntry.file)
-                                    }
+                            items(directoryChildren, key = { it.file.absolutePath }) { directoryEntry ->
                                 val displayCount = if (smartViewEnabled) {
                                     directoryEntry.directAudioCount
                                 } else {
@@ -249,14 +233,31 @@ fun FileExplorerContent(
                                     file = directoryEntry.file,
                                     audioCount = displayCount,
                                     displayName = directoryEntry.displayName,
-                                    isAllowed = isAllowed,
+                                    isAllowed = directoryEntry.isSelected,
                                     onNavigate = { onNavigateTo(directoryEntry.file) },
-                                    onToggleAllowed = { onToggleAllowed(directoryEntry.file) }
+                                    onToggleAllowed = { onToggleAllowed(directoryEntry.file) },
+                                    navigationEnabled = !smartViewEnabled
                                 )
                             }
-                            item { Spacer(modifier = Modifier.height(6.dp)) }
+                            item { Spacer(modifier = Modifier.height(76.dp)) }
                         }
                     }
+                }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(30.dp)
+                        .background(
+                            brush = Brush.verticalGradient(
+                                listOf(
+                                    Color.Transparent,
+                                    MaterialTheme.colorScheme.surfaceContainerLow
+                                )
+                            )
+                        )
+                ) {
+
                 }
             }
         }
@@ -271,23 +272,21 @@ private fun FileExplorerHeader(
     isAtRoot: Boolean,
     onNavigateUp: () -> Unit,
     onNavigateHome: () -> Unit,
-    onNavigateTo: (File) -> Unit
-) {
+    onNavigateTo: (File) -> Unit,
+    navigationEnabled: Boolean
+ ) {
     val scrollState = rememberScrollState()
-    var breadcrumbs by remember { mutableStateOf<List<File>>(emptyList()) }
-
-    LaunchedEffect(currentPath, rootDirectory) {
-        breadcrumbs = withContext(Dispatchers.IO) {
-            val segments = mutableListOf<File>()
+    val breadcrumbs by remember(currentPath, rootDirectory) {
+        mutableStateOf(buildList {
             var cursor: File? = currentPath
             val rootPath = rootDirectory.path
             while (cursor != null) {
-                segments.add(cursor)
+                add(cursor)
                 if (cursor.path == rootPath) break
                 cursor = cursor.parentFile
             }
-            segments.reversed()
-        }
+            reverse()
+        })
     }
 
     val rootLabel = remember(rootDirectory) {
@@ -303,7 +302,7 @@ private fun FileExplorerHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            if (!isAtRoot) {
+            if (!isAtRoot && navigationEnabled) {
                 IconButton(
                     onClick = onNavigateUp,
                     colors = IconButtonDefaults.iconButtonColors(
@@ -320,10 +319,10 @@ private fun FileExplorerHeader(
 
             if (!isAtRoot) {
                 LaunchedEffect(currentPath) {
-                    scrollState.animateScrollTo(scrollState.maxValue)
+                    scrollState.scrollTo(scrollState.maxValue)
                 }
 
-                CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
+                //CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
                     Row(
                         modifier = Modifier
                             .weight(1f)
@@ -343,8 +342,8 @@ private fun FileExplorerHeader(
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .clickable(enabled = !isLast) {
+                                        .clip(CircleShape)
+                                        .clickable(enabled = !isLast && navigationEnabled) {
                                             if (isRoot) onNavigateHome() else onNavigateTo(file)
                                         }
                                         .background(
@@ -354,7 +353,8 @@ private fun FileExplorerHeader(
                                                 )
                                             } else {
                                                 MaterialTheme.colorScheme.surfaceContainerHigh
-                                            }
+                                            },
+                                            shape = CircleShape
                                         )
                                         .padding(horizontal = 10.dp, vertical = 6.dp)
                                 ) {
@@ -391,7 +391,7 @@ private fun FileExplorerHeader(
                             }
                         }
                     }
-                }
+                //}
             }
         }
 
@@ -454,7 +454,8 @@ private fun FileExplorerItem(
     displayName: String?,
     isAllowed: Boolean,
     onNavigate: () -> Unit,
-    onToggleAllowed: () -> Unit
+    onToggleAllowed: () -> Unit,
+    navigationEnabled: Boolean
 ) {
     val shape = RoundedCornerShape(18.dp)
 
@@ -481,7 +482,7 @@ private fun FileExplorerItem(
             .fillMaxWidth()
             .clip(shape)
             .background(containerColor)
-            .clickable { onNavigate() }
+            .clickable(enabled = navigationEnabled) { onNavigate() }
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -537,11 +538,15 @@ private fun FileExplorerItem(
             }
         }
 
-        Icon(
-            imageVector = Icons.Rounded.ChevronRight,
-            contentDescription = null,
-            tint = contentColor
-        )
+        if (navigationEnabled) {
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = null,
+                tint = contentColor
+            )
+        } else {
+            Spacer(modifier = Modifier.width(8.dp))
+        }
 
         RadioButton(
             selected = isAllowed,

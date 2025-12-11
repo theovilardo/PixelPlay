@@ -28,7 +28,6 @@ fun FolderExplorerScreen(
     onDone: () -> Unit,
     currentPath: File,
     directoryChildren: List<DirectoryEntry>,
-    allowedDirectories: Set<String>,
     smartViewEnabled: Boolean,
     isLoading: Boolean,
     isAtRoot: Boolean,
@@ -38,11 +37,10 @@ fun FolderExplorerScreen(
     onNavigateHome: () -> Unit,
     onToggleAllowed: (File) -> Unit,
     onRefresh: () -> Unit,
-    onSmartViewToggle: (Boolean) -> Unit,
-    isDirectorySelected: (File) -> Boolean
+    onSmartViewToggle: (Boolean) -> Unit
 ) {
     BackHandler(enabled = true) {
-        if (isAtRoot) {
+        if (isAtRoot || smartViewEnabled) {
             onClose()
         } else {
             onNavigateUp()
@@ -67,7 +65,7 @@ fun FolderExplorerScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = {
-                        if (isAtRoot) onClose() else onNavigateUp()
+                        if (isAtRoot || smartViewEnabled) onClose() else onNavigateUp()
                     }) {
                         Icon(
                             imageVector = Icons.Rounded.Close,
@@ -89,7 +87,6 @@ fun FolderExplorerScreen(
         FileExplorerContent(
             currentPath = currentPath,
             directoryChildren = directoryChildren,
-            allowedDirectories = allowedDirectories,
             smartViewEnabled = smartViewEnabled,
             isLoading = isLoading,
             isAtRoot = isAtRoot,
@@ -101,7 +98,6 @@ fun FolderExplorerScreen(
             onRefresh = onRefresh,
             onSmartViewToggle = onSmartViewToggle,
             onDone = onDone,
-            isDirectorySelected = isDirectorySelected,
             title = if (fromSetup) "Select folders for setup" else "Select music folders",
             leadingContent = null,
             modifier = Modifier.fillMaxSize().padding(padding)

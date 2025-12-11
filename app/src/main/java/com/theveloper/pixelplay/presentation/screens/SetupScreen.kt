@@ -110,7 +110,6 @@ fun SetupScreen(
     val uiState by setupViewModel.uiState.collectAsState()
     val currentPath by setupViewModel.currentPath.collectAsState()
     val directoryChildren by setupViewModel.currentDirectoryChildren.collectAsState()
-    val allowedDirectories by setupViewModel.allowedDirectories.collectAsState()
     val smartViewEnabled by setupViewModel.smartViewEnabled.collectAsState()
 
     // Re-check permissions when the screen is resumed
@@ -212,7 +211,6 @@ fun SetupScreen(
                         uiState = uiState,
                         currentPath = currentPath,
                         directoryChildren = directoryChildren,
-                        allowedDirectories = allowedDirectories,
                         smartViewEnabled = smartViewEnabled,
                         isAtRoot = setupViewModel.isAtRoot(),
                         explorerRoot = setupViewModel.explorerRoot(),
@@ -225,8 +223,7 @@ fun SetupScreen(
                             }
                         },
                         onToggleAllowed = setupViewModel::toggleDirectoryAllowed,
-                        onSmartViewToggle = setupViewModel::setSmartViewEnabled,
-                        isDirectorySelected = setupViewModel::isDirectorySelected
+                        onSmartViewToggle = setupViewModel::setSmartViewEnabled
                     )
                     SetupPage.NotificationsPermission -> NotificationsPermissionPage(uiState)
                     SetupPage.AllFilesPermission -> AllFilesPermissionPage(uiState)
@@ -243,7 +240,6 @@ fun DirectorySelectionPage(
     uiState: SetupUiState,
     currentPath: File,
     directoryChildren: List<DirectoryEntry>,
-    allowedDirectories: Set<String>,
     smartViewEnabled: Boolean,
     isAtRoot: Boolean,
     explorerRoot: File,
@@ -252,8 +248,7 @@ fun DirectorySelectionPage(
     onRefresh: () -> Unit,
     onSkip: () -> Unit,
     onToggleAllowed: (File) -> Unit,
-    onSmartViewToggle: (Boolean) -> Unit,
-    isDirectorySelected: (File) -> Boolean
+    onSmartViewToggle: (Boolean) -> Unit
 ) {
     var showDirectoryPicker by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -295,7 +290,6 @@ fun DirectorySelectionPage(
         FileExplorerBottomSheet(
             currentPath = currentPath,
             directoryChildren = directoryChildren,
-            allowedDirectories = allowedDirectories,
             smartViewEnabled = smartViewEnabled,
             isLoading = uiState.isLoadingDirectories,
             isAtRoot = isAtRoot,
@@ -307,8 +301,7 @@ fun DirectorySelectionPage(
             onRefresh = onRefresh,
             onSmartViewToggle = onSmartViewToggle,
             onDone = { showDirectoryPicker = false },
-            onDismiss = { showDirectoryPicker = false },
-            isDirectorySelected = isDirectorySelected
+            onDismiss = { showDirectoryPicker = false }
         )
     }
 }

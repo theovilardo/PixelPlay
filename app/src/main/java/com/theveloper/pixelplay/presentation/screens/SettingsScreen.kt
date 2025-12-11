@@ -187,7 +187,6 @@ fun SettingsScreen(
     val playerSheetState by playerViewModel.sheetState.collectAsState()
     val currentPath by settingsViewModel.currentPath.collectAsState()
     val directoryChildren by settingsViewModel.currentDirectoryChildren.collectAsState()
-    val allowedDirectories by settingsViewModel.allowedDirectories.collectAsState()
     val smartViewEnabled by settingsViewModel.smartViewEnabled.collectAsState()
     val isLoadingDirectories by settingsViewModel.isLoadingDirectories.collectAsState()
     val isExplorerPriming by settingsViewModel.isExplorerPriming.collectAsState()
@@ -726,7 +725,6 @@ fun SettingsScreen(
         FileExplorerBottomSheet(
             currentPath = currentPath,
             directoryChildren = directoryChildren,
-            allowedDirectories = allowedDirectories,
             smartViewEnabled = smartViewEnabled,
             isLoading = isLoadingDirectories,
             isAtRoot = settingsViewModel.isAtRoot(),
@@ -738,8 +736,7 @@ fun SettingsScreen(
             onRefresh = settingsViewModel::refreshExplorer,
             onSmartViewToggle = settingsViewModel::setSmartViewEnabled,
             onDone = { showExplorerSheet = false },
-            onDismiss = { showExplorerSheet = false },
-            isDirectorySelected = { settingsViewModel.isDirectorySelected(it) }
+            onDismiss = { showExplorerSheet = false }
         )
     }
 
