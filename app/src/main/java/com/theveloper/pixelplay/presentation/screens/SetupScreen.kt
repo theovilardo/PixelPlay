@@ -259,6 +259,8 @@ fun DirectorySelectionPage(
         }
     }
 
+    val hasMediaPermission = uiState.mediaPermissionGranted
+    val hasAllFilesAccess = Build.VERSION.SDK_INT < Build.VERSION_CODES.R || uiState.allFilesAccessGranted
     val canOpenDirectoryPicker = hasMediaPermission && hasAllFilesAccess
 
     PermissionPageLayout(
