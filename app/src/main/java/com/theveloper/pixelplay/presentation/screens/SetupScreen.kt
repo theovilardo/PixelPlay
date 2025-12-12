@@ -328,7 +328,7 @@ fun WelcomePage() {
             modifier = Modifier
                 .padding(horizontal = 8.dp)
                 .padding(top = 12.dp),
-            text = "Welcome to PixelPlay",
+            text = "Welcome to PixelPlayer",
             style = ExpTitleTypography.displayLarge.copy(
                 fontSize = 42.sp,
                 lineHeight = 1.1.em
@@ -417,7 +417,7 @@ fun MediaPermissionPage(uiState: SetupUiState) {
     PermissionPageLayout(
         title = "Media Permission",
         granted = isGranted,
-        description = "PixelPlay needs access to your audio files to build your music library.",
+        description = "PixelPlayer needs access to your audio files to build your music library.",
         buttonText = if (isGranted) "Permission Granted" else "Grant Media Permission",
         icons = mediaIcons,
         onGrantClicked = {
@@ -475,7 +475,7 @@ fun AllFilesPermissionPage(uiState: SetupUiState) {
     PermissionPageLayout(
         title = "All Files Access",
         granted = isGranted,
-        description = "For some Android versions, PixelPlay needs broader file access to find all your music.",
+        description = "For some Android versions, PixelPlayer needs broader file access to find all your music.",
         buttonText = if(isGranted) "Permission Granted" else "Go to Settings",
         icons = fileIcons,
         onGrantClicked = {
