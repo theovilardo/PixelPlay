@@ -1,13 +1,11 @@
 package com.theveloper.pixelplay.presentation.components
 
-import android.R
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -24,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -51,17 +50,20 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -214,8 +216,7 @@ fun FileExplorerContent(
                 onNavigateTo = onNavigateTo,
                 navigationEnabled = !smartViewEnabled
             )
-            
-            // --- CONFLICT RESOLVED SECTION START ---
+
             Box(modifier = Modifier.weight(1f)) {
                 AnimatedContent(
                     targetState = Triple(currentPath, directoryChildren, isLoading),
@@ -272,7 +273,6 @@ fun FileExplorerContent(
                         )
                 )
             }
-            // --- CONFLICT RESOLVED SECTION END ---
         }
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
@@ -449,8 +449,10 @@ private fun FileExplorerHeader(
     onNavigateHome: () -> Unit,
     onNavigateTo: (File) -> Unit,
     navigationEnabled: Boolean
- ) {
-    val scrollState = rememberScrollState()
+) {
+    // 1. Cambiamos ScrollState por LazyListState para manejar mejor los ítems y el scroll automático
+    val listState = rememberLazyListState()
+
     val breadcrumbs by remember(currentPath, rootDirectory) {
         mutableStateOf(buildList {
             var cursor: File? = currentPath
@@ -471,12 +473,17 @@ private fun FileExplorerHeader(
         }
     }
 
+    // 2. Lógica para detectar si hay contenido oculto a los lados
+    val showStartFade by remember { derivedStateOf { listState.canScrollBackward } }
+    val showEndFade by remember { derivedStateOf { listState.canScrollForward } }
+
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // Botón de "Atrás" (Back Arrow) - Se mantiene igual fuera del scroll
             if (!isAtRoot && navigationEnabled) {
                 IconButton(
                     onClick = onNavigateUp,
@@ -493,83 +500,254 @@ private fun FileExplorerHeader(
             }
 
             if (!isAtRoot) {
-                LaunchedEffect(currentPath) {
-                    scrollState.scrollTo(scrollState.maxValue)
+                // 3. Auto-scroll al final cuando cambia el path
+                LaunchedEffect(breadcrumbs.size) {
+                    if (breadcrumbs.isNotEmpty()) {
+                        listState.animateScrollToItem(breadcrumbs.lastIndex)
+                    }
                 }
 
-                //CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .horizontalScroll(scrollState),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        breadcrumbs.forEachIndexed { index, file ->
-                            val isRoot = file.path == rootDirectory.path
-                            val isLast = index == breadcrumbs.lastIndex
-                            val label = if (isRoot) rootLabel else file.name.ifEmpty { file.path }
+                // 4. Reemplazamos el Row + horizontalScroll por LazyRow con el efecto gráfico
+                LazyRow(
+                    state = listState,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .weight(1f)
+                        // APLICACIÓN DEL EFECTO DE GRADIENTE
+                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                        .drawWithContent {
+                            drawContent()
+                            val gradientWidth = 24.dp.toPx()
 
+                            // Fade Izquierdo
+                            if (showStartFade) {
+                                drawRect(
+                                    brush = Brush.horizontalGradient(
+                                        colors = listOf(Color.Transparent, Color.Black),
+                                        endX = gradientWidth
+                                    ),
+                                    blendMode = BlendMode.DstIn
+                                )
+                            }
+
+                            // Fade Derecho
+                            if (showEndFade) {
+                                drawRect(
+                                    brush = Brush.horizontalGradient(
+                                        colors = listOf(Color.Black, Color.Transparent),
+                                        startX = size.width - gradientWidth
+                                    ),
+                                    blendMode = BlendMode.DstIn
+                                )
+                            }
+                        }
+                ) {
+                    // Spacer inicial para que el primer ítem no quede pegado al borde o debajo del fade
+                    item { Spacer(modifier = Modifier.width(4.dp)) }
+
+                    items(breadcrumbs.size) { index ->
+                        val file = breadcrumbs[index]
+                        val isRoot = file.path == rootDirectory.path
+                        val isLast = index == breadcrumbs.lastIndex
+                        val label = if (isRoot) rootLabel else file.name.ifEmpty { file.path }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            // Diseño del Chip (Mantenemos tu estilo visual original)
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .clip(CircleShape)
-                                        .clickable(enabled = !isLast && navigationEnabled) {
-                                            if (isRoot) onNavigateHome() else onNavigateTo(file)
-                                        }
-                                        .background(
-                                            color = if (isLast) {
-                                                MaterialTheme.colorScheme.secondaryContainer.copy(
-                                                    alpha = 0.5f
-                                                )
-                                            } else {
-                                                MaterialTheme.colorScheme.surfaceContainerHigh
-                                            },
-                                            shape = CircleShape
-                                        )
-                                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                                ) {
-                                    if (isRoot) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Home,
-                                            contentDescription = "Go to root",
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(end = 4.dp)
-                                        )
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .clickable(enabled = !isLast && navigationEnabled) {
+                                        if (isRoot) onNavigateHome() else onNavigateTo(file)
                                     }
-                                    Text(
-                                        text = label,
-                                        style = MaterialTheme.typography.bodyMedium.copy(
-                                            fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal
-                                        ),
+                                    .background(
                                         color = if (isLast) {
-                                            MaterialTheme.colorScheme.onSurface
+                                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
                                         } else {
-                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                            MaterialTheme.colorScheme.surfaceContainerHigh
                                         },
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                        shape = CircleShape
                                     )
-                                }
-
-                                if (!isLast) {
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                if (isRoot) {
                                     Icon(
-                                        imageVector = Icons.Rounded.ChevronRight,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        imageVector = Icons.Rounded.Home,
+                                        contentDescription = "Go to root",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(end = 4.dp).size(16.dp)
                                     )
                                 }
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal
+                                    ),
+                                    color = if (isLast) {
+                                        MaterialTheme.colorScheme.onSurface
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            // Separador (Chevron)
+                            if (!isLast) {
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(start = 6.dp, end = 2.dp)
+                                )
                             }
                         }
                     }
-                //}
+
+                    // Spacer final para dar aire al último elemento
+                    item { Spacer(modifier = Modifier.width(12.dp)) }
+                }
             }
         }
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
     }
 }
+//@OptIn(ExperimentalFoundationApi::class)
+//@Composable
+//private fun FileExplorerHeader(
+//    currentPath: File,
+//    rootDirectory: File,
+//    isAtRoot: Boolean,
+//    onNavigateUp: () -> Unit,
+//    onNavigateHome: () -> Unit,
+//    onNavigateTo: (File) -> Unit,
+//    navigationEnabled: Boolean
+// ) {
+//    val scrollState = rememberScrollState()
+//    val breadcrumbs by remember(currentPath, rootDirectory) {
+//        mutableStateOf(buildList {
+//            var cursor: File? = currentPath
+//            val rootPath = rootDirectory.path
+//            while (cursor != null) {
+//                add(cursor)
+//                if (cursor.path == rootPath) break
+//                cursor = cursor.parentFile
+//            }
+//            reverse()
+//        })
+//    }
+//
+//    val rootLabel = remember(rootDirectory) {
+//        when (rootDirectory.name) {
+//            "0", "" -> "Internal storage"
+//            else -> rootDirectory.name
+//        }
+//    }
+//
+//    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+//        Row(
+//            modifier = Modifier.fillMaxWidth(),
+//            verticalAlignment = Alignment.CenterVertically,
+//            horizontalArrangement = Arrangement.spacedBy(12.dp)
+//        ) {
+//            if (!isAtRoot && navigationEnabled) {
+//                IconButton(
+//                    onClick = onNavigateUp,
+//                    colors = IconButtonDefaults.iconButtonColors(
+//                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
+//                    )
+//                ) {
+//                    Icon(
+//                        imageVector = Icons.Rounded.ArrowBack,
+//                        contentDescription = "Navigate up",
+//                        tint = MaterialTheme.colorScheme.onSurface
+//                    )
+//                }
+//            }
+//
+//            if (!isAtRoot) {
+//                LaunchedEffect(currentPath) {
+//                    scrollState.scrollTo(scrollState.maxValue)
+//                }
+//
+//                //CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
+//                    Row(
+//                        modifier = Modifier
+//                            .weight(1f)
+//                            .horizontalScroll(scrollState),
+//                        verticalAlignment = Alignment.CenterVertically,
+//                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+//                    ) {
+//                        breadcrumbs.forEachIndexed { index, file ->
+//                            val isRoot = file.path == rootDirectory.path
+//                            val isLast = index == breadcrumbs.lastIndex
+//                            val label = if (isRoot) rootLabel else file.name.ifEmpty { file.path }
+//
+//                            Row(
+//                                verticalAlignment = Alignment.CenterVertically,
+//                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+//                            ) {
+//                                Row(
+//                                    verticalAlignment = Alignment.CenterVertically,
+//                                    modifier = Modifier
+//                                        .clip(CircleShape)
+//                                        .clickable(enabled = !isLast && navigationEnabled) {
+//                                            if (isRoot) onNavigateHome() else onNavigateTo(file)
+//                                        }
+//                                        .background(
+//                                            color = if (isLast) {
+//                                                MaterialTheme.colorScheme.secondaryContainer.copy(
+//                                                    alpha = 0.5f
+//                                                )
+//                                            } else {
+//                                                MaterialTheme.colorScheme.surfaceContainerHigh
+//                                            },
+//                                            shape = CircleShape
+//                                        )
+//                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+//                                ) {
+//                                    if (isRoot) {
+//                                        Icon(
+//                                            imageVector = Icons.Rounded.Home,
+//                                            contentDescription = "Go to root",
+//                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+//                                            modifier = Modifier.padding(end = 4.dp)
+//                                        )
+//                                    }
+//                                    Text(
+//                                        text = label,
+//                                        style = MaterialTheme.typography.bodyMedium.copy(
+//                                            fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal
+//                                        ),
+//                                        color = if (isLast) {
+//                                            MaterialTheme.colorScheme.onSurface
+//                                        } else {
+//                                            MaterialTheme.colorScheme.onSurfaceVariant
+//                                        },
+//                                        maxLines = 1,
+//                                        overflow = TextOverflow.Ellipsis
+//                                    )
+//                                }
+//
+//                                if (!isLast) {
+//                                    Icon(
+//                                        imageVector = Icons.Rounded.ChevronRight,
+//                                        contentDescription = null,
+//                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+//                                    )
+//                                }
+//                            }
+//                        }
+//                    }
+//                //}
+//            }
+//        }
+//
+//        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+//    }
+//}
