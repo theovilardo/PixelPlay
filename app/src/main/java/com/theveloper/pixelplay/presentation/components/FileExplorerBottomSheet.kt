@@ -15,6 +15,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,7 +25,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsets.Companion.systemBars
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -52,11 +53,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
-import androidx.compose.material3.tabIndicatorOffset
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -166,17 +168,18 @@ fun FileExplorerContent(
         contentWindowInsets = WindowInsets.systemBars,
         floatingActionButton = {
             ExtendedFloatingActionButton(
+                modifier = Modifier.padding(end = 12.dp),
                 onClick = onDone,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
+                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
                 shape = CircleShape,
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Done,
                     contentDescription = "Done",
-                    tint = MaterialTheme.colorScheme.onPrimary
+                    tint = MaterialTheme.colorScheme.onTertiaryContainer
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(10.dp))
                 Text(text = "Done")
             }
         }
@@ -184,8 +187,7 @@ fun FileExplorerContent(
         Column(
             modifier = Modifier
                 .padding(innerPadding)
-                .fillMaxSize()
-                .padding(horizontal = 20.dp),
+                .fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
@@ -194,19 +196,21 @@ fun FileExplorerContent(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
+                    modifier = Modifier.padding(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     leadingContent?.invoke()
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.headlineSmall,
+                        style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(horizontal = 4.dp)
+                        modifier = Modifier.padding(start = 6.dp)
                     )
                 }
 
                 FilledIconButton(
+                    modifier = Modifier.padding(end = 12.dp),
                     onClick = onRefresh,
                     colors = IconButtonDefaults.filledIconButtonColors(
                         containerColor = MaterialTheme.colorScheme.secondaryContainer,
@@ -220,11 +224,12 @@ fun FileExplorerContent(
                 }
             }
 
-            val tabTitles = listOf("All folders", "Smart View (Beta)")
+            val tabTitles = listOf("All folders", "Smart View (β)")
             val selectedTabIndex = if (smartViewEnabled) 1 else 0
 
             TabRow(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth(),
                 selectedTabIndex = selectedTabIndex,
                 containerColor = Color.Transparent,
                 indicator = { tabPositions ->
@@ -241,10 +246,12 @@ fun FileExplorerContent(
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                    horizontalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
-                    Spacer(modifier = Modifier.width(14.dp))
                     tabTitles.forEachIndexed { index, title ->
+                        if(index == 0){
+                            Spacer(modifier = Modifier.width(14.dp))
+                        }
                         TabAnimation(
                             modifier = Modifier.weight(1f),
                             index = index,
@@ -255,15 +262,20 @@ fun FileExplorerContent(
                             Text(
                                 text = title,
                                 fontWeight = FontWeight.Bold,
+                                maxLines = 1,
                                 fontFamily = GoogleSansRounded
                             )
                         }
+                        if (index == 1){
+                            Spacer(modifier = Modifier.width(14.dp))
+                        }
                     }
-                    Spacer(modifier = Modifier.width(14.dp))
+                    //Spacer(modifier = Modifier.width(14.dp))
                 }
             }
 
             FileExplorerHeader(
+                modifier = Modifier.padding(horizontal = 18.dp),
                 currentPath = currentPath,
                 rootDirectory = rootDirectory,
                 isAtRoot = isAtRoot,
@@ -288,7 +300,16 @@ fun FileExplorerContent(
 
                         else -> {
                             LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 18.dp)
+                                    .clip(RoundedCornerShape(
+                                        topEnd = 20.dp,
+                                        topStart = 20.dp
+                                    )),
+//                                contentPadding = PaddingValues(
+//                                    horizontal = 16.dp
+//                                ),
                                 verticalArrangement = Arrangement.spacedBy(10.dp),
                                 state = listState
                             ) {
@@ -498,6 +519,7 @@ private fun FileExplorerItem(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FileExplorerHeader(
+    modifier: Modifier,
     currentPath: File,
     rootDirectory: File,
     isAtRoot: Boolean,
@@ -533,7 +555,10 @@ private fun FileExplorerHeader(
     val showStartFade by remember { derivedStateOf { listState.canScrollBackward } }
     val showEndFade by remember { derivedStateOf { listState.canScrollForward } }
 
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -669,141 +694,5 @@ private fun FileExplorerHeader(
                 }
             }
         }
-
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
     }
 }
-//@OptIn(ExperimentalFoundationApi::class)
-//@Composable
-//private fun FileExplorerHeader(
-//    currentPath: File,
-//    rootDirectory: File,
-//    isAtRoot: Boolean,
-//    onNavigateUp: () -> Unit,
-//    onNavigateHome: () -> Unit,
-//    onNavigateTo: (File) -> Unit,
-//    navigationEnabled: Boolean
-// ) {
-//    val scrollState = rememberScrollState()
-//    val breadcrumbs by remember(currentPath, rootDirectory) {
-//        mutableStateOf(buildList {
-//            var cursor: File? = currentPath
-//            val rootPath = rootDirectory.path
-//            while (cursor != null) {
-//                add(cursor)
-//                if (cursor.path == rootPath) break
-//                cursor = cursor.parentFile
-//            }
-//            reverse()
-//        })
-//    }
-//
-//    val rootLabel = remember(rootDirectory) {
-//        when (rootDirectory.name) {
-//            "0", "" -> "Internal storage"
-//            else -> rootDirectory.name
-//        }
-//    }
-//
-//    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-//        Row(
-//            modifier = Modifier.fillMaxWidth(),
-//            verticalAlignment = Alignment.CenterVertically,
-//            horizontalArrangement = Arrangement.spacedBy(12.dp)
-//        ) {
-//            if (!isAtRoot && navigationEnabled) {
-//                IconButton(
-//                    onClick = onNavigateUp,
-//                    colors = IconButtonDefaults.iconButtonColors(
-//                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
-//                    )
-//                ) {
-//                    Icon(
-//                        imageVector = Icons.Rounded.ArrowBack,
-//                        contentDescription = "Navigate up",
-//                        tint = MaterialTheme.colorScheme.onSurface
-//                    )
-//                }
-//            }
-//
-//            if (!isAtRoot) {
-//                LaunchedEffect(currentPath) {
-//                    scrollState.scrollTo(scrollState.maxValue)
-//                }
-//
-//                //CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
-//                    Row(
-//                        modifier = Modifier
-//                            .weight(1f)
-//                            .horizontalScroll(scrollState),
-//                        verticalAlignment = Alignment.CenterVertically,
-//                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-//                    ) {
-//                        breadcrumbs.forEachIndexed { index, file ->
-//                            val isRoot = file.path == rootDirectory.path
-//                            val isLast = index == breadcrumbs.lastIndex
-//                            val label = if (isRoot) rootLabel else file.name.ifEmpty { file.path }
-//
-//                            Row(
-//                                verticalAlignment = Alignment.CenterVertically,
-//                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-//                            ) {
-//                                Row(
-//                                    verticalAlignment = Alignment.CenterVertically,
-//                                    modifier = Modifier
-//                                        .clip(CircleShape)
-//                                        .clickable(enabled = !isLast && navigationEnabled) {
-//                                            if (isRoot) onNavigateHome() else onNavigateTo(file)
-//                                        }
-//                                        .background(
-//                                            color = if (isLast) {
-//                                                MaterialTheme.colorScheme.secondaryContainer.copy(
-//                                                    alpha = 0.5f
-//                                                )
-//                                            } else {
-//                                                MaterialTheme.colorScheme.surfaceContainerHigh
-//                                            },
-//                                            shape = CircleShape
-//                                        )
-//                                        .padding(horizontal = 10.dp, vertical = 6.dp)
-//                                ) {
-//                                    if (isRoot) {
-//                                        Icon(
-//                                            imageVector = Icons.Rounded.Home,
-//                                            contentDescription = "Go to root",
-//                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-//                                            modifier = Modifier.padding(end = 4.dp)
-//                                        )
-//                                    }
-//                                    Text(
-//                                        text = label,
-//                                        style = MaterialTheme.typography.bodyMedium.copy(
-//                                            fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal
-//                                        ),
-//                                        color = if (isLast) {
-//                                            MaterialTheme.colorScheme.onSurface
-//                                        } else {
-//                                            MaterialTheme.colorScheme.onSurfaceVariant
-//                                        },
-//                                        maxLines = 1,
-//                                        overflow = TextOverflow.Ellipsis
-//                                    )
-//                                }
-//
-//                                if (!isLast) {
-//                                    Icon(
-//                                        imageVector = Icons.Rounded.ChevronRight,
-//                                        contentDescription = null,
-//                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-//                                    )
-//                                }
-//                            }
-//                        }
-//                    }
-//                //}
-//            }
-//        }
-//
-//        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-//    }
-//}
