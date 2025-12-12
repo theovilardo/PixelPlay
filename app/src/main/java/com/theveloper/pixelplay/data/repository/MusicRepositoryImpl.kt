@@ -74,6 +74,7 @@ class MusicRepositoryImpl @Inject constructor(
 
     private data class AllowedDirectoriesConfig(
         val normalizedAllowed: Set<String>,
+        val normalizedBlocked: Set<String>,
         val initialSetupDone: Boolean,
     ) {
         val isFilterActive: Boolean get() = normalizedAllowed.isNotEmpty()
@@ -81,10 +82,12 @@ class MusicRepositoryImpl @Inject constructor(
 
     private val allowedDirectoriesConfig: Flow<AllowedDirectoriesConfig> = combine(
         userPreferencesRepository.allowedDirectoriesFlow,
+        userPreferencesRepository.blockedDirectoriesFlow,
         userPreferencesRepository.initialSetupDoneFlow
-    ) { allowed, initialSetupDone ->
+    ) { allowed, blocked, initialSetupDone ->
         AllowedDirectoriesConfig(
             normalizedAllowed = allowed.map(::normalizePath).toSet(),
+            normalizedBlocked = blocked.map(::normalizePath).toSet(),
             initialSetupDone = initialSetupDone,
         )
     }
@@ -114,7 +117,10 @@ class MusicRepositoryImpl @Inject constructor(
         if (normalizedAllowed.isEmpty()) return false
 
         val normalizedParent = normalizePath(path)
-        return normalizedAllowed.any { normalizedParent.startsWith(it) }
+        val isBlocked = normalizedBlocked.any { normalizedParent == it || normalizedParent.startsWith("$it/") }
+        if (isBlocked) return false
+
+        return normalizedAllowed.any { normalizedParent == it || normalizedParent.startsWith("$it/") }
     }
 
     private suspend fun permittedSongsOnce(): Pair<List<SongEntity>, AllowedDirectoriesConfig> {

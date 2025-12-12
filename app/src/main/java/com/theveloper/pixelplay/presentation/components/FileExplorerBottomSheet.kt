@@ -1,20 +1,22 @@
 package com.theveloper.pixelplay.presentation.components
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,7 +27,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -36,7 +37,6 @@ import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.FolderOff
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -44,16 +44,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,12 +66,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.theveloper.pixelplay.presentation.viewmodel.DirectoryEntry
 import java.io.File
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FileExplorerBottomSheet(
+fun FileExplorerDialog(
+    visible: Boolean,
     currentPath: File,
     directoryChildren: List<DirectoryEntry>,
     smartViewEnabled: Boolean,
@@ -89,33 +89,46 @@ fun FileExplorerBottomSheet(
     onDone: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val transitionState = remember { MutableTransitionState(false) }
+    transitionState.targetState = visible
 
-    ModalBottomSheet(
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        onDismissRequest = onDismiss,
-        sheetState = sheetState
-    ) {
-        FileExplorerContent(
-            currentPath = currentPath,
-            directoryChildren = directoryChildren,
-            smartViewEnabled = smartViewEnabled,
-            isLoading = isLoading,
-            isAtRoot = isAtRoot,
-            rootDirectory = rootDirectory,
-            onNavigateTo = onNavigateTo,
-            onNavigateUp = onNavigateUp,
-            onNavigateHome = onNavigateHome,
-            onToggleAllowed = onToggleAllowed,
-            onRefresh = onRefresh,
-            onSmartViewToggle = onSmartViewToggle,
-            onDone = onDone,
-            modifier = Modifier.fillMaxHeight(0.9f)
-        )
+    if (transitionState.currentState || transitionState.targetState) {
+        Dialog(
+            onDismissRequest = onDismiss,
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            AnimatedVisibility(
+                visibleState = transitionState,
+                enter = slideInVertically(initialOffsetY = { it / 6 }) + fadeIn(animationSpec = tween(220)),
+                exit = slideOutVertically(targetOffsetY = { it / 6 }) + fadeOut(animationSpec = tween(200)),
+                label = "file_explorer_dialog"
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow
+                ) {
+                    FileExplorerContent(
+                        currentPath = currentPath,
+                        directoryChildren = directoryChildren,
+                        smartViewEnabled = smartViewEnabled,
+                        isLoading = isLoading,
+                        isAtRoot = isAtRoot,
+                        rootDirectory = rootDirectory,
+                        onNavigateTo = onNavigateTo,
+                        onNavigateUp = onNavigateUp,
+                        onNavigateHome = onNavigateHome,
+                        onToggleAllowed = onToggleAllowed,
+                        onRefresh = onRefresh,
+                        onSmartViewToggle = onSmartViewToggle,
+                        onDone = onDone,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+        }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileExplorerContent(
     currentPath: File,

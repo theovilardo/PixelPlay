@@ -88,7 +88,7 @@ import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.components.PermissionIconCollage
 import com.theveloper.pixelplay.presentation.components.subcomps.MaterialYouVectorDrawable
 import com.theveloper.pixelplay.presentation.components.subcomps.SineWaveLine
-import com.theveloper.pixelplay.presentation.components.FileExplorerBottomSheet
+import com.theveloper.pixelplay.presentation.components.FileExplorerDialog
 import com.theveloper.pixelplay.presentation.viewmodel.DirectoryEntry
 import com.theveloper.pixelplay.presentation.viewmodel.SetupUiState
 import com.theveloper.pixelplay.presentation.viewmodel.SetupViewModel
@@ -282,28 +282,29 @@ fun DirectorySelectionPage(
         }
     }
 
-    if (showDirectoryPicker) {
-        LaunchedEffect(Unit) {
+    LaunchedEffect(showDirectoryPicker) {
+        if (showDirectoryPicker) {
             onNavigateTo(explorerRoot)
         }
-
-        FileExplorerBottomSheet(
-            currentPath = currentPath,
-            directoryChildren = directoryChildren,
-            smartViewEnabled = smartViewEnabled,
-            isLoading = uiState.isLoadingDirectories,
-            isAtRoot = isAtRoot,
-            rootDirectory = explorerRoot,
-            onNavigateTo = onNavigateTo,
-            onNavigateUp = onNavigateUp,
-            onNavigateHome = { onNavigateTo(explorerRoot) },
-            onToggleAllowed = onToggleAllowed,
-            onRefresh = onRefresh,
-            onSmartViewToggle = onSmartViewToggle,
-            onDone = { showDirectoryPicker = false },
-            onDismiss = { showDirectoryPicker = false }
-        )
     }
+
+    FileExplorerDialog(
+        visible = showDirectoryPicker,
+        currentPath = currentPath,
+        directoryChildren = directoryChildren,
+        smartViewEnabled = smartViewEnabled,
+        isLoading = uiState.isLoadingDirectories,
+        isAtRoot = isAtRoot,
+        rootDirectory = explorerRoot,
+        onNavigateTo = onNavigateTo,
+        onNavigateUp = onNavigateUp,
+        onNavigateHome = { onNavigateTo(explorerRoot) },
+        onToggleAllowed = onToggleAllowed,
+        onRefresh = onRefresh,
+        onSmartViewToggle = onSmartViewToggle,
+        onDone = { showDirectoryPicker = false },
+        onDismiss = { showDirectoryPicker = false }
+    )
 }
 
 sealed class SetupPage {

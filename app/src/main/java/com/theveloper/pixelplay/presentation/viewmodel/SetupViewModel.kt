@@ -104,7 +104,10 @@ class SetupViewModel @Inject constructor(
                     val defaultAllowed = if (musicDir.exists()) {
                         runCatching { musicDir.canonicalPath }.getOrDefault(musicDir.absolutePath)
                     } else null
-                    userPreferencesRepository.updateAllowedDirectories(defaultAllowed?.let { setOf(it) } ?: emptySet())
+                    userPreferencesRepository.updateDirectorySelections(
+                        defaultAllowed?.let { setOf(it) } ?: emptySet(),
+                        emptySet()
+                    )
                 }
             }
 
@@ -118,6 +121,7 @@ class SetupViewModel @Inject constructor(
 
     fun toggleDirectoryAllowed(file: File) {
         fileExplorerStateHolder.toggleDirectoryAllowed(file)
+        syncManager.sync()
     }
 
     fun loadDirectory(file: File) {

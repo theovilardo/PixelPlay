@@ -113,7 +113,7 @@ import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
-import com.theveloper.pixelplay.presentation.components.FileExplorerBottomSheet
+import com.theveloper.pixelplay.presentation.components.FileExplorerDialog
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
@@ -721,24 +721,23 @@ fun SettingsScreen(
         )
     }
 
-    if (showExplorerSheet) {
-        FileExplorerBottomSheet(
-            currentPath = currentPath,
-            directoryChildren = directoryChildren,
-            smartViewEnabled = smartViewEnabled,
-            isLoading = isLoadingDirectories,
-            isAtRoot = settingsViewModel.isAtRoot(),
-            rootDirectory = explorerRoot,
-            onNavigateTo = settingsViewModel::loadDirectory,
-            onNavigateUp = settingsViewModel::navigateUp,
-            onNavigateHome = { settingsViewModel.loadDirectory(explorerRoot) },
-            onToggleAllowed = settingsViewModel::toggleDirectoryAllowed,
-            onRefresh = settingsViewModel::refreshExplorer,
-            onSmartViewToggle = settingsViewModel::setSmartViewEnabled,
-            onDone = { showExplorerSheet = false },
-            onDismiss = { showExplorerSheet = false }
-        )
-    }
+    FileExplorerDialog(
+        visible = showExplorerSheet,
+        currentPath = currentPath,
+        directoryChildren = directoryChildren,
+        smartViewEnabled = smartViewEnabled,
+        isLoading = isLoadingDirectories,
+        isAtRoot = settingsViewModel.isAtRoot(),
+        rootDirectory = explorerRoot,
+        onNavigateTo = settingsViewModel::loadDirectory,
+        onNavigateUp = settingsViewModel::navigateUp,
+        onNavigateHome = { settingsViewModel.loadDirectory(explorerRoot) },
+        onToggleAllowed = settingsViewModel::toggleDirectoryAllowed,
+        onRefresh = settingsViewModel::refreshExplorer,
+        onSmartViewToggle = settingsViewModel::setSmartViewEnabled,
+        onDone = { showExplorerSheet = false },
+        onDismiss = { showExplorerSheet = false }
+    )
 
     if (pendingExplorerLaunch && !showExplorerSheet && (isExplorerPriming || !isExplorerReady)) {
         ExplorerWarmupDialog(onCancel = { pendingExplorerLaunch = false })
