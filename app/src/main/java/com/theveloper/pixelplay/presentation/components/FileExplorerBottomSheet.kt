@@ -1,7 +1,7 @@
 package com.theveloper.pixelplay.presentation.components
 
+import android.R
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -67,15 +68,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.presentation.viewmodel.DirectoryEntry
 import java.io.File
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
-@OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileExplorerBottomSheet(
     currentPath: File,
     directoryChildren: List<DirectoryEntry>,
-    allowedDirectories: Set<String>,
     smartViewEnabled: Boolean,
     isLoading: Boolean,
     isAtRoot: Boolean,
@@ -87,8 +85,7 @@ fun FileExplorerBottomSheet(
     onRefresh: () -> Unit,
     onSmartViewToggle: (Boolean) -> Unit,
     onDone: () -> Unit,
-    onDismiss: () -> Unit,
-    isDirectorySelected: (File) -> Boolean
+    onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -100,7 +97,6 @@ fun FileExplorerBottomSheet(
         FileExplorerContent(
             currentPath = currentPath,
             directoryChildren = directoryChildren,
-            allowedDirectories = allowedDirectories,
             smartViewEnabled = smartViewEnabled,
             isLoading = isLoading,
             isAtRoot = isAtRoot,
@@ -112,18 +108,16 @@ fun FileExplorerBottomSheet(
             onRefresh = onRefresh,
             onSmartViewToggle = onSmartViewToggle,
             onDone = onDone,
-            isDirectorySelected = isDirectorySelected,
             modifier = Modifier.fillMaxHeight(0.9f)
         )
     }
 }
 
-@OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileExplorerContent(
     currentPath: File,
     directoryChildren: List<DirectoryEntry>,
-    allowedDirectories: Set<String>,
     smartViewEnabled: Boolean,
     isLoading: Boolean,
     isAtRoot: Boolean,
@@ -135,11 +129,12 @@ fun FileExplorerContent(
     onRefresh: () -> Unit,
     onSmartViewToggle: (Boolean) -> Unit,
     onDone: () -> Unit,
-    isDirectorySelected: (File) -> Boolean,
     title: String = "Select music folders",
     leadingContent: @Composable (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val listState = rememberLazyListState()
+
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -206,7 +201,7 @@ fun FileExplorerContent(
                 FilterChip(
                     selected = smartViewEnabled,
                     onClick = { onSmartViewToggle(true) },
-                    label = { Text("Smart View") }
+                    label = { Text("Smart View (Beta)") }
                 )
             }
 
@@ -216,11 +211,13 @@ fun FileExplorerContent(
                 isAtRoot = isAtRoot,
                 onNavigateUp = onNavigateUp,
                 onNavigateHome = onNavigateHome,
-                onNavigateTo = onNavigateTo
+                onNavigateTo = onNavigateTo,
+                navigationEnabled = !smartViewEnabled
             )
-            Box{
+            
+            // --- CONFLICT RESOLVED SECTION START ---
+            Box(modifier = Modifier.weight(1f)) {
                 AnimatedContent(
-                    //modifier = Modifier.weight(1f),
                     targetState = Triple(currentPath, directoryChildren, isLoading),
                     label = "directory_content",
                     transitionSpec = {
@@ -234,14 +231,11 @@ fun FileExplorerContent(
 
                         else -> {
                             LazyColumn(
-                                modifier = Modifier.fillMaxHeight(),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                state = listState
                             ) {
                                 items(children, key = { it.file.absolutePath }) { directoryEntry ->
-                                    val isAllowed =
-                                        remember(allowedDirectories, smartViewEnabled, directoryEntry) {
-                                            isDirectorySelected(directoryEntry.file)
-                                        }
                                     val displayCount = if (smartViewEnabled) {
                                         directoryEntry.directAudioCount
                                     } else {
@@ -252,9 +246,10 @@ fun FileExplorerContent(
                                         file = directoryEntry.file,
                                         audioCount = displayCount,
                                         displayName = directoryEntry.displayName,
-                                        isAllowed = isAllowed,
+                                        isAllowed = directoryEntry.isSelected,
                                         onNavigate = { onNavigateTo(directoryEntry.file) },
-                                        onToggleAllowed = { onToggleAllowed(directoryEntry.file) }
+                                        onToggleAllowed = { onToggleAllowed(directoryEntry.file) },
+                                        navigationEnabled = !smartViewEnabled
                                     )
                                 }
                                 item { Spacer(modifier = Modifier.height(76.dp)) }
@@ -275,145 +270,9 @@ fun FileExplorerContent(
                                 )
                             )
                         )
-                ) {
-
-                }
+                )
             }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun FileExplorerHeader(
-    currentPath: File,
-    rootDirectory: File,
-    isAtRoot: Boolean,
-    onNavigateUp: () -> Unit,
-    onNavigateHome: () -> Unit,
-    onNavigateTo: (File) -> Unit
-) {
-    val scrollState = rememberScrollState()
-    var breadcrumbs by remember { mutableStateOf<List<File>>(emptyList()) }
-
-    LaunchedEffect(currentPath, rootDirectory) {
-        breadcrumbs = withContext(Dispatchers.IO) {
-            val segments = mutableListOf<File>()
-            var cursor: File? = currentPath
-            val rootPath = rootDirectory.path
-            while (cursor != null) {
-                segments.add(cursor)
-                if (cursor.path == rootPath) break
-                cursor = cursor.parentFile
-            }
-            segments.reversed()
-        }
-    }
-
-    val rootLabel = remember(rootDirectory) {
-        when (rootDirectory.name) {
-            "0", "" -> "Internal storage"
-            else -> rootDirectory.name
-        }
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            if (!isAtRoot) {
-                IconButton(
-                    onClick = onNavigateUp,
-                    colors = IconButtonDefaults.iconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.ArrowBack,
-                        contentDescription = "Navigate up",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
-
-            if (!isAtRoot) {
-                LaunchedEffect(currentPath) {
-                    scrollState.animateScrollTo(scrollState.maxValue)
-                }
-
-                //CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .horizontalScroll(scrollState),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        breadcrumbs.forEachIndexed { index, file ->
-                            val isRoot = file.path == rootDirectory.path
-                            val isLast = index == breadcrumbs.lastIndex
-                            val label = if (isRoot) rootLabel else file.name.ifEmpty { file.path }
-
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .clip(CircleShape)
-                                        .clickable(enabled = !isLast) {
-                                            if (isRoot) onNavigateHome() else onNavigateTo(file)
-                                        }
-                                        .background(
-                                            color = if (isLast) {
-                                                MaterialTheme.colorScheme.secondaryContainer.copy(
-                                                    alpha = 0.5f
-                                                )
-                                            } else {
-                                                MaterialTheme.colorScheme.surfaceContainerHigh
-                                            },
-                                            shape = CircleShape
-                                        )
-                                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                                ) {
-                                    if (isRoot) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Home,
-                                            contentDescription = "Go to root",
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(end = 4.dp)
-                                        )
-                                    }
-                                    Text(
-                                        text = label,
-                                        style = MaterialTheme.typography.bodyMedium.copy(
-                                            fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal
-                                        ),
-                                        color = if (isLast) {
-                                            MaterialTheme.colorScheme.onSurface
-                                        } else {
-                                            MaterialTheme.colorScheme.onSurfaceVariant
-                                        },
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-
-                                if (!isLast) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.ChevronRight,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
-                //}
-            }
+            // --- CONFLICT RESOLVED SECTION END ---
         }
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
@@ -475,7 +334,8 @@ private fun FileExplorerItem(
     displayName: String?,
     isAllowed: Boolean,
     onNavigate: () -> Unit,
-    onToggleAllowed: () -> Unit
+    onToggleAllowed: () -> Unit,
+    navigationEnabled: Boolean
 ) {
     val shape = RoundedCornerShape(18.dp)
 
@@ -502,7 +362,7 @@ private fun FileExplorerItem(
             .fillMaxWidth()
             .clip(shape)
             .background(containerColor)
-            .clickable { onNavigate() }
+            .clickable(enabled = navigationEnabled) { onNavigate() }
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -558,11 +418,15 @@ private fun FileExplorerItem(
             }
         }
 
-        Icon(
-            imageVector = Icons.Rounded.ChevronRight,
-            contentDescription = null,
-            tint = contentColor
-        )
+        if (navigationEnabled) {
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = null,
+                tint = contentColor
+            )
+        } else {
+            Spacer(modifier = Modifier.width(8.dp))
+        }
 
         RadioButton(
             selected = isAllowed,
@@ -572,5 +436,140 @@ private fun FileExplorerItem(
                 unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
             )
         )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun FileExplorerHeader(
+    currentPath: File,
+    rootDirectory: File,
+    isAtRoot: Boolean,
+    onNavigateUp: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onNavigateTo: (File) -> Unit,
+    navigationEnabled: Boolean
+ ) {
+    val scrollState = rememberScrollState()
+    val breadcrumbs by remember(currentPath, rootDirectory) {
+        mutableStateOf(buildList {
+            var cursor: File? = currentPath
+            val rootPath = rootDirectory.path
+            while (cursor != null) {
+                add(cursor)
+                if (cursor.path == rootPath) break
+                cursor = cursor.parentFile
+            }
+            reverse()
+        })
+    }
+
+    val rootLabel = remember(rootDirectory) {
+        when (rootDirectory.name) {
+            "0", "" -> "Internal storage"
+            else -> rootDirectory.name
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (!isAtRoot && navigationEnabled) {
+                IconButton(
+                    onClick = onNavigateUp,
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ArrowBack,
+                        contentDescription = "Navigate up",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+
+            if (!isAtRoot) {
+                LaunchedEffect(currentPath) {
+                    scrollState.scrollTo(scrollState.maxValue)
+                }
+
+                //CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .horizontalScroll(scrollState),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        breadcrumbs.forEachIndexed { index, file ->
+                            val isRoot = file.path == rootDirectory.path
+                            val isLast = index == breadcrumbs.lastIndex
+                            val label = if (isRoot) rootLabel else file.name.ifEmpty { file.path }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .clickable(enabled = !isLast && navigationEnabled) {
+                                            if (isRoot) onNavigateHome() else onNavigateTo(file)
+                                        }
+                                        .background(
+                                            color = if (isLast) {
+                                                MaterialTheme.colorScheme.secondaryContainer.copy(
+                                                    alpha = 0.5f
+                                                )
+                                            } else {
+                                                MaterialTheme.colorScheme.surfaceContainerHigh
+                                            },
+                                            shape = CircleShape
+                                        )
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    if (isRoot) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Home,
+                                            contentDescription = "Go to root",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(end = 4.dp)
+                                        )
+                                    }
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal
+                                        ),
+                                        color = if (isLast) {
+                                            MaterialTheme.colorScheme.onSurface
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                if (!isLast) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.ChevronRight,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                //}
+            }
+        }
+
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
     }
 }
