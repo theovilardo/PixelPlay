@@ -101,6 +101,12 @@ fun FileExplorerDialog(
     val transitionState = remember { MutableTransitionState(false) }
     transitionState.targetState = visible
 
+    LaunchedEffect(visible) {
+        if (visible) {
+            onSmartViewToggle(false)
+        }
+    }
+
     if (transitionState.currentState || transitionState.targetState) {
         Dialog(
             onDismissRequest = onDismiss,
