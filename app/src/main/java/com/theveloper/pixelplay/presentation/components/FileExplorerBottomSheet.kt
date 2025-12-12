@@ -41,7 +41,6 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -51,6 +50,9 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.tabIndicatorOffset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -71,7 +73,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.theveloper.pixelplay.presentation.screens.TabAnimation
 import com.theveloper.pixelplay.presentation.viewmodel.DirectoryEntry
+import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import java.io.File
 
 @Composable
@@ -216,20 +220,47 @@ fun FileExplorerContent(
                 }
             }
 
-            Row(
+            val tabTitles = listOf("All folders", "Smart View (Beta)")
+            val selectedTabIndex = if (smartViewEnabled) 1 else 0
+
+            TabRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                selectedTabIndex = selectedTabIndex,
+                containerColor = Color.Transparent,
+                indicator = { tabPositions ->
+                    if (selectedTabIndex < tabPositions.size) {
+                        TabRowDefaults.PrimaryIndicator(
+                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
+                            height = 3.dp,
+                            color = Color.Transparent
+                        )
+                    }
+                },
+                divider = {}
             ) {
-                FilterChip(
-                    selected = !smartViewEnabled,
-                    onClick = { onSmartViewToggle(false) },
-                    label = { Text("All folders") }
-                )
-                FilterChip(
-                    selected = smartViewEnabled,
-                    onClick = { onSmartViewToggle(true) },
-                    label = { Text("Smart View (Beta)") }
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Spacer(modifier = Modifier.width(14.dp))
+                    tabTitles.forEachIndexed { index, title ->
+                        TabAnimation(
+                            modifier = Modifier.weight(1f),
+                            index = index,
+                            title = title,
+                            selectedIndex = selectedTabIndex,
+                            onClick = { onSmartViewToggle(index == 1) }
+                        ) {
+                            Text(
+                                text = title,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = GoogleSansRounded
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                }
             }
 
             FileExplorerHeader(
