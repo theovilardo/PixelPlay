@@ -58,6 +58,9 @@ class FileExplorerStateHolder(
     private val _allowedDirectories = MutableStateFlow<Set<String>>(emptySet())
     val allowedDirectories: StateFlow<Set<String>> = _allowedDirectories.asStateFlow()
 
+    private val _blockedDirectories = MutableStateFlow<Set<String>>(emptySet())
+    val blockedDirectories: StateFlow<Set<String>> = _blockedDirectories.asStateFlow()
+
     private val _smartViewEnabled = MutableStateFlow(false)
     val smartViewEnabled: StateFlow<Boolean> = _smartViewEnabled.asStateFlow()
 
@@ -90,22 +93,32 @@ class FileExplorerStateHolder(
             }
             .launchIn(scope)
 
+        userPreferencesRepository.blockedDirectoriesFlow
+            .onEach { blocked ->
+                _blockedDirectories.value = blocked.map(::normalizePath).toSet()
+            }
+            .launchIn(scope)
+
         // Combiner to produce final UI list with isSelected state
         combine(
             _rawCurrentDirectoryChildren,
             _allowedDirectories,
+            _blockedDirectories,
             _smartViewEnabled
-        ) { rawEntries, allowed, isSmartView ->
-            Triple(rawEntries, allowed, isSmartView)
+        ) { rawEntries, allowed, blocked, isSmartView ->
+            Triple(rawEntries, Pair(allowed, blocked), isSmartView)
         }
-            .mapLatest { (rawEntries, allowed, isSmartView) ->
+            .mapLatest { (rawEntries, selection, isSmartView) ->
+                val (allowed, blocked) = selection
                 rawEntries.map { raw ->
-                    val isSelected = if (isSmartView) {
-                        // Flattened mode: Check exact match
-                        allowed.contains(raw.canonicalPath)
+                    val normalizedPath = raw.canonicalPath
+                    val isBlocked = blocked.any { normalizedPath == it || normalizedPath.startsWith("$it/") }
+                    val isSelected = if (isBlocked) {
+                        false
+                    } else if (isSmartView) {
+                        allowed.any { normalizedPath == it || normalizedPath.startsWith("$it/") }
                     } else {
-                        // Navigation mode: Check if path or any ancestor is allowed
-                        allowed.any { raw.canonicalPath.startsWith(it) && (raw.canonicalPath.length == it.length || raw.canonicalPath[it.length] == File.separatorChar) }
+                        allowed.any { normalizedPath == it || normalizedPath.startsWith("$it/") }
                     }
                     DirectoryEntry(
                         file = raw.file,
@@ -170,40 +183,37 @@ class FileExplorerStateHolder(
     fun toggleDirectoryAllowed(file: File) {
         scope.launch {
             val currentAllowed = _allowedDirectories.value.toMutableSet()
+            val currentBlocked = _blockedDirectories.value.toMutableSet()
             val path = normalizePath(file)
-            val isSmartView = _smartViewEnabled.value
 
-            if (isSmartView) {
-                // Flattened Mode: Independent selection
-                if (currentAllowed.contains(path)) {
+            val isCurrentlyBlocked = currentBlocked.any { path == it || path.startsWith("$it/") }
+            if (isCurrentlyBlocked) {
+                currentBlocked.removeAll { it == path || it.startsWith("$path/") }
+                userPreferencesRepository.updateDirectorySelections(currentAllowed, currentBlocked)
+                return@launch
+            }
+
+            val hasExplicitAllowance = currentAllowed.contains(path)
+            val hasAllowedAncestor = currentAllowed.any { path != it && path.startsWith("$it/") }
+
+            when {
+                hasExplicitAllowance -> {
                     currentAllowed.remove(path)
-                } else {
-                    currentAllowed.add(path)
+                    currentBlocked.removeAll { it.startsWith("$path/") }
                 }
-            } else {
-                // Navigation Mode: Subtree logic
-                val explicit = currentAllowed.firstOrNull { it == path }
-                val ancestor = currentAllowed.firstOrNull { path != it && path.startsWith("$it/") }
 
-                when {
-                    explicit != null -> {
-                        // Deselecting a root
-                        currentAllowed.remove(path)
-                    }
-                    ancestor != null -> {
-                        // Deselecting a child of an existing root -> break the root
-                        currentAllowed.removeAll { it == ancestor || it.startsWith("$ancestor/") }
-                        val replacement = collectCoverageExcluding(File(ancestor), path)
-                        currentAllowed.addAll(replacement)
-                    }
-                    else -> {
-                        // Selecting a new root -> remove any existing children that are now covered
-                        currentAllowed.removeAll { it.startsWith("$path/") }
-                        currentAllowed.add(path)
-                    }
+                hasAllowedAncestor -> {
+                    currentBlocked.add(path)
+                    currentAllowed.removeAll { it.startsWith("$path/") }
+                }
+
+                else -> {
+                    currentAllowed.add(path)
+                    currentBlocked.removeAll { it == path || it.startsWith("$path/") || path.startsWith("$it/") }
                 }
             }
-            userPreferencesRepository.updateAllowedDirectories(currentAllowed)
+
+            userPreferencesRepository.updateDirectorySelections(currentAllowed, currentBlocked)
         }
     }
 
@@ -224,7 +234,11 @@ class FileExplorerStateHolder(
     }
 
     // Fast check for internal logic
-    fun isPathAllowed(path: String): Boolean = _allowedDirectories.value.any { path.startsWith(it) }
+    fun isPathAllowed(path: String): Boolean {
+        val normalized = normalizePath(path)
+        if (_blockedDirectories.value.any { normalized == it || normalized.startsWith("$it/") }) return false
+        return _allowedDirectories.value.any { normalized == it || normalized.startsWith("$it/") }
+    }
 
     private suspend fun loadDirectoryInternal(file: File, updatePath: Boolean, forceRefresh: Boolean) {
         val target = if (file.isDirectory) file else visibleRoot

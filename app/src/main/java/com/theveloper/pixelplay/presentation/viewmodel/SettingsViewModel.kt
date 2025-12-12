@@ -161,6 +161,7 @@ class SettingsViewModel @Inject constructor(
 
     fun toggleDirectoryAllowed(file: File) {
         fileExplorerStateHolder.toggleDirectoryAllowed(file)
+        syncManager.sync()
     }
 
     fun loadDirectory(file: File) {

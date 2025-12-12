@@ -56,6 +56,7 @@ class UserPreferencesRepository @Inject constructor(
         val GEMINI_MODEL = stringPreferencesKey("gemini_model")
         val GEMINI_SYSTEM_PROMPT = stringPreferencesKey("gemini_system_prompt")
         val ALLOWED_DIRECTORIES = stringSetPreferencesKey("allowed_directories")
+        val BLOCKED_DIRECTORIES = stringSetPreferencesKey("blocked_directories")
         val INITIAL_SETUP_DONE = booleanPreferencesKey("initial_setup_done")
         // val GLOBAL_THEME_PREFERENCE = stringPreferencesKey("global_theme_preference_v2") // Removed
         val PLAYER_THEME_PREFERENCE = stringPreferencesKey("player_theme_preference_v2")
@@ -176,6 +177,11 @@ class UserPreferencesRepository @Inject constructor(
     val allowedDirectoriesFlow: Flow<Set<String>> = dataStore.data
         .map { preferences ->
             preferences[PreferencesKeys.ALLOWED_DIRECTORIES] ?: emptySet()
+        }
+
+    val blockedDirectoriesFlow: Flow<Set<String>> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.BLOCKED_DIRECTORIES] ?: emptySet()
         }
 
     val initialSetupDoneFlow: Flow<Boolean> = dataStore.data
@@ -354,6 +360,16 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun updateAllowedDirectories(allowedPaths: Set<String>) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.ALLOWED_DIRECTORIES] = allowedPaths
+        }
+    }
+
+    suspend fun updateDirectorySelections(
+        allowedPaths: Set<String>,
+        blockedPaths: Set<String>
+    ) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.ALLOWED_DIRECTORIES] = allowedPaths
+            preferences[PreferencesKeys.BLOCKED_DIRECTORIES] = blockedPaths
         }
     }
 
