@@ -34,7 +34,8 @@ data class SettingsUiState(
     val allowedDirectories: Set<String> = emptySet(),
     val availableModels: List<GeminiModel> = emptyList(),
     val isLoadingModels: Boolean = false,
-    val modelsFetchError: String? = null
+    val modelsFetchError: String? = null,
+    val appRebrandDialogShown: Boolean = false
 )
 
 @HiltViewModel
@@ -69,6 +70,12 @@ class SettingsViewModel @Inject constructor(
     fun isDirectorySelected(file: File): Boolean = fileExplorerStateHolder.isDirectorySelected(file)
 
     init {
+        viewModelScope.launch {
+            userPreferencesRepository.appRebrandDialogShownFlow.collect { wasShown ->
+                _uiState.update { it.copy(appRebrandDialogShown = wasShown) }
+            }
+        }
+
         viewModelScope.launch {
             userPreferencesRepository.appThemeModeFlow.collect { appThemeMode ->
                 _uiState.update { it.copy(appThemeMode = appThemeMode) }
@@ -145,6 +152,12 @@ class SettingsViewModel @Inject constructor(
             fileExplorerStateHolder.isLoading.collect { loading ->
                 _uiState.update { it.copy(isLoadingDirectories = loading) }
             }
+        }
+    }
+
+    fun setAppRebrandDialogShown(wasShown: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setAppRebrandDialogShown(wasShown)
         }
     }
 

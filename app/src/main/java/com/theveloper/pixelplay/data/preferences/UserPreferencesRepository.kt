@@ -51,6 +51,7 @@ class UserPreferencesRepository @Inject constructor(
 ) {
 
     private object PreferencesKeys {
+        val APP_REBRAND_DIALOG_SHOWN = booleanPreferencesKey("app_rebrand_dialog_shown")
         val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
         val GEMINI_MODEL = stringPreferencesKey("gemini_model")
         val GEMINI_SYSTEM_PROMPT = stringPreferencesKey("gemini_system_prompt")
@@ -89,6 +90,17 @@ class UserPreferencesRepository @Inject constructor(
         val IS_CROSSFADE_ENABLED = booleanPreferencesKey("is_crossfade_enabled")
         val CROSSFADE_DURATION = intPreferencesKey("crossfade_duration")
         val DISABLE_CAST_AUTOPLAY = booleanPreferencesKey("disable_cast_autoplay")
+    }
+
+    val appRebrandDialogShownFlow: Flow<Boolean> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.APP_REBRAND_DIALOG_SHOWN] ?: false
+        }
+
+    suspend fun setAppRebrandDialogShown(wasShown: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.APP_REBRAND_DIALOG_SHOWN] = wasShown
+        }
     }
 
     val isCrossfadeEnabledFlow: Flow<Boolean> = dataStore.data
@@ -708,4 +720,3 @@ class UserPreferencesRepository @Inject constructor(
         }
     }
 }
-

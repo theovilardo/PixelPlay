@@ -1,5 +1,9 @@
 <resources>
     <string name="app_name">PixelPlayer</string>
+    <string name="app_name_change_title">App Name Change</string>
+    <string name="app_name_change_message">We have changed our app\'s name from PixelPlay to PixelPlayer due to a trademark-related issue. Keep playing!</string>
+    <string name="do_not_show_again">Do not show again</string>
+    <string name="dismiss">Dismiss</string>
     <string name="lyrics">Lyrics</string>
     <string name="close_lyrics_sheet">Close Lyrics Sheet</string>
     <string name="loading_lyrics">Loading lyrics…</string>
