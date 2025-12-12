@@ -4,6 +4,8 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.SystemClock
+import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -19,6 +21,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -42,6 +45,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -55,20 +60,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.util.lerp
 import androidx.navigation.NavController
-import com.theveloper.pixelplay.R
-import kotlinx.coroutines.launch
-import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
-import kotlin.math.roundToInt
-import androidx.core.net.toUri
 import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
 import coil.size.Size
+import com.theveloper.pixelplay.R
+import com.theveloper.pixelplay.data.github.GitHubContributorService
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
+import com.theveloper.pixelplay.presentation.components.brickbreaker.BrickBreakerOverlay
 import androidx.core.graphics.drawable.toBitmap
-import com.theveloper.pixelplay.data.github.GitHubContributorService
+import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.launch
+import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import timber.log.Timber
+import kotlin.math.roundToInt
 
 // Data class to hold information about each person in the acknowledgements section
 data class Contributor(
@@ -266,6 +272,11 @@ fun AboutScreen(
         }
     }
 
+    var showBrickBreaker by remember { mutableStateOf(false) }
+    var tapCount by remember { mutableStateOf(0) }
+    var lastTapTimestamp by remember { mutableStateOf(0L) }
+    val tripleTapWindow = 750L
+
     Box(
         modifier = Modifier
             .nestedScroll(nestedScrollConnection)
@@ -312,6 +323,16 @@ fun AboutScreen(
                                     shape = CircleShape,
                                     color = MaterialTheme.colorScheme.tertiaryContainer
                                 )
+                                .pointerInput(versionName, tapCount, lastTapTimestamp) {
+                                    detectTripleTapHold(
+                                        tripleTapWindow = tripleTapWindow,
+                                        onGestureSatisfied = { showBrickBreaker = true },
+                                        tapCount = tapCount,
+                                        lastTapTimestamp = lastTapTimestamp,
+                                        onTapCountChanged = { tapCount = it },
+                                        onTimestampChanged = { lastTapTimestamp = it }
+                                    )
+                                }
                         ) {
                             Text(
                                 modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp),
@@ -419,7 +440,46 @@ fun AboutScreen(
             headerHeight = currentTopBarHeightDp,
             onBackPressed = onNavigationIconClick
         )
+
+        if (showBrickBreaker) {
+            BackHandler { showBrickBreaker = false }
+            BrickBreakerOverlay(
+                onClose = { showBrickBreaker = false }
+            )
+        }
     }
+}
+
+private suspend fun PointerInputScope.detectTripleTapHold(
+    tripleTapWindow: Long,
+    onGestureSatisfied: () -> Unit,
+    tapCount: Int,
+    lastTapTimestamp: Long,
+    onTapCountChanged: (Int) -> Unit,
+    onTimestampChanged: (Long) -> Unit
+) {
+    detectTapGestures(
+        onPress = {
+            val now = SystemClock.uptimeMillis()
+            val updatedCount = if (now - lastTapTimestamp < tripleTapWindow) tapCount + 1 else 1
+            onTapCountChanged(updatedCount)
+            onTimestampChanged(now)
+
+            val isTriggerTap = updatedCount >= 3
+            val pressStart = SystemClock.uptimeMillis()
+            val released = tryAwaitRelease()
+            val heldDuration = SystemClock.uptimeMillis() - pressStart
+
+            if (isTriggerTap && released && heldDuration >= 2800) {
+                onTapCountChanged(0)
+                onGestureSatisfied()
+            } else if (!isTriggerTap) {
+                // No-op for early taps
+            } else {
+                onTapCountChanged(0)
+            }
+        }
+    )
 }
 
 // Composable for displaying a single contributor
