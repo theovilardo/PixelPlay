@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0-beta] - 2026-01-15
+
+### Added
+- Major navigation redesign
+- New file explorer for choosing source directories
+- Landscape mode (thanks to "leave this blank for now")
+- New Connectivity and casting functionalities
+- Seamless continuity between remote devices
+- Gapless transition between songs
+- Crossfade
+- New Custom Transitions feature (only for playlists)
+- Keep playing after closed the app
+- UI Optimizations
+- Improved stats feature
+- Redesigned Queue control with more features
+- Improved different filetypes support for playing and metadata editing
+- Improved permission controller
+- Minor bug fixes
+
 ## [0.3.0-beta] - 2025-10-28
 
 ### What's new
@@ -58,7 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0-beta] - 2024-08-30
 
 ### Added
-- Initial beta release of PixelPlay Music Player.
+- Initial beta release of PixelPlayer Music Player.
 - Local music scanning and playback (MP3, FLAC, AAC).
 - Background playback using a foreground service and Media3.
 - Modern UI with Jetpack Compose, Material 3, and Dynamic Color support.

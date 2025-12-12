@@ -659,7 +659,7 @@ class MainActivity : ComponentActivity() {
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "PixelPlay needs access to your audio files to scan and play your music. Please grant permission to continue.",
+                text = "PixelPlayer needs access to your audio files to scan and play your music. Please grant permission to continue.",
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
