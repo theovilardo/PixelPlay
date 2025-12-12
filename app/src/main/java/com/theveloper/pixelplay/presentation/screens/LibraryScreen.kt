@@ -8,7 +8,6 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -88,14 +87,12 @@ import coil.imageLoader
 import coil.request.ImageRequest
 import coil.size.Size
 import com.theveloper.pixelplay.R
-import com.theveloper.pixelplay.presentation.components.ShimmerBox // Added import for ShimmerBox
+import com.theveloper.pixelplay.presentation.components.ShimmerBox
 import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.data.model.MusicFolder
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.model.SortOption
-// import com.theveloper.pixelplay.presentation.components.InfiniteGridHandler // Removed
-// import com.theveloper.pixelplay.presentation.components.InfiniteListHandler // Removed
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.NavBarContentHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
@@ -130,6 +127,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.gestures.detectTapGestures
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -142,6 +141,8 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.ui.input.pointer.pointerInput
+import com.theveloper.pixelplay.presentation.components.AutoScrollingTextOnDemand
 import com.theveloper.pixelplay.presentation.components.CreatePlaylistDialogRedesigned
 import com.theveloper.pixelplay.presentation.components.PlaylistBottomSheet
 import com.theveloper.pixelplay.presentation.components.PlaylistContainer
@@ -385,7 +386,7 @@ fun LibraryScreen(
                             }
 
                             val distinctByKey = ensured.distinctBy { it.storageKey }
-                            if (distinctByKey.isNotEmpty()) distinctByKey else listOf(currentTabId.defaultSort)
+                            distinctByKey.ifEmpty { listOf(currentTabId.defaultSort) }
                         }
                         val playerUiState by playerViewModel.playerUiState.collectAsState()
                         val playlistUiState by playlistViewModel.uiState.collectAsState()
@@ -771,7 +772,7 @@ fun LibraryScreen(
                     playerViewModel.sendToast("Will play next")
                 },
                 onAddToPlayList = {
-                    showPlaylistBottomSheet = true;
+                    showPlaylistBottomSheet = true
                 },
                 onDeleteFromDevice = playerViewModel::deleteFromDevice,
                 onNavigateToAlbum = {
@@ -1343,8 +1344,7 @@ fun LibrarySongsTab(
                         .background(
                             brush = Brush.verticalGradient(
                                 colors = listOf(
-                                    MaterialTheme.colorScheme.surface,
-                                    Color.Transparent
+                                    MaterialTheme.colorScheme.surface, Color.Transparent
                                 )
                             )
                         )
@@ -1467,11 +1467,24 @@ fun EnhancedSongListItem(
         }
     } else {
         // Actual Song Item Layout
+        var applyTextMarquee by remember { mutableStateOf(false) }
+
         Surface(
             modifier = modifier
                 .fillMaxWidth()
                 .clip(surfaceShape)
-                .clickable { onClick() },
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onTap = { onClick() },
+                        onLongPress = { applyTextMarquee = !applyTextMarquee },
+                        onPress = {
+                            try {
+                                awaitRelease()
+                            } finally {
+                                applyTextMarquee = false
+                            }
+                        })
+                },
             shape = surfaceShape,
             color = containerColor,
         ) {
@@ -1501,14 +1514,24 @@ fun EnhancedSongListItem(
                         .weight(1f)
                         .padding(start = 14.dp)
                 ) {
-                    Text(
-                        text = song.title,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        color = contentColor,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    if (applyTextMarquee) {
+                        AutoScrollingTextOnDemand(
+                            text = song.title,
+                            style = MaterialTheme.typography.bodyLarge,
+                            gradientEdgeColor = containerColor,
+                            expansionFraction = 1f,
+                        )
+
+                    } else {
+                        Text(
+                            text = song.title,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            color = contentColor,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = song.artist,
@@ -1776,12 +1799,10 @@ fun AlbumGridItemRedesigned(
                                 remember(gradientBaseColor) { // Recordar el Brush
                                     Brush.verticalGradient(
                                         colors = listOf(
-                                            Color.Transparent,
-                                            gradientBaseColor
+                                            Color.Transparent, gradientBaseColor
                                         )
                                     )
-                                }
-                            )
+                                })
                     )
                 }
                 Column(
