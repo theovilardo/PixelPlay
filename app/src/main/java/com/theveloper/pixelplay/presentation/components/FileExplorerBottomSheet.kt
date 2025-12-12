@@ -42,7 +42,6 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -73,6 +72,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.theveloper.pixelplay.presentation.screens.TabAnimation
@@ -100,6 +100,12 @@ fun FileExplorerDialog(
 ) {
     val transitionState = remember { MutableTransitionState(false) }
     transitionState.targetState = visible
+
+    LaunchedEffect(visible) {
+        if (visible) {
+            onSmartViewToggle(false)
+        }
+    }
 
     if (transitionState.currentState || transitionState.targetState) {
         Dialog(
@@ -188,7 +194,7 @@ fun FileExplorerContent(
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(7.2.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -203,7 +209,7 @@ fun FileExplorerContent(
                     leadingContent?.invoke()
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleLarge.copy(fontSize = 28.sp),
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(start = 6.dp)
                     )
@@ -351,8 +357,6 @@ fun FileExplorerContent(
                 )
             }
         }
-
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
     }
 }
 
