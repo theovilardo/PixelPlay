@@ -63,6 +63,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -971,6 +972,7 @@ private fun PlayerSongInfo(
     onCollapse: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val coroutineScope = rememberCoroutineScope()
     val titleStyle = MaterialTheme.typography.headlineSmall.copy(
         fontWeight = FontWeight.Bold,
         fontFamily = GoogleSansRounded,
@@ -1003,8 +1005,12 @@ private fun PlayerSongInfo(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) {
-                navController.navigate(Screen.ArtistDetail.createRoute(artistId))
-                onCollapse()
+                coroutineScope.launch {
+                    onCollapse()
+                    // Wait a frame so the sheet can start collapsing before navigating.
+                    withFrameNanos { }
+                    navController.navigate(Screen.ArtistDetail.createRoute(artistId))
+                }
             }
         )
     }
