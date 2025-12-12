@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsets.Companion.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -39,6 +40,7 @@ import androidx.compose.material.icons.rounded.FolderOff
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -148,7 +150,7 @@ fun FileExplorerContent(
     onRefresh: () -> Unit,
     onSmartViewToggle: (Boolean) -> Unit,
     onDone: () -> Unit,
-    title: String = "Select music folders",
+    title: String = "Music folders",
     leadingContent: @Composable (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -157,7 +159,7 @@ fun FileExplorerContent(
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        contentWindowInsets = WindowInsets(0),
+        contentWindowInsets = WindowInsets.systemBars,
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onDone,
@@ -177,7 +179,7 @@ fun FileExplorerContent(
     ) { innerPadding ->
         Column(
             modifier = Modifier
-                .padding(top = innerPadding.calculateTopPadding())
+                .padding(innerPadding)
                 .fillMaxSize()
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -194,17 +196,22 @@ fun FileExplorerContent(
                     leadingContent?.invoke()
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.headlineSmall,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(horizontal = 4.dp)
                     )
                 }
 
-                IconButton(onClick = onRefresh) {
+                FilledIconButton(
+                    onClick = onRefresh,
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                ) {
                     Icon(
                         imageVector = Icons.Rounded.Refresh,
-                        contentDescription = "Refresh",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        contentDescription = "Refresh"
                     )
                 }
             }
