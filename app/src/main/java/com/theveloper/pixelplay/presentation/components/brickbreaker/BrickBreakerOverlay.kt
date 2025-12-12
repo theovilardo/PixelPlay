@@ -2,24 +2,35 @@ package com.theveloper.pixelplay.presentation.components.brickbreaker
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material3.ElevatedAssistChip
-import androidx.compose.material3.FilledIconButton
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,28 +47,47 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.consume
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.toSize
-import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.isActive
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.random.Random
+
+// --- Data Models ---
+
+enum class BrickType {
+    Normal,
+    Hard,
+    Solid // Unbreakable
+}
 
 private data class BrickState(
     val rect: Rect,
     val hitsRemaining: Int,
+    val type: BrickType,
+    val maxHits: Int,
     val color: Color
 )
+
+// --- Composable ---
 
 @Composable
 fun BrickBreakerOverlay(
@@ -64,19 +95,27 @@ fun BrickBreakerOverlay(
     onClose: () -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
-    val accent = colorScheme.primary
-    val surface = colorScheme.surface
     val density = LocalDensity.current
 
+    // Game Physics Constants (Scaled by Density usually, but here dynamic)
+    // Aumentamos la velocidad base significativamente (antes 380f)
+    val baseBallVelocity = 500f
+
+    // Game State
     var areaSize by remember { mutableStateOf(IntSize.Zero) }
     var paddleX by remember { mutableFloatStateOf(0f) }
-    val paddleWidthPx = with(density) { 140.dp.toPx() }
-    val paddleHeightPx = with(density) { 14.dp.toPx() }
-    val paddleBottomInset = with(density) { 42.dp.toPx() }
-    val ballRadius = with(density) { 9.dp.toPx() }
+
+    // Dynamic Difficulty Props
+    var level by remember { mutableIntStateOf(1) }
+    var currentSpeedMult by remember { mutableFloatStateOf(1f) }
+    var paddleWidthPx by remember { mutableFloatStateOf(0f) } // Will be set based on screen
+
+    val paddleHeightPx = with(density) { 16.dp.toPx() }
+    val paddleBottomInset = with(density) { 32.dp.toPx() }
+    val ballRadius = with(density) { 10.dp.toPx() }
 
     var ballPosition by remember { mutableStateOf(Offset.Zero) }
-    var ballVelocity by remember { mutableStateOf(Offset(280f, -320f)) }
+    var ballVelocity by remember { mutableStateOf(Offset(baseBallVelocity, -baseBallVelocity)) }
     var ballLaunched by remember { mutableStateOf(false) }
     var lives by remember { mutableIntStateOf(3) }
     var score by remember { mutableIntStateOf(0) }
@@ -84,6 +123,13 @@ fun BrickBreakerOverlay(
     var isGameOver by remember { mutableStateOf(false) }
 
     val bricks = remember { mutableStateListOf<BrickState>() }
+
+    // Initialization of dimensions
+    LaunchedEffect(areaSize) {
+        if (areaSize != IntSize.Zero && paddleWidthPx == 0f) {
+            paddleWidthPx = areaSize.width * 0.25f // Paddle is 25% of screen width initially
+        }
+    }
 
     fun centerPaddle() {
         if (areaSize == IntSize.Zero) return
@@ -94,329 +140,561 @@ fun BrickBreakerOverlay(
         if (areaSize == IntSize.Zero) return
         val paddleTop = areaSize.height - paddleBottomInset - paddleHeightPx
         ballPosition = Offset(paddleX + paddleWidthPx / 2f, paddleTop - ballRadius - 4f)
-        ballVelocity = ballVelocity.copy(y = -abs(ballVelocity.y))
+        // Reset vertical direction but keep horizontal momentum feels weird, so strict reset:
+        val speed = baseBallVelocity * currentSpeedMult
+        // Launch at a slight random angle to prevent boring straight vertical loops
+        val randomX = Random.nextDouble(-0.5, 0.5).toFloat() * speed
+        ballVelocity = Offset(randomX, -speed)
     }
 
-    fun rebuildBricks() {
+    fun generateLevel(lvl: Int) {
         if (areaSize == IntSize.Zero) return
         bricks.clear()
-        val padding = 8.dp.value
-        val rows = 5
-        val cols = 8
-        val brickHeight = 20.dp.value
-        val startY = 36.dp.value
-        val totalPaddingX = padding * (cols + 1)
-        val brickWidth = max((areaSize.width - totalPaddingX) / cols, 24f)
 
-        repeat(rows) { row ->
-            repeat(cols) { col ->
-                val left = padding + col * (brickWidth + padding)
-                val top = startY + row * (brickHeight + padding)
-                val rect = Rect(left, top, left + brickWidth, top + brickHeight)
-                val colorStep = 0.08f * row
-                val color = colorScheme.tertiary.copy(alpha = 0.85f - colorStep)
-                bricks.add(
-                    BrickState(
-                        rect = rect,
-                        hitsRemaining = 1,
-                        color = color
-                    )
-                )
+        // Difficulty scaling
+        // Cada nivel aumenta la velocidad base un 10%
+        currentSpeedMult = 1f + (lvl - 1) * 0.1f
+        val widthFactor = (0.25f - (lvl * 0.02f)).coerceAtLeast(0.10f) // Shrink paddle
+        paddleWidthPx = areaSize.width * widthFactor
+
+        val padding = 8.dp.value * density.density
+        val topOffset = 20.dp.value * density.density
+        val rows = min(5 + lvl, 10) // More rows on higher levels
+        val cols = 8 // Keep even for symmetry
+        val brickHeight = 24.dp.value * density.density
+        val totalPaddingX = padding * (cols + 1)
+        val brickWidth = max((areaSize.width - totalPaddingX) / cols, 10f)
+
+        // Generate grid
+        for (row in 0 until rows) {
+            // Symmetry logic: Only decide for half the columns, then mirror
+            for (col in 0 until cols / 2) {
+
+                // Randomness factors
+                val shouldSkip = Random.nextFloat() < (0.1f * (lvl * 0.5f)).coerceAtMost(0.3f) // Holes in grid
+                val isHard = Random.nextFloat() < (0.1f * lvl).coerceAtMost(0.4f)
+                val isSolid = lvl > 2 && Random.nextFloat() < 0.05f && row > 1 // Rare solid blocks, not at bottom
+
+                if (!shouldSkip) {
+                    val type = when {
+                        isSolid -> BrickType.Solid
+                        isHard -> BrickType.Hard
+                        else -> BrickType.Normal
+                    }
+
+                    val hits = if (type == BrickType.Hard) 2 else 1
+
+                    // Colors
+                    val baseColor = when(type) {
+                        BrickType.Solid -> Color(0xFF555555)
+                        BrickType.Hard -> colorScheme.error
+                        else -> {
+                            // Gradient from top to bottom based on Tertiary
+                            val hueShift = row * 0.1f
+                            colorScheme.tertiary.copy(alpha = 1f - hueShift.coerceAtMost(0.5f))
+                        }
+                    }
+
+                    // Create Left Side Brick
+                    val leftX = padding + col * (brickWidth + padding)
+                    val topY = topOffset + row * (brickHeight + padding)
+
+                    bricks.add(BrickState(
+                        rect = Rect(leftX, topY, leftX + brickWidth, topY + brickHeight),
+                        hitsRemaining = hits,
+                        maxHits = hits,
+                        type = type,
+                        color = baseColor
+                    ))
+
+                    // Create Right Side Mirror Brick
+                    val mirrorCol = cols - 1 - col
+                    val mirrorLeftX = padding + mirrorCol * (brickWidth + padding)
+
+                    bricks.add(BrickState(
+                        rect = Rect(mirrorLeftX, topY, mirrorLeftX + brickWidth, topY + brickHeight),
+                        hitsRemaining = hits,
+                        maxHits = hits,
+                        type = type,
+                        color = baseColor
+                    ))
+                }
             }
         }
     }
 
-    fun resetGame() {
-        hasWon = false
+    fun resetGame(fullReset: Boolean = false) {
         isGameOver = false
-        lives = 3
-        score = 0
-        ballVelocity = Offset(280f, -340f)
+        hasWon = false
+        ballLaunched = false
+
+        if (fullReset) {
+            score = 0
+            lives = 3
+            level = 1
+        }
+
+        generateLevel(level)
         centerPaddle()
         attachBallToPaddle()
-        rebuildBricks()
+    }
+
+    fun nextLevel() {
+        level++
+        ballLaunched = false
+        hasWon = false
+        generateLevel(level)
+        centerPaddle()
+        attachBallToPaddle()
     }
 
     LaunchedEffect(areaSize) {
         if (areaSize != IntSize.Zero) {
-            resetGame()
+            resetGame(true)
         }
     }
 
-    LaunchedEffect(areaSize, ballLaunched, lives, hasWon, isGameOver) {
-        if (areaSize == IntSize.Zero) return@LaunchedEffect
+    // Game Loop
+    LaunchedEffect(ballLaunched, lives, hasWon, isGameOver, areaSize) {
+        if (areaSize == IntSize.Zero || !ballLaunched || isGameOver || hasWon) return@LaunchedEffect
+
         var lastFrameNanos = withFrameNanos { it }
+
         while (isActive) {
             val frameNanos = withFrameNanos { it }
-            val deltaTime = (frameNanos - lastFrameNanos) / 1_000_000_000f
+            // Cap delta time to prevent tunneling on lag spikes
+            val deltaTime = ((frameNanos - lastFrameNanos) / 1_000_000_000f).coerceAtMost(0.04f)
             lastFrameNanos = frameNanos
 
-            if (ballLaunched && !isGameOver && !hasWon) {
-                var nextPos = ballPosition + ballVelocity * deltaTime
-                var nextVelocity = ballVelocity
+            var nextPos = ballPosition + ballVelocity * deltaTime
+            var nextVelocity = ballVelocity
 
-                // Walls
-                if (nextPos.x - ballRadius <= 0) {
-                    nextPos = nextPos.copy(x = ballRadius)
-                    nextVelocity = nextVelocity.copy(x = abs(nextVelocity.x))
-                }
-                if (nextPos.x + ballRadius >= areaSize.width) {
-                    nextPos = nextPos.copy(x = areaSize.width - ballRadius)
-                    nextVelocity = nextVelocity.copy(x = -abs(nextVelocity.x))
-                }
-                if (nextPos.y - ballRadius <= 0) {
-                    nextPos = nextPos.copy(y = ballRadius)
-                    nextVelocity = nextVelocity.copy(y = abs(nextVelocity.y))
-                }
+            // --- Wall Collisions ---
+            // Left
+            if (nextPos.x - ballRadius <= 0) {
+                nextPos = nextPos.copy(x = ballRadius)
+                nextVelocity = nextVelocity.copy(x = abs(nextVelocity.x))
+            }
+            // Right
+            if (nextPos.x + ballRadius >= areaSize.width) {
+                nextPos = nextPos.copy(x = areaSize.width - ballRadius)
+                nextVelocity = nextVelocity.copy(x = -abs(nextVelocity.x))
+            }
+            // Top
+            if (nextPos.y - ballRadius <= 0) {
+                nextPos = nextPos.copy(y = ballRadius)
+                nextVelocity = nextVelocity.copy(y = abs(nextVelocity.y))
+            }
 
-                val paddleTop = areaSize.height - paddleBottomInset - paddleHeightPx
-                val paddleRect = Rect(
-                    paddleX,
-                    paddleTop,
-                    paddleX + paddleWidthPx,
-                    paddleTop + paddleHeightPx
-                )
+            // --- Paddle Collision ---
+            val paddleTop = areaSize.height - paddleBottomInset - paddleHeightPx
+            val paddleRect = Rect(paddleX, paddleTop, paddleX + paddleWidthPx, paddleTop + paddleHeightPx)
 
-                // Paddle collision
-                if (nextVelocity.y > 0 && circleIntersectsRect(nextPos, ballRadius, paddleRect)) {
-                    val influence = ((nextPos.x - paddleRect.center.x) / (paddleWidthPx / 2f)).coerceIn(-1f, 1f)
-                    val newX = (max(220f, abs(nextVelocity.x)) * influence)
-                    nextVelocity = Offset(newX, -abs(nextVelocity.y)).copy(y = -abs(nextVelocity.y))
-                    nextPos = nextPos.copy(y = paddleRect.top - ballRadius - 1f)
-                }
+            if (nextVelocity.y > 0 && circleIntersectsRect(nextPos, ballRadius, paddleRect)) {
+                // Calculate impact point (-1 left, 0 center, 1 right)
+                val hitPoint = ((nextPos.x - paddleRect.center.x) / (paddleWidthPx / 2f)).coerceIn(-1f, 1f)
 
-                // Brick collisions
-                var hitIndex = -1
-                var shouldInvertX = false
-                var shouldInvertY = false
-                bricks.forEachIndexed { index, brick ->
-                    if (hitIndex != -1 || brick.hitsRemaining <= 0) return@forEachIndexed
-                    if (circleIntersectsRect(nextPos, ballRadius, brick.rect)) {
-                        hitIndex = index
-                        val dx = min(abs(nextPos.x - brick.rect.left), abs(nextPos.x - brick.rect.right))
-                        val dy = min(abs(nextPos.y - brick.rect.top), abs(nextPos.y - brick.rect.bottom))
-                        shouldInvertX = dx < dy
-                        shouldInvertY = dy <= dx
-                    }
-                }
+                // Add English/Spin to the ball based on where it hit
+                val currentSpeed = nextVelocity.getDistance()
+                // Slightly increase speed on paddle hit to keep game moving (ahora 3% en vez de 2%)
+                val newSpeed = (currentSpeed * 1.03f).coerceAtMost(baseBallVelocity * 3f)
 
-                if (hitIndex != -1) {
-                    val brick = bricks[hitIndex]
-                    bricks[hitIndex] = brick.copy(hitsRemaining = brick.hitsRemaining - 1)
-                    score += 50
-                    val remaining = bricks.count { it.hitsRemaining > 0 }
-                    if (remaining == 0) {
-                        hasWon = true
-                        ballLaunched = false
-                    }
+                // Deflect angle (Max 60 degrees)
+                val deflectionFactor = 0.6f
+                val newVx = newSpeed * hitPoint * deflectionFactor
+                // Ensure Vy is large enough to move up
+                val vyComponent = -kotlin.math.sqrt(max(0f, (newSpeed * newSpeed) - (newVx * newVx)))
 
-                    if (shouldInvertX) {
+                nextVelocity = Offset(newVx, vyComponent)
+                nextPos = nextPos.copy(y = paddleRect.top - ballRadius - 1f)
+            }
+
+            // --- Brick Collisions ---
+            // Simple iteration - checks all bricks. Optimization: Spatial partition if > 100 bricks
+            var hitOccurred = false
+
+            // We use an iterator to safely modify hits inside loop if needed,
+            // though here we just modify state
+            val bricksIterator = bricks.listIterator()
+
+            while (bricksIterator.hasNext()) {
+                val index = bricksIterator.nextIndex()
+                val brick = bricksIterator.next()
+
+                if (brick.hitsRemaining <= 0 && brick.type != BrickType.Solid) continue
+
+                if (circleIntersectsRect(nextPos, ballRadius, brick.rect)) {
+                    hitOccurred = true
+
+                    // Determine bounce direction
+                    val overlapLeft = nextPos.x - brick.rect.left
+                    val overlapRight = brick.rect.right - nextPos.x
+                    val overlapTop = nextPos.y - brick.rect.top
+                    val overlapBottom = brick.rect.bottom - nextPos.y
+
+                    val minOverlapX = min(abs(overlapLeft), abs(overlapRight))
+                    val minOverlapY = min(abs(overlapTop), abs(overlapBottom))
+
+                    if (minOverlapX < minOverlapY) {
                         nextVelocity = nextVelocity.copy(x = -nextVelocity.x)
-                    }
-                    if (shouldInvertY) {
+                    } else {
                         nextVelocity = nextVelocity.copy(y = -nextVelocity.y)
                     }
-                    nextVelocity = nextVelocity * 1.02f
-                }
 
-                // Bottom collision / life loss
-                if (nextPos.y - ballRadius > areaSize.height) {
-                    lives -= 1
-                    if (lives <= 0) {
-                        isGameOver = true
-                        ballLaunched = false
+                    // Logic based on type
+                    if (brick.type != BrickType.Solid) {
+                        val newHits = brick.hitsRemaining - 1
+                        bricks[index] = brick.copy(hitsRemaining = newHits)
+
+                        score += if (brick.type == BrickType.Hard) 100 else 50
+
+                        // Acelerar un poco la bola cada vez que se rompe algo para evitar que sea monótono
+                        nextVelocity = nextVelocity * 1.015f
+
+                        // Check Win Condition
+                        if (bricks.none { it.type != BrickType.Solid && it.hitsRemaining > 0 }) {
+                            hasWon = true
+                            ballLaunched = false
+                        }
                     } else {
-                        ballLaunched = false
-                        attachBallToPaddle()
+                        // Solid brick hit sound?
+                        // Add slight shake?
                     }
-                } else {
-                    ballPosition = nextPos
-                    ballVelocity = nextVelocity
+
+                    // Only process one brick collision per frame to prevent weird sticking
+                    // Or process closest. Here 'break' simplifies it.
+                    break
                 }
             }
 
+            // --- Death Condition ---
+            if (nextPos.y - ballRadius > areaSize.height) {
+                lives -= 1
+                if (lives <= 0) {
+                    isGameOver = true
+                }
+                ballLaunched = false
+                attachBallToPaddle()
+            } else {
+                ballPosition = nextPos
+                ballVelocity = nextVelocity
+            }
         }
     }
 
+    // --- UI Structure ---
     Surface(
         modifier = modifier.fillMaxSize(),
-        color = surface.copy(alpha = 0.96f)
+        color = colorScheme.surface
     ) {
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(surface)
-                .padding(horizontal = 12.dp)
         ) {
-            // Close button
-            FilledIconButton(
+            // 1. Header & Status Bar Padding
+            Row(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 12.dp)
-                    .padding(WindowInsets.statusBars.asPaddingValues()),
-                onClick = onClose,
-                shape = RoundedStarShape(sides = 7, curve = 0.12, rotation = 6f),
-                containerColor = colorScheme.surfaceContainerHigh,
-                contentColor = colorScheme.onSurface
+                    .fillMaxWidth()
+                    .background(colorScheme.surfaceContainer)
+                    .padding(WindowInsets.statusBars.asPaddingValues())
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Outlined.Close, contentDescription = "Close easter egg")
-            }
-
-            Column(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(top = 16.dp)
-                    .padding(WindowInsets.statusBars.asPaddingValues()),
-                horizontalAlignment = Alignment.Start
-            ) {
-                ElevatedAssistChip(
-                    onClick = {},
-                    enabled = false,
-                    label = { Text(text = "PixelPlay Brick Breaker") },
-                    shape = RoundedStarShape(sides = 6, curve = 0.14),
-                    colors = androidx.compose.material3.AssistChipDefaults.elevatedAssistChipColors(
-                        disabledContainerColor = colorScheme.secondaryContainer,
-                        disabledLabelColor = colorScheme.onSecondaryContainer
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Rounded.Star,
+                        contentDescription = null,
+                        tint = colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
                     )
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatPill(label = "Score", value = score.toString(), color = accent)
-                    StatPill(label = "Lives", value = lives.toString(), color = colorScheme.error)
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Text(
+                        text = "PixelPlay",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = colorScheme.onSurface
+                    )
+                }
+
+                IconButton(
+                    onClick = onClose,
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = colorScheme.surfaceContainerHigh,
+                        contentColor = colorScheme.onSurfaceVariant
+                    ),
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(Icons.Outlined.Close, contentDescription = "Close", modifier = Modifier.size(18.dp))
                 }
             }
 
-            Canvas(
+            // 2. Stats Dashboard
+            Card(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = 12.dp)
-                    .pointerInput(paddleWidthPx, areaSize) {
-                        detectDragGestures(
-                            onDragStart = {
-                                if (!ballLaunched && !isGameOver && !hasWon) {
-                                    ballLaunched = true
-                                }
-                            },
-                            onDrag = { change, dragAmount ->
-                                change.consume()
-                                if (areaSize != IntSize.Zero) {
-                                    val newX = (paddleX + dragAmount.x)
-                                        .coerceIn(0f, areaSize.width - paddleWidthPx)
-                                    paddleX = newX
-                                    if (!ballLaunched) {
-                                        attachBallToPaddle()
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = colorScheme.secondaryContainer
+                ),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    GameStat("SCORE", score.toString())
+                    // Level Indicator
+                    Surface(
+                        color = colorScheme.primary,
+                        shape = CircleShape,
+                        modifier = Modifier.height(30.dp)
+                    ) {
+                        Text(
+                            text = "LVL $level",
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Black,
+                            color = colorScheme.onPrimary
+                        )
+                    }
+                    GameStat("LIVES", lives.toString(), isLives = true)
+                }
+            }
+
+            // 3. Game Area
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f) // Takes remaining space
+                    .padding(16.dp)
+                    .clip(RoundedCornerShape(
+                        topStart = 24.dp,
+                        topEnd = 24.dp,
+                        bottomStart = 24.dp,
+                        bottomEnd = 24.dp
+                    ))
+                    .background(colorScheme.surfaceContainerLow)
+                    .onSizeChanged { areaSize = it }
+            ) {
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            detectDragGestures(
+                                onDragStart = {
+                                    if (!ballLaunched && !isGameOver && !hasWon) {
+                                        ballLaunched = true
+                                    }
+                                },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    if (areaSize != IntSize.Zero) {
+                                        paddleX = (paddleX + dragAmount.x)
+                                            .coerceIn(0f, areaSize.width - paddleWidthPx)
+
+                                        if (!ballLaunched) {
+                                            attachBallToPaddle()
+                                        }
                                     }
                                 }
-                            }
-                        )
-                    }
-                    .pointerInput(hasWon, isGameOver, ballLaunched) {
-                        detectTapGestures(
-                            onTap = {
-                                when {
-                                    isGameOver || hasWon -> resetGame()
-                                    !ballLaunched -> ballLaunched = true
-                                }
-                            }
-                        )
-                    },
-                onDraw = {
-                    val newArea = size.toSize().toIntSize()
-                    if (areaSize != newArea) {
-                        areaSize = newArea
-                    }
-
-                    val paddleTop = areaSize.height - paddleBottomInset - paddleHeightPx
-                    val paddleRect = Rect(
-                        paddleX,
-                        paddleTop,
-                        paddleX + paddleWidthPx,
-                        paddleTop + paddleHeightPx
-                    )
-
-                    // Background area
-                    drawRoundRect(
-                        color = colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                        cornerRadius = CornerRadius(18.dp.toPx(), 18.dp.toPx())
-                    )
-
-                    // Bricks
-                    bricks.forEach { brick ->
-                        if (brick.hitsRemaining > 0) {
-                            drawRoundRect(
-                                color = brick.color,
-                                topLeft = brick.rect.topLeft,
-                                size = brick.rect.size,
-                                cornerRadius = CornerRadius(12.dp.toPx(), 12.dp.toPx())
                             )
+                        }
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onTap = {
+                                    if (!ballLaunched && !isGameOver && !hasWon) {
+                                        ballLaunched = true
+                                    }
+                                }
+                            )
+                        }
+                ) {
+                    val paddleTop = areaSize.height - paddleBottomInset - paddleHeightPx
+                    val paddleRect = Rect(paddleX, paddleTop, paddleX + paddleWidthPx, paddleTop + paddleHeightPx)
+
+                    // Draw Bricks
+                    bricks.forEach { brick ->
+                        if (brick.hitsRemaining > 0 || brick.type == BrickType.Solid) {
+                            drawBrick(brick)
                         }
                     }
 
-                    // Paddle
+                    // Draw Paddle (Capsule shape for modern look)
                     drawRoundRect(
-                        color = colorScheme.primaryContainer,
+                        brush = Brush.verticalGradient(
+                            colors = listOf(colorScheme.primary, colorScheme.primaryContainer)
+                        ),
                         topLeft = paddleRect.topLeft,
                         size = paddleRect.size,
-                        cornerRadius = CornerRadius(16.dp.toPx(), 16.dp.toPx())
+                        cornerRadius = CornerRadius(paddleRect.height / 2, paddleRect.height / 2)
                     )
 
-                    // Ball
+                    // Paddle Glow (Subtle)
+                    drawRoundRect(
+                        color = colorScheme.primary.copy(alpha = 0.3f),
+                        topLeft = paddleRect.topLeft.copy(y = paddleRect.top + 4),
+                        size = paddleRect.size,
+                        cornerRadius = CornerRadius(paddleRect.height / 2, paddleRect.height / 2)
+                    )
+
+                    // Draw Ball
                     drawCircle(
-                        color = colorScheme.onPrimaryContainer,
+                        color = colorScheme.onSurface,
                         radius = ballRadius,
                         center = ballPosition
                     )
-                }
-            )
 
-            if (isGameOver || hasWon) {
-                val message = if (hasWon) "You Win" else "Game Over"
-                val caption = if (hasWon) "Tap to level up" else "Tap to retry"
-                GameMessage(
-                    modifier = Modifier.align(Alignment.Center),
-                    title = message,
-                    subtitle = caption,
-                    accent = accent
-                )
+                    // Simple Trail/Shadow for speed indication
+                    if (ballLaunched) {
+                        drawCircle(
+                            color = colorScheme.onSurface.copy(alpha = 0.2f),
+                            radius = ballRadius * 0.8f,
+                            center = ballPosition - (ballVelocity * 0.03f)
+                        )
+                    }
+                }
+
+                // Game Over / Win Overlays
+                if (isGameOver || hasWon) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(colorScheme.scrim.copy(alpha = 0.6f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            val title = if (hasWon) "LEVEL COMPLETE!" else "GAME OVER"
+                            val subtitle = if (hasWon) "Score: $score" else "Try Again?"
+                            val icon = if (hasWon) Icons.Rounded.Star else Icons.Rounded.Refresh
+
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(64.dp).padding(bottom = 16.dp)
+                            )
+
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.headlineLarge,
+                                color = Color.White,
+                                fontWeight = FontWeight.Black
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text = subtitle,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = Color.White.copy(alpha = 0.9f)
+                            )
+
+                            Spacer(modifier = Modifier.height(32.dp))
+
+                            androidx.compose.material3.Button(
+                                onClick = {
+                                    if (hasWon) nextLevel() else resetGame(true)
+                                },
+                                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                    containerColor = colorScheme.primaryContainer,
+                                    contentColor = colorScheme.onPrimaryContainer
+                                )
+                            ) {
+                                Text(if (hasWon) "Next Level" else "Restart Game")
+                            }
+                        }
+                    }
+                } else if (!ballLaunched) {
+                    // Tap to start hint
+                    Text(
+                        text = "TAP TO LAUNCH",
+                        modifier = Modifier.align(Alignment.Center).padding(bottom = 100.dp),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 2.sp
+                    )
+                }
             }
         }
     }
 }
 
+// --- Helper Components & Extensions ---
+
 @Composable
-private fun GameMessage(modifier: Modifier = Modifier, title: String, subtitle: String, accent: Color) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedStarShape(sides = 6, curve = 0.12),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 6.dp
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(text = title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(text = subtitle, style = MaterialTheme.typography.bodyMedium, color = accent)
+private fun GameStat(label: String, value: String, isLives: Boolean = false) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f)
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (isLives) {
+                Icon(
+                    Icons.Rounded.Favorite,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.size(4.dp))
+            }
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
         }
     }
 }
 
-@Composable
-private fun StatPill(label: String, value: String, color: Color) {
-    Surface(
-        shape = RoundedCornerShape(50),
-        tonalElevation = 6.dp,
-        color = color.copy(alpha = 0.12f),
-        border = androidx.compose.material3.BorderStroke(1.dp, color.copy(alpha = 0.4f))
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalAlignment = Alignment.Start
-        ) {
-            Text(text = label.uppercase(), style = MaterialTheme.typography.labelMedium, color = color)
-            Text(text = value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        }
+private fun DrawScope.drawBrick(brick: BrickState) {
+    val cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+
+    // Fill
+    val alpha = if (brick.hitsRemaining < brick.maxHits && brick.type == BrickType.Hard) 0.5f else 1f
+
+    if (brick.type == BrickType.Solid) {
+        drawRoundRect(
+            color = brick.color,
+            topLeft = brick.rect.topLeft,
+            size = brick.rect.size,
+            cornerRadius = cornerRadius
+        )
+        // Add "bolt" or structure detail for solid
+        drawCircle(
+            color = Color.Black.copy(alpha = 0.2f),
+            radius = 3.dp.toPx(),
+            center = brick.rect.center
+        )
+    } else {
+        drawRoundRect(
+            color = brick.color.copy(alpha = alpha),
+            topLeft = brick.rect.topLeft,
+            size = brick.rect.size,
+            cornerRadius = cornerRadius
+        )
+
+        // Bevel/Highlight effect for 3D feel
+        drawPath(
+            path = Path().apply {
+                moveTo(brick.rect.left, brick.rect.bottom)
+                lineTo(brick.rect.left, brick.rect.top)
+                lineTo(brick.rect.right, brick.rect.top)
+            },
+            color = Color.White.copy(alpha = 0.2f),
+            style = Stroke(width = 2.dp.toPx())
+        )
     }
 }
 
@@ -427,7 +705,3 @@ private fun circleIntersectsRect(center: Offset, radius: Float, rect: Rect): Boo
     val dy = center.y - closestY
     return dx * dx + dy * dy <= radius * radius
 }
-
-private operator fun Offset.times(scalar: Float) = Offset(x * scalar, y * scalar)
-
-private fun androidx.compose.ui.geometry.Size.toIntSize(): IntSize = IntSize(width.toInt(), height.toInt())

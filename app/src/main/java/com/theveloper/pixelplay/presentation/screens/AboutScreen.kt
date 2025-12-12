@@ -1,10 +1,10 @@
 package com.theveloper.pixelplay.presentation.screens
 
+import android.R.id.icon
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.core.Animatable
@@ -28,28 +28,26 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -59,6 +57,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.util.lerp
+import androidx.core.graphics.drawable.toBitmap
+import androidx.core.net.toUri
 import androidx.navigation.NavController
 import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
@@ -68,9 +68,6 @@ import com.theveloper.pixelplay.data.github.GitHubContributorService
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.components.brickbreaker.BrickBreakerOverlay
-import androidx.core.graphics.drawable.toBitmap
-import androidx.core.net.toUri
-import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import timber.log.Timber
@@ -166,9 +163,9 @@ fun AboutScreen(
     // State to hold fetched contributors
     var contributors by remember { mutableStateOf<List<Contributor>>(emptyList()) }
     var isLoadingContributors by remember { mutableStateOf(true) }
-    
+
     val githubService = remember { GitHubContributorService() }
-    
+
     // Fetch contributors from GitHub API
     LaunchedEffect(Unit) {
         try {
@@ -273,9 +270,6 @@ fun AboutScreen(
     }
 
     var showBrickBreaker by remember { mutableStateOf(false) }
-    var tapCount by remember { mutableStateOf(0) }
-    var lastTapTimestamp by remember { mutableStateOf(0L) }
-    val tripleTapWindow = 750L
 
     Box(
         modifier = Modifier
@@ -317,20 +311,19 @@ fun AboutScreen(
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold
                         )
+                        val haptic = LocalHapticFeedback.current
                         Box(
                             modifier = Modifier
                                 .background(
                                     shape = CircleShape,
                                     color = MaterialTheme.colorScheme.tertiaryContainer
                                 )
-                                .pointerInput(versionName, tapCount, lastTapTimestamp) {
-                                    detectTripleTapHold(
-                                        tripleTapWindow = tripleTapWindow,
-                                        onGestureSatisfied = { showBrickBreaker = true },
-                                        tapCount = tapCount,
-                                        lastTapTimestamp = lastTapTimestamp,
-                                        onTapCountChanged = { tapCount = it },
-                                        onTimestampChanged = { lastTapTimestamp = it }
+                                .pointerInput(Unit) {
+                                    detectTapGestures(
+                                        onLongPress = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            showBrickBreaker = true
+                                        }
                                     )
                                 }
                         ) {
@@ -448,38 +441,6 @@ fun AboutScreen(
             )
         }
     }
-}
-
-private suspend fun PointerInputScope.detectTripleTapHold(
-    tripleTapWindow: Long,
-    onGestureSatisfied: () -> Unit,
-    tapCount: Int,
-    lastTapTimestamp: Long,
-    onTapCountChanged: (Int) -> Unit,
-    onTimestampChanged: (Long) -> Unit
-) {
-    detectTapGestures(
-        onPress = {
-            val now = SystemClock.uptimeMillis()
-            val updatedCount = if (now - lastTapTimestamp < tripleTapWindow) tapCount + 1 else 1
-            onTapCountChanged(updatedCount)
-            onTimestampChanged(now)
-
-            val isTriggerTap = updatedCount >= 3
-            val pressStart = SystemClock.uptimeMillis()
-            val released = tryAwaitRelease()
-            val heldDuration = SystemClock.uptimeMillis() - pressStart
-
-            if (isTriggerTap && released && heldDuration >= 2800) {
-                onTapCountChanged(0)
-                onGestureSatisfied()
-            } else if (!isTriggerTap) {
-                // No-op for early taps
-            } else {
-                onTapCountChanged(0)
-            }
-        }
-    )
 }
 
 // Composable for displaying a single contributor
@@ -620,7 +581,7 @@ private fun ContributorAvatar(
                     shape = CircleShape,
                     contentScale = ContentScale.Crop,
                     placeholderResId = iconRes ?: R.drawable.ic_music_placeholder,
-                    errorResId = iconRes ?: R.drawable.rounded_broken_image_24,
+                    errorResId = R.drawable.rounded_broken_image_24,
                     targetSize = Size(96, 96),
                     onState = { state ->
                         if (state is AsyncImagePainter.State.Success) {
