@@ -359,6 +359,7 @@ fun FullPlayerContent(
             expansionFraction = expansionFraction,
             textColor = LocalMaterialTheme.current.onPrimaryContainer,
             artistTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.8f),
+            playerViewModel = playerViewModel,
             navController = navController,
             onCollapse = onCollapse,
             gradientEdgeColor = LocalMaterialTheme.current.primaryContainer,
@@ -742,6 +743,7 @@ private fun SongMetadataDisplaySection(
     textColor: Color,
     artistTextColor: Color,
     gradientEdgeColor: Color,
+    playerViewModel: PlayerViewModel,
     onClickLyrics: () -> Unit,
     navController: NavHostController,
     onCollapse: () -> Unit,
@@ -765,6 +767,7 @@ private fun SongMetadataDisplaySection(
                     textColor = textColor,
                     artistTextColor = artistTextColor,
                     gradientEdgeColor = gradientEdgeColor,
+                    playerViewModel = playerViewModel,
                     navController = navController,
                     onCollapse = onCollapse,
                     modifier = Modifier
@@ -968,6 +971,7 @@ private fun PlayerSongInfo(
     textColor: Color,
     artistTextColor: Color,
     gradientEdgeColor: Color,
+    playerViewModel: PlayerViewModel,
     navController: NavHostController,
     onCollapse: () -> Unit,
     modifier: Modifier = Modifier
