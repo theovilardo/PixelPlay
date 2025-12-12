@@ -986,9 +986,9 @@ private fun PlayerSongInfo(
 
     Column(
         horizontalAlignment = Alignment.Start,
-        modifier = modifier
-            .padding(vertical = lerp(2.dp, 10.dp, expansionFraction))
-            .fillMaxWidth(0.9f)
+            modifier = modifier
+                .padding(vertical = lerp(2.dp, 10.dp, expansionFraction))
+                .fillMaxWidth(0.9f)
             .graphicsLayer {
                 alpha = expansionFraction
                 translationY = (1f - expansionFraction) * 24f
@@ -1006,10 +1006,11 @@ private fun PlayerSongInfo(
                 indication = null
             ) {
                 coroutineScope.launch {
-                    onCollapse()
-                    // Wait a frame so the sheet can start collapsing before navigating.
-                    withFrameNanos { }
-                    navController.navigate(Screen.ArtistDetail.createRoute(artistId))
+                    playerViewModel.collapsePlayerSheet()
+                    playerViewModel.awaitSheetState(PlayerSheetState.COLLAPSED)
+                    navController.navigate(Screen.ArtistDetail.createRoute(artistId)) {
+                        launchSingleTop = true
+                    }
                 }
             }
         )

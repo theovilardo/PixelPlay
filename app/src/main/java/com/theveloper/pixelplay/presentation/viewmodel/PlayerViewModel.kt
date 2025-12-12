@@ -2099,6 +2099,10 @@ class PlayerViewModel @Inject constructor(
         _predictiveBackCollapseFraction.value = 0f
     }
 
+    suspend fun awaitSheetState(target: PlayerSheetState) {
+        sheetState.first { it == target }
+    }
+
     private fun resolveSongFromMediaItem(mediaItem: MediaItem): Song? {
         _playerUiState.value.currentPlaybackQueue.find { it.id == mediaItem.mediaId }?.let { return it }
         _masterAllSongs.value.find { it.id == mediaItem.mediaId }?.let { return it }
