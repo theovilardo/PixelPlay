@@ -155,6 +155,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import org.json.JSONObject
 import timber.log.Timber
@@ -2104,9 +2105,11 @@ class PlayerViewModel @Inject constructor(
         sheetState.first { it == target }
     }
 
-    suspend fun awaitPlayerCollapse(threshold: Float = 0.1f) {
-        snapshotFlow { playerContentExpansionFraction.value }
-            .first { it <= threshold }
+    suspend fun awaitPlayerCollapse(threshold: Float = 0.1f, timeoutMillis: Long = 800L) {
+        withTimeoutOrNull(timeoutMillis) {
+            snapshotFlow { playerContentExpansionFraction.value }
+                .first { it <= threshold }
+        }
     }
 
     private fun resolveSongFromMediaItem(mediaItem: MediaItem): Song? {
