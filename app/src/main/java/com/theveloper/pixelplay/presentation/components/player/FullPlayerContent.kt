@@ -21,6 +21,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -1006,36 +1007,38 @@ private fun PlayerSongInfo(
             style = artistStyle,
             gradientEdgeColor = gradientEdgeColor,
             expansionFraction = expansionFraction,
-            modifier = Modifier.clickable(
+            modifier = Modifier.combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) {
-                if (isNavigatingToArtist) return@clickable
+                indication = null,
+                onClick = {},
+                onLongClick = {
+                    if (isNavigatingToArtist) return@combinedClickable
 
-                coroutineScope.launch {
-                    isNavigatingToArtist = true
-                    try {
-                        onCollapse()
-                        playerViewModel.awaitSheetState(PlayerSheetState.COLLAPSED)
-                        playerViewModel.awaitPlayerCollapse()
+                    coroutineScope.launch {
+                        isNavigatingToArtist = true
+                        try {
+                            onCollapse()
+                            playerViewModel.awaitSheetState(PlayerSheetState.COLLAPSED)
+                            playerViewModel.awaitPlayerCollapse()
 
-                        val currentRoute = navController.currentDestination?.route
-                        val currentArtistId =
-                            navController.currentBackStackEntry?.arguments?.getString("artistId")?.toLongOrNull()
-                        val isAlreadyOnArtist =
-                            currentRoute?.startsWith(Screen.ArtistDetail.route.substringBefore("/{")) == true &&
-                                currentArtistId == artistId
+                            val currentRoute = navController.currentDestination?.route
+                            val currentArtistId =
+                                navController.currentBackStackEntry?.arguments?.getString("artistId")?.toLongOrNull()
+                            val isAlreadyOnArtist =
+                                currentRoute?.startsWith(Screen.ArtistDetail.route.substringBefore("/{")) == true &&
+                                    currentArtistId == artistId
 
-                        if (!isAlreadyOnArtist) {
-                            navController.navigate(Screen.ArtistDetail.createRoute(artistId)) {
-                                launchSingleTop = true
+                            if (!isAlreadyOnArtist) {
+                                navController.navigate(Screen.ArtistDetail.createRoute(artistId)) {
+                                    launchSingleTop = true
+                                }
                             }
+                        } finally {
+                            isNavigatingToArtist = false
                         }
-                    } finally {
-                        isNavigatingToArtist = false
                     }
                 }
-            }
+            )
         )
     }
 }
