@@ -153,14 +153,6 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    LaunchedEffect(navController) {
-        playerViewModel.artistNavigationRequests.collectLatest { artistId ->
-            navController.navigate(Screen.ArtistDetail.createRoute(artistId)) {
-                launchSingleTop = true
-            }
-        }
-    }
-
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
     // Granular collection for playerUiState fields used directly by UnifiedPlayerSheet or its main sub-components
     val currentPosition by remember {
@@ -255,6 +247,24 @@ fun UnifiedPlayerSheet(
     val initialY =
         if (currentSheetContentState == PlayerSheetState.COLLAPSED) sheetCollapsedTargetY else sheetExpandedTargetY
     val currentSheetTranslationY = remember { Animatable(initialY) }
+
+    LaunchedEffect(
+        navController,
+        sheetAnimationMutex,
+        sheetCollapsedTargetY
+    ) {
+        playerViewModel.artistNavigationRequests.collectLatest { artistId ->
+            sheetAnimationMutex.mutate {
+                currentSheetTranslationY.snapTo(sheetCollapsedTargetY)
+                playerContentExpansionFraction.snapTo(0f)
+            }
+            playerViewModel.collapsePlayerSheet()
+
+            navController.navigate(Screen.ArtistDetail.createRoute(artistId)) {
+                launchSingleTop = true
+            }
+        }
+    }
 
     val fullPlayerContentAlpha by remember {
         derivedStateOf {
