@@ -86,7 +86,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.coerceAtLeast
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.navigation.NavHostController
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
@@ -99,7 +98,6 @@ import com.theveloper.pixelplay.presentation.components.scoped.DeferAt
 import com.theveloper.pixelplay.presentation.components.scoped.PrefetchAlbumNeighborsImg
 import com.theveloper.pixelplay.presentation.components.scoped.rememberSmoothProgress
 import com.theveloper.pixelplay.presentation.components.subcomps.FetchLyricsDialog
-import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.LyricsSearchUiState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
@@ -129,7 +127,6 @@ fun FullPlayerContent(
     currentSheetState: PlayerSheetState,
     carouselStyle: String,
     playerViewModel: PlayerViewModel, // For stable state like totalDuration and lyrics
-    navController: NavHostController,
     // State Providers
     currentPositionProvider: () -> Long,
     isPlayingProvider: () -> Boolean,
@@ -362,8 +359,6 @@ fun FullPlayerContent(
             textColor = LocalMaterialTheme.current.onPrimaryContainer,
             artistTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.8f),
             playerViewModel = playerViewModel,
-            navController = navController,
-            onCollapse = onCollapse,
             gradientEdgeColor = LocalMaterialTheme.current.primaryContainer,
             showQueueButton = isLandscape,
             onClickQueue = {
@@ -747,8 +742,6 @@ private fun SongMetadataDisplaySection(
     gradientEdgeColor: Color,
     playerViewModel: PlayerViewModel,
     onClickLyrics: () -> Unit,
-    navController: NavHostController,
-    onCollapse: () -> Unit,
     showQueueButton: Boolean,
     onClickQueue: () -> Unit,
     modifier: Modifier = Modifier
@@ -770,8 +763,6 @@ private fun SongMetadataDisplaySection(
                     artistTextColor = artistTextColor,
                     gradientEdgeColor = gradientEdgeColor,
                     playerViewModel = playerViewModel,
-                    navController = navController,
-                    onCollapse = onCollapse,
                     modifier = Modifier
                         .weight(0.85f)
                         .align(Alignment.CenterVertically)
@@ -974,8 +965,6 @@ private fun PlayerSongInfo(
     artistTextColor: Color,
     gradientEdgeColor: Color,
     playerViewModel: PlayerViewModel,
-    navController: NavHostController,
-    onCollapse: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -1018,16 +1007,7 @@ private fun PlayerSongInfo(
                     coroutineScope.launch {
                         isNavigatingToArtist = true
                         try {
-                            onCollapse()
-
-                            withTimeoutOrNull(750) {
-                                playerViewModel.awaitSheetState(PlayerSheetState.COLLAPSED)
-                                playerViewModel.awaitPlayerCollapse()
-                            }
-
-                            navController.navigate(Screen.ArtistDetail.createRoute(artistId)) {
-                                launchSingleTop = true
-                            }
+                            playerViewModel.triggerArtistNavigationFromPlayer(artistId)
                         } finally {
                             isNavigatingToArtist = false
                         }

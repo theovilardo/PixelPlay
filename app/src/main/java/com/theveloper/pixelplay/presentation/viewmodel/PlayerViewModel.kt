@@ -373,6 +373,10 @@ class PlayerViewModel @Inject constructor(
     private val _toastEvents = MutableSharedFlow<String>()
     val toastEvents = _toastEvents.asSharedFlow()
 
+    private val _artistNavigationRequests = MutableSharedFlow<Long>(extraBufferCapacity = 1)
+    val artistNavigationRequests = _artistNavigationRequests.asSharedFlow()
+    private var artistNavigationJob: Job? = null
+
     private val _castRoutes = MutableStateFlow<List<MediaRouter.RouteInfo>>(emptyList())
     val castRoutes: StateFlow<List<MediaRouter.RouteInfo>> = _castRoutes.asStateFlow()
     private val _selectedRoute = MutableStateFlow<MediaRouter.RouteInfo?>(null)
@@ -2099,6 +2103,25 @@ class PlayerViewModel @Inject constructor(
     fun collapsePlayerSheet() {
         _sheetState.value = PlayerSheetState.COLLAPSED
         _predictiveBackCollapseFraction.value = 0f
+    }
+
+    fun triggerArtistNavigationFromPlayer(artistId: Long) {
+        if (artistId <= 0) return
+
+        val existingJob = artistNavigationJob
+        if (existingJob != null && existingJob.isActive) return
+
+        artistNavigationJob?.cancel()
+        artistNavigationJob = viewModelScope.launch {
+            collapsePlayerSheet()
+
+            withTimeoutOrNull(900) {
+                awaitSheetState(PlayerSheetState.COLLAPSED)
+                awaitPlayerCollapse()
+            }
+
+            _artistNavigationRequests.emit(artistId)
+        }
     }
 
     suspend fun awaitSheetState(target: PlayerSheetState) {

@@ -102,6 +102,7 @@ import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.presentation.components.player.FullPlayerContent
 import com.theveloper.pixelplay.presentation.components.scoped.rememberExpansionTransition
+import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
@@ -149,6 +150,14 @@ fun UnifiedPlayerSheet(
     LaunchedEffect(key1 = Unit) {
         playerViewModel.toastEvents.collect { message ->
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(navController) {
+        playerViewModel.artistNavigationRequests.collectLatest { artistId ->
+            navController.navigate(Screen.ArtistDetail.createRoute(artistId)) {
+                launchSingleTop = true
+            }
         }
     }
 
@@ -1177,7 +1186,6 @@ fun UnifiedPlayerSheet(
                                                     onShuffleToggle = playerViewModel::toggleShuffle,
                                                     onRepeatToggle = playerViewModel::cycleRepeatMode,
                                                     onFavoriteToggle = playerViewModel::toggleFavorite,
-                                                    navController = navController,
                                                 )
                                             }
                                         }
@@ -1234,7 +1242,6 @@ fun UnifiedPlayerSheet(
                                     onShuffleToggle = playerViewModel::toggleShuffle,
                                     onRepeatToggle = playerViewModel::cycleRepeatMode,
                                     onFavoriteToggle = playerViewModel::toggleFavorite,
-                                    navController = navController,
                                 )
                             }
                         }
