@@ -3,25 +3,21 @@ package com.theveloper.pixelplay.presentation.navigation
 import android.annotation.SuppressLint
 import androidx.annotation.OptIn
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.viewModelScope
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.data.preferences.LaunchTab
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.presentation.screens.AlbumDetailScreen
@@ -40,11 +36,7 @@ import com.theveloper.pixelplay.presentation.screens.StatsScreen
 import com.theveloper.pixelplay.presentation.screens.SettingsScreen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
-import com.theveloper.pixelplay.presentation.viewmodel.SettingsViewModel
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.stateIn
 
 @OptIn(UnstableApi::class)
 @SuppressLint("UnrememberedGetBackStackEntry")
@@ -55,39 +47,37 @@ fun AppNavigation(
     paddingValues: PaddingValues,
     userPreferencesRepository: UserPreferencesRepository
 ) {
-    var launchTab by remember { mutableStateOf(LaunchTab.HOME) }
+    var startDestination by remember { mutableStateOf<String?>(null) }
 
-    // Collect the initial value once and never again
     LaunchedEffect(Unit) {
-        userPreferencesRepository.launchTabFlow
-            .first() // Get only the first value
-            .let { tab ->
-                launchTab = tab
-            }
+        startDestination = userPreferencesRepository.launchTabFlow
+            .first()
+            .toRoute()
     }
 
-    NavHost(
-        navController = navController,
-        startDestination = launchTab
-    ) {
-        composable(
-            Screen.Home.route,
-            enterTransition = { enterTransition() },
-            exitTransition = { exitTransition() },
-            popEnterTransition = { enterTransition() },
-            popExitTransition = { exitTransition() },
+    startDestination?.let { initialRoute ->
+        NavHost(
+            navController = navController,
+            startDestination = initialRoute
         ) {
-            HomeScreen(navController = navController, paddingValuesParent = paddingValues, playerViewModel = playerViewModel)
-        }
-        composable(
-            Screen.Search.route,
-            enterTransition = { enterTransition() },
-            exitTransition = { exitTransition() },
-            popEnterTransition = { enterTransition() },
-            popExitTransition = { exitTransition() },
-        ) {
-            SearchScreen(paddingValues = paddingValues, playerViewModel = playerViewModel, navController = navController)
-        }
+            composable(
+                Screen.Home.route,
+                enterTransition = { enterTransition() },
+                exitTransition = { exitTransition() },
+                popEnterTransition = { enterTransition() },
+                popExitTransition = { exitTransition() },
+            ) {
+                HomeScreen(navController = navController, paddingValuesParent = paddingValues, playerViewModel = playerViewModel)
+            }
+            composable(
+                Screen.Search.route,
+                enterTransition = { enterTransition() },
+                exitTransition = { exitTransition() },
+                popEnterTransition = { enterTransition() },
+                popExitTransition = { exitTransition() },
+            ) {
+                SearchScreen(paddingValues = paddingValues, playerViewModel = playerViewModel, navController = navController)
+            }
             composable(
                 Screen.Library.route,
                 enterTransition = { enterTransition() },
@@ -253,4 +243,11 @@ fun AppNavigation(
                 )
             }
         }
+    }
+}
+
+private fun String.toRoute(): String = when (this) {
+    LaunchTab.SEARCH -> Screen.Search.route
+    LaunchTab.LIBRARY -> Screen.Library.route
+    else -> Screen.Home.route
 }

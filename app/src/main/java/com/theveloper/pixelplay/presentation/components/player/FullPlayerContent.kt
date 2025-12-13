@@ -732,6 +732,7 @@ fun FullPlayerContent(
 }
 
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun SongMetadataDisplaySection(
@@ -955,6 +956,7 @@ private fun PlayerProgressBarSection(
     }
 }
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 private fun PlayerSongInfo(
     title: String,
