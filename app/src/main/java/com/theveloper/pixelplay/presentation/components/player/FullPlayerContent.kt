@@ -110,6 +110,7 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import timber.log.Timber
 import kotlin.math.roundToLong
@@ -1018,20 +1019,14 @@ private fun PlayerSongInfo(
                         isNavigatingToArtist = true
                         try {
                             onCollapse()
-                            playerViewModel.awaitSheetState(PlayerSheetState.COLLAPSED)
-                            playerViewModel.awaitPlayerCollapse()
 
-                            val currentRoute = navController.currentDestination?.route
-                            val currentArtistId =
-                                navController.currentBackStackEntry?.arguments?.getString("artistId")?.toLongOrNull()
-                            val isAlreadyOnArtist =
-                                currentRoute?.startsWith(Screen.ArtistDetail.route.substringBefore("/{")) == true &&
-                                    currentArtistId == artistId
+                            withTimeoutOrNull(750) {
+                                playerViewModel.awaitSheetState(PlayerSheetState.COLLAPSED)
+                                playerViewModel.awaitPlayerCollapse()
+                            }
 
-                            if (!isAlreadyOnArtist) {
-                                navController.navigate(Screen.ArtistDetail.createRoute(artistId)) {
-                                    launchSingleTop = true
-                                }
+                            navController.navigate(Screen.ArtistDetail.createRoute(artistId)) {
+                                launchSingleTop = true
                             }
                         } finally {
                             isNavigatingToArtist = false
