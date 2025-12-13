@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -25,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
@@ -86,6 +88,7 @@ fun GenreGradientTopBar(
 fun HomeGradientTopBar(
     onNavigationIconClick: () -> Unit,
     onMoreOptionsClick: () -> Unit,
+    onBetaClick: () -> Unit,
 ) {
     // 1) Pinta la status bar con el color surface
     val surfaceColor = MaterialTheme.colorScheme.surface
@@ -107,6 +110,32 @@ fun HomeGradientTopBar(
         modifier = Modifier
             .background(brush = gradientBrush),
         title = { /* nada, usamos solo acciones */ },
+        navigationIcon = {
+            FilledIconButton(
+                modifier = Modifier.padding(start = 14.dp),
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ),
+                onClick = onBetaClick
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "β",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Black
+                    )
+                    Icon(
+                        imageVector = Icons.Rounded.Info,
+                        contentDescription = "Beta info",
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        },
         actions = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -123,7 +152,7 @@ fun HomeGradientTopBar(
                     Icon(
                         modifier = Modifier.size(18.dp),
                         painter = painterResource(R.drawable.round_newspaper_24),
-                        contentDescription = "Más opciones"
+                        contentDescription = "Changelog"
                     )
                 }
                 FilledIconButton(
@@ -135,7 +164,7 @@ fun HomeGradientTopBar(
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.rounded_settings_24),
-                        contentDescription = "Ajustes"
+                        contentDescription = "Settings"
                     )
                 }
             }

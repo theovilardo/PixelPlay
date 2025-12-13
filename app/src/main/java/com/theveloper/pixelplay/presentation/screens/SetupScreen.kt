@@ -43,6 +43,8 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -74,6 +76,9 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.toSpanStyle
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -93,6 +98,7 @@ import com.theveloper.pixelplay.presentation.viewmodel.DirectoryEntry
 import com.theveloper.pixelplay.presentation.viewmodel.SetupUiState
 import com.theveloper.pixelplay.presentation.viewmodel.SetupViewModel
 import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
+import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.launch
@@ -329,11 +335,46 @@ fun WelcomePage() {
             modifier = Modifier
                 .padding(horizontal = 8.dp)
                 .padding(top = 12.dp),
-            text = "Welcome to PixelPlayer",
+            text = buildAnnotatedString {
+                append("Welcome to ")
+                withStyle(
+                    ExpTitleTypography.displayLarge.toSpanStyle().copy(
+                        fontFamily = GoogleSansRounded,
+                        fontSize = 36.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    append("PixelPlayer")
+                }
+            },
             style = ExpTitleTypography.displayLarge.copy(
                 fontSize = 42.sp,
                 lineHeight = 1.1.em
             )
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        AssistChip(
+            onClick = {},
+            enabled = false,
+            colors = AssistChipDefaults.assistChipColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                labelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                leadingIconContentColor = MaterialTheme.colorScheme.onSecondaryContainer
+            ),
+            leadingIcon = {
+                Text(
+                    text = "β",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Black
+                )
+            },
+            label = {
+                Text(
+                    text = "Beta",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         )
         Spacer(modifier = Modifier.height(16.dp))
         // Placeholder for vector art

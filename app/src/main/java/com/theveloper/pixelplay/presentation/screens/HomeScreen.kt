@@ -41,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import com.theveloper.pixelplay.presentation.components.BetaInfoBottomSheet
 import com.theveloper.pixelplay.presentation.components.ChangelogBottomSheet
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -119,7 +120,9 @@ fun HomeScreen(
 
     var showOptionsBottomSheet by remember { mutableStateOf(false) }
     var showChangelogBottomSheet by remember { mutableStateOf(false) }
+    var showBetaInfoBottomSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
+    val betaSheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -144,6 +147,9 @@ fun HomeScreen(
                     },
                     onMoreOptionsClick = {
                         showChangelogBottomSheet = true
+                    },
+                    onBetaClick = {
+                        showBetaInfoBottomSheet = true
                     }
                 )
             }
@@ -257,6 +263,14 @@ fun HomeScreen(
             sheetState = sheetState
         ) {
             ChangelogBottomSheet()
+        }
+    }
+    if (showBetaInfoBottomSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showBetaInfoBottomSheet = false },
+            sheetState = betaSheetState
+        ) {
+            BetaInfoBottomSheet()
         }
     }
 }
