@@ -4,14 +4,11 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
-import android.os.Build
 import android.os.IBinder
-import androidx.annotation.RequiresApi
 import androidx.core.net.toUri
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import dagger.hilt.android.AndroidEntryPoint
 import io.ktor.http.ContentType
-import io.ktor.http.ContentRange
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.*
@@ -19,7 +16,6 @@ import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -29,6 +25,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.Inet4Address
 import javax.inject.Inject
+import timber.log.Timber
 
 @AndroidEntryPoint
 class MediaFileHttpServerService : Service() {
@@ -47,7 +44,6 @@ class MediaFileHttpServerService : Service() {
         var serverAddress: String? = null
     }
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START_SERVER -> startServer()
@@ -56,13 +52,13 @@ class MediaFileHttpServerService : Service() {
         return START_NOT_STICKY
     }
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     private fun startServer() {
         if (server?.application?.isActive != true) {
             serviceScope.launch {
                 try {
                     val ipAddress = getIpAddress(applicationContext)
                     if (ipAddress == null) {
+                        Timber.w("No suitable IP address found; cannot start HTTP server")
                         stopSelf()
                         return@launch
                     }
@@ -180,6 +176,7 @@ class MediaFileHttpServerService : Service() {
                     }.start(wait = false)
                     isServerRunning = true
                 } catch (e: Exception) {
+                    Timber.e(e, "Failed to start HTTP cast server")
                     stopSelf()
                 }
             }
@@ -188,10 +185,25 @@ class MediaFileHttpServerService : Service() {
 
     private fun getIpAddress(context: Context): String? {
         val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val activeNetwork = connectivityManager.activeNetwork ?: return null
-        val linkProperties = connectivityManager.getLinkProperties(activeNetwork) ?: return null
-        val ipAddress = linkProperties.linkAddresses.find { it.address is Inet4Address }
-        return ipAddress?.address?.hostAddress
+
+        // Prefer IPv4 Wi-Fi addresses; fall back to any non-loopback address so the server can bind.
+        val networks = connectivityManager.allNetworks
+        val wifiNetworkAddress = networks.asSequence()
+            .mapNotNull { network ->
+                val caps = connectivityManager.getNetworkCapabilities(network)
+                val linkProps = connectivityManager.getLinkProperties(network)
+                if (caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true && linkProps != null) {
+                    linkProps.linkAddresses.firstOrNull { it.address is Inet4Address }
+                } else null
+            }
+            .firstOrNull()
+
+        val fallbackAddress = connectivityManager.activeNetwork?.let { active ->
+            connectivityManager.getLinkProperties(active)?.linkAddresses?.firstOrNull { !it.address.isLoopbackAddress }
+        }
+
+        val chosenAddress = wifiNetworkAddress ?: fallbackAddress
+        return chosenAddress?.address?.hostAddress
     }
 
     override fun onDestroy() {
