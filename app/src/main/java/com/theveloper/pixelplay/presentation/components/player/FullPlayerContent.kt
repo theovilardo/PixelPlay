@@ -977,6 +977,7 @@ private fun PlayerSongInfo(
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
+    var isNavigatingToArtist by remember { mutableStateOf(false) }
     val titleStyle = MaterialTheme.typography.headlineSmall.copy(
         fontWeight = FontWeight.Bold,
         fontFamily = GoogleSansRounded,
@@ -1009,11 +1010,29 @@ private fun PlayerSongInfo(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) {
+                if (isNavigatingToArtist) return@clickable
+
                 coroutineScope.launch {
-                    playerViewModel.collapsePlayerSheet()
-                    playerViewModel.awaitSheetState(PlayerSheetState.COLLAPSED)
-                    navController.navigate(Screen.ArtistDetail.createRoute(artistId)) {
-                        launchSingleTop = true
+                    isNavigatingToArtist = true
+                    try {
+                        onCollapse()
+                        playerViewModel.awaitSheetState(PlayerSheetState.COLLAPSED)
+                        playerViewModel.awaitPlayerCollapse()
+
+                        val currentRoute = navController.currentDestination?.route
+                        val currentArtistId =
+                            navController.currentBackStackEntry?.arguments?.getString("artistId")?.toLongOrNull()
+                        val isAlreadyOnArtist =
+                            currentRoute?.startsWith(Screen.ArtistDetail.route.substringBefore("/{")) == true &&
+                                currentArtistId == artistId
+
+                        if (!isAlreadyOnArtist) {
+                            navController.navigate(Screen.ArtistDetail.createRoute(artistId)) {
+                                launchSingleTop = true
+                            }
+                        }
+                    } finally {
+                        isNavigatingToArtist = false
                     }
                 }
             }

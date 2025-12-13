@@ -49,6 +49,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.view.ContextThemeWrapper
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.compose.runtime.snapshotFlow
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.media3.common.Timeline
@@ -2101,6 +2102,11 @@ class PlayerViewModel @Inject constructor(
 
     suspend fun awaitSheetState(target: PlayerSheetState) {
         sheetState.first { it == target }
+    }
+
+    suspend fun awaitPlayerCollapse(threshold: Float = 0.1f) {
+        snapshotFlow { playerContentExpansionFraction.value }
+            .first { it <= threshold }
     }
 
     private fun resolveSongFromMediaItem(mediaItem: MediaItem): Song? {
