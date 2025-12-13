@@ -134,7 +134,7 @@ fun BetaInfoBottomSheet(modifier: Modifier = Modifier) {
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "Features are still evolving, so expect a few rough edges while we finish polishing PixelPlayer.",
+                        text = "We’re still rounding the edges while PixelPlayer’s new features settle in.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -177,12 +177,12 @@ fun BetaInfoBottomSheet(modifier: Modifier = Modifier) {
                     )
                 }
                 Text(
-                    text = "Some flows may still be work in progress. If something feels off, a fix might already be on the way.",
+                    text = "Some flows are still WIP. If something feels off, a fix is probably on the way.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "New animations, transitions, and playlist tools are actively being stabilized in this build.",
+                    text = "Animations, transitions, and playlist tools are being stabilized in this build.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -224,14 +224,14 @@ fun BetaInfoBottomSheet(modifier: Modifier = Modifier) {
                     )
                 }
                 Text(
-                    text = "Bug reports are most helpful when they include steps to reproduce, expected vs. actual behavior, device/OS details, and if possible a short clip or screenshot.",
+                    text = "Share steps to reproduce, what you expected, what happened, and your device/OS. A quick clip or screenshot helps a ton.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                     Button(
                         onClick = { launchUrl(context, issuesUrl) },
                         shape = AbsoluteSmoothCornerShape(

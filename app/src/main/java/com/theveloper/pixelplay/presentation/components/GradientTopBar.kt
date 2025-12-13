@@ -5,11 +5,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -111,9 +113,11 @@ fun HomeGradientTopBar(
             .background(brush = gradientBrush),
         title = { /* nada, usamos solo acciones */ },
         navigationIcon = {
-            FilledIconButton(
+            FilledTonalButton(
                 modifier = Modifier.padding(start = 14.dp),
-                colors = IconButtonDefaults.filledIconButtonColors(
+                shape = CircleShape,
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     contentColor = MaterialTheme.colorScheme.onSurface
                 ),
@@ -121,17 +125,17 @@ fun HomeGradientTopBar(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
                         text = "β",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Black
                     )
-                    Icon(
-                        imageVector = Icons.Rounded.Info,
-                        contentDescription = "Beta info",
-                        modifier = Modifier.size(18.dp)
+                    Text(
+                        text = "Beta",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
