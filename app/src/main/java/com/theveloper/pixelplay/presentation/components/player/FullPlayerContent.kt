@@ -21,6 +21,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -63,6 +64,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -84,7 +86,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.coerceAtLeast
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.navigation.NavHostController
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
@@ -97,7 +98,6 @@ import com.theveloper.pixelplay.presentation.components.scoped.DeferAt
 import com.theveloper.pixelplay.presentation.components.scoped.PrefetchAlbumNeighborsImg
 import com.theveloper.pixelplay.presentation.components.scoped.rememberSmoothProgress
 import com.theveloper.pixelplay.presentation.components.subcomps.FetchLyricsDialog
-import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.LyricsSearchUiState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
@@ -108,6 +108,7 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import timber.log.Timber
 import kotlin.math.roundToLong
@@ -126,7 +127,6 @@ fun FullPlayerContent(
     currentSheetState: PlayerSheetState,
     carouselStyle: String,
     playerViewModel: PlayerViewModel, // For stable state like totalDuration and lyrics
-    navController: NavHostController,
     // State Providers
     currentPositionProvider: () -> Long,
     isPlayingProvider: () -> Boolean,
@@ -358,8 +358,7 @@ fun FullPlayerContent(
             expansionFraction = expansionFraction,
             textColor = LocalMaterialTheme.current.onPrimaryContainer,
             artistTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.8f),
-            navController = navController,
-            onCollapse = onCollapse,
+            playerViewModel = playerViewModel,
             gradientEdgeColor = LocalMaterialTheme.current.primaryContainer,
             showQueueButton = isLandscape,
             onClickQueue = {
@@ -741,9 +740,8 @@ private fun SongMetadataDisplaySection(
     textColor: Color,
     artistTextColor: Color,
     gradientEdgeColor: Color,
+    playerViewModel: PlayerViewModel,
     onClickLyrics: () -> Unit,
-    navController: NavHostController,
-    onCollapse: () -> Unit,
     showQueueButton: Boolean,
     onClickQueue: () -> Unit,
     modifier: Modifier = Modifier
@@ -764,8 +762,7 @@ private fun SongMetadataDisplaySection(
                     textColor = textColor,
                     artistTextColor = artistTextColor,
                     gradientEdgeColor = gradientEdgeColor,
-                    navController = navController,
-                    onCollapse = onCollapse,
+                    playerViewModel = playerViewModel,
                     modifier = Modifier
                         .weight(0.85f)
                         .align(Alignment.CenterVertically)
@@ -967,10 +964,11 @@ private fun PlayerSongInfo(
     textColor: Color,
     artistTextColor: Color,
     gradientEdgeColor: Color,
-    navController: NavHostController,
-    onCollapse: () -> Unit,
+    playerViewModel: PlayerViewModel,
     modifier: Modifier = Modifier
 ) {
+    val coroutineScope = rememberCoroutineScope()
+    var isNavigatingToArtist by remember { mutableStateOf(false) }
     val titleStyle = MaterialTheme.typography.headlineSmall.copy(
         fontWeight = FontWeight.Bold,
         fontFamily = GoogleSansRounded,
@@ -984,9 +982,9 @@ private fun PlayerSongInfo(
 
     Column(
         horizontalAlignment = Alignment.Start,
-        modifier = modifier
-            .padding(vertical = lerp(2.dp, 10.dp, expansionFraction))
-            .fillMaxWidth(0.9f)
+            modifier = modifier
+                .padding(vertical = lerp(2.dp, 10.dp, expansionFraction))
+                .fillMaxWidth(0.9f)
             .graphicsLayer {
                 alpha = expansionFraction
                 translationY = (1f - expansionFraction) * 24f
@@ -999,13 +997,23 @@ private fun PlayerSongInfo(
             style = artistStyle,
             gradientEdgeColor = gradientEdgeColor,
             expansionFraction = expansionFraction,
-            modifier = Modifier.clickable(
+            modifier = Modifier.combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) {
-                navController.navigate(Screen.ArtistDetail.createRoute(artistId))
-                onCollapse()
-            }
+                indication = null,
+                onClick = {},
+                onLongClick = {
+                    if (isNavigatingToArtist) return@combinedClickable
+
+                    coroutineScope.launch {
+                        isNavigatingToArtist = true
+                        try {
+                            playerViewModel.triggerArtistNavigationFromPlayer(artistId)
+                        } finally {
+                            isNavigatingToArtist = false
+                        }
+                    }
+                }
+            )
         )
     }
 }

@@ -49,6 +49,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.view.ContextThemeWrapper
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.compose.runtime.snapshotFlow
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.media3.common.Timeline
@@ -154,6 +155,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import org.json.JSONObject
 import timber.log.Timber
@@ -370,6 +372,10 @@ class PlayerViewModel @Inject constructor(
     // Toast Events
     private val _toastEvents = MutableSharedFlow<String>()
     val toastEvents = _toastEvents.asSharedFlow()
+
+    private val _artistNavigationRequests = MutableSharedFlow<Long>(extraBufferCapacity = 1)
+    val artistNavigationRequests = _artistNavigationRequests.asSharedFlow()
+    private var artistNavigationJob: Job? = null
 
     private val _castRoutes = MutableStateFlow<List<MediaRouter.RouteInfo>>(emptyList())
     val castRoutes: StateFlow<List<MediaRouter.RouteInfo>> = _castRoutes.asStateFlow()
@@ -2097,6 +2103,36 @@ class PlayerViewModel @Inject constructor(
     fun collapsePlayerSheet() {
         _sheetState.value = PlayerSheetState.COLLAPSED
         _predictiveBackCollapseFraction.value = 0f
+    }
+
+    fun triggerArtistNavigationFromPlayer(artistId: Long) {
+        if (artistId <= 0) return
+
+        val existingJob = artistNavigationJob
+        if (existingJob != null && existingJob.isActive) return
+
+        artistNavigationJob?.cancel()
+        artistNavigationJob = viewModelScope.launch {
+            collapsePlayerSheet()
+
+            withTimeoutOrNull(900) {
+                awaitSheetState(PlayerSheetState.COLLAPSED)
+                awaitPlayerCollapse()
+            }
+
+            _artistNavigationRequests.emit(artistId)
+        }
+    }
+
+    suspend fun awaitSheetState(target: PlayerSheetState) {
+        sheetState.first { it == target }
+    }
+
+    suspend fun awaitPlayerCollapse(threshold: Float = 0.1f, timeoutMillis: Long = 800L) {
+        withTimeoutOrNull(timeoutMillis) {
+            snapshotFlow { playerContentExpansionFraction.value }
+                .first { it <= threshold }
+        }
     }
 
     private fun resolveSongFromMediaItem(mediaItem: MediaItem): Song? {

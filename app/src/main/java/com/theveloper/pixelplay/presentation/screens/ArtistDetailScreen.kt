@@ -83,6 +83,10 @@ fun ArtistDetailScreen(
     val density = LocalDensity.current
     val coroutineScope = rememberCoroutineScope()
 
+    LaunchedEffect(Unit) {
+        playerViewModel.collapsePlayerSheet()
+    }
+
     // --- Lógica del Header Colapsable ---
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val minTopBarHeight = 64.dp + statusBarHeight

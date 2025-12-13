@@ -102,6 +102,7 @@ import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.presentation.components.player.FullPlayerContent
 import com.theveloper.pixelplay.presentation.components.scoped.rememberExpansionTransition
+import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
@@ -246,6 +247,24 @@ fun UnifiedPlayerSheet(
     val initialY =
         if (currentSheetContentState == PlayerSheetState.COLLAPSED) sheetCollapsedTargetY else sheetExpandedTargetY
     val currentSheetTranslationY = remember { Animatable(initialY) }
+
+    LaunchedEffect(
+        navController,
+        sheetAnimationMutex,
+        sheetCollapsedTargetY
+    ) {
+        playerViewModel.artistNavigationRequests.collectLatest { artistId ->
+            sheetAnimationMutex.mutate {
+                currentSheetTranslationY.snapTo(sheetCollapsedTargetY)
+                playerContentExpansionFraction.snapTo(0f)
+            }
+            playerViewModel.collapsePlayerSheet()
+
+            navController.navigate(Screen.ArtistDetail.createRoute(artistId)) {
+                launchSingleTop = true
+            }
+        }
+    }
 
     val fullPlayerContentAlpha by remember {
         derivedStateOf {
@@ -1177,7 +1196,6 @@ fun UnifiedPlayerSheet(
                                                     onShuffleToggle = playerViewModel::toggleShuffle,
                                                     onRepeatToggle = playerViewModel::cycleRepeatMode,
                                                     onFavoriteToggle = playerViewModel::toggleFavorite,
-                                                    navController = navController,
                                                 )
                                             }
                                         }
@@ -1234,7 +1252,6 @@ fun UnifiedPlayerSheet(
                                     onShuffleToggle = playerViewModel::toggleShuffle,
                                     onRepeatToggle = playerViewModel::cycleRepeatMode,
                                     onFavoriteToggle = playerViewModel::toggleFavorite,
-                                    navController = navController,
                                 )
                             }
                         }
