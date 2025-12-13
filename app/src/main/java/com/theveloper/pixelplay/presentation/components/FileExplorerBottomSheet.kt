@@ -197,12 +197,14 @@ fun FileExplorerContent(
             verticalArrangement = Arrangement.spacedBy(7.2.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp)
+                    .padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -216,7 +218,7 @@ fun FileExplorerContent(
                 }
 
                 FilledIconButton(
-                    modifier = Modifier.padding(end = 12.dp),
+                    modifier = Modifier.padding(end = 4.dp),
                     onClick = onRefresh,
                     colors = IconButtonDefaults.filledIconButtonColors(
                         containerColor = MaterialTheme.colorScheme.secondaryContainer,

@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
@@ -326,11 +327,11 @@ fun WelcomePage() {
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .padding(horizontal = 8.dp)
                 .padding(top = 12.dp),
-            verticalAlignment = Alignment.Bottom
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
                 text = "Welcome to ",
@@ -341,9 +342,9 @@ fun WelcomePage() {
             )
             Text(
                 text = "PixelPlayer",
-                style = ExpTitleTypography.displayLarge.copy(
+                style = MaterialTheme.typography.displayLarge.copy(
                     fontFamily = GoogleSansRounded,
-                    fontSize = 34.sp,
+                    fontSize = 46.sp,
                     color = MaterialTheme.colorScheme.primary,
                     lineHeight = 1.1.em
                 ),
