@@ -658,7 +658,7 @@ fun PlaylistDetailScreen(
                 }
                 PlaylistActionItem(
                     icon = painterResource(R.drawable.rounded_edit_24),
-                    label = "Editar nombre",
+                    label = "Rename playlist",
                     onClick = {
                         showPlaylistOptionsSheet = false
                         showRenameDialog = true
@@ -666,7 +666,7 @@ fun PlaylistDetailScreen(
                 )
                 PlaylistActionItem(
                     icon = painterResource(R.drawable.rounded_delete_24),
-                    label = "Eliminar playlist",
+                    label = "Delete playlist",
                     onClick = {
                         showPlaylistOptionsSheet = false
                         showDeleteConfirmation = true

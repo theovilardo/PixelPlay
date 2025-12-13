@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
@@ -93,6 +94,7 @@ import com.theveloper.pixelplay.presentation.viewmodel.DirectoryEntry
 import com.theveloper.pixelplay.presentation.viewmodel.SetupUiState
 import com.theveloper.pixelplay.presentation.viewmodel.SetupViewModel
 import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
+import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.launch
@@ -325,16 +327,54 @@ fun WelcomePage() {
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        Text(
+        Column(
             modifier = Modifier
                 .padding(horizontal = 8.dp)
                 .padding(top = 12.dp),
-            text = "Welcome to PixelPlayer",
-            style = ExpTitleTypography.displayLarge.copy(
-                fontSize = 42.sp,
-                lineHeight = 1.1.em
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = "Welcome to ",
+                style = ExpTitleTypography.displayLarge.copy(
+                    fontSize = 42.sp,
+                    lineHeight = 1.1.em
+                ),
             )
-        )
+            Text(
+                text = "PixelPlayer",
+                style = MaterialTheme.typography.displayLarge.copy(
+                    fontFamily = GoogleSansRounded,
+                    fontSize = 46.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    lineHeight = 1.1.em
+                ),
+            )
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            tonalElevation = 2.dp,
+            shadowElevation = 0.dp
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = "β",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Black
+                )
+                Text(
+                    text = "Beta",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
         Spacer(modifier = Modifier.height(16.dp))
         // Placeholder for vector art
         Box(
