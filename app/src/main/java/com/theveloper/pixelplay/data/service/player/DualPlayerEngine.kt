@@ -43,6 +43,7 @@ class DualPlayerEngine @Inject constructor(
 
     private var playerA: ExoPlayer
     private var playerB: ExoPlayer
+    private var isReleased = false
 
     private val onPlayerSwappedListeners = mutableListOf<(Player) -> Unit>()
 
@@ -100,7 +101,10 @@ class DualPlayerEngine @Inject constructor(
 
     /** The master player instance that should be connected to the MediaSession. */
     val masterPlayer: Player
-        get() = playerA
+        get() {
+            ensureInitialized()
+            return playerA
+        }
 
     fun isTransitionRunning(): Boolean = transitionRunning
 
@@ -109,9 +113,19 @@ class DualPlayerEngine @Inject constructor(
         // We manage Audio Focus manually via AudioFocusManager.
         playerA = buildPlayer(handleAudioFocus = false)
         playerB = buildPlayer(handleAudioFocus = false)
+        isReleased = false
 
         // Attach listener to initial master
         playerA.addListener(masterPlayerListener)
+    }
+
+    fun ensureInitialized() {
+        if (!isReleased) return
+
+        playerA = buildPlayer(handleAudioFocus = false)
+        playerB = buildPlayer(handleAudioFocus = false)
+        playerA.addListener(masterPlayerListener)
+        isReleased = false
     }
 
     private fun requestAudioFocus() {
@@ -402,5 +416,6 @@ class DualPlayerEngine @Inject constructor(
         transitionJob?.cancel()
         playerA.release()
         playerB.release()
+        isReleased = true
     }
 }
