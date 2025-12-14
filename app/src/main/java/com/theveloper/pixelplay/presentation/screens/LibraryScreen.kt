@@ -1017,7 +1017,7 @@ fun FolderPlaylistItem(folder: MusicFolder, onClick: () -> Unit) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     folder.name,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleMedium.copy(fontFamily = GoogleSansRounded),
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis

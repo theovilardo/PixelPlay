@@ -271,8 +271,10 @@ fun DailyMixScreen(
                         FilledTonalButton(
                             onClick = {
                                 if (dailyMixSongs.isNotEmpty()) {
-                                    if (!isShuffleEnabled) playerViewModel.toggleShuffle() // Activar shuffle si no estaba activo
-                                    playerViewModel.playSongs(dailyMixSongs, dailyMixSongs.random(), "Daily Mix")
+                                    playerViewModel.playSongsShuffled(
+                                        songsToPlay = dailyMixSongs,
+                                        queueName = "Daily Mix"
+                                    )
                                 }
                             },
                             modifier = Modifier

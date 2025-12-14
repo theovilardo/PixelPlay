@@ -656,14 +656,7 @@ class PlayerViewModel @Inject constructor(
         // Otherwise start a new shuffled queue
         val allSongs = _playerUiState.value.allSongs
         if (allSongs.isNotEmpty()) {
-            val shuffledList = allSongs.shuffled().toMutableList()
-            val randomSong = shuffledList.first()
-            playSongs(shuffledList, randomSong, "All Songs (Shuffled)")
-            // Enable shuffle after starting playback
-            viewModelScope.launch {
-                kotlinx.coroutines.delay(100)
-                toggleShuffle()
-            }
+            playSongsShuffled(allSongs, "All Songs (Shuffled)")
         }
     }
 
@@ -684,13 +677,7 @@ class PlayerViewModel @Inject constructor(
         // Otherwise start a new shuffled queue
         val favSongs = favoriteSongs.value
         if (favSongs.isNotEmpty()) {
-            val shuffledList = favSongs.shuffled()
-            playSongs(shuffledList, shuffledList.first(), "Liked Songs (Shuffled)")
-            // Enable shuffle after starting playback
-            viewModelScope.launch {
-                kotlinx.coroutines.delay(100)
-                toggleShuffle()
-            }
+            playSongsShuffled(favSongs, "Liked Songs (Shuffled)")
         }
     }
 
@@ -2403,6 +2390,36 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    // Start playback with shuffle enabled in one coroutine to avoid racing queue updates
+    fun playSongsShuffled(songsToPlay: List<Song>, queueName: String = "None", playlistId: String? = null) {
+        viewModelScope.launch {
+            if (songsToPlay.isEmpty()) {
+                sendToast("No songs to shuffle.")
+                return@launch
+            }
+
+            transitionSchedulerJob?.cancel()
+
+            val startSong = songsToPlay.random()
+            _originalQueueOrder = songsToPlay.toList()
+            _originalQueueName = queueName
+            _stablePlayerState.update { it.copy(isShuffleEnabled = false) }
+
+            internalPlaySongs(songsToPlay, startSong, queueName, playlistId)
+            val isCastSessionActive = _castSession.value?.remoteMediaClient != null
+            if (isCastSessionActive || mediaController != null) {
+                toggleShuffle(currentSongOverride = startSong)
+            } else {
+                pendingPlaybackAction = pendingPlaybackAction?.let { action ->
+                    {
+                        action()
+                        toggleShuffle(currentSongOverride = startSong)
+                    }
+                }
+            }
+        }
+    }
+
     fun playExternalUri(uri: Uri) {
         viewModelScope.launch {
             val externalResult = buildExternalSongFromUri(uri)
@@ -2807,6 +2824,13 @@ class PlayerViewModel @Inject constructor(
             )
 
             _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
+            _stablePlayerState.update {
+                it.copy(
+                    currentSong = startSong,
+                    isPlaying = true,
+                    totalDuration = startSong.duration.coerceAtLeast(0L)
+                )
+            }
         } else {
             val playSongsAction = {
                 mediaController?.let { controller ->
@@ -2836,6 +2860,13 @@ class PlayerViewModel @Inject constructor(
                         controller.prepare()
                         controller.play()
                         _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
+                        _stablePlayerState.update {
+                            it.copy(
+                                currentSong = startSong,
+                                isPlaying = true,
+                                totalDuration = startSong.duration.coerceAtLeast(0L)
+                            )
+                        }
                     }
                 }
                 _playerUiState.update { it.copy(isLoadingInitialSongs = false) }
@@ -2909,7 +2940,7 @@ class PlayerViewModel @Inject constructor(
         return metadataBuilder.build()
     }
 
-    fun toggleShuffle() {
+    fun toggleShuffle(currentSongOverride: Song? = null) {
         val castSession = _castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
             val remoteMediaClient = castSession.remoteMediaClient
@@ -2922,12 +2953,18 @@ class PlayerViewModel @Inject constructor(
         } else {
             // Manual shuffle implementation - fixes crossfade issues by not using ExoPlayer's shuffle
             val player = mediaController ?: return
-            val currentQueue = _playerUiState.value.currentPlaybackQueue
-            val currentSong = _stablePlayerState.value.currentSong ?: return
+            val currentQueue = _playerUiState.value.currentPlaybackQueue.toList()
+            if (currentQueue.isEmpty()) return
+
+            val currentSong = currentSongOverride
+                ?: _stablePlayerState.value.currentSong
+                ?: player.currentMediaItem?.let { resolveSongFromMediaItem(it) }
+                ?: currentQueue.firstOrNull()
+                ?: return
             val isCurrentlyShuffled = _stablePlayerState.value.isShuffleEnabled
 
             if (!isCurrentlyShuffled) {
-                // SHUFFLE ON: Keep current song at index 0, shuffle the rest
+                // SHUFFLE ON: Shuffle while preserving the current song index to avoid carousel jumps
                 Log.d("ShuffleDebug", "Enabling shuffle - current song: ${currentSong.title}")
                 
                 // Store original order if not already stored
@@ -2936,28 +2973,43 @@ class PlayerViewModel @Inject constructor(
                     _originalQueueName = _playerUiState.value.currentQueueSourceName
                 }
 
-                val otherSongs = currentQueue.filter { it.id != currentSong.id }.shuffled()
-                val newQueue = listOf(currentSong) + otherSongs
+                val desiredIndex = player.currentMediaItemIndex.coerceIn(0, (currentQueue.size - 1).coerceAtLeast(0))
+                val remainingSongs = currentQueue.toMutableList().also {
+                    if (desiredIndex in it.indices) it.removeAt(desiredIndex) else it.remove(currentSong)
+                }.shuffled()
 
-                // Update queue without interrupting playback using add/remove
-                val currentIndex = player.currentMediaItemIndex
+                val beforeCurrent = remainingSongs.take(desiredIndex)
+                val afterCurrent = remainingSongs.drop(desiredIndex)
+                val newQueue = beforeCurrent + currentSong + afterCurrent
+
                 val currentPosition = player.currentPosition
+                val currentMediaId = player.currentMediaItem?.mediaId
 
-                // Remove all items except current
-                for (i in player.mediaItemCount - 1 downTo 0) {
-                    if (i != currentIndex) {
-                        player.removeMediaItem(i)
+                // Reorder timeline using move operations to avoid rebuffering the current item
+                val timelineIds = MutableList(player.mediaItemCount) { player.getMediaItemAt(it).mediaId }
+                var trackedCurrentIndex = player.currentMediaItemIndex
+
+                newQueue.forEachIndexed { targetIndex, song ->
+                    val fromIndex = timelineIds.indexOf(song.id)
+                    if (fromIndex == -1) return@forEachIndexed
+                    if (fromIndex != targetIndex) {
+                        player.moveMediaItem(fromIndex, targetIndex)
+                        val moved = timelineIds.removeAt(fromIndex)
+                        timelineIds.add(targetIndex, moved)
+
+                        // Track where the current item ends up without forcing a seek unless needed
+                        if (moved == currentMediaId) {
+                            trackedCurrentIndex = targetIndex
+                        } else {
+                            if (fromIndex < trackedCurrentIndex && targetIndex >= trackedCurrentIndex) trackedCurrentIndex--
+                            else if (fromIndex > trackedCurrentIndex && targetIndex <= trackedCurrentIndex) trackedCurrentIndex++
+                        }
                     }
                 }
 
-                // Add shuffled songs after current (which is now at index 0)
-                otherSongs.forEachIndexed { index, song ->
-                    val mediaItem = MediaItem.Builder()
-                        .setMediaId(song.id)
-                        .setUri(song.path)
-                        .setMediaMetadata(buildMediaMetadataForSong(song))
-                        .build()
-                    player.addMediaItem(index + 1, mediaItem)
+                // Only seek if the current item's index actually changed
+                if (player.currentMediaItemIndex != trackedCurrentIndex) {
+                    player.seekTo(trackedCurrentIndex, currentPosition)
                 }
 
                 // Update UI state
@@ -2976,7 +3028,6 @@ class PlayerViewModel @Inject constructor(
                 }
 
                 val originalQueue = _originalQueueOrder
-                val currentPosition = player.currentPosition
 
                 // Find current song's position in original queue
                 val originalIndex = originalQueue.indexOfFirst { it.id == currentSong.id }

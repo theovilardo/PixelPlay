@@ -209,6 +209,7 @@ fun PlaylistDetailScreen(
                     Text(
                         modifier = Modifier.padding(start = 8.dp),
                         text = currentPlaylist?.name ?: "Playlist",
+                        fontFamily = GoogleSansRounded,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -225,7 +226,7 @@ fun PlaylistDetailScreen(
                                 songsInPlaylist
                             )
                         }",
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.labelMedium.copy(fontFamily = GoogleSansRounded),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 },
@@ -332,11 +333,10 @@ fun PlaylistDetailScreen(
                     FilledTonalButton(
                         onClick = {
                             if (localReorderableSongs.isNotEmpty()) {
-                                if (!playerStableState.isShuffleEnabled) playerViewModel.toggleShuffle()
-                                playerViewModel.playSongs(
-                                    localReorderableSongs,
-                                    localReorderableSongs.random(),
-                                    currentPlaylist.name
+                                playerViewModel.playSongsShuffled(
+                                    songsToPlay = localReorderableSongs,
+                                    queueName = currentPlaylist.name,
+                                    playlistId = currentPlaylist.id
                                 )
                             }
                         },

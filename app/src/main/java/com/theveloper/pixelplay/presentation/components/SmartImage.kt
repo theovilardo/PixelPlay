@@ -9,6 +9,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
@@ -110,30 +114,59 @@ fun SmartImage(
             onState?.invoke(state)
         }
 
+        var lastSuccessPainter by remember { mutableStateOf<Painter?>(null) }
+
         when (state) {
             is AsyncImagePainter.State.Success -> {
+                lastSuccessPainter = state.painter
                 SubcomposeAsyncImageContent()
             }
             AsyncImagePainter.State.Empty,
             is AsyncImagePainter.State.Loading -> {
-                Placeholder(
-                    modifier = Modifier.fillMaxSize(),
-                    drawableResId = placeholderResId,
-                    contentDescription = contentDescription,
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    alpha = alpha
-                )
+                val cachedPainter = lastSuccessPainter
+                if (cachedPainter != null) {
+                    Image(
+                        painter = cachedPainter,
+                        contentDescription = contentDescription,
+                        modifier = Modifier
+                            .fillMaxSize(),
+                        contentScale = contentScale,
+                        colorFilter = colorFilter,
+                        alpha = alpha
+                    )
+                } else {
+                    Placeholder(
+                        modifier = Modifier.fillMaxSize(),
+                        drawableResId = placeholderResId,
+                        contentDescription = contentDescription,
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        alpha = alpha
+                    )
+                }
             }
             is AsyncImagePainter.State.Error -> {
-                Placeholder(
-                    modifier = Modifier.fillMaxSize(),
-                    drawableResId = errorResId,
-                    contentDescription = contentDescription,
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    alpha = alpha
-                )
+                val cachedPainter = lastSuccessPainter
+                if (cachedPainter != null) {
+                    Image(
+                        painter = cachedPainter,
+                        contentDescription = contentDescription,
+                        modifier = Modifier
+                            .fillMaxSize(),
+                        contentScale = contentScale,
+                        colorFilter = colorFilter,
+                        alpha = alpha
+                    )
+                } else {
+                    Placeholder(
+                        modifier = Modifier.fillMaxSize(),
+                        drawableResId = errorResId,
+                        contentDescription = contentDescription,
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        alpha = alpha
+                    )
+                }
             }
         }
     }

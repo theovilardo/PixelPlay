@@ -63,6 +63,7 @@ import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.screens.PlayerSheetCollapsedCornerRadius
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistUiState
+import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import kotlin.collections.set
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -277,7 +278,7 @@ fun PlaylistItem(
                 ) {
                     Text(
                         text = playlist.name,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleMedium.copy(fontFamily = GoogleSansRounded),
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -380,5 +381,3 @@ fun CreatePlaylistDialogRedesigned(
         }
     }
 }
-
-

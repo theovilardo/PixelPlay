@@ -10,6 +10,7 @@ import androidx.activity.compose.PredictiveBackHandler
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDp
@@ -1120,25 +1121,32 @@ fun UnifiedPlayerSheet(
                                 // stablePlayerState.currentSong is already available from the top-level collection
                                 stablePlayerState.currentSong?.let { currentSongNonNull ->
                                     if (miniAlpha > 0.01f) {
-                                        CompositionLocalProvider(
-                                            LocalMaterialTheme provides albumColorScheme
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .align(Alignment.TopCenter)
-                                                    .graphicsLayer {
-                                                        alpha = miniAlpha//miniPlayerAlpha
-                                                    }
+                                        Crossfade(
+                                            targetState = albumColorScheme,
+                                            animationSpec = tween(durationMillis = 550, easing = FastOutSlowInEasing),
+                                            label = "miniPlayerColorScheme"
+                                        ) { scheme ->
+                                            CompositionLocalProvider(
+                                                LocalMaterialTheme provides (scheme ?: MaterialTheme.colorScheme)
                                             ) {
-                                                MiniPlayerContentInternal(
-                                                    song = currentSongNonNull, // Use non-null version
-                                                    cornerRadiusAlb = (overallSheetTopCornerRadius.value * 0.5).dp,
-                                                    isPlaying = stablePlayerState.isPlaying, // from top-level stablePlayerState
-                                                    isCastConnecting = isCastConnecting,
-                                                    onPlayPause = { playerViewModel.playPause() },
-                                                    onNext = { playerViewModel.nextSong() },
-                                                    modifier = Modifier.fillMaxSize()
-                                                )
+                                                Box(
+                                                    modifier = Modifier
+                                                        .align(Alignment.TopCenter)
+                                                        .graphicsLayer {
+                                                            alpha = miniAlpha//miniPlayerAlpha
+                                                        }
+                                                ) {
+                                                    MiniPlayerContentInternal(
+                                                        song = currentSongNonNull, // Use non-null version
+                                                        cornerRadiusAlb = (overallSheetTopCornerRadius.value * 0.5).dp,
+                                                        isPlaying = stablePlayerState.isPlaying, // from top-level stablePlayerState
+                                                        isCastConnecting = isCastConnecting,
+                                                        onPlayPause = { playerViewModel.playPause() },
+                                                        onPrevious = { playerViewModel.previousSong() },
+                                                        onNext = { playerViewModel.nextSong() },
+                                                        modifier = Modifier.fillMaxSize()
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -1388,6 +1396,7 @@ private fun MiniPlayerContentInternal(
     isPlaying: Boolean,
     isCastConnecting: Boolean,
     onPlayPause: () -> Unit,
+    onPrevious: () -> Unit,
     cornerRadiusAlb: Dp,
     onNext: () -> Unit,
     modifier: Modifier = Modifier
@@ -1451,6 +1460,31 @@ private fun MiniPlayerContentInternal(
                 gradientEdgeColor = LocalMaterialTheme.current.primaryContainer
             )
         }
+        Spacer(modifier = Modifier.width(8.dp))
+
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(LocalMaterialTheme.current.primary.copy(alpha = 0.2f))
+                .clickable(
+                    interactionSource = interaction,
+                    indication = indication,
+                    enabled = !isCastConnecting
+                ) {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onPrevious()
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.rounded_skip_previous_24),
+                contentDescription = "Anterior",
+                tint = LocalMaterialTheme.current.primary,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+
         Spacer(modifier = Modifier.width(8.dp))
 
         Box(

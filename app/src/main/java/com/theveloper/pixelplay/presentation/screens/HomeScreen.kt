@@ -173,11 +173,10 @@ fun HomeScreen(
                         isShuffleEnabled = isShuffleEnabled,
                         onPlayShuffled = {
                             if (yourMixSongs.isNotEmpty()) {
-                                // Start playing with shuffle enabled
-                                val shuffledSongs = yourMixSongs.shuffled()
-                                playerViewModel.playSongs(shuffledSongs, shuffledSongs.first(), "Your Mix")
-                                // Enable shuffle mode after starting playback
-                                playerViewModel.toggleShuffle()
+                                playerViewModel.playSongsShuffled(
+                                    songsToPlay = yourMixSongs,
+                                    queueName = "Your Mix"
+                                )
                             }
                         }
                     )
