@@ -66,6 +66,20 @@ To get a local copy up and running, follow these simple steps.
 3. Let Gradle sync and download the required dependencies.
 4. Run the app on an emulator or a physical device.
 
+## ⬇️ Download
+
+You can download and install PixelPlayer using any of the following methods:
+
+- **GitHub Releases**: You can download the latest APK from the [GitHub releases page](https://github.com/theovilardo/PixelPlay/releases/latest).
+  <p align="center">
+    <a href="https://github.com/theovilardo/PixelPlay/releases/latest"><img src="https://raw.githubusercontent.com/Kunzisoft/Github-badge/main/get-it-on-github.png" alt="Get it on GitHub" height="60" style="max-width: 200px"></a>
+  </p>
+
+- **Obtainium**: You can also add the app to [Obtainium](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.theveloper.pixelplay%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Ftheovilardo%2FPixelPlay%22%2C%22author%22%3A%22theovilardo%22%2C%22name%22%3A%22PixelPlay%22%2C%22supportFixedAPKURL%22%3Afalse%7D) for easy updates and management.
+  <p align="center">
+    <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.theveloper.pixelplay%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Ftheovilardo%2FPixelPlay%22%2C%22author%22%3A%22theovilardo%22%2C%22name%22%3A%22PixelPlay%22%2C%22supportFixedAPKURL%22%3Afalse%7D"><img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" height="40"></a>
+  </p>
+
 ## 📂 Project Structure
 
 The project follows the standard Android app structure, with a few key directories:
