@@ -113,6 +113,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.lerp
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.only
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.core.content.ContextCompat
 import androidx.media3.common.util.UnstableApi
 import androidx.mediarouter.media.MediaRouter
@@ -600,10 +602,11 @@ private fun CastSheetContainer(
 ) {
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
-    val hiddenOffsetPx = with(density) { 140.dp.toPx() }
-    val sheetOffset = remember { Animatable(hiddenOffsetPx) }
-    val dragOffset = remember { Animatable(0f) }
+    var sheetHeightPx by remember { mutableFloatStateOf(0f) }
+    val hiddenOffsetPx = remember { mutableFloatStateOf(0f) }
+    val sheetOffset = remember { Animatable(0f) }
     var isVisible by remember { mutableStateOf(false) }
+    var isDismissing by remember { mutableStateOf(false) }
 
     val scrimAlpha by animateFloatAsState(
         targetValue = if (isVisible) 0.45f else 0f,
@@ -611,45 +614,61 @@ private fun CastSheetContainer(
         label = "scrimAlpha"
     )
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(sheetHeightPx) {
+        if (sheetHeightPx == 0f) return@LaunchedEffect
+        hiddenOffsetPx.floatValue = sheetHeightPx
+        sheetOffset.snapTo(sheetHeightPx)
         isVisible = true
         sheetOffset.animateTo(0f, tween(durationMillis = 320, easing = FastOutSlowInEasing))
     }
 
-    suspend fun resetDrag() {
-        dragOffset.animateTo(0f, tween(durationMillis = 180, easing = FastOutSlowInEasing))
+    suspend fun animateToRest() {
+        sheetOffset.animateTo(0f, tween(durationMillis = 200, easing = FastOutSlowInEasing))
     }
 
-    fun dismissSheet() {
+    fun dismissSheet(velocity: Float = 0f) {
+        if (isDismissing || hiddenOffsetPx.floatValue == 0f) return
+        isDismissing = true
         scope.launch {
             isVisible = false
-            dragOffset.snapTo(0f)
-            sheetOffset.animateTo(hiddenOffsetPx, tween(durationMillis = 260, easing = FastOutSlowInEasing))
+            sheetOffset.animateTo(
+                targetValue = hiddenOffsetPx.floatValue,
+                animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
+                initialVelocity = velocity
+            )
             onDismiss()
         }
     }
 
     val dragThreshold = with(density) { 72.dp.toPx() }
-    val sheetDragModifier = Modifier.pointerInput(dismissSheet, hiddenOffsetPx) {
+    val sheetDragModifier = Modifier.pointerInput(dragThreshold, hiddenOffsetPx.floatValue) {
+        val velocityTracker = VelocityTracker()
         detectVerticalDragGestures(
-            onVerticalDrag = { _, dragAmount ->
-                if (dragAmount >= 0f || dragOffset.value > 0f) {
-                    val newOffset = (dragOffset.value + dragAmount).coerceIn(0f, hiddenOffsetPx)
-                    scope.launch { dragOffset.snapTo(newOffset) }
-                }
+            onDragStart = { velocityTracker.resetTracking() },
+            onVerticalDrag = { change, dragAmount ->
+                if (isDismissing) return@detectVerticalDragGestures
+                change.consume()
+                velocityTracker.addPosition(change.uptimeMillis, change.position)
+                val target = (sheetOffset.value + dragAmount).coerceIn(0f, hiddenOffsetPx.floatValue)
+                sheetOffset.snapTo(target)
             },
             onDragEnd = {
-                if (dragOffset.value > dragThreshold) {
-                    dismissSheet()
+                if (isDismissing) return@detectVerticalDragGestures
+                val velocity = velocityTracker.calculateVelocity().y
+                if (sheetOffset.value > dragThreshold || velocity > 1400f) {
+                    dismissSheet(velocity)
                 } else {
-                    scope.launch { resetDrag() }
+                    scope.launch { animateToRest() }
                 }
             },
-            onDragCancel = { scope.launch { resetDrag() } }
+            onDragCancel = {
+                if (isDismissing) return@detectVerticalDragGestures
+                scope.launch { animateToRest() }
+            }
         )
     }
 
-    BackHandler(onBack = { dismissSheet() })
+    BackHandler(enabled = isVisible && !isDismissing) { dismissSheet() }
 
     Box(
         modifier = Modifier
@@ -671,7 +690,11 @@ private fun CastSheetContainer(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal))
-                .offset { IntOffset(0, (sheetOffset.value + dragOffset.value).roundToInt()) }
+                .onGloballyPositioned {
+                    val height = it.size.height.toFloat()
+                    if (height != sheetHeightPx) sheetHeightPx = height
+                }
+                .offset { IntOffset(0, sheetOffset.value.roundToInt()) }
                 .then(sheetDragModifier),
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
             tonalElevation = 12.dp,
