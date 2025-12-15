@@ -466,6 +466,7 @@ class PlayerViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "FOLDERS", "LIKED"))
 
     private val _loadedTabs = MutableStateFlow(emptySet<String>())
+    private var lastAllowedDirectories: Set<String>? = null
 
     private val _currentLibraryTabId = MutableStateFlow(LibraryTabId.SONGS)
     val currentLibraryTabId: StateFlow<LibraryTabId> = _currentLibraryTabId.asStateFlow()
@@ -1020,6 +1021,22 @@ class PlayerViewModel @Inject constructor(
             userPreferencesRepository.isFoldersPlaylistViewFlow.collect { isPlaylistView ->
                 setFoldersPlaylistViewState(isPlaylistView)
             }
+        }
+
+        viewModelScope.launch {
+            userPreferencesRepository.allowedDirectoriesFlow
+                .distinctUntilChanged()
+                .collect { allowed ->
+                    if (lastAllowedDirectories == null) {
+                        lastAllowedDirectories = allowed
+                        return@collect
+                    }
+
+                    if (allowed != lastAllowedDirectories) {
+                        lastAllowedDirectories = allowed
+                        onAllowedDirectoriesChanged()
+                    }
+                }
         }
 
         viewModelScope.launch {
@@ -1928,6 +1945,23 @@ class PlayerViewModel @Inject constructor(
                 _playerUiState.update { it.copy(isLoadingLibraryCategories = false) }
             }
         }
+    }
+
+    private fun onAllowedDirectoriesChanged() {
+        _loadedTabs.value = emptySet()
+
+        _playerUiState.update { state ->
+            if (_currentLibraryTabId.value == LibraryTabId.FOLDERS) {
+                state.copy(currentFolder = null, currentFolderPath = null)
+            } else {
+                state
+            }
+        }
+
+        loadSongsFromRepository()
+        loadAlbumsFromRepository()
+        loadArtistsFromRepository()
+        loadFoldersFromRepository()
     }
 
     fun showAndPlaySong(

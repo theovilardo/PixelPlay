@@ -243,43 +243,37 @@ class FileExplorerStateHolder(
     private suspend fun loadDirectoryInternal(file: File, updatePath: Boolean, forceRefresh: Boolean) {
         val target = if (file.isDirectory) file else visibleRoot
         val targetKey = normalizePath(target)
+        val isSmartView = _smartViewEnabled.value
+        val cacheKey = if (isSmartView) normalizePath(visibleRoot) else targetKey
 
         if (forceRefresh) {
             directoryChildrenCache.remove(targetKey)
-            smartViewCache.remove(targetKey)
+            smartViewCache.remove(cacheKey)
         }
 
         if (updatePath) {
             _currentPath.value = target
         }
 
-        // Check Memory Cache
-        if (_smartViewEnabled.value) {
-             val cached = smartViewCache[normalizePath(visibleRoot)] // Smart view is always rooted at visibleRoot effectively
-             if (cached != null && !forceRefresh) {
-                 _rawCurrentDirectoryChildren.value = cached
-                 _isLoading.value = false
-                 _isExplorerReady.value = true
-                 return
-             }
-        } else {
-             val cached = directoryChildrenCache[targetKey]
-             if (cached != null && !forceRefresh) {
-                 _rawCurrentDirectoryChildren.value = cached
-                 _isLoading.value = false
-                 _isExplorerReady.value = true
-                 return
-             }
+        val cachedEntries = if (!forceRefresh) {
+            if (isSmartView) smartViewCache[cacheKey] else directoryChildrenCache[targetKey]
+        } else null
+
+        if (cachedEntries != null) {
+            _rawCurrentDirectoryChildren.value = cachedEntries
+            _isLoading.value = false
+            _isExplorerReady.value = true
+            return
         }
 
         _isLoading.value = true
         _rawCurrentDirectoryChildren.value = emptyList()
 
         val resultEntries = withContext(Dispatchers.IO) {
-            if (_smartViewEnabled.value) {
+            if (isSmartView) {
                 buildSmartViewEntries(visibleRoot, forceRefresh)
             } else {
-                 runCatching {
+                runCatching {
                     target.listFiles()
                         ?.mapNotNull { child ->
                             if (child.isDirectory && !child.isHidden) {
@@ -294,7 +288,7 @@ class FileExplorerStateHolder(
                         ?.sortedWith(compareBy({ it.file.name.lowercase() }))
                         ?: emptyList()
                 }.getOrElse { emptyList() }
-                 .also { directoryChildrenCache[targetKey] = it }
+                    .also { directoryChildrenCache[targetKey] = it }
             }
         }
 
