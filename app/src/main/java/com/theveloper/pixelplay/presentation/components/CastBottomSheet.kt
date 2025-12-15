@@ -509,9 +509,7 @@ private fun CastSheetContent(
     val spacerHeight = headerExpandedHeight - headerCollapsedHeight
 
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = statusBarPadding)
+        modifier = Modifier.fillMaxWidth()
     ) {
         LazyColumn(
             modifier = Modifier
@@ -621,6 +619,7 @@ private fun CastSheetContainer(
     var sheetHeightPx by remember { mutableFloatStateOf(0f) }
     val hiddenOffsetPx = remember { mutableFloatStateOf(0f) }
     val sheetOffset = remember { Animatable(0f) }
+    val contentAlpha = remember { Animatable(0f) }
     var isVisible by remember { mutableStateOf(false) }
     var isDismissing by remember { mutableStateOf(false) }
 
@@ -636,13 +635,12 @@ private fun CastSheetContainer(
 
         if (!isVisible) {
             sheetOffset.snapTo(sheetHeightPx)
+            // Once we are snapped to the hidden position, make content visible (alpha 1)
+            // so we can see it slide in.
+            contentAlpha.snapTo(1f)
             isVisible = true
         }
 
-        // Ensure we animate to the visible position (0f) whenever the height stabilizes or changes.
-        // This is crucial because a layout update (changing sheetHeightPx) will cancel the previous
-        // LaunchedEffect animation. If we don't restart the animation here, the sheet might get
-        // stuck in a hidden or semi-hidden state.
         if (!isDismissing) {
             sheetOffset.animateTo(0f, tween(durationMillis = 320, easing = FastOutSlowInEasing))
         }
@@ -667,33 +665,80 @@ private fun CastSheetContainer(
     }
 
     val dragThreshold = with(density) { 72.dp.toPx() }
+
+    // Shared logic for manual dragging (from header or nested scroll)
+    fun onDrag(dragAmount: Float) {
+        if (isDismissing) return
+        val current = sheetOffset.value
+        val target = (current + dragAmount).coerceIn(0f, hiddenOffsetPx.floatValue)
+        scope.launch {
+            sheetOffset.snapTo(target)
+        }
+    }
+
+    fun onDragEnd(velocity: Float) {
+        if (isDismissing) return
+        if (sheetOffset.value > dragThreshold || velocity > 1400f) {
+            dismissSheet(velocity)
+        } else {
+            scope.launch { animateToRest() }
+        }
+    }
+
+    // Drag modifier for non-scrollable areas (e.g. Header)
     val sheetDragModifier = Modifier.pointerInput(dragThreshold, hiddenOffsetPx.floatValue) {
         val velocityTracker = VelocityTracker()
         detectVerticalDragGestures(
             onDragStart = { velocityTracker.resetTracking() },
             onVerticalDrag = { change, dragAmount ->
-                if (isDismissing) return@detectVerticalDragGestures
                 change.consume()
                 velocityTracker.addPosition(change.uptimeMillis, change.position)
-                val target = (sheetOffset.value + dragAmount).coerceIn(0f, hiddenOffsetPx.floatValue)
-                scope.launch {
-                    sheetOffset.snapTo(target)
-                }
+                onDrag(dragAmount)
             },
             onDragEnd = {
-                if (isDismissing) return@detectVerticalDragGestures
                 val velocity = velocityTracker.calculateVelocity().y
-                if (sheetOffset.value > dragThreshold || velocity > 1400f) {
-                    dismissSheet(velocity)
-                } else {
-                    scope.launch { animateToRest() }
-                }
+                onDragEnd(velocity)
             },
             onDragCancel = {
-                if (isDismissing) return@detectVerticalDragGestures
                 scope.launch { animateToRest() }
             }
         )
+    }
+
+    // Nested scroll connection for the list area
+    val nestedScrollConnection = remember {
+        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): Offset {
+                if (sheetOffset.value > 0f) {
+                    // Sheet is moving (dragging up/down while partially open).
+                    // We consume all vertical delta to move the sheet.
+                    val delta = available.y
+                    // Dragging up (delta < 0) reduces offset (moves sheet up towards 0).
+                    // Dragging down (delta > 0) increases offset (moves sheet down).
+                    // Logic in onDrag handles addition correctly.
+                    onDrag(delta)
+                    return Offset(0f, delta)
+                }
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(consumed: Offset, available: Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): Offset {
+                // If list reached top and user drags down (available.y > 0)
+                if (available.y > 0f) {
+                    onDrag(available.y)
+                    return Offset(0f, available.y)
+                }
+                return Offset.Zero
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                if (sheetOffset.value > 0f) {
+                    onDragEnd(available.y)
+                    return available
+                }
+                return Velocity.Zero
+            }
+        }
     }
 
     BackHandler(enabled = isVisible && !isDismissing) { dismissSheet() }
@@ -723,12 +768,15 @@ private fun CastSheetContainer(
                     if (height != sheetHeightPx) sheetHeightPx = height
                 }
                 .offset { IntOffset(0, sheetOffset.value.roundToInt()) }
-                .then(sheetDragModifier),
+                // Initialize hidden by using alpha 0 until layout is ready and snapped to bottom
+                .graphicsLayer { alpha = contentAlpha.value }
+                .then(sheetDragModifier)
+                .androidx.compose.ui.input.nestedscroll.nestedScroll(nestedScrollConnection),
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
             tonalElevation = 12.dp,
             color = MaterialTheme.colorScheme.surface
         ) {
-            Box(modifier = Modifier.padding(vertical = 18.dp)) {
+            Box(modifier = Modifier.padding(bottom = 18.dp)) {
                 content()
             }
         }
