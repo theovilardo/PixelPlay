@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Done
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.FolderOff
@@ -139,6 +140,7 @@ fun FileExplorerDialog(
                         onRefresh = onRefresh,
                         onSmartViewToggle = onSmartViewToggle,
                         onDone = onDone,
+                        onDismiss = onDismiss,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -162,6 +164,7 @@ fun FileExplorerContent(
     onRefresh: () -> Unit,
     onSmartViewToggle: (Boolean) -> Unit,
     onDone: () -> Unit,
+    onDismiss: () -> Unit,
     title: String = "Music folders",
     leadingContent: @Composable (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -208,10 +211,22 @@ fun FileExplorerContent(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    FilledIconButton(
+                        onClick = onDismiss,
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Close"
+                        )
+                    }
                     leadingContent?.invoke()
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.titleLarge.copy(fontSize = 28.sp),
+                        style = MaterialTheme.typography.titleLarge.copy(fontSize = 24.sp),
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(start = 6.dp)
                     )
