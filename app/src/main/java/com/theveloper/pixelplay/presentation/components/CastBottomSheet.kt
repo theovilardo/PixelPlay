@@ -1,12 +1,11 @@
 package com.theveloper.pixelplay.presentation.components
 
 import android.Manifest
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.ExperimentalAnimationApi
-import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -20,6 +19,7 @@ import android.content.Intent
 import android.content.Context
 import android.os.Build
 import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
@@ -33,16 +33,20 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -62,8 +66,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -71,12 +73,10 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -85,25 +85,36 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.only
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.core.content.ContextCompat
 import androidx.media3.common.util.UnstableApi
 import androidx.mediarouter.media.MediaRouter
@@ -112,21 +123,26 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import android.content.pm.PackageManager
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Velocity
 import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @androidx.annotation.OptIn(UnstableApi::class)
-@OptIn(
-    ExperimentalMaterial3ExpressiveApi::class,
-    ExperimentalMaterial3Api::class,
-    ExperimentalAnimationApi::class
-)
 @Composable
 fun CastBottomSheet(
     playerViewModel: PlayerViewModel,
     onDismiss: () -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val routes by playerViewModel.castRoutes.collectAsState()
     val selectedRoute by playerViewModel.selectedRoute.collectAsState()
     val routeVolume by playerViewModel.routeVolume.collectAsState()
@@ -267,10 +283,8 @@ fun CastBottomSheet(
         bluetoothName = bluetoothName
     )
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        //dragHandle = { DragHandlePill() }
+    CastSheetContainer(
+        onDismiss = onDismiss
     ) {
         if (missingPermissions.isNotEmpty()) {
             CastPermissionStep(
@@ -467,123 +481,462 @@ private fun CastSheetContent(
 ) {
     val colors = MaterialTheme.colorScheme
     val allConnectivityOff = !state.wifiEnabled && !state.isBluetoothEnabled
-    Column(
+    val listState = rememberLazyListState()
+    val safeInsets = WindowInsets.safeDrawing.asPaddingValues()
+    val statusBarPadding = safeInsets.calculateTopPadding()
+    val navBarPadding = safeInsets.calculateBottomPadding()
+    val headerExpandedHeight = 152.dp
+    val headerCollapsedHeight = 64.dp
+    val density = LocalDensity.current
+    val headerTravelPx = with(density) { (headerExpandedHeight - headerCollapsedHeight).toPx() }
+
+    // Direct scroll-driven collapse calculation
+    val collapseFraction by remember {
+        derivedStateOf {
+            val scrollOffset = if (listState.firstVisibleItemIndex == 0) {
+                listState.firstVisibleItemScrollOffset.toFloat()
+            } else {
+                headerTravelPx
+            }
+            (scrollOffset / headerTravelPx).coerceIn(0f, 1f)
+        }
+    }
+
+    val headerOffsetPx by remember {
+        derivedStateOf {
+            -headerTravelPx * collapseFraction
+        }
+    }
+
+    val spacerHeight = headerExpandedHeight - headerCollapsedHeight
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 0.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(top = statusBarPadding)
     ) {
-        SheetHeader(
-            modifier = Modifier.padding(bottom = 8.dp),
-            isScanning = state.isScanning,
-            onRefresh = onRefresh
-        )
-
-        AnimatedVisibility(
-            visible = state.isRefreshing,
-            enter = fadeIn(animationSpec = tween(200, easing = FastOutSlowInEasing)),
-            exit = fadeOut(animationSpec = tween(180)),
-            label = "refreshIndicator"
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            state = listState,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(
+                top = headerCollapsedHeight + spacerHeight,
+                bottom = navBarPadding + 24.dp
+            )
         ) {
-            LinearProgressIndicator(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp)),
-                color = colors.primary,
-                trackColor = colors.primary.copy(alpha = 0.12f)
-            )
+
+            if (allConnectivityOff) {
+                item(key = "wifiOff") {
+                    WifiOffIllustration(
+                        onTurnOnWifi = onTurnOnWifi,
+                        onOpenBluetoothSettings = onOpenBluetoothSettings
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                return@LazyColumn
+            }
+
+            stickyHeader(key = "activeDevice"){
+                ActiveDeviceHero(
+                    device = state.activeDevice,
+                    onDisconnect = onDisconnect,
+                    onVolumeChange = onVolumeChange
+                )
+            }
+
+//            item(key = "activeDevice") {
+//                ActiveDeviceHero(
+//                    device = state.activeDevice,
+//                    onDisconnect = onDisconnect,
+//                    onVolumeChange = onVolumeChange
+//                )
+//            }
+
+            item(key = "deviceSectionHeader") {
+                DeviceSectionHeader(
+                    modifier = Modifier.fillMaxWidth(),
+                    hasDevices = state.devices.isNotEmpty(),
+                    onRefresh = onRefresh
+                )
+            }
+
+            item(key = "refreshIndicator") {
+                AnimatedVisibility(
+                    visible = state.isRefreshing,
+                    enter = fadeIn(animationSpec = tween(200, easing = FastOutSlowInEasing)),
+                    exit = fadeOut(animationSpec = tween(180)),
+                    label = "refreshIndicator"
+                ) {
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp)),
+                        color = colors.primary,
+                        trackColor = colors.primary.copy(alpha = 0.12f)
+                    )
+                }
+            }
+
+            if (state.isScanning && state.devices.isEmpty()) {
+                item(key = "scanningPlaceholder") {
+                    ScanningPlaceholderList()
+                }
+            } else if (state.devices.isEmpty()) {
+                item(key = "emptyDevices") {
+                    EmptyDeviceState()
+                }
+            } else {
+                items(state.devices, key = { it.id }) { device ->
+                    CastDeviceRow(
+                        device = device,
+                        onSelect = { onSelectDevice(device.id) },
+                        onDisconnect = onDisconnect
+                    )
+                }
+                item(key = "bottomSpacer") {
+                    Spacer(modifier = Modifier.height(100.dp))
+                }
+            }
         }
 
-        if (!allConnectivityOff) {
-            QuickSettingsRow(
-                wifiEnabled = state.wifiEnabled,
-                wifiSsid = state.wifiSsid,
-                onWifiClick = onTurnOnWifi,
-                bluetoothEnabled = state.isBluetoothEnabled,
-                bluetoothName = state.bluetoothName,
-                onBluetoothClick = onOpenBluetoothSettings
-            )
+        CollapsibleCastTopBar(
+            modifier = Modifier
+                .padding(horizontal = 20.dp)
+                .fillMaxWidth()
+                .height(headerExpandedHeight)
+                .offset { IntOffset(x = 0, y = headerOffsetPx.roundToInt()) }
+                .clipToBounds(),
+            collapseFraction = collapseFraction,
+            isScanning = state.isScanning,
+            wifiEnabled = state.wifiEnabled,
+            wifiSsid = state.wifiSsid,
+            onWifiClick = onTurnOnWifi,
+            isBluetoothEnabled = state.isBluetoothEnabled,
+            bluetoothName = state.bluetoothName,
+            onBluetoothClick = onOpenBluetoothSettings,
+            maxHeight = headerExpandedHeight
+        )
+    }
+}
+
+@Composable
+private fun CastSheetContainer(
+    onDismiss: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
+    var sheetHeightPx by remember { mutableFloatStateOf(0f) }
+    val hiddenOffsetPx = remember { mutableFloatStateOf(0f) }
+    val sheetOffset = remember { Animatable(0f) }
+    val contentAlpha = remember { Animatable(0f) }
+    var isVisible by remember { mutableStateOf(false) }
+    var isDismissing by remember { mutableStateOf(false) }
+
+    val scrimAlpha by animateFloatAsState(
+        targetValue = if (isVisible) 0.45f else 0f,
+        animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
+        label = "scrimAlpha"
+    )
+
+    LaunchedEffect(sheetHeightPx) {
+        if (sheetHeightPx == 0f) return@LaunchedEffect
+        hiddenOffsetPx.floatValue = sheetHeightPx
+
+        if (!isVisible) {
+            sheetOffset.snapTo(sheetHeightPx)
+            // Once we are snapped to the hidden position, make content visible (alpha 1)
+            // so we can see it slide in.
+            contentAlpha.snapTo(1f)
+            isVisible = true
         }
 
-        if (allConnectivityOff) {
-            WifiOffIllustration(
-                onTurnOnWifi = onTurnOnWifi,
-                onOpenBluetoothSettings = onOpenBluetoothSettings
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            return
+        if (!isDismissing) {
+            sheetOffset.animateTo(0f, tween(durationMillis = 320, easing = FastOutSlowInEasing))
         }
+    }
 
-        ActiveDeviceHero(
-            device = state.activeDevice,
-            onDisconnect = onDisconnect,
-            onVolumeChange = onVolumeChange
+    suspend fun animateToRest() {
+        sheetOffset.animateTo(0f, tween(durationMillis = 200, easing = FastOutSlowInEasing))
+    }
+
+    fun dismissSheet(velocity: Float = 0f) {
+        if (isDismissing || hiddenOffsetPx.floatValue == 0f) return
+        isDismissing = true
+        scope.launch {
+            isVisible = false
+            sheetOffset.animateTo(
+                targetValue = hiddenOffsetPx.floatValue,
+                animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
+                initialVelocity = velocity
+            )
+            onDismiss()
+        }
+    }
+
+    val dragThreshold = with(density) { 72.dp.toPx() }
+
+    // Shared logic for manual dragging (from header or nested scroll)
+    fun onDrag(dragAmount: Float) {
+        if (isDismissing) return
+        val current = sheetOffset.value
+        val target = (current + dragAmount).coerceIn(0f, hiddenOffsetPx.floatValue)
+        scope.launch {
+            sheetOffset.snapTo(target)
+        }
+    }
+
+    fun onDragEnd(velocity: Float) {
+        if (isDismissing) return
+        if (sheetOffset.value > dragThreshold || velocity > 1400f) {
+            dismissSheet(velocity)
+        } else {
+            scope.launch { animateToRest() }
+        }
+    }
+
+    // Drag modifier for non-scrollable areas (e.g. Header)
+    val sheetDragModifier = Modifier.pointerInput(dragThreshold, hiddenOffsetPx.floatValue) {
+        val velocityTracker = VelocityTracker()
+        detectVerticalDragGestures(
+            onDragStart = { velocityTracker.resetTracking() },
+            onVerticalDrag = { change, dragAmount ->
+                change.consume()
+                velocityTracker.addPosition(change.uptimeMillis, change.position)
+                onDrag(dragAmount)
+            },
+            onDragEnd = {
+                val velocity = velocityTracker.calculateVelocity().y
+                onDragEnd(velocity)
+            },
+            onDragCancel = {
+                scope.launch { animateToRest() }
+            }
+        )
+    }
+
+    // Nested scroll connection for the list area
+    val nestedScrollConnection = remember {
+        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): Offset {
+                if (sheetOffset.value > 0f) {
+                    // Sheet is moving (dragging up/down while partially open).
+                    // We consume all vertical delta to move the sheet.
+                    val delta = available.y
+                    // Dragging up (delta < 0) reduces offset (moves sheet up towards 0).
+                    // Dragging down (delta > 0) increases offset (moves sheet down).
+                    // Logic in onDrag handles addition correctly.
+                    onDrag(delta)
+                    return Offset(0f, delta)
+                }
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(consumed: Offset, available: Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): Offset {
+                // If list reached top and user drags down (available.y > 0)
+                if (available.y > 0f) {
+                    onDrag(available.y)
+                    return Offset(0f, available.y)
+                }
+                return Offset.Zero
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                if (sheetOffset.value > 0f) {
+                    onDragEnd(available.y)
+                    return available
+                }
+                return Velocity.Zero
+            }
+        }
+    }
+
+    BackHandler(enabled = isVisible && !isDismissing) { dismissSheet() }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Transparent)
+    ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(MaterialTheme.colorScheme.scrim.copy(alpha = scrimAlpha))
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) { dismissSheet() }
         )
 
-        AnimatedContent(
-            targetState = state.isScanning && state.devices.isEmpty(),
-            transitionSpec = {
-                (fadeIn(animationSpec = tween(250)) togetherWith
-                    fadeOut(animationSpec = tween(180))).using(SizeTransform(clip = false))
-            },
-            label = "deviceListState"
-        ) { scanning ->
-            if (scanning) {
-                ScanningPlaceholderList()
-            } else {
-                DeviceList(
-                    devices = state.devices,
-                    onSelectDevice = onSelectDevice,
-                    onDisconnect = onDisconnect,
-                    bluetoothEnabled = state.isBluetoothEnabled
-                )
+        Surface(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal))
+                .onGloballyPositioned {
+                    val height = it.size.height.toFloat()
+                    if (height != sheetHeightPx) sheetHeightPx = height
+                }
+                .offset { IntOffset(0, sheetOffset.value.roundToInt()) }
+                // Initialize hidden by using alpha 0 until layout is ready and snapped to bottom
+                .graphicsLayer { alpha = contentAlpha.value }
+                .then(sheetDragModifier)
+                .nestedScroll(nestedScrollConnection),
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            tonalElevation = 12.dp,
+            color = MaterialTheme.colorScheme.surfaceContainerLow
+        ) {
+            Box(modifier = Modifier.padding(bottom = 18.dp)) {
+                content()
             }
         }
     }
 }
 
 @Composable
-private fun DragHandlePill() {
+private fun CollapsibleCastTopBar(
+    modifier: Modifier = Modifier,
+    collapseFraction: Float,
+    isScanning: Boolean,
+    wifiEnabled: Boolean,
+    wifiSsid: String?,
+    onWifiClick: () -> Unit,
+    isBluetoothEnabled: Boolean,
+    bluetoothName: String?,
+    onBluetoothClick: () -> Unit,
+    maxHeight: Dp
+) {
+    val contentAlpha by animateFloatAsState(
+        targetValue = 1f - collapseFraction,
+        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+        label = "topBarAlpha"
+    )
+    val translationYOffset by animateDpAsState(
+        targetValue = (-12).dp * collapseFraction,
+        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+        label = "topBarTranslation"
+    )
+    val collapsedTitleAlpha by animateFloatAsState(
+        targetValue = collapseFraction,
+        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+        label = "collapsedTitle"
+    )
+
+    val density = LocalDensity.current
+
     Box(
-        modifier = Modifier
-            .padding(vertical = 12.dp)
-            .fillMaxWidth(),
-        contentAlignment = Alignment.Center
+        modifier = modifier
+            .heightIn(min = 0.dp, max = maxHeight)
+            .clipToBounds()
     ) {
-        Box(
+        //Ch
+//        Box(
+//            modifier = Modifier
+//                .align(Alignment.BottomStart)
+//                .padding(bottom = 20.dp, start = 4.dp)
+//                .graphicsLayer{
+//                    alpha = (collapsedTitleAlpha)
+//                }
+//                .background(
+//                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+//                    shape = CircleShape
+//                )
+//        ) {
+//            Text(
+//                text = "Connect device",
+//                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+//                modifier = Modifier
+//                    .align(Alignment.Center)
+//                    .padding(horizontal = 10.dp, vertical = 6.dp)
+//                    .graphicsLayer { alpha = (collapsedTitleAlpha) },
+//                maxLines = 1
+//            )
+//        }
+        Column(
             modifier = Modifier
-                .width(56.dp)
-                .height(8.dp)
-                .clip(RoundedCornerShape(50))
-                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
-        )
+                .fillMaxWidth()
+                .align(Alignment.BottomStart)
+                .padding(bottom = 12.dp)
+                .graphicsLayer {
+                    alpha = contentAlpha
+                    translationY = with(density) { translationYOffset.toPx() }
+                },
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .background(
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        shape = CircleShape
+                    )
+            ) {
+                Text(
+                    modifier = Modifier.padding(start = 4.dp),
+                    text = "Connect device",
+                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold)
+                )
+            }
+
+            AnimatedVisibility(
+                visible = isScanning,
+                enter = fadeIn(animationSpec = tween(180)),
+                exit = fadeOut(animationSpec = tween(160)),
+                label = "scanningIndicator"
+            ) {
+                BadgeChip(
+                    text = "Scanning nearby",
+                    iconVector = Icons.Filled.Refresh,
+                    contentColor = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            QuickSettingsRow(
+                wifiEnabled = wifiEnabled,
+                wifiSsid = wifiSsid,
+                onWifiClick = onWifiClick,
+                bluetoothEnabled = isBluetoothEnabled,
+                bluetoothName = bluetoothName,
+                onBluetoothClick = onBluetoothClick
+            )
+        }
     }
 }
 
 @Composable
-private fun SheetHeader(
-    modifier: Modifier,
-    isScanning: Boolean,
+private fun DeviceSectionHeader(
+    modifier: Modifier = Modifier,
+    hasDevices: Boolean,
     onRefresh: () -> Unit
 ) {
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier,
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(
+            modifier = Modifier.padding(start = 4.dp, end = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
             Text(
-                text = "Connect device",
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontSize = 28.sp)
+                text = "Nearby devices",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+            )
+            Text(
+                text = if (hasDevices) "Tap to connect" else "No devices yet",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+
         IconButton(
             onClick = onRefresh,
             colors = IconButtonDefaults.iconButtonColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 contentColor = MaterialTheme.colorScheme.onSurface
             ),
-            modifier = Modifier.clip(RoundedCornerShape(20.dp))
+            modifier = Modifier.clip(RoundedCornerShape(16.dp))
         ) {
             Icon(Icons.Filled.Refresh, contentDescription = "Refresh devices")
         }
