@@ -1,12 +1,10 @@
 package com.theveloper.pixelplay.presentation.components
 
 import android.Manifest
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.ExperimentalAnimationApi
-import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -20,6 +18,7 @@ import android.content.Intent
 import android.content.Context
 import android.os.Build
 import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
@@ -28,12 +27,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -43,6 +44,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -62,8 +64,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -71,12 +71,10 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -84,26 +82,33 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.lerp
 import androidx.core.content.ContextCompat
 import androidx.media3.common.util.UnstableApi
 import androidx.mediarouter.media.MediaRouter
@@ -114,19 +119,15 @@ import android.content.pm.PackageManager
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.ui.text.style.TextAlign
 import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @androidx.annotation.OptIn(UnstableApi::class)
-@OptIn(
-    ExperimentalMaterial3ExpressiveApi::class,
-    ExperimentalMaterial3Api::class,
-    ExperimentalAnimationApi::class
-)
 @Composable
 fun CastBottomSheet(
     playerViewModel: PlayerViewModel,
     onDismiss: () -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val routes by playerViewModel.castRoutes.collectAsState()
     val selectedRoute by playerViewModel.selectedRoute.collectAsState()
     val routeVolume by playerViewModel.routeVolume.collectAsState()
@@ -267,10 +268,8 @@ fun CastBottomSheet(
         bluetoothName = bluetoothName
     )
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        //dragHandle = { DragHandlePill() }
+    CastSheetContainer(
+        onDismiss = onDismiss
     ) {
         if (missingPermissions.isNotEmpty()) {
             CastPermissionStep(
@@ -467,130 +466,293 @@ private fun CastSheetContent(
 ) {
     val colors = MaterialTheme.colorScheme
     val allConnectivityOff = !state.wifiEnabled && !state.isBluetoothEnabled
-    Column(
+    val listState = rememberLazyListState()
+    val collapseRangePx = with(LocalDensity.current) { 180.dp.toPx() }
+    val collapseFraction by remember {
+        derivedStateOf {
+            val scrollOffset = listState.firstVisibleItemScrollOffset.toFloat()
+            val baseFraction = (scrollOffset / collapseRangePx).coerceIn(0f, 1f)
+            if (listState.firstVisibleItemIndex > 0) 1f else baseFraction
+        }
+    }
+    val animatedCollapse by animateFloatAsState(
+        targetValue = collapseFraction,
+        animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
+        label = "headerCollapse"
+    )
+    val headerExpandedHeight = 210.dp
+    val headerHeight by animateDpAsState(
+        targetValue = lerp(headerExpandedHeight, 0.dp, animatedCollapse),
+        animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
+        label = "headerHeight"
+    )
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 0.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        SheetHeader(
-            modifier = Modifier.padding(bottom = 8.dp),
-            isScanning = state.isScanning,
-            onRefresh = onRefresh
-        )
-
-        AnimatedVisibility(
-            visible = state.isRefreshing,
-            enter = fadeIn(animationSpec = tween(200, easing = FastOutSlowInEasing)),
-            exit = fadeOut(animationSpec = tween(180)),
-            label = "refreshIndicator"
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            state = listState,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(
+                top = headerHeight + 12.dp,
+                bottom = 24.dp
+            )
         ) {
-            LinearProgressIndicator(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp)),
-                color = colors.primary,
-                trackColor = colors.primary.copy(alpha = 0.12f)
-            )
+            item(key = "refreshIndicator") {
+                AnimatedVisibility(
+                    visible = state.isRefreshing,
+                    enter = fadeIn(animationSpec = tween(200, easing = FastOutSlowInEasing)),
+                    exit = fadeOut(animationSpec = tween(180)),
+                    label = "refreshIndicator"
+                ) {
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp)),
+                        color = colors.primary,
+                        trackColor = colors.primary.copy(alpha = 0.12f)
+                    )
+                }
+            }
+
+            if (allConnectivityOff) {
+                item(key = "wifiOff") {
+                    WifiOffIllustration(
+                        onTurnOnWifi = onTurnOnWifi,
+                        onOpenBluetoothSettings = onOpenBluetoothSettings
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                return@LazyColumn
+            }
+
+            item(key = "activeDevice") {
+                ActiveDeviceHero(
+                    device = state.activeDevice,
+                    onDisconnect = onDisconnect,
+                    onVolumeChange = onVolumeChange
+                )
+            }
+
+            item(key = "deviceSectionHeader") {
+                DeviceSectionHeader(
+                    modifier = Modifier.fillMaxWidth(),
+                    hasDevices = state.devices.isNotEmpty(),
+                    onRefresh = onRefresh
+                )
+            }
+
+            if (state.isScanning && state.devices.isEmpty()) {
+                item(key = "scanningPlaceholder") {
+                    ScanningPlaceholderList()
+                }
+            } else if (state.devices.isEmpty()) {
+                item(key = "emptyDevices") {
+                    EmptyDeviceState()
+                }
+            } else {
+                items(state.devices, key = { it.id }) { device ->
+                    CastDeviceRow(
+                        device = device,
+                        onSelect = { onSelectDevice(device.id) },
+                        onDisconnect = onDisconnect
+                    )
+                }
+                item { Spacer(modifier = Modifier.height(4.dp)) }
+            }
         }
 
-        if (!allConnectivityOff) {
-            QuickSettingsRow(
-                wifiEnabled = state.wifiEnabled,
-                wifiSsid = state.wifiSsid,
-                onWifiClick = onTurnOnWifi,
-                bluetoothEnabled = state.isBluetoothEnabled,
-                bluetoothName = state.bluetoothName,
-                onBluetoothClick = onOpenBluetoothSettings
-            )
-        }
+        CollapsibleCastTopBar(
+            modifier = Modifier
+                .padding(horizontal = 20.dp)
+                .fillMaxWidth()
+                .height(headerHeight),
+            collapseFraction = animatedCollapse,
+            isScanning = state.isScanning,
+            wifiEnabled = state.wifiEnabled,
+            wifiSsid = state.wifiSsid,
+            onWifiClick = onTurnOnWifi,
+            isBluetoothEnabled = state.isBluetoothEnabled,
+            bluetoothName = state.bluetoothName,
+            onBluetoothClick = onOpenBluetoothSettings,
+            maxHeight = headerExpandedHeight
+        )
+    }
+}
 
-        if (allConnectivityOff) {
-            WifiOffIllustration(
-                onTurnOnWifi = onTurnOnWifi,
-                onOpenBluetoothSettings = onOpenBluetoothSettings
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            return
-        }
+@Composable
+private fun CastSheetContainer(
+    onDismiss: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    val density = LocalDensity.current
+    var isVisible by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
-        ActiveDeviceHero(
-            device = state.activeDevice,
-            onDisconnect = onDisconnect,
-            onVolumeChange = onVolumeChange
+    val transition = remember(isVisible) { isVisible }
+    val offsetY by animateDpAsState(
+        targetValue = if (transition) 0.dp else 120.dp,
+        animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing),
+        label = "sheetOffset"
+    )
+    val scrimAlpha by animateFloatAsState(
+        targetValue = if (transition) 0.45f else 0f,
+        animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
+        label = "scrimAlpha"
+    )
+
+    LaunchedEffect(Unit) { isVisible = true }
+
+    fun dismissSheet() {
+        scope.launch {
+            isVisible = false
+            delay(260)
+            onDismiss()
+        }
+    }
+
+    BackHandler(onBack = { dismissSheet() })
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Transparent)
+    ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(MaterialTheme.colorScheme.scrim.copy(alpha = scrimAlpha))
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) { dismissSheet() }
         )
 
-        AnimatedContent(
-            targetState = state.isScanning && state.devices.isEmpty(),
-            transitionSpec = {
-                (fadeIn(animationSpec = tween(250)) togetherWith
-                    fadeOut(animationSpec = tween(180))).using(SizeTransform(clip = false))
-            },
-            label = "deviceListState"
-        ) { scanning ->
-            if (scanning) {
-                ScanningPlaceholderList()
-            } else {
-                DeviceList(
-                    devices = state.devices,
-                    onSelectDevice = onSelectDevice,
-                    onDisconnect = onDisconnect,
-                    bluetoothEnabled = state.isBluetoothEnabled
-                )
+        Surface(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .offset { IntOffset(0, with(density) { offsetY.roundToPx() }) },
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            tonalElevation = 12.dp,
+            color = MaterialTheme.colorScheme.surface
+        ) {
+            Box(modifier = Modifier.padding(vertical = 18.dp)) {
+                content()
             }
         }
     }
 }
 
 @Composable
-private fun DragHandlePill() {
-    Box(
-        modifier = Modifier
-            .padding(vertical = 12.dp)
-            .fillMaxWidth(),
-        contentAlignment = Alignment.Center
+private fun CollapsibleCastTopBar(
+    modifier: Modifier = Modifier,
+    collapseFraction: Float,
+    isScanning: Boolean,
+    wifiEnabled: Boolean,
+    wifiSsid: String?,
+    onWifiClick: () -> Unit,
+    isBluetoothEnabled: Boolean,
+    bluetoothName: String?,
+    onBluetoothClick: () -> Unit,
+    maxHeight: Dp
+) {
+    val contentAlpha by animateFloatAsState(
+        targetValue = 1f - collapseFraction,
+        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+        label = "topBarAlpha"
+    )
+    val translationY by animateDpAsState(
+        targetValue = (-12).dp * collapseFraction,
+        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+        label = "topBarTranslation"
+    )
+
+    BoxWithConstraints(
+        modifier = modifier
+            .heightIn(min = 0.dp, max = maxHeight)
+            .clipToBounds()
     ) {
-        Box(
+        Column(
             modifier = Modifier
-                .width(56.dp)
-                .height(8.dp)
-                .clip(RoundedCornerShape(50))
-                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
-        )
+                .fillMaxWidth()
+                .graphicsLayer {
+                    alpha = contentAlpha
+                    translationY = translationY.toPx()
+                },
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Text(
+                text = "Connect device",
+                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold)
+            )
+
+            AnimatedVisibility(
+                visible = isScanning,
+                enter = fadeIn(animationSpec = tween(180)),
+                exit = fadeOut(animationSpec = tween(160)),
+                label = "scanningIndicator"
+            ) {
+                BadgeChip(
+                    text = "Scanning nearby",
+                    iconVector = Icons.Filled.Refresh,
+                    contentColor = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            QuickSettingsRow(
+                wifiEnabled = wifiEnabled,
+                wifiSsid = wifiSsid,
+                onWifiClick = onWifiClick,
+                bluetoothEnabled = isBluetoothEnabled,
+                bluetoothName = bluetoothName,
+                onBluetoothClick = onBluetoothClick
+            )
+        }
     }
 }
 
 @Composable
-private fun SheetHeader(
-    modifier: Modifier,
-    isScanning: Boolean,
+private fun DeviceSectionHeader(
+    modifier: Modifier = Modifier,
+    hasDevices: Boolean,
     onRefresh: () -> Unit
 ) {
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier,
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
-                text = "Connect device",
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontSize = 28.sp)
+                text = "Nearby devices",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+            )
+            Text(
+                text = if (hasDevices) "Tap to connect" else "No devices yet",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+
         IconButton(
             onClick = onRefresh,
             colors = IconButtonDefaults.iconButtonColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer,
                 contentColor = MaterialTheme.colorScheme.onSurface
             ),
-            modifier = Modifier.clip(RoundedCornerShape(20.dp))
+            modifier = Modifier.clip(RoundedCornerShape(16.dp))
         ) {
             Icon(Icons.Filled.Refresh, contentDescription = "Refresh devices")
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ActiveDeviceHero(
     device: ActiveDeviceUi,
