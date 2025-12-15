@@ -667,13 +667,13 @@ private fun CollapsibleCastTopBar(
         animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
         label = "topBarAlpha"
     )
-    val translationY by animateDpAsState(
+    val translationYOffset by animateDpAsState(
         targetValue = (-12).dp * collapseFraction,
         animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
         label = "topBarTranslation"
     )
 
-    BoxWithConstraints(
+    Box(
         modifier = modifier
             .heightIn(min = 0.dp, max = maxHeight)
             .clipToBounds()
@@ -683,7 +683,7 @@ private fun CollapsibleCastTopBar(
                 .fillMaxWidth()
                 .graphicsLayer {
                     alpha = contentAlpha
-                    translationY = translationY.toPx()
+                    translationY = with(LocalDensity.current) { translationYOffset.toPx() }
                 },
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
