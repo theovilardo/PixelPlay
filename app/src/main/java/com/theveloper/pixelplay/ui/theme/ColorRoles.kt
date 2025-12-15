@@ -96,6 +96,7 @@ fun generateColorSchemeFromSeed(seedColor: Color): ColorSchemePair {
     val lightPrimary84 = lightSeed.tone(84)
     val lightPrimary90 = lightSeed.tone(90)
     val lightPrimary92 = lightSeed.tone(92)
+    val lightPrimary95 = lightSeed.tone(95)
 
     val darkPrimary18 = darkSeed.tone(18)
     val darkPrimary26 = darkSeed.tone(26)
@@ -117,6 +118,7 @@ fun generateColorSchemeFromSeed(seedColor: Color): ColorSchemePair {
     val lightSecondary86 = secondarySeed.tone(86)
     val lightSecondary90 = secondarySeed.tone(90)
     val lightSecondary94 = secondarySeed.tone(94)
+    val lightSecondary95 = secondarySeed.tone(95)
 
     val darkSecondary22 = secondarySeed.tone(22)
     val darkSecondary30 = secondarySeed.tone(30)
@@ -136,6 +138,7 @@ fun generateColorSchemeFromSeed(seedColor: Color): ColorSchemePair {
     val lightTertiary82 = tertiarySeed.tone(82)
     val lightTertiary90 = tertiarySeed.tone(90)
     val lightTertiary96 = tertiarySeed.tone(96)
+    val lightTertiary95 = tertiarySeed.tone(95)
 
     val darkTertiary22 = tertiarySeed.tone(22)
     val darkTertiary32 = tertiarySeed.tone(32)
@@ -175,15 +178,15 @@ fun generateColorSchemeFromSeed(seedColor: Color): ColorSchemePair {
     // Light Color Scheme (Refined for better contrast and legibility)
     val lightScheme = lightColorScheme(
         primary = lightPrimary40, // Standard M3 Primary (Tone 40)
-        onPrimary = Color.White, // White text/icons on Primary
+        onPrimary = lightPrimary95, // Tinted White (Tone 95)
         primaryContainer = lightPrimary90, // Pastel Container (Tone 90)
         onPrimaryContainer = lightPrimary10, // High Contrast Text (Tone 10)
         secondary = lightSecondary40,
-        onSecondary = Color.White,
+        onSecondary = lightSecondary95,
         secondaryContainer = lightSecondary90,
         onSecondaryContainer = lightSecondary10,
         tertiary = lightTertiary40,
-        onTertiary = Color.White,
+        onTertiary = lightTertiary95,
         tertiaryContainer = lightTertiary90,
         onTertiaryContainer = lightTertiary10,
         error = Color(0xFFBA1A1A), // M3 Defaults
