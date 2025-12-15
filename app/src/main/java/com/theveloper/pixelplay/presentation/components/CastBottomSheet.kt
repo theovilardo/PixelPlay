@@ -630,12 +630,12 @@ private fun CastSheetContainer(
     }
 
     val dragThreshold = with(density) { 72.dp.toPx() }
-    val sheetDragModifier = Modifier.pointerInput(dismissSheet) {
+    val sheetDragModifier = Modifier.pointerInput(dismissSheet, hiddenOffsetPx) {
         detectVerticalDragGestures(
-            onDrag = { _, dragAmount ->
+            onVerticalDrag = { _, dragAmount ->
                 if (dragAmount >= 0f || dragOffset.value > 0f) {
                     val newOffset = (dragOffset.value + dragAmount).coerceIn(0f, hiddenOffsetPx)
-                    dragOffset.snapTo(newOffset)
+                    scope.launch { dragOffset.snapTo(newOffset) }
                 }
             },
             onDragEnd = {
