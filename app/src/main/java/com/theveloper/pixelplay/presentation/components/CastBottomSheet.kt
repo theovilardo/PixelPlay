@@ -132,6 +132,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Velocity
 import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -521,13 +522,46 @@ private fun CastSheetContent(
             state = listState,
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(
-                top = headerCollapsedHeight + 4.dp,
+                top = headerCollapsedHeight + spacerHeight,
                 bottom = navBarPadding + 24.dp
             )
         ) {
-            item(key = "headerSpacer") {
-                Spacer(modifier = Modifier.height(spacerHeight))
+
+            if (allConnectivityOff) {
+                item(key = "wifiOff") {
+                    WifiOffIllustration(
+                        onTurnOnWifi = onTurnOnWifi,
+                        onOpenBluetoothSettings = onOpenBluetoothSettings
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                return@LazyColumn
             }
+
+            stickyHeader(key = "activeDevice"){
+                ActiveDeviceHero(
+                    device = state.activeDevice,
+                    onDisconnect = onDisconnect,
+                    onVolumeChange = onVolumeChange
+                )
+            }
+
+//            item(key = "activeDevice") {
+//                ActiveDeviceHero(
+//                    device = state.activeDevice,
+//                    onDisconnect = onDisconnect,
+//                    onVolumeChange = onVolumeChange
+//                )
+//            }
+
+            item(key = "deviceSectionHeader") {
+                DeviceSectionHeader(
+                    modifier = Modifier.fillMaxWidth(),
+                    hasDevices = state.devices.isNotEmpty(),
+                    onRefresh = onRefresh
+                )
+            }
+
             item(key = "refreshIndicator") {
                 AnimatedVisibility(
                     visible = state.isRefreshing,
@@ -543,33 +577,6 @@ private fun CastSheetContent(
                         trackColor = colors.primary.copy(alpha = 0.12f)
                     )
                 }
-            }
-
-            if (allConnectivityOff) {
-                item(key = "wifiOff") {
-                    WifiOffIllustration(
-                        onTurnOnWifi = onTurnOnWifi,
-                        onOpenBluetoothSettings = onOpenBluetoothSettings
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-                return@LazyColumn
-            }
-
-            item(key = "activeDevice") {
-                ActiveDeviceHero(
-                    device = state.activeDevice,
-                    onDisconnect = onDisconnect,
-                    onVolumeChange = onVolumeChange
-                )
-            }
-
-            item(key = "deviceSectionHeader") {
-                DeviceSectionHeader(
-                    modifier = Modifier.fillMaxWidth(),
-                    hasDevices = state.devices.isNotEmpty(),
-                    onRefresh = onRefresh
-                )
             }
 
             if (state.isScanning && state.devices.isEmpty()) {
@@ -779,7 +786,7 @@ private fun CastSheetContainer(
                 .nestedScroll(nestedScrollConnection),
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
             tonalElevation = 12.dp,
-            color = MaterialTheme.colorScheme.surface
+            color = MaterialTheme.colorScheme.surfaceContainerLow
         ) {
             Box(modifier = Modifier.padding(bottom = 18.dp)) {
                 content()
@@ -824,15 +831,29 @@ private fun CollapsibleCastTopBar(
             .heightIn(min = 0.dp, max = maxHeight)
             .clipToBounds()
     ) {
-        Text(
-            text = "Connect device",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(bottom = 20.dp, start = 20.dp)
-                .graphicsLayer { alpha = collapsedTitleAlpha },
-            maxLines = 1
-        )
+        //Ch
+//        Box(
+//            modifier = Modifier
+//                .align(Alignment.BottomStart)
+//                .padding(bottom = 20.dp, start = 4.dp)
+//                .graphicsLayer{
+//                    alpha = (collapsedTitleAlpha)
+//                }
+//                .background(
+//                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+//                    shape = CircleShape
+//                )
+//        ) {
+//            Text(
+//                text = "Connect device",
+//                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+//                modifier = Modifier
+//                    .align(Alignment.Center)
+//                    .padding(horizontal = 10.dp, vertical = 6.dp)
+//                    .graphicsLayer { alpha = (collapsedTitleAlpha) },
+//                maxLines = 1
+//            )
+//        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -844,10 +865,19 @@ private fun CollapsibleCastTopBar(
                 },
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                text = "Connect device",
-                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold)
-            )
+            Box(
+                modifier = Modifier
+                    .background(
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        shape = CircleShape
+                    )
+            ) {
+                Text(
+                    modifier = Modifier.padding(start = 4.dp),
+                    text = "Connect device",
+                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold)
+                )
+            }
 
             AnimatedVisibility(
                 visible = isScanning,
@@ -885,7 +915,10 @@ private fun DeviceSectionHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(
+            modifier = Modifier.padding(start = 4.dp, end = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
             Text(
                 text = "Nearby devices",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
@@ -900,7 +933,7 @@ private fun DeviceSectionHeader(
         IconButton(
             onClick = onRefresh,
             colors = IconButtonDefaults.iconButtonColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 contentColor = MaterialTheme.colorScheme.onSurface
             ),
             modifier = Modifier.clip(RoundedCornerShape(16.dp))
