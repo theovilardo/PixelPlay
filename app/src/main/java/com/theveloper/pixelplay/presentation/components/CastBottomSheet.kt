@@ -122,6 +122,14 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import android.content.pm.PackageManager
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
 import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 import kotlinx.coroutines.launch
@@ -663,7 +671,9 @@ private fun CastSheetContainer(
                 change.consume()
                 velocityTracker.addPosition(change.uptimeMillis, change.position)
                 val target = (sheetOffset.value + dragAmount).coerceIn(0f, hiddenOffsetPx.floatValue)
-                sheetOffset.snapTo(target)
+                scope.launch {
+                    sheetOffset.snapTo(target)
+                }
             },
             onDragEnd = {
                 if (isDismissing) return@detectVerticalDragGestures
@@ -749,6 +759,8 @@ private fun CollapsibleCastTopBar(
         label = "collapsedTitle"
     )
 
+    val density = LocalDensity.current
+
     Box(
         modifier = modifier
             .heightIn(min = 0.dp, max = maxHeight)
@@ -767,7 +779,7 @@ private fun CollapsibleCastTopBar(
                 .fillMaxWidth()
                 .graphicsLayer {
                     alpha = contentAlpha
-                    translationY = with(LocalDensity.current) { translationYOffset.toPx() }
+                    translationY = with(density) { translationYOffset.toPx() }
                 },
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
@@ -837,6 +849,7 @@ private fun DeviceSectionHeader(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ActiveDeviceHero(
     device: ActiveDeviceUi,
