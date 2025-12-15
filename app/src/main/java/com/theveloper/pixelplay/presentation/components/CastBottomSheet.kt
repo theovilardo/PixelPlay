@@ -2,6 +2,7 @@ package com.theveloper.pixelplay.presentation.components
 
 import android.Manifest
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
@@ -27,21 +28,22 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -82,8 +84,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -109,6 +111,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.lerp
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.only
 import androidx.core.content.ContextCompat
 import androidx.media3.common.util.UnstableApi
 import androidx.mediarouter.media.MediaRouter
@@ -119,8 +123,8 @@ import android.content.pm.PackageManager
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.ui.text.style.TextAlign
 import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
@@ -467,6 +471,9 @@ private fun CastSheetContent(
     val colors = MaterialTheme.colorScheme
     val allConnectivityOff = !state.wifiEnabled && !state.isBluetoothEnabled
     val listState = rememberLazyListState()
+    val safeInsets = WindowInsets.safeDrawing.asPaddingValues()
+    val statusBarPadding = safeInsets.calculateTopPadding()
+    val navBarPadding = safeInsets.calculateBottomPadding()
     val collapseRangePx = with(LocalDensity.current) { 180.dp.toPx() }
     val collapseFraction by remember {
         derivedStateOf {
@@ -481,8 +488,9 @@ private fun CastSheetContent(
         label = "headerCollapse"
     )
     val headerExpandedHeight = 210.dp
+    val headerCollapsedHeight = 64.dp
     val headerHeight by animateDpAsState(
-        targetValue = lerp(headerExpandedHeight, 0.dp, animatedCollapse),
+        targetValue = lerp(headerExpandedHeight, headerCollapsedHeight, animatedCollapse),
         animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
         label = "headerHeight"
     )
@@ -490,6 +498,7 @@ private fun CastSheetContent(
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(top = statusBarPadding)
     ) {
         LazyColumn(
             modifier = Modifier
@@ -499,7 +508,7 @@ private fun CastSheetContent(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(
                 top = headerHeight + 12.dp,
-                bottom = 24.dp
+                bottom = navBarPadding + 24.dp
             )
         ) {
             item(key = "refreshIndicator") {
@@ -590,29 +599,54 @@ private fun CastSheetContainer(
     content: @Composable () -> Unit
 ) {
     val density = LocalDensity.current
-    var isVisible by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val hiddenOffsetPx = with(density) { 140.dp.toPx() }
+    val sheetOffset = remember { Animatable(hiddenOffsetPx) }
+    val dragOffset = remember { Animatable(0f) }
+    var isVisible by remember { mutableStateOf(false) }
 
-    val transition = remember(isVisible) { isVisible }
-    val offsetY by animateDpAsState(
-        targetValue = if (transition) 0.dp else 120.dp,
-        animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing),
-        label = "sheetOffset"
-    )
     val scrimAlpha by animateFloatAsState(
-        targetValue = if (transition) 0.45f else 0f,
+        targetValue = if (isVisible) 0.45f else 0f,
         animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
         label = "scrimAlpha"
     )
 
-    LaunchedEffect(Unit) { isVisible = true }
+    LaunchedEffect(Unit) {
+        isVisible = true
+        sheetOffset.animateTo(0f, tween(durationMillis = 320, easing = FastOutSlowInEasing))
+    }
+
+    suspend fun resetDrag() {
+        dragOffset.animateTo(0f, tween(durationMillis = 180, easing = FastOutSlowInEasing))
+    }
 
     fun dismissSheet() {
         scope.launch {
             isVisible = false
-            delay(260)
+            dragOffset.snapTo(0f)
+            sheetOffset.animateTo(hiddenOffsetPx, tween(durationMillis = 260, easing = FastOutSlowInEasing))
             onDismiss()
         }
+    }
+
+    val dragThreshold = with(density) { 72.dp.toPx() }
+    val sheetDragModifier = Modifier.pointerInput(dismissSheet) {
+        detectVerticalDragGestures(
+            onDrag = { _, dragAmount ->
+                if (dragAmount >= 0f || dragOffset.value > 0f) {
+                    val newOffset = (dragOffset.value + dragAmount).coerceIn(0f, hiddenOffsetPx)
+                    dragOffset.snapTo(newOffset)
+                }
+            },
+            onDragEnd = {
+                if (dragOffset.value > dragThreshold) {
+                    dismissSheet()
+                } else {
+                    scope.launch { resetDrag() }
+                }
+            },
+            onDragCancel = { scope.launch { resetDrag() } }
+        )
     }
 
     BackHandler(onBack = { dismissSheet() })
@@ -636,8 +670,9 @@ private fun CastSheetContainer(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .navigationBarsPadding()
-                .offset { IntOffset(0, with(density) { offsetY.roundToPx() }) },
+                .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal))
+                .offset { IntOffset(0, (sheetOffset.value + dragOffset.value).roundToInt()) }
+                .then(sheetDragModifier),
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
             tonalElevation = 12.dp,
             color = MaterialTheme.colorScheme.surface
@@ -672,12 +707,25 @@ private fun CollapsibleCastTopBar(
         animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
         label = "topBarTranslation"
     )
+    val collapsedTitleAlpha by animateFloatAsState(
+        targetValue = collapseFraction,
+        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+        label = "collapsedTitle"
+    )
 
     Box(
         modifier = modifier
             .heightIn(min = 0.dp, max = maxHeight)
             .clipToBounds()
     ) {
+        Text(
+            text = "Connect device",
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .graphicsLayer { alpha = collapsedTitleAlpha },
+            maxLines = 1
+        )
         Column(
             modifier = Modifier
                 .fillMaxWidth()
