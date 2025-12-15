@@ -114,6 +114,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.only
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.core.content.ContextCompat
 import androidx.media3.common.util.UnstableApi
 import androidx.mediarouter.media.MediaRouter
@@ -131,6 +132,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Velocity
 import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -483,35 +485,30 @@ private fun CastSheetContent(
     val safeInsets = WindowInsets.safeDrawing.asPaddingValues()
     val statusBarPadding = safeInsets.calculateTopPadding()
     val navBarPadding = safeInsets.calculateBottomPadding()
-    val headerExpandedHeight = 210.dp
+    val headerExpandedHeight = 152.dp
     val headerCollapsedHeight = 64.dp
-    val collapseRangePx = with(LocalDensity.current) { (headerExpandedHeight - headerCollapsedHeight).toPx() }
+    val density = LocalDensity.current
+    val headerTravelPx = with(density) { (headerExpandedHeight - headerCollapsedHeight).toPx() }
+
+    // Direct scroll-driven collapse calculation
     val collapseFraction by remember {
         derivedStateOf {
-            if (listState.firstVisibleItemIndex > 0) {
-                1f
+            val scrollOffset = if (listState.firstVisibleItemIndex == 0) {
+                listState.firstVisibleItemScrollOffset.toFloat()
             } else {
-                (listState.firstVisibleItemScrollOffset / collapseRangePx).coerceIn(0f, 1f)
+                headerTravelPx
             }
+            (scrollOffset / headerTravelPx).coerceIn(0f, 1f)
         }
     }
-    val animatedCollapse by animateFloatAsState(
-        targetValue = collapseFraction,
-        animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
-        label = "headerCollapse"
-    )
-    val headerTravel = headerExpandedHeight - headerCollapsedHeight
-    val headerSpacerHeight by animateDpAsState(
-        targetValue = headerTravel * (1f - animatedCollapse),
-        animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
-        label = "headerSpacer"
-    )
-    val headerOffset by animateDpAsState(
-        targetValue = -headerTravel * animatedCollapse,
-        animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
-        label = "headerOffset"
-    )
-    val contentTopPadding = headerCollapsedHeight + 6.dp
+
+    val headerOffsetPx by remember {
+        derivedStateOf {
+            -headerTravelPx * collapseFraction
+        }
+    }
+
+    val spacerHeight = headerExpandedHeight - headerCollapsedHeight
 
     Box(
         modifier = Modifier
@@ -525,13 +522,46 @@ private fun CastSheetContent(
             state = listState,
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(
-                top = contentTopPadding,
+                top = headerCollapsedHeight + spacerHeight,
                 bottom = navBarPadding + 24.dp
             )
         ) {
-            item(key = "headerSpacer") {
-                Spacer(modifier = Modifier.height(headerSpacerHeight))
+
+            if (allConnectivityOff) {
+                item(key = "wifiOff") {
+                    WifiOffIllustration(
+                        onTurnOnWifi = onTurnOnWifi,
+                        onOpenBluetoothSettings = onOpenBluetoothSettings
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                return@LazyColumn
             }
+
+            stickyHeader(key = "activeDevice"){
+                ActiveDeviceHero(
+                    device = state.activeDevice,
+                    onDisconnect = onDisconnect,
+                    onVolumeChange = onVolumeChange
+                )
+            }
+
+//            item(key = "activeDevice") {
+//                ActiveDeviceHero(
+//                    device = state.activeDevice,
+//                    onDisconnect = onDisconnect,
+//                    onVolumeChange = onVolumeChange
+//                )
+//            }
+
+            item(key = "deviceSectionHeader") {
+                DeviceSectionHeader(
+                    modifier = Modifier.fillMaxWidth(),
+                    hasDevices = state.devices.isNotEmpty(),
+                    onRefresh = onRefresh
+                )
+            }
+
             item(key = "refreshIndicator") {
                 AnimatedVisibility(
                     visible = state.isRefreshing,
@@ -547,33 +577,6 @@ private fun CastSheetContent(
                         trackColor = colors.primary.copy(alpha = 0.12f)
                     )
                 }
-            }
-
-            if (allConnectivityOff) {
-                item(key = "wifiOff") {
-                    WifiOffIllustration(
-                        onTurnOnWifi = onTurnOnWifi,
-                        onOpenBluetoothSettings = onOpenBluetoothSettings
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-                return@LazyColumn
-            }
-
-            item(key = "activeDevice") {
-                ActiveDeviceHero(
-                    device = state.activeDevice,
-                    onDisconnect = onDisconnect,
-                    onVolumeChange = onVolumeChange
-                )
-            }
-
-            item(key = "deviceSectionHeader") {
-                DeviceSectionHeader(
-                    modifier = Modifier.fillMaxWidth(),
-                    hasDevices = state.devices.isNotEmpty(),
-                    onRefresh = onRefresh
-                )
             }
 
             if (state.isScanning && state.devices.isEmpty()) {
@@ -592,7 +595,9 @@ private fun CastSheetContent(
                         onDisconnect = onDisconnect
                     )
                 }
-                item { Spacer(modifier = Modifier.height(4.dp)) }
+                item(key = "bottomSpacer") {
+                    Spacer(modifier = Modifier.height(100.dp))
+                }
             }
         }
 
@@ -601,9 +606,9 @@ private fun CastSheetContent(
                 .padding(horizontal = 20.dp)
                 .fillMaxWidth()
                 .height(headerExpandedHeight)
-                .offset { IntOffset(x = 0, y = headerOffset.roundToPx()) }
+                .offset { IntOffset(x = 0, y = headerOffsetPx.roundToInt()) }
                 .clipToBounds(),
-            collapseFraction = animatedCollapse,
+            collapseFraction = collapseFraction,
             isScanning = state.isScanning,
             wifiEnabled = state.wifiEnabled,
             wifiSsid = state.wifiSsid,
@@ -626,6 +631,7 @@ private fun CastSheetContainer(
     var sheetHeightPx by remember { mutableFloatStateOf(0f) }
     val hiddenOffsetPx = remember { mutableFloatStateOf(0f) }
     val sheetOffset = remember { Animatable(0f) }
+    val contentAlpha = remember { Animatable(0f) }
     var isVisible by remember { mutableStateOf(false) }
     var isDismissing by remember { mutableStateOf(false) }
 
@@ -638,9 +644,18 @@ private fun CastSheetContainer(
     LaunchedEffect(sheetHeightPx) {
         if (sheetHeightPx == 0f) return@LaunchedEffect
         hiddenOffsetPx.floatValue = sheetHeightPx
-        sheetOffset.snapTo(sheetHeightPx)
-        isVisible = true
-        sheetOffset.animateTo(0f, tween(durationMillis = 320, easing = FastOutSlowInEasing))
+
+        if (!isVisible) {
+            sheetOffset.snapTo(sheetHeightPx)
+            // Once we are snapped to the hidden position, make content visible (alpha 1)
+            // so we can see it slide in.
+            contentAlpha.snapTo(1f)
+            isVisible = true
+        }
+
+        if (!isDismissing) {
+            sheetOffset.animateTo(0f, tween(durationMillis = 320, easing = FastOutSlowInEasing))
+        }
     }
 
     suspend fun animateToRest() {
@@ -662,33 +677,80 @@ private fun CastSheetContainer(
     }
 
     val dragThreshold = with(density) { 72.dp.toPx() }
+
+    // Shared logic for manual dragging (from header or nested scroll)
+    fun onDrag(dragAmount: Float) {
+        if (isDismissing) return
+        val current = sheetOffset.value
+        val target = (current + dragAmount).coerceIn(0f, hiddenOffsetPx.floatValue)
+        scope.launch {
+            sheetOffset.snapTo(target)
+        }
+    }
+
+    fun onDragEnd(velocity: Float) {
+        if (isDismissing) return
+        if (sheetOffset.value > dragThreshold || velocity > 1400f) {
+            dismissSheet(velocity)
+        } else {
+            scope.launch { animateToRest() }
+        }
+    }
+
+    // Drag modifier for non-scrollable areas (e.g. Header)
     val sheetDragModifier = Modifier.pointerInput(dragThreshold, hiddenOffsetPx.floatValue) {
         val velocityTracker = VelocityTracker()
         detectVerticalDragGestures(
             onDragStart = { velocityTracker.resetTracking() },
             onVerticalDrag = { change, dragAmount ->
-                if (isDismissing) return@detectVerticalDragGestures
                 change.consume()
                 velocityTracker.addPosition(change.uptimeMillis, change.position)
-                val target = (sheetOffset.value + dragAmount).coerceIn(0f, hiddenOffsetPx.floatValue)
-                scope.launch {
-                    sheetOffset.snapTo(target)
-                }
+                onDrag(dragAmount)
             },
             onDragEnd = {
-                if (isDismissing) return@detectVerticalDragGestures
                 val velocity = velocityTracker.calculateVelocity().y
-                if (sheetOffset.value > dragThreshold || velocity > 1400f) {
-                    dismissSheet(velocity)
-                } else {
-                    scope.launch { animateToRest() }
-                }
+                onDragEnd(velocity)
             },
             onDragCancel = {
-                if (isDismissing) return@detectVerticalDragGestures
                 scope.launch { animateToRest() }
             }
         )
+    }
+
+    // Nested scroll connection for the list area
+    val nestedScrollConnection = remember {
+        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): Offset {
+                if (sheetOffset.value > 0f) {
+                    // Sheet is moving (dragging up/down while partially open).
+                    // We consume all vertical delta to move the sheet.
+                    val delta = available.y
+                    // Dragging up (delta < 0) reduces offset (moves sheet up towards 0).
+                    // Dragging down (delta > 0) increases offset (moves sheet down).
+                    // Logic in onDrag handles addition correctly.
+                    onDrag(delta)
+                    return Offset(0f, delta)
+                }
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(consumed: Offset, available: Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): Offset {
+                // If list reached top and user drags down (available.y > 0)
+                if (available.y > 0f) {
+                    onDrag(available.y)
+                    return Offset(0f, available.y)
+                }
+                return Offset.Zero
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                if (sheetOffset.value > 0f) {
+                    onDragEnd(available.y)
+                    return available
+                }
+                return Velocity.Zero
+            }
+        }
     }
 
     BackHandler(enabled = isVisible && !isDismissing) { dismissSheet() }
@@ -718,12 +780,15 @@ private fun CastSheetContainer(
                     if (height != sheetHeightPx) sheetHeightPx = height
                 }
                 .offset { IntOffset(0, sheetOffset.value.roundToInt()) }
-                .then(sheetDragModifier),
+                // Initialize hidden by using alpha 0 until layout is ready and snapped to bottom
+                .graphicsLayer { alpha = contentAlpha.value }
+                .then(sheetDragModifier)
+                .nestedScroll(nestedScrollConnection),
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
             tonalElevation = 12.dp,
-            color = MaterialTheme.colorScheme.surface
+            color = MaterialTheme.colorScheme.surfaceContainerLow
         ) {
-            Box(modifier = Modifier.padding(vertical = 18.dp)) {
+            Box(modifier = Modifier.padding(bottom = 18.dp)) {
                 content()
             }
         }
@@ -766,27 +831,53 @@ private fun CollapsibleCastTopBar(
             .heightIn(min = 0.dp, max = maxHeight)
             .clipToBounds()
     ) {
-        Text(
-            text = "Connect device",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .graphicsLayer { alpha = collapsedTitleAlpha },
-            maxLines = 1
-        )
+        //Ch
+//        Box(
+//            modifier = Modifier
+//                .align(Alignment.BottomStart)
+//                .padding(bottom = 20.dp, start = 4.dp)
+//                .graphicsLayer{
+//                    alpha = (collapsedTitleAlpha)
+//                }
+//                .background(
+//                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+//                    shape = CircleShape
+//                )
+//        ) {
+//            Text(
+//                text = "Connect device",
+//                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+//                modifier = Modifier
+//                    .align(Alignment.Center)
+//                    .padding(horizontal = 10.dp, vertical = 6.dp)
+//                    .graphicsLayer { alpha = (collapsedTitleAlpha) },
+//                maxLines = 1
+//            )
+//        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .align(Alignment.BottomStart)
+                .padding(bottom = 12.dp)
                 .graphicsLayer {
                     alpha = contentAlpha
                     translationY = with(density) { translationYOffset.toPx() }
                 },
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                text = "Connect device",
-                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold)
-            )
+            Box(
+                modifier = Modifier
+                    .background(
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        shape = CircleShape
+                    )
+            ) {
+                Text(
+                    modifier = Modifier.padding(start = 4.dp),
+                    text = "Connect device",
+                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold)
+                )
+            }
 
             AnimatedVisibility(
                 visible = isScanning,
@@ -824,7 +915,10 @@ private fun DeviceSectionHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(
+            modifier = Modifier.padding(start = 4.dp, end = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
             Text(
                 text = "Nearby devices",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
@@ -839,7 +933,7 @@ private fun DeviceSectionHeader(
         IconButton(
             onClick = onRefresh,
             colors = IconButtonDefaults.iconButtonColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 contentColor = MaterialTheme.colorScheme.onSurface
             ),
             modifier = Modifier.clip(RoundedCornerShape(16.dp))
