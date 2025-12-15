@@ -633,10 +633,17 @@ private fun CastSheetContainer(
     LaunchedEffect(sheetHeightPx) {
         if (sheetHeightPx == 0f) return@LaunchedEffect
         hiddenOffsetPx.floatValue = sheetHeightPx
-        // Fix: Do not reset position if already visible to prevent re-opening glitch on layout updates
+
         if (!isVisible) {
             sheetOffset.snapTo(sheetHeightPx)
             isVisible = true
+        }
+
+        // Ensure we animate to the visible position (0f) whenever the height stabilizes or changes.
+        // This is crucial because a layout update (changing sheetHeightPx) will cancel the previous
+        // LaunchedEffect animation. If we don't restart the animation here, the sheet might get
+        // stuck in a hidden or semi-hidden state.
+        if (!isDismissing) {
             sheetOffset.animateTo(0f, tween(durationMillis = 320, easing = FastOutSlowInEasing))
         }
     }
