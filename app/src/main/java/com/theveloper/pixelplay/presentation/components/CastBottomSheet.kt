@@ -114,6 +114,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.only
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.core.content.ContextCompat
 import androidx.media3.common.util.UnstableApi
 import androidx.mediarouter.media.MediaRouter
@@ -483,7 +484,7 @@ private fun CastSheetContent(
     val safeInsets = WindowInsets.safeDrawing.asPaddingValues()
     val statusBarPadding = safeInsets.calculateTopPadding()
     val navBarPadding = safeInsets.calculateBottomPadding()
-    val headerExpandedHeight = 168.dp
+    val headerExpandedHeight = 152.dp
     val headerCollapsedHeight = 64.dp
     val density = LocalDensity.current
     val headerTravelPx = with(density) { (headerExpandedHeight - headerCollapsedHeight).toPx() }
@@ -509,7 +510,9 @@ private fun CastSheetContent(
     val spacerHeight = headerExpandedHeight - headerCollapsedHeight
 
     Box(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = statusBarPadding)
     ) {
         LazyColumn(
             modifier = Modifier
@@ -585,7 +588,9 @@ private fun CastSheetContent(
                         onDisconnect = onDisconnect
                     )
                 }
-                item { Spacer(modifier = Modifier.height(4.dp)) }
+                item(key = "bottomSpacer") {
+                    Spacer(modifier = Modifier.height(100.dp))
+                }
             }
         }
 
@@ -771,7 +776,7 @@ private fun CastSheetContainer(
                 // Initialize hidden by using alpha 0 until layout is ready and snapped to bottom
                 .graphicsLayer { alpha = contentAlpha.value }
                 .then(sheetDragModifier)
-                .androidx.compose.ui.input.nestedscroll.nestedScroll(nestedScrollConnection),
+                .nestedScroll(nestedScrollConnection),
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
             tonalElevation = 12.dp,
             color = MaterialTheme.colorScheme.surface
@@ -823,7 +828,8 @@ private fun CollapsibleCastTopBar(
             text = "Connect device",
             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
             modifier = Modifier
-                .align(Alignment.TopStart)
+                .align(Alignment.BottomStart)
+                .padding(bottom = 20.dp, start = 20.dp)
                 .graphicsLayer { alpha = collapsedTitleAlpha },
             maxLines = 1
         )
