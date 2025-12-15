@@ -110,7 +110,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.lerp
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.only
 import androidx.compose.ui.input.pointer.util.VelocityTracker
@@ -123,6 +122,14 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import android.content.pm.PackageManager
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
 import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 import kotlinx.coroutines.launch
@@ -476,12 +483,16 @@ private fun CastSheetContent(
     val safeInsets = WindowInsets.safeDrawing.asPaddingValues()
     val statusBarPadding = safeInsets.calculateTopPadding()
     val navBarPadding = safeInsets.calculateBottomPadding()
-    val collapseRangePx = with(LocalDensity.current) { 180.dp.toPx() }
+    val headerExpandedHeight = 210.dp
+    val headerCollapsedHeight = 64.dp
+    val collapseRangePx = with(LocalDensity.current) { (headerExpandedHeight - headerCollapsedHeight).toPx() }
     val collapseFraction by remember {
         derivedStateOf {
-            val scrollOffset = listState.firstVisibleItemScrollOffset.toFloat()
-            val baseFraction = (scrollOffset / collapseRangePx).coerceIn(0f, 1f)
-            if (listState.firstVisibleItemIndex > 0) 1f else baseFraction
+            if (listState.firstVisibleItemIndex > 0) {
+                1f
+            } else {
+                (listState.firstVisibleItemScrollOffset / collapseRangePx).coerceIn(0f, 1f)
+            }
         }
     }
     val animatedCollapse by animateFloatAsState(
@@ -489,13 +500,18 @@ private fun CastSheetContent(
         animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
         label = "headerCollapse"
     )
-    val headerExpandedHeight = 210.dp
-    val headerCollapsedHeight = 64.dp
-    val headerHeight by animateDpAsState(
-        targetValue = lerp(headerExpandedHeight, headerCollapsedHeight, animatedCollapse),
+    val headerTravel = headerExpandedHeight - headerCollapsedHeight
+    val headerSpacerHeight by animateDpAsState(
+        targetValue = headerTravel * (1f - animatedCollapse),
         animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
-        label = "headerHeight"
+        label = "headerSpacer"
     )
+    val headerOffset by animateDpAsState(
+        targetValue = -headerTravel * animatedCollapse,
+        animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
+        label = "headerOffset"
+    )
+    val contentTopPadding = headerCollapsedHeight + 6.dp
 
     Box(
         modifier = Modifier
@@ -509,10 +525,13 @@ private fun CastSheetContent(
             state = listState,
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(
-                top = headerHeight + 12.dp,
+                top = contentTopPadding,
                 bottom = navBarPadding + 24.dp
             )
         ) {
+            item(key = "headerSpacer") {
+                Spacer(modifier = Modifier.height(headerSpacerHeight))
+            }
             item(key = "refreshIndicator") {
                 AnimatedVisibility(
                     visible = state.isRefreshing,
@@ -581,7 +600,9 @@ private fun CastSheetContent(
             modifier = Modifier
                 .padding(horizontal = 20.dp)
                 .fillMaxWidth()
-                .height(headerHeight),
+                .height(headerExpandedHeight)
+                .offset { IntOffset(x = 0, y = headerOffset.roundToPx()) }
+                .clipToBounds(),
             collapseFraction = animatedCollapse,
             isScanning = state.isScanning,
             wifiEnabled = state.wifiEnabled,
@@ -650,7 +671,9 @@ private fun CastSheetContainer(
                 change.consume()
                 velocityTracker.addPosition(change.uptimeMillis, change.position)
                 val target = (sheetOffset.value + dragAmount).coerceIn(0f, hiddenOffsetPx.floatValue)
-                sheetOffset.snapTo(target)
+                scope.launch {
+                    sheetOffset.snapTo(target)
+                }
             },
             onDragEnd = {
                 if (isDismissing) return@detectVerticalDragGestures
@@ -736,6 +759,8 @@ private fun CollapsibleCastTopBar(
         label = "collapsedTitle"
     )
 
+    val density = LocalDensity.current
+
     Box(
         modifier = modifier
             .heightIn(min = 0.dp, max = maxHeight)
@@ -754,9 +779,9 @@ private fun CollapsibleCastTopBar(
                 .fillMaxWidth()
                 .graphicsLayer {
                     alpha = contentAlpha
-                    translationY = with(LocalDensity.current) { translationYOffset.toPx() }
+                    translationY = with(density) { translationYOffset.toPx() }
                 },
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
                 text = "Connect device",
@@ -824,6 +849,7 @@ private fun DeviceSectionHeader(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ActiveDeviceHero(
     device: ActiveDeviceUi,
