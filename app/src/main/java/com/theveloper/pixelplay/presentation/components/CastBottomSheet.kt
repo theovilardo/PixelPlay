@@ -483,35 +483,30 @@ private fun CastSheetContent(
     val safeInsets = WindowInsets.safeDrawing.asPaddingValues()
     val statusBarPadding = safeInsets.calculateTopPadding()
     val navBarPadding = safeInsets.calculateBottomPadding()
-    val headerExpandedHeight = 210.dp
+    val headerExpandedHeight = 168.dp
     val headerCollapsedHeight = 64.dp
-    val collapseRangePx = with(LocalDensity.current) { (headerExpandedHeight - headerCollapsedHeight).toPx() }
+    val density = LocalDensity.current
+    val headerTravelPx = with(density) { (headerExpandedHeight - headerCollapsedHeight).toPx() }
+
+    // Direct scroll-driven collapse calculation
     val collapseFraction by remember {
         derivedStateOf {
-            if (listState.firstVisibleItemIndex > 0) {
-                1f
+            val scrollOffset = if (listState.firstVisibleItemIndex == 0) {
+                listState.firstVisibleItemScrollOffset.toFloat()
             } else {
-                (listState.firstVisibleItemScrollOffset / collapseRangePx).coerceIn(0f, 1f)
+                headerTravelPx
             }
+            (scrollOffset / headerTravelPx).coerceIn(0f, 1f)
         }
     }
-    val animatedCollapse by animateFloatAsState(
-        targetValue = collapseFraction,
-        animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
-        label = "headerCollapse"
-    )
-    val headerTravel = headerExpandedHeight - headerCollapsedHeight
-    val headerSpacerHeight by animateDpAsState(
-        targetValue = headerTravel * (1f - animatedCollapse),
-        animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
-        label = "headerSpacer"
-    )
-    val headerOffset by animateDpAsState(
-        targetValue = -headerTravel * animatedCollapse,
-        animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
-        label = "headerOffset"
-    )
-    val contentTopPadding = headerCollapsedHeight + 6.dp
+
+    val headerOffsetPx by remember {
+        derivedStateOf {
+            -headerTravelPx * collapseFraction
+        }
+    }
+
+    val spacerHeight = headerExpandedHeight - headerCollapsedHeight
 
     Box(
         modifier = Modifier
@@ -525,12 +520,12 @@ private fun CastSheetContent(
             state = listState,
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(
-                top = contentTopPadding,
+                top = headerCollapsedHeight + 4.dp,
                 bottom = navBarPadding + 24.dp
             )
         ) {
             item(key = "headerSpacer") {
-                Spacer(modifier = Modifier.height(headerSpacerHeight))
+                Spacer(modifier = Modifier.height(spacerHeight))
             }
             item(key = "refreshIndicator") {
                 AnimatedVisibility(
@@ -601,9 +596,9 @@ private fun CastSheetContent(
                 .padding(horizontal = 20.dp)
                 .fillMaxWidth()
                 .height(headerExpandedHeight)
-                .offset { IntOffset(x = 0, y = headerOffset.roundToPx()) }
+                .offset { IntOffset(x = 0, y = headerOffsetPx.roundToInt()) }
                 .clipToBounds(),
-            collapseFraction = animatedCollapse,
+            collapseFraction = collapseFraction,
             isScanning = state.isScanning,
             wifiEnabled = state.wifiEnabled,
             wifiSsid = state.wifiSsid,
@@ -638,9 +633,12 @@ private fun CastSheetContainer(
     LaunchedEffect(sheetHeightPx) {
         if (sheetHeightPx == 0f) return@LaunchedEffect
         hiddenOffsetPx.floatValue = sheetHeightPx
-        sheetOffset.snapTo(sheetHeightPx)
-        isVisible = true
-        sheetOffset.animateTo(0f, tween(durationMillis = 320, easing = FastOutSlowInEasing))
+        // Fix: Do not reset position if already visible to prevent re-opening glitch on layout updates
+        if (!isVisible) {
+            sheetOffset.snapTo(sheetHeightPx)
+            isVisible = true
+            sheetOffset.animateTo(0f, tween(durationMillis = 320, easing = FastOutSlowInEasing))
+        }
     }
 
     suspend fun animateToRest() {
@@ -777,6 +775,8 @@ private fun CollapsibleCastTopBar(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .align(Alignment.BottomStart)
+                .padding(bottom = 12.dp)
                 .graphicsLayer {
                     alpha = contentAlpha
                     translationY = with(density) { translationYOffset.toPx() }
