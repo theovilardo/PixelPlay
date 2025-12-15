@@ -195,17 +195,9 @@ fun SettingsScreen(
 
     var showClearLyricsDialog by remember { mutableStateOf(false) }
     var showExplorerSheet by remember { mutableStateOf(false) }
-    var pendingExplorerLaunch by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         settingsViewModel.primeExplorer()
-    }
-
-    LaunchedEffect(pendingExplorerLaunch, isExplorerReady) {
-        if (pendingExplorerLaunch && isExplorerReady) {
-            showExplorerSheet = true
-            pendingExplorerLaunch = false
-        }
     }
 
     BackHandler(enabled = playerSheetState == PlayerSheetState.EXPANDED) {
@@ -348,15 +340,12 @@ fun SettingsScreen(
                                     return@SettingsItem
                                 }
 
-                                pendingExplorerLaunch = true
-                                if (isExplorerReady) {
-                                    showExplorerSheet = true
-                                    pendingExplorerLaunch = false
-                                } else {
-                                    settingsViewModel.primeExplorer()
-                                }
-                            }
-                        )
+                                  showExplorerSheet = true
+                                  if (!isExplorerReady && !isExplorerPriming) {
+                                      settingsViewModel.primeExplorer()
+                                  }
+                              }
+                          )
                         Spacer(modifier = Modifier.height(4.dp))
                         SettingsItem(
                             title = "Refresh Library",
@@ -738,10 +727,6 @@ fun SettingsScreen(
         onDone = { showExplorerSheet = false },
         onDismiss = { showExplorerSheet = false }
     )
-
-    if (pendingExplorerLaunch && !showExplorerSheet && (isExplorerPriming || !isExplorerReady)) {
-        ExplorerWarmupDialog(onCancel = { pendingExplorerLaunch = false })
-    }
 
     // Reset lyrics dialog
     if (showClearLyricsDialog) {
