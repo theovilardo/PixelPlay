@@ -5,6 +5,8 @@ import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,6 +21,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 data class DirectoryEntry(
     val file: File,
@@ -44,7 +47,7 @@ class FileExplorerStateHolder(
 ) {
 
     private val rootCanonicalPath: String = normalizePath(visibleRoot)
-    private val audioCountCache = mutableMapOf<String, AudioCount>()
+    private val audioCountCache = ConcurrentHashMap<String, AudioCount>()
 
     // Caches for "Raw" entries (without selection state)
     private val directoryChildrenCache = mutableMapOf<String, List<RawDirectoryEntry>>()
@@ -273,22 +276,22 @@ class FileExplorerStateHolder(
             if (isSmartView) {
                 buildSmartViewEntries(visibleRoot, forceRefresh)
             } else {
-                runCatching {
-                    target.listFiles()
-                        ?.mapNotNull { child ->
-                            if (child.isDirectory && !child.isHidden) {
-                                val counts = countAudioFiles(child, forceRefresh)
-                                if (counts.total > 0) {
-                                    RawDirectoryEntry(child, counts.direct, counts.total, normalizePath(child))
-                                } else null
-                            } else {
-                                null
-                            }
-                        }
-                        ?.sortedWith(compareBy({ it.file.name.lowercase() }))
-                        ?: emptyList()
+                val children = runCatching {
+                    target.listFiles()?.filter { it.isDirectory && !it.isHidden } ?: emptyList()
                 }.getOrElse { emptyList() }
-                    .also { directoryChildrenCache[targetKey] = it }
+
+                coroutineScope {
+                    val dispatcher = Dispatchers.IO.limitedParallelism(4)
+                    children.map { child ->
+                        async(dispatcher) {
+                            val counts = countAudioFiles(child, forceRefresh)
+                            if (counts.total > 0) {
+                                RawDirectoryEntry(child, counts.direct, counts.total, normalizePath(child))
+                            } else null
+                        }
+                    }.mapNotNull { it.await() }
+                        .sortedWith(compareBy({ it.file.name.lowercase() }))
+                }.also { directoryChildrenCache[targetKey] = it }
             }
         }
 
