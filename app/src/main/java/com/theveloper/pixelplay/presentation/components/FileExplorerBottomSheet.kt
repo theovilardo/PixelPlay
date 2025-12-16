@@ -165,7 +165,7 @@ fun FileExplorerContent(
     onSmartViewToggle: (Boolean) -> Unit,
     onDone: () -> Unit,
     onDismiss: () -> Unit,
-    title: String = "Music folders",
+    title: String = "Excluded folders",
     leadingContent: @Composable (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -296,6 +296,13 @@ fun FileExplorerContent(
                     //Spacer(modifier = Modifier.width(14.dp))
                 }
             }
+
+            Text(
+                text = "Everything is allowed by default. Tap a folder to mark it as excluded from scans.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 18.dp)
+            )
 
             FileExplorerHeader(
                 modifier = Modifier.padding(horizontal = 18.dp),
@@ -437,6 +444,8 @@ private fun FileExplorerItem(
 ) {
     val shape = RoundedCornerShape(18.dp)
 
+    val isAllowed = !isBlocked
+
     val containerColor = if (isBlocked) {
         MaterialTheme.colorScheme.errorContainer
     } else {
@@ -526,14 +535,24 @@ private fun FileExplorerItem(
             Spacer(modifier = Modifier.width(8.dp))
         }
 
-        RadioButton(
-            selected = isAllowed,
-            onClick = onToggleAllowed,
-            colors = androidx.compose.material3.RadioButtonDefaults.colors(
-                selectedColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = if (isBlocked) "Excluded" else "Included",
+                style = MaterialTheme.typography.labelMedium,
+                color = if (isBlocked) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant
             )
-        )
+            RadioButton(
+                selected = isBlocked,
+                onClick = onToggleAllowed,
+                colors = androidx.compose.material3.RadioButtonDefaults.colors(
+                    selectedColor = MaterialTheme.colorScheme.onErrorContainer,
+                    unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            )
+        }
     }
 }
 

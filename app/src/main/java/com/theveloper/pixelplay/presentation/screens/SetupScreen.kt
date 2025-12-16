@@ -260,9 +260,9 @@ fun DirectorySelectionPage(
     val canOpenDirectoryPicker = hasMediaPermission && hasAllFilesAccess
 
     PermissionPageLayout(
-        title = "Music Folders",
-        description = "Select the folders where your music is stored. If you skip this, you can select them later in settings.",
-        buttonText = "Select Folders",
+        title = "Excluded folders",
+        description = "All folders are scanned by default. Pick any locations you want to ignore when building your library.",
+        buttonText = "Choose folders to ignore",
         buttonEnabled = canOpenDirectoryPicker,
         onGrantClicked = {
             if (canOpenDirectoryPicker) {

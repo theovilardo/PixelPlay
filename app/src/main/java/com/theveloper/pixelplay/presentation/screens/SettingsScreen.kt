@@ -312,8 +312,8 @@ fun SettingsScreen(
                         val context = LocalContext.current
 
                         SettingsItem(
-                            title = "Allowed Directories",
-                            subtitle = "Choose the directories you want to get the music files from.",
+                            title = "Excluded Directories",
+                            subtitle = "Folders here will be skipped when scanning your library.",
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Outlined.Folder,
