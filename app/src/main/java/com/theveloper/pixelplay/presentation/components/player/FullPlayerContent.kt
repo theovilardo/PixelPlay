@@ -38,6 +38,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -87,6 +89,7 @@ import androidx.compose.ui.unit.coerceAtLeast
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.R
+import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.presentation.components.AlbumCarouselSection
@@ -160,6 +163,7 @@ fun FullPlayerContent(
     var showLyricsSheet by remember { mutableStateOf(false) }
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
     val lyricsSearchUiState by playerViewModel.lyricsSearchUiState.collectAsState()
+    val currentSongArtists by playerViewModel.currentSongArtists.collectAsState()
 
     var showFetchLyricsDialog by remember { mutableStateOf(false) }
     var totalDrag by remember { mutableStateOf(0f) }
@@ -355,6 +359,7 @@ fun FullPlayerContent(
                 .padding(start = 0.dp),
             onClickLyrics = onLyricsClick,
             song = song,
+            currentSongArtists = currentSongArtists,
             expansionFraction = expansionFraction,
             textColor = LocalMaterialTheme.current.onPrimaryContainer,
             artistTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.8f),
@@ -737,6 +742,7 @@ fun FullPlayerContent(
 @Composable
 private fun SongMetadataDisplaySection(
     song: Song?,
+    currentSongArtists: List<Artist>,
     expansionFraction: Float,
     textColor: Color,
     artistTextColor: Color,
@@ -759,6 +765,7 @@ private fun SongMetadataDisplaySection(
                     title = currentSong.title,
                     artist = currentSong.artist,
                     artistId = currentSong.artistId,
+                    artists = currentSongArtists,
                     expansionFraction = expansionFraction,
                     textColor = textColor,
                     artistTextColor = artistTextColor,
@@ -962,6 +969,7 @@ private fun PlayerSongInfo(
     title: String,
     artist: String,
     artistId: Long,
+    artists: List<Artist>,
     expansionFraction: Float,
     textColor: Color,
     artistTextColor: Color,
@@ -994,29 +1002,71 @@ private fun PlayerSongInfo(
     ) {
         AutoScrollingTextOnDemand(title, titleStyle, gradientEdgeColor, expansionFraction)
         Spacer(modifier = Modifier.height(4.dp))
-        AutoScrollingTextOnDemand(
-            text = artist,
-            style = artistStyle,
-            gradientEdgeColor = gradientEdgeColor,
-            expansionFraction = expansionFraction,
-            modifier = Modifier.combinedClickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = {},
-                onLongClick = {
-                    if (isNavigatingToArtist) return@combinedClickable
-
-                    coroutineScope.launch {
-                        isNavigatingToArtist = true
-                        try {
-                            playerViewModel.triggerArtistNavigationFromPlayer(artistId)
-                        } finally {
-                            isNavigatingToArtist = false
-                        }
+        
+        if (artists.size > 1) {
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                items(artists) { artistItem ->
+                    Text(
+                        text = artistItem.name,
+                        style = artistStyle,
+                        modifier = Modifier
+                            .clickable {
+                                if (isNavigatingToArtist) return@clickable
+                                coroutineScope.launch {
+                                    isNavigatingToArtist = true
+                                    try {
+                                        playerViewModel.triggerArtistNavigationFromPlayer(artistItem.id)
+                                    } finally {
+                                        isNavigatingToArtist = false
+                                    }
+                                }
+                            }
+                    )
+                    if (artistItem != artists.last()) {
+                        Text(
+                            text = ", ",
+                            style = artistStyle
+                        )
                     }
                 }
+            }
+        } else {
+            AutoScrollingTextOnDemand(
+                text = artist,
+                style = artistStyle,
+                gradientEdgeColor = gradientEdgeColor,
+                expansionFraction = expansionFraction,
+                modifier = Modifier.combinedClickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {
+                         if (isNavigatingToArtist) return@combinedClickable
+                         coroutineScope.launch {
+                             isNavigatingToArtist = true
+                             try {
+                                 playerViewModel.triggerArtistNavigationFromPlayer(artistId)
+                             } finally {
+                                 isNavigatingToArtist = false
+                             }
+                         }
+                    },
+                    onLongClick = {
+                        if (isNavigatingToArtist) return@combinedClickable
+                        coroutineScope.launch {
+                            isNavigatingToArtist = true
+                            try {
+                                playerViewModel.triggerArtistNavigationFromPlayer(artistId)
+                            } finally {
+                                isNavigatingToArtist = false
+                            }
+                        }
+                    }
+                )
             )
-        )
+        }
     }
 }
 
