@@ -171,7 +171,7 @@ class SyncWorker @AssistedInject constructor(
                 if (normalizedName.isNotEmpty() && !artistNameToId.containsKey(normalizedName)) {
                     // Check if this artist name matches the original artist in the song
                     // If so, use the original MediaStore ID
-                    if (normalizedName == song.artistName) {
+                    if (normalizedName == song.artistName.trim()) {
                         artistNameToId[normalizedName] = song.artistId
                     } else {
                         // Generate a new ID for split artists
