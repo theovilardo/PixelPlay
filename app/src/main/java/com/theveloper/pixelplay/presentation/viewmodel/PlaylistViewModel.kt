@@ -33,8 +33,15 @@ data class PlaylistUiState(
 
     //Sort option
     val currentPlaylistSortOption: SortOption = SortOption.PlaylistNameAZ,
-    val currentPlaylistSongsSortOption: SortOption = SortOption.SongTitleAZ
+    val currentPlaylistSongsSortOption: SortOption = SortOption.SongTitleAZ,
+    val playlistSongsOrderMode: PlaylistSongsOrderMode = PlaylistSongsOrderMode.Sorted(SortOption.SongTitleAZ),
+    val playlistOrderModes: Map<String, PlaylistSongsOrderMode> = emptyMap()
 )
+
+sealed class PlaylistSongsOrderMode {
+    object Manual : PlaylistSongsOrderMode()
+    data class Sorted(val option: SortOption) : PlaylistSongsOrderMode()
+}
 
 @HiltViewModel
 class PlaylistViewModel @Inject constructor(
@@ -199,6 +206,7 @@ class PlaylistViewModel @Inject constructor(
                             it.copy(
                                 currentPlaylistDetails = pseudoPlaylist,
                                 currentPlaylistSongs = applySortToSongs(songsList, it.currentPlaylistSongsSortOption),
+                                playlistSongsOrderMode = PlaylistSongsOrderMode.Sorted(it.currentPlaylistSongsSortOption),
                                 isLoading = false
                             )
                         }
@@ -212,15 +220,28 @@ class PlaylistViewModel @Inject constructor(
                         .find { it.id == playlistId }
 
                     if (playlist != null) {
+                        val orderMode = _uiState.value.playlistOrderModes[playlistId]
+                            ?: PlaylistSongsOrderMode.Sorted(_uiState.value.currentPlaylistSongsSortOption)
+
                         // Colectar la lista de canciones del Flow devuelto por el repositorio en un hilo de IO
                         val songsList: List<Song> = withContext(kotlinx.coroutines.Dispatchers.IO) {
                             musicRepository.getSongsByIds(playlist.songIds).first()
                         }
+
+                        val orderedSongs = when (orderMode) {
+                            is PlaylistSongsOrderMode.Sorted -> applySortToSongs(songsList, orderMode.option)
+                            PlaylistSongsOrderMode.Manual -> songsList
+                        }
+
                         // La actualización del UI se hace en el hilo principal
                         _uiState.update {
                             it.copy(
                                 currentPlaylistDetails = playlist,
-                                currentPlaylistSongs = applySortToSongs(songsList, it.currentPlaylistSongsSortOption), // Apply sort
+                                currentPlaylistSongs = orderedSongs,
+                                currentPlaylistSongsSortOption = (orderMode as? PlaylistSongsOrderMode.Sorted)?.option
+                                    ?: it.currentPlaylistSongsSortOption,
+                                playlistSongsOrderMode = orderMode,
+                                playlistOrderModes = it.playlistOrderModes + (playlistId to orderMode),
                                 isLoading = false
                             )
                         }
@@ -323,7 +344,14 @@ class PlaylistViewModel @Inject constructor(
                 currentSongs.add(toIndex, item)
                 val newSongOrderIds = currentSongs.map { it.id }
                 userPreferencesRepository.reorderSongsInPlaylist(playlistId, newSongOrderIds)
-                _uiState.update { it.copy(currentPlaylistSongs = currentSongs) }
+                _uiState.update {
+                    val updatedModes = it.playlistOrderModes + (playlistId to PlaylistSongsOrderMode.Manual)
+                    it.copy(
+                        currentPlaylistSongs = currentSongs,
+                        playlistSongsOrderMode = PlaylistSongsOrderMode.Manual,
+                        playlistOrderModes = updatedModes
+                    )
+                }
             }
         }
     }
@@ -348,7 +376,7 @@ class PlaylistViewModel @Inject constructor(
     }
 
     fun sortPlaylistSongs(sortOption: SortOption) {
-        _uiState.update { it.copy(currentPlaylistSongsSortOption = sortOption) }
+        val playlistId = _uiState.value.currentPlaylistDetails?.id
 
         val currentSongs = _uiState.value.currentPlaylistSongs
         val sortedSongs = when (sortOption) {
@@ -361,8 +389,20 @@ class PlaylistViewModel @Inject constructor(
             else -> currentSongs
         }
 
-        _uiState.update { it.copy(currentPlaylistSongs = sortedSongs) }
-        
+        _uiState.update {
+            val updatedModes = if (playlistId != null) {
+                it.playlistOrderModes + (playlistId to PlaylistSongsOrderMode.Sorted(sortOption))
+            } else {
+                it.playlistOrderModes
+            }
+            it.copy(
+                currentPlaylistSongs = sortedSongs,
+                currentPlaylistSongsSortOption = sortOption,
+                playlistSongsOrderMode = PlaylistSongsOrderMode.Sorted(sortOption),
+                playlistOrderModes = updatedModes
+            )
+        }
+
         // Persist local sort preference if needed (optional, not requested but good UX)
         // For now, we keep it in memory as per request focus.
     }
