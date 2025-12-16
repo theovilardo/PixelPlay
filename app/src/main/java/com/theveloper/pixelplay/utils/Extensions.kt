@@ -108,7 +108,7 @@ fun String.splitArtistsByDelimiters(delimiters: List<String>): List<String> {
         }
         .filter { it.isNotEmpty() }
         .distinct() // Remove duplicates
-        .ifEmpty { listOf(this.trim()) } // Fallback to original if all parts are empty
+        .ifEmpty { if (this.trim().isNotEmpty()) listOf(this.trim()) else emptyList() } // Fallback to original if non-empty, else empty list
 }
 
 /**
