@@ -248,14 +248,11 @@ class SyncWorker @AssistedInject constructor(
         // Create unique albums
         val albums = correctedSongs.groupBy { it.albumId }.map { (albumId, songsInAlbum) ->
             val firstSong = songsInAlbum.first()
+            // correctedSongs already have the primary artist as artistName, no need to split again
             val albumArtistName = if (groupByAlbumArtist && !firstSong.albumArtist.isNullOrBlank()) {
                 firstSong.albumArtist
             } else {
-                if (artistSeparationEnabled) {
-                    firstSong.artistName.splitArtistsByDelimiters(artistDelimiters).firstOrNull() ?: firstSong.artistName
-                } else {
-                    firstSong.artistName
-                }
+                firstSong.artistName
             }
             val albumArtistId = artistNameToId[albumArtistName] ?: firstSong.artistId
 
