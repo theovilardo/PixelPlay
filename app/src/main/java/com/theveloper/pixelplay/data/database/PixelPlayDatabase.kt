@@ -76,7 +76,7 @@ abstract class PixelPlayDatabase : RoomDatabase() {
                 // Migrate existing song-artist relationships to junction table
                 // Each existing song gets its current artist as the primary artist
                 db.execSQL("""
-                    INSERT OR IGNORE INTO song_artist_cross_ref (song_id, artist_id, is_primary)
+                    INSERT OR REPLACE INTO song_artist_cross_ref (song_id, artist_id, is_primary)
                     SELECT id, artist_id, 1 FROM songs WHERE artist_id IS NOT NULL
                 """.trimIndent())
             }
