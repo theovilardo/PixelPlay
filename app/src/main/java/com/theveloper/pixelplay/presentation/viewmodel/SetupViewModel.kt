@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.worker.SyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
@@ -39,17 +40,19 @@ data class SetupUiState(
 class SetupViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val syncManager: SyncManager,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SetupUiState())
     val uiState = _uiState.asStateFlow()
 
-    private val fileExplorerStateHolder = FileExplorerStateHolder(userPreferencesRepository, viewModelScope)
+    private val fileExplorerStateHolder = FileExplorerStateHolder(userPreferencesRepository, viewModelScope, context)
 
     val currentPath = fileExplorerStateHolder.currentPath
     val currentDirectoryChildren = fileExplorerStateHolder.currentDirectoryChildren
     val blockedDirectories = fileExplorerStateHolder.blockedDirectories
-    val smartViewEnabled = fileExplorerStateHolder.smartViewEnabled
+    val availableStorages = fileExplorerStateHolder.availableStorages
+    val selectedStorageIndex = fileExplorerStateHolder.selectedStorageIndex
     val isLoadingDirectories = fileExplorerStateHolder.isLoading
 
     init {

@@ -79,6 +79,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.theveloper.pixelplay.presentation.screens.TabAnimation
 import com.theveloper.pixelplay.presentation.viewmodel.DirectoryEntry
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
+import com.theveloper.pixelplay.utils.StorageInfo
 import java.io.File
 
 @Composable
@@ -86,7 +87,8 @@ fun FileExplorerDialog(
     visible: Boolean,
     currentPath: File,
     directoryChildren: List<DirectoryEntry>,
-    smartViewEnabled: Boolean,
+    availableStorages: List<StorageInfo>,
+    selectedStorageIndex: Int,
     isLoading: Boolean,
     isAtRoot: Boolean,
     rootDirectory: File,
@@ -95,18 +97,12 @@ fun FileExplorerDialog(
     onNavigateHome: () -> Unit,
     onToggleAllowed: (File) -> Unit,
     onRefresh: () -> Unit,
-    onSmartViewToggle: (Boolean) -> Unit,
+    onStorageSelected: (Int) -> Unit,
     onDone: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val transitionState = remember { MutableTransitionState(false) }
     transitionState.targetState = visible
-
-    LaunchedEffect(visible) {
-        if (visible) {
-            onSmartViewToggle(false)
-        }
-    }
 
     if (transitionState.currentState || transitionState.targetState) {
         Dialog(
@@ -129,7 +125,8 @@ fun FileExplorerDialog(
                     FileExplorerContent(
                         currentPath = currentPath,
                         directoryChildren = directoryChildren,
-                        smartViewEnabled = smartViewEnabled,
+                        availableStorages = availableStorages,
+                        selectedStorageIndex = selectedStorageIndex,
                         isLoading = isLoading,
                         isAtRoot = isAtRoot,
                         rootDirectory = rootDirectory,
@@ -138,7 +135,7 @@ fun FileExplorerDialog(
                         onNavigateHome = onNavigateHome,
                         onToggleAllowed = onToggleAllowed,
                         onRefresh = onRefresh,
-                        onSmartViewToggle = onSmartViewToggle,
+                        onStorageSelected = onStorageSelected,
                         onDone = onDone,
                         onDismiss = onDismiss,
                         modifier = Modifier.fillMaxSize()
@@ -153,7 +150,8 @@ fun FileExplorerDialog(
 fun FileExplorerContent(
     currentPath: File,
     directoryChildren: List<DirectoryEntry>,
-    smartViewEnabled: Boolean,
+    availableStorages: List<StorageInfo>,
+    selectedStorageIndex: Int,
     isLoading: Boolean,
     isAtRoot: Boolean,
     rootDirectory: File,
@@ -162,7 +160,7 @@ fun FileExplorerContent(
     onNavigateHome: () -> Unit,
     onToggleAllowed: (File) -> Unit,
     onRefresh: () -> Unit,
-    onSmartViewToggle: (Boolean) -> Unit,
+    onStorageSelected: (Int) -> Unit,
     onDone: () -> Unit,
     onDismiss: () -> Unit,
     title: String = "Excluded folders",
@@ -247,53 +245,52 @@ fun FileExplorerContent(
                 }
             }
 
-            val tabTitles = listOf("All folders", "Smart View (β)")
-            val selectedTabIndex = if (smartViewEnabled) 1 else 0
-
-            TabRow(
-                modifier = Modifier
-                    .fillMaxWidth(),
-                selectedTabIndex = selectedTabIndex,
-                containerColor = Color.Transparent,
-                indicator = { tabPositions ->
-                    if (selectedTabIndex < tabPositions.size) {
-                        TabRowDefaults.PrimaryIndicator(
-                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
-                            height = 3.dp,
-                            color = Color.Transparent
-                        )
-                    }
-                },
-                divider = {}
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(0.dp)
-                ) {
-                    tabTitles.forEachIndexed { index, title ->
-                        if(index == 0){
-                            Spacer(modifier = Modifier.width(14.dp))
-                        }
-                        TabAnimation(
-                            modifier = Modifier.weight(1f),
-                            index = index,
-                            title = title,
-                            selectedIndex = selectedTabIndex,
-                            onClick = { onSmartViewToggle(index == 1) }
-                        ) {
-                            Text(
-                                text = title,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                fontFamily = GoogleSansRounded
+            // Only show storage tabs if there's more than one storage
+            if (availableStorages.size > 1) {
+                TabRow(
+                    modifier = Modifier
+                        .fillMaxWidth(),
+                    selectedTabIndex = selectedStorageIndex,
+                    containerColor = Color.Transparent,
+                    indicator = { tabPositions ->
+                        if (selectedStorageIndex < tabPositions.size) {
+                            TabRowDefaults.PrimaryIndicator(
+                                modifier = Modifier.tabIndicatorOffset(tabPositions[selectedStorageIndex]),
+                                height = 3.dp,
+                                color = Color.Transparent
                             )
                         }
-                        if (index == 1){
-                            Spacer(modifier = Modifier.width(14.dp))
+                    },
+                    divider = {}
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(0.dp)
+                    ) {
+                        availableStorages.forEachIndexed { index, storage ->
+                            if (index == 0) {
+                                Spacer(modifier = Modifier.width(14.dp))
+                            }
+                            TabAnimation(
+                                modifier = Modifier.weight(1f),
+                                index = index,
+                                title = storage.displayName,
+                                selectedIndex = selectedStorageIndex,
+                                onClick = { onStorageSelected(index) }
+                            ) {
+                                Text(
+                                    text = storage.displayName,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    fontFamily = GoogleSansRounded
+                                )
+                            }
+                            if (index == availableStorages.lastIndex) {
+                                Spacer(modifier = Modifier.width(14.dp))
+                            }
                         }
                     }
-                    //Spacer(modifier = Modifier.width(14.dp))
                 }
             }
 
@@ -312,7 +309,7 @@ fun FileExplorerContent(
                 onNavigateUp = onNavigateUp,
                 onNavigateHome = onNavigateHome,
                 onNavigateTo = onNavigateTo,
-                navigationEnabled = !smartViewEnabled
+                navigationEnabled = true
             )
 
             Box(modifier = Modifier.weight(1f)) {
@@ -344,11 +341,7 @@ fun FileExplorerContent(
                                 state = listState
                             ) {
                                 items(children, key = { it.file.absolutePath }) { directoryEntry ->
-                                    val displayCount = if (smartViewEnabled) {
-                                        directoryEntry.directAudioCount
-                                    } else {
-                                        directoryEntry.totalAudioCount
-                                    }
+                                    val displayCount = directoryEntry.totalAudioCount
 
                                     FileExplorerItem(
                                         file = directoryEntry.file,
@@ -357,7 +350,7 @@ fun FileExplorerContent(
                                         isBlocked = directoryEntry.isBlocked,
                                         onNavigate = { onNavigateTo(directoryEntry.file) },
                                         onToggleAllowed = { onToggleAllowed(directoryEntry.file) },
-                                        navigationEnabled = !smartViewEnabled
+                                        navigationEnabled = true
                                     )
                                 }
                                 item { Spacer(modifier = Modifier.height(76.dp)) }

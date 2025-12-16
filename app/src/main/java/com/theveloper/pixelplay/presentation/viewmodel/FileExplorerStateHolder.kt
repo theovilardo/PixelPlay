@@ -218,31 +218,12 @@ class FileExplorerStateHolder(
         }
     }
 
-    fun setSmartViewEnabled(enabled: Boolean) {
-        if (_smartViewEnabled.value == enabled) return
-        _smartViewEnabled.value = enabled
-
-        scope.launch {
-            val target = if (enabled) visibleRoot else _currentPath.value // Reset to root for smart view usually? Or keep context?
-            // Actually, smart view is usually global flat list. Let's use visibleRoot for smart view base.
-            // But if user was deep in folders, toggling smart view usually shows everything.
-
-            val loadTarget = if(enabled) visibleRoot else target
-
-            // Just trigger load, the logic inside handles smart view switch
-            loadDirectoryInternal(loadTarget, updatePath = true, forceRefresh = false)
-        }
-    }
-
     private suspend fun loadDirectoryInternal(file: File, updatePath: Boolean, forceRefresh: Boolean) {
         val target = if (file.isDirectory) file else visibleRoot
         val targetKey = normalizePath(target)
-        val isSmartView = _smartViewEnabled.value
-        val cacheKey = if (isSmartView) normalizePath(visibleRoot) else targetKey
 
         if (forceRefresh) {
             directoryChildrenCache.remove(targetKey)
-            smartViewCache.remove(cacheKey)
         }
 
         if (updatePath) {
@@ -250,7 +231,7 @@ class FileExplorerStateHolder(
         }
 
         val cachedEntries = if (!forceRefresh) {
-            if (isSmartView) smartViewCache[cacheKey] else directoryChildrenCache[targetKey]
+            directoryChildrenCache[targetKey]
         } else null
 
         if (cachedEntries != null) {
@@ -264,26 +245,22 @@ class FileExplorerStateHolder(
         _rawCurrentDirectoryChildren.value = emptyList()
 
         val resultEntries = withContext(Dispatchers.IO) {
-            if (isSmartView) {
-                buildSmartViewEntries(visibleRoot, forceRefresh)
-            } else {
-                val children = runCatching {
-                    target.listFiles()?.filter { it.isDirectory && !it.isHidden } ?: emptyList()
-                }.getOrElse { emptyList() }
+            val children = runCatching {
+                target.listFiles()?.filter { it.isDirectory && !it.isHidden } ?: emptyList()
+            }.getOrElse { emptyList() }
 
-                coroutineScope {
-                    val dispatcher = Dispatchers.IO.limitedParallelism(4)
-                    children.map { child ->
-                        async(dispatcher) {
-                            val counts = countAudioFiles(child, forceRefresh)
-                            if (counts.total > 0) {
-                                RawDirectoryEntry(child, counts.direct, counts.total, normalizePath(child))
-                            } else null
-                        }
-                    }.mapNotNull { it.await() }
-                        .sortedWith(compareBy({ it.file.name.lowercase() }))
-                }.also { directoryChildrenCache[targetKey] = it }
-            }
+            coroutineScope {
+                val dispatcher = Dispatchers.IO.limitedParallelism(4)
+                children.map { child ->
+                    async(dispatcher) {
+                        val counts = countAudioFiles(child, forceRefresh)
+                        if (counts.total > 0) {
+                            RawDirectoryEntry(child, counts.direct, counts.total, normalizePath(child))
+                        } else null
+                    }
+                }.mapNotNull { it.await() }
+                    .sortedWith(compareBy({ it.file.name.lowercase() }))
+            }.also { directoryChildrenCache[targetKey] = it }
         }
 
         _rawCurrentDirectoryChildren.value = resultEntries
@@ -344,59 +321,6 @@ class FileExplorerStateHolder(
     fun isAtRoot(): Boolean = _currentPath.value.path == visibleRoot.path
 
     fun rootDirectory(): File = visibleRoot
-
-    private suspend fun buildSmartViewEntries(root: File, forceRefresh: Boolean): List<RawDirectoryEntry> {
-        val key = normalizePath(root)
-        if (!forceRefresh) {
-            smartViewCache[key]?.let { return it }
-        }
-
-        // Flattened Mode: "Shows only folders containing audio files directly... all in same level."
-        val aggregated = withContext(Dispatchers.IO) {
-            val results = mutableListOf<RawDirectoryEntry>()
-            val queue: ArrayDeque<File> = ArrayDeque()
-            queue.add(root)
-
-            while (queue.isNotEmpty()) {
-                val current = queue.removeFirst()
-                val children = current.listFiles()?.filter { it.isDirectory && !it.isHidden } ?: continue
-
-                // Add children to queue for traversal
-                children.forEach { queue.add(it) }
-
-                // Check direct audio files in THIS folder
-                // We can use a simplified check or reuse countAudioFiles but we only care about DIRECT count here.
-                var directAudioCount = 0
-                val files = current.listFiles()
-                if (files != null) {
-                    for (file in files) {
-                        if (file.isFile && !file.isHidden && audioExtensions.contains(file.extension.lowercase())) {
-                            directAudioCount++
-                            // We don't need to count all of them if we just want to know "exists",
-                            // BUT we need the count for the UI badge.
-                            if (directAudioCount > 99) break
-                        }
-                    }
-                }
-
-                if (directAudioCount > 0) {
-                     results.add(
-                        RawDirectoryEntry(
-                            file = current,
-                            directAudioCount = directAudioCount,
-                            totalAudioCount = directAudioCount, // In flattened mode, total is direct for that item
-                            canonicalPath = normalizePath(current)
-                        )
-                    )
-                }
-            }
-
-            results.sortedBy { it.file.name.lowercase() }
-        }
-
-        smartViewCache[key] = aggregated
-        return aggregated
-    }
 
     private fun normalizePath(file: File): String = runCatching { file.canonicalPath }.getOrDefault(file.absolutePath)
     private fun normalizePath(path: String): String = runCatching { File(path).canonicalPath }.getOrDefault(path)
