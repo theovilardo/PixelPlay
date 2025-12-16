@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.presentation.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.theveloper.pixelplay.data.preferences.AppThemeMode
@@ -8,6 +9,7 @@ import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.worker.SyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -42,7 +44,8 @@ data class SettingsUiState(
 class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val syncManager: SyncManager,
-    private val geminiModelService: GeminiModelService
+    private val geminiModelService: GeminiModelService,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -57,12 +60,13 @@ class SettingsViewModel @Inject constructor(
     val geminiSystemPrompt: StateFlow<String> = userPreferencesRepository.geminiSystemPrompt
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferencesRepository.DEFAULT_SYSTEM_PROMPT)
 
-    private val fileExplorerStateHolder = FileExplorerStateHolder(userPreferencesRepository, viewModelScope)
+    private val fileExplorerStateHolder = FileExplorerStateHolder(userPreferencesRepository, viewModelScope, context)
 
     val currentPath = fileExplorerStateHolder.currentPath
     val currentDirectoryChildren = fileExplorerStateHolder.currentDirectoryChildren
     val blockedDirectories = fileExplorerStateHolder.blockedDirectories
-    val smartViewEnabled = fileExplorerStateHolder.smartViewEnabled
+    val availableStorages = fileExplorerStateHolder.availableStorages
+    val selectedStorageIndex = fileExplorerStateHolder.selectedStorageIndex
     val isLoadingDirectories = fileExplorerStateHolder.isLoading
     val isExplorerPriming = fileExplorerStateHolder.isPrimingExplorer
     val isExplorerReady = fileExplorerStateHolder.isExplorerReady
@@ -187,8 +191,12 @@ class SettingsViewModel @Inject constructor(
         fileExplorerStateHolder.refreshCurrentDirectory()
     }
 
-    fun setSmartViewEnabled(enabled: Boolean) {
-        fileExplorerStateHolder.setSmartViewEnabled(enabled)
+    fun selectStorage(index: Int) {
+        fileExplorerStateHolder.selectStorage(index)
+    }
+
+    fun refreshAvailableStorages() {
+        fileExplorerStateHolder.refreshAvailableStorages()
     }
 
     fun isAtRoot(): Boolean = fileExplorerStateHolder.isAtRoot()

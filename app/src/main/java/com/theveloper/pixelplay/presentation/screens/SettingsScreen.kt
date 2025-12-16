@@ -116,6 +116,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import com.theveloper.pixelplay.presentation.components.FileExplorerDialog
+import com.theveloper.pixelplay.utils.StorageInfo
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
@@ -189,7 +190,8 @@ fun SettingsScreen(
     val playerSheetState by playerViewModel.sheetState.collectAsState()
     val currentPath by settingsViewModel.currentPath.collectAsState()
     val directoryChildren by settingsViewModel.currentDirectoryChildren.collectAsState()
-    val smartViewEnabled by settingsViewModel.smartViewEnabled.collectAsState()
+    val availableStorages by settingsViewModel.availableStorages.collectAsState()
+    val selectedStorageIndex by settingsViewModel.selectedStorageIndex.collectAsState()
     val isLoadingDirectories by settingsViewModel.isLoadingDirectories.collectAsState()
     val isExplorerPriming by settingsViewModel.isExplorerPriming.collectAsState()
     val isExplorerReady by settingsViewModel.isExplorerReady.collectAsState()
@@ -741,7 +743,8 @@ fun SettingsScreen(
         visible = showExplorerSheet,
         currentPath = currentPath,
         directoryChildren = directoryChildren,
-        smartViewEnabled = smartViewEnabled,
+        availableStorages = availableStorages,
+        selectedStorageIndex = selectedStorageIndex,
         isLoading = isLoadingDirectories,
         isAtRoot = settingsViewModel.isAtRoot(),
         rootDirectory = explorerRoot,
@@ -750,7 +753,7 @@ fun SettingsScreen(
         onNavigateHome = { settingsViewModel.loadDirectory(explorerRoot) },
         onToggleAllowed = settingsViewModel::toggleDirectoryAllowed,
         onRefresh = settingsViewModel::refreshExplorer,
-        onSmartViewToggle = settingsViewModel::setSmartViewEnabled,
+        onStorageSelected = settingsViewModel::selectStorage,
         onDone = { showExplorerSheet = false },
         onDismiss = { showExplorerSheet = false }
     )
