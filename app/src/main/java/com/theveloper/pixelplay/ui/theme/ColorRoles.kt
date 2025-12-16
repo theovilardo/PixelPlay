@@ -87,12 +87,16 @@ fun generateColorSchemeFromSeed(seedColor: Color): ColorSchemePair {
 
     // --- Tonal Palettes ---
     // Primary Tones
+    val lightPrimary10 = lightSeed.tone(10)
+    val lightPrimary40 = lightSeed.tone(40)
     val lightPrimary48 = lightSeed.tone(48)
     val lightPrimary56 = lightSeed.tone(56)
     val lightPrimary64 = lightSeed.tone(64)
     val lightPrimary76 = lightSeed.tone(76)
     val lightPrimary84 = lightSeed.tone(84)
+    val lightPrimary90 = lightSeed.tone(90)
     val lightPrimary92 = lightSeed.tone(92)
+    val lightPrimary95 = lightSeed.tone(95)
 
     val darkPrimary18 = darkSeed.tone(18)
     val darkPrimary26 = darkSeed.tone(26)
@@ -105,12 +109,16 @@ fun generateColorSchemeFromSeed(seedColor: Color): ColorSchemePair {
     // Secondary Tones (Shift hue, adjust chroma)
     val secondarySeed = hctToColor((lightSeed.toHct().first + 38f) % 360f, 0.36f, lightSeed.toHct().third)
         .withMinChroma(0.32f, maxChroma = 0.54f)
+    val lightSecondary10 = secondarySeed.tone(10)
+    val lightSecondary40 = secondarySeed.tone(40)
     val lightSecondary46 = secondarySeed.tone(46)
     val lightSecondary54 = secondarySeed.tone(54)
     val lightSecondary64 = secondarySeed.tone(64)
     val lightSecondary76 = secondarySeed.tone(76)
     val lightSecondary86 = secondarySeed.tone(86)
+    val lightSecondary90 = secondarySeed.tone(90)
     val lightSecondary94 = secondarySeed.tone(94)
+    val lightSecondary95 = secondarySeed.tone(95)
 
     val darkSecondary22 = secondarySeed.tone(22)
     val darkSecondary30 = secondarySeed.tone(30)
@@ -122,12 +130,15 @@ fun generateColorSchemeFromSeed(seedColor: Color): ColorSchemePair {
     // Tertiary Tones (Shift hue differently, adjust chroma)
     val tertiarySeed = hctToColor((lightSeed.toHct().first + 115f) % 360f, 0.38f, lightSeed.toHct().third)
         .withMinChroma(0.3f, maxChroma = 0.56f)
+    val lightTertiary10 = tertiarySeed.tone(10)
+    val lightTertiary40 = tertiarySeed.tone(40)
     val lightTertiary48 = tertiarySeed.tone(48)
     val lightTertiary58 = tertiarySeed.tone(58)
     val lightTertiary70 = tertiarySeed.tone(70)
     val lightTertiary82 = tertiarySeed.tone(82)
     val lightTertiary90 = tertiarySeed.tone(90)
     val lightTertiary96 = tertiarySeed.tone(96)
+    val lightTertiary95 = tertiarySeed.tone(95)
 
     val darkTertiary22 = tertiarySeed.tone(22)
     val darkTertiary32 = tertiarySeed.tone(32)
@@ -143,11 +154,14 @@ fun generateColorSchemeFromSeed(seedColor: Color): ColorSchemePair {
     val lightNeutral16 = lightNeutralSeed.tone(16)
     val lightNeutral22 = lightNeutralSeed.tone(22)
     val lightNeutral30 = lightNeutralSeed.tone(30)
+    val lightNeutral50 = lightNeutralSeed.tone(50)
     val lightNeutral84 = lightNeutralSeed.tone(84)
     val lightNeutral88 = lightNeutralSeed.tone(88)
+    val lightNeutral90 = lightNeutralSeed.tone(90)
     val lightNeutral92 = lightNeutralSeed.tone(92)
     val lightNeutral95 = lightNeutralSeed.tone(95)
     val lightNeutral98 = lightNeutralSeed.tone(98)
+    val lightNeutral99 = lightNeutralSeed.tone(99)
 
     val darkNeutralSeed = darkSeed.withChroma(0.08f)
     val darkNeutral6 = darkNeutralSeed.tone(6) // deeper dark surface
@@ -161,36 +175,36 @@ fun generateColorSchemeFromSeed(seedColor: Color): ColorSchemePair {
     val darkNeutral92 = darkNeutralSeed.tone(92)
 
 
-    // Light Color Scheme
+    // Light Color Scheme (Refined for better contrast and legibility)
     val lightScheme = lightColorScheme(
-        primary = lightPrimary64,
-        onPrimary = lightNeutral4,
-        primaryContainer = lightPrimary92,
-        onPrimaryContainer = lightPrimary56,
-        secondary = lightSecondary64,
-        onSecondary = lightNeutral4,
-        secondaryContainer = lightSecondary94,
-        onSecondaryContainer = lightSecondary54,
-        tertiary = lightTertiary70,
-        onTertiary = lightNeutral4,
-        tertiaryContainer = lightTertiary96,
-        onTertiaryContainer = lightTertiary58,
+        primary = lightPrimary40, // Standard M3 Primary (Tone 40)
+        onPrimary = lightPrimary95, // Tinted White (Tone 95)
+        primaryContainer = lightPrimary90, // Pastel Container (Tone 90)
+        onPrimaryContainer = lightPrimary10, // High Contrast Text (Tone 10)
+        secondary = lightSecondary40,
+        onSecondary = lightSecondary95,
+        secondaryContainer = lightSecondary90,
+        onSecondaryContainer = lightSecondary10,
+        tertiary = lightTertiary40,
+        onTertiary = lightTertiary95,
+        tertiaryContainer = lightTertiary90,
+        onTertiaryContainer = lightTertiary10,
         error = Color(0xFFBA1A1A), // M3 Defaults
         onError = Color.White,
         errorContainer = Color(0xFFFFDAD6),
         onErrorContainer = Color(0xFF410002),
-        background = lightNeutral98,
-        onBackground = lightNeutral22,
-        surface = lightNeutral95,
-        onSurface = lightNeutral22,
-        surfaceVariant = lightNeutral84,
-        onSurfaceVariant = lightNeutral30,
-        outline = lightNeutral30,
+        background = lightNeutral99, // Clean light background
+        onBackground = lightNeutral10, // Dark text
+        surface = lightNeutral99, // Clean light surface
+        onSurface = lightNeutral10, // Dark text
+        surfaceVariant = lightNeutral90, // Slightly darker surface for differentiation
+        onSurfaceVariant = lightNeutral30, // Contrast for variant
+        outline = lightNeutral50,
         inverseOnSurface = lightNeutral95,
         inverseSurface = lightNeutral22,
-        inversePrimary = lightPrimary76,
-        surfaceTint = lightPrimary64,
-        outlineVariant = lightNeutral88,
+        inversePrimary = lightPrimary84, // Lighter for inverse
+        surfaceTint = lightPrimary40,
+        outlineVariant = lightNeutral84,
         scrim = Color.Black
     )
 
