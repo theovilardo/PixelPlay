@@ -57,6 +57,9 @@ class MainViewModel @Inject constructor(
      */
     fun startSync() {
         LogUtils.i(this, "startSync called")
-        syncManager.sync()
+        viewModelScope.launch {
+            if (isSetupComplete.value) return@launch
+            syncManager.sync()
+        }
     }
 }

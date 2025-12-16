@@ -24,7 +24,7 @@ data class SetupUiState(
     val notificationsPermissionGranted: Boolean = false,
     val allFilesAccessGranted: Boolean = false,
     val isLoadingDirectories: Boolean = false,
-    val allowedDirectories: Set<String> = emptySet()
+    val blockedDirectories: Set<String> = emptySet()
 ) {
     val allPermissionsGranted: Boolean
         get() {
@@ -48,14 +48,14 @@ class SetupViewModel @Inject constructor(
 
     val currentPath = fileExplorerStateHolder.currentPath
     val currentDirectoryChildren = fileExplorerStateHolder.currentDirectoryChildren
-    val allowedDirectories = fileExplorerStateHolder.allowedDirectories
+    val blockedDirectories = fileExplorerStateHolder.blockedDirectories
     val smartViewEnabled = fileExplorerStateHolder.smartViewEnabled
     val isLoadingDirectories = fileExplorerStateHolder.isLoading
 
     init {
         viewModelScope.launch {
-            userPreferencesRepository.allowedDirectoriesFlow.collect { allowed ->
-                _uiState.update { it.copy(allowedDirectories = allowed) }
+            userPreferencesRepository.blockedDirectoriesFlow.collect { blocked ->
+                _uiState.update { it.copy(blockedDirectories = blocked) }
             }
         }
 
@@ -98,21 +98,11 @@ class SetupViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingDirectories = true) }
             if (!userPreferencesRepository.initialSetupDoneFlow.first()) {
-                val allowedDirs = userPreferencesRepository.allowedDirectoriesFlow.first()
-                if (allowedDirs.isEmpty()) {
-                    val musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
-                    val defaultAllowed = if (musicDir.exists()) {
-                        runCatching { musicDir.canonicalPath }.getOrDefault(musicDir.absolutePath)
-                    } else null
-                    userPreferencesRepository.updateDirectorySelections(
-                        defaultAllowed?.let { setOf(it) } ?: emptySet(),
-                        emptySet()
-                    )
-                }
+                // Blacklist model: default is allow all, so no setup needed.
             }
 
-            userPreferencesRepository.allowedDirectoriesFlow.first().let { allowed ->
-                _uiState.update { it.copy(allowedDirectories = allowed) }
+            userPreferencesRepository.blockedDirectoriesFlow.first().let { blocked ->
+                _uiState.update { it.copy(blockedDirectories = blocked) }
             }
             fileExplorerStateHolder.refreshCurrentDirectory()
             _uiState.update { it.copy(isLoadingDirectories = false) }

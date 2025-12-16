@@ -347,7 +347,7 @@ fun FileExplorerContent(
                                         file = directoryEntry.file,
                                         audioCount = displayCount,
                                         displayName = directoryEntry.displayName,
-                                        isAllowed = directoryEntry.isSelected,
+                                        isBlocked = directoryEntry.isBlocked,
                                         onNavigate = { onNavigateTo(directoryEntry.file) },
                                         onToggleAllowed = { onToggleAllowed(directoryEntry.file) },
                                         navigationEnabled = !smartViewEnabled
@@ -430,27 +430,27 @@ private fun FileExplorerItem(
     file: File,
     audioCount: Int,
     displayName: String?,
-    isAllowed: Boolean,
+    isBlocked: Boolean,
     onNavigate: () -> Unit,
     onToggleAllowed: () -> Unit,
     navigationEnabled: Boolean
 ) {
     val shape = RoundedCornerShape(18.dp)
 
-    val containerColor = if (isAllowed) {
-        MaterialTheme.colorScheme.primaryContainer
+    val containerColor = if (isBlocked) {
+        MaterialTheme.colorScheme.errorContainer
     } else {
         MaterialTheme.colorScheme.surfaceContainerHigh
     }
 
-    val contentColor = if (isAllowed) {
-        MaterialTheme.colorScheme.onPrimaryContainer
+    val contentColor = if (isBlocked) {
+        MaterialTheme.colorScheme.onErrorContainer
     } else {
         MaterialTheme.colorScheme.onSurface
     }
 
-    val badgeColor = if (isAllowed) {
-        MaterialTheme.colorScheme.onPrimaryContainer
+    val badgeColor = if (isBlocked) {
+        MaterialTheme.colorScheme.onErrorContainer
     } else {
         MaterialTheme.colorScheme.secondary
     }

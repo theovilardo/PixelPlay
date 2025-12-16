@@ -31,7 +31,7 @@ data class SettingsUiState(
     val disableCastAutoplay: Boolean = false,
     val isCrossfadeEnabled: Boolean = true,
     val crossfadeDuration: Int = 6000,
-    val allowedDirectories: Set<String> = emptySet(),
+    val blockedDirectories: Set<String> = emptySet(),
     val availableModels: List<GeminiModel> = emptyList(),
     val isLoadingModels: Boolean = false,
     val modelsFetchError: String? = null,
@@ -61,7 +61,7 @@ class SettingsViewModel @Inject constructor(
 
     val currentPath = fileExplorerStateHolder.currentPath
     val currentDirectoryChildren = fileExplorerStateHolder.currentDirectoryChildren
-    val allowedDirectories = fileExplorerStateHolder.allowedDirectories
+    val blockedDirectories = fileExplorerStateHolder.blockedDirectories
     val smartViewEnabled = fileExplorerStateHolder.smartViewEnabled
     val isLoadingDirectories = fileExplorerStateHolder.isLoading
     val isExplorerPriming = fileExplorerStateHolder.isPrimingExplorer
@@ -141,8 +141,8 @@ class SettingsViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            userPreferencesRepository.allowedDirectoriesFlow.collect { allowed ->
-                _uiState.update { it.copy(allowedDirectories = allowed) }
+            userPreferencesRepository.blockedDirectoriesFlow.collect { blocked ->
+                _uiState.update { it.copy(blockedDirectories = blocked) }
             }
         }
 
