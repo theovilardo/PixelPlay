@@ -425,14 +425,21 @@ interface MusicDao {
         insertArtists(artists)
         insertAlbums(albums)
         insertSongs(songs)
-        // Insert cross-refs in chunks to avoid SQLite 999 variable limit
+        // Insert cross-refs in chunks to avoid SQLite variable limit.
+        // Each SongArtistCrossRef has 3 fields, so batch size is calculated accordingly.
         crossRefs.chunked(CROSS_REF_BATCH_SIZE).forEach { chunk ->
             insertSongArtistCrossRefs(chunk)
         }
     }
 
     companion object {
-        /** Batch size for inserting cross-refs to avoid SQLite variable limits */
-        const val CROSS_REF_BATCH_SIZE = 500
+        /**
+         * SQLite has a limit on the number of variables per statement (default 999, higher in newer versions).
+         * Each SongArtistCrossRef insert uses 3 variables (songId, artistId, isPrimary).
+         * The batch size is calculated so that batchSize * 3 <= SQLITE_MAX_VARIABLE_NUMBER.
+         */
+        private const val SQLITE_MAX_VARIABLE_NUMBER = 999 // Increase if you know your SQLite version supports more
+        private const val CROSS_REF_FIELDS_PER_OBJECT = 3
+        val CROSS_REF_BATCH_SIZE: Int = SQLITE_MAX_VARIABLE_NUMBER / CROSS_REF_FIELDS_PER_OBJECT
     }
 }
