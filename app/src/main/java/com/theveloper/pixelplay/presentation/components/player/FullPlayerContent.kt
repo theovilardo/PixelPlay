@@ -488,7 +488,7 @@ fun FullPlayerContent(
                     }
 
                     if (dragConsumedByQueue) {
-                        change.consumeAllChanges()
+                        change.consume()
                         velocityTracker.addPosition(change.uptimeMillis, change.position)
                         onQueueDrag(dragAmount)
                     }
