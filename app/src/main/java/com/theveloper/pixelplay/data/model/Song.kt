@@ -7,7 +7,13 @@ import androidx.compose.runtime.Immutable
 data class Song(
     val id: String,
     val title: String,
-    val artist: String, // Display string (combined artists or primary artist)
+    /**
+     * Legacy artist display string.
+     * - If multi-artist support (e.g., artistSeparationEnabled) is disabled, this contains the primary artist or a combined artist string from metadata.
+     * - If multi-artist support is enabled, this typically contains only the primary artist for backward compatibility.
+     * For accurate display of all artists, use the [artists] list and [displayArtist] property.
+     */
+    val artist: String,
     val artistId: Long, // Primary artist ID for backward compatibility
     val artists: List<ArtistRef> = emptyList(), // All artists for multi-artist support
     val album: String,
