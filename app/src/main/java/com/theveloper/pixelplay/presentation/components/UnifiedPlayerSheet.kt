@@ -263,15 +263,38 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val fullPlayerContentAlpha by remember {
-        derivedStateOf {
-            (playerContentExpansionFraction.value - 0.25f).coerceIn(0f, 0.75f) / 0.75f
-        }
-    }
+    data class PlayerSheetExpansionSnapshot(
+        val fraction: Float,
+        val fullPlayerContentAlpha: Float,
+        val fullPlayerTranslationY: Float,
+        val playerAreaElevation: Dp,
+        val miniAlpha: Float,
+        val dimLayerAlpha: Float
+    )
 
-    val fullPlayerTranslationY by remember {
+    val expansionSnapshot by remember(
+        playerContentExpansionFraction,
+        predictiveBackCollapseProgress,
+        currentSheetContentState,
+        initialFullPlayerOffsetY
+    ) {
         derivedStateOf {
-            lerp(initialFullPlayerOffsetY, 0f, fullPlayerContentAlpha)
+            val fraction = playerContentExpansionFraction.value
+            val fullContentAlpha = (fraction - 0.25f).coerceIn(0f, 0.75f) / 0.75f
+            val dimAlpha = if (predictiveBackCollapseProgress > 0f && currentSheetContentState == PlayerSheetState.EXPANDED) {
+                lerp(fraction, 0f, predictiveBackCollapseProgress)
+            } else {
+                fraction
+            }
+
+            PlayerSheetExpansionSnapshot(
+                fraction = fraction,
+                fullPlayerContentAlpha = fullContentAlpha,
+                fullPlayerTranslationY = lerp(initialFullPlayerOffsetY, 0f, fullContentAlpha),
+                playerAreaElevation = lerp(2.dp, 12.dp, fraction),
+                miniAlpha = (1f - fraction * 2f).coerceIn(0f, 1f),
+                dimLayerAlpha = dimAlpha
+            )
         }
     }
 
@@ -576,21 +599,6 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val currentDimLayerAlpha by remember(
-        playerContentExpansionFraction,
-        predictiveBackCollapseProgress,
-        currentSheetContentState
-    ) {
-        derivedStateOf {
-            val baseAlpha = playerContentExpansionFraction.value
-            if (predictiveBackCollapseProgress > 0f && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                lerp(baseAlpha, 0f, predictiveBackCollapseProgress)
-            } else {
-                baseAlpha
-            }
-        }
-    }
-
     var showQueueSheet by remember { mutableStateOf(false) }
     val queueSheetOffset = remember(screenHeightPx) { Animatable(screenHeightPx) }
     var queueSheetHeightPx by remember { mutableFloatStateOf(0f) }
@@ -776,14 +784,6 @@ fun UnifiedPlayerSheet(
 
     val albumColorScheme = targetColorScheme
 
-    val playerAreaElevation by remember {
-        derivedStateOf { lerp(2.dp, 12.dp, playerContentExpansionFraction.value) }
-    }
-
-    val miniAlpha by remember {
-        derivedStateOf { (1f - playerContentExpansionFraction.value * 2f).coerceIn(0f, 1f) }
-    }
-
     val playerShadowShape = remember(overallSheetTopCornerRadius, playerContentActualBottomRadius) {
         AbsoluteSmoothCornerShape(
             cornerRadiusTL = overallSheetTopCornerRadius,
@@ -815,8 +815,8 @@ fun UnifiedPlayerSheet(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
-                    color = if (isDarkTheme) Color.Black.copy(alpha = currentDimLayerAlpha) else Color.White.copy(
-                        alpha = currentDimLayerAlpha
+                    color = if (isDarkTheme) Color.Black.copy(alpha = expansionSnapshot.dimLayerAlpha) else Color.White.copy(
+                        alpha = expansionSnapshot.dimLayerAlpha
                     )
                 )
                 .clickable(
@@ -977,7 +977,7 @@ fun UnifiedPlayerSheet(
                                     transformOrigin = TransformOrigin(0.5f, 1f)
                                 }
                                 .shadow(
-                                    elevation = playerAreaElevation,
+                                    elevation = expansionSnapshot.playerAreaElevation,
                                     shape = playerShadowShape,
                                     clip = false
                                 )
@@ -1118,7 +1118,7 @@ fun UnifiedPlayerSheet(
                             if (showPlayerContentArea) {
                                 // stablePlayerState.currentSong is already available from the top-level collection
                                 stablePlayerState.currentSong?.let { currentSongNonNull ->
-                                    if (miniAlpha > 0.01f) {
+                                    if (expansionSnapshot.miniAlpha > 0.01f) {
                                         Crossfade(
                                             targetState = albumColorScheme,
                                             animationSpec = tween(durationMillis = 550, easing = FastOutSlowInEasing),
@@ -1127,13 +1127,13 @@ fun UnifiedPlayerSheet(
                                             CompositionLocalProvider(
                                                 LocalMaterialTheme provides (scheme ?: MaterialTheme.colorScheme)
                                             ) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .align(Alignment.TopCenter)
-                                                        .graphicsLayer {
-                                                            alpha = miniAlpha//miniPlayerAlpha
-                                                        }
-                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .align(Alignment.TopCenter)
+                                                            .graphicsLayer {
+                                                                alpha = expansionSnapshot.miniAlpha//miniPlayerAlpha
+                                                            }
+                                                    ) {
                                                     MiniPlayerContentInternal(
                                                         song = currentSongNonNull, // Use non-null version
                                                         cornerRadiusAlb = (overallSheetTopCornerRadius.value * 0.5).dp,
@@ -1149,7 +1149,7 @@ fun UnifiedPlayerSheet(
                                         }
                                     }
 
-                                    if (fullPlayerContentAlpha > 0f) {
+                                    if (expansionSnapshot.fullPlayerContentAlpha > 0f) {
                                         CompositionLocalProvider(
                                             LocalMaterialTheme provides (albumColorScheme
                                                 ?: MaterialTheme.colorScheme)
@@ -1164,8 +1164,8 @@ fun UnifiedPlayerSheet(
                                                 }
                                             }
                                             Box(modifier = Modifier.graphicsLayer {
-                                                alpha = fullPlayerContentAlpha
-                                                translationY = fullPlayerTranslationY
+                                                alpha = expansionSnapshot.fullPlayerContentAlpha
+                                                translationY = expansionSnapshot.fullPlayerTranslationY
                                                 scaleX = fullPlayerScale
                                                 scaleY = fullPlayerScale
                                             }) {
