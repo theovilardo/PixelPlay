@@ -121,8 +121,12 @@ class SetupViewModel @Inject constructor(
         fileExplorerStateHolder.loadDirectory(file)
     }
 
-    fun setSmartViewEnabled(enabled: Boolean) {
-        fileExplorerStateHolder.setSmartViewEnabled(enabled)
+    fun selectStorage(index: Int) {
+        fileExplorerStateHolder.selectStorage(index)
+    }
+
+    fun refreshAvailableStorages() {
+        fileExplorerStateHolder.refreshAvailableStorages()
     }
 
     fun refreshCurrentDirectory() {
