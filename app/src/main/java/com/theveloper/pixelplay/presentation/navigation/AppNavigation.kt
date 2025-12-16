@@ -22,7 +22,9 @@ import com.theveloper.pixelplay.data.preferences.LaunchTab
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.presentation.screens.AlbumDetailScreen
 import com.theveloper.pixelplay.presentation.screens.ArtistDetailScreen
+import com.theveloper.pixelplay.presentation.screens.ArtistSettingsScreen
 import com.theveloper.pixelplay.presentation.screens.DailyMixScreen
+import com.theveloper.pixelplay.presentation.screens.DelimiterConfigScreen
 import com.theveloper.pixelplay.presentation.screens.EditTransitionScreen
 import com.theveloper.pixelplay.presentation.screens.GenreDetailScreen
 import com.theveloper.pixelplay.presentation.screens.HomeScreen
@@ -241,6 +243,24 @@ fun AppNavigation(
                     navController = navController,
                     onNavigationIconClick = { navController.popBackStack() }
                 )
+            }
+            composable(
+                Screen.ArtistSettings.route,
+                enterTransition = { enterTransition() },
+                exitTransition = { exitTransition() },
+                popEnterTransition = { enterTransition() },
+                popExitTransition = { exitTransition() },
+            ) {
+                ArtistSettingsScreen(navController = navController)
+            }
+            composable(
+                Screen.DelimiterConfig.route,
+                enterTransition = { enterTransition() },
+                exitTransition = { exitTransition() },
+                popEnterTransition = { enterTransition() },
+                popExitTransition = { exitTransition() },
+            ) {
+                DelimiterConfigScreen(navController = navController)
             }
         }
     }

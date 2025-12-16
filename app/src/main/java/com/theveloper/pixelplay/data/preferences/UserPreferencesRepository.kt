@@ -91,6 +91,12 @@ class UserPreferencesRepository @Inject constructor(
         val IS_CROSSFADE_ENABLED = booleanPreferencesKey("is_crossfade_enabled")
         val CROSSFADE_DURATION = intPreferencesKey("crossfade_duration")
         val DISABLE_CAST_AUTOPLAY = booleanPreferencesKey("disable_cast_autoplay")
+
+        // Multi-Artist Settings
+        val ARTIST_SEPARATION_ENABLED = booleanPreferencesKey("artist_separation_enabled")
+        val ARTIST_DELIMITERS = stringPreferencesKey("artist_delimiters")
+        val GROUP_BY_ALBUM_ARTIST = booleanPreferencesKey("group_by_album_artist")
+        val ARTIST_SETTINGS_RESCAN_REQUIRED = booleanPreferencesKey("artist_settings_rescan_required")
     }
 
     val appRebrandDialogShownFlow: Flow<Boolean> = dataStore.data
@@ -121,6 +127,67 @@ class UserPreferencesRepository @Inject constructor(
             preferences[PreferencesKeys.CROSSFADE_DURATION] = duration
         }
     }
+
+    // ===== Multi-Artist Settings =====
+
+    val artistSeparationEnabledFlow: Flow<Boolean> = dataStore.data
+        .map { preferences -> preferences[PreferencesKeys.ARTIST_SEPARATION_ENABLED] ?: false }
+
+    suspend fun setArtistSeparationEnabled(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.ARTIST_SEPARATION_ENABLED] = enabled
+            // Mark rescan as required when this setting changes
+            preferences[PreferencesKeys.ARTIST_SETTINGS_RESCAN_REQUIRED] = true
+        }
+    }
+
+    val artistDelimitersFlow: Flow<List<String>> = dataStore.data
+        .map { preferences ->
+            val stored = preferences[PreferencesKeys.ARTIST_DELIMITERS]
+            if (stored != null) {
+                try {
+                    json.decodeFromString<List<String>>(stored)
+                } catch (e: Exception) {
+                    DEFAULT_ARTIST_DELIMITERS
+                }
+            } else {
+                DEFAULT_ARTIST_DELIMITERS
+            }
+        }
+
+    suspend fun setArtistDelimiters(delimiters: List<String>) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.ARTIST_DELIMITERS] = json.encodeToString(delimiters)
+            // Mark rescan as required when delimiters change
+            preferences[PreferencesKeys.ARTIST_SETTINGS_RESCAN_REQUIRED] = true
+        }
+    }
+
+    suspend fun resetArtistDelimitersToDefault() {
+        setArtistDelimiters(DEFAULT_ARTIST_DELIMITERS)
+    }
+
+    val groupByAlbumArtistFlow: Flow<Boolean> = dataStore.data
+        .map { preferences -> preferences[PreferencesKeys.GROUP_BY_ALBUM_ARTIST] ?: false }
+
+    suspend fun setGroupByAlbumArtist(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.GROUP_BY_ALBUM_ARTIST] = enabled
+            // Mark rescan as required when this setting changes
+            preferences[PreferencesKeys.ARTIST_SETTINGS_RESCAN_REQUIRED] = true
+        }
+    }
+
+    val artistSettingsRescanRequiredFlow: Flow<Boolean> = dataStore.data
+        .map { preferences -> preferences[PreferencesKeys.ARTIST_SETTINGS_RESCAN_REQUIRED] ?: false }
+
+    suspend fun clearArtistSettingsRescanRequired() {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.ARTIST_SETTINGS_RESCAN_REQUIRED] = false
+        }
+    }
+
+    // ===== End Multi-Artist Settings =====
 
     val globalTransitionSettingsFlow: Flow<TransitionSettings> = dataStore.data
         .map { preferences ->
@@ -599,6 +666,9 @@ class UserPreferencesRepository @Inject constructor(
 
     companion object {
         const val DEFAULT_SYSTEM_PROMPT = "You are a helpful AI assistant integrated into a music player app. You help users create perfect playlists based on their request."
+        
+        /** Default delimiters for splitting multi-artist tags */
+        val DEFAULT_ARTIST_DELIMITERS = listOf("/", ";", ",", "+", "&")
     }
 
     val geminiSystemPrompt: Flow<String> = dataStore.data.map { preferences ->

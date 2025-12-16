@@ -15,23 +15,29 @@ import androidx.core.net.toUri
 import com.theveloper.pixelplay.data.database.AlbumEntity
 import com.theveloper.pixelplay.data.database.ArtistEntity
 import com.theveloper.pixelplay.data.database.MusicDao
+import com.theveloper.pixelplay.data.database.SongArtistCrossRef
 import com.theveloper.pixelplay.data.database.SongEntity
 import com.theveloper.pixelplay.data.media.AudioMetadataReader
+import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.utils.AlbumArtUtils
 import com.theveloper.pixelplay.utils.AudioMetaUtils.getAudioMetadata
 import com.theveloper.pixelplay.utils.normalizeMetadataTextOrEmpty
+import com.theveloper.pixelplay.utils.splitArtistsByDelimiters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 
 @HiltWorker
 class SyncWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted workerParams: WorkerParameters,
-    private val musicDao: MusicDao
+    private val musicDao: MusicDao,
+    private val userPreferencesRepository: UserPreferencesRepository
 ) : CoroutineWorker(appContext, workerParams) {
 
     private val contentResolver: ContentResolver = appContext.contentResolver
@@ -41,6 +47,13 @@ class SyncWorker @AssistedInject constructor(
         try {
             Log.i(TAG, "Starting MediaStore synchronization...")
             val startTime = System.currentTimeMillis()
+
+            // Read multi-artist settings
+            val artistSeparationEnabled = userPreferencesRepository.artistSeparationEnabledFlow.first()
+            val artistDelimiters = userPreferencesRepository.artistDelimitersFlow.first()
+            val groupByAlbumArtist = userPreferencesRepository.groupByAlbumArtistFlow.first()
+
+            Log.d(TAG, "Artist separation: $artistSeparationEnabled, delimiters: $artistDelimiters, groupByAlbumArtist: $groupByAlbumArtist")
 
             val mediaStoreSongs = fetchAllMusicData { current, total ->
                 setProgress(workDataOf(
@@ -78,20 +91,28 @@ class SyncWorker @AssistedInject constructor(
                     }
                 }
 
-                val (correctedSongs, albums, artists) = preProcessAndDeduplicate(songsToInsert)
+                val (correctedSongs, albums, artists, crossRefs) = preProcessAndDeduplicateWithMultiArtist(
+                    songs = songsToInsert,
+                    artistSeparationEnabled = artistSeparationEnabled,
+                    artistDelimiters = artistDelimiters,
+                    groupByAlbumArtist = groupByAlbumArtist
+                )
 
-                // Perform the "clear and insert" operation
-                musicDao.clearAllMusicData()
-                musicDao.insertMusicData(correctedSongs, albums, artists)
+                // Perform the "clear and insert" operation with cross-references
+                musicDao.clearAllMusicDataWithCrossRefs()
+                musicDao.insertMusicDataWithCrossRefs(correctedSongs, albums, artists, crossRefs)
 
-                Log.i(TAG, "Music data synchronization completed. ${correctedSongs.size} songs processed.")
+                Log.i(TAG, "Music data synchronization completed. ${correctedSongs.size} songs, ${artists.size} artists, ${crossRefs.size} cross-refs processed.")
+                
+                // Clear the rescan required flag
+                userPreferencesRepository.clearArtistSettingsRescanRequired()
                 
                 val endTime = System.currentTimeMillis()
                 Log.i(TAG, "MediaStore synchronization finished successfully in ${endTime - startTime}ms.")
                 Result.success(workDataOf(OUTPUT_TOTAL_SONGS to correctedSongs.size))
             } else {
                 // MediaStore is empty, so clear the local database
-                musicDao.clearAllMusicData()
+                musicDao.clearAllMusicDataWithCrossRefs()
                 Log.w(TAG, "MediaStore fetch resulted in empty list. Local music data cleared.")
                 
                 val endTime = System.currentTimeMillis()
@@ -106,6 +127,174 @@ class SyncWorker @AssistedInject constructor(
         }
     }
 
+    /**
+     * Data class to hold the result of multi-artist preprocessing.
+     */
+    private data class MultiArtistProcessResult(
+        val songs: List<SongEntity>,
+        val albums: List<AlbumEntity>,
+        val artists: List<ArtistEntity>,
+        val crossRefs: List<SongArtistCrossRef>
+    )
+
+    /**
+     * Process songs with multi-artist support.
+     * When artist separation is enabled, splits artist names by delimiters
+     * and creates proper cross-references.
+     */
+    private fun preProcessAndDeduplicateWithMultiArtist(
+        songs: List<SongEntity>,
+        artistSeparationEnabled: Boolean,
+        artistDelimiters: List<String>,
+        groupByAlbumArtist: Boolean
+    ): MultiArtistProcessResult {
+        // Use atomic counter for generating new artist IDs
+        val maxExistingArtistId = songs.maxOfOrNull { it.artistId } ?: 0L
+        val nextArtistId = AtomicLong(maxExistingArtistId + 1)
+
+        // Map artist name -> artist ID (for deduplication)
+        val artistNameToId = mutableMapOf<String, Long>()
+        
+        // Collect all cross-references
+        val allCrossRefs = mutableListOf<SongArtistCrossRef>()
+
+        // First pass: collect all unique artist names and assign IDs
+        songs.forEach { song ->
+            val artistsToProcess = if (artistSeparationEnabled) {
+                song.artistName.splitArtistsByDelimiters(artistDelimiters)
+            } else {
+                listOf(song.artistName)
+            }
+
+            artistsToProcess.forEach { artistName ->
+                val normalizedName = artistName.trim()
+                if (normalizedName.isNotEmpty() && !artistNameToId.containsKey(normalizedName)) {
+                    // Check if this artist name matches the original artist in the song
+                    // If so, use the original MediaStore ID
+                    if (normalizedName == song.artistName) {
+                        artistNameToId[normalizedName] = song.artistId
+                    } else {
+                        // Generate a new ID for split artists
+                        artistNameToId[normalizedName] = nextArtistId.getAndIncrement()
+                    }
+                }
+            }
+        }
+
+        // Album de-duplication - use album artist if enabled
+        val albumMap = mutableMapOf<Pair<String, String>, Long>()
+        songs.forEach { song ->
+            val albumArtistName = if (groupByAlbumArtist && !song.albumArtist.isNullOrBlank()) {
+                song.albumArtist
+            } else {
+                // Use the first (primary) artist
+                if (artistSeparationEnabled) {
+                    song.artistName.splitArtistsByDelimiters(artistDelimiters).firstOrNull() ?: song.artistName
+                } else {
+                    song.artistName
+                }
+            }
+            val key = Pair(song.albumName, albumArtistName)
+            if (!albumMap.containsKey(key)) {
+                albumMap[key] = song.albumId
+            }
+        }
+
+        // Second pass: create corrected songs and cross-references
+        val correctedSongs = songs.map { song ->
+            val artistsForSong = if (artistSeparationEnabled) {
+                song.artistName.splitArtistsByDelimiters(artistDelimiters)
+            } else {
+                listOf(song.artistName)
+            }
+
+            // Primary artist is the first one
+            val primaryArtistName = artistsForSong.firstOrNull()?.trim() ?: song.artistName
+            val primaryArtistId = artistNameToId[primaryArtistName] ?: song.artistId
+
+            // Create cross-references for all artists
+            artistsForSong.forEachIndexed { index, artistName ->
+                val normalizedName = artistName.trim()
+                val artistId = artistNameToId[normalizedName]
+                if (artistId != null) {
+                    allCrossRefs.add(
+                        SongArtistCrossRef(
+                            songId = song.id,
+                            artistId = artistId,
+                            isPrimary = index == 0
+                        )
+                    )
+                }
+            }
+
+            // Determine album artist for album association
+            val albumArtistName = if (groupByAlbumArtist && !song.albumArtist.isNullOrBlank()) {
+                song.albumArtist
+            } else {
+                primaryArtistName
+            }
+            val canonicalAlbumId = albumMap[Pair(song.albumName, albumArtistName)] ?: song.albumId
+
+            // Update song with primary artist info
+            song.copy(
+                artistId = primaryArtistId,
+                artistName = if (artistSeparationEnabled && artistsForSong.size > 1) {
+                    // Keep original combined string for display
+                    song.artistName
+                } else {
+                    primaryArtistName
+                },
+                albumId = canonicalAlbumId
+            )
+        }
+
+        // Create unique albums
+        val albums = correctedSongs.groupBy { it.albumId }.map { (albumId, songsInAlbum) ->
+            val firstSong = songsInAlbum.first()
+            val albumArtistName = if (groupByAlbumArtist && !firstSong.albumArtist.isNullOrBlank()) {
+                firstSong.albumArtist
+            } else {
+                if (artistSeparationEnabled) {
+                    firstSong.artistName.splitArtistsByDelimiters(artistDelimiters).firstOrNull() ?: firstSong.artistName
+                } else {
+                    firstSong.artistName
+                }
+            }
+            val albumArtistId = artistNameToId[albumArtistName] ?: firstSong.artistId
+
+            AlbumEntity(
+                id = albumId,
+                title = firstSong.albumName,
+                artistName = albumArtistName,
+                artistId = albumArtistId,
+                albumArtUriString = firstSong.albumArtUriString,
+                songCount = songsInAlbum.size,
+                year = firstSong.year
+            )
+        }
+
+        // Create unique artists with track counts from cross-refs
+        val artistTrackCounts = allCrossRefs.groupBy { it.artistId }.mapValues { it.value.size }
+        val artists = artistNameToId.map { (name, id) ->
+            ArtistEntity(
+                id = id,
+                name = name,
+                trackCount = artistTrackCounts[id] ?: 0
+            )
+        }.filter { it.trackCount > 0 }
+
+        return MultiArtistProcessResult(
+            songs = correctedSongs,
+            albums = albums,
+            artists = artists,
+            crossRefs = allCrossRefs.distinctBy { it.songId to it.artistId }
+        )
+    }
+
+    /**
+     * Legacy preprocessing without multi-artist support (kept for reference).
+     */
+    @Suppress("unused")
     private fun preProcessAndDeduplicate(songs: List<SongEntity>): Triple<List<SongEntity>, List<AlbumEntity>, List<ArtistEntity>> {
         // Artist de-duplication
         val artistMap = mutableMapOf<String, Long>()
@@ -208,6 +397,7 @@ class SyncWorker @AssistedInject constructor(
             MediaStore.Audio.Media.ARTIST_ID,
             MediaStore.Audio.Media.ALBUM,
             MediaStore.Audio.Media.ALBUM_ID,
+            MediaStore.Audio.Media.ALBUM_ARTIST, // Added for multi-artist support
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.DATA,
             MediaStore.Audio.Media.TRACK,
@@ -237,6 +427,7 @@ class SyncWorker @AssistedInject constructor(
             val artistIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST_ID)
             val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
             val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+            val albumArtistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ARTIST)
             val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
             val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
             val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
@@ -265,6 +456,7 @@ class SyncWorker @AssistedInject constructor(
                 var title = cursor.getString(titleCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Title" }
                 var artist = cursor.getString(artistCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Artist" }
                 var album = cursor.getString(albumCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Album" }
+                var albumArtist = cursor.getString(albumArtistCol)?.normalizeMetadataTextOrEmpty()?.takeIf { it.isNotBlank() }
                 var trackNumber = cursor.getInt(trackCol)
                 var year = cursor.getInt(yearCol)
 
@@ -298,6 +490,7 @@ class SyncWorker @AssistedInject constructor(
                         title = title,
                         artistName = artist,
                         artistId = songArtistId,
+                        albumArtist = albumArtist,
                         albumName = album,
                         albumId = albumId,
                         contentUriString = contentUriString,

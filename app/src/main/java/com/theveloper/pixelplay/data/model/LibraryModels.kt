@@ -20,3 +20,14 @@ data class Artist(
     val songCount: Int
     // Podrías añadir una forma de obtener una imagen representativa del artista si es necesario
 )
+
+/**
+ * Represents a simplified artist reference for multi-artist support.
+ * Used when displaying multiple artists for a song.
+ */
+@Immutable
+data class ArtistRef(
+    val id: Long,
+    val name: String,
+    val isPrimary: Boolean = false
+)
