@@ -67,6 +67,13 @@ class SettingsViewModel @Inject constructor(
     val isExplorerPriming = fileExplorerStateHolder.isPrimingExplorer
     val isExplorerReady = fileExplorerStateHolder.isExplorerReady
 
+    val isSyncing: StateFlow<Boolean> = syncManager.isSyncing
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = false
+        )
+
     init {
         viewModelScope.launch {
             userPreferencesRepository.appRebrandDialogShownFlow.collect { wasShown ->
@@ -245,6 +252,7 @@ class SettingsViewModel @Inject constructor(
 
     fun refreshLibrary() {
         viewModelScope.launch {
+            if (isSyncing.value) return@launch
             syncManager.forceRefresh()
         }
     }
