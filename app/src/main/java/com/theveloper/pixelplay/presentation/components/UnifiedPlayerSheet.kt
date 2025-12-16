@@ -782,11 +782,24 @@ fun UnifiedPlayerSheet(
 
     val t = rememberExpansionTransition(playerContentExpansionFraction.value)
 
-    val playerAreaElevation by t.animateDp(label = "elev") { f -> lerp(2.dp, 12.dp, f) }
+    val playerAreaElevation by remember(playerContentExpansionFraction) {
+        derivedStateOf {
+            if (playerContentExpansionFraction.value > 0.5f) 12.dp else 2.dp
+        }
+    }
 
     val miniAlpha by t.animateFloat(label = "miniAlpha") { f -> (1f - f * 2f).coerceIn(0f, 1f) }
 
-    val playerShadowShape = remember(overallSheetTopCornerRadius, playerContentActualBottomRadius) {
+    val roundedPlayerShape = remember(overallSheetTopCornerRadius, playerContentActualBottomRadius) {
+        RoundedCornerShape(
+            topStart = overallSheetTopCornerRadius,
+            topEnd = overallSheetTopCornerRadius,
+            bottomEnd = playerContentActualBottomRadius,
+            bottomStart = playerContentActualBottomRadius
+        )
+    }
+
+    val smoothPlayerShape = remember(overallSheetTopCornerRadius, playerContentActualBottomRadius) {
         AbsoluteSmoothCornerShape(
             cornerRadiusTL = overallSheetTopCornerRadius,
             smoothnessAsPercentBL = 60,
@@ -797,6 +810,13 @@ fun UnifiedPlayerSheet(
             cornerRadiusBL = playerContentActualBottomRadius,
             smoothnessAsPercentTR = 60
         )
+    }
+
+    val playerShadowShape by remember(isDragging, isDraggingPlayerArea, playerContentExpansionFraction.isRunning) {
+        derivedStateOf {
+            val isActivelyAnimating = isDragging || isDraggingPlayerArea || playerContentExpansionFraction.isRunning
+            if (isActivelyAnimating) roundedPlayerShape else smoothPlayerShape
+        }
     }
 
     val isCollapsedState =
@@ -904,13 +924,7 @@ fun UnifiedPlayerSheet(
                                                     )
                                                     // On the first frame of snapping, launch the soft spring animation
                                                     scope.launch {
-                                                        offsetAnimatable.animateTo(
-                                                            targetValue = accumulatedDragX,
-                                                            animationSpec = spring(
-                                                                dampingRatio = 0.8f,
-                                                                stiffness = Spring.StiffnessLow
-                                                            )
-                                                        )
+                                                        offsetAnimatable.snapTo(accumulatedDragX)
                                                     }
                                                     // Immediately transition to free drag so subsequent events are handled there
                                                     dragPhase = DragPhase.FREE_DRAG
@@ -919,13 +933,7 @@ fun UnifiedPlayerSheet(
                                                 DragPhase.FREE_DRAG -> {
                                                     // After the initial snap, track the finger with a very stiff spring to feel 1-to-1
                                                     scope.launch {
-                                                        offsetAnimatable.animateTo(
-                                                            targetValue = accumulatedDragX,
-                                                            animationSpec = spring(
-                                                                dampingRatio = Spring.DampingRatioNoBouncy,
-                                                                stiffness = Spring.StiffnessHigh
-                                                            )
-                                                        )
+                                                        offsetAnimatable.snapTo(accumulatedDragX)
                                                     }
                                                 }
 
@@ -985,16 +993,7 @@ fun UnifiedPlayerSheet(
                                 )
                                 .background(
                                     color = albumColorScheme.primaryContainer,
-                                    shape = AbsoluteSmoothCornerShape(
-                                        cornerRadiusTL = overallSheetTopCornerRadius,
-                                        smoothnessAsPercentBL = 60,
-                                        cornerRadiusTR = overallSheetTopCornerRadius,
-                                        smoothnessAsPercentBR = 60,
-                                        cornerRadiusBR = playerContentActualBottomRadius,
-                                        smoothnessAsPercentTL = 60,
-                                        cornerRadiusBL = playerContentActualBottomRadius,
-                                        smoothnessAsPercentTR = 60
-                                    )
+                                    shape = playerShadowShape
                                 )
                                 .clipToBounds()
                                 .pointerInput(Unit) {
