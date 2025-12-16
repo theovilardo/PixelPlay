@@ -13,9 +13,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDp
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -102,7 +99,6 @@ import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.presentation.components.player.FullPlayerContent
-import com.theveloper.pixelplay.presentation.components.scoped.rememberExpansionTransition
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
@@ -780,11 +776,13 @@ fun UnifiedPlayerSheet(
 
     val albumColorScheme = targetColorScheme
 
-    val t = rememberExpansionTransition(playerContentExpansionFraction.value)
+    val playerAreaElevation by remember {
+        derivedStateOf { lerp(2.dp, 12.dp, playerContentExpansionFraction.value) }
+    }
 
-    val playerAreaElevation by t.animateDp(label = "elev") { f -> lerp(2.dp, 12.dp, f) }
-
-    val miniAlpha by t.animateFloat(label = "miniAlpha") { f -> (1f - f * 2f).coerceIn(0f, 1f) }
+    val miniAlpha by remember {
+        derivedStateOf { (1f - playerContentExpansionFraction.value * 2f).coerceIn(0f, 1f) }
+    }
 
     val playerShadowShape = remember(overallSheetTopCornerRadius, playerContentActualBottomRadius) {
         AbsoluteSmoothCornerShape(
