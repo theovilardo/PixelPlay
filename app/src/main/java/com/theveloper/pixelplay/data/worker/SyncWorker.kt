@@ -11,6 +11,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import androidx.core.net.toUri
 import com.theveloper.pixelplay.data.database.AlbumEntity
 import com.theveloper.pixelplay.data.database.ArtistEntity
 import com.theveloper.pixelplay.data.database.MusicDao
@@ -18,12 +19,12 @@ import com.theveloper.pixelplay.data.database.SongEntity
 import com.theveloper.pixelplay.data.media.AudioMetadataReader
 import com.theveloper.pixelplay.utils.AlbumArtUtils
 import com.theveloper.pixelplay.utils.AudioMetaUtils.getAudioMetadata
-import com.theveloper.pixelplay.utils.normalizeMetadataText
 import com.theveloper.pixelplay.utils.normalizeMetadataTextOrEmpty
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.concurrent.TimeUnit
 
 @HiltWorker
@@ -147,11 +148,49 @@ class SyncWorker @AssistedInject constructor(
         return Triple(correctedSongs, albums, artists)
     }
 
+    private fun fetchAlbumArtUrisByAlbumId(): Map<Long, String> {
+        val projection = arrayOf(
+            MediaStore.Audio.Albums._ID,
+            MediaStore.Audio.Albums.ALBUM_ART
+        )
+
+        return buildMap {
+            contentResolver.query(
+                MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
+                projection,
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums._ID)
+                val artCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.ALBUM_ART)
+
+                while (cursor.moveToNext()) {
+                    val albumId = cursor.getLong(idCol)
+                    val storedArtPath = cursor.getString(artCol)
+                    val uriString = when {
+                        !storedArtPath.isNullOrBlank() -> File(storedArtPath).toURI().toString()
+                        albumId > 0 -> ContentUris.withAppendedId(
+                            "content://media/external/audio/albumart".toUri(),
+                            albumId
+                        ).toString()
+                        else -> null
+                    }
+
+                    if (uriString != null) put(albumId, uriString)
+                }
+            }
+        }
+    }
+
     private suspend fun fetchAllMusicData(): List<SongEntity> {
         Trace.beginSection("SyncWorker.fetchAllMusicData")
         val songs = mutableListOf<SongEntity>()
         // Removed genre mapping from initial sync for performance.
         // Genre will be "Unknown Genre" or from static genres for now.
+
+        val deepScan = inputData.getBoolean(INPUT_FORCE_METADATA, false)
+        val albumArtByAlbumId = if (!deepScan) fetchAlbumArtUrisByAlbumId() else emptyMap()
 
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
@@ -162,14 +201,13 @@ class SyncWorker @AssistedInject constructor(
             MediaStore.Audio.Media.ALBUM_ID,
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.DATA,
-            MediaStore.Audio.Media.GENRE,
             MediaStore.Audio.Media.TRACK,
             MediaStore.Audio.Media.YEAR,
             MediaStore.Audio.Media.DATE_MODIFIED
         )
         val selection = "((${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ?) OR ${MediaStore.Audio.Media.DATA} LIKE '%.m4a' OR ${MediaStore.Audio.Media.DATA} LIKE '%.flac')"
         val selectionArgs = arrayOf("10000")
-        val sortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
+        val sortOrder = null // Avoid extra sorting work; we'll sort downstream if needed
 
         contentResolver.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
@@ -186,7 +224,6 @@ class SyncWorker @AssistedInject constructor(
             val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
             val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
             val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
-            val genreCol = cursor.getColumnIndex(MediaStore.Audio.Media.GENRE)
             val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
             val yearCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
             val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
@@ -203,17 +240,12 @@ class SyncWorker @AssistedInject constructor(
                     MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id
                 ).toString()
 
-//                val genreName = run {
-//                    val staticGenres = GenreDataSource.getStaticGenres()
-//                    if (staticGenres.isNotEmpty()) {
-//                        staticGenres[(id % staticGenres.size).toInt()].name
-//                    } else {
-//                        "Unknown Genre"
-//                    }
-//                }
-                val deepScan = inputData.getBoolean(SyncWorker.INPUT_FORCE_METADATA, false)
-                var albumArtUriString = AlbumArtUtils.getAlbumArtUri(applicationContext, musicDao, filePath, albumId, id, deepScan)
-                val audioMetadata = getAudioMetadata(musicDao,id, filePath, deepScan)
+                var albumArtUriString = albumArtByAlbumId[albumId]
+                if (deepScan) {
+                    albumArtUriString = AlbumArtUtils.getAlbumArtUri(applicationContext, musicDao, filePath, albumId, id, true)
+                        ?: albumArtUriString
+                }
+                val audioMetadata = if (deepScan) getAudioMetadata(musicDao, id, filePath, true) else null
 
                 var title = cursor.getString(titleCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Title" }
                 var artist = cursor.getString(artistCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Artist" }
@@ -223,7 +255,7 @@ class SyncWorker @AssistedInject constructor(
 
 
                 // Fix for WAV files (Issue #462): Read metadata directly from file if it is a WAV
-                if (filePath.endsWith(".wav", ignoreCase = true)) {
+                if (deepScan && filePath.endsWith(".wav", ignoreCase = true)) {
                     val file = java.io.File(filePath)
                     if (file.exists()) {
                         try {
@@ -256,7 +288,7 @@ class SyncWorker @AssistedInject constructor(
                         contentUriString = contentUriString,
                         albumArtUriString = albumArtUriString,
                         duration = cursor.getLong(durationCol),
-                        genre = if (genreCol != -1) cursor.getString(genreCol).normalizeMetadataText() else null,
+                        genre = null,
                         filePath = filePath,
                         parentDirectoryPath = parentDir,
                         trackNumber = trackNumber,
@@ -264,9 +296,9 @@ class SyncWorker @AssistedInject constructor(
                         dateAdded = cursor.getLong(dateAddedCol).let { seconds ->
                             if (seconds > 0) TimeUnit.SECONDS.toMillis(seconds) else System.currentTimeMillis()
                         },
-                        mimeType = audioMetadata.mimeType,
-                        sampleRate = audioMetadata.sampleRate,
-                        bitrate = audioMetadata.bitrate
+                        mimeType = audioMetadata?.mimeType,
+                        sampleRate = audioMetadata?.sampleRate,
+                        bitrate = audioMetadata?.bitrate
                     )
                 )
             }

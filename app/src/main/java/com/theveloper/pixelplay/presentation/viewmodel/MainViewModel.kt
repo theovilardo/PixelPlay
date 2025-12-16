@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -57,6 +58,9 @@ class MainViewModel @Inject constructor(
      */
     fun startSync() {
         LogUtils.i(this, "startSync called")
-        syncManager.sync()
+        viewModelScope.launch {
+            if (isSetupComplete.value) return@launch
+            syncManager.sync()
+        }
     }
 }

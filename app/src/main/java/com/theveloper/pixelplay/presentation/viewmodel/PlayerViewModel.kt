@@ -466,7 +466,7 @@ class PlayerViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf("SONGS", "ALBUMS", "ARTIST", "PLAYLISTS", "FOLDERS", "LIKED"))
 
     private val _loadedTabs = MutableStateFlow(emptySet<String>())
-    private var lastAllowedDirectories: Set<String>? = null
+    private var lastBlockedDirectories: Set<String>? = null
 
     private val _currentLibraryTabId = MutableStateFlow(LibraryTabId.SONGS)
     val currentLibraryTabId: StateFlow<LibraryTabId> = _currentLibraryTabId.asStateFlow()
@@ -1024,17 +1024,17 @@ class PlayerViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            userPreferencesRepository.allowedDirectoriesFlow
+            userPreferencesRepository.blockedDirectoriesFlow
                 .distinctUntilChanged()
-                .collect { allowed ->
-                    if (lastAllowedDirectories == null) {
-                        lastAllowedDirectories = allowed
+                .collect { blocked ->
+                    if (lastBlockedDirectories == null) {
+                        lastBlockedDirectories = blocked
                         return@collect
                     }
 
-                    if (allowed != lastAllowedDirectories) {
-                        lastAllowedDirectories = allowed
-                        onAllowedDirectoriesChanged()
+                    if (blocked != lastBlockedDirectories) {
+                        lastBlockedDirectories = blocked
+                        onBlockedDirectoriesChanged()
                     }
                 }
         }
@@ -4748,5 +4748,12 @@ class PlayerViewModel @Inject constructor(
      */
     fun resetLyricsSearchState() {
         _lyricsSearchUiState.value = LyricsSearchUiState.Idle
+    }
+
+    private fun onBlockedDirectoriesChanged() {
+        viewModelScope.launch {
+            musicRepository.invalidateCachesDependentOnAllowedDirectories()
+            resetAndLoadInitialData("Blocked directories changed")
+        }
     }
 }

@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Environment
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -68,6 +69,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -191,13 +193,28 @@ fun SettingsScreen(
     val isLoadingDirectories by settingsViewModel.isLoadingDirectories.collectAsState()
     val isExplorerPriming by settingsViewModel.isExplorerPriming.collectAsState()
     val isExplorerReady by settingsViewModel.isExplorerReady.collectAsState()
+    val isSyncing by settingsViewModel.isSyncing.collectAsState()
     val explorerRoot = settingsViewModel.explorerRoot()
+
+    val context = LocalContext.current
 
     var showClearLyricsDialog by remember { mutableStateOf(false) }
     var showExplorerSheet by remember { mutableStateOf(false) }
+    var refreshRequested by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         settingsViewModel.primeExplorer()
+    }
+
+    LaunchedEffect(isSyncing) {
+        if (!isSyncing && refreshRequested) {
+            Toast.makeText(
+                context,
+                "Library refreshed",
+                Toast.LENGTH_SHORT
+            ).show()
+            refreshRequested = false
+        }
     }
 
     BackHandler(enabled = playerSheetState == PlayerSheetState.EXPANDED) {
@@ -281,6 +298,10 @@ fun SettingsScreen(
         }
     }
 
+    if (isSyncing && refreshRequested) {
+        RefreshingLibraryDialog()
+    }
+
     Box(
         modifier = Modifier
             .nestedScroll(nestedScrollConnection)
@@ -309,11 +330,9 @@ fun SettingsScreen(
                     }
                 ) {
                     Column(modifier = Modifier.clip(shape = RoundedCornerShape(24.dp))) {
-                        val context = LocalContext.current
-
                         SettingsItem(
-                            title = "Allowed Directories",
-                            subtitle = "Choose the directories you want to get the music files from.",
+                            title = "Excluded Directories",
+                            subtitle = "Folders here will be skipped when scanning your library.",
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Outlined.Folder,
@@ -343,21 +362,29 @@ fun SettingsScreen(
                                   showExplorerSheet = true
                                   if (!isExplorerReady && !isExplorerPriming) {
                                       settingsViewModel.primeExplorer()
-                                  }
-                              }
+                                }
+                            }
                           )
                         Spacer(modifier = Modifier.height(4.dp))
-                        SettingsItem(
-                            title = "Refresh Library",
-                            subtitle = "Rescan MediaStore and update the local database.",
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Outlined.Sync,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.secondary
-                                )
-                            },
-                            onClick = { settingsViewModel.refreshLibrary() }
+                        RefreshLibraryItem(
+                            isSyncing = isSyncing,
+                            onRefresh = {
+                                if (isSyncing) {
+                                    Toast.makeText(
+                                        context,
+                                        "Library is already refreshing",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    return@RefreshLibraryItem
+                                }
+                                refreshRequested = true
+                                Toast.makeText(
+                                    context,
+                                    "Refreshing library…",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                settingsViewModel.refreshLibrary()
+                            }
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         SettingsItem(
@@ -787,6 +814,95 @@ private fun ExplorerWarmupDialog(onCancel: () -> Unit) {
             Text(text = "Loading your storage map so the explorer opens instantly.")
         }
     )
+}
+
+@Composable
+private fun RefreshingLibraryDialog() {
+    AlertDialog(
+        onDismissRequest = {},
+        confirmButton = {},
+        icon = { CircularProgressIndicator() },
+        title = { Text(text = "Refreshing library") },
+        text = {
+            Text(text = "Rebuilding your music library. This runs in the background and may take a moment.")
+        }
+    )
+}
+
+@Composable
+private fun RefreshLibraryItem(
+    isSyncing: Boolean,
+    onRefresh: () -> Unit
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .padding(end = 16.dp)
+                        .size(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Sync,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary
+                    )
+                }
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = "Refresh Library",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Tap the sync button to rescan and update your library.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                FilledIconButton(
+                    onClick = onRefresh,
+                    enabled = !isSyncing,
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Sync,
+                        contentDescription = "Refresh library",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+
+            if (isSyncing) {
+                Spacer(modifier = Modifier.height(12.dp))
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Refreshing library…",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
 }
 
 @Composable
