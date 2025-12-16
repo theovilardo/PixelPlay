@@ -1,7 +1,10 @@
 package com.theveloper.pixelplay.presentation.viewmodel
 
+import android.content.Context
 import android.os.Environment
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
+import com.theveloper.pixelplay.utils.StorageInfo
+import com.theveloper.pixelplay.utils.StorageUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -43,15 +46,23 @@ private data class RawDirectoryEntry(
 class FileExplorerStateHolder(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val scope: CoroutineScope,
-    private val visibleRoot: File = Environment.getExternalStorageDirectory()
+    private val context: Context,
+    initialRoot: File = Environment.getExternalStorageDirectory()
 ) {
 
-    private val rootCanonicalPath: String = normalizePath(visibleRoot)
+    private var visibleRoot: File = initialRoot
+    private var rootCanonicalPath: String = normalizePath(visibleRoot)
     private val audioCountCache = ConcurrentHashMap<String, AudioCount>()
 
-    // Caches for "Raw" entries (without selection state)
+    // Available storages (Internal, SD Card, USB)
+    private val _availableStorages = MutableStateFlow<List<StorageInfo>>(emptyList())
+    val availableStorages: StateFlow<List<StorageInfo>> = _availableStorages.asStateFlow()
+
+    private val _selectedStorageIndex = MutableStateFlow(0)
+    val selectedStorageIndex: StateFlow<Int> = _selectedStorageIndex.asStateFlow()
+
+    // Cache for "Raw" entries (without selection state)
     private val directoryChildrenCache = mutableMapOf<String, List<RawDirectoryEntry>>()
-    private val smartViewCache = mutableMapOf<String, List<RawDirectoryEntry>>()
 
     private val _currentPath = MutableStateFlow(visibleRoot)
     val currentPath: StateFlow<File> = _currentPath.asStateFlow()
@@ -60,9 +71,6 @@ class FileExplorerStateHolder(
 
     private val _blockedDirectories = MutableStateFlow<Set<String>>(emptySet())
     val blockedDirectories: StateFlow<Set<String>> = _blockedDirectories.asStateFlow()
-
-    private val _smartViewEnabled = MutableStateFlow(false)
-    val smartViewEnabled: StateFlow<Boolean> = _smartViewEnabled.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -86,6 +94,9 @@ class FileExplorerStateHolder(
     private var loadJob: Job? = null
 
     init {
+        // Load available storages
+        refreshAvailableStorages()
+
         // Observer for preferences
         userPreferencesRepository.blockedDirectoriesFlow
             .onEach { blocked ->
@@ -93,15 +104,14 @@ class FileExplorerStateHolder(
             }
             .launchIn(scope)
 
-        // Combiner to produce final UI list with isSelected state
+        // Combiner to produce final UI list with isBlocked state
         combine(
             _rawCurrentDirectoryChildren,
-            _blockedDirectories,
-            _smartViewEnabled
-        ) { rawEntries, blocked, isSmartView ->
-            Triple(rawEntries, blocked, isSmartView)
+            _blockedDirectories
+        ) { rawEntries, blocked ->
+            Pair(rawEntries, blocked)
         }
-            .mapLatest { (rawEntries, blocked, _) ->
+            .mapLatest { (rawEntries, blocked) ->
                 rawEntries.map { raw ->
                     val normalizedPath = raw.canonicalPath
                     val isBlocked = blocked.any { normalizedPath == it || normalizedPath.startsWith("$it/") }
@@ -122,6 +132,30 @@ class FileExplorerStateHolder(
 
         // Initial load
         refreshCurrentDirectory()
+    }
+
+    fun refreshAvailableStorages() {
+        _availableStorages.value = StorageUtils.getAvailableStorages(context)
+        // Ensure selected index is valid
+        if (_selectedStorageIndex.value >= _availableStorages.value.size) {
+            _selectedStorageIndex.value = 0
+        }
+    }
+
+    fun selectStorage(index: Int) {
+        val storages = _availableStorages.value
+        if (index < 0 || index >= storages.size) return
+
+        _selectedStorageIndex.value = index
+        val selectedStorage = storages[index]
+
+        // Update the visible root
+        visibleRoot = selectedStorage.path
+        rootCanonicalPath = normalizePath(visibleRoot)
+        _currentPath.value = visibleRoot
+
+        // Load the new storage root
+        loadDirectory(visibleRoot, updatePath = true, forceRefresh = false)
     }
 
     fun refreshCurrentDirectory() {
