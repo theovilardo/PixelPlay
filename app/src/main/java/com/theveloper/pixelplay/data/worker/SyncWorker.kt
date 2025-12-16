@@ -158,13 +158,22 @@ class SyncWorker @AssistedInject constructor(
         // Collect all cross-references
         val allCrossRefs = mutableListOf<SongArtistCrossRef>()
 
-        // First pass: collect all unique artist names and assign IDs
+        // Cache split results to avoid redundant string processing
+        val songToArtists = mutableMapOf<Long, List<String>>()
+        
+        // Pre-process: split all artist names once and cache the results
         songs.forEach { song ->
             val artistsToProcess = if (artistSeparationEnabled) {
                 song.artistName.splitArtistsByDelimiters(artistDelimiters)
             } else {
                 listOf(song.artistName)
             }
+            songToArtists[song.id] = artistsToProcess
+        }
+
+        // First pass: collect all unique artist names and assign IDs
+        songs.forEach { song ->
+            val artistsToProcess = songToArtists[song.id] ?: listOf(song.artistName)
 
             artistsToProcess.forEach { artistName ->
                 val normalizedName = artistName.trim()
@@ -187,12 +196,9 @@ class SyncWorker @AssistedInject constructor(
             val albumArtistName = if (groupByAlbumArtist && !song.albumArtist.isNullOrBlank()) {
                 song.albumArtist
             } else {
-                // Use the first (primary) artist
-                if (artistSeparationEnabled) {
-                    song.artistName.splitArtistsByDelimiters(artistDelimiters).firstOrNull() ?: song.artistName
-                } else {
-                    song.artistName
-                }
+                // Use the first (primary) artist from cached results
+                val artistsToProcess = songToArtists[song.id] ?: listOf(song.artistName)
+                artistsToProcess.firstOrNull() ?: song.artistName
             }
             val key = Pair(song.albumName, albumArtistName)
             if (!albumMap.containsKey(key)) {
@@ -202,11 +208,7 @@ class SyncWorker @AssistedInject constructor(
 
         // Second pass: create corrected songs and cross-references
         val correctedSongs = songs.map { song ->
-            val artistsForSong = if (artistSeparationEnabled) {
-                song.artistName.splitArtistsByDelimiters(artistDelimiters)
-            } else {
-                listOf(song.artistName)
-            }
+            val artistsForSong = songToArtists[song.id] ?: listOf(song.artistName)
 
             // Primary artist is the first one
             val primaryArtistName = artistsForSong.firstOrNull()?.trim() ?: song.artistName
