@@ -198,7 +198,7 @@ class MusicRepositoryImpl @Inject constructor(
     override fun getSongsForArtist(artistId: Long): Flow<List<Song>> {
         LogUtils.d(this, "getSongsForArtist: $artistId")
         return combine(
-            musicDao.getSongsByArtistId(artistId),
+            musicDao.getSongsForArtist(artistId), // Use junction table query
             directoryFilterConfig
         ) { songEntities, config ->
             songEntities.filterBlocked(config).map { it.toSong() }
