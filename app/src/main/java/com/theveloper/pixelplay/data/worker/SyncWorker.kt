@@ -18,7 +18,6 @@ import com.theveloper.pixelplay.data.database.SongEntity
 import com.theveloper.pixelplay.data.media.AudioMetadataReader
 import com.theveloper.pixelplay.utils.AlbumArtUtils
 import com.theveloper.pixelplay.utils.AudioMetaUtils.getAudioMetadata
-import com.theveloper.pixelplay.utils.normalizeMetadataText
 import com.theveloper.pixelplay.utils.normalizeMetadataTextOrEmpty
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -153,6 +152,8 @@ class SyncWorker @AssistedInject constructor(
         // Removed genre mapping from initial sync for performance.
         // Genre will be "Unknown Genre" or from static genres for now.
 
+        val deepScan = inputData.getBoolean(INPUT_FORCE_METADATA, false)
+
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.TITLE,
@@ -162,14 +163,13 @@ class SyncWorker @AssistedInject constructor(
             MediaStore.Audio.Media.ALBUM_ID,
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.DATA,
-            MediaStore.Audio.Media.GENRE,
             MediaStore.Audio.Media.TRACK,
             MediaStore.Audio.Media.YEAR,
             MediaStore.Audio.Media.DATE_MODIFIED
         )
         val selection = "((${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ?) OR ${MediaStore.Audio.Media.DATA} LIKE '%.m4a' OR ${MediaStore.Audio.Media.DATA} LIKE '%.flac')"
         val selectionArgs = arrayOf("10000")
-        val sortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
+        val sortOrder = null // Avoid extra sorting work; we'll sort downstream if needed
 
         contentResolver.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
@@ -186,7 +186,6 @@ class SyncWorker @AssistedInject constructor(
             val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
             val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
             val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
-            val genreCol = cursor.getColumnIndex(MediaStore.Audio.Media.GENRE)
             val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
             val yearCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
             val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
@@ -203,17 +202,10 @@ class SyncWorker @AssistedInject constructor(
                     MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id
                 ).toString()
 
-//                val genreName = run {
-//                    val staticGenres = GenreDataSource.getStaticGenres()
-//                    if (staticGenres.isNotEmpty()) {
-//                        staticGenres[(id % staticGenres.size).toInt()].name
-//                    } else {
-//                        "Unknown Genre"
-//                    }
-//                }
-                val deepScan = inputData.getBoolean(SyncWorker.INPUT_FORCE_METADATA, false)
-                var albumArtUriString = AlbumArtUtils.getAlbumArtUri(applicationContext, musicDao, filePath, albumId, id, deepScan)
-                val audioMetadata = getAudioMetadata(musicDao,id, filePath, deepScan)
+                var albumArtUriString = if (deepScan) {
+                    AlbumArtUtils.getAlbumArtUri(applicationContext, musicDao, filePath, albumId, id, true)
+                } else null
+                val audioMetadata = if (deepScan) getAudioMetadata(musicDao, id, filePath, true) else null
 
                 var title = cursor.getString(titleCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Title" }
                 var artist = cursor.getString(artistCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Artist" }
@@ -223,7 +215,7 @@ class SyncWorker @AssistedInject constructor(
 
 
                 // Fix for WAV files (Issue #462): Read metadata directly from file if it is a WAV
-                if (filePath.endsWith(".wav", ignoreCase = true)) {
+                if (deepScan && filePath.endsWith(".wav", ignoreCase = true)) {
                     val file = java.io.File(filePath)
                     if (file.exists()) {
                         try {
@@ -256,7 +248,7 @@ class SyncWorker @AssistedInject constructor(
                         contentUriString = contentUriString,
                         albumArtUriString = albumArtUriString,
                         duration = cursor.getLong(durationCol),
-                        genre = if (genreCol != -1) cursor.getString(genreCol).normalizeMetadataText() else null,
+                        genre = null,
                         filePath = filePath,
                         parentDirectoryPath = parentDir,
                         trackNumber = trackNumber,
@@ -264,9 +256,9 @@ class SyncWorker @AssistedInject constructor(
                         dateAdded = cursor.getLong(dateAddedCol).let { seconds ->
                             if (seconds > 0) TimeUnit.SECONDS.toMillis(seconds) else System.currentTimeMillis()
                         },
-                        mimeType = audioMetadata.mimeType,
-                        sampleRate = audioMetadata.sampleRate,
-                        bitrate = audioMetadata.bitrate
+                        mimeType = audioMetadata?.mimeType,
+                        sampleRate = audioMetadata?.sampleRate,
+                        bitrate = audioMetadata?.bitrate
                     )
                 )
             }
