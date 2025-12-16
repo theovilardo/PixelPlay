@@ -760,7 +760,7 @@ fun FullPlayerContent(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    text = "Sanatçıyı seç", // short label; keep UI minimal
+                    text = stringResource(R.string.artist_picker_title), // short label; keep UI minimal
                     style = MaterialTheme.typography.titleMedium,
                     color = LocalMaterialTheme.current.onPrimaryContainer,
                     modifier = Modifier.padding(bottom = 8.dp)
