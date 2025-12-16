@@ -499,9 +499,9 @@ private fun FileExplorerItem(
             Text(
                 text = file.absolutePath,
                 style = MaterialTheme.typography.bodySmall,
-                color = if (isAllowed) contentColor.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = contentColor.copy(alpha = 0.7f),
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.StartEllipsis
             )
             Spacer(
                 modifier = Modifier

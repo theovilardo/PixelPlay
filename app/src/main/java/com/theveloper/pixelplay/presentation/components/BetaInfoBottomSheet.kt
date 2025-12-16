@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,9 +23,9 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,7 +56,7 @@ fun BetaInfoBottomSheet(modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp)
-            .padding(top = 4.dp, bottom = 20.dp),
+            .padding(top = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -228,13 +229,16 @@ fun BetaInfoBottomSheet(modifier: Modifier = Modifier) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Button(
                         onClick = { launchUrl(context, issuesUrl) },
+                        // Eliminamos height fija y usamos contentPadding
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(vertical = 16.dp),
                         shape = AbsoluteSmoothCornerShape(
                             cornerRadiusTR = fabCornerRadius,
                             cornerRadiusTL = fabCornerRadius,
@@ -258,8 +262,11 @@ fun BetaInfoBottomSheet(modifier: Modifier = Modifier) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(text = "Open GitHub issues")
                     }
-                    OutlinedButton(
+                    FilledTonalButton(
                         onClick = { launchUrl(context, reportUrl) },
+                        // Eliminamos height fija y usamos contentPadding
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(vertical = 16.dp),
                         shape = AbsoluteSmoothCornerShape(
                             cornerRadiusTR = fabCornerRadius,
                             cornerRadiusTL = fabCornerRadius,
