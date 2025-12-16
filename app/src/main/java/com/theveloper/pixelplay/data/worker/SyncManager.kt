@@ -16,6 +16,22 @@ import kotlinx.coroutines.flow.shareIn
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Data class representing the progress of the sync operation.
+ */
+data class SyncProgress(
+    val isRunning: Boolean = false,
+    val currentCount: Int = 0,
+    val totalCount: Int = 0,
+    val isCompleted: Boolean = false
+) {
+    val progress: Float
+        get() = if (totalCount > 0) currentCount.toFloat() / totalCount else 0f
+    
+    val hasProgress: Boolean
+        get() = totalCount > 0
+}
+
 @Singleton
 class SyncManager @Inject constructor(
     @ApplicationContext private val context: Context
@@ -30,6 +46,49 @@ class SyncManager @Inject constructor(
                 val isRunning = workInfos.any { it.state == WorkInfo.State.RUNNING }
                 val isEnqueued = workInfos.any { it.state == WorkInfo.State.ENQUEUED }
                 isRunning || isEnqueued
+            }
+            .distinctUntilChanged()
+            .shareIn(
+                scope = sharingScope,
+                started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
+                replay = 1
+            )
+
+    /**
+     * Flow that exposes the detailed sync progress including song count.
+     */
+    val syncProgress: Flow<SyncProgress> =
+        workManager.getWorkInfosForUniqueWorkFlow(SyncWorker.WORK_NAME)
+            .map { workInfos ->
+                val runningWork = workInfos.firstOrNull { it.state == WorkInfo.State.RUNNING }
+                val succeededWork = workInfos.firstOrNull { it.state == WorkInfo.State.SUCCEEDED }
+                val enqueuedWork = workInfos.firstOrNull { it.state == WorkInfo.State.ENQUEUED }
+                
+                when {
+                    runningWork != null -> {
+                        val current = runningWork.progress.getInt(SyncWorker.PROGRESS_CURRENT, 0)
+                        val total = runningWork.progress.getInt(SyncWorker.PROGRESS_TOTAL, 0)
+                        SyncProgress(
+                            isRunning = true,
+                            currentCount = current,
+                            totalCount = total,
+                            isCompleted = false
+                        )
+                    }
+                    succeededWork != null -> {
+                        val total = succeededWork.outputData.getInt(SyncWorker.OUTPUT_TOTAL_SONGS, 0)
+                        SyncProgress(
+                            isRunning = false,
+                            currentCount = total,
+                            totalCount = total,
+                            isCompleted = true
+                        )
+                    }
+                    enqueuedWork != null -> {
+                        SyncProgress(isRunning = true, isCompleted = false)
+                    }
+                    else -> SyncProgress()
+                }
             }
             .distinctUntilChanged()
             .shareIn(

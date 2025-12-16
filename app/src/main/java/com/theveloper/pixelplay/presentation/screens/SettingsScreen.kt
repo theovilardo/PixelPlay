@@ -129,6 +129,7 @@ import com.theveloper.pixelplay.presentation.components.ExpressiveTopBarContent
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.SettingsViewModel
+import com.theveloper.pixelplay.data.worker.SyncProgress
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
@@ -196,6 +197,7 @@ fun SettingsScreen(
     val isExplorerPriming by settingsViewModel.isExplorerPriming.collectAsState()
     val isExplorerReady by settingsViewModel.isExplorerReady.collectAsState()
     val isSyncing by settingsViewModel.isSyncing.collectAsState()
+    val syncProgress by settingsViewModel.syncProgress.collectAsState()
     val explorerRoot = settingsViewModel.explorerRoot()
 
     val context = LocalContext.current
@@ -208,8 +210,22 @@ fun SettingsScreen(
         settingsViewModel.primeExplorer()
     }
 
+    // Show completion toast when sync finishes
+    LaunchedEffect(syncProgress.isCompleted, syncProgress.isRunning) {
+        if (syncProgress.isCompleted && !syncProgress.isRunning && refreshRequested) {
+            val songsFound = syncProgress.totalCount
+            Toast.makeText(
+                context,
+                "Library refreshed: $songsFound songs found",
+                Toast.LENGTH_SHORT
+            ).show()
+            refreshRequested = false
+        }
+    }
+
+    // Legacy fallback for isSyncing
     LaunchedEffect(isSyncing) {
-        if (!isSyncing && refreshRequested) {
+        if (!isSyncing && refreshRequested && !syncProgress.isCompleted) {
             Toast.makeText(
                 context,
                 "Library refreshed",
@@ -301,7 +317,7 @@ fun SettingsScreen(
     }
 
     if (isSyncing && refreshRequested) {
-        RefreshingLibraryDialog()
+        RefreshingLibraryDialog(syncProgress = syncProgress)
     }
 
     Box(
@@ -370,6 +386,7 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(4.dp))
                         RefreshLibraryItem(
                             isSyncing = isSyncing,
+                            syncProgress = syncProgress,
                             onRefresh = {
                                 if (isSyncing) {
                                     Toast.makeText(
@@ -820,14 +837,44 @@ private fun ExplorerWarmupDialog(onCancel: () -> Unit) {
 }
 
 @Composable
-private fun RefreshingLibraryDialog() {
+private fun RefreshingLibraryDialog(syncProgress: SyncProgress) {
     AlertDialog(
         onDismissRequest = {},
         confirmButton = {},
-        icon = { CircularProgressIndicator() },
+        icon = { 
+            Box(contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        },
         title = { Text(text = "Refreshing library") },
         text = {
-            Text(text = "Rebuilding your music library. This runs in the background and may take a moment.")
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (syncProgress.hasProgress) {
+                    Text(
+                        text = "Scanned ${syncProgress.currentCount} of ${syncProgress.totalCount} songs",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    LinearProgressIndicator(
+                        progress = { syncProgress.progress },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "${(syncProgress.progress * 100).toInt()}%",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Text(
+                        text = "Rebuilding your music library. This runs in the background and may take a moment.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
         }
     )
 }
@@ -835,6 +882,7 @@ private fun RefreshingLibraryDialog() {
 @Composable
 private fun RefreshLibraryItem(
     isSyncing: Boolean,
+    syncProgress: SyncProgress,
     onRefresh: () -> Unit
 ) {
     Surface(
@@ -896,13 +944,26 @@ private fun RefreshLibraryItem(
 
             if (isSyncing) {
                 Spacer(modifier = Modifier.height(12.dp))
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Refreshing library…",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (syncProgress.hasProgress) {
+                    LinearProgressIndicator(
+                        progress = { syncProgress.progress },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Scanned ${syncProgress.currentCount} of ${syncProgress.totalCount} songs",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Refreshing library…",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

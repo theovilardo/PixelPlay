@@ -42,7 +42,12 @@ class SyncWorker @AssistedInject constructor(
             Log.i(TAG, "Starting MediaStore synchronization...")
             val startTime = System.currentTimeMillis()
 
-            val mediaStoreSongs = fetchAllMusicData()
+            val mediaStoreSongs = fetchAllMusicData { current, total ->
+                setProgress(workDataOf(
+                    PROGRESS_CURRENT to current,
+                    PROGRESS_TOTAL to total
+                ))
+            }
             Log.i(TAG, "Fetched ${mediaStoreSongs.size} songs from MediaStore.")
 
             if (mediaStoreSongs.isNotEmpty()) {
@@ -80,15 +85,19 @@ class SyncWorker @AssistedInject constructor(
                 musicDao.insertMusicData(correctedSongs, albums, artists)
 
                 Log.i(TAG, "Music data synchronization completed. ${correctedSongs.size} songs processed.")
+                
+                val endTime = System.currentTimeMillis()
+                Log.i(TAG, "MediaStore synchronization finished successfully in ${endTime - startTime}ms.")
+                Result.success(workDataOf(OUTPUT_TOTAL_SONGS to correctedSongs.size))
             } else {
                 // MediaStore is empty, so clear the local database
                 musicDao.clearAllMusicData()
                 Log.w(TAG, "MediaStore fetch resulted in empty list. Local music data cleared.")
+                
+                val endTime = System.currentTimeMillis()
+                Log.i(TAG, "MediaStore synchronization finished successfully in ${endTime - startTime}ms.")
+                Result.success(workDataOf(OUTPUT_TOTAL_SONGS to 0))
             }
-
-            val endTime = System.currentTimeMillis()
-            Log.i(TAG, "MediaStore synchronization finished successfully in ${endTime - startTime}ms.")
-            Result.success()
         } catch (e: Exception) {
             Log.e(TAG, "Error during MediaStore synchronization", e)
             Result.failure()
@@ -183,7 +192,7 @@ class SyncWorker @AssistedInject constructor(
         }
     }
 
-    private suspend fun fetchAllMusicData(): List<SongEntity> {
+    private suspend fun fetchAllMusicData(onProgress: suspend (current: Int, total: Int) -> Unit): List<SongEntity> {
         Trace.beginSection("SyncWorker.fetchAllMusicData")
         val songs = mutableListOf<SongEntity>()
         // Removed genre mapping from initial sync for performance.
@@ -216,6 +225,12 @@ class SyncWorker @AssistedInject constructor(
             selectionArgs,
             sortOrder
         )?.use { cursor ->
+            val totalCount = cursor.count
+            var processedCount = 0
+            
+            // Report initial progress (0 of total)
+            onProgress(0, totalCount)
+            
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
             val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
             val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
@@ -301,6 +316,10 @@ class SyncWorker @AssistedInject constructor(
                         bitrate = audioMetadata?.bitrate
                     )
                 )
+                
+                // Report progress after each song
+                processedCount++
+                onProgress(processedCount, totalCount)
             }
         }
         Trace.endSection() // End SyncWorker.fetchAllMusicData
@@ -312,6 +331,11 @@ class SyncWorker @AssistedInject constructor(
         const val WORK_NAME = "com.theveloper.pixelplay.data.worker.SyncWorker"
         private const val TAG = "SyncWorker"
         const val INPUT_FORCE_METADATA = "input_force_metadata" // new key
+        
+        // Progress reporting constants
+        const val PROGRESS_CURRENT = "progress_current"
+        const val PROGRESS_TOTAL = "progress_total"
+        const val OUTPUT_TOTAL_SONGS = "output_total_songs"
 
         fun startUpSyncWork(deepScan: Boolean = false) = OneTimeWorkRequestBuilder<SyncWorker>()
             .setInputData(workDataOf(INPUT_FORCE_METADATA to deepScan))
