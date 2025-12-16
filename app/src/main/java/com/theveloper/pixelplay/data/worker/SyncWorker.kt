@@ -161,7 +161,7 @@ class SyncWorker @AssistedInject constructor(
         // Cache split results to avoid redundant string processing
         val songToArtists = mutableMapOf<Long, List<String>>()
         
-        // Pre-process: split all artist names once and cache the results
+        // First pass: split artist names once, cache them, and collect unique artist IDs
         songs.forEach { song ->
             val artistsToProcess = if (artistSeparationEnabled) {
                 song.artistName.splitArtistsByDelimiters(artistDelimiters)
@@ -169,11 +169,6 @@ class SyncWorker @AssistedInject constructor(
                 listOf(song.artistName)
             }
             songToArtists[song.id] = artistsToProcess
-        }
-
-        // First pass: collect all unique artist names and assign IDs
-        songs.forEach { song ->
-            val artistsToProcess = songToArtists[song.id] ?: listOf(song.artistName)
 
             artistsToProcess.forEach { artistName ->
                 val normalizedName = artistName.trim()
