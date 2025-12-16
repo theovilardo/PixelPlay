@@ -90,7 +90,7 @@ fun SongEntity.toSong(): Song {
 /**
  * Converts a SongEntity to Song with artists from the junction table.
  */
-fun SongEntity.toSongWithArtists(artists: List<ArtistEntity>, crossRefs: List<SongArtistCrossRef>): Song {
+fun SongEntity.toSongWithArtistRefs(artists: List<ArtistEntity>, crossRefs: List<SongArtistCrossRef>): Song {
     val artistRefs = artists.map { artist ->
         val crossRef = crossRefs.find { it.artistId == artist.id }
         ArtistRef(
