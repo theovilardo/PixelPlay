@@ -180,10 +180,13 @@ class MusicRepositoryImpl @Inject constructor(
 
     override fun getArtistById(artistId: Long): Flow<Artist?> {
         LogUtils.d(this, "getArtistById: $artistId")
-        // Simply return the artist if it exists in the database
-        // The junction table ensures all artists (primary and secondary) are stored
-        return musicDao.getArtistById(artistId).map { artistEntity ->
-            artistEntity?.toArtist()
+        // Only return the artist if the user has access to at least one song by this artist
+        return combine(
+            musicDao.getArtistById(artistId),
+            permittedSongsFlow
+        ) { artistEntity, allowedSongs ->
+            val hasAccess = artistEntity != null && allowedSongs.any { it.artistId == artistId }
+            if (hasAccess) artistEntity?.toArtist() else null
         }.flowOn(Dispatchers.IO)
     }
 
