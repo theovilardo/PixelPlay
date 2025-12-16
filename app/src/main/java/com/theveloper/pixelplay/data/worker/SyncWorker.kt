@@ -158,13 +158,17 @@ class SyncWorker @AssistedInject constructor(
         // Collect all cross-references
         val allCrossRefs = mutableListOf<SongArtistCrossRef>()
 
-        // First pass: collect all unique artist names and assign IDs
+        // Cache split results to avoid redundant string processing
+        val songToArtists = mutableMapOf<Long, List<String>>()
+        
+        // First pass: split artist names once, cache them, and collect unique artist IDs
         songs.forEach { song ->
             val artistsToProcess = if (artistSeparationEnabled) {
                 song.artistName.splitArtistsByDelimiters(artistDelimiters)
             } else {
                 listOf(song.artistName)
             }
+            songToArtists[song.id] = artistsToProcess
 
             artistsToProcess.forEach { artistName ->
                 val normalizedName = artistName.trim()
@@ -187,12 +191,9 @@ class SyncWorker @AssistedInject constructor(
             val albumArtistName = if (groupByAlbumArtist && !song.albumArtist.isNullOrBlank()) {
                 song.albumArtist
             } else {
-                // Use the first (primary) artist
-                if (artistSeparationEnabled) {
-                    song.artistName.splitArtistsByDelimiters(artistDelimiters).firstOrNull() ?: song.artistName
-                } else {
-                    song.artistName
-                }
+                // Use the first (primary) artist from cached results
+                val artistsToProcess = songToArtists[song.id] ?: listOf(song.artistName)
+                artistsToProcess.firstOrNull() ?: song.artistName
             }
             val key = Pair(song.albumName, albumArtistName)
             if (!albumMap.containsKey(key)) {
@@ -202,11 +203,7 @@ class SyncWorker @AssistedInject constructor(
 
         // Second pass: create corrected songs and cross-references
         val correctedSongs = songs.map { song ->
-            val artistsForSong = if (artistSeparationEnabled) {
-                song.artistName.splitArtistsByDelimiters(artistDelimiters)
-            } else {
-                listOf(song.artistName)
-            }
+            val artistsForSong = songToArtists[song.id] ?: listOf(song.artistName)
 
             // Primary artist is the first one
             val primaryArtistName = artistsForSong.firstOrNull()?.trim() ?: song.artistName
@@ -246,14 +243,11 @@ class SyncWorker @AssistedInject constructor(
         // Create unique albums
         val albums = correctedSongs.groupBy { it.albumId }.map { (albumId, songsInAlbum) ->
             val firstSong = songsInAlbum.first()
+            // correctedSongs already have the primary artist as artistName, no need to split again
             val albumArtistName = if (groupByAlbumArtist && !firstSong.albumArtist.isNullOrBlank()) {
                 firstSong.albumArtist
             } else {
-                if (artistSeparationEnabled) {
-                    firstSong.artistName.splitArtistsByDelimiters(artistDelimiters).firstOrNull() ?: firstSong.artistName
-                } else {
-                    firstSong.artistName
-                }
+                firstSong.artistName
             }
             val albumArtistId = artistNameToId[albumArtistName] ?: firstSong.artistId
 
@@ -284,61 +278,6 @@ class SyncWorker @AssistedInject constructor(
             artists = artists,
             crossRefs = allCrossRefs.distinctBy { it.songId to it.artistId }
         )
-    }
-
-    /**
-     * Legacy preprocessing without multi-artist support (kept for reference).
-     */
-    @Suppress("unused")
-    private fun preProcessAndDeduplicate(songs: List<SongEntity>): Triple<List<SongEntity>, List<AlbumEntity>, List<ArtistEntity>> {
-        // Artist de-duplication
-        val artistMap = mutableMapOf<String, Long>()
-        songs.forEach { song ->
-            if (!artistMap.containsKey(song.artistName)) {
-                artistMap[song.artistName] = song.artistId
-            }
-        }
-
-        // Album de-duplication
-        val albumMap = mutableMapOf<Pair<String, String>, Long>()
-        songs.forEach { song ->
-            val key = Pair(song.albumName, song.artistName)
-            if (!albumMap.containsKey(key)) {
-                albumMap[key] = song.albumId
-            }
-        }
-
-        val correctedSongs = songs.map { song ->
-            val canonicalArtistId = artistMap[song.artistName]!!
-            val canonicalAlbumId = albumMap[Pair(song.albumName, song.artistName)]!!
-            song.copy(artistId = canonicalArtistId, albumId = canonicalAlbumId)
-        }
-
-        // Create unique albums
-        val albums = correctedSongs.groupBy { it.albumId }.map { (albumId, songsInAlbum) ->
-            val firstSong = songsInAlbum.first()
-            AlbumEntity(
-                id = albumId,
-                title = firstSong.albumName,
-                artistName = firstSong.artistName,
-                artistId = firstSong.artistId,
-                albumArtUriString = firstSong.albumArtUriString,
-                songCount = songsInAlbum.size,
-                year = firstSong.year
-            )
-        }
-
-        // Create unique artists
-        val artists = correctedSongs.groupBy { it.artistId }.map { (artistId, songsByArtist) ->
-            val firstSong = songsByArtist.first()
-            ArtistEntity(
-                id = artistId,
-                name = firstSong.artistName,
-                trackCount = songsByArtist.size
-            )
-        }
-
-        return Triple(correctedSongs, albums, artists)
     }
 
     private fun fetchAlbumArtUrisByAlbumId(): Map<Long, String> {

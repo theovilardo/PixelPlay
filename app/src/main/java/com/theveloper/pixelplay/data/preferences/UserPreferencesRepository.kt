@@ -156,6 +156,11 @@ class UserPreferencesRepository @Inject constructor(
         }
 
     suspend fun setArtistDelimiters(delimiters: List<String>) {
+        // Ensure at least one delimiter is always maintained
+        if (delimiters.isEmpty()) {
+            return
+        }
+        
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.ARTIST_DELIMITERS] = json.encodeToString(delimiters)
             // Mark rescan as required when delimiters change
