@@ -21,6 +21,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.util.UUID
@@ -63,6 +65,7 @@ class UserPreferencesRepository @Inject constructor(
         val APP_THEME_MODE = stringPreferencesKey("app_theme_mode")
         val FAVORITE_SONG_IDS = stringSetPreferencesKey("favorite_song_ids")
         val USER_PLAYLISTS = stringPreferencesKey("user_playlists_json_v1")
+        val PLAYLIST_SONG_ORDER_MODES = stringPreferencesKey("playlist_song_order_modes")
 
         // Sort Option Keys
         val SONGS_SORT_OPTION = stringPreferencesKey("songs_sort_option")
@@ -210,6 +213,17 @@ class UserPreferencesRepository @Inject constructor(
             preferences[PreferencesKeys.FAVORITE_SONG_IDS] ?: emptySet()
         }
 
+    val playlistSongOrderModesFlow: Flow<Map<String, String>> = dataStore.data
+        .map { preferences ->
+            val serializedModes = preferences[PreferencesKeys.PLAYLIST_SONG_ORDER_MODES]
+            if (serializedModes.isNullOrBlank()) {
+                emptyMap()
+            } else {
+                runCatching { json.decodeFromString<Map<String, String>>(serializedModes) }
+                    .getOrDefault(emptyMap())
+            }
+        }
+
     val userPlaylistsFlow: Flow<List<Playlist>> = dataStore.data
         .map { preferences ->
             val jsonString = preferences[PreferencesKeys.USER_PLAYLISTS]
@@ -254,6 +268,7 @@ class UserPreferencesRepository @Inject constructor(
         val currentPlaylists = userPlaylistsFlow.first().toMutableList()
         currentPlaylists.removeAll { it.id == playlistId }
         savePlaylists(currentPlaylists)
+        clearPlaylistSongOrderMode(playlistId)
     }
 
     suspend fun renamePlaylist(playlistId: String, newName: String) {
@@ -354,6 +369,34 @@ class UserPreferencesRepository @Inject constructor(
         if (index != -1) {
             currentPlaylists[index] = currentPlaylists[index].copy(songIds = newSongOrderIds, lastModified = System.currentTimeMillis())
             savePlaylists(currentPlaylists)
+        }
+    }
+
+    suspend fun setPlaylistSongOrderMode(playlistId: String, modeValue: String) {
+        dataStore.edit { preferences ->
+            val existingModes = preferences[PreferencesKeys.PLAYLIST_SONG_ORDER_MODES]?.let { raw ->
+                runCatching { json.decodeFromString<Map<String, String>>(raw) }.getOrDefault(emptyMap())
+            } ?: emptyMap()
+
+            val updated = existingModes.toMutableMap()
+            updated[playlistId] = modeValue
+
+            preferences[PreferencesKeys.PLAYLIST_SONG_ORDER_MODES] = json.encodeToString(updated)
+        }
+    }
+
+    suspend fun clearPlaylistSongOrderMode(playlistId: String) {
+        dataStore.edit { preferences ->
+            val existingModes = preferences[PreferencesKeys.PLAYLIST_SONG_ORDER_MODES]?.let { raw ->
+                runCatching { json.decodeFromString<Map<String, String>>(raw) }.getOrDefault(emptyMap())
+            } ?: emptyMap()
+
+            if (!existingModes.containsKey(playlistId)) return@edit
+
+            val updated = existingModes.toMutableMap()
+            updated.remove(playlistId)
+
+            preferences[PreferencesKeys.PLAYLIST_SONG_ORDER_MODES] = json.encodeToString(updated)
         }
     }
 

@@ -56,6 +56,7 @@ class PlaylistViewModel @Inject constructor(
         private const val SONG_SELECTION_PAGE_SIZE =
             100 // Cargar 100 canciones a la vez para el selector
         const val FOLDER_PLAYLIST_PREFIX = "folder_playlist:"
+        private const val MANUAL_ORDER_MODE = "manual"
     }
 
     // Helper function to resolve stored playlist sort keys
@@ -70,6 +71,18 @@ class PlaylistViewModel @Inject constructor(
     init {
         loadPlaylistsAndInitialSortOption()
         loadMoreSongsForSelection(isInitialLoad = true)
+        observePlaylistOrderModes()
+    }
+
+    private fun observePlaylistOrderModes() {
+        viewModelScope.launch {
+            userPreferencesRepository.playlistSongOrderModesFlow.collect { storedModes ->
+                val resolvedModes = storedModes.mapValues { (_, value) ->
+                    decodeOrderMode(value)
+                }
+                _uiState.update { it.copy(playlistOrderModes = resolvedModes) }
+            }
+        }
     }
 
     private fun loadPlaylistsAndInitialSortOption() {
@@ -216,12 +229,12 @@ class PlaylistViewModel @Inject constructor(
                     }
                 } else {
                     // Obtener la playlist de las preferencias del usuario
-                    val playlist = userPreferencesRepository.userPlaylistsFlow.first()
-                        .find { it.id == playlistId }
+                        val playlist = userPreferencesRepository.userPlaylistsFlow.first()
+                            .find { it.id == playlistId }
 
                     if (playlist != null) {
                         val orderMode = _uiState.value.playlistOrderModes[playlistId]
-                            ?: PlaylistSongsOrderMode.Sorted(_uiState.value.currentPlaylistSongsSortOption)
+                            ?: PlaylistSongsOrderMode.Manual
 
                         // Colectar la lista de canciones del Flow devuelto por el repositorio en un hilo de IO
                         val songsList: List<Song> = withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -344,6 +357,10 @@ class PlaylistViewModel @Inject constructor(
                 currentSongs.add(toIndex, item)
                 val newSongOrderIds = currentSongs.map { it.id }
                 userPreferencesRepository.reorderSongsInPlaylist(playlistId, newSongOrderIds)
+                userPreferencesRepository.setPlaylistSongOrderMode(
+                    playlistId,
+                    MANUAL_ORDER_MODE
+                )
                 _uiState.update {
                     val updatedModes = it.playlistOrderModes + (playlistId to PlaylistSongsOrderMode.Manual)
                     it.copy(
@@ -403,6 +420,15 @@ class PlaylistViewModel @Inject constructor(
             )
         }
 
+        if (playlistId != null) {
+            viewModelScope.launch {
+                userPreferencesRepository.setPlaylistSongOrderMode(
+                    playlistId,
+                    sortOption.storageKey
+                )
+            }
+        }
+
         // Persist local sort preference if needed (optional, not requested but good UX)
         // For now, we keep it in memory as per request focus.
     }
@@ -438,6 +464,15 @@ class PlaylistViewModel @Inject constructor(
             SortOption.SongDuration -> songs.sortedBy { it.duration }
             SortOption.SongDateAdded -> songs.sortedByDescending { it.dateAdded }
             else -> songs
+        }
+    }
+
+    private fun decodeOrderMode(value: String): PlaylistSongsOrderMode {
+        return if (value == MANUAL_ORDER_MODE) {
+            PlaylistSongsOrderMode.Manual
+        } else {
+            val option = SortOption.fromStorageKey(value, SortOption.SONGS, SortOption.SongTitleAZ)
+            PlaylistSongsOrderMode.Sorted(option)
         }
     }
 }
