@@ -388,31 +388,36 @@ fun UnifiedPlayerSheet(
             bottomCornerRadius = 0.dp,
             horizontalPadding = collapsedStateHorizontalPadding
         ),
-        key1 = density,
-        key2 = navBarStyle,
-        key3 = navBarCornerRadius,
-        key4 = isNavBarHidden,
-        key5 = containerHeight
+        density,
+        navBarStyle,
+        navBarCornerRadius,
+        isNavBarHidden,
+        containerHeight
     ) {
         snapshotFlow {
+            val expansionFraction = playerContentExpansionFraction.value
+            val predictiveCollapse = predictiveBackCollapseProgress
+            val isExpandedState = currentSheetContentState == PlayerSheetState.EXPANDED
+            val clampedFullAlphaFraction = (expansionFraction - 0.25f).coerceIn(0f, 0.75f) / 0.75f
+
             PlayerSheetExpansionSnapshot(
-                fraction = playerContentExpansionFraction.value,
-                fullPlayerContentAlpha = (playerContentExpansionFraction.value - 0.25f).coerceIn(0f, 0.75f) / 0.75f,
-                fullPlayerTranslationY = lerp(initialFullPlayerOffsetY, 0f, (playerContentExpansionFraction.value - 0.25f).coerceIn(0f, 0.75f) / 0.75f),
-                playerAreaElevation = lerp(2.dp, 12.dp, playerContentExpansionFraction.value),
-                miniAlpha = (1f - playerContentExpansionFraction.value * 2f).coerceIn(0f, 1f),
-                dimLayerAlpha = if (predictiveBackCollapseProgress > 0f && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                    lerp(playerContentExpansionFraction.value, 0f, predictiveBackCollapseProgress)
+                fraction = expansionFraction,
+                fullPlayerContentAlpha = clampedFullAlphaFraction,
+                fullPlayerTranslationY = lerp(initialFullPlayerOffsetY, 0f, clampedFullAlphaFraction),
+                playerAreaElevation = lerp(2.dp, 12.dp, expansionFraction),
+                miniAlpha = (1f - expansionFraction * 2f).coerceIn(0f, 1f),
+                dimLayerAlpha = if (predictiveCollapse > 0f && isExpandedState) {
+                    lerp(expansionFraction, 0f, predictiveCollapse)
                 } else {
-                    playerContentExpansionFraction.value
+                    expansionFraction
                 },
-                bottomPadding = if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                    lerp(0.dp, collapsedStateHorizontalPadding, predictiveBackCollapseProgress)
+                bottomPadding = if (predictiveCollapse > 0f && showPlayerContentArea && isExpandedState) {
+                    lerp(0.dp, collapsedStateHorizontalPadding, predictiveCollapse)
                 } else {
                     0.dp
                 },
                 contentAreaHeightDp = if (showPlayerContentArea) {
-                    lerp(MiniPlayerHeight, containerHeight, playerContentExpansionFraction.value)
+                    lerp(MiniPlayerHeight, containerHeight, expansionFraction)
                 } else {
                     0.dp
                 },
@@ -421,14 +426,14 @@ fun UnifiedPlayerSheet(
                         lerp(
                             totalSheetHeightWhenContentCollapsedPx,
                             screenHeightPx,
-                            playerContentExpansionFraction.value
+                            expansionFraction
                         )
                     } else {
                         0f
                     }
                     (totalSheetHeightPx + shadowSpacePx).toDp()
                 },
-                visualSheetTranslationY = currentSheetTranslationY.value * (1f - predictiveBackCollapseProgress) + (sheetCollapsedTargetY * predictiveBackCollapseProgress),
+                visualSheetTranslationY = currentSheetTranslationY.value * (1f - predictiveCollapse) + (sheetCollapsedTargetY * predictiveCollapse),
                 topCornerRadius = if (showPlayerContentArea) {
                     val collapsedCornerTarget = when {
                         navBarStyle == NavBarStyle.FULL_WIDTH -> 32.dp
@@ -436,10 +441,10 @@ fun UnifiedPlayerSheet(
                         else -> navBarCornerRadius.dp
                     }
 
-                    if (predictiveBackCollapseProgress > 0f && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                        lerp(0.dp, collapsedCornerTarget, predictiveBackCollapseProgress)
+                    if (predictiveCollapse > 0f && isExpandedState) {
+                        lerp(0.dp, collapsedCornerTarget, predictiveCollapse)
                     } else {
-                        lerp(collapsedCornerTarget, 0.dp, playerContentExpansionFraction.value)
+                        lerp(collapsedCornerTarget, 0.dp, expansionFraction)
                     }
                 } else {
                     when {
@@ -451,15 +456,15 @@ fun UnifiedPlayerSheet(
                 bottomCornerRadius = run {
                     val collapsedRadius = if (isNavBarHidden) 60.dp else 12.dp
                     if (navBarStyle == NavBarStyle.FULL_WIDTH) {
-                        lerp(32.dp, 26.dp, playerContentExpansionFraction.value)
+                        lerp(32.dp, 26.dp, expansionFraction)
                     } else {
                         val calculatedNormally =
-                            if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                                lerp(26.dp, collapsedRadius, predictiveBackCollapseProgress)
+                            if (predictiveCollapse > 0f && showPlayerContentArea && isExpandedState) {
+                                lerp(26.dp, collapsedRadius, predictiveCollapse)
                             } else {
                                 if (showPlayerContentArea) {
-                                    if (playerContentExpansionFraction.value < 0.2f) {
-                                        lerp(collapsedRadius, 26.dp, (playerContentExpansionFraction.value / 0.2f).coerceIn(0f, 1f))
+                                    if (expansionFraction < 0.2f) {
+                                        lerp(collapsedRadius, 26.dp, (expansionFraction / 0.2f).coerceIn(0f, 1f))
                                     } else {
                                         26.dp
                                     }
@@ -475,7 +480,7 @@ fun UnifiedPlayerSheet(
                         if (currentSheetContentState == PlayerSheetState.COLLAPSED &&
                             swipeDismissProgress.value > 0f &&
                             showPlayerContentArea &&
-                            playerContentExpansionFraction.value < 0.01f
+                            expansionFraction < 0.01f
                         ) {
                             val baseCollapsedRadius = if (isNavBarHidden) 32.dp else 12.dp
                             lerp(baseCollapsedRadius, navBarCornerRadius.dp, swipeDismissProgress.value)
@@ -487,17 +492,17 @@ fun UnifiedPlayerSheet(
                 horizontalPadding = run {
                     val actualCollapsedPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 14.dp else collapsedStateHorizontalPadding
                     when {
-                        predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED ->
-                            lerp(0.dp, actualCollapsedPadding, predictiveBackCollapseProgress)
+                        predictiveCollapse > 0f && showPlayerContentArea && isExpandedState ->
+                            lerp(0.dp, actualCollapsedPadding, predictiveCollapse)
 
-                        showPlayerContentArea -> lerp(actualCollapsedPadding, 0.dp, playerContentExpansionFraction.value)
+                        showPlayerContentArea -> lerp(actualCollapsedPadding, 0.dp, expansionFraction)
                         else -> actualCollapsedPadding
                     }
                 }
             )
         }
             .conflate()
-            .collect { value = it }
+            .collectLatest { value = it }
     }
 
     var showQueueSheet by remember { mutableStateOf(false) }
