@@ -11,6 +11,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import androidx.core.net.toUri
 import com.theveloper.pixelplay.data.database.AlbumEntity
 import com.theveloper.pixelplay.data.database.ArtistEntity
 import com.theveloper.pixelplay.data.database.MusicDao
@@ -23,6 +24,7 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.concurrent.TimeUnit
 
 @HiltWorker
@@ -146,6 +148,41 @@ class SyncWorker @AssistedInject constructor(
         return Triple(correctedSongs, albums, artists)
     }
 
+    private fun fetchAlbumArtUrisByAlbumId(): Map<Long, String> {
+        val projection = arrayOf(
+            MediaStore.Audio.Albums._ID,
+            MediaStore.Audio.Albums.ALBUM_ART
+        )
+
+        return buildMap {
+            contentResolver.query(
+                MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
+                projection,
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums._ID)
+                val artCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.ALBUM_ART)
+
+                while (cursor.moveToNext()) {
+                    val albumId = cursor.getLong(idCol)
+                    val storedArtPath = cursor.getString(artCol)
+                    val uriString = when {
+                        !storedArtPath.isNullOrBlank() -> File(storedArtPath).toURI().toString()
+                        albumId > 0 -> ContentUris.withAppendedId(
+                            "content://media/external/audio/albumart".toUri(),
+                            albumId
+                        ).toString()
+                        else -> null
+                    }
+
+                    if (uriString != null) put(albumId, uriString)
+                }
+            }
+        }
+    }
+
     private suspend fun fetchAllMusicData(): List<SongEntity> {
         Trace.beginSection("SyncWorker.fetchAllMusicData")
         val songs = mutableListOf<SongEntity>()
@@ -153,6 +190,7 @@ class SyncWorker @AssistedInject constructor(
         // Genre will be "Unknown Genre" or from static genres for now.
 
         val deepScan = inputData.getBoolean(INPUT_FORCE_METADATA, false)
+        val albumArtByAlbumId = if (!deepScan) fetchAlbumArtUrisByAlbumId() else emptyMap()
 
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
@@ -202,9 +240,11 @@ class SyncWorker @AssistedInject constructor(
                     MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id
                 ).toString()
 
-                var albumArtUriString = if (deepScan) {
-                    AlbumArtUtils.getAlbumArtUri(applicationContext, musicDao, filePath, albumId, id, true)
-                } else null
+                var albumArtUriString = albumArtByAlbumId[albumId]
+                if (deepScan) {
+                    albumArtUriString = AlbumArtUtils.getAlbumArtUri(applicationContext, musicDao, filePath, albumId, id, true)
+                        ?: albumArtUriString
+                }
                 val audioMetadata = if (deepScan) getAudioMetadata(musicDao, id, filePath, true) else null
 
                 var title = cursor.getString(titleCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Title" }
