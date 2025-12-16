@@ -288,61 +288,6 @@ class SyncWorker @AssistedInject constructor(
         )
     }
 
-    /**
-     * Legacy preprocessing without multi-artist support (kept for reference).
-     */
-    @Suppress("unused")
-    private fun preProcessAndDeduplicate(songs: List<SongEntity>): Triple<List<SongEntity>, List<AlbumEntity>, List<ArtistEntity>> {
-        // Artist de-duplication
-        val artistMap = mutableMapOf<String, Long>()
-        songs.forEach { song ->
-            if (!artistMap.containsKey(song.artistName)) {
-                artistMap[song.artistName] = song.artistId
-            }
-        }
-
-        // Album de-duplication
-        val albumMap = mutableMapOf<Pair<String, String>, Long>()
-        songs.forEach { song ->
-            val key = Pair(song.albumName, song.artistName)
-            if (!albumMap.containsKey(key)) {
-                albumMap[key] = song.albumId
-            }
-        }
-
-        val correctedSongs = songs.map { song ->
-            val canonicalArtistId = artistMap[song.artistName]!!
-            val canonicalAlbumId = albumMap[Pair(song.albumName, song.artistName)]!!
-            song.copy(artistId = canonicalArtistId, albumId = canonicalAlbumId)
-        }
-
-        // Create unique albums
-        val albums = correctedSongs.groupBy { it.albumId }.map { (albumId, songsInAlbum) ->
-            val firstSong = songsInAlbum.first()
-            AlbumEntity(
-                id = albumId,
-                title = firstSong.albumName,
-                artistName = firstSong.artistName,
-                artistId = firstSong.artistId,
-                albumArtUriString = firstSong.albumArtUriString,
-                songCount = songsInAlbum.size,
-                year = firstSong.year
-            )
-        }
-
-        // Create unique artists
-        val artists = correctedSongs.groupBy { it.artistId }.map { (artistId, songsByArtist) ->
-            val firstSong = songsByArtist.first()
-            ArtistEntity(
-                id = artistId,
-                name = firstSong.artistName,
-                trackCount = songsByArtist.size
-            )
-        }
-
-        return Triple(correctedSongs, albums, artists)
-    }
-
     private fun fetchAlbumArtUrisByAlbumId(): Map<Long, String> {
         val projection = arrayOf(
             MediaStore.Audio.Albums._ID,
