@@ -238,12 +238,7 @@ class SyncWorker @AssistedInject constructor(
             // Update song with primary artist info
             song.copy(
                 artistId = primaryArtistId,
-                artistName = if (artistSeparationEnabled && artistsForSong.size > 1) {
-                    // Keep original combined string for display
-                    song.artistName
-                } else {
-                    primaryArtistName
-                },
+                artistName = primaryArtistName,
                 albumId = canonicalAlbumId
             )
         }
