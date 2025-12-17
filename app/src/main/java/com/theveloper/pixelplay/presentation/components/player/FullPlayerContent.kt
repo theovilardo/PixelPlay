@@ -232,12 +232,22 @@ fun FullPlayerContent(
 
     @Composable
     fun AlbumPlaceholder(height: Dp) {
-        PlaceholderBox(
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(height),
-            cornerRadius = 28.dp
-        )
+            shape = RoundedCornerShape(28.dp),
+            color = placeholderColor,
+            tonalElevation = 0.dp
+        ) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                Icon(
+                    painter = painterResource(R.drawable.rounded_music_note_24),
+                    contentDescription = null,
+                    tint = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.4f)
+                )
+            }
+        }
     }
 
     @Composable
@@ -261,7 +271,8 @@ fun FullPlayerContent(
                 .padding(horizontal = 10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            PlaceholderBox(modifier = Modifier.fillMaxWidth().height(12.dp), cornerRadius = 12.dp)
+            PlaceholderBox(modifier = Modifier.fillMaxWidth().height(10.dp), cornerRadius = 10.dp, color = placeholderOnColor)
+            PlaceholderBox(modifier = Modifier.fillMaxWidth().height(6.dp), cornerRadius = 6.dp)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
