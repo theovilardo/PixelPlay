@@ -255,6 +255,7 @@ fun FullPlayerContent(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(min = 70.dp)
                 .padding(horizontal = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -265,57 +266,71 @@ fun FullPlayerContent(
 
     @Composable
     fun ProgressPlaceholder() {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .heightIn(min = 70.dp)
         ) {
-            PlaceholderBox(modifier = Modifier.fillMaxWidth().height(10.dp), cornerRadius = 10.dp, color = placeholderOnColor)
-            PlaceholderBox(modifier = Modifier.fillMaxWidth().height(6.dp), cornerRadius = 6.dp)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.Center)
+                    .padding(horizontal = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                PlaceholderBox(modifier = Modifier.width(40.dp).height(12.dp), cornerRadius = 6.dp, color = placeholderOnColor)
-                PlaceholderBox(modifier = Modifier.width(40.dp).height(12.dp), cornerRadius = 6.dp, color = placeholderOnColor)
+                PlaceholderBox(modifier = Modifier.fillMaxWidth().height(10.dp), cornerRadius = 10.dp, color = placeholderOnColor)
+                PlaceholderBox(modifier = Modifier.fillMaxWidth().height(6.dp), cornerRadius = 6.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    PlaceholderBox(modifier = Modifier.width(40.dp).height(12.dp), cornerRadius = 6.dp, color = placeholderOnColor)
+                    PlaceholderBox(modifier = Modifier.width(40.dp).height(12.dp), cornerRadius = 6.dp, color = placeholderOnColor)
+                }
             }
         }
     }
 
     @Composable
     fun ControlsPlaceholder() {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .height(174.dp)
         ) {
-            Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-                listOf(44.dp, 64.dp, 44.dp).forEach { size ->
-                    PlaceholderBox(
-                        modifier = Modifier
-                            .size(size),
-                        cornerRadius = size / 2
-                    )
-                }
-            }
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 48.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
+                    .align(Alignment.Center)
+                    .padding(horizontal = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                repeat(3) {
-                    PlaceholderBox(
-                        modifier = Modifier
-                            .width(70.dp)
-                            .height(32.dp),
-                        cornerRadius = 12.dp,
-                        color = placeholderOnColor
-                    )
+                Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
+                    listOf(44.dp, 64.dp, 44.dp).forEach { size ->
+                        PlaceholderBox(
+                            modifier = Modifier
+                                .size(size),
+                            cornerRadius = size / 2
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    repeat(3) {
+                        PlaceholderBox(
+                            modifier = Modifier
+                                .width(70.dp)
+                                .height(32.dp),
+                            cornerRadius = 12.dp,
+                            color = placeholderOnColor
+                        )
+                    }
                 }
             }
         }
