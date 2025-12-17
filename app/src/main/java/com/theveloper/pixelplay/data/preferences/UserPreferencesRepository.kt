@@ -95,6 +95,7 @@ class UserPreferencesRepository @Inject constructor(
         val CROSSFADE_DURATION = intPreferencesKey("crossfade_duration")
         val DISABLE_CAST_AUTOPLAY = booleanPreferencesKey("disable_cast_autoplay")
         val PLAYER_CONTENT_REVEAL_DELAY_MS = intPreferencesKey("player_content_reveal_delay_ms")
+        val PLAYER_CONTENT_REVEAL_ON_FULLY_EXPANDED = booleanPreferencesKey("player_content_reveal_on_fully_expanded")
     }
 
     val appRebrandDialogShownFlow: Flow<Boolean> = dataStore.data
@@ -132,6 +133,15 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setPlayerContentRevealDelayMs(delayMs: Int) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.PLAYER_CONTENT_REVEAL_DELAY_MS] = delayMs
+        }
+    }
+
+    val playerContentRevealOnFullyExpandedFlow: Flow<Boolean> = dataStore.data
+        .map { preferences -> preferences[PreferencesKeys.PLAYER_CONTENT_REVEAL_ON_FULLY_EXPANDED] ?: false }
+
+    suspend fun setPlayerContentRevealOnFullyExpanded(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.PLAYER_CONTENT_REVEAL_ON_FULLY_EXPANDED] = enabled
         }
     }
 

@@ -35,6 +35,7 @@ data class SettingsUiState(
     val isCrossfadeEnabled: Boolean = true,
     val crossfadeDuration: Int = 6000,
     val playerContentRevealDelayMs: Int = 0,
+    val playerContentRevealOnFullyExpanded: Boolean = false,
     val blockedDirectories: Set<String> = emptySet(),
     val availableModels: List<GeminiModel> = emptyList(),
     val isLoadingModels: Boolean = false,
@@ -167,6 +168,12 @@ class SettingsViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            userPreferencesRepository.playerContentRevealOnFullyExpandedFlow.collect { enabled ->
+                _uiState.update { it.copy(playerContentRevealOnFullyExpanded = enabled) }
+            }
+        }
+
+        viewModelScope.launch {
             userPreferencesRepository.blockedDirectoriesFlow.collect { blocked ->
                 _uiState.update { it.copy(blockedDirectories = blocked) }
             }
@@ -276,6 +283,12 @@ class SettingsViewModel @Inject constructor(
     fun setPlayerContentRevealDelay(delayMs: Int) {
         viewModelScope.launch {
             userPreferencesRepository.setPlayerContentRevealDelayMs(delayMs)
+        }
+    }
+
+    fun setPlayerContentRevealOnFullyExpanded(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setPlayerContentRevealOnFullyExpanded(enabled)
         }
     }
 

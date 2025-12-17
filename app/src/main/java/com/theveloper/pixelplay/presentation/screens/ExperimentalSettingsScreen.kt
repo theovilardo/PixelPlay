@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -176,11 +177,40 @@ fun ExperimentalSettingsScreen(
                             .background(color = Color.Transparent, shape = RoundedCornerShape(24.dp))
                             .clip(shape = RoundedCornerShape(24.dp))
                     ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = "Reveal only when fully expanded",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Wait until the background reaches full height before drawing player UI.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = uiState.playerContentRevealOnFullyExpanded,
+                                onCheckedChange = { settingsViewModel.setPlayerContentRevealOnFullyExpanded(it) }
+                            )
+                        }
+
                         SliderSettingsItem(
                             label = "Content Reveal Delay",
                             value = uiState.playerContentRevealDelayMs.toFloat(),
                             valueRange = 0f..800f,
                             stepSize = 50f,
+                            enabled = !uiState.playerContentRevealOnFullyExpanded,
                             onValueChange = { settingsViewModel.setPlayerContentRevealDelay(it.roundToInt()) },
                             valueText = { value ->
                                 val rounded = value.roundToInt()

@@ -113,6 +113,8 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
@@ -184,6 +186,7 @@ fun UnifiedPlayerSheet(
     val navBarStyle by playerViewModel.navBarStyle.collectAsState()
     val carouselStyle by playerViewModel.carouselStyle.collectAsState()
     val playerContentRevealDelayMs by playerViewModel.playerContentRevealDelayMs.collectAsState()
+    val revealOnFullyExpanded by playerViewModel.playerContentRevealOnFullyExpanded.collectAsState()
     LaunchedEffect(stablePlayerState.currentSong?.id) {
         if (stablePlayerState.currentSong != null) {
             prewarmFullPlayer = true
@@ -286,12 +289,26 @@ fun UnifiedPlayerSheet(
     }
 
     var contentRevealReady by remember {
-        mutableStateOf(playerContentRevealDelayMs == 0)
+        mutableStateOf(!revealOnFullyExpanded && playerContentRevealDelayMs == 0)
     }
 
-    LaunchedEffect(expansionActive, playerContentRevealDelayMs) {
+    LaunchedEffect(expansionActive, playerContentRevealDelayMs, revealOnFullyExpanded) {
         if (!expansionActive) {
-            contentRevealReady = playerContentRevealDelayMs == 0
+            contentRevealReady = !revealOnFullyExpanded && playerContentRevealDelayMs == 0
+            return@LaunchedEffect
+        }
+
+        if (revealOnFullyExpanded) {
+            if (playerContentExpansionFraction.value >= 0.995f) {
+                contentRevealReady = true
+            } else {
+                contentRevealReady = false
+                snapshotFlow { playerContentExpansionFraction.value }
+                    .map { it >= 0.995f }
+                    .filter { it }
+                    .first()
+                contentRevealReady = true
+            }
             return@LaunchedEffect
         }
 

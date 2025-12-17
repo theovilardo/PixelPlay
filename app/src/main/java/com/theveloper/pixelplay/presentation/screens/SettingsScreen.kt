@@ -1226,7 +1226,8 @@ fun SliderSettingsItem(
     valueRange: ClosedFloatingPointRange<Float>,
     onValueChange: (Float) -> Unit,
     valueText: (Float) -> String,
-    stepSize: Float? = null
+    stepSize: Float? = null,
+    enabled: Boolean = true
 ) {
     var sliderValue by remember(value) { mutableStateOf(value) }
 
@@ -1272,10 +1273,11 @@ fun SliderSettingsItem(
 
             Slider(
                 value = sliderValue,
-                onValueChange = { sliderValue = it },
-                onValueChangeFinished = { onValueChange(sliderValue) },
+                onValueChange = { if (enabled) sliderValue = it },
+                onValueChangeFinished = { if (enabled) onValueChange(sliderValue) },
                 valueRange = valueRange,
                 steps = steps,
+                enabled = enabled,
                 modifier = Modifier.fillMaxWidth()
             )
         }
