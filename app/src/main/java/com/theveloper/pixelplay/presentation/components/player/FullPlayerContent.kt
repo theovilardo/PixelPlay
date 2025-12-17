@@ -213,10 +213,14 @@ fun FullPlayerContent(
     fun isComponentReady(toggle: Boolean) = !shouldDelay(toggle) || isBackgroundFullyExpanded
 
     @Composable
+    val placeholderColor = LocalMaterialTheme.current.primaryContainer.copy(alpha = 0.28f)
+    val placeholderOnColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.16f)
+
+    @Composable
     fun PlaceholderBox(
         modifier: Modifier,
         cornerRadius: Dp = 12.dp,
-        color: Color = LocalMaterialTheme.current.surfaceVariant.copy(alpha = 0.35f)
+        color: Color = placeholderColor
     ) {
         Surface(
             modifier = modifier,
@@ -224,6 +228,86 @@ fun FullPlayerContent(
             color = color,
             tonalElevation = 0.dp
         ) {}
+    }
+
+    @Composable
+    fun AlbumPlaceholder(height: Dp) {
+        PlaceholderBox(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(height),
+            cornerRadius = 28.dp
+        )
+    }
+
+    @Composable
+    fun MetadataPlaceholder() {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            PlaceholderBox(modifier = Modifier.fillMaxWidth().height(20.dp), cornerRadius = 8.dp)
+            PlaceholderBox(modifier = Modifier.fillMaxWidth(0.55f).height(16.dp), cornerRadius = 8.dp, color = placeholderOnColor)
+        }
+    }
+
+    @Composable
+    fun ProgressPlaceholder() {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            PlaceholderBox(modifier = Modifier.fillMaxWidth().height(12.dp), cornerRadius = 12.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                PlaceholderBox(modifier = Modifier.width(40.dp).height(12.dp), cornerRadius = 6.dp, color = placeholderOnColor)
+                PlaceholderBox(modifier = Modifier.width(40.dp).height(12.dp), cornerRadius = 6.dp, color = placeholderOnColor)
+            }
+        }
+    }
+
+    @Composable
+    fun ControlsPlaceholder() {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
+                listOf(44.dp, 64.dp, 44.dp).forEach { size ->
+                    PlaceholderBox(
+                        modifier = Modifier
+                            .size(size),
+                        cornerRadius = size / 2
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                repeat(3) {
+                    PlaceholderBox(
+                        modifier = Modifier
+                            .width(70.dp)
+                            .height(32.dp),
+                        cornerRadius = 12.dp,
+                        color = placeholderOnColor
+                    )
+                }
+            }
+        }
     }
 
     // Lógica para el botón de Lyrics en el reproductor expandido
@@ -322,11 +406,7 @@ fun FullPlayerContent(
                         )
                     }
                 } else if (placeholdersEnabled && shouldDelay(loadingTweaks.delayAlbumCarousel)) {
-                    PlaceholderBox(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(carouselHeight)
-                    )
+                    AlbumPlaceholder(height = carouselHeight)
                 }
             }
         }
@@ -378,12 +458,7 @@ fun FullPlayerContent(
                     ControlsSection()
                 }
             } else if (placeholdersEnabled && shouldDelay(loadingTweaks.delayControls)) {
-                PlaceholderBox(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(140.dp),
-                    cornerRadius = 20.dp
-                )
+                ControlsPlaceholder()
             }
         }
     }
@@ -408,12 +483,7 @@ fun FullPlayerContent(
                     progressThreshold = progressThreshold
                 )
             } else if (placeholdersEnabled && shouldDelay(loadingTweaks.delayProgressBar)) {
-                PlaceholderBox(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 70.dp),
-                    cornerRadius = 16.dp
-                )
+                ProgressPlaceholder()
             }
         }
     }
@@ -423,9 +493,9 @@ fun FullPlayerContent(
         val metadataThreshold = delayThreshold(0.20f, loadingTweaks.delaySongMetadata)
         val metadataReady = expansionFraction >= metadataThreshold || !shouldDelay(loadingTweaks.delaySongMetadata)
 
-        Crossfade(targetState = metadataReady, label = "MetadataSectionCrossfade") { ready ->
-            if (ready) {
-                SongMetadataDisplaySection(
+            Crossfade(targetState = metadataReady, label = "MetadataSectionCrossfade") { ready ->
+                if (ready) {
+                    SongMetadataDisplaySection(
                     modifier = Modifier
                         .padding(start = 0.dp),
                     onClickLyrics = onLyricsClick,
@@ -443,11 +513,7 @@ fun FullPlayerContent(
                     metadataThreshold = metadataThreshold
                 )
             } else if (placeholdersEnabled && shouldDelay(loadingTweaks.delaySongMetadata)) {
-                PlaceholderBox(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 64.dp)
-                )
+                MetadataPlaceholder()
             }
         }
     }
