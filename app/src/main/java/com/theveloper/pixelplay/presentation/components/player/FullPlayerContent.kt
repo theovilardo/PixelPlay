@@ -89,6 +89,7 @@ import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
+import com.theveloper.pixelplay.data.preferences.FullPlayerLoadingTweaks
 import com.theveloper.pixelplay.presentation.components.AlbumCarouselSection
 import com.theveloper.pixelplay.presentation.components.AutoScrollingTextOnDemand
 import com.theveloper.pixelplay.presentation.components.LocalMaterialTheme
@@ -126,6 +127,7 @@ fun FullPlayerContent(
     expansionFraction: Float,
     currentSheetState: PlayerSheetState,
     carouselStyle: String,
+    loadingTweaks: FullPlayerLoadingTweaks,
     playerViewModel: PlayerViewModel, // For stable state like totalDuration and lyrics
     // State Providers
     currentPositionProvider: () -> Long,
@@ -202,6 +204,13 @@ fun FullPlayerContent(
     val isLandscape =
         LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
+    val fullyExpandedThreshold = 0.995f
+    val isBackgroundFullyExpanded = currentSheetState == PlayerSheetState.EXPANDED && expansionFraction >= fullyExpandedThreshold
+
+    fun shouldDelay(toggle: Boolean) = loadingTweaks.delayAll || toggle
+    fun delayThreshold(base: Float, toggle: Boolean) = if (shouldDelay(toggle)) fullyExpandedThreshold else base
+    fun isComponentReady(toggle: Boolean) = !shouldDelay(toggle) || isBackgroundFullyExpanded
+
     // Lógica para el botón de Lyrics en el reproductor expandido
     val onLyricsClick = {
         val lyrics = stablePlayerState.lyrics
@@ -274,7 +283,7 @@ fun FullPlayerContent(
                 else -> maxWidth * 0.8f
             }
 
-            DeferAt(expansionFraction, 0.34f) {
+            DeferAt(expansionFraction, delayThreshold(0.34f, loadingTweaks.delayAlbumCarousel)) {
                 AlbumCarouselSection(
                     currentSong = song,
                     queue = currentPlaybackQueue,
@@ -333,7 +342,7 @@ fun FullPlayerContent(
     }
 
     @Composable
-    fun PlayerProgressSection() {
+    fun PlayerProgressSection(progressThreshold: Float) {
         PlayerProgressBarSection(
             currentPositionProvider = currentPositionProvider,
             totalDurationValue = totalDurationValue,
@@ -344,12 +353,14 @@ fun FullPlayerContent(
             activeTrackColor = LocalMaterialTheme.current.primary,
             inactiveTrackColor = LocalMaterialTheme.current.primary.copy(alpha = 0.2f),
             thumbColor = LocalMaterialTheme.current.primary,
-            timeTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f)
+            timeTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f),
+            progressThreshold = progressThreshold
         )
     }
 
     @Composable
     fun SongMetadataSection() {
+        if (!isComponentReady(loadingTweaks.delaySongMetadata)) return
         SongMetadataDisplaySection(
             modifier = Modifier
                 .padding(start = 0.dp),
@@ -364,7 +375,8 @@ fun FullPlayerContent(
             onClickQueue = {
                 showSongInfoBottomSheet = true
                 onShowQueueClicked()
-            }
+            },
+            metadataThreshold = delayThreshold(0.20f, loadingTweaks.delaySongMetadata)
         )
     }
 
@@ -381,7 +393,7 @@ fun FullPlayerContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceAround
         ) {
-            DeferAt(expansionFraction, 0.08f) {
+            DeferAt(expansionFraction, delayThreshold(0.08f, loadingTweaks.delayAlbumCarousel)) {
                 PrefetchAlbumNeighborsImg(
                     current = currentSong,
                     queue = currentPlaybackQueue,
@@ -395,11 +407,11 @@ fun FullPlayerContent(
                 SongMetadataSection()
             }
 
-            DeferAt(expansionFraction, 0.32f) {
-                PlayerProgressSection()
+            DeferAt(expansionFraction, delayThreshold(0.32f, loadingTweaks.delayProgressBar)) {
+                PlayerProgressSection(delayThreshold(0.08f, loadingTweaks.delayProgressBar))
             }
 
-            DeferAt(expansionFraction, 0.42f) {
+            DeferAt(expansionFraction, delayThreshold(0.42f, loadingTweaks.delayControls)) {
                 ControlsSection()
             }
         }
@@ -435,10 +447,10 @@ fun FullPlayerContent(
                 verticalArrangement = Arrangement.SpaceEvenly
             ) {
                 SongMetadataSection()
-                DeferAt(expansionFraction, 0.05f) {
-                    PlayerProgressSection()
+                DeferAt(expansionFraction, delayThreshold(0.05f, loadingTweaks.delayProgressBar)) {
+                    PlayerProgressSection(delayThreshold(0.08f, loadingTweaks.delayProgressBar))
                 }
-                DeferAt(expansionFraction, 0.05f) {
+                DeferAt(expansionFraction, delayThreshold(0.05f, loadingTweaks.delayControls)) {
                     ControlsSection()
                 }
             }
@@ -745,6 +757,7 @@ private fun SongMetadataDisplaySection(
     onClickLyrics: () -> Unit,
     showQueueButton: Boolean,
     onClickQueue: () -> Unit,
+    metadataThreshold: Float,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -754,7 +767,7 @@ private fun SongMetadataDisplaySection(
         horizontalArrangement = Arrangement.Absolute.SpaceBetween
     ) {
         song?.let { currentSong ->
-            DeferAt(expansionFraction, 0.20f) {
+            DeferAt(expansionFraction, metadataThreshold) {
                 PlayerSongInfo(
                     title = currentSong.title,
                     artist = currentSong.artist,
@@ -862,6 +875,7 @@ private fun PlayerProgressBarSection(
     inactiveTrackColor: Color,
     thumbColor: Color,
     timeTextColor: Color,
+    progressThreshold: Float,
     modifier: Modifier = Modifier
 ) {
     val isExpanded = currentSheetState == PlayerSheetState.EXPANDED &&
@@ -910,7 +924,7 @@ private fun PlayerProgressBarSection(
             .graphicsLayer { alpha = expansionFraction }
             .heightIn(min = 70.dp)
     ) {
-        DeferAt(expansionFraction = expansionFraction, threshold = 0.08f) {
+        DeferAt(expansionFraction = expansionFraction, threshold = progressThreshold) {
             WavyMusicSlider(
                 value = effectiveProgress,
                 onValueChange = { newValue -> sliderDragValue = newValue },

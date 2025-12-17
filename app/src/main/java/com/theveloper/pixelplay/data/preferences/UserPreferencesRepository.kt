@@ -14,6 +14,7 @@ import com.theveloper.pixelplay.data.model.Playlist
 import com.theveloper.pixelplay.data.model.SortOption // Added import
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.model.TransitionSettings
+import com.theveloper.pixelplay.data.preferences.FullPlayerLoadingTweaks
 import dagger.hilt.android.qualifiers.ApplicationContext
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.lifecycle.viewModelScope
@@ -94,6 +95,11 @@ class UserPreferencesRepository @Inject constructor(
         val IS_CROSSFADE_ENABLED = booleanPreferencesKey("is_crossfade_enabled")
         val CROSSFADE_DURATION = intPreferencesKey("crossfade_duration")
         val DISABLE_CAST_AUTOPLAY = booleanPreferencesKey("disable_cast_autoplay")
+        val FULL_PLAYER_DELAY_ALL = booleanPreferencesKey("full_player_delay_all")
+        val FULL_PLAYER_DELAY_ALBUM = booleanPreferencesKey("full_player_delay_album")
+        val FULL_PLAYER_DELAY_METADATA = booleanPreferencesKey("full_player_delay_metadata")
+        val FULL_PLAYER_DELAY_PROGRESS = booleanPreferencesKey("full_player_delay_progress")
+        val FULL_PLAYER_DELAY_CONTROLS = booleanPreferencesKey("full_player_delay_controls")
     }
 
     val appRebrandDialogShownFlow: Flow<Boolean> = dataStore.data
@@ -207,6 +213,17 @@ class UserPreferencesRepository @Inject constructor(
 
     val disableCastAutoplayFlow: Flow<Boolean> = dataStore.data
         .map { preferences -> preferences[PreferencesKeys.DISABLE_CAST_AUTOPLAY] ?: false }
+
+    val fullPlayerLoadingTweaksFlow: Flow<FullPlayerLoadingTweaks> = dataStore.data
+        .map { preferences ->
+            FullPlayerLoadingTweaks(
+                delayAll = preferences[PreferencesKeys.FULL_PLAYER_DELAY_ALL] ?: false,
+                delayAlbumCarousel = preferences[PreferencesKeys.FULL_PLAYER_DELAY_ALBUM] ?: false,
+                delaySongMetadata = preferences[PreferencesKeys.FULL_PLAYER_DELAY_METADATA] ?: false,
+                delayProgressBar = preferences[PreferencesKeys.FULL_PLAYER_DELAY_PROGRESS] ?: false,
+                delayControls = preferences[PreferencesKeys.FULL_PLAYER_DELAY_CONTROLS] ?: false
+            )
+        }
 
     val favoriteSongIdsFlow: Flow<Set<String>> = dataStore.data // Nuevo flujo para favoritos
         .map { preferences ->
@@ -713,6 +730,36 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setDisableCastAutoplay(disabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.DISABLE_CAST_AUTOPLAY] = disabled
+        }
+    }
+
+    suspend fun setDelayAllFullPlayerContent(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.FULL_PLAYER_DELAY_ALL] = enabled
+        }
+    }
+
+    suspend fun setDelayAlbumCarousel(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.FULL_PLAYER_DELAY_ALBUM] = enabled
+        }
+    }
+
+    suspend fun setDelaySongMetadata(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.FULL_PLAYER_DELAY_METADATA] = enabled
+        }
+    }
+
+    suspend fun setDelayProgressBar(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.FULL_PLAYER_DELAY_PROGRESS] = enabled
+        }
+    }
+
+    suspend fun setDelayControls(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.FULL_PLAYER_DELAY_CONTROLS] = enabled
         }
     }
 

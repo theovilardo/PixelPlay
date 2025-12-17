@@ -24,6 +24,7 @@ import com.theveloper.pixelplay.presentation.screens.AlbumDetailScreen
 import com.theveloper.pixelplay.presentation.screens.ArtistDetailScreen
 import com.theveloper.pixelplay.presentation.screens.DailyMixScreen
 import com.theveloper.pixelplay.presentation.screens.EditTransitionScreen
+import com.theveloper.pixelplay.presentation.screens.ExperimentalSettingsScreen
 import com.theveloper.pixelplay.presentation.screens.GenreDetailScreen
 import com.theveloper.pixelplay.presentation.screens.HomeScreen
 import com.theveloper.pixelplay.presentation.screens.LibraryScreen
@@ -100,6 +101,19 @@ fun AppNavigation(
                     onNavigationIconClick = {
                         navController.popBackStack()
                     }
+                )
+            }
+            composable(
+                Screen.Experimental.route,
+                enterTransition = { enterTransition() },
+                exitTransition = { exitTransition() },
+                popEnterTransition = { enterTransition() },
+                popExitTransition = { exitTransition() },
+            ) {
+                ExperimentalSettingsScreen(
+                    navController = navController,
+                    playerViewModel = playerViewModel,
+                    onNavigationIconClick = { navController.popBackStack() }
                 )
             }
             composable(
