@@ -25,9 +25,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.LinearScale
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Style
+import androidx.compose.material.icons.rounded.LinearScale
 import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Rectangle
+import androidx.compose.material.icons.rounded.Title
+import androidx.compose.material.icons.rounded.ViewCarousel
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -60,7 +65,7 @@ import kotlin.math.roundToInt
 
 @Composable
 fun ExperimentalSettingsScreen(
-    _navController: NavController,
+    navController: NavController,
     playerViewModel: PlayerViewModel,
     onNavigationIconClick: () -> Unit,
     settingsViewModel: SettingsViewModel = hiltViewModel()
@@ -180,7 +185,8 @@ fun ExperimentalSettingsScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(horizontal = 4.dp),
+                                //.padding(horizontal = 4.dp)
+                            ,
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             SwitchSettingItem(
@@ -204,7 +210,7 @@ fun ExperimentalSettingsScreen(
                                 onCheckedChange = settingsViewModel::setDelayAlbumCarousel,
                                 leadingIcon = {
                                     Icon(
-                                        imageVector = Icons.Rounded.MusicNote,
+                                        imageVector = Icons.Rounded.ViewCarousel,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.secondary
                                     )
@@ -218,7 +224,7 @@ fun ExperimentalSettingsScreen(
                                 onCheckedChange = settingsViewModel::setDelaySongMetadata,
                                 leadingIcon = {
                                     Icon(
-                                        imageVector = Icons.Rounded.Visibility,
+                                        imageVector = Icons.Rounded.LinearScale,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.secondary
                                     )
@@ -232,7 +238,7 @@ fun ExperimentalSettingsScreen(
                                 onCheckedChange = settingsViewModel::setDelayProgressBar,
                                 leadingIcon = {
                                     Icon(
-                                        imageVector = Icons.Outlined.PlayCircle,
+                                        imageVector = Icons.Outlined.LinearScale,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.secondary
                                     )
@@ -260,7 +266,7 @@ fun ExperimentalSettingsScreen(
                                 onCheckedChange = settingsViewModel::setFullPlayerPlaceholders,
                                 leadingIcon = {
                                     Icon(
-                                        imageVector = Icons.Rounded.Visibility,
+                                        imageVector = Icons.Rounded.Rectangle,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.secondary
                                     )
