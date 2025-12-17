@@ -16,6 +16,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDp
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -182,6 +183,7 @@ fun UnifiedPlayerSheet(
     val navBarCornerRadius by playerViewModel.navBarCornerRadius.collectAsState()
     val navBarStyle by playerViewModel.navBarStyle.collectAsState()
     val carouselStyle by playerViewModel.carouselStyle.collectAsState()
+    val playerContentRevealDelayMs by playerViewModel.playerContentRevealDelayMs.collectAsState()
     LaunchedEffect(stablePlayerState.currentSong?.id) {
         if (stablePlayerState.currentSong != null) {
             prewarmFullPlayer = true
@@ -277,6 +279,42 @@ fun UnifiedPlayerSheet(
         derivedStateOf {
             lerp(initialFullPlayerOffsetY, 0f, fullPlayerContentAlpha)
         }
+    }
+
+    val expansionActive by remember {
+        derivedStateOf { playerContentExpansionFraction.value > 0.02f }
+    }
+
+    var contentRevealReady by remember {
+        mutableStateOf(playerContentRevealDelayMs == 0)
+    }
+
+    LaunchedEffect(expansionActive, playerContentRevealDelayMs) {
+        if (!expansionActive) {
+            contentRevealReady = playerContentRevealDelayMs == 0
+            return@LaunchedEffect
+        }
+
+        if (playerContentRevealDelayMs <= 0) {
+            contentRevealReady = true
+            return@LaunchedEffect
+        }
+
+        if (contentRevealReady) return@LaunchedEffect
+
+        contentRevealReady = false
+        delay(playerContentRevealDelayMs.toLong())
+        contentRevealReady = true
+    }
+
+    val contentRevealProgress by animateFloatAsState(
+        targetValue = if (contentRevealReady) 1f else 0f,
+        animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing),
+        label = "fullPlayerContentReveal"
+    )
+
+    val gatedFullPlayerContentAlpha by remember(fullPlayerContentAlpha, contentRevealProgress) {
+        derivedStateOf { fullPlayerContentAlpha * contentRevealProgress }
     }
 
     suspend fun animatePlayerSheet(
@@ -1150,7 +1188,7 @@ fun UnifiedPlayerSheet(
                                         }
                                     }
 
-                                    if (fullPlayerContentAlpha > 0f) {
+                                    if (gatedFullPlayerContentAlpha > 0f) {
                                         CompositionLocalProvider(
                                             LocalMaterialTheme provides (albumColorScheme
                                                 ?: MaterialTheme.colorScheme)
@@ -1165,7 +1203,7 @@ fun UnifiedPlayerSheet(
                                                 }
                                             }
                                             Box(modifier = Modifier.graphicsLayer {
-                                                alpha = fullPlayerContentAlpha
+                                                alpha = gatedFullPlayerContentAlpha
                                                 translationY = fullPlayerTranslationY
                                                 scaleX = fullPlayerScale
                                                 scaleY = fullPlayerScale

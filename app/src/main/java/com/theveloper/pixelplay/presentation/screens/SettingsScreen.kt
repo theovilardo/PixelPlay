@@ -137,7 +137,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @Composable
-private fun SettingsTopBar(
+fun SettingsTopBar(
     collapseFraction: Float,
     headerHeight: Dp,
     onBackPressed: () -> Unit
@@ -701,6 +701,26 @@ fun SettingsScreen(
                             },
                             onClick = { playerViewModel.forceUpdateDailyMix() }
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        SettingsItem(
+                            title = "Experimental",
+                            subtitle = "Tune player content reveal delay for low-end devices.",
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.Info,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            },
+                            trailingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronRight,
+                                    contentDescription = "Open experimental settings",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            onClick = { navController.navigate(Screen.Experimental.route) }
+                        )
                     }
                 }
             }
@@ -1205,9 +1225,18 @@ fun SliderSettingsItem(
     value: Float,
     valueRange: ClosedFloatingPointRange<Float>,
     onValueChange: (Float) -> Unit,
-    valueText: (Float) -> String
+    valueText: (Float) -> String,
+    stepSize: Float? = null
 ) {
     var sliderValue by remember(value) { mutableStateOf(value) }
+
+    val steps = remember(stepSize, valueRange) {
+        val rawSteps = stepSize?.takeIf { it > 0 }?.let {
+            ((valueRange.endInclusive - valueRange.start) / it).toInt() - 1
+        } ?: ((valueRange.endInclusive - valueRange.start) / 500).toInt() - 1
+
+        rawSteps.coerceAtLeast(0)
+    }
 
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
@@ -1246,7 +1275,7 @@ fun SliderSettingsItem(
                 onValueChange = { sliderValue = it },
                 onValueChangeFinished = { onValueChange(sliderValue) },
                 valueRange = valueRange,
-                steps = ((valueRange.endInclusive - valueRange.start) / 500).toInt() - 1,
+                steps = steps,
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -1650,4 +1679,3 @@ fun SystemPromptDialog(
         }
     }
 }
-
