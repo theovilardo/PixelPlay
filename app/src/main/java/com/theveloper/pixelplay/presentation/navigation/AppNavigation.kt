@@ -34,6 +34,7 @@ import com.theveloper.pixelplay.presentation.screens.AboutScreen
 import com.theveloper.pixelplay.presentation.screens.SearchScreen
 import com.theveloper.pixelplay.presentation.screens.StatsScreen
 import com.theveloper.pixelplay.presentation.screens.SettingsScreen
+import com.theveloper.pixelplay.presentation.screens.ExperimentalSettingsScreen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 import kotlinx.coroutines.flow.first
@@ -95,6 +96,21 @@ fun AppNavigation(
                 popExitTransition = { exitTransition() },
             ) {
                 SettingsScreen(
+                    navController = navController,
+                    playerViewModel = playerViewModel,
+                    onNavigationIconClick = {
+                        navController.popBackStack()
+                    }
+                )
+            }
+            composable(
+                Screen.Experimental.route,
+                enterTransition = { enterTransition() },
+                exitTransition = { exitTransition() },
+                popEnterTransition = { enterTransition() },
+                popExitTransition = { exitTransition() },
+            ) {
+                ExperimentalSettingsScreen(
                     navController = navController,
                     playerViewModel = playerViewModel,
                     onNavigationIconClick = {

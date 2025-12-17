@@ -9,6 +9,7 @@ sealed class Screen(val route: String) {
     object Search : Screen("search")
     object Library : Screen("library")
     object Settings : Screen("settings") // Nueva pantalla,
+    object Experimental : Screen("settings_experimental")
     object NavBarCrRad : Screen("nav_bar_corner_radius")
     object PlaylistDetail : Screen("playlist_detail/{playlistId}") { // Nueva pantalla
         fun createRoute(playlistId: String) = "playlist_detail/$playlistId"

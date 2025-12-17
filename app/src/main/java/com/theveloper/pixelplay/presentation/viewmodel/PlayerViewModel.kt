@@ -334,6 +334,20 @@ class PlayerViewModel @Inject constructor(
             initialValue = CarouselStyle.ONE_PEEK
         )
 
+    val playerContentRevealDelayMs: StateFlow<Int> = userPreferencesRepository.playerContentRevealDelayMsFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0
+        )
+
+    val playerContentRevealOnFullyExpanded: StateFlow<Boolean> = userPreferencesRepository.playerContentRevealOnFullyExpandedFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = false
+        )
+
     private val disableCastAutoplay: StateFlow<Boolean> = userPreferencesRepository.disableCastAutoplayFlow
         .stateIn(
             scope = viewModelScope,

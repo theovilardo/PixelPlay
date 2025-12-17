@@ -34,6 +34,8 @@ data class SettingsUiState(
     val disableCastAutoplay: Boolean = false,
     val isCrossfadeEnabled: Boolean = true,
     val crossfadeDuration: Int = 6000,
+    val playerContentRevealDelayMs: Int = 0,
+    val playerContentRevealOnFullyExpanded: Boolean = false,
     val blockedDirectories: Set<String> = emptySet(),
     val availableModels: List<GeminiModel> = emptyList(),
     val isLoadingModels: Boolean = false,
@@ -160,6 +162,18 @@ class SettingsViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            userPreferencesRepository.playerContentRevealDelayMsFlow.collect { delayMs ->
+                _uiState.update { it.copy(playerContentRevealDelayMs = delayMs) }
+            }
+        }
+
+        viewModelScope.launch {
+            userPreferencesRepository.playerContentRevealOnFullyExpandedFlow.collect { enabled ->
+                _uiState.update { it.copy(playerContentRevealOnFullyExpanded = enabled) }
+            }
+        }
+
+        viewModelScope.launch {
             userPreferencesRepository.blockedDirectoriesFlow.collect { blocked ->
                 _uiState.update { it.copy(blockedDirectories = blocked) }
             }
@@ -263,6 +277,18 @@ class SettingsViewModel @Inject constructor(
     fun setCrossfadeDuration(duration: Int) {
         viewModelScope.launch {
             userPreferencesRepository.setCrossfadeDuration(duration)
+        }
+    }
+
+    fun setPlayerContentRevealDelay(delayMs: Int) {
+        viewModelScope.launch {
+            userPreferencesRepository.setPlayerContentRevealDelayMs(delayMs)
+        }
+    }
+
+    fun setPlayerContentRevealOnFullyExpanded(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setPlayerContentRevealOnFullyExpanded(enabled)
         }
     }
 
