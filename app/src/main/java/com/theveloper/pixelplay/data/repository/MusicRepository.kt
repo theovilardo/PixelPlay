@@ -122,6 +122,7 @@ interface MusicRepository {
      */
     fun getSong(songId: String): Flow<Song?>
     fun getArtistById(artistId: Long): Flow<Artist?>
+    fun getArtistsForSong(songId: Long): Flow<List<Artist>>
 
     /**
      * Obtiene la lista de géneros, ya sea mockeados o leídos de los metadatos.

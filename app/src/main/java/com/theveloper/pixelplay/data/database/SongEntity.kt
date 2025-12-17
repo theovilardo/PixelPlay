@@ -5,6 +5,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.theveloper.pixelplay.data.model.ArtistRef
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.utils.normalizeMetadataText
 import com.theveloper.pixelplay.utils.normalizeMetadataTextOrEmpty
@@ -39,8 +40,9 @@ import com.theveloper.pixelplay.utils.normalizeMetadataTextOrEmpty
 data class SongEntity(
     @PrimaryKey val id: Long,
     @ColumnInfo(name = "title") val title: String,
-    @ColumnInfo(name = "artist_name") val artistName: String,
-    @ColumnInfo(name = "artist_id") val artistId: Long, // index = true eliminado
+    @ColumnInfo(name = "artist_name") val artistName: String, // Display string (combined or primary)
+    @ColumnInfo(name = "artist_id") val artistId: Long, // Primary artist ID for backward compatibility
+    @ColumnInfo(name = "album_artist") val albumArtist: String? = null, // Album artist from metadata
     @ColumnInfo(name = "album_name") val albumName: String,
     @ColumnInfo(name = "album_id") val albumId: Long, // index = true eliminado
     @ColumnInfo(name = "content_uri_string") val contentUriString: String,
@@ -65,8 +67,10 @@ fun SongEntity.toSong(): Song {
         title = this.title.normalizeMetadataTextOrEmpty(),
         artist = this.artistName.normalizeMetadataTextOrEmpty(),
         artistId = this.artistId,
+        artists = emptyList(), // Will be populated from junction table when needed
         album = this.albumName.normalizeMetadataTextOrEmpty(),
         albumId = this.albumId,
+        albumArtist = this.albumArtist?.normalizeMetadataText(),
         path = this.filePath, // Map the file path
         contentUriString = this.contentUriString,
         albumArtUriString = this.albumArtUriString,
@@ -80,7 +84,44 @@ fun SongEntity.toSong(): Song {
         mimeType = this.mimeType,
         bitrate = this.bitrate,
         sampleRate = this.sampleRate
-        // filePath no está en el modelo Song, se usa internamente en el repo o SSoT
+    )
+}
+
+/**
+ * Converts a SongEntity to Song with artists from the junction table.
+ */
+fun SongEntity.toSongWithArtistRefs(artists: List<ArtistEntity>, crossRefs: List<SongArtistCrossRef>): Song {
+    val artistRefs = artists.map { artist ->
+        val crossRef = crossRefs.find { it.artistId == artist.id }
+        ArtistRef(
+            id = artist.id,
+            name = artist.name.normalizeMetadataTextOrEmpty(),
+            isPrimary = crossRef?.isPrimary ?: false
+        )
+    }.sortedByDescending { it.isPrimary }
+    
+    return Song(
+        id = this.id.toString(),
+        title = this.title.normalizeMetadataTextOrEmpty(),
+        artist = this.artistName.normalizeMetadataTextOrEmpty(),
+        artistId = this.artistId,
+        artists = artistRefs,
+        album = this.albumName.normalizeMetadataTextOrEmpty(),
+        albumId = this.albumId,
+        albumArtist = this.albumArtist?.normalizeMetadataText(),
+        path = this.filePath,
+        contentUriString = this.contentUriString,
+        albumArtUriString = this.albumArtUriString,
+        duration = this.duration,
+        genre = this.genre.normalizeMetadataText(),
+        lyrics = this.lyrics?.normalizeMetadataText(),
+        isFavorite = this.isFavorite,
+        trackNumber = this.trackNumber,
+        dateAdded = this.dateAdded,
+        year = this.year,
+        mimeType = this.mimeType,
+        bitrate = this.bitrate,
+        sampleRate = this.sampleRate
     )
 }
 
@@ -97,6 +138,7 @@ fun Song.toEntity(filePathFromMediaStore: String, parentDirFromMediaStore: Strin
         title = this.title,
         artistName = this.artist,
         artistId = this.artistId,
+        albumArtist = this.albumArtist,
         albumName = this.album,
         albumId = this.albumId,
         contentUriString = this.contentUriString,
@@ -122,6 +164,7 @@ fun Song.toEntityWithoutPaths(): SongEntity {
         title = this.title,
         artistName = this.artist,
         artistId = this.artistId,
+        albumArtist = this.albumArtist,
         albumName = this.album,
         albumId = this.albumId,
         contentUriString = this.contentUriString,

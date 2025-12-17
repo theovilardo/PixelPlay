@@ -131,6 +131,7 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
@@ -146,6 +147,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.sample
@@ -288,6 +291,17 @@ class PlayerViewModel @Inject constructor(
     private val _masterAllSongs = MutableStateFlow<ImmutableList<Song>>(persistentListOf())
     private val _stablePlayerState = MutableStateFlow(StablePlayerState())
     val stablePlayerState: StateFlow<StablePlayerState> = _stablePlayerState.asStateFlow()
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val currentSongArtists: StateFlow<List<Artist>> = stablePlayerState
+        .map { it.currentSong?.id }
+        .distinctUntilChanged()
+        .flatMapLatest { songId ->
+            val idLong = songId?.toLongOrNull()
+            if (idLong == null) flowOf(emptyList())
+            else musicRepository.getArtistsForSong(idLong)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _sheetState = MutableStateFlow(PlayerSheetState.COLLAPSED)
     val sheetState: StateFlow<PlayerSheetState> = _sheetState.asStateFlow()
