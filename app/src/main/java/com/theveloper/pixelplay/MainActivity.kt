@@ -410,7 +410,8 @@ class MainActivity : ComponentActivity() {
                 Screen.NavBarCrRad.route,
                 Screen.About.route,
                 Screen.Stats.route,
-                Screen.EditTransition.route
+                Screen.EditTransition.route,
+                Screen.Experimental.route
             )
         }
         val shouldHideNavigationBar by remember(currentRoute) {

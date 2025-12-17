@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -52,6 +53,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -212,8 +214,7 @@ fun FullPlayerContent(
     fun delayThreshold(base: Float, toggle: Boolean) = if (shouldDelay(toggle)) fullyExpandedThreshold else base
     fun isComponentReady(toggle: Boolean) = !shouldDelay(toggle) || isBackgroundFullyExpanded
 
-    @Composable
-    val placeholderColor = LocalMaterialTheme.current.primaryContainer.copy(alpha = 0.28f)
+    val placeholderColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.28f)
     val placeholderOnColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.16f)
 
     @Composable
@@ -236,13 +237,14 @@ fun FullPlayerContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(height),
-            shape = RoundedCornerShape(28.dp),
-            color = placeholderColor,
+            shape = RoundedCornerShape(18.dp),
+            color = placeholderColor.copy(alpha = 0.25f),
             tonalElevation = 0.dp
         ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                 Icon(
-                    painter = painterResource(R.drawable.rounded_music_note_24),
+                    modifier = Modifier.size(86.dp),
+                    painter = painterResource(R.drawable.pixelplay_base_monochrome),
                     contentDescription = null,
                     tint = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.4f)
                 )
@@ -256,11 +258,12 @@ fun FullPlayerContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 70.dp)
-                .padding(horizontal = 8.dp),
+                .padding(top = 14.dp)
+                .padding(horizontal = 0.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            PlaceholderBox(modifier = Modifier.fillMaxWidth().height(20.dp), cornerRadius = 8.dp)
-            PlaceholderBox(modifier = Modifier.fillMaxWidth(0.55f).height(16.dp), cornerRadius = 8.dp, color = placeholderOnColor)
+            PlaceholderBox(modifier = Modifier.fillMaxWidth().height(20.dp).padding(end = 50.dp), cornerRadius = 60.dp)
+            PlaceholderBox(modifier = Modifier.fillMaxWidth(0.55f).height(16.dp), cornerRadius = 60.dp, color = placeholderOnColor)
         }
     }
 
@@ -270,16 +273,17 @@ fun FullPlayerContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 70.dp)
+                .padding(top = 6.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.Center)
-                    .padding(horizontal = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .padding(horizontal = 2.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                PlaceholderBox(modifier = Modifier.fillMaxWidth().height(10.dp), cornerRadius = 10.dp, color = placeholderOnColor)
-                PlaceholderBox(modifier = Modifier.fillMaxWidth().height(6.dp), cornerRadius = 6.dp)
+                //PlaceholderBox(modifier = Modifier.fillMaxWidth().height(10.dp), cornerRadius = 10.dp, color = placeholderOnColor)
+                PlaceholderBox(modifier = Modifier.fillMaxWidth().height(8.dp), cornerRadius = 6.dp)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -296,42 +300,34 @@ fun FullPlayerContent(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(top = 6.dp)
                 .height(174.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.Center)
-                    .padding(horizontal = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                    .padding(horizontal = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(22.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-                    listOf(44.dp, 64.dp, 44.dp).forEach { size ->
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                    listOf(Pair(80.dp, 94.dp), Pair(80.dp, 94.dp), Pair(80.dp, 94.dp)).forEach { size ->
                         PlaceholderBox(
                             modifier = Modifier
-                                .size(size),
-                            cornerRadius = size / 2
+                                .weight(1f)
+                                .size(width = size.second, height = size.first),
+                            cornerRadius = 60.dp//size / 2
                         )
                     }
                 }
-                Row(
+                PlaceholderBox(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    repeat(3) {
-                        PlaceholderBox(
-                            modifier = Modifier
-                                .width(70.dp)
-                                .height(32.dp),
-                            cornerRadius = 12.dp,
-                            color = placeholderOnColor
-                        )
-                    }
-                }
+                        .width(260.dp)
+                        .height(76.dp),
+                    cornerRadius = 60.dp,
+                    color = placeholderOnColor
+                )
             }
         }
     }
