@@ -206,10 +206,25 @@ fun FullPlayerContent(
 
     val fullyExpandedThreshold = 0.995f
     val isBackgroundFullyExpanded = currentSheetState == PlayerSheetState.EXPANDED && expansionFraction >= fullyExpandedThreshold
+    val placeholdersEnabled = loadingTweaks.showPlaceholders
 
     fun shouldDelay(toggle: Boolean) = loadingTweaks.delayAll || toggle
     fun delayThreshold(base: Float, toggle: Boolean) = if (shouldDelay(toggle)) fullyExpandedThreshold else base
     fun isComponentReady(toggle: Boolean) = !shouldDelay(toggle) || isBackgroundFullyExpanded
+
+    @Composable
+    fun PlaceholderBox(
+        modifier: Modifier,
+        cornerRadius: Dp = 12.dp,
+        color: Color = LocalMaterialTheme.current.surfaceVariant.copy(alpha = 0.35f)
+    ) {
+        Surface(
+            modifier = modifier,
+            shape = RoundedCornerShape(cornerRadius),
+            color = color,
+            tonalElevation = 0.dp
+        ) {}
+    }
 
     // Lógica para el botón de Lyrics en el reproductor expandido
     val onLyricsClick = {
@@ -283,23 +298,36 @@ fun FullPlayerContent(
                 else -> maxWidth * 0.8f
             }
 
-            DeferAt(expansionFraction, delayThreshold(0.34f, loadingTweaks.delayAlbumCarousel)) {
-                AlbumCarouselSection(
-                    currentSong = song,
-                    queue = currentPlaybackQueue,
-                    expansionFraction = expansionFraction,
-                    onSongSelected = { newSong ->
-                        if (newSong.id != song.id) {
-                            playerViewModel.showAndPlaySong(
-                                song = newSong,
-                                contextSongs = currentPlaybackQueue,
-                                queueName = currentQueueSourceName
-                            )
-                        }
-                    },
-                    carouselStyle = carouselStyle,
-                    modifier = Modifier.height(carouselHeight) // Apply calculated height
-                )
+            val albumThreshold = delayThreshold(0.34f, loadingTweaks.delayAlbumCarousel)
+            val albumReady = expansionFraction >= albumThreshold
+
+            Crossfade(targetState = albumReady, label = "AlbumSectionCrossfade") { ready ->
+                if (ready) {
+                    DeferAt(expansionFraction, albumThreshold) {
+                        AlbumCarouselSection(
+                            currentSong = song,
+                            queue = currentPlaybackQueue,
+                            expansionFraction = expansionFraction,
+                            onSongSelected = { newSong ->
+                                if (newSong.id != song.id) {
+                                    playerViewModel.showAndPlaySong(
+                                        song = newSong,
+                                        contextSongs = currentPlaybackQueue,
+                                        queueName = currentQueueSourceName
+                                    )
+                                }
+                            },
+                            carouselStyle = carouselStyle,
+                            modifier = Modifier.height(carouselHeight) // Apply calculated height
+                        )
+                    }
+                } else if (placeholdersEnabled && shouldDelay(loadingTweaks.delayAlbumCarousel)) {
+                    PlaceholderBox(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(carouselHeight)
+                    )
+                }
             }
         }
     }
@@ -342,42 +370,86 @@ fun FullPlayerContent(
     }
 
     @Composable
+    fun ControlsSectionContainer(threshold: Float) {
+        val controlsReady = expansionFraction >= threshold || !shouldDelay(loadingTweaks.delayControls)
+        Crossfade(targetState = controlsReady, label = "ControlsSectionCrossfade") { ready ->
+            if (ready) {
+                DeferAt(expansionFraction, threshold) {
+                    ControlsSection()
+                }
+            } else if (placeholdersEnabled && shouldDelay(loadingTweaks.delayControls)) {
+                PlaceholderBox(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp),
+                    cornerRadius = 20.dp
+                )
+            }
+        }
+    }
+
+    @Composable
     fun PlayerProgressSection(progressThreshold: Float) {
-        PlayerProgressBarSection(
-            currentPositionProvider = currentPositionProvider,
-            totalDurationValue = totalDurationValue,
-            onSeek = onSeek,
-            expansionFraction = expansionFraction,
-            isPlayingProvider = isPlayingProvider,
-            currentSheetState = currentSheetState,
-            activeTrackColor = LocalMaterialTheme.current.primary,
-            inactiveTrackColor = LocalMaterialTheme.current.primary.copy(alpha = 0.2f),
-            thumbColor = LocalMaterialTheme.current.primary,
-            timeTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f),
-            progressThreshold = progressThreshold
-        )
+        val progressReady = expansionFraction >= progressThreshold || !shouldDelay(loadingTweaks.delayProgressBar)
+
+        Crossfade(targetState = progressReady, label = "ProgressSectionCrossfade") { ready ->
+            if (ready) {
+                PlayerProgressBarSection(
+                    currentPositionProvider = currentPositionProvider,
+                    totalDurationValue = totalDurationValue,
+                    onSeek = onSeek,
+                    expansionFraction = expansionFraction,
+                    isPlayingProvider = isPlayingProvider,
+                    currentSheetState = currentSheetState,
+                    activeTrackColor = LocalMaterialTheme.current.primary,
+                    inactiveTrackColor = LocalMaterialTheme.current.primary.copy(alpha = 0.2f),
+                    thumbColor = LocalMaterialTheme.current.primary,
+                    timeTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f),
+                    progressThreshold = progressThreshold
+                )
+            } else if (placeholdersEnabled && shouldDelay(loadingTweaks.delayProgressBar)) {
+                PlaceholderBox(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 70.dp),
+                    cornerRadius = 16.dp
+                )
+            }
+        }
     }
 
     @Composable
     fun SongMetadataSection() {
-        if (!isComponentReady(loadingTweaks.delaySongMetadata)) return
-        SongMetadataDisplaySection(
-            modifier = Modifier
-                .padding(start = 0.dp),
-            onClickLyrics = onLyricsClick,
-            song = song,
-            expansionFraction = expansionFraction,
-            textColor = LocalMaterialTheme.current.onPrimaryContainer,
-            artistTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.8f),
-            playerViewModel = playerViewModel,
-            gradientEdgeColor = LocalMaterialTheme.current.primaryContainer,
-            showQueueButton = isLandscape,
-            onClickQueue = {
-                showSongInfoBottomSheet = true
-                onShowQueueClicked()
-            },
-            metadataThreshold = delayThreshold(0.20f, loadingTweaks.delaySongMetadata)
-        )
+        val metadataThreshold = delayThreshold(0.20f, loadingTweaks.delaySongMetadata)
+        val metadataReady = expansionFraction >= metadataThreshold || !shouldDelay(loadingTweaks.delaySongMetadata)
+
+        Crossfade(targetState = metadataReady, label = "MetadataSectionCrossfade") { ready ->
+            if (ready) {
+                SongMetadataDisplaySection(
+                    modifier = Modifier
+                        .padding(start = 0.dp),
+                    onClickLyrics = onLyricsClick,
+                    song = song,
+                    expansionFraction = expansionFraction,
+                    textColor = LocalMaterialTheme.current.onPrimaryContainer,
+                    artistTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.8f),
+                    playerViewModel = playerViewModel,
+                    gradientEdgeColor = LocalMaterialTheme.current.primaryContainer,
+                    showQueueButton = isLandscape,
+                    onClickQueue = {
+                        showSongInfoBottomSheet = true
+                        onShowQueueClicked()
+                    },
+                    metadataThreshold = metadataThreshold
+                )
+            } else if (placeholdersEnabled && shouldDelay(loadingTweaks.delaySongMetadata)) {
+                PlaceholderBox(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 64.dp)
+                )
+            }
+        }
     }
 
     @Composable
@@ -407,13 +479,11 @@ fun FullPlayerContent(
                 SongMetadataSection()
             }
 
-            DeferAt(expansionFraction, delayThreshold(0.32f, loadingTweaks.delayProgressBar)) {
-                PlayerProgressSection(delayThreshold(0.08f, loadingTweaks.delayProgressBar))
-            }
+            val controlsThreshold = delayThreshold(0.42f, loadingTweaks.delayControls)
 
-            DeferAt(expansionFraction, delayThreshold(0.42f, loadingTweaks.delayControls)) {
-                ControlsSection()
-            }
+            PlayerProgressSection(delayThreshold(0.08f, loadingTweaks.delayProgressBar))
+
+            ControlsSectionContainer(controlsThreshold)
         }
     }
 
@@ -447,12 +517,11 @@ fun FullPlayerContent(
                 verticalArrangement = Arrangement.SpaceEvenly
             ) {
                 SongMetadataSection()
-                DeferAt(expansionFraction, delayThreshold(0.05f, loadingTweaks.delayProgressBar)) {
-                    PlayerProgressSection(delayThreshold(0.08f, loadingTweaks.delayProgressBar))
-                }
-                DeferAt(expansionFraction, delayThreshold(0.05f, loadingTweaks.delayControls)) {
-                    ControlsSection()
-                }
+                val landscapeControlsThreshold = delayThreshold(0.05f, loadingTweaks.delayControls)
+
+                PlayerProgressSection(delayThreshold(0.08f, loadingTweaks.delayProgressBar))
+
+                ControlsSectionContainer(landscapeControlsThreshold)
             }
         }
     }

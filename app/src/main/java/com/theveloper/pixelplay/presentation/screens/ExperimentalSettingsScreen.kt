@@ -252,6 +252,20 @@ fun ExperimentalSettingsScreen(
                                     )
                                 }
                             )
+
+                            SwitchSettingItem(
+                                title = "Use placeholders for delayed items",
+                                subtitle = "Keep layout stable by rendering lightweight placeholders while components wait for expansion.",
+                                checked = uiState.fullPlayerLoadingTweaks.showPlaceholders,
+                                onCheckedChange = settingsViewModel::setFullPlayerPlaceholders,
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Visibility,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.secondary
+                                    )
+                                }
+                            )
                         }
                     }
                 }

@@ -304,6 +304,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setFullPlayerPlaceholders(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setFullPlayerPlaceholders(enabled)
+        }
+    }
+
     fun refreshLibrary() {
         viewModelScope.launch {
             if (isSyncing.value) return@launch

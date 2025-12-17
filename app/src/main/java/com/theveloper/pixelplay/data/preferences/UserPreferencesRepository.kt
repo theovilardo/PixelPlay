@@ -100,6 +100,7 @@ class UserPreferencesRepository @Inject constructor(
         val FULL_PLAYER_DELAY_METADATA = booleanPreferencesKey("full_player_delay_metadata")
         val FULL_PLAYER_DELAY_PROGRESS = booleanPreferencesKey("full_player_delay_progress")
         val FULL_PLAYER_DELAY_CONTROLS = booleanPreferencesKey("full_player_delay_controls")
+        val FULL_PLAYER_PLACEHOLDERS = booleanPreferencesKey("full_player_placeholders")
     }
 
     val appRebrandDialogShownFlow: Flow<Boolean> = dataStore.data
@@ -221,7 +222,8 @@ class UserPreferencesRepository @Inject constructor(
                 delayAlbumCarousel = preferences[PreferencesKeys.FULL_PLAYER_DELAY_ALBUM] ?: false,
                 delaySongMetadata = preferences[PreferencesKeys.FULL_PLAYER_DELAY_METADATA] ?: false,
                 delayProgressBar = preferences[PreferencesKeys.FULL_PLAYER_DELAY_PROGRESS] ?: false,
-                delayControls = preferences[PreferencesKeys.FULL_PLAYER_DELAY_CONTROLS] ?: false
+                delayControls = preferences[PreferencesKeys.FULL_PLAYER_DELAY_CONTROLS] ?: false,
+                showPlaceholders = preferences[PreferencesKeys.FULL_PLAYER_PLACEHOLDERS] ?: false
             )
         }
 
@@ -760,6 +762,12 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setDelayControls(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.FULL_PLAYER_DELAY_CONTROLS] = enabled
+        }
+    }
+
+    suspend fun setFullPlayerPlaceholders(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.FULL_PLAYER_PLACEHOLDERS] = enabled
         }
     }
 
