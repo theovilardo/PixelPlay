@@ -558,52 +558,41 @@ fun UnifiedPlayerSheet(
         navBarStyle,
         showPlayerContentArea,
         playerContentExpansionFraction,
-        stablePlayerState.isPlaying,
-        stablePlayerState.currentSong,
         predictiveBackCollapseProgress,
         currentSheetContentState,
         swipeDismissProgress.value,
         isNavBarHidden,
-        navBarCornerRadius
+        navBarCornerRadius,
+        overallSheetTopCornerRadiusTargetValue
     ) {
         derivedStateOf {
-            if (navBarStyle == NavBarStyle.FULL_WIDTH) {
-                val fraction = playerContentExpansionFraction.value
-                return@derivedStateOf lerp(32.dp, 26.dp, fraction)
+            val collapsedRadius = when {
+                navBarStyle == NavBarStyle.FULL_WIDTH -> 32.dp
+                isNavBarHidden -> 60.dp
+                else -> navBarCornerRadius.dp
             }
 
-            val calculatedNormally =
-                if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                    val expandedRadius = 26.dp
-                    val collapsedRadiusTarget = if (isNavBarHidden) 60.dp else 12.dp
-                    lerp(expandedRadius, collapsedRadiusTarget, predictiveBackCollapseProgress)
-                } else {
-                    if (showPlayerContentArea) {
-                        val fraction = playerContentExpansionFraction.value
-                        val collapsedRadius = if (isNavBarHidden) 60.dp else 12.dp
-                        if (fraction < 0.2f) {
-                            lerp(collapsedRadius, 26.dp, (fraction / 0.2f).coerceIn(0f, 1f))
-                        } else {
-                            26.dp
-                        }
-                    } else {
-                        if (!stablePlayerState.isPlaying || stablePlayerState.currentSong == null) {
-                            if (isNavBarHidden) 32.dp else navBarCornerRadius.dp
-                        } else {
-                            if (isNavBarHidden) 32.dp else 12.dp
-                        }
-                    }
-                }
+            val expansionFraction = when {
+                predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED ->
+                    1f - predictiveBackCollapseProgress
+                showPlayerContentArea -> playerContentExpansionFraction.value.coerceIn(0f, 1f)
+                else -> 0f
+            }
+
+            val baseRadius = lerp(
+                collapsedRadius,
+                overallSheetTopCornerRadiusTargetValue,
+                expansionFraction
+            )
 
             if (currentSheetContentState == PlayerSheetState.COLLAPSED &&
                 swipeDismissProgress.value > 0f &&
                 showPlayerContentArea &&
                 playerContentExpansionFraction.value < 0.01f
             ) {
-                val baseCollapsedRadius = if (isNavBarHidden) 32.dp else 12.dp
-                lerp(baseCollapsedRadius, navBarCornerRadius.dp, swipeDismissProgress.value)
+                lerp(collapsedRadius, navBarCornerRadius.dp, swipeDismissProgress.value)
             } else {
-                calculatedNormally
+                baseRadius
             }
         }
     }
