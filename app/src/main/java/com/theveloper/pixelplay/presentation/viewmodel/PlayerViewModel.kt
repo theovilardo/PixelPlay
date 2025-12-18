@@ -3194,6 +3194,13 @@ class PlayerViewModel @Inject constructor(
                 else -> MediaStatus.REPEAT_MODE_REPEAT_OFF
             }
             castPlayer?.setRepeatMode(newMode)
+            val mappedLocalMode = when (newMode) {
+                MediaStatus.REPEAT_MODE_REPEAT_SINGLE -> Player.REPEAT_MODE_ONE
+                MediaStatus.REPEAT_MODE_REPEAT_ALL, MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE -> Player.REPEAT_MODE_ALL
+                else -> Player.REPEAT_MODE_OFF
+            }
+            viewModelScope.launch { userPreferencesRepository.setRepeatMode(mappedLocalMode) }
+            _stablePlayerState.update { it.copy(repeatMode = mappedLocalMode) }
         } else {
             val currentMode = _stablePlayerState.value.repeatMode
             val newMode = when (currentMode) {
@@ -3203,6 +3210,8 @@ class PlayerViewModel @Inject constructor(
                 else -> Player.REPEAT_MODE_OFF
             }
             mediaController?.repeatMode = newMode
+            viewModelScope.launch { userPreferencesRepository.setRepeatMode(newMode) }
+            _stablePlayerState.update { it.copy(repeatMode = newMode) }
         }
     }
 
@@ -3215,6 +3224,8 @@ class PlayerViewModel @Inject constructor(
             val newMode = Player.REPEAT_MODE_ONE
             mediaController?.repeatMode = newMode
         }
+        viewModelScope.launch { userPreferencesRepository.setRepeatMode(Player.REPEAT_MODE_ONE) }
+        _stablePlayerState.update { it.copy(repeatMode = Player.REPEAT_MODE_ONE) }
     }
 
     fun repeatOff(){
@@ -3226,6 +3237,8 @@ class PlayerViewModel @Inject constructor(
             val newMode = Player.REPEAT_MODE_OFF
             mediaController?.repeatMode = newMode
         }
+        viewModelScope.launch { userPreferencesRepository.setRepeatMode(Player.REPEAT_MODE_OFF) }
+        _stablePlayerState.update { it.copy(repeatMode = Player.REPEAT_MODE_OFF) }
     }
 
     fun toggleFavorite() {
