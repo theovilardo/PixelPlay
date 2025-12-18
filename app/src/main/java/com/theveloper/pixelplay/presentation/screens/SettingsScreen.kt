@@ -125,6 +125,7 @@ import com.theveloper.pixelplay.utils.StorageInfo
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
+import com.theveloper.pixelplay.data.preferences.LibraryNavigationMode
 import com.theveloper.pixelplay.data.preferences.LaunchTab
 import com.theveloper.pixelplay.data.preferences.AppThemeMode
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
@@ -580,6 +581,24 @@ fun SettingsScreen(
                             leadingIcon = {
                                 Icon(
                                     painter = painterResource(id = R.drawable.tab_24),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        ThemeSelectorItem(
+                            label = "Library Navigation",
+                            description = "Choose how to move between Library tabs.",
+                            options = mapOf(
+                                LibraryNavigationMode.TAB_ROW to "Tab row (default)",
+                                LibraryNavigationMode.COMPACT_PILL to "Compact pill & grid"
+                            ),
+                            selectedKey = uiState.libraryNavigationMode,
+                            onSelectionChanged = { settingsViewModel.setLibraryNavigationMode(it) },
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.rounded_library_music_24),
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.secondary
                                 )

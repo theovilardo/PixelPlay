@@ -84,6 +84,7 @@ class UserPreferencesRepository @Inject constructor(
         val NAV_BAR_CORNER_RADIUS = intPreferencesKey("nav_bar_corner_radius")
         val NAV_BAR_STYLE = stringPreferencesKey("nav_bar_style")
         val CAROUSEL_STYLE = stringPreferencesKey("carousel_style")
+        val LIBRARY_NAVIGATION_MODE = stringPreferencesKey("library_navigation_mode")
         val LAUNCH_TAB = stringPreferencesKey("launch_tab")
 
         // Transition Settings
@@ -775,6 +776,17 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setNavBarStyle(style: String) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.NAV_BAR_STYLE] = style
+        }
+    }
+
+    val libraryNavigationModeFlow: Flow<String> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.LIBRARY_NAVIGATION_MODE] ?: LibraryNavigationMode.TAB_ROW
+        }
+
+    suspend fun setLibraryNavigationMode(mode: String) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.LIBRARY_NAVIGATION_MODE] = mode
         }
     }
 

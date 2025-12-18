@@ -104,6 +104,7 @@ import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.model.SortOption
 import com.theveloper.pixelplay.data.model.toLibraryTabIdOrNull
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
+import com.theveloper.pixelplay.data.preferences.LibraryNavigationMode
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.data.preferences.FullPlayerLoadingTweaks
@@ -340,6 +341,13 @@ class PlayerViewModel @Inject constructor(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = NavBarStyle.DEFAULT
+        )
+
+    val libraryNavigationMode: StateFlow<String> = userPreferencesRepository.libraryNavigationModeFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = LibraryNavigationMode.TAB_ROW
         )
 
     val carouselStyle: StateFlow<String> = userPreferencesRepository.carouselStyleFlow
