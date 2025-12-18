@@ -128,6 +128,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -135,6 +136,13 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material3.ButtonDefaults
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -145,8 +153,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.ripple
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.input.pointer.pointerInput
 import com.theveloper.pixelplay.presentation.components.AutoScrollingTextOnDemand
 import com.theveloper.pixelplay.presentation.components.CreatePlaylistDialogRedesigned
@@ -272,9 +284,18 @@ fun LibraryScreen(
                     if (isCompactNavigation) {
                         LibraryNavigationPill(
                             title = currentTabTitle,
-                            animationDirection = pillAnimationDirection,
-                            onClick = { showTabSwitcherSheet = true }
+                            isExpanded = showTabSwitcherSheet,
+                            animationDirection = 1,
+                            onClick = {
+                                showTabSwitcherSheet = true
+                            },
+                            onArrowClick = { showTabSwitcherSheet = true }
                         )
+//                        LibraryNavigationPill(
+//                            title = currentTabTitle,
+//                            animationDirection = pillAnimationDirection,
+//                            onClick = { showTabSwitcherSheet = true }
+//                        )
                     } else {
                         Text(
                             modifier = Modifier.padding(start = 8.dp),
@@ -871,68 +892,192 @@ fun LibraryScreen(
 
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
-private fun LibraryNavigationPill(
+fun LibraryNavigationPill(
     title: String,
+    isExpanded: Boolean,
     animationDirection: Int,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onArrowClick: () -> Unit
 ) {
-    val pillShape = RoundedCornerShape(26.dp)
-    Surface(
-        shape = pillShape,
-        tonalElevation = 8.dp,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    val pillRadius = 26.dp
+    val innerRadius = 4.dp
+    // Radio para cuando está expandido/seleccionado (totalmente redondo)
+    val expandedRadius = 60.dp
+
+    // Animación Esquina Flecha (Interna):
+    // Depende de 'isExpanded':
+    // - true: Se vuelve redonda (expandedRadius/pillRadius) separándose visualmente.
+    // - false: Se mantiene recta (innerRadius) pareciendo unida al título.
+    val animatedArrowCorner by animateDpAsState(
+        targetValue = if (isExpanded) pillRadius else innerRadius,
+        label = "ArrowCornerAnimation"
+    )
+
+    val arrowRotation by animateFloatAsState(
+        targetValue = if (isExpanded) 180f else 0f,
+        label = "ArrowRotation"
+    )
+
+    // IntrinsicSize.Min en el Row + fillMaxHeight en los hijos asegura misma altura
+    Row(
         modifier = Modifier
             .padding(start = 4.dp)
-            .clip(pillShape)
-            .clickable(onClick = onClick)
+            .height(IntrinsicSize.Min),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Row(
+        // --- PARTE 1: TÍTULO (Forma estática en la unión) ---
+        Surface(
+            shape = RoundedCornerShape(
+                topStart = pillRadius,
+                bottomStart = pillRadius,
+                topEnd = innerRadius, // Siempre fijo (recto/unido)
+                bottomEnd = innerRadius // Siempre fijo (recto/unido)
+            ),
+            tonalElevation = 8.dp,
+            color = MaterialTheme.colorScheme.primaryContainer,
             modifier = Modifier
-                .clip(pillShape)
-                .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
-                            MaterialTheme.colorScheme.surfaceContainerHigh
-                        )
+                .fillMaxHeight()
+                .clip(
+                    RoundedCornerShape(
+                        topStart = pillRadius,
+                        bottomStart = pillRadius,
+                        topEnd = innerRadius, // Siempre fijo (recto/unido)
+                        bottomEnd = innerRadius // Siempre fijo (recto/unido)
                     )
                 )
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .clickable(onClick = onClick)
         ) {
-            Icon(
-                painter = painterResource(id = R.drawable.rounded_library_music_24),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary
-            )
+            Box(
+                modifier = Modifier.padding(start = 18.dp, end = 14.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                AnimatedContent(
+                    targetState = title,
+                    transitionSpec = {
+                        val direction = animationDirection.coerceIn(-1, 1)
+                        val slideIn = slideInHorizontally { fullWidth -> if (direction >= 0) fullWidth else -fullWidth } + fadeIn()
+                        val slideOut = slideOutHorizontally { fullWidth -> if (direction >= 0) -fullWidth else fullWidth } + fadeOut()
+                        slideIn.togetherWith(slideOut)
+                    },
+                    label = "LibraryPillTitle"
+                ) { targetTitle ->
+                    Text(
+                        text = targetTitle,
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        style = MaterialTheme.typography.titleLarge.copy(fontSize = 26.sp),
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
 
-            AnimatedContent(
-                targetState = title,
-                transitionSpec = {
-                    val direction = animationDirection.coerceIn(-1, 1)
-                    val slideIn = slideInHorizontally { fullWidth -> if (direction >= 0) fullWidth else -fullWidth } + fadeIn()
-                    val slideOut = slideOutHorizontally { fullWidth -> if (direction >= 0) -fullWidth else fullWidth } + fadeOut()
-                    slideIn.togetherWith(slideOut)
-                },
-                label = "LibraryPillTitle"
-            ) { targetTitle ->
-                Text(
-                    text = targetTitle,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
+        // --- PARTE 2: FLECHA (Cambia de forma según estado) ---
+        Surface(
+            shape = RoundedCornerShape(
+                topStart = animatedArrowCorner, // Anima entre 4.dp y 26.dp
+                bottomStart = animatedArrowCorner, // Anima entre 4.dp y 26.dp
+                topEnd = pillRadius,
+                bottomEnd = pillRadius
+            ),
+            tonalElevation = 8.dp,
+            color = MaterialTheme.colorScheme.primaryContainer,
+            modifier = Modifier
+                .fillMaxHeight()
+                .clip(
+                    RoundedCornerShape(
+                        topStart = animatedArrowCorner, // Anima entre 4.dp y 26.dp
+                        bottomStart = animatedArrowCorner, // Anima entre 4.dp y 26.dp
+                        topEnd = pillRadius,
+                        bottomEnd = pillRadius
+                    )
+                )
+                .clickable(
+                    indication = ripple(),
+                    interactionSource = remember { MutableInteractionSource() },
+                    onClick = onArrowClick
+                )
+        ) {
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 10.dp)
+                    .width(36.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    modifier = Modifier.rotate(arrowRotation),
+                    imageVector = Icons.Rounded.KeyboardArrowDown,
+                    contentDescription = "Expandir menú",
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
-
-            Icon(
-                imageVector = Icons.Rounded.KeyboardArrowDown,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }
+
+//@OptIn(ExperimentalAnimationApi::class)
+//@Composable
+//private fun LibraryNavigationPill(
+//    title: String,
+//    animationDirection: Int,
+//    onClick: () -> Unit
+//) {
+//    val pillShape = RoundedCornerShape(26.dp)
+//    Surface(
+//        shape = pillShape,
+//        tonalElevation = 8.dp,
+//        color = MaterialTheme.colorScheme.primaryContainer,
+//        modifier = Modifier
+//            .padding(start = 4.dp)
+//            .clip(pillShape)
+//            .clickable(onClick = onClick)
+//    ) {
+//        Row(
+//            modifier = Modifier
+//                .clip(pillShape)
+//                .padding(horizontal = 10.dp, vertical = 10.dp),
+//            horizontalArrangement = Arrangement.spacedBy(16.dp),
+//            verticalAlignment = Alignment.CenterVertically
+//        ) {
+//            AnimatedContent(
+//                modifier = Modifier.padding(start = 8.dp),
+//                targetState = title,
+//                transitionSpec = {
+//                    val direction = animationDirection.coerceIn(-1, 1)
+//                    val slideIn = slideInHorizontally { fullWidth -> if (direction >= 0) fullWidth else -fullWidth } + fadeIn()
+//                    val slideOut = slideOutHorizontally { fullWidth -> if (direction >= 0) -fullWidth else fullWidth } + fadeOut()
+//                    slideIn.togetherWith(slideOut)
+//                },
+//                label = "LibraryPillTitle"
+//            ) { targetTitle ->
+//                Text(
+//                    text = targetTitle,
+//                    style = MaterialTheme.typography.titleLarge.copy(fontSize = 26.sp),
+//                    fontWeight = FontWeight.SemiBold,
+//                    color = MaterialTheme.colorScheme.onSurface
+//                )
+//            }
+//
+//            Box(
+//               modifier = Modifier
+//                   .background(
+//                       color = MaterialTheme.colorScheme.onPrimaryContainer,
+//                       shape = CircleShape
+//                   )
+//            ) {
+//                Icon(
+//                    modifier = Modifier.padding(
+//                        4.dp
+//                    ),
+//                    imageVector = Icons.Rounded.KeyboardArrowDown,
+//                    contentDescription = null,
+//                    tint = MaterialTheme.colorScheme.primaryContainer
+//                )
+//            }
+//        }
+//    }
+//}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -982,18 +1127,32 @@ private fun LibraryTabSwitcherSheet(
                     )
                 }
 
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    FilledTonalButton(
-                        onClick = onEditClick,
-                        shape = RoundedCornerShape(18.dp),
-                        modifier = Modifier.fillMaxWidth()
+                item(
+                    span = { GridItemSpan(maxLineSpan) }
+                ) {
+                    Box(
+                       modifier = Modifier
+                           .fillMaxWidth()
+                           .heightIn(min = 46.dp, max = 60.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.Edit,
-                            contentDescription = null
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text("Reorder tabs")
+                        FilledTonalButton(
+                            onClick = onEditClick,
+                            shape = RoundedCornerShape(18.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                            ),
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .align(Alignment.CenterEnd)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Edit,
+                                contentDescription = null
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("Reorder tabs")
+                        }
                     }
                 }
             }
@@ -1030,8 +1189,8 @@ private fun LibraryTabGridItem(
         ) {
             Box(
                 modifier = Modifier
-                    .size(58.dp)
-                    .clip(RoundedCornerShape(22.dp))
+                    .size(52.dp)
+                    .clip(CircleShape)
                     .background(iconContainer.copy(alpha = 0.92f)),
                 contentAlignment = Alignment.Center
             ) {
