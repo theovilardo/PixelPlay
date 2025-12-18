@@ -241,7 +241,7 @@ fun FullPlayerContent(
                 .fillMaxWidth()
                 .height(height),
             shape = RoundedCornerShape(18.dp),
-            color = placeholderColor.copy(alpha = 0.25f),
+            color = placeholderColor,
             tonalElevation = 0.dp
         ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
@@ -249,7 +249,7 @@ fun FullPlayerContent(
                     modifier = Modifier.size(86.dp),
                     painter = painterResource(R.drawable.pixelplay_base_monochrome),
                     contentDescription = null,
-                    tint = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.4f)
+                    tint = placeholderOnColor
                 )
             }
         }
@@ -260,7 +260,7 @@ fun FullPlayerContent(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 70.dp)
+                .heightIn(min = 80.dp)
                 .padding(vertical = lerp(2.dp, 10.dp, expansionFraction)),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
@@ -270,7 +270,7 @@ fun FullPlayerContent(
                     .weight(0.85f)
                     .fillMaxWidth(0.9f)
                     .align(Alignment.CenterVertically),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 PlaceholderBox(
                     modifier = Modifier
@@ -290,8 +290,8 @@ fun FullPlayerContent(
             PlaceholderBox(
                 modifier = Modifier
                     .weight(0.15f)
-                    .size(48.dp),
-                cornerRadius = 16.dp,
+                    .size(height = 48.dp, width = 42.dp),
+                cornerRadius = 60.dp,
                 color = placeholderOnColor
             )
         }
@@ -302,10 +302,11 @@ fun FullPlayerContent(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = lerp(2.dp, 0.dp, expansionFraction))
+                //.padding(vertical = lerp(2.dp, 0.dp, expansionFraction))
                 .graphicsLayer { alpha = expansionFraction }
                 .heightIn(min = 70.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Box(
                 modifier = Modifier
@@ -315,14 +316,14 @@ fun FullPlayerContent(
                 PlaceholderBox(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(32.dp),
-                    cornerRadius = 6.dp
+                        .height(18.dp),
+                    cornerRadius = 60.dp
                 )
             }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 4.dp),
+                    .padding(horizontal = 2.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 PlaceholderBox(modifier = Modifier.width(40.dp).height(12.dp), cornerRadius = 6.dp, color = placeholderOnColor)
@@ -336,30 +337,31 @@ fun FullPlayerContent(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(174.dp)
+                .padding(bottom = 10.dp)
+                //.height(174.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.Center)
                     .padding(horizontal = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(22.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                    listOf(Pair(80.dp, 94.dp), Pair(80.dp, 94.dp), Pair(80.dp, 94.dp)).forEach { size ->
+                    listOf(Triple(80.dp, 94.dp, 60.dp), Triple(80.dp, 94.dp, 28.dp), Triple(80.dp, 94.dp, 60.dp)).forEach { size ->
                         PlaceholderBox(
                             modifier = Modifier
                                 .weight(1f)
                                 .size(width = size.second, height = size.first),
-                            cornerRadius = 60.dp//size / 2
+                            cornerRadius = size.third
                         )
                     }
                 }
                 PlaceholderBox(
                     modifier = Modifier
                         .width(260.dp)
-                        .height(76.dp),
+                        .height(68.dp),
                     cornerRadius = 60.dp,
                     color = placeholderOnColor
                 )
@@ -471,7 +473,10 @@ fun FullPlayerContent(
 
     @Composable
     fun ControlsSection() {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            //modifier = Modifier.height(194.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             AnimatedPlaybackControls(
                 modifier = Modifier
                     .padding(horizontal = 12.dp, vertical = 8.dp),

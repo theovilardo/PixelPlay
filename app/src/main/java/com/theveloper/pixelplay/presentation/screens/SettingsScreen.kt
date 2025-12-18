@@ -56,6 +56,7 @@ import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -112,6 +113,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -699,7 +701,7 @@ fun SettingsScreen(
                             subtitle = "Player UI loading experiments and toggles.",
                             leadingIcon = {
                                 Icon(
-                                    imageVector = Icons.Outlined.Warning,
+                                    imageVector = Icons.Rounded.Science,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.secondary
                                 )

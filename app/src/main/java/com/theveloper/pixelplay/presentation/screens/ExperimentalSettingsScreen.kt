@@ -184,10 +184,8 @@ fun ExperimentalSettingsScreen(
                     ) {
                         Column(
                             modifier = Modifier
-                                .fillMaxSize()
-                                //.padding(horizontal = 4.dp)
-                            ,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                .fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             val delayAllEnabled = uiState.fullPlayerLoadingTweaks.delayAll
 
@@ -308,7 +306,7 @@ fun ExperimentalSettingsScreen(
             headerHeight = currentTopBarHeightDp,
             onBackPressed = onNavigationIconClick,
             title = "Experimental",
-            expandedTitleStartPadding = 12.dp
+            expandedTitleStartPadding = 6.dp
         )
     }
 }
