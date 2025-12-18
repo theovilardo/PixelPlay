@@ -312,7 +312,7 @@ fun FullPlayerContent(
                 PlaceholderBox(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(8.dp),
+                        .height(32.dp),
                     cornerRadius = 6.dp
                 )
             }
