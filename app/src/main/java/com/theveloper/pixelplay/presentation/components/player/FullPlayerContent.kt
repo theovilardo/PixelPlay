@@ -254,43 +254,74 @@ fun FullPlayerContent(
 
     @Composable
     fun MetadataPlaceholder() {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 70.dp)
-                .padding(top = 14.dp)
-                .padding(horizontal = 0.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .heightIn(min = 64.dp)
+                .padding(vertical = lerp(2.dp, 10.dp, expansionFraction)),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            PlaceholderBox(modifier = Modifier.fillMaxWidth().height(20.dp).padding(end = 50.dp), cornerRadius = 60.dp)
-            PlaceholderBox(modifier = Modifier.fillMaxWidth(0.55f).height(16.dp), cornerRadius = 60.dp, color = placeholderOnColor)
+            Column(
+                modifier = Modifier
+                    .weight(0.85f)
+                    .fillMaxWidth(0.9f),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                PlaceholderBox(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(20.dp)
+                        .padding(end = 50.dp),
+                    cornerRadius = 60.dp
+                )
+                PlaceholderBox(
+                    modifier = Modifier
+                        .fillMaxWidth(0.55f)
+                        .height(16.dp),
+                    cornerRadius = 60.dp,
+                    color = placeholderOnColor
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            PlaceholderBox(
+                modifier = Modifier.size(48.dp),
+                cornerRadius = 16.dp,
+                color = placeholderOnColor
+            )
         }
     }
 
     @Composable
     fun ProgressPlaceholder() {
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 70.dp)
-                .padding(top = 6.dp)
+                .padding(vertical = lerp(2.dp, 0.dp, expansionFraction))
+                .graphicsLayer { alpha = expansionFraction }
+                .heightIn(min = 70.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .align(Alignment.Center)
-                    .padding(horizontal = 2.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                    .padding(vertical = 8.dp)
             ) {
-                //PlaceholderBox(modifier = Modifier.fillMaxWidth().height(10.dp), cornerRadius = 10.dp, color = placeholderOnColor)
-                PlaceholderBox(modifier = Modifier.fillMaxWidth().height(8.dp), cornerRadius = 6.dp)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    PlaceholderBox(modifier = Modifier.width(40.dp).height(12.dp), cornerRadius = 6.dp, color = placeholderOnColor)
-                    PlaceholderBox(modifier = Modifier.width(40.dp).height(12.dp), cornerRadius = 6.dp, color = placeholderOnColor)
-                }
+                PlaceholderBox(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(12.dp),
+                    cornerRadius = 6.dp
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                PlaceholderBox(modifier = Modifier.width(40.dp).height(12.dp), cornerRadius = 6.dp, color = placeholderOnColor)
+                PlaceholderBox(modifier = Modifier.width(40.dp).height(12.dp), cornerRadius = 6.dp, color = placeholderOnColor)
             }
         }
     }
@@ -300,7 +331,6 @@ fun FullPlayerContent(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 6.dp)
                 .height(174.dp)
         ) {
             Column(
