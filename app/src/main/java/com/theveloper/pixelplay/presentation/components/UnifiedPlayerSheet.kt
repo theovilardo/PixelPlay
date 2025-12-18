@@ -13,9 +13,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDp
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -63,12 +60,14 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.Immutable
 import com.theveloper.pixelplay.ui.theme.LocalPixelPlayDarkTheme
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -102,7 +101,6 @@ import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.presentation.components.player.FullPlayerContent
-import com.theveloper.pixelplay.presentation.components.scoped.rememberExpansionTransition
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
@@ -268,17 +266,22 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val fullPlayerContentAlpha by remember {
-        derivedStateOf {
-            (playerContentExpansionFraction.value - 0.25f).coerceIn(0f, 0.75f) / 0.75f
-        }
-    }
-
-    val fullPlayerTranslationY by remember {
-        derivedStateOf {
-            lerp(initialFullPlayerOffsetY, 0f, fullPlayerContentAlpha)
-        }
-    }
+    @Immutable
+    data class PlayerSheetExpansionSnapshot(
+        val fraction: Float,
+        val fullPlayerContentAlpha: Float,
+        val fullPlayerTranslationY: Float,
+        val playerAreaElevation: Dp,
+        val miniAlpha: Float,
+        val dimLayerAlpha: Float,
+        val bottomPadding: Dp,
+        val contentAreaHeightDp: Dp,
+        val totalSheetHeightWithShadowDp: Dp,
+        val visualSheetTranslationY: Float,
+        val topCornerRadius: Dp,
+        val bottomCornerRadius: Dp,
+        val horizontalPadding: Dp
+    )
 
     suspend fun animatePlayerSheet(
         targetExpanded: Boolean,
@@ -357,56 +360,6 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val currentBottomPadding by remember(
-        showPlayerContentArea,
-        collapsedStateHorizontalPadding,
-        predictiveBackCollapseProgress,
-        currentSheetContentState
-    ) {
-        derivedStateOf {
-            if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                lerp(0.dp, collapsedStateHorizontalPadding, predictiveBackCollapseProgress)
-            } else {
-                0.dp
-            }
-        }
-    }
-
-    val playerContentAreaActualHeightPx by remember(
-        showPlayerContentArea,
-        playerContentExpansionFraction,
-        containerHeight,
-        miniPlayerContentHeightPx
-    ) {
-        derivedStateOf {
-            if (showPlayerContentArea) {
-                val containerHeightPx = with(density) { containerHeight.toPx() }
-                lerp(
-                    miniPlayerContentHeightPx,
-                    containerHeightPx,
-                    playerContentExpansionFraction.value
-                )
-            } else {
-                0f
-            }
-        }
-    }
-    val playerContentAreaHeightDp by remember(
-        showPlayerContentArea,
-        playerContentExpansionFraction,
-        containerHeight
-    ) {
-        derivedStateOf {
-            if (showPlayerContentArea) lerp(
-                MiniPlayerHeight,
-                containerHeight,
-                playerContentExpansionFraction.value
-            )
-            else 0.dp
-        }
-    }
-    val playerContentAreaActualHeightDp = with(density) { playerContentAreaActualHeightPx.toDp() }
-
     val totalSheetHeightWhenContentCollapsedPx = remember(
         isPlayerSlotOccupied,
         hideMiniPlayer,
@@ -415,193 +368,150 @@ fun UnifiedPlayerSheet(
         if (isPlayerSlotOccupied && !hideMiniPlayer) miniPlayerAndSpacerHeightPx else 0f
     }
 
-    val animatedTotalSheetHeightPx by remember(
-        isPlayerSlotOccupied,
-        playerContentExpansionFraction,
-        screenHeightPx,
-        totalSheetHeightWhenContentCollapsedPx
-    ) {
-        derivedStateOf {
-            if (isPlayerSlotOccupied) {
-                lerp(
-                    totalSheetHeightWhenContentCollapsedPx,
-                    screenHeightPx,
-                    playerContentExpansionFraction.value
-                )
-            } else {
-                0f
-            }
-        }
-    }
-
     val navBarElevation = 3.dp
     val shadowSpacePx = remember(density, navBarElevation) {
         with(density) { (navBarElevation * 8).toPx() }
     }
 
-    val animatedTotalSheetHeightWithShadowPx by remember(
-        animatedTotalSheetHeightPx,
-        shadowSpacePx
-    ) {
-        derivedStateOf {
-            animatedTotalSheetHeightPx + shadowSpacePx
-        }
-    }
-    val animatedTotalSheetHeightWithShadowDp =
-        with(density) { animatedTotalSheetHeightWithShadowPx.toDp() }
-
-    //with(density) { animatedTotalSheetHeightPx.toDp() }
-
-    val visualSheetTranslationY by remember {
-        derivedStateOf {
-            currentSheetTranslationY.value * (1f - predictiveBackCollapseProgress) +
-                    (sheetCollapsedTargetY * predictiveBackCollapseProgress)
-        }
-    }
-
-    val overallSheetTopCornerRadiusTargetValue by remember(
-        showPlayerContentArea,
-        playerContentExpansionFraction,
-        predictiveBackCollapseProgress,
-        currentSheetContentState,
+    val expansionSnapshot by produceState(
+        initialValue = PlayerSheetExpansionSnapshot(
+            fraction = 0f,
+            fullPlayerContentAlpha = 0f,
+            fullPlayerTranslationY = initialFullPlayerOffsetY,
+            playerAreaElevation = 2.dp,
+            miniAlpha = 1f,
+            dimLayerAlpha = 0f,
+            bottomPadding = 0.dp,
+            contentAreaHeightDp = 0.dp,
+            totalSheetHeightWithShadowDp = 0.dp,
+            visualSheetTranslationY = sheetCollapsedTargetY,
+            topCornerRadius = 0.dp,
+            bottomCornerRadius = 0.dp,
+            horizontalPadding = collapsedStateHorizontalPadding
+        ),
+        density,
         navBarStyle,
         navBarCornerRadius,
-        isNavBarHidden
-    ) {
-        derivedStateOf {
-            if (showPlayerContentArea) {
-                val collapsedCornerTarget = if (navBarStyle == NavBarStyle.FULL_WIDTH) {
-                    32.dp
-                } else if (isNavBarHidden) {
-                    60.dp
-                } else {
-                    navBarCornerRadius.dp
-                }
-
-                if (predictiveBackCollapseProgress > 0f && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                    val expandedCorner = 0.dp
-                    lerp(expandedCorner, collapsedCornerTarget, predictiveBackCollapseProgress)
-                } else {
-                    val fraction = playerContentExpansionFraction.value
-                    val expandedTarget = 0.dp
-                    lerp(collapsedCornerTarget, expandedTarget, fraction)
-                }
-            } else {
-                if (navBarStyle == NavBarStyle.FULL_WIDTH) {
-                    0.dp
-                } else if (isNavBarHidden) {
-                    60.dp
-                } else {
-                    navBarCornerRadius.dp
-                }
-            }
-        }
-    }
-
-    val overallSheetTopCornerRadius = overallSheetTopCornerRadiusTargetValue
-
-    val playerContentActualBottomRadiusTargetValue by remember(
-        navBarStyle,
-        showPlayerContentArea,
-        playerContentExpansionFraction,
-        stablePlayerState.isPlaying,
-        stablePlayerState.currentSong,
-        predictiveBackCollapseProgress,
-        currentSheetContentState,
-        swipeDismissProgress.value,
         isNavBarHidden,
-        navBarCornerRadius
+        containerHeight
     ) {
-        derivedStateOf {
-            if (navBarStyle == NavBarStyle.FULL_WIDTH) {
-                val fraction = playerContentExpansionFraction.value
-                return@derivedStateOf lerp(32.dp, 26.dp, fraction)
-            }
+        snapshotFlow {
+            val expansionFraction = playerContentExpansionFraction.value
+            val predictiveCollapse = predictiveBackCollapseProgress
+            val isExpandedState = currentSheetContentState == PlayerSheetState.EXPANDED
+            val clampedFullAlphaFraction = (expansionFraction - 0.25f).coerceIn(0f, 0.75f) / 0.75f
 
-            val calculatedNormally =
-                if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                    val expandedRadius = 26.dp
-                    val collapsedRadiusTarget = if (isNavBarHidden) 60.dp else 12.dp
-                    lerp(expandedRadius, collapsedRadiusTarget, predictiveBackCollapseProgress)
+            PlayerSheetExpansionSnapshot(
+                fraction = expansionFraction,
+                fullPlayerContentAlpha = clampedFullAlphaFraction,
+                fullPlayerTranslationY = lerp(initialFullPlayerOffsetY, 0f, clampedFullAlphaFraction),
+                playerAreaElevation = lerp(2.dp, 12.dp, expansionFraction),
+                miniAlpha = (1f - expansionFraction * 2f).coerceIn(0f, 1f),
+                dimLayerAlpha = if (predictiveCollapse > 0f && isExpandedState) {
+                    lerp(expansionFraction, 0f, predictiveCollapse)
                 } else {
-                    if (showPlayerContentArea) {
-                        val fraction = playerContentExpansionFraction.value
-                        val collapsedRadius = if (isNavBarHidden) 60.dp else 12.dp
-                        if (fraction < 0.2f) {
-                            lerp(collapsedRadius, 26.dp, (fraction / 0.2f).coerceIn(0f, 1f))
-                        } else {
-                            26.dp
-                        }
+                    expansionFraction
+                },
+                bottomPadding = if (predictiveCollapse > 0f && showPlayerContentArea && isExpandedState) {
+                    lerp(0.dp, collapsedStateHorizontalPadding, predictiveCollapse)
+                } else {
+                    0.dp
+                },
+                contentAreaHeightDp = if (showPlayerContentArea) {
+                    lerp(MiniPlayerHeight, containerHeight, expansionFraction)
+                } else {
+                    0.dp
+                },
+                totalSheetHeightWithShadowDp = with(density) {
+                    val totalSheetHeightPx = if (isPlayerSlotOccupied) {
+                        lerp(
+                            totalSheetHeightWhenContentCollapsedPx,
+                            screenHeightPx,
+                            expansionFraction
+                        )
                     } else {
-                        if (!stablePlayerState.isPlaying || stablePlayerState.currentSong == null) {
-                            if (isNavBarHidden) 32.dp else navBarCornerRadius.dp
+                        0f
+                    }
+                    (totalSheetHeightPx + shadowSpacePx).toDp()
+                },
+                visualSheetTranslationY = currentSheetTranslationY.value * (1f - predictiveCollapse) + (sheetCollapsedTargetY * predictiveCollapse),
+                topCornerRadius = if (showPlayerContentArea) {
+                    val collapsedCornerTarget = when {
+                        navBarStyle == NavBarStyle.FULL_WIDTH -> 32.dp
+                        isNavBarHidden -> 60.dp
+                        else -> navBarCornerRadius.dp
+                    }
+
+                    if (predictiveCollapse > 0f && isExpandedState) {
+                        lerp(0.dp, collapsedCornerTarget, predictiveCollapse)
+                    } else {
+                        lerp(collapsedCornerTarget, 0.dp, expansionFraction)
+                    }
+                } else {
+                    when {
+                        navBarStyle == NavBarStyle.FULL_WIDTH -> 0.dp
+                        isNavBarHidden -> 60.dp
+                        else -> navBarCornerRadius.dp
+                    }
+                },
+                bottomCornerRadius = run {
+                    val collapsedRadius = if (isNavBarHidden) 60.dp else 12.dp
+                    if (navBarStyle == NavBarStyle.FULL_WIDTH) {
+                        lerp(32.dp, 26.dp, expansionFraction)
+                    } else {
+                        val calculatedNormally =
+                            if (predictiveCollapse > 0f && showPlayerContentArea && isExpandedState) {
+                                lerp(26.dp, collapsedRadius, predictiveCollapse)
+                            } else {
+                                if (showPlayerContentArea) {
+                                    if (expansionFraction < 0.2f) {
+                                        lerp(collapsedRadius, 26.dp, (expansionFraction / 0.2f).coerceIn(0f, 1f))
+                                    } else {
+                                        26.dp
+                                    }
+                                } else {
+                                    if (!stablePlayerState.isPlaying || stablePlayerState.currentSong == null) {
+                                        if (isNavBarHidden) 32.dp else navBarCornerRadius.dp
+                                    } else {
+                                        if (isNavBarHidden) 32.dp else 12.dp
+                                    }
+                                }
+                            }
+
+                        if (currentSheetContentState == PlayerSheetState.COLLAPSED &&
+                            swipeDismissProgress.value > 0f &&
+                            showPlayerContentArea &&
+                            expansionFraction < 0.01f
+                        ) {
+                            val baseCollapsedRadius = if (isNavBarHidden) 32.dp else 12.dp
+                            lerp(baseCollapsedRadius, navBarCornerRadius.dp, swipeDismissProgress.value)
                         } else {
-                            if (isNavBarHidden) 32.dp else 12.dp
+                            calculatedNormally
                         }
                     }
+                },
+                horizontalPadding = run {
+                    val actualCollapsedPadding = if (navBarStyle == NavBarStyle.FULL_WIDTH) 14.dp else collapsedStateHorizontalPadding
+                    when {
+                        predictiveCollapse > 0f && showPlayerContentArea && isExpandedState ->
+                            lerp(0.dp, actualCollapsedPadding, predictiveCollapse)
+
+                        showPlayerContentArea -> lerp(actualCollapsedPadding, 0.dp, expansionFraction)
+                        else -> actualCollapsedPadding
+                    }
                 }
-
-            if (currentSheetContentState == PlayerSheetState.COLLAPSED &&
-                swipeDismissProgress.value > 0f &&
-                showPlayerContentArea &&
-                playerContentExpansionFraction.value < 0.01f
-            ) {
-                val baseCollapsedRadius = if (isNavBarHidden) 32.dp else 12.dp
-                lerp(baseCollapsedRadius, navBarCornerRadius.dp, swipeDismissProgress.value)
-            } else {
-                calculatedNormally
-            }
+            )
         }
-    }
-
-    val playerContentActualBottomRadius = playerContentActualBottomRadiusTargetValue
-
-    val actualCollapsedStateHorizontalPadding =
-        if (navBarStyle == NavBarStyle.FULL_WIDTH) 14.dp else collapsedStateHorizontalPadding
-
-    val currentHorizontalPadding by remember(
-        showPlayerContentArea,
-        playerContentExpansionFraction,
-        actualCollapsedStateHorizontalPadding,
-        predictiveBackCollapseProgress,
-        navBarStyle
-    ) {
-        derivedStateOf {
-            if (predictiveBackCollapseProgress > 0f && showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                lerp(0.dp, actualCollapsedStateHorizontalPadding, predictiveBackCollapseProgress)
-            } else if (showPlayerContentArea) {
-                lerp(
-                    actualCollapsedStateHorizontalPadding,
-                    0.dp,
-                    playerContentExpansionFraction.value
-                )
-            } else {
-                actualCollapsedStateHorizontalPadding
-            }
-        }
-    }
-
-    val currentDimLayerAlpha by remember(
-        playerContentExpansionFraction,
-        predictiveBackCollapseProgress,
-        currentSheetContentState
-    ) {
-        derivedStateOf {
-            val baseAlpha = playerContentExpansionFraction.value
-            if (predictiveBackCollapseProgress > 0f && currentSheetContentState == PlayerSheetState.EXPANDED) {
-                lerp(baseAlpha, 0f, predictiveBackCollapseProgress)
-            } else {
-                baseAlpha
-            }
-        }
+            .conflate()
+            .collectLatest { value = it }
     }
 
     var showQueueSheet by remember { mutableStateOf(false) }
     val queueSheetOffset = remember(screenHeightPx) { Animatable(screenHeightPx) }
     var queueSheetHeightPx by remember { mutableFloatStateOf(0f) }
-    val queueHiddenOffsetPx by remember(currentBottomPadding, queueSheetHeightPx, density) {
+    val queueHiddenOffsetPx by remember(expansionSnapshot.bottomPadding, queueSheetHeightPx, density) {
         derivedStateOf {
-            val basePadding = with(density) { currentBottomPadding.toPx() }
+            val basePadding = with(density) { expansionSnapshot.bottomPadding.toPx() }
             if (queueSheetHeightPx == 0f) 0f else queueSheetHeightPx + basePadding
         }
     }
@@ -781,21 +691,15 @@ fun UnifiedPlayerSheet(
 
     val albumColorScheme = targetColorScheme
 
-    val t = rememberExpansionTransition(playerContentExpansionFraction.value)
-
-    val playerAreaElevation by t.animateDp(label = "elev") { f -> lerp(2.dp, 12.dp, f) }
-
-    val miniAlpha by t.animateFloat(label = "miniAlpha") { f -> (1f - f * 2f).coerceIn(0f, 1f) }
-
-    val playerShadowShape = remember(overallSheetTopCornerRadius, playerContentActualBottomRadius) {
+    val playerShadowShape = remember(expansionSnapshot.topCornerRadius, expansionSnapshot.bottomCornerRadius) {
         AbsoluteSmoothCornerShape(
-            cornerRadiusTL = overallSheetTopCornerRadius,
+            cornerRadiusTL = expansionSnapshot.topCornerRadius,
             smoothnessAsPercentBL = 60,
-            cornerRadiusTR = overallSheetTopCornerRadius,
+            cornerRadiusTR = expansionSnapshot.topCornerRadius,
             smoothnessAsPercentBR = 60,
-            cornerRadiusBR = playerContentActualBottomRadius,
+            cornerRadiusBR = expansionSnapshot.bottomCornerRadius,
             smoothnessAsPercentTL = 60,
-            cornerRadiusBL = playerContentActualBottomRadius,
+            cornerRadiusBL = expansionSnapshot.bottomCornerRadius,
             smoothnessAsPercentTR = 60
         )
     }
@@ -818,8 +722,8 @@ fun UnifiedPlayerSheet(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
-                    color = if (isDarkTheme) Color.Black.copy(alpha = currentDimLayerAlpha) else Color.White.copy(
-                        alpha = currentDimLayerAlpha
+                    color = if (isDarkTheme) Color.Black.copy(alpha = expansionSnapshot.dimLayerAlpha) else Color.White.copy(
+                        alpha = expansionSnapshot.dimLayerAlpha
                     )
                 )
                 .clickable(
@@ -838,16 +742,16 @@ fun UnifiedPlayerSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .graphicsLayer {
-                    translationY = visualSheetTranslationY
+                    translationY = expansionSnapshot.visualSheetTranslationY
                 }
-                .height(animatedTotalSheetHeightWithShadowDp),
+                .height(expansionSnapshot.totalSheetHeightWithShadowDp),
             shadowElevation = 0.dp,
             color = Color.Transparent
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = currentBottomPadding)
+                    .padding(bottom = expansionSnapshot.bottomPadding)
             ) {
                 Column(
                     modifier = Modifier.fillMaxSize()
@@ -972,28 +876,28 @@ fun UnifiedPlayerSheet(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .then(dismissGestureModifier)
-                                .padding(horizontal = currentHorizontalPadding)
-                                .height(playerContentAreaHeightDp)
+                                .padding(horizontal = expansionSnapshot.horizontalPadding)
+                                .height(expansionSnapshot.contentAreaHeightDp)
                                 .graphicsLayer {
                                     translationX = offsetAnimatable.value
                                     scaleY = visualOvershootScaleY.value
                                     transformOrigin = TransformOrigin(0.5f, 1f)
                                 }
                                 .shadow(
-                                    elevation = playerAreaElevation,
+                                    elevation = expansionSnapshot.playerAreaElevation,
                                     shape = playerShadowShape,
                                     clip = false
                                 )
                                 .background(
                                     color = albumColorScheme.primaryContainer,
                                     shape = AbsoluteSmoothCornerShape(
-                                        cornerRadiusTL = overallSheetTopCornerRadius,
+                                        cornerRadiusTL = expansionSnapshot.topCornerRadius,
                                         smoothnessAsPercentBL = 60,
-                                        cornerRadiusTR = overallSheetTopCornerRadius,
+                                        cornerRadiusTR = expansionSnapshot.topCornerRadius,
                                         smoothnessAsPercentBR = 60,
-                                        cornerRadiusBR = playerContentActualBottomRadius,
+                                        cornerRadiusBR = expansionSnapshot.bottomCornerRadius,
                                         smoothnessAsPercentTL = 60,
-                                        cornerRadiusBL = playerContentActualBottomRadius,
+                                        cornerRadiusBL = expansionSnapshot.bottomCornerRadius,
                                         smoothnessAsPercentTR = 60
                                     )
                                 )
@@ -1121,7 +1025,7 @@ fun UnifiedPlayerSheet(
                             if (showPlayerContentArea) {
                                 // stablePlayerState.currentSong is already available from the top-level collection
                                 stablePlayerState.currentSong?.let { currentSongNonNull ->
-                                    if (miniAlpha > 0.01f) {
+                                    if (expansionSnapshot.miniAlpha > 0.01f) {
                                         Crossfade(
                                             targetState = albumColorScheme,
                                             animationSpec = tween(durationMillis = 550, easing = FastOutSlowInEasing),
@@ -1130,16 +1034,16 @@ fun UnifiedPlayerSheet(
                                             CompositionLocalProvider(
                                                 LocalMaterialTheme provides (scheme ?: MaterialTheme.colorScheme)
                                             ) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .align(Alignment.TopCenter)
-                                                        .graphicsLayer {
-                                                            alpha = miniAlpha//miniPlayerAlpha
-                                                        }
-                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .align(Alignment.TopCenter)
+                                                            .graphicsLayer {
+                                                                alpha = expansionSnapshot.miniAlpha//miniPlayerAlpha
+                                                            }
+                                                    ) {
                                                     MiniPlayerContentInternal(
                                                         song = currentSongNonNull, // Use non-null version
-                                                        cornerRadiusAlb = (overallSheetTopCornerRadius.value * 0.5).dp,
+                                                        cornerRadiusAlb = (expansionSnapshot.topCornerRadius.value * 0.5).dp,
                                                         isPlaying = stablePlayerState.isPlaying, // from top-level stablePlayerState
                                                         isCastConnecting = isCastConnecting,
                                                         onPlayPause = { playerViewModel.playPause() },
@@ -1152,7 +1056,7 @@ fun UnifiedPlayerSheet(
                                         }
                                     }
 
-                                    if (fullPlayerContentAlpha > 0f) {
+                                    if (expansionSnapshot.fullPlayerContentAlpha > 0f) {
                                         CompositionLocalProvider(
                                             LocalMaterialTheme provides (albumColorScheme
                                                 ?: MaterialTheme.colorScheme)
@@ -1167,8 +1071,8 @@ fun UnifiedPlayerSheet(
                                                 }
                                             }
                                             Box(modifier = Modifier.graphicsLayer {
-                                                alpha = fullPlayerContentAlpha
-                                                translationY = fullPlayerTranslationY
+                                                alpha = expansionSnapshot.fullPlayerContentAlpha
+                                                translationY = expansionSnapshot.fullPlayerTranslationY
                                                 scaleX = fullPlayerScale
                                                 scaleY = fullPlayerScale
                                             }) {
