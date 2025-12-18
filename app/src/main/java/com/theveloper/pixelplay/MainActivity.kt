@@ -411,7 +411,8 @@ class MainActivity : ComponentActivity() {
                 Screen.About.route,
                 Screen.Stats.route,
                 Screen.EditTransition.route,
-                Screen.Experimental.route
+                Screen.Experimental.route,
+                Screen.ArtistSettings.route
             )
         }
         val shouldHideNavigationBar by remember(currentRoute) {
