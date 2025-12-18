@@ -446,6 +446,8 @@ class PlayerViewModel @Inject constructor(
     val isRemotePlaybackActive: StateFlow<Boolean> = _isRemotePlaybackActive.asStateFlow()
     private val _isCastConnecting = MutableStateFlow(false)
     val isCastConnecting: StateFlow<Boolean> = _isCastConnecting.asStateFlow()
+    private val castControlCategory = CastMediaControlIntent.categoryForCast(CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID)
+    private var pendingCastRouteId: String? = null
     private val _remotePosition = MutableStateFlow(0L)
     val remotePosition: StateFlow<Long> = _remotePosition.asStateFlow()
     private var lastRemoteMediaStatus: MediaStatus? = null
@@ -924,6 +926,18 @@ class PlayerViewModel @Inject constructor(
         return ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
     }
 
+    private fun MediaRouter.RouteInfo.isCastRoute(): Boolean {
+        return supportsControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK) ||
+            supportsControlCategory(castControlCategory)
+    }
+
+    private fun buildCastRouteSelector(): MediaRouteSelector {
+        return MediaRouteSelector.Builder()
+            .addControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK)
+            .addControlCategory(castControlCategory)
+            .build()
+    }
+
     private fun updateWifiInfo(network: Network?) {
         if (!hasLocationPermission()) {
             _wifiName.value = null
@@ -1154,17 +1168,11 @@ class PlayerViewModel @Inject constructor(
         }, ContextCompat.getMainExecutor(context))
 
         mediaRouter = MediaRouter.getInstance(context)
-        val mediaRouteSelector = MediaRouteSelector.Builder()
-            .addControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK)
-            .addControlCategory(CastMediaControlIntent.categoryForCast(CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID))
-            .build()
+        val mediaRouteSelector = buildCastRouteSelector()
 
         mediaRouterCallback = object : MediaRouter.Callback() {
             private fun updateRoutes(router: MediaRouter) {
-                val routes = router.routes.filter {
-                    it.supportsControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK) ||
-                    it.supportsControlCategory(CastMediaControlIntent.categoryForCast(CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID))
-                }.distinctBy { it.id }
+                val routes = router.routes.filter { it.isCastRoute() }.distinctBy { it.id }
                 _castRoutes.value = routes
                 _selectedRoute.value = router.selectedRoute
                 _routeVolume.value = router.selectedRoute.volume
@@ -1192,10 +1200,7 @@ class PlayerViewModel @Inject constructor(
         }
         // Initial route setup
         mediaRouter.addCallback(mediaRouteSelector, mediaRouterCallback, MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY)
-        _castRoutes.value = mediaRouter.routes.filter {
-            it.supportsControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK) ||
-            it.supportsControlCategory(CastMediaControlIntent.categoryForCast(CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID))
-        }.distinctBy { it.id }
+        _castRoutes.value = mediaRouter.routes.filter { it.isCastRoute() }.distinctBy { it.id }
         _selectedRoute.value = mediaRouter.selectedRoute
 
         // Connectivity listeners
@@ -1408,6 +1413,7 @@ class PlayerViewModel @Inject constructor(
         castSessionManagerListener = object : SessionManagerListener<CastSession> {
             private fun transferPlayback(session: CastSession) {
                 viewModelScope.launch {
+                    pendingCastRouteId = null
                     _isCastConnecting.value = true
                     if (!ensureHttpServerRunning()) {
                         sendToast("Could not start cast server. Check connection.")
@@ -1494,6 +1500,7 @@ class PlayerViewModel @Inject constructor(
             }
 
             private fun stopServerAndTransferBack() {
+                val targetRouteId = pendingCastRouteId
                 val session = _castSession.value ?: return
                 val remoteMediaClient = session.remoteMediaClient
                 val liveStatus = remoteMediaClient?.mediaStatus
@@ -1530,9 +1537,21 @@ class PlayerViewModel @Inject constructor(
                 castPlayer = null
                 _castSession.value = null
                 _isRemotePlaybackActive.value = false
-                context.stopService(Intent(context, MediaFileHttpServerService::class.java))
-                disconnect(resetConnecting = false) // Don't reset connecting flag yet
-                val localPlayer = mediaController ?: return
+                if (targetRouteId == null) {
+                    context.stopService(Intent(context, MediaFileHttpServerService::class.java))
+                    disconnect(resetConnecting = false) // Don't reset connecting flag yet
+                } else {
+                    _isCastConnecting.value = true
+                }
+                val localPlayer = mediaController ?: run {
+                    if (targetRouteId == null) {
+                        _isCastConnecting.value = false
+                    } else {
+                        pendingCastRouteId = null
+                        _isCastConnecting.value = false
+                    }
+                    return
+                }
                 val fallbackQueue = if (lastKnownStatus?.queueItems?.isNotEmpty() == true) {
                     lastKnownStatus.queueItems.mapNotNull { item ->
                         item.customData?.optString("songId")?.let { songId ->
@@ -1622,7 +1641,17 @@ class PlayerViewModel @Inject constructor(
                 lastRemoteQueue = emptyList()
                 lastRemoteSongId = null
                 lastRemoteStreamPosition = 0L
-                _isCastConnecting.value = false // NOW we reset the flag
+                if (targetRouteId == null) {
+                    _isCastConnecting.value = false // NOW we reset the flag
+                } else {
+                    val pendingRoute = mediaRouter.routes.firstOrNull { it.id == targetRouteId }
+                    if (pendingRoute != null) {
+                        mediaRouter.selectRoute(pendingRoute)
+                    } else {
+                        pendingCastRouteId = null
+                        _isCastConnecting.value = false
+                    }
+                }
             }
 
             override fun onSessionEnded(session: CastSession, error: Int) {
@@ -1638,6 +1667,7 @@ class PlayerViewModel @Inject constructor(
                 _isCastConnecting.value = true
             }
             override fun onSessionStartFailed(session: CastSession, error: Int) {
+                pendingCastRouteId = null
                 _isCastConnecting.value = false
             }
             override fun onSessionEnding(session: CastSession) {
@@ -1647,6 +1677,7 @@ class PlayerViewModel @Inject constructor(
                 _isCastConnecting.value = true
             }
             override fun onSessionResumeFailed(session: CastSession, error: Int) {
+                pendingCastRouteId = null
                 _isCastConnecting.value = false
             }
         }
@@ -4159,10 +4190,25 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun selectRoute(route: MediaRouter.RouteInfo) {
+        val selectedRouteId = _selectedRoute.value?.id
+        val isCastRoute = route.isCastRoute() && !route.isDefault
+        val isSwitchingBetweenRemotes = isCastRoute &&
+            (isRemotePlaybackActive.value || _isCastConnecting.value) &&
+            selectedRouteId != null &&
+            selectedRouteId != route.id
+
+        if (isSwitchingBetweenRemotes) {
+            pendingCastRouteId = route.id
+            _isCastConnecting.value = true
+            sessionManager.currentCastSession?.let { sessionManager.endCurrentSession(true) }
+        } else {
+            pendingCastRouteId = null
+        }
         mediaRouter.selectRoute(route)
     }
 
     fun disconnect(resetConnecting: Boolean = true) {
+        pendingCastRouteId = null
         mediaRouter.selectRoute(mediaRouter.defaultRoute)
         _isRemotePlaybackActive.value = false
         if (resetConnecting) {
@@ -4179,11 +4225,19 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             _isRefreshingRoutes.value = true
             mediaRouter.removeCallback(mediaRouterCallback)
-            val mediaRouteSelector = MediaRouteSelector.Builder()
-                .addControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK)
-                .build()
+            val mediaRouteSelector = buildCastRouteSelector()
+            mediaRouter.addCallback(
+                mediaRouteSelector,
+                mediaRouterCallback,
+                MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY or MediaRouter.CALLBACK_FLAG_PERFORM_ACTIVE_SCAN
+            )
+            _castRoutes.value = mediaRouter.routes.filter { it.isCastRoute() }.distinctBy { it.id }
+            _selectedRoute.value = mediaRouter.selectedRoute
+            delay(1800) // Allow active scan to run briefly
+            mediaRouter.removeCallback(mediaRouterCallback)
             mediaRouter.addCallback(mediaRouteSelector, mediaRouterCallback, MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY)
-            delay(1500) // Simulate a refresh delay
+            _castRoutes.value = mediaRouter.routes.filter { it.isCastRoute() }.distinctBy { it.id }
+            _selectedRoute.value = mediaRouter.selectedRoute
             _isRefreshingRoutes.value = false
         }
     }
