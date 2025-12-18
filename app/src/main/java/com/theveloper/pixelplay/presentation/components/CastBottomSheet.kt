@@ -685,8 +685,11 @@ private fun CastSheetContainer(
     }
 
     fun dismissSheet(velocity: Float = 0f) {
-        if (isDismissing || hiddenOffsetPx.floatValue == 0f) return
+        if (isDismissing) return
         isDismissing = true
+        // Invoke dismissal immediately so navigation/UI is freed even if animations are running
+        onDismiss()
+        if (hiddenOffsetPx.floatValue == 0f) return
         scope.launch {
             isVisible = false
             sheetOffset.animateTo(
@@ -694,7 +697,6 @@ private fun CastSheetContainer(
                 animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
                 initialVelocity = velocity
             )
-            onDismiss()
         }
     }
 

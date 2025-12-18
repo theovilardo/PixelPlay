@@ -798,7 +798,7 @@ fun FullPlayerContent(
                                 animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
                             )
                             val castButtonWidth by animateDpAsState(
-                                targetValue = if (showCastLabel) 176.dp else 50.dp,
+                                targetValue = if (showCastLabel) 220.dp else 50.dp,
                                 animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
                             )
                             val castContainerColor by animateColorAsState(
@@ -809,6 +809,7 @@ fun FullPlayerContent(
                                 modifier = Modifier
                                     .height(42.dp)
                                     .width(castButtonWidth)
+                                    .widthIn(min = 50.dp, max = 280.dp)
                                     .clip(
                                         RoundedCornerShape(
                                             topStart = castTopStart.coerceAtLeast(0.dp),
@@ -861,7 +862,8 @@ fun FullPlayerContent(
                                                         style = MaterialTheme.typography.labelMedium,
                                                         color = LocalMaterialTheme.current.primary,
                                                         maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        modifier = Modifier.weight(1f, fill = false)
                                                     )
                                                     AnimatedVisibility(visible = isCastConnecting) {
                                                         CircularProgressIndicator(
