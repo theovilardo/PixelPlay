@@ -257,7 +257,7 @@ fun FullPlayerContent(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 64.dp)
+                .heightIn(min = 78.dp)
                 .padding(vertical = lerp(2.dp, 10.dp, expansionFraction)),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
@@ -266,7 +266,7 @@ fun FullPlayerContent(
                 modifier = Modifier
                     .weight(0.85f)
                     .fillMaxWidth(0.9f),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 PlaceholderBox(
                     modifier = Modifier
@@ -283,9 +283,8 @@ fun FullPlayerContent(
                     color = placeholderOnColor
                 )
             }
-            Spacer(modifier = Modifier.width(12.dp))
             PlaceholderBox(
-                modifier = Modifier.size(48.dp),
+                modifier = Modifier.size(50.dp),
                 cornerRadius = 16.dp,
                 color = placeholderOnColor
             )
@@ -299,7 +298,7 @@ fun FullPlayerContent(
                 .fillMaxWidth()
                 .padding(vertical = lerp(2.dp, 0.dp, expansionFraction))
                 .graphicsLayer { alpha = expansionFraction }
-                .heightIn(min = 70.dp),
+                .heightIn(min = 78.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
