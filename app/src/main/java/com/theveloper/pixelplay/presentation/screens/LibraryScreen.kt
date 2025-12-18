@@ -187,6 +187,8 @@ fun LibraryScreen(
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var showReorderTabsSheet by remember { mutableStateOf(false) }
     var showTabSwitcherSheet by remember { mutableStateOf(false) }
+    var lastPillPage by remember { mutableIntStateOf(pagerState.currentPage) }
+    var pillAnimationDirection by remember { mutableIntStateOf(0) }
 
     val stableOnMoreOptionsClick: (Song) -> Unit = remember {
         { song ->
@@ -261,9 +263,6 @@ fun LibraryScreen(
     val isCompactNavigation = libraryNavigationMode == LibraryNavigationMode.COMPACT_PILL
     val currentTabTitle = tabTitles.getOrNull(pagerState.currentPage)?.toLibraryTabIdOrNull()?.displayTitle()
         ?: currentTabId.displayTitle()
-
-    var lastPillPage by remember { mutableIntStateOf(pagerState.currentPage) }
-    var pillAnimationDirection by remember { mutableIntStateOf(0) }
 
     Scaffold(
         modifier = Modifier.background(brush = gradientBrush),
