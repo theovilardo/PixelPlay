@@ -41,13 +41,19 @@ import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.FolderOff
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MediumFlexibleTopAppBar
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -146,6 +152,7 @@ fun FileExplorerDialog(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun FileExplorerContent(
     currentPath: File,
@@ -172,6 +179,47 @@ fun FileExplorerContent(
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = {
+                    Text(
+                        text = title,
+                        fontFamily = GoogleSansRounded,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                },
+                navigationIcon = {
+                    FilledIconButton(
+                        modifier = Modifier.padding(start = 6.dp),
+                        onClick = onDismiss,
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Close"
+                        )
+                    }
+                },
+                actions = {
+                    FilledIconButton(
+                        modifier = Modifier.padding(end = 6.dp),
+                        onClick = onRefresh,
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Refresh,
+                            contentDescription = "Refresh"
+                        )
+                    }
+                }
+            )
+        },
         contentWindowInsets = WindowInsets.systemBars,
         floatingActionButton = {
             ExtendedFloatingActionButton(
@@ -197,53 +245,53 @@ fun FileExplorerContent(
                 .fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(7.2.dp)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 10.dp)
-                    .padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    FilledIconButton(
-                        onClick = onDismiss,
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-                            contentColor = MaterialTheme.colorScheme.onSurface
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Close,
-                            contentDescription = "Close"
-                        )
-                    }
-                    leadingContent?.invoke()
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleLarge.copy(fontSize = 24.sp),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(start = 6.dp)
-                    )
-                }
-
-                FilledIconButton(
-                    modifier = Modifier.padding(end = 4.dp),
-                    onClick = onRefresh,
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Refresh,
-                        contentDescription = "Refresh"
-                    )
-                }
-            }
+//            Row(
+//                modifier = Modifier
+//                    .fillMaxWidth()
+//                    .padding(top = 10.dp)
+//                    .padding(horizontal = 16.dp),
+//                verticalAlignment = Alignment.CenterVertically,
+//                horizontalArrangement = Arrangement.SpaceBetween
+//            ) {
+//                Row(
+//                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+//                    verticalAlignment = Alignment.CenterVertically
+//                ) {
+//                    FilledIconButton(
+//                        onClick = onDismiss,
+//                        colors = IconButtonDefaults.filledIconButtonColors(
+//                            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+//                            contentColor = MaterialTheme.colorScheme.onSurface
+//                        )
+//                    ) {
+//                        Icon(
+//                            imageVector = Icons.Rounded.Close,
+//                            contentDescription = "Close"
+//                        )
+//                    }
+//                    leadingContent?.invoke()
+//                    Text(
+//                        text = title,
+//                        style = MaterialTheme.typography.titleLarge.copy(fontSize = 24.sp),
+//                        color = MaterialTheme.colorScheme.onSurface,
+//                        modifier = Modifier.padding(start = 6.dp)
+//                    )
+//                }
+//
+//                FilledIconButton(
+//                    modifier = Modifier.padding(end = 4.dp),
+//                    onClick = onRefresh,
+//                    colors = IconButtonDefaults.filledIconButtonColors(
+//                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+//                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+//                    )
+//                ) {
+//                    Icon(
+//                        imageVector = Icons.Rounded.Refresh,
+//                        contentDescription = "Refresh"
+//                    )
+//                }
+//            }
 
             // Only show storage tabs if there's more than one storage
             if (availableStorages.size > 1) {
@@ -298,7 +346,9 @@ fun FileExplorerContent(
                 text = "Everything is allowed by default. Tap a folder to mark it as excluded from scans.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 18.dp)
+                modifier = Modifier
+                    .padding(top = 10.dp)
+                    .padding(horizontal = 18.dp)
             )
 
             FileExplorerHeader(
@@ -330,10 +380,12 @@ fun FileExplorerContent(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(horizontal = 18.dp)
-                                    .clip(RoundedCornerShape(
-                                        topEnd = 20.dp,
-                                        topStart = 20.dp
-                                    )),
+                                    .clip(
+                                        RoundedCornerShape(
+                                            topEnd = 20.dp,
+                                            topStart = 20.dp
+                                        )
+                                    ),
 //                                contentPadding = PaddingValues(
 //                                    horizontal = 16.dp
 //                                ),
@@ -414,7 +466,7 @@ private fun ExplorerLoadingState() {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        androidx.compose.material3.CircularProgressIndicator()
+        CircularProgressIndicator()
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = "Loading folders…",
@@ -540,7 +592,7 @@ private fun FileExplorerItem(
             RadioButton(
                 selected = isBlocked,
                 onClick = onToggleAllowed,
-                colors = androidx.compose.material3.RadioButtonDefaults.colors(
+                colors = RadioButtonDefaults.colors(
                     selectedColor = MaterialTheme.colorScheme.onErrorContainer,
                     unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -692,7 +744,9 @@ private fun FileExplorerHeader(
                                         imageVector = Icons.Rounded.Home,
                                         contentDescription = "Go to root",
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(end = 4.dp).size(16.dp)
+                                        modifier = Modifier
+                                            .padding(end = 4.dp)
+                                            .size(16.dp)
                                     )
                                 }
                                 Text(

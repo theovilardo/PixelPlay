@@ -7,6 +7,7 @@ import com.theveloper.pixelplay.data.preferences.AppThemeMode
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
+import com.theveloper.pixelplay.data.preferences.FullPlayerLoadingTweaks
 import com.theveloper.pixelplay.data.worker.SyncManager
 import com.theveloper.pixelplay.data.worker.SyncProgress
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -38,7 +39,8 @@ data class SettingsUiState(
     val availableModels: List<GeminiModel> = emptyList(),
     val isLoadingModels: Boolean = false,
     val modelsFetchError: String? = null,
-    val appRebrandDialogShown: Boolean = false
+    val appRebrandDialogShown: Boolean = false,
+    val fullPlayerLoadingTweaks: FullPlayerLoadingTweaks = FullPlayerLoadingTweaks()
 )
 
 @HiltViewModel
@@ -166,6 +168,12 @@ class SettingsViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            userPreferencesRepository.fullPlayerLoadingTweaksFlow.collect { tweaks ->
+                _uiState.update { it.copy(fullPlayerLoadingTweaks = tweaks) }
+            }
+        }
+
+        viewModelScope.launch {
             fileExplorerStateHolder.isLoading.collect { loading ->
                 _uiState.update { it.copy(isLoadingDirectories = loading) }
             }
@@ -263,6 +271,57 @@ class SettingsViewModel @Inject constructor(
     fun setCrossfadeDuration(duration: Int) {
         viewModelScope.launch {
             userPreferencesRepository.setCrossfadeDuration(duration)
+        }
+    }
+
+    fun setDelayAllFullPlayerContent(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setDelayAllFullPlayerContent(enabled)
+            if (enabled) {
+                userPreferencesRepository.setDelayAlbumCarousel(true)
+                userPreferencesRepository.setDelaySongMetadata(true)
+                userPreferencesRepository.setDelayProgressBar(true)
+                userPreferencesRepository.setDelayControls(true)
+            }
+        }
+    }
+
+    fun setDelayAlbumCarousel(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setDelayAlbumCarousel(enabled)
+        }
+    }
+
+    fun setDelaySongMetadata(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setDelaySongMetadata(enabled)
+        }
+    }
+
+    fun setDelayProgressBar(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setDelayProgressBar(enabled)
+        }
+    }
+
+    fun setDelayControls(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setDelayControls(enabled)
+        }
+    }
+
+    fun setFullPlayerPlaceholders(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setFullPlayerPlaceholders(enabled)
+            if (!enabled) {
+                userPreferencesRepository.setTransparentPlaceholders(false)
+            }
+        }
+    }
+
+    fun setTransparentPlaceholders(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setTransparentPlaceholders(enabled)
         }
     }
 

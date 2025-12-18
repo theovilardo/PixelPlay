@@ -182,6 +182,7 @@ fun UnifiedPlayerSheet(
     val navBarCornerRadius by playerViewModel.navBarCornerRadius.collectAsState()
     val navBarStyle by playerViewModel.navBarStyle.collectAsState()
     val carouselStyle by playerViewModel.carouselStyle.collectAsState()
+    val fullPlayerLoadingTweaks by playerViewModel.fullPlayerLoadingTweaks.collectAsState()
     LaunchedEffect(stablePlayerState.currentSong?.id) {
         if (stablePlayerState.currentSong != null) {
             prewarmFullPlayer = true
@@ -1180,6 +1181,7 @@ fun UnifiedPlayerSheet(
                                                     expansionFraction = playerContentExpansionFraction.value,
                                                     currentSheetState = currentSheetContentState,
                                                     carouselStyle = carouselStyle,
+                                                    loadingTweaks = fullPlayerLoadingTweaks,
                                                     playerViewModel = playerViewModel,
                                                     // State Providers
                                                     currentPositionProvider = { positionToDisplay },
@@ -1235,6 +1237,7 @@ fun UnifiedPlayerSheet(
                                     expansionFraction = 1f,
                                     currentSheetState = PlayerSheetState.EXPANDED,
                                     carouselStyle = carouselStyle,
+                                    loadingTweaks = fullPlayerLoadingTweaks,
                                     playerViewModel = playerViewModel,
                                     currentPositionProvider = { positionToDisplay },
                                     isPlayingProvider = { stablePlayerState.isPlaying },

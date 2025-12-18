@@ -57,6 +57,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -78,6 +79,8 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -111,6 +114,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -138,12 +142,15 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @Composable
-private fun SettingsTopBar(
+fun SettingsTopBar(
     collapseFraction: Float,
     headerHeight: Dp,
-    onBackPressed: () -> Unit
+    onBackPressed: () -> Unit,
+    title: String = "Settings",
+    expandedTitleStartPadding: Dp = 0.dp
 ) {
     val surfaceColor = MaterialTheme.colorScheme.surface
+    val titleStartPadding = lerp(expandedTitleStartPadding, 0.dp, collapseFraction.coerceIn(0f, 1f))
 
     Box(
         modifier = Modifier
@@ -167,11 +174,11 @@ private fun SettingsTopBar(
             }
 
             ExpressiveTopBarContent(
-                title = "Settings",
+                title = title,
                 collapseFraction = collapseFraction,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(start = 0.dp, end = 0.dp)
+                    .padding(start = titleStartPadding, end = 0.dp)
             )
         }
     }
@@ -713,6 +720,26 @@ fun SettingsScreen(
                             .clip(shape = RoundedCornerShape(24.dp))
                     ) {
                         SettingsItem(
+                            title = "Experimental",
+                            subtitle = "Player UI loading experiments and toggles.",
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Science,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            },
+                            trailingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronRight,
+                                    contentDescription = "Open experimental settings",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            onClick = { navController.navigate(Screen.Experimental.route) }
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        SettingsItem(
                             title = "Force Daily Mix Regeneration",
                             subtitle = "Re-creates the daily mix playlist immediately.",
                             leadingIcon = {
@@ -1069,6 +1096,70 @@ fun SettingsItem(
             ) {
                 trailingIcon()
             }
+        }
+    }
+}
+
+@Composable
+fun SwitchSettingItem(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    leadingIcon: @Composable (() -> Unit)? = null,
+    enabled: Boolean = true
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (leadingIcon != null) {
+                Box(
+                    modifier = Modifier
+                        .padding(end = 4.dp)
+                        .size(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    leadingIcon()
+                }
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+            }
+
+            Switch(
+                checked = checked,
+                onCheckedChange = { if (enabled) onCheckedChange(it) },
+                enabled = enabled,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                    uncheckedThumbColor = MaterialTheme.colorScheme.onSurface,
+                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            )
         }
     }
 }
@@ -1673,4 +1764,3 @@ fun SystemPromptDialog(
         }
     }
 }
-
