@@ -257,7 +257,7 @@ fun FullPlayerContent(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 78.dp)
+                .heightIn(min = 70.dp)
                 .padding(vertical = lerp(2.dp, 10.dp, expansionFraction)),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
@@ -265,7 +265,8 @@ fun FullPlayerContent(
             Column(
                 modifier = Modifier
                     .weight(0.85f)
-                    .fillMaxWidth(0.9f),
+                    .fillMaxWidth(0.9f)
+                    .align(Alignment.CenterVertically),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 PlaceholderBox(
@@ -284,7 +285,9 @@ fun FullPlayerContent(
                 )
             }
             PlaceholderBox(
-                modifier = Modifier.size(50.dp),
+                modifier = Modifier
+                    .weight(0.15f)
+                    .size(48.dp),
                 cornerRadius = 16.dp,
                 color = placeholderOnColor
             )
@@ -298,18 +301,18 @@ fun FullPlayerContent(
                 .fillMaxWidth()
                 .padding(vertical = lerp(2.dp, 0.dp, expansionFraction))
                 .graphicsLayer { alpha = expansionFraction }
-                .heightIn(min = 78.dp),
+                .heightIn(min = 70.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp)
-            ) {
+                ) {
                 PlaceholderBox(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(12.dp),
+                        .height(8.dp),
                     cornerRadius = 6.dp
                 )
             }
@@ -948,7 +951,8 @@ private fun SongMetadataDisplaySection(
 ) {
     Row(
         modifier
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .heightIn(min = 70.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Absolute.SpaceBetween
     ) {
