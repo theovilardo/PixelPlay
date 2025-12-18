@@ -37,4 +37,7 @@ sealed class Screen(val route: String) {
 
     object About : Screen("about")
 
+    object ArtistSettings : Screen("artist_settings")
+    object DelimiterConfig : Screen("delimiter_config")
+
 }

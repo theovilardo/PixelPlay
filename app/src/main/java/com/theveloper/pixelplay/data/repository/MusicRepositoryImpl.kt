@@ -180,19 +180,26 @@ class MusicRepositoryImpl @Inject constructor(
 
     override fun getArtistById(artistId: Long): Flow<Artist?> {
         LogUtils.d(this, "getArtistById: $artistId")
+        // Only return the artist if the user has access to at least one song by this artist
         return combine(
             musicDao.getArtistById(artistId),
             permittedSongsFlow
         ) { artistEntity, allowedSongs ->
             val hasAccess = artistEntity != null && allowedSongs.any { it.artistId == artistId }
             if (hasAccess) artistEntity?.toArtist() else null
-        }.conflate().flowOn(Dispatchers.IO)
+        }.flowOn(Dispatchers.IO)
+    }
+
+    override fun getArtistsForSong(songId: Long): Flow<List<Artist>> {
+        return musicDao.getArtistsForSong(songId).map { entities ->
+            entities.map { it.toArtist() }
+        }
     }
 
     override fun getSongsForArtist(artistId: Long): Flow<List<Song>> {
         LogUtils.d(this, "getSongsForArtist: $artistId")
         return combine(
-            musicDao.getSongsByArtistId(artistId),
+            musicDao.getSongsForArtist(artistId), // Use junction table query
             directoryFilterConfig
         ) { songEntities, config ->
             songEntities.filterBlocked(config).map { it.toSong() }

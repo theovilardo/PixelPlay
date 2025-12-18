@@ -7,10 +7,18 @@ import androidx.compose.runtime.Immutable
 data class Song(
     val id: String,
     val title: String,
+    /**
+     * Legacy artist display string.
+     * - If multi-artist support (e.g., artistSeparationEnabled) is disabled, this contains the primary artist or a combined artist string from metadata.
+     * - If multi-artist support is enabled, this typically contains only the primary artist for backward compatibility.
+     * For accurate display of all artists, use the [artists] list and [displayArtist] property.
+     */
     val artist: String,
-    val artistId: Long,
+    val artistId: Long, // Primary artist ID for backward compatibility
+    val artists: List<ArtistRef> = emptyList(), // All artists for multi-artist support
     val album: String,
     val albumId: Long,
+    val albumArtist: String? = null, // Album artist from metadata
     val path: String, // Added for direct file system access
     val contentUriString: String,
     val albumArtUriString: String?,
@@ -25,6 +33,27 @@ data class Song(
     val bitrate: Int?,
     val sampleRate: Int?,
 ) {
+    /**
+     * Returns the display string for artists.
+     * If multiple artists exist, joins them with ", ".
+     * Falls back to the artist field if artists list is empty.
+     */
+    val displayArtist: String
+        get() = if (artists.isNotEmpty()) {
+            artists.sortedByDescending { it.isPrimary }.joinToString(", ") { it.name }
+        } else {
+            artist
+        }
+
+    /**
+     * Returns the primary artist from the artists list,
+     * or creates one from the legacy artist field.
+     */
+    val primaryArtist: ArtistRef
+        get() = artists.find { it.isPrimary }
+            ?: artists.firstOrNull()
+            ?: ArtistRef(id = artistId, name = artist, isPrimary = true)
+
     companion object {
         fun emptySong(): Song {
             return Song(
@@ -32,8 +61,10 @@ data class Song(
                 title = "",
                 artist = "",
                 artistId = -1L,
+                artists = emptyList(),
                 album = "",
                 albumId = -1L,
+                albumArtist = null,
                 path = "",
                 contentUriString = "",
                 albumArtUriString = null,
