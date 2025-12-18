@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.theveloper.pixelplay.data.preferences.AppThemeMode
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
+import com.theveloper.pixelplay.data.preferences.LibraryNavigationMode
 import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.preferences.FullPlayerLoadingTweaks
@@ -30,6 +31,7 @@ data class SettingsUiState(
     val navBarCornerRadius: Int = 32,
     val navBarStyle: String = NavBarStyle.DEFAULT,
     val carouselStyle: String = CarouselStyle.ONE_PEEK,
+    val libraryNavigationMode: String = LibraryNavigationMode.TAB_ROW,
     val launchTab: String = LaunchTab.HOME,
     val keepPlayingInBackground: Boolean = true,
     val disableCastAutoplay: Boolean = false,
@@ -122,6 +124,12 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferencesRepository.navBarStyleFlow.collect { style ->
                 _uiState.update { it.copy(navBarStyle = style) }
+            }
+        }
+
+        viewModelScope.launch {
+            userPreferencesRepository.libraryNavigationModeFlow.collect { mode ->
+                _uiState.update { it.copy(libraryNavigationMode = mode) }
             }
         }
 
@@ -235,6 +243,12 @@ class SettingsViewModel @Inject constructor(
     fun setNavBarStyle(style: String) {
         viewModelScope.launch {
             userPreferencesRepository.setNavBarStyle(style)
+        }
+    }
+
+    fun setLibraryNavigationMode(mode: String) {
+        viewModelScope.launch {
+            userPreferencesRepository.setLibraryNavigationMode(mode)
         }
     }
 
