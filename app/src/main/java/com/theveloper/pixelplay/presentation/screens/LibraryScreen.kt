@@ -1137,7 +1137,7 @@ private fun LibraryTabSwitcherSheet(
                     ) {
                         FilledTonalButton(
                             onClick = onEditClick,
-                            shape = RoundedCornerShape(18.dp),
+                            shape = CircleShape,
                             colors = ButtonDefaults.filledTonalButtonColors(
                                 containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                                 contentColor = MaterialTheme.colorScheme.onTertiaryContainer
