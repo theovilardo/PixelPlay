@@ -56,6 +56,7 @@ import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -112,6 +113,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -143,9 +145,11 @@ fun SettingsTopBar(
     collapseFraction: Float,
     headerHeight: Dp,
     onBackPressed: () -> Unit,
-    title: String = "Settings"
+    title: String = "Settings",
+    expandedTitleStartPadding: Dp = 0.dp
 ) {
     val surfaceColor = MaterialTheme.colorScheme.surface
+    val titleStartPadding = lerp(expandedTitleStartPadding, 0.dp, collapseFraction.coerceIn(0f, 1f))
 
     Box(
         modifier = Modifier
@@ -173,7 +177,7 @@ fun SettingsTopBar(
                 collapseFraction = collapseFraction,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(start = 0.dp, end = 0.dp)
+                    .padding(start = titleStartPadding, end = 0.dp)
             )
         }
     }
@@ -697,7 +701,7 @@ fun SettingsScreen(
                             subtitle = "Player UI loading experiments and toggles.",
                             leadingIcon = {
                                 Icon(
-                                    imageVector = Icons.Outlined.Warning,
+                                    imageVector = Icons.Rounded.Science,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.secondary
                                 )
@@ -1079,7 +1083,8 @@ fun SwitchSettingItem(
     subtitle: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
-    leadingIcon: @Composable (() -> Unit)? = null
+    leadingIcon: @Composable (() -> Unit)? = null,
+    enabled: Boolean = true
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
@@ -1112,18 +1117,19 @@ fun SwitchSettingItem(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )
             }
 
             Switch(
                 checked = checked,
-                onCheckedChange = onCheckedChange,
+                onCheckedChange = { if (enabled) onCheckedChange(it) },
+                enabled = enabled,
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
                     checkedTrackColor = MaterialTheme.colorScheme.primary,

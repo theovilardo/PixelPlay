@@ -214,8 +214,11 @@ fun FullPlayerContent(
     fun delayThreshold(base: Float, toggle: Boolean) = if (shouldDelay(toggle)) fullyExpandedThreshold else base
     fun isComponentReady(toggle: Boolean) = !shouldDelay(toggle) || isBackgroundFullyExpanded
 
-    val placeholderColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.28f)
-    val placeholderOnColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.16f)
+    val placeholdersTransparent = placeholdersEnabled && loadingTweaks.transparentPlaceholders
+    val basePlaceholderColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.28f)
+    val basePlaceholderOnColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.16f)
+    val placeholderColor = if (placeholdersTransparent) basePlaceholderColor.copy(alpha = 0f) else basePlaceholderColor
+    val placeholderOnColor = if (placeholdersTransparent) basePlaceholderOnColor.copy(alpha = 0f) else basePlaceholderOnColor
 
     @Composable
     fun PlaceholderBox(
@@ -238,7 +241,7 @@ fun FullPlayerContent(
                 .fillMaxWidth()
                 .height(height),
             shape = RoundedCornerShape(18.dp),
-            color = placeholderColor.copy(alpha = 0.25f),
+            color = placeholderColor,
             tonalElevation = 0.dp
         ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
@@ -246,7 +249,7 @@ fun FullPlayerContent(
                     modifier = Modifier.size(86.dp),
                     painter = painterResource(R.drawable.pixelplay_base_monochrome),
                     contentDescription = null,
-                    tint = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.4f)
+                    tint = placeholderOnColor
                 )
             }
         }
@@ -254,43 +257,77 @@ fun FullPlayerContent(
 
     @Composable
     fun MetadataPlaceholder() {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 70.dp)
-                .padding(top = 14.dp)
-                .padding(horizontal = 0.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .heightIn(min = 80.dp)
+                .padding(vertical = lerp(2.dp, 10.dp, expansionFraction)),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            PlaceholderBox(modifier = Modifier.fillMaxWidth().height(20.dp).padding(end = 50.dp), cornerRadius = 60.dp)
-            PlaceholderBox(modifier = Modifier.fillMaxWidth(0.55f).height(16.dp), cornerRadius = 60.dp, color = placeholderOnColor)
+            Column(
+                modifier = Modifier
+                    .weight(0.85f)
+                    .fillMaxWidth(0.9f)
+                    .align(Alignment.CenterVertically),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                PlaceholderBox(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(20.dp)
+                        .padding(end = 50.dp),
+                    cornerRadius = 60.dp
+                )
+                PlaceholderBox(
+                    modifier = Modifier
+                        .fillMaxWidth(0.55f)
+                        .height(16.dp),
+                    cornerRadius = 60.dp,
+                    color = placeholderOnColor
+                )
+            }
+            PlaceholderBox(
+                modifier = Modifier
+                    .weight(0.15f)
+                    .size(height = 48.dp, width = 42.dp),
+                cornerRadius = 60.dp,
+                color = placeholderOnColor
+            )
         }
     }
 
     @Composable
     fun ProgressPlaceholder() {
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 70.dp)
-                .padding(top = 6.dp)
+                //.padding(vertical = lerp(2.dp, 0.dp, expansionFraction))
+                .graphicsLayer { alpha = expansionFraction }
+                .heightIn(min = 70.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .align(Alignment.Center)
-                    .padding(horizontal = 2.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
-            ) {
-                //PlaceholderBox(modifier = Modifier.fillMaxWidth().height(10.dp), cornerRadius = 10.dp, color = placeholderOnColor)
-                PlaceholderBox(modifier = Modifier.fillMaxWidth().height(8.dp), cornerRadius = 6.dp)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    .padding(vertical = 8.dp)
                 ) {
-                    PlaceholderBox(modifier = Modifier.width(40.dp).height(12.dp), cornerRadius = 6.dp, color = placeholderOnColor)
-                    PlaceholderBox(modifier = Modifier.width(40.dp).height(12.dp), cornerRadius = 6.dp, color = placeholderOnColor)
-                }
+                PlaceholderBox(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(18.dp),
+                    cornerRadius = 60.dp
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                PlaceholderBox(modifier = Modifier.width(40.dp).height(12.dp), cornerRadius = 6.dp, color = placeholderOnColor)
+                PlaceholderBox(modifier = Modifier.width(40.dp).height(12.dp), cornerRadius = 6.dp, color = placeholderOnColor)
             }
         }
     }
@@ -300,31 +337,31 @@ fun FullPlayerContent(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 6.dp)
-                .height(174.dp)
+                .padding(bottom = 10.dp)
+                //.height(174.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.Center)
                     .padding(horizontal = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(22.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                    listOf(Pair(80.dp, 94.dp), Pair(80.dp, 94.dp), Pair(80.dp, 94.dp)).forEach { size ->
+                    listOf(Triple(80.dp, 94.dp, 60.dp), Triple(80.dp, 94.dp, 28.dp), Triple(80.dp, 94.dp, 60.dp)).forEach { size ->
                         PlaceholderBox(
                             modifier = Modifier
                                 .weight(1f)
                                 .size(width = size.second, height = size.first),
-                            cornerRadius = 60.dp//size / 2
+                            cornerRadius = size.third
                         )
                     }
                 }
                 PlaceholderBox(
                     modifier = Modifier
                         .width(260.dp)
-                        .height(76.dp),
+                        .height(68.dp),
                     cornerRadius = 60.dp,
                     color = placeholderOnColor
                 )
@@ -436,7 +473,10 @@ fun FullPlayerContent(
 
     @Composable
     fun ControlsSection() {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            //modifier = Modifier.height(194.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             AnimatedPlaybackControls(
                 modifier = Modifier
                     .padding(horizontal = 12.dp, vertical = 8.dp),
@@ -919,7 +959,8 @@ private fun SongMetadataDisplaySection(
 ) {
     Row(
         modifier
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .heightIn(min = 70.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Absolute.SpaceBetween
     ) {

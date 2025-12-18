@@ -184,15 +184,15 @@ fun ExperimentalSettingsScreen(
                     ) {
                         Column(
                             modifier = Modifier
-                                .fillMaxSize()
-                                //.padding(horizontal = 4.dp)
-                            ,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                .fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
+                            val delayAllEnabled = uiState.fullPlayerLoadingTweaks.delayAll
+
                             SwitchSettingItem(
                                 title = "Delay everything",
                                 subtitle = "Hold the full player content until the sheet background is fully expanded.",
-                                checked = uiState.fullPlayerLoadingTweaks.delayAll,
+                                checked = delayAllEnabled,
                                 onCheckedChange = settingsViewModel::setDelayAllFullPlayerContent,
                                 leadingIcon = {
                                     Icon(
@@ -208,6 +208,7 @@ fun ExperimentalSettingsScreen(
                                 subtitle = "Delay album art and carousel until the sheet is expanded.",
                                 checked = uiState.fullPlayerLoadingTweaks.delayAlbumCarousel,
                                 onCheckedChange = settingsViewModel::setDelayAlbumCarousel,
+                                enabled = !delayAllEnabled,
                                 leadingIcon = {
                                     Icon(
                                         imageVector = Icons.Rounded.ViewCarousel,
@@ -222,6 +223,7 @@ fun ExperimentalSettingsScreen(
                                 subtitle = "Delay title, artist, and lyrics/queue actions.",
                                 checked = uiState.fullPlayerLoadingTweaks.delaySongMetadata,
                                 onCheckedChange = settingsViewModel::setDelaySongMetadata,
+                                enabled = !delayAllEnabled,
                                 leadingIcon = {
                                     Icon(
                                         imageVector = Icons.Rounded.LinearScale,
@@ -236,6 +238,7 @@ fun ExperimentalSettingsScreen(
                                 subtitle = "Delay the timeline and time labels until expansion completes.",
                                 checked = uiState.fullPlayerLoadingTweaks.delayProgressBar,
                                 onCheckedChange = settingsViewModel::setDelayProgressBar,
+                                enabled = !delayAllEnabled,
                                 leadingIcon = {
                                     Icon(
                                         imageVector = Icons.Outlined.LinearScale,
@@ -250,6 +253,7 @@ fun ExperimentalSettingsScreen(
                                 subtitle = "Delay play/pause, seek, and favorite controls.",
                                 checked = uiState.fullPlayerLoadingTweaks.delayControls,
                                 onCheckedChange = settingsViewModel::setDelayControls,
+                                enabled = !delayAllEnabled,
                                 leadingIcon = {
                                     Icon(
                                         imageVector = Icons.Outlined.PlayCircle,
@@ -272,6 +276,21 @@ fun ExperimentalSettingsScreen(
                                     )
                                 }
                             )
+
+                            SwitchSettingItem(
+                                title = "Make placeholders transparent",
+                                subtitle = "Placeholders keep their layout space but become invisible.",
+                                checked = uiState.fullPlayerLoadingTweaks.transparentPlaceholders,
+                                onCheckedChange = settingsViewModel::setTransparentPlaceholders,
+                                enabled = uiState.fullPlayerLoadingTweaks.showPlaceholders,
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Visibility,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.secondary
+                                    )
+                                }
+                            )
                         }
                     }
                 }
@@ -286,7 +305,8 @@ fun ExperimentalSettingsScreen(
             collapseFraction = collapseFraction,
             headerHeight = currentTopBarHeightDp,
             onBackPressed = onNavigationIconClick,
-            title = "Experimental"
+            title = "Experimental",
+            expandedTitleStartPadding = 6.dp
         )
     }
 }
