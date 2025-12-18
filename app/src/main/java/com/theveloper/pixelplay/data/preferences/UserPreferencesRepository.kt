@@ -101,6 +101,7 @@ class UserPreferencesRepository @Inject constructor(
         val FULL_PLAYER_DELAY_PROGRESS = booleanPreferencesKey("full_player_delay_progress")
         val FULL_PLAYER_DELAY_CONTROLS = booleanPreferencesKey("full_player_delay_controls")
         val FULL_PLAYER_PLACEHOLDERS = booleanPreferencesKey("full_player_placeholders")
+        val FULL_PLAYER_PLACEHOLDER_TRANSPARENT = booleanPreferencesKey("full_player_placeholder_transparent")
     }
 
     val appRebrandDialogShownFlow: Flow<Boolean> = dataStore.data
@@ -223,7 +224,8 @@ class UserPreferencesRepository @Inject constructor(
                 delaySongMetadata = preferences[PreferencesKeys.FULL_PLAYER_DELAY_METADATA] ?: false,
                 delayProgressBar = preferences[PreferencesKeys.FULL_PLAYER_DELAY_PROGRESS] ?: false,
                 delayControls = preferences[PreferencesKeys.FULL_PLAYER_DELAY_CONTROLS] ?: false,
-                showPlaceholders = preferences[PreferencesKeys.FULL_PLAYER_PLACEHOLDERS] ?: false
+                showPlaceholders = preferences[PreferencesKeys.FULL_PLAYER_PLACEHOLDERS] ?: false,
+                transparentPlaceholders = preferences[PreferencesKeys.FULL_PLAYER_PLACEHOLDER_TRANSPARENT] ?: false
             )
         }
 
@@ -738,6 +740,12 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setDelayAllFullPlayerContent(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.FULL_PLAYER_DELAY_ALL] = enabled
+            if (enabled) {
+                preferences[PreferencesKeys.FULL_PLAYER_DELAY_ALBUM] = true
+                preferences[PreferencesKeys.FULL_PLAYER_DELAY_METADATA] = true
+                preferences[PreferencesKeys.FULL_PLAYER_DELAY_PROGRESS] = true
+                preferences[PreferencesKeys.FULL_PLAYER_DELAY_CONTROLS] = true
+            }
         }
     }
 
@@ -768,6 +776,15 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setFullPlayerPlaceholders(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.FULL_PLAYER_PLACEHOLDERS] = enabled
+            if (!enabled) {
+                preferences[PreferencesKeys.FULL_PLAYER_PLACEHOLDER_TRANSPARENT] = false
+            }
+        }
+    }
+
+    suspend fun setTransparentPlaceholders(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.FULL_PLAYER_PLACEHOLDER_TRANSPARENT] = enabled
         }
     }
 

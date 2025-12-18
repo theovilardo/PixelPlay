@@ -214,8 +214,11 @@ fun FullPlayerContent(
     fun delayThreshold(base: Float, toggle: Boolean) = if (shouldDelay(toggle)) fullyExpandedThreshold else base
     fun isComponentReady(toggle: Boolean) = !shouldDelay(toggle) || isBackgroundFullyExpanded
 
-    val placeholderColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.28f)
-    val placeholderOnColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.16f)
+    val placeholdersTransparent = placeholdersEnabled && loadingTweaks.transparentPlaceholders
+    val basePlaceholderColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.28f)
+    val basePlaceholderOnColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.16f)
+    val placeholderColor = if (placeholdersTransparent) basePlaceholderColor.copy(alpha = 0f) else basePlaceholderColor
+    val placeholderOnColor = if (placeholdersTransparent) basePlaceholderOnColor.copy(alpha = 0f) else basePlaceholderOnColor
 
     @Composable
     fun PlaceholderBox(

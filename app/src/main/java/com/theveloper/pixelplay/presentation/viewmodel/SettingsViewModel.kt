@@ -277,6 +277,12 @@ class SettingsViewModel @Inject constructor(
     fun setDelayAllFullPlayerContent(enabled: Boolean) {
         viewModelScope.launch {
             userPreferencesRepository.setDelayAllFullPlayerContent(enabled)
+            if (enabled) {
+                userPreferencesRepository.setDelayAlbumCarousel(true)
+                userPreferencesRepository.setDelaySongMetadata(true)
+                userPreferencesRepository.setDelayProgressBar(true)
+                userPreferencesRepository.setDelayControls(true)
+            }
         }
     }
 
@@ -307,6 +313,15 @@ class SettingsViewModel @Inject constructor(
     fun setFullPlayerPlaceholders(enabled: Boolean) {
         viewModelScope.launch {
             userPreferencesRepository.setFullPlayerPlaceholders(enabled)
+            if (!enabled) {
+                userPreferencesRepository.setTransparentPlaceholders(false)
+            }
+        }
+    }
+
+    fun setTransparentPlaceholders(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setTransparentPlaceholders(enabled)
         }
     }
 
