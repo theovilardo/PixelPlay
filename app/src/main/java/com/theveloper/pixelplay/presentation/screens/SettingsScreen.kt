@@ -143,9 +143,11 @@ fun SettingsTopBar(
     collapseFraction: Float,
     headerHeight: Dp,
     onBackPressed: () -> Unit,
-    title: String = "Settings"
+    title: String = "Settings",
+    expandedTitleStartPadding: Dp = 0.dp
 ) {
     val surfaceColor = MaterialTheme.colorScheme.surface
+    val titleStartPadding = lerp(expandedTitleStartPadding, 0.dp, collapseFraction.coerceIn(0f, 1f))
 
     Box(
         modifier = Modifier
@@ -173,7 +175,7 @@ fun SettingsTopBar(
                 collapseFraction = collapseFraction,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(start = 0.dp, end = 0.dp)
+                    .padding(start = titleStartPadding, end = 0.dp)
             )
         }
     }

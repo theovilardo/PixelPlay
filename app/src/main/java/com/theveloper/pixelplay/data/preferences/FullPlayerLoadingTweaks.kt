@@ -1,7 +1,7 @@
 package com.theveloper.pixelplay.data.preferences
 
 data class FullPlayerLoadingTweaks(
-    val delayAll: Boolean = false,
+    val delayAll: Boolean = true,
     val delayAlbumCarousel: Boolean = false,
     val delaySongMetadata: Boolean = false,
     val delayProgressBar: Boolean = false,

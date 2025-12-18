@@ -219,7 +219,7 @@ class UserPreferencesRepository @Inject constructor(
     val fullPlayerLoadingTweaksFlow: Flow<FullPlayerLoadingTweaks> = dataStore.data
         .map { preferences ->
             FullPlayerLoadingTweaks(
-                delayAll = preferences[PreferencesKeys.FULL_PLAYER_DELAY_ALL] ?: false,
+                delayAll = preferences[PreferencesKeys.FULL_PLAYER_DELAY_ALL] ?: true,
                 delayAlbumCarousel = preferences[PreferencesKeys.FULL_PLAYER_DELAY_ALBUM] ?: false,
                 delaySongMetadata = preferences[PreferencesKeys.FULL_PLAYER_DELAY_METADATA] ?: false,
                 delayProgressBar = preferences[PreferencesKeys.FULL_PLAYER_DELAY_PROGRESS] ?: false,
