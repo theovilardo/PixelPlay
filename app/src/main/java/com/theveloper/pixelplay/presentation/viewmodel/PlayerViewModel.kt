@@ -254,6 +254,28 @@ private data class ExternalSongLoadResult(
     val displayName: String?
 )
 
+private data class TransferSnapshot(
+    val liveStatus: MediaStatus?,
+    val lastKnownStatus: MediaStatus?,
+    val lastPosition: Long,
+    val shouldResumePlaying: Boolean,
+    val lastItemId: Int?,
+    val lastRepeatMode: Int,
+    val isShuffleEnabled: Boolean,
+    val chosenQueue: List<Song>,
+    val targetSongId: String?
+)
+
+private data class RebuildArtifacts(
+    val mediaItems: List<MediaItem>,
+    val finalQueue: List<Song>,
+    val startIndex: Int,
+    val lastPosition: Long,
+    val shouldResumePlaying: Boolean,
+    val isShuffleEnabled: Boolean,
+    @Player.RepeatMode val repeatMode: Int
+)
+
 sealed interface LyricsSearchUiState {
     object Idle : LyricsSearchUiState
     object Loading : LyricsSearchUiState
@@ -1496,28 +1518,6 @@ class PlayerViewModel @Inject constructor(
             override fun onSessionResumed(session: CastSession, wasSuspended: Boolean) {
                 transferPlayback(session)
             }
-
-            private data class TransferSnapshot(
-                val liveStatus: MediaStatus?,
-                val lastKnownStatus: MediaStatus?,
-                val lastPosition: Long,
-                val shouldResumePlaying: Boolean,
-                val lastItemId: Int?,
-                val lastRepeatMode: Int,
-                val isShuffleEnabled: Boolean,
-                val chosenQueue: List<Song>,
-                val targetSongId: String?
-            )
-
-            private data class RebuildArtifacts(
-                val mediaItems: List<MediaItem>,
-                val finalQueue: List<Song>,
-                val startIndex: Int,
-                val lastPosition: Long,
-                val shouldResumePlaying: Boolean,
-                val isShuffleEnabled: Boolean,
-                @Player.RepeatMode val repeatMode: Int
-            )
 
             private fun stopServerAndTransferBack() {
                 val session = _castSession.value ?: return
