@@ -687,16 +687,22 @@ private fun CastSheetContainer(
     fun dismissSheet(velocity: Float = 0f) {
         if (isDismissing) return
         isDismissing = true
-        // Invoke dismissal immediately so navigation/UI is freed even if animations are running
-        onDismiss()
-        if (hiddenOffsetPx.floatValue == 0f) return
+        val targetOffset = when {
+            hiddenOffsetPx.floatValue > 0f -> hiddenOffsetPx.floatValue
+            sheetHeightPx > 0f -> sheetHeightPx
+            else -> sheetOffset.value + 1f // Ensure a movement path exists
+        }
         scope.launch {
             isVisible = false
-            sheetOffset.animateTo(
-                targetValue = hiddenOffsetPx.floatValue,
-                animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
-                initialVelocity = velocity
-            )
+            try {
+                sheetOffset.animateTo(
+                    targetValue = targetOffset,
+                    animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
+                    initialVelocity = velocity
+                )
+            } finally {
+                onDismiss()
+            }
         }
     }
 
