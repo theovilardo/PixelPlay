@@ -602,6 +602,7 @@ class PlayerViewModel @Inject constructor(
     private val sessionToken = SessionToken(context, ComponentName(context, MusicService::class.java))
     private val mediaControllerFuture: ListenableFuture<MediaController> =
         MediaController.Builder(context, sessionToken).buildAsync()
+    private var pendingRepeatMode: Int? = null
 
     private var pendingPlaybackAction: (() -> Unit)? = null
 
@@ -1144,6 +1145,7 @@ class PlayerViewModel @Inject constructor(
             try {
                 mediaController = mediaControllerFuture.get()
                 setupMediaControllerListeners()
+                flushPendingRepeatMode()
                 // Execute any pending action that was queued while the controller was connecting
                 pendingPlaybackAction?.invoke()
                 pendingPlaybackAction = null
@@ -1623,6 +1625,7 @@ class PlayerViewModel @Inject constructor(
                 lastRemoteSongId = null
                 lastRemoteStreamPosition = 0L
                 _isCastConnecting.value = false // NOW we reset the flag
+                flushPendingRepeatMode()
             }
 
             override fun onSessionEnded(session: CastSession, error: Int) {
@@ -1655,6 +1658,12 @@ class PlayerViewModel @Inject constructor(
         _isRemotePlaybackActive.value = _castSession.value != null
         _castSession.value?.remoteMediaClient?.registerCallback(remoteMediaClientCallback!!)
         _castSession.value?.remoteMediaClient?.addProgressListener(remoteProgressListener!!, 1000)
+
+        viewModelScope.launch {
+            userPreferencesRepository.repeatModeFlow.collect { mode ->
+                applyPreferredRepeatMode(mode)
+            }
+        }
 
         Trace.endSection() // End PlayerViewModel.init
     }
@@ -2263,6 +2272,31 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    private fun applyPreferredRepeatMode(@Player.RepeatMode mode: Int) {
+        _stablePlayerState.update { it.copy(repeatMode = mode) }
+
+        val castSession = _castSession.value
+        if (castSession != null && castSession.remoteMediaClient != null) {
+            pendingRepeatMode = mode
+            return
+        }
+
+        val controller = mediaController
+        if (controller == null) {
+            pendingRepeatMode = mode
+            return
+        }
+
+        if (controller.repeatMode != mode) {
+            controller.repeatMode = mode
+        }
+        pendingRepeatMode = null
+    }
+
+    private fun flushPendingRepeatMode() {
+        pendingRepeatMode?.let { applyPreferredRepeatMode(it) }
+    }
+
     private fun setupMediaControllerListeners() {
         Trace.beginSection("PlayerViewModel.setupMediaControllerListeners")
         val playerCtrl = mediaController ?: return Trace.endSection()
@@ -2420,7 +2454,10 @@ class PlayerViewModel @Inject constructor(
                     }
                 }
             }
-            override fun onRepeatModeChanged(repeatMode: Int) { _stablePlayerState.update { it.copy(repeatMode = repeatMode) } }
+            override fun onRepeatModeChanged(repeatMode: Int) {
+                _stablePlayerState.update { it.copy(repeatMode = repeatMode) }
+                viewModelScope.launch { userPreferencesRepository.setRepeatMode(repeatMode) }
+            }
             override fun onTimelineChanged(timeline: Timeline, reason: Int) {
                 transitionSchedulerJob?.cancel()
                 updateCurrentPlaybackQueueFromPlayer(mediaController)
@@ -3157,6 +3194,13 @@ class PlayerViewModel @Inject constructor(
                 else -> MediaStatus.REPEAT_MODE_REPEAT_OFF
             }
             castPlayer?.setRepeatMode(newMode)
+            val mappedLocalMode = when (newMode) {
+                MediaStatus.REPEAT_MODE_REPEAT_SINGLE -> Player.REPEAT_MODE_ONE
+                MediaStatus.REPEAT_MODE_REPEAT_ALL, MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE -> Player.REPEAT_MODE_ALL
+                else -> Player.REPEAT_MODE_OFF
+            }
+            viewModelScope.launch { userPreferencesRepository.setRepeatMode(mappedLocalMode) }
+            _stablePlayerState.update { it.copy(repeatMode = mappedLocalMode) }
         } else {
             val currentMode = _stablePlayerState.value.repeatMode
             val newMode = when (currentMode) {
@@ -3166,6 +3210,8 @@ class PlayerViewModel @Inject constructor(
                 else -> Player.REPEAT_MODE_OFF
             }
             mediaController?.repeatMode = newMode
+            viewModelScope.launch { userPreferencesRepository.setRepeatMode(newMode) }
+            _stablePlayerState.update { it.copy(repeatMode = newMode) }
         }
     }
 
@@ -3178,6 +3224,8 @@ class PlayerViewModel @Inject constructor(
             val newMode = Player.REPEAT_MODE_ONE
             mediaController?.repeatMode = newMode
         }
+        viewModelScope.launch { userPreferencesRepository.setRepeatMode(Player.REPEAT_MODE_ONE) }
+        _stablePlayerState.update { it.copy(repeatMode = Player.REPEAT_MODE_ONE) }
     }
 
     fun repeatOff(){
@@ -3189,6 +3237,8 @@ class PlayerViewModel @Inject constructor(
             val newMode = Player.REPEAT_MODE_OFF
             mediaController?.repeatMode = newMode
         }
+        viewModelScope.launch { userPreferencesRepository.setRepeatMode(Player.REPEAT_MODE_OFF) }
+        _stablePlayerState.update { it.copy(repeatMode = Player.REPEAT_MODE_OFF) }
     }
 
     fun toggleFavorite() {
