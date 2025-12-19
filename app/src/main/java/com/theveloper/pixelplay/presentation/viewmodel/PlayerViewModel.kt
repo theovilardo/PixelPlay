@@ -1525,7 +1525,7 @@ class PlayerViewModel @Inject constructor(
                 val liveStatus = remoteMediaClient?.mediaStatus
                 val lastKnownStatus = liveStatus ?: lastRemoteMediaStatus
 
-                viewModelScope.launch(Dispatchers.Main.immediate) {
+                viewModelScope.launch(Dispatchers.Default) {
                     val transferSnapshot = withContext(Dispatchers.Default) {
                         val lastPosition = (
                             liveStatus?.streamPosition
@@ -1587,14 +1587,16 @@ class PlayerViewModel @Inject constructor(
                         )
                     }
 
-                    remoteProgressObserverJob?.cancel()
-                    remoteMediaClient?.removeProgressListener(remoteProgressListener!!)
-                    remoteMediaClient?.unregisterCallback(remoteMediaClientCallback!!)
-                    castPlayer = null
-                    _castSession.value = null
-                    _isRemotePlaybackActive.value = false
-                    context.stopService(Intent(context, MediaFileHttpServerService::class.java))
-                    disconnect(resetConnecting = false) // Don't reset connecting flag yet
+                    withContext(Dispatchers.Main.immediate) {
+                        remoteProgressObserverJob?.cancel()
+                        remoteMediaClient?.removeProgressListener(remoteProgressListener!!)
+                        remoteMediaClient?.unregisterCallback(remoteMediaClientCallback!!)
+                        castPlayer = null
+                        _castSession.value = null
+                        _isRemotePlaybackActive.value = false
+                        context.stopService(Intent(context, MediaFileHttpServerService::class.java))
+                        disconnect(resetConnecting = false) // Don't reset connecting flag yet
+                    }
                     val localPlayer = mediaController ?: return@launch
 
                     val rebuildArtifacts = withContext(Dispatchers.Default) {
@@ -1662,9 +1664,9 @@ class PlayerViewModel @Inject constructor(
                     }
 
                     val controllerDispatcher = localPlayer.applicationLooper?.let { Handler(it).asCoroutineDispatcher() }
-                    val playerContext = controllerDispatcher ?: Dispatchers.Main.immediate
+                    val playerContext = controllerDispatcher ?: Dispatchers.Default
 
-                    Timber.tag(CAST_LOG_TAG).i("Dispatching local player rebuild on thread=%s", Thread.currentThread().name)
+                    Timber.tag(CAST_LOG_TAG).i("Dispatching local player rebuild on thread=%s dispatcher=%s", Thread.currentThread().name, playerContext)
                     withContext(playerContext) {
                         Timber.tag(CAST_LOG_TAG).i("Entered player rebuild context on thread=%s", Thread.currentThread().name)
                         localPlayer.shuffleModeEnabled = rebuildArtifacts.isShuffleEnabled
@@ -1684,36 +1686,40 @@ class PlayerViewModel @Inject constructor(
                     }
                     Timber.tag(CAST_LOG_TAG).i("Completed player rebuild dispatch on thread=%s", Thread.currentThread().name)
 
-                    _playerUiState.update {
-                        it.copy(
-                            currentPlaybackQueue = rebuildArtifacts.finalQueue.toImmutableList(),
-                            currentPosition = rebuildArtifacts.lastPosition
-                        )
-                    }
-                    _stablePlayerState.update {
-                        it.copy(
-                            currentSong = rebuildArtifacts.finalQueue.getOrNull(rebuildArtifacts.startIndex),
-                            isPlaying = rebuildArtifacts.shouldResumePlaying,
-                            totalDuration = rebuildArtifacts.finalQueue.getOrNull(rebuildArtifacts.startIndex)?.duration
-                                ?: it.totalDuration,
-                            isShuffleEnabled = rebuildArtifacts.isShuffleEnabled,
-                            repeatMode = localPlayer.repeatMode
-                        )
-                    }
-                    if (rebuildArtifacts.shouldResumePlaying) {
-                        startProgressUpdates()
-                        Timber.tag(CAST_LOG_TAG).i("Local playback resumed with play at position=%d", rebuildArtifacts.lastPosition)
-                    } else {
-                        _playerUiState.update { it.copy(currentPosition = rebuildArtifacts.lastPosition) }
-                        Timber.tag(CAST_LOG_TAG).i("Local playback prepared without play at position=%d", rebuildArtifacts.lastPosition)
+                    withContext(Dispatchers.Main.immediate) {
+                        _playerUiState.update {
+                            it.copy(
+                                currentPlaybackQueue = rebuildArtifacts.finalQueue.toImmutableList(),
+                                currentPosition = rebuildArtifacts.lastPosition
+                            )
+                        }
+                        _stablePlayerState.update {
+                            it.copy(
+                                currentSong = rebuildArtifacts.finalQueue.getOrNull(rebuildArtifacts.startIndex),
+                                isPlaying = rebuildArtifacts.shouldResumePlaying,
+                                totalDuration = rebuildArtifacts.finalQueue.getOrNull(rebuildArtifacts.startIndex)?.duration
+                                    ?: it.totalDuration,
+                                isShuffleEnabled = rebuildArtifacts.isShuffleEnabled,
+                                repeatMode = localPlayer.repeatMode
+                            )
+                        }
+                        if (rebuildArtifacts.shouldResumePlaying) {
+                            startProgressUpdates()
+                            Timber.tag(CAST_LOG_TAG).i("Local playback resumed with play at position=%d", rebuildArtifacts.lastPosition)
+                        } else {
+                            _playerUiState.update { it.copy(currentPosition = rebuildArtifacts.lastPosition) }
+                            Timber.tag(CAST_LOG_TAG).i("Local playback prepared without play at position=%d", rebuildArtifacts.lastPosition)
+                        }
                     }
 
-                    lastRemoteMediaStatus = null
-                    lastRemoteQueue = emptyList()
-                    lastRemoteSongId = null
-                    lastRemoteStreamPosition = 0L
-                    _isCastConnecting.value = false // NOW we reset the flag
-                    flushPendingRepeatMode()
+                    withContext(Dispatchers.Main.immediate) {
+                        lastRemoteMediaStatus = null
+                        lastRemoteQueue = emptyList()
+                        lastRemoteSongId = null
+                        lastRemoteStreamPosition = 0L
+                        _isCastConnecting.value = false // NOW we reset the flag
+                        flushPendingRepeatMode()
+                    }
                 }
             }
 
