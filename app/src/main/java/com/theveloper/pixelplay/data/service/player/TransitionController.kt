@@ -96,6 +96,13 @@ class TransitionController @Inject constructor(
                      engine.masterPlayer.currentMediaItem?.let { scheduleTransitionFor(it) }
                 }
             }
+
+            override fun onRepeatModeChanged(repeatMode: Int) {
+                Timber.tag("TransitionDebug").d("Repeat mode changed to %d. Rescheduling transition.", repeatMode)
+                transitionSchedulerJob?.cancel()
+                engine.cancelNext()
+                engine.masterPlayer.currentMediaItem?.let { scheduleTransitionFor(it) }
+            }
         }
 
         // Initial setup
