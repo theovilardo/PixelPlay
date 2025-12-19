@@ -1522,11 +1522,11 @@ class PlayerViewModel @Inject constructor(
             private fun stopServerAndTransferBack() {
                 val session = _castSession.value ?: return
                 val remoteMediaClient = session.remoteMediaClient
-                val liveStatus = remoteMediaClient?.mediaStatus
-                val lastKnownStatus = liveStatus ?: lastRemoteMediaStatus
 
                 viewModelScope.launch(Dispatchers.Default) {
                     val transferSnapshot = withContext(Dispatchers.Default) {
+                        val liveStatus = remoteMediaClient?.mediaStatus
+                        val lastKnownStatus = liveStatus ?: lastRemoteMediaStatus
                         val lastPosition = (
                             liveStatus?.streamPosition
                                 ?: lastKnownStatus?.streamPosition
