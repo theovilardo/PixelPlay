@@ -28,14 +28,19 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
         coverArtUpdate: CoverArtUpdate? = null,
     ): SongMetadataEditResult {
         return try {
+            val trimmedLyrics = newLyrics.trim()
+            val trimmedGenre = newGenre.trim()
+            val normalizedGenre = trimmedGenre.takeIf { it.isNotBlank() }
+            val normalizedLyrics = trimmedLyrics.takeIf { it.isNotBlank() }
+
             // 1. FIRST: Update the actual file with ALL metadata using TagLib
             val fileUpdateSuccess = updateFileMetadataWithTagLib(
                 songId = songId,
                 newTitle = newTitle,
                 newArtist = newArtist,
                 newAlbum = newAlbum,
-                newGenre = newGenre,
-                newLyrics = newLyrics,
+                newGenre = trimmedGenre,
+                newLyrics = trimmedLyrics,
                 newTrackNumber = newTrackNumber,
                 coverArtUpdate = coverArtUpdate
             )
@@ -51,7 +56,7 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
                 title = newTitle,
                 artist = newArtist,
                 album = newAlbum,
-                genre = newGenre,
+                genre = trimmedGenre,
                 trackNumber = newTrackNumber
             )
 
@@ -64,7 +69,13 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
             var storedCoverArtUri: String? = null
             runBlocking {
                 musicDao.updateSongMetadata(
-                    songId, newTitle, newArtist, newAlbum, newGenre, newLyrics, newTrackNumber
+                    songId,
+                    newTitle,
+                    newArtist,
+                    newAlbum,
+                    normalizedGenre,
+                    normalizedLyrics,
+                    newTrackNumber
                 )
 
                 coverArtUpdate?.let { update ->
@@ -120,8 +131,8 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
                 propertyMap["TITLE"] = arrayOf(newTitle)
                 propertyMap["ARTIST"] = arrayOf(newArtist)
                 propertyMap["ALBUM"] = arrayOf(newAlbum)
-                propertyMap["GENRE"] = arrayOf(newGenre)
-                propertyMap["LYRICS"] = arrayOf(newLyrics)
+                propertyMap.upsertOrRemove("GENRE", newGenre)
+                propertyMap.upsertOrRemove("LYRICS", newLyrics)
                 propertyMap["TRACKNUMBER"] = arrayOf(newTrackNumber.toString())
                 propertyMap["ALBUMARTIST"] = arrayOf(newArtist)
 
@@ -260,6 +271,14 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
             "image/gif" -> "gif"
             else -> null
         }
+    }
+}
+
+private fun MutableMap<String, Array<String>>.upsertOrRemove(key: String, value: String) {
+    if (value.isBlank()) {
+        remove(key)
+    } else {
+        this[key] = arrayOf(value)
     }
 }
 
