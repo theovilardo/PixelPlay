@@ -1503,6 +1503,7 @@ class PlayerViewModel @Inject constructor(
                 val targetRouteId = pendingCastRouteId
                 val session = _castSession.value ?: return
                 val remoteMediaClient = session.remoteMediaClient
+                Timber.tag(CAST_LOG_TAG).i("Stop server and transfer back initiated. targetRouteId=%s", targetRouteId)
                 val liveStatus = remoteMediaClient?.mediaStatus
                 val lastKnownStatus = liveStatus ?: lastRemoteMediaStatus
                 val lastPosition = (
@@ -1642,12 +1643,15 @@ class PlayerViewModel @Inject constructor(
                 lastRemoteSongId = null
                 lastRemoteStreamPosition = 0L
                 if (targetRouteId == null) {
+                    Timber.tag(CAST_LOG_TAG).i("Transfer back complete. Clearing castConnecting=false")
                     _isCastConnecting.value = false // NOW we reset the flag
                 } else {
                     val pendingRoute = mediaRouter.routes.firstOrNull { it.id == targetRouteId }
                     if (pendingRoute != null) {
+                        Timber.tag(CAST_LOG_TAG).i("Selecting pending route %s after transfer back.", targetRouteId)
                         mediaRouter.selectRoute(pendingRoute)
                     } else {
+                        Timber.tag(CAST_LOG_TAG).w("Pending route %s not found after transfer back. Resetting state.", targetRouteId)
                         pendingCastRouteId = null
                         _isCastConnecting.value = false
                     }
@@ -1671,7 +1675,7 @@ class PlayerViewModel @Inject constructor(
                 _isCastConnecting.value = false
             }
             override fun onSessionEnding(session: CastSession) {
-                _isCastConnecting.value = false
+                Timber.tag(CAST_LOG_TAG).i("Cast session ending; keeping connecting flag=%s", _isCastConnecting.value)
             }
             override fun onSessionResuming(session: CastSession, sessionId: String) {
                 _isCastConnecting.value = true
@@ -4209,9 +4213,14 @@ class PlayerViewModel @Inject constructor(
 
     fun disconnect(resetConnecting: Boolean = true) {
         pendingCastRouteId = null
+        val wasRemote = _isRemotePlaybackActive.value
+        if (wasRemote) {
+            Timber.tag(CAST_LOG_TAG).i("Manual disconnect requested; marking castConnecting=true until session ends.")
+            _isCastConnecting.value = true
+        }
         mediaRouter.selectRoute(mediaRouter.defaultRoute)
         _isRemotePlaybackActive.value = false
-        if (resetConnecting) {
+        if (resetConnecting && !wasRemote) {
             _isCastConnecting.value = false
         }
     }
