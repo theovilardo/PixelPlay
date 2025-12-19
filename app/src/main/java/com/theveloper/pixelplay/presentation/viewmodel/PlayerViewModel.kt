@@ -43,6 +43,7 @@ import android.net.NetworkRequest
 import android.os.Build
 import android.os.Bundle
 import android.content.pm.PackageManager
+import android.os.Handler
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import androidx.appcompat.app.AlertDialog
@@ -161,6 +162,7 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.serialization.json.Json
 import org.json.JSONObject
 import timber.log.Timber
@@ -1495,137 +1497,225 @@ class PlayerViewModel @Inject constructor(
                 transferPlayback(session)
             }
 
+            private data class TransferSnapshot(
+                val liveStatus: MediaStatus?,
+                val lastKnownStatus: MediaStatus?,
+                val lastPosition: Long,
+                val shouldResumePlaying: Boolean,
+                val lastItemId: Int?,
+                val lastRepeatMode: Int,
+                val isShuffleEnabled: Boolean,
+                val chosenQueue: List<Song>,
+                val targetSongId: String?
+            )
+
+            private data class RebuildArtifacts(
+                val mediaItems: List<MediaItem>,
+                val finalQueue: List<Song>,
+                val startIndex: Int,
+                val lastPosition: Long,
+                val shouldResumePlaying: Boolean,
+                val isShuffleEnabled: Boolean,
+                @Player.RepeatMode val repeatMode: Int
+            )
+
             private fun stopServerAndTransferBack() {
                 val session = _castSession.value ?: return
                 val remoteMediaClient = session.remoteMediaClient
                 val liveStatus = remoteMediaClient?.mediaStatus
                 val lastKnownStatus = liveStatus ?: lastRemoteMediaStatus
-                val lastPosition = (
-                    liveStatus?.streamPosition
-                        ?: lastKnownStatus?.streamPosition
-                        ?: lastRemoteStreamPosition
-                    )
-                    .takeIf { it > 0 } ?: _remotePosition.value
-                val wasPlaying = (liveStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING)
-                    || (lastKnownStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING)
-                    || lastKnownRemoteIsPlaying
-                val shouldResumePlaying = wasPlaying && !disableCastAutoplay.value
-                val lastItemId = liveStatus?.currentItemId ?: lastKnownStatus?.currentItemId
-                val lastRepeatMode = liveStatus?.queueRepeatMode
-                    ?: lastKnownStatus?.queueRepeatMode
-                    ?: lastRemoteRepeatMode
-                val isShuffleEnabled = lastRepeatMode == MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE
-                Timber.tag(CAST_LOG_TAG)
-                    .i(
-                        "Transfer back start: lastStatus=%s lastItemId=%s lastSongId=%s position=%d playing=%s repeat=%d shuffle=%s",
-                        lastKnownStatus != null,
-                        lastItemId,
-                        lastRemoteSongId,
-                        lastPosition,
-                        wasPlaying,
-                        lastRepeatMode,
-                        isShuffleEnabled
-                    )
-                remoteProgressObserverJob?.cancel()
-                remoteMediaClient?.removeProgressListener(remoteProgressListener!!)
-                remoteMediaClient?.unregisterCallback(remoteMediaClientCallback!!)
-                castPlayer = null
-                _castSession.value = null
-                _isRemotePlaybackActive.value = false
-                context.stopService(Intent(context, MediaFileHttpServerService::class.java))
-                disconnect(resetConnecting = false) // Don't reset connecting flag yet
-                val localPlayer = mediaController ?: return
-                val fallbackQueue = if (lastKnownStatus?.queueItems?.isNotEmpty() == true) {
-                    lastKnownStatus.queueItems.mapNotNull { item ->
-                        item.customData?.optString("songId")?.let { songId ->
-                            _masterAllSongs.value.firstOrNull { it.id == songId }
-                        }
-                    }.toImmutableList()
-                } else {
-                    lastRemoteQueue
-                }
-                val chosenQueue = when {
-                    fallbackQueue.isEmpty() -> lastRemoteQueue
-                    fallbackQueue.size < lastRemoteQueue.size && fallbackQueue.all { song ->
-                        lastRemoteQueue.any { it.id == song.id }
-                    } -> lastRemoteQueue
-                    else -> fallbackQueue
-                }
-                val songMap = _masterAllSongs.value.associateBy { it.id }
-                val finalQueue = chosenQueue.mapNotNull { song ->
-                    songMap[song.id]
-                }
-                val targetSongId = lastKnownStatus?.getQueueItemById(lastItemId ?: 0)?.customData?.optString("songId")
-                    ?: lastRemoteSongId
-                Timber.tag(CAST_LOG_TAG)
-                    .i(
-                        "Finalized transfer data: queueSize=%d fallbackQueueSize=%d targetSongId=%s lastRemoteQueueSize=%d",
-                        finalQueue.size,
-                        fallbackQueue.size,
-                        targetSongId,
-                        lastRemoteQueue.size
-                    )
-                if (finalQueue.isNotEmpty() && targetSongId != null) {
-                    val songMap = _masterAllSongs.value.associateBy { it.id }
-                    val startIndex = finalQueue.indexOfFirst { it.id == targetSongId }.coerceAtLeast(0)
-                    Timber.tag(CAST_LOG_TAG)
-                        .i(
-                            "Restoring local playback: startIndex=%d position=%d songId=%s",
-                            startIndex,
-                            lastPosition,
-                            targetSongId
-                        )
-                    val mediaItems = finalQueue.map { song ->
-                        MediaItem.Builder()
-                            .setMediaId(song.id)
-                            .setUri(song.contentUriString.toUri())
-                            .setMediaMetadata(
-                                MediaMetadata.Builder()
-                                    .setTitle(song.title)
-                                    .setArtist(song.artist)
-                                    .setArtworkUri(song.albumArtUriString?.toUri())
-                                    .build()
+
+                viewModelScope.launch(Dispatchers.Main.immediate) {
+                    val transferSnapshot = withContext(Dispatchers.Default) {
+                        val lastPosition = (
+                            liveStatus?.streamPosition
+                                ?: lastKnownStatus?.streamPosition
+                                ?: lastRemoteStreamPosition
                             )
-                            .build()
+                            .takeIf { it > 0 } ?: _remotePosition.value
+                        val wasPlaying = (liveStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING)
+                            || (lastKnownStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING)
+                            || lastKnownRemoteIsPlaying
+                        val shouldResumePlaying = wasPlaying && !disableCastAutoplay.value
+                        val lastItemId = liveStatus?.currentItemId ?: lastKnownStatus?.currentItemId
+                        val lastRepeatMode = liveStatus?.queueRepeatMode
+                            ?: lastKnownStatus?.queueRepeatMode
+                            ?: lastRemoteRepeatMode
+                        val isShuffleEnabled = lastRepeatMode == MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE
+                        val fallbackQueue = if (lastKnownStatus?.queueItems?.isNotEmpty() == true) {
+                            lastKnownStatus.queueItems.mapNotNull { item ->
+                                item.customData?.optString("songId")?.let { songId ->
+                                    _masterAllSongs.value.firstOrNull { it.id == songId }
+                                }
+                            }.toImmutableList()
+                        } else {
+                            lastRemoteQueue
+                        }
+                        val chosenQueue = when {
+                            fallbackQueue.isEmpty() -> lastRemoteQueue
+                            fallbackQueue.size < lastRemoteQueue.size && fallbackQueue.all { song ->
+                                lastRemoteQueue.any { it.id == song.id }
+                            } -> lastRemoteQueue
+                            else -> fallbackQueue
+                        }
+                        val targetSongId = lastKnownStatus?.getQueueItemById(lastItemId ?: 0)?.customData?.optString("songId")
+                            ?: lastRemoteSongId
+
+                        Timber.tag(CAST_LOG_TAG)
+                            .i(
+                                "Transfer back start: lastStatus=%s lastItemId=%s lastSongId=%s position=%d playing=%s repeat=%d shuffle=%s thread=%s",
+                                lastKnownStatus != null,
+                                lastItemId,
+                                lastRemoteSongId,
+                                lastPosition,
+                                wasPlaying,
+                                lastRepeatMode,
+                                isShuffleEnabled,
+                                Thread.currentThread().name
+                            )
+
+                        TransferSnapshot(
+                            liveStatus = liveStatus,
+                            lastKnownStatus = lastKnownStatus,
+                            lastPosition = lastPosition,
+                            shouldResumePlaying = shouldResumePlaying,
+                            lastItemId = lastItemId,
+                            lastRepeatMode = lastRepeatMode,
+                            isShuffleEnabled = isShuffleEnabled,
+                            chosenQueue = chosenQueue,
+                            targetSongId = targetSongId
+                        )
                     }
-                    localPlayer.shuffleModeEnabled = isShuffleEnabled
-                    localPlayer.repeatMode = when (lastRepeatMode) {
-                        MediaStatus.REPEAT_MODE_REPEAT_SINGLE -> Player.REPEAT_MODE_ONE
-                        MediaStatus.REPEAT_MODE_REPEAT_ALL, MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE -> Player.REPEAT_MODE_ALL
-                        else -> Player.REPEAT_MODE_OFF
+
+                    remoteProgressObserverJob?.cancel()
+                    remoteMediaClient?.removeProgressListener(remoteProgressListener!!)
+                    remoteMediaClient?.unregisterCallback(remoteMediaClientCallback!!)
+                    castPlayer = null
+                    _castSession.value = null
+                    _isRemotePlaybackActive.value = false
+                    context.stopService(Intent(context, MediaFileHttpServerService::class.java))
+                    disconnect(resetConnecting = false) // Don't reset connecting flag yet
+                    val localPlayer = mediaController ?: return@launch
+
+                    val rebuildArtifacts = withContext(Dispatchers.Default) {
+                        val songMap = _masterAllSongs.value.associateBy { it.id }
+                        val finalQueue = transferSnapshot.chosenQueue.mapNotNull { song ->
+                            songMap[song.id]
+                        }
+
+                        Timber.tag(CAST_LOG_TAG)
+                            .i(
+                                "Finalized transfer data: queueSize=%d fallbackQueueSize=%d targetSongId=%s lastRemoteQueueSize=%d thread=%s",
+                                finalQueue.size,
+                                transferSnapshot.chosenQueue.size,
+                                transferSnapshot.targetSongId,
+                                lastRemoteQueue.size,
+                                Thread.currentThread().name
+                            )
+
+                        transferSnapshot.targetSongId?.let { targetSongId ->
+                            if (finalQueue.isEmpty()) {
+                                return@withContext null
+                            }
+                            val startIndex = finalQueue.indexOfFirst { it.id == targetSongId }.coerceAtLeast(0)
+                            val mediaItems = finalQueue.map { song ->
+                                MediaItem.Builder()
+                                    .setMediaId(song.id)
+                                    .setUri(song.contentUriString.toUri())
+                                    .setMediaMetadata(
+                                        MediaMetadata.Builder()
+                                            .setTitle(song.title)
+                                            .setArtist(song.artist)
+                                            .setArtworkUri(song.albumArtUriString?.toUri())
+                                            .build()
+                                    )
+                                    .build()
+                            }
+                            RebuildArtifacts(
+                                mediaItems = mediaItems,
+                                finalQueue = finalQueue,
+                                startIndex = startIndex,
+                                lastPosition = transferSnapshot.lastPosition,
+                                shouldResumePlaying = transferSnapshot.shouldResumePlaying,
+                                isShuffleEnabled = transferSnapshot.isShuffleEnabled,
+                                repeatMode = when (transferSnapshot.lastRepeatMode) {
+                                    MediaStatus.REPEAT_MODE_REPEAT_SINGLE -> Player.REPEAT_MODE_ONE
+                                    MediaStatus.REPEAT_MODE_REPEAT_ALL, MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE -> Player.REPEAT_MODE_ALL
+                                    else -> Player.REPEAT_MODE_OFF
+                                }
+                            )
+                        }
                     }
-                    localPlayer.setMediaItems(mediaItems, startIndex, lastPosition)
-                    localPlayer.prepare()
+
+                    if (rebuildArtifacts == null) {
+                        Timber.tag(CAST_LOG_TAG).w(
+                            "No rebuild artifacts available for transfer back. Clearing cast state on thread=%s",
+                            Thread.currentThread().name
+                        )
+                        lastRemoteMediaStatus = null
+                        lastRemoteQueue = emptyList()
+                        lastRemoteSongId = null
+                        lastRemoteStreamPosition = 0L
+                        _isCastConnecting.value = false
+                        flushPendingRepeatMode()
+                        return@launch
+                    }
+
+                    val controllerDispatcher = localPlayer.applicationLooper?.let { Handler(it).asCoroutineDispatcher() }
+                    val playerContext = controllerDispatcher?.let { Dispatchers.Main.immediate + it }
+                        ?: Dispatchers.Main.immediate
+
+                    Timber.tag(CAST_LOG_TAG).i("Dispatching local player rebuild on thread=%s", Thread.currentThread().name)
+                    withContext(playerContext) {
+                        Timber.tag(CAST_LOG_TAG).i("Entered player rebuild context on thread=%s", Thread.currentThread().name)
+                        localPlayer.shuffleModeEnabled = rebuildArtifacts.isShuffleEnabled
+                        localPlayer.repeatMode = rebuildArtifacts.repeatMode
+                        localPlayer.setMediaItems(
+                            rebuildArtifacts.mediaItems,
+                            rebuildArtifacts.startIndex,
+                            rebuildArtifacts.lastPosition
+                        )
+                        localPlayer.prepare()
+                        if (rebuildArtifacts.shouldResumePlaying) {
+                            localPlayer.play()
+                        } else {
+                            localPlayer.pause()
+                        }
+                        Timber.tag(CAST_LOG_TAG).i("Exiting player rebuild context on thread=%s", Thread.currentThread().name)
+                    }
+                    Timber.tag(CAST_LOG_TAG).i("Completed player rebuild dispatch on thread=%s", Thread.currentThread().name)
+
                     _playerUiState.update {
                         it.copy(
-                            currentPlaybackQueue = finalQueue.toImmutableList(),
-                            currentPosition = lastPosition
+                            currentPlaybackQueue = rebuildArtifacts.finalQueue.toImmutableList(),
+                            currentPosition = rebuildArtifacts.lastPosition
                         )
                     }
                     _stablePlayerState.update {
                         it.copy(
-                            currentSong = finalQueue.getOrNull(startIndex),
-                            isPlaying = shouldResumePlaying,
-                            totalDuration = finalQueue.getOrNull(startIndex)?.duration ?: it.totalDuration,
-                            isShuffleEnabled = isShuffleEnabled,
+                            currentSong = rebuildArtifacts.finalQueue.getOrNull(rebuildArtifacts.startIndex),
+                            isPlaying = rebuildArtifacts.shouldResumePlaying,
+                            totalDuration = rebuildArtifacts.finalQueue.getOrNull(rebuildArtifacts.startIndex)?.duration
+                                ?: it.totalDuration,
+                            isShuffleEnabled = rebuildArtifacts.isShuffleEnabled,
                             repeatMode = localPlayer.repeatMode
                         )
                     }
-                    if (shouldResumePlaying) {
-                        localPlayer.play()
+                    if (rebuildArtifacts.shouldResumePlaying) {
                         startProgressUpdates()
-                        Timber.tag(CAST_LOG_TAG).i("Local playback resumed with play at position=%d", lastPosition)
+                        Timber.tag(CAST_LOG_TAG).i("Local playback resumed with play at position=%d", rebuildArtifacts.lastPosition)
                     } else {
-                        _playerUiState.update { it.copy(currentPosition = lastPosition) }
-                        Timber.tag(CAST_LOG_TAG).i("Local playback prepared without play at position=%d", lastPosition)
+                        _playerUiState.update { it.copy(currentPosition = rebuildArtifacts.lastPosition) }
+                        Timber.tag(CAST_LOG_TAG).i("Local playback prepared without play at position=%d", rebuildArtifacts.lastPosition)
                     }
+
+                    lastRemoteMediaStatus = null
+                    lastRemoteQueue = emptyList()
+                    lastRemoteSongId = null
+                    lastRemoteStreamPosition = 0L
+                    _isCastConnecting.value = false // NOW we reset the flag
+                    flushPendingRepeatMode()
                 }
-                lastRemoteMediaStatus = null
-                lastRemoteQueue = emptyList()
-                lastRemoteSongId = null
-                lastRemoteStreamPosition = 0L
-                _isCastConnecting.value = false // NOW we reset the flag
-                flushPendingRepeatMode()
             }
 
             override fun onSessionEnded(session: CastSession, error: Int) {
