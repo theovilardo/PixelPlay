@@ -44,6 +44,7 @@ import android.os.Build
 import android.os.Bundle
 import android.content.pm.PackageManager
 import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import androidx.appcompat.app.AlertDialog
@@ -1667,9 +1668,18 @@ class PlayerViewModel @Inject constructor(
                     }
 
                     val controllerDispatcher = localPlayer.applicationLooper?.let { Handler(it).asCoroutineDispatcher() }
-                    val playerContext = controllerDispatcher ?: Dispatchers.Main.immediate
+                    val playerContext = when (localPlayer.applicationLooper) {
+                        Looper.getMainLooper() -> Dispatchers.IO
+                        null -> Dispatchers.IO
+                        else -> controllerDispatcher ?: Dispatchers.IO
+                    }
 
-                    Timber.tag(CAST_LOG_TAG).i("Dispatching local player rebuild on thread=%s dispatcher=%s", Thread.currentThread().name, playerContext)
+                    Timber.tag(CAST_LOG_TAG).i(
+                        "Dispatching local player rebuild on thread=%s dispatcher=%s controllerLooperMain=%s",
+                        Thread.currentThread().name,
+                        playerContext,
+                        localPlayer.applicationLooper == Looper.getMainLooper()
+                    )
                     withContext(playerContext) {
                         Timber.tag(CAST_LOG_TAG).i("Entered player rebuild context on thread=%s", Thread.currentThread().name)
                         localPlayer.shuffleModeEnabled = rebuildArtifacts.isShuffleEnabled
