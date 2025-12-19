@@ -96,6 +96,13 @@ class TransitionController @Inject constructor(
                      engine.masterPlayer.currentMediaItem?.let { scheduleTransitionFor(it) }
                 }
             }
+
+            override fun onRepeatModeChanged(repeatMode: Int) {
+                Timber.tag("TransitionDebug").d("Repeat mode changed to %d. Rescheduling transition.", repeatMode)
+                transitionSchedulerJob?.cancel()
+                engine.cancelNext()
+                engine.masterPlayer.currentMediaItem?.let { scheduleTransitionFor(it) }
+            }
         }
 
         // Initial setup
@@ -118,17 +125,26 @@ class TransitionController @Inject constructor(
             }
 
             val player = engine.masterPlayer
+            val repeatMode = player.repeatMode
             val nextIndex = player.currentMediaItemIndex + 1
 
-            // If there is no next track, cancel any pending transition and stop.
-            if (nextIndex >= player.mediaItemCount) {
-                Timber.tag("TransitionDebug").d("No next track (index=%d, count=%d). No transition.", nextIndex, player.mediaItemCount)
+            val nextMediaItem = when (repeatMode) {
+                Player.REPEAT_MODE_ONE -> currentMediaItem // Loop the same track
+                else -> if (nextIndex < player.mediaItemCount) player.getMediaItemAt(nextIndex) else null
+            }
+
+            // If there is no next track and we're not looping, cancel any pending transition and stop.
+            if (nextMediaItem == null) {
+                Timber.tag("TransitionDebug").d(
+                    "No next track (index=%d, count=%d, repeatMode=%d). No transition.",
+                    nextIndex, player.mediaItemCount, repeatMode
+                )
                 engine.cancelNext()
                 return@launch
             }
 
-            val nextMediaItem = player.getMediaItemAt(nextIndex)
-            Timber.tag("TransitionDebug").d("Preparing next track: %s (Index: %d)", nextMediaItem.mediaId, nextIndex)
+            val targetIndex = if (repeatMode == Player.REPEAT_MODE_ONE) player.currentMediaItemIndex else nextIndex
+            Timber.tag("TransitionDebug").d("Preparing next track: %s (Index: %d)", nextMediaItem.mediaId, targetIndex)
             engine.prepareNext(nextMediaItem)
 
             val playlistId = currentMediaItem.mediaMetadata.extras?.getString("playlistId")

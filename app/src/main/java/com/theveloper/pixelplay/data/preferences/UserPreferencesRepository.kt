@@ -18,6 +18,7 @@ import com.theveloper.pixelplay.data.preferences.FullPlayerLoadingTweaks
 import dagger.hilt.android.qualifiers.ApplicationContext
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.lifecycle.viewModelScope
+import androidx.media3.common.Player
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -95,6 +96,7 @@ class UserPreferencesRepository @Inject constructor(
         val KEEP_PLAYING_IN_BACKGROUND = booleanPreferencesKey("keep_playing_in_background")
         val IS_CROSSFADE_ENABLED = booleanPreferencesKey("is_crossfade_enabled")
         val CROSSFADE_DURATION = intPreferencesKey("crossfade_duration")
+        val REPEAT_MODE = intPreferencesKey("repeat_mode")
         val DISABLE_CAST_AUTOPLAY = booleanPreferencesKey("disable_cast_autoplay")
         val FULL_PLAYER_DELAY_ALL = booleanPreferencesKey("full_player_delay_all")
         val FULL_PLAYER_DELAY_ALBUM = booleanPreferencesKey("full_player_delay_album")
@@ -137,6 +139,15 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setCrossfadeDuration(duration: Int) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.CROSSFADE_DURATION] = duration
+        }
+    }
+
+    val repeatModeFlow: Flow<Int> = dataStore.data
+        .map { preferences -> preferences[PreferencesKeys.REPEAT_MODE] ?: Player.REPEAT_MODE_OFF }
+
+    suspend fun setRepeatMode(@Player.RepeatMode mode: Int) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.REPEAT_MODE] = mode
         }
     }
 
