@@ -769,7 +769,8 @@ fun FullPlayerContent(
                         Row(
                             modifier = Modifier
                                 .padding(end = 14.dp),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
                             val selectedRouteName by playerViewModel.selectedRoute.map { it?.name }.collectAsState(initial = null)
@@ -801,10 +802,6 @@ fun FullPlayerContent(
                                 targetValue = if (showCastLabel) castCornersExpanded else castCornersCompact,
                                 animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
                             )
-//                            val castButtonWidth by animateDpAsState(
-//                                targetValue = if (showCastLabel) 220.dp else 50.dp,
-//                                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
-//                            )
                             val castContainerColor by animateColorAsState(
                                 targetValue = LocalMaterialTheme.current.onPrimary,
                                 animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
@@ -812,7 +809,7 @@ fun FullPlayerContent(
                             Box(
                                 modifier = Modifier
                                     .height(42.dp)
-                                    //.width(castButtonWidth)
+                                    .align(Alignment.CenterVertically)
                                     .animateContentSize(
                                         animationSpec = spring(
                                             dampingRatio = Spring.DampingRatioMediumBouncy,
@@ -837,8 +834,6 @@ fun FullPlayerContent(
                             ) {
                                 Row(
                                     modifier = Modifier
-                                        //.fillMaxWidth()
-                                        .align(Alignment.CenterEnd)
                                         .padding(start = 14.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Start
