@@ -208,9 +208,23 @@ class MediaFileHttpServerService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        server?.stop(1000, 2000)
         isServerRunning = false
         serverAddress = null
+
+        val serverInstance = server
+        server = null
+
+        // Stop server in a background thread to avoid blocking the Main Thread
+        Thread {
+            try {
+                // Grace period 100ms, timeout 2000ms
+                serverInstance?.stop(100, 2000)
+                Timber.d("MediaFileHttpServerService: Ktor server stopped")
+            } catch (e: Exception) {
+                Timber.e(e, "MediaFileHttpServerService: Error stopping Ktor server")
+            }
+        }.start()
+
         serviceJob.cancel()
     }
 

@@ -1377,9 +1377,9 @@ fun UnifiedPlayerSheet(
             }
         }
 
-        if (isCastConnecting) {
-            CastConnectingDialog()
-        }
+//        if (isCastConnecting) {
+//            CastConnectingDialog()
+//        }
 
         pendingSaveQueueOverlay?.let { overlay ->
             SaveQueueAsPlaylistSheet(

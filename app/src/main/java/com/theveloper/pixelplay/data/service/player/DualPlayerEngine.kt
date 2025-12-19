@@ -298,21 +298,23 @@ class DualPlayerEngine @Inject constructor(
         val outgoingPlayer = playerA
         val incomingPlayer = playerB
 
+        val isSelfTransition = outgoingPlayer.currentMediaItem?.mediaId == incomingPlayer.currentMediaItem?.mediaId
+
         val currentOutgoingIndex = outgoingPlayer.currentMediaItemIndex
 
         // History: All songs up to and including the current one (Old Song)
         val historyToTransfer = mutableListOf<MediaItem>()
-        for (i in 0..currentOutgoingIndex) {
+        val historyEndIndex = if (isSelfTransition) currentOutgoingIndex else currentOutgoingIndex + 1
+        for (i in 0 until historyEndIndex) {
             historyToTransfer.add(outgoingPlayer.getMediaItemAt(i))
         }
 
         // Future: Songs AFTER the Next Song
         // We skip the immediate next one because incomingPlayer already has it.
         val futureToTransfer = mutableListOf<MediaItem>()
-        if (currentOutgoingIndex < outgoingPlayer.mediaItemCount - 2) {
-            for (i in (currentOutgoingIndex + 2) until outgoingPlayer.mediaItemCount) {
-                futureToTransfer.add(outgoingPlayer.getMediaItemAt(i))
-            }
+        val futureStartIndex = if (isSelfTransition) currentOutgoingIndex + 1 else currentOutgoingIndex + 2
+        for (i in futureStartIndex until outgoingPlayer.mediaItemCount) {
+            futureToTransfer.add(outgoingPlayer.getMediaItemAt(i))
         }
 
         // 2. Move manual focus management to the new master player

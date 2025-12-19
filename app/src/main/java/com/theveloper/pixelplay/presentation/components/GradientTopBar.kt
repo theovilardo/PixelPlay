@@ -115,7 +115,7 @@ fun HomeGradientTopBar(
         title = { /* nada, usamos solo acciones */ },
         navigationIcon = {
             FilledTonalButton(
-                modifier = Modifier.padding(start = 14.dp),
+                modifier = Modifier.padding(start = 18.dp),
                 shape = CircleShape,
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
                 colors = ButtonDefaults.filledTonalButtonColors(
@@ -144,7 +144,7 @@ fun HomeGradientTopBar(
         actions = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                //horizontalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier.padding(end = 14.dp)
             ) {
                 FilledIconButton(
