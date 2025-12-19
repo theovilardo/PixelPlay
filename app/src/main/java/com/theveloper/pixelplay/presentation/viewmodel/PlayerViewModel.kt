@@ -1628,52 +1628,91 @@ class PlayerViewModel @Inject constructor(
                     )
 
                 if (queueData.finalQueue.isNotEmpty() && queueData.targetSongId != null) {
-                    val rebuildResult = withContext(Dispatchers.Default) {
-                        val startIndex = queueData.finalQueue.indexOfFirst { it.id == queueData.targetSongId }.coerceAtLeast(0)
-                        Timber.tag(CAST_LOG_TAG)
-                            .i(
-                                "Restoring local playback: startIndex=%d position=%d songId=%s",
-                                startIndex,
-                                lastPosition,
-                                queueData.targetSongId
-                            )
-                        val mediaItems = queueData.finalQueue.map { song ->
-                            MediaItem.Builder()
-                                .setMediaId(song.id)
-                                .setUri(song.contentUriString.toUri())
-                                .setMediaMetadata(
-                                    MediaMetadata.Builder()
-                                        .setTitle(song.title)
-                                        .setArtist(song.artist)
-                                        .setArtworkUri(song.albumArtUriString?.toUri())
-                                        .build()
-                                )
-                                .build()
-                        }
-
-                        RebuildArtifacts(
-                            startIndex = startIndex,
-                            mediaItems = mediaItems,
-                            targetSong = queueData.finalQueue.getOrNull(startIndex)
-                        )
-                    }
-
-                    localPlayer.shuffleModeEnabled = queueData.isShuffleEnabled
-                    localPlayer.repeatMode = when (lastRepeatMode) {
+                    val desiredRepeatMode = when (lastRepeatMode) {
                         MediaStatus.REPEAT_MODE_REPEAT_SINGLE -> Player.REPEAT_MODE_ONE
                         MediaStatus.REPEAT_MODE_REPEAT_ALL, MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE -> Player.REPEAT_MODE_ALL
                         else -> Player.REPEAT_MODE_OFF
                     }
-                    localPlayer.setMediaItems(
-                        rebuildResult.mediaItems,
-                        rebuildResult.startIndex,
-                        transferSnapshot.lastPosition
-                    )
-                    localPlayer.prepare()
-                    if (shouldResumePlaying) {
-                        localPlayer.play()
+                    val desiredIds = queueData.finalQueue.map { it.id }
+                    val existingIds = (0 until localPlayer.mediaItemCount).map { index ->
+                        localPlayer.getMediaItemAt(index).mediaId
+                    }
+                    val targetIndexInExisting = existingIds.indexOf(queueData.targetSongId)
+                    val queueMatchesExisting = existingIds.size == desiredIds.size &&
+                        existingIds.zip(desiredIds).all { (existing, desired) -> existing == desired }
+
+                    val targetSong = queueData.finalQueue.firstOrNull { it.id == queueData.targetSongId }
+
+                    if (queueMatchesExisting && targetIndexInExisting >= 0) {
+                        Timber.tag(CAST_LOG_TAG)
+                            .i(
+                                "Reusing existing local queue; seeking to index=%d position=%d",
+                                targetIndexInExisting,
+                                transferSnapshot.lastPosition
+                            )
+
+                        localPlayer.shuffleModeEnabled = queueData.isShuffleEnabled
+                        localPlayer.repeatMode = desiredRepeatMode
+                        localPlayer.seekTo(targetIndexInExisting, transferSnapshot.lastPosition)
+                        if (shouldResumePlaying) {
+                            localPlayer.play()
+                        } else {
+                            localPlayer.pause()
+                        }
                     } else {
-                        localPlayer.pause()
+                        val rebuildResult = withContext(Dispatchers.Default) {
+                            val startIndex = queueData.finalQueue.indexOfFirst { it.id == queueData.targetSongId }.coerceAtLeast(0)
+                            Timber.tag(CAST_LOG_TAG)
+                                .i(
+                                    "Restoring local playback: startIndex=%d position=%d songId=%s",
+                                    startIndex,
+                                    lastPosition,
+                                    queueData.targetSongId
+                                )
+                            val mediaItems = queueData.finalQueue.map { song ->
+                                MediaItem.Builder()
+                                    .setMediaId(song.id)
+                                    .setUri(song.contentUriString.toUri())
+                                    .setMediaMetadata(
+                                        MediaMetadata.Builder()
+                                            .setTitle(song.title)
+                                            .setArtist(song.artist)
+                                            .setArtworkUri(song.albumArtUriString?.toUri())
+                                            .build()
+                                    )
+                                    .build()
+                            }
+
+                            RebuildArtifacts(
+                                startIndex = startIndex,
+                                mediaItems = mediaItems,
+                                targetSong = queueData.finalQueue.getOrNull(startIndex)
+                            )
+                        }
+
+                        localPlayer.shuffleModeEnabled = queueData.isShuffleEnabled
+                        localPlayer.repeatMode = desiredRepeatMode
+                        localPlayer.setMediaItems(
+                            rebuildResult.mediaItems,
+                            rebuildResult.startIndex,
+                            transferSnapshot.lastPosition
+                        )
+                        localPlayer.prepare()
+                        if (shouldResumePlaying) {
+                            localPlayer.play()
+                        } else {
+                            localPlayer.pause()
+                        }
+
+                        _stablePlayerState.update {
+                            it.copy(
+                                currentSong = rebuildResult.targetSong,
+                                isPlaying = shouldResumePlaying,
+                                totalDuration = rebuildResult.targetSong?.duration ?: it.totalDuration,
+                                isShuffleEnabled = queueData.isShuffleEnabled,
+                                repeatMode = localPlayer.repeatMode
+                            )
+                        }
                     }
 
                     _playerUiState.update {
@@ -1684,9 +1723,9 @@ class PlayerViewModel @Inject constructor(
                     }
                     _stablePlayerState.update {
                         it.copy(
-                            currentSong = rebuildResult.targetSong,
+                            currentSong = targetSong ?: it.currentSong,
                             isPlaying = shouldResumePlaying,
-                            totalDuration = rebuildResult.targetSong?.duration ?: it.totalDuration,
+                            totalDuration = targetSong?.duration ?: it.totalDuration,
                             isShuffleEnabled = queueData.isShuffleEnabled,
                             repeatMode = localPlayer.repeatMode
                         )
