@@ -473,6 +473,17 @@ class PlayerViewModel @Inject constructor(
         val targetSong: Song?
     )
 
+    private data class TransferSnapshot(
+        val lastKnownStatus: MediaStatus?,
+        val lastRemoteQueue: List<Song>,
+        val lastRemoteSongId: String?,
+        val lastRemoteStreamPosition: Long,
+        val lastRemoteRepeatMode: Int,
+        val wasPlaying: Boolean,
+        val lastPosition: Long,
+        val isShuffleEnabled: Boolean
+    )
+
     fun setTrackVolume(volume: Float) {
         mediaController?.let {
             val clampedVolume = volume.coerceIn(0f, 1f)
@@ -1533,6 +1544,17 @@ class PlayerViewModel @Inject constructor(
                     ?: lastKnownStatus?.queueRepeatMode
                     ?: lastRemoteRepeatMode
                 val isShuffleEnabled = lastRepeatMode == MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE
+
+                val transferSnapshot = TransferSnapshot(
+                    lastKnownStatus = lastKnownStatus,
+                    lastRemoteQueue = lastRemoteQueue,
+                    lastRemoteSongId = lastRemoteSongId,
+                    lastRemoteStreamPosition = lastRemoteStreamPosition,
+                    lastRemoteRepeatMode = lastRemoteRepeatMode,
+                    wasPlaying = wasPlaying,
+                    lastPosition = lastPosition,
+                    isShuffleEnabled = isShuffleEnabled
+                )
                 Timber.tag(CAST_LOG_TAG)
                     .i(
                         "Transfer back start: lastStatus=%s lastItemId=%s lastSongId=%s position=%d playing=%s repeat=%d shuffle=%s",
@@ -1568,32 +1590,32 @@ class PlayerViewModel @Inject constructor(
                 }
 
                 val queueData = withContext(Dispatchers.Default) {
-                    val fallbackQueue = if (lastKnownStatus?.queueItems?.isNotEmpty() == true) {
-                        lastKnownStatus.queueItems.mapNotNull { item ->
+                    val fallbackQueue = if (transferSnapshot.lastKnownStatus?.queueItems?.isNotEmpty() == true) {
+                        transferSnapshot.lastKnownStatus.queueItems.mapNotNull { item ->
                             item.customData?.optString("songId")?.let { songId ->
                                 _masterAllSongs.value.firstOrNull { it.id == songId }
                             }
                         }.toImmutableList()
                     } else {
-                        lastRemoteQueue
+                        transferSnapshot.lastRemoteQueue
                     }
                     val chosenQueue = when {
-                        fallbackQueue.isEmpty() -> lastRemoteQueue
-                        fallbackQueue.size < lastRemoteQueue.size && fallbackQueue.all { song ->
-                            lastRemoteQueue.any { it.id == song.id }
-                        } -> lastRemoteQueue
+                        fallbackQueue.isEmpty() -> transferSnapshot.lastRemoteQueue
+                        fallbackQueue.size < transferSnapshot.lastRemoteQueue.size && fallbackQueue.all { song ->
+                            transferSnapshot.lastRemoteQueue.any { it.id == song.id }
+                        } -> transferSnapshot.lastRemoteQueue
                         else -> fallbackQueue
                     }
                     val songMap = _masterAllSongs.value.associateBy { it.id }
                     val finalQueue = chosenQueue.mapNotNull { song ->
                         songMap[song.id]
                     }
-                    val targetSongId = lastKnownStatus?.getQueueItemById(lastItemId ?: 0)?.customData?.optString("songId")
-                        ?: lastRemoteSongId
+                    val targetSongId = transferSnapshot.lastKnownStatus?.getQueueItemById(lastItemId ?: 0)?.customData?.optString("songId")
+                        ?: transferSnapshot.lastRemoteSongId
                     QueueTransferData(
                         finalQueue = finalQueue,
                         targetSongId = targetSongId,
-                        isShuffleEnabled = isShuffleEnabled
+                        isShuffleEnabled = transferSnapshot.isShuffleEnabled
                     )
                 }
 
@@ -1645,7 +1667,7 @@ class PlayerViewModel @Inject constructor(
                     localPlayer.setMediaItems(
                         rebuildResult.mediaItems,
                         rebuildResult.startIndex,
-                        lastPosition
+                        transferSnapshot.lastPosition
                     )
                     localPlayer.prepare()
                     if (shouldResumePlaying) {
@@ -1657,7 +1679,7 @@ class PlayerViewModel @Inject constructor(
                     _playerUiState.update {
                         it.copy(
                             currentPlaybackQueue = queueData.finalQueue.toImmutableList(),
-                            currentPosition = lastPosition
+                            currentPosition = transferSnapshot.lastPosition
                         )
                     }
                     _stablePlayerState.update {
@@ -1671,10 +1693,10 @@ class PlayerViewModel @Inject constructor(
                     }
                     if (shouldResumePlaying) {
                         startProgressUpdates()
-                        Timber.tag(CAST_LOG_TAG).i("Local playback resumed with play at position=%d", lastPosition)
+                        Timber.tag(CAST_LOG_TAG).i("Local playback resumed with play at position=%d", transferSnapshot.lastPosition)
                     } else {
-                        _playerUiState.update { it.copy(currentPosition = lastPosition) }
-                        Timber.tag(CAST_LOG_TAG).i("Local playback prepared without play at position=%d", lastPosition)
+                        _playerUiState.update { it.copy(currentPosition = transferSnapshot.lastPosition) }
+                        Timber.tag(CAST_LOG_TAG).i("Local playback prepared without play at position=%d", transferSnapshot.lastPosition)
                     }
                 }
                 lastRemoteMediaStatus = null
