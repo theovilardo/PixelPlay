@@ -1,6 +1,8 @@
 package com.theveloper.pixelplay.data.service.player
 
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import com.google.android.gms.cast.MediaInfo
 import com.google.android.gms.cast.MediaMetadata
 import com.google.android.gms.cast.MediaQueueItem
@@ -87,6 +89,21 @@ class CastPlayer(private val castSession: CastSession) {
     private fun waitForRemoteReady(onReady: () -> Unit) {
         val client = remoteMediaClient ?: return
 
+        val handler = Handler(Looper.getMainLooper())
+        var completed = false
+
+        val fallback = Runnable {
+            if (completed) return@Runnable
+            completed = true
+            try {
+                client.unregisterCallback(callback)
+            } catch (_: Exception) {
+                // Best effort cleanup
+            }
+            Timber.d("waitForRemoteReady fallback triggered; proceeding after timeout")
+            onReady()
+        }
+
         val callback = object : RemoteMediaClient.Callback() {
             override fun onStatusUpdated() {
                 val state = client.playerState
@@ -95,19 +112,24 @@ class CastPlayer(private val castSession: CastSession) {
                 // Logic from reference project to avoid race conditions
                 if (state == MediaStatus.PLAYER_STATE_PLAYING ||
                     state == MediaStatus.PLAYER_STATE_PAUSED ||
+                    state == MediaStatus.PLAYER_STATE_BUFFERING ||
                     pos > 0
                 ) {
+                    if (completed) return
+                    completed = true
                     try {
                         client.unregisterCallback(this)
                     } catch (e: Exception) {
                         Timber.w(e, "Failed to unregister temporary callback")
                     }
+                    handler.removeCallbacks(fallback)
                     onReady()
                 }
             }
         }
 
         try {
+            handler.postDelayed(fallback, 3000)
             client.registerCallback(callback)
             client.requestStatus()
         } catch (e: Exception) {
