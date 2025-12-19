@@ -467,11 +467,10 @@ class PlayerViewModel @Inject constructor(
         val isShuffleEnabled: Boolean
     )
 
-    private data class LocalRebuildResult(
+    private data class RebuildArtifacts(
         val startIndex: Int,
-        val targetSong: Song?,
-        val isPlaying: Boolean,
-        val totalDuration: Long
+        val mediaItems: List<MediaItem>,
+        val targetSong: Song?
     )
 
     fun setTrackVolume(volume: Float) {
@@ -1630,26 +1629,29 @@ class PlayerViewModel @Inject constructor(
                                 .build()
                         }
 
-                        localPlayer.shuffleModeEnabled = queueData.isShuffleEnabled
-                        localPlayer.repeatMode = when (lastRepeatMode) {
-                            MediaStatus.REPEAT_MODE_REPEAT_SINGLE -> Player.REPEAT_MODE_ONE
-                            MediaStatus.REPEAT_MODE_REPEAT_ALL, MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE -> Player.REPEAT_MODE_ALL
-                            else -> Player.REPEAT_MODE_OFF
-                        }
-                        localPlayer.setMediaItems(mediaItems, startIndex, lastPosition)
-                        localPlayer.prepare()
-                        if (shouldResumePlaying) {
-                            localPlayer.play()
-                        } else {
-                            localPlayer.pause()
-                        }
-                        val targetSong = queueData.finalQueue.getOrNull(startIndex)
-                        LocalRebuildResult(
+                        RebuildArtifacts(
                             startIndex = startIndex,
-                            targetSong = targetSong,
-                            isPlaying = shouldResumePlaying,
-                            totalDuration = targetSong?.duration ?: 0L
+                            mediaItems = mediaItems,
+                            targetSong = queueData.finalQueue.getOrNull(startIndex)
                         )
+                    }
+
+                    localPlayer.shuffleModeEnabled = queueData.isShuffleEnabled
+                    localPlayer.repeatMode = when (lastRepeatMode) {
+                        MediaStatus.REPEAT_MODE_REPEAT_SINGLE -> Player.REPEAT_MODE_ONE
+                        MediaStatus.REPEAT_MODE_REPEAT_ALL, MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE -> Player.REPEAT_MODE_ALL
+                        else -> Player.REPEAT_MODE_OFF
+                    }
+                    localPlayer.setMediaItems(
+                        rebuildResult.mediaItems,
+                        rebuildResult.startIndex,
+                        lastPosition
+                    )
+                    localPlayer.prepare()
+                    if (shouldResumePlaying) {
+                        localPlayer.play()
+                    } else {
+                        localPlayer.pause()
                     }
 
                     _playerUiState.update {
@@ -1661,8 +1663,8 @@ class PlayerViewModel @Inject constructor(
                     _stablePlayerState.update {
                         it.copy(
                             currentSong = rebuildResult.targetSong,
-                            isPlaying = rebuildResult.isPlaying,
-                            totalDuration = rebuildResult.totalDuration.takeIf { it > 0 } ?: it.totalDuration,
+                            isPlaying = shouldResumePlaying,
+                            totalDuration = rebuildResult.targetSong?.duration ?: it.totalDuration,
                             isShuffleEnabled = queueData.isShuffleEnabled,
                             repeatMode = localPlayer.repeatMode
                         )
