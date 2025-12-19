@@ -91,12 +91,13 @@ class CastPlayer(private val castSession: CastSession) {
 
         val handler = Handler(Looper.getMainLooper())
         var completed = false
+        var callback: RemoteMediaClient.Callback? = null
 
         val fallback = Runnable {
             if (completed) return@Runnable
             completed = true
             try {
-                client.unregisterCallback(callback)
+                callback?.let { client.unregisterCallback(it) }
             } catch (_: Exception) {
                 // Best effort cleanup
             }
@@ -104,7 +105,7 @@ class CastPlayer(private val castSession: CastSession) {
             onReady()
         }
 
-        val callback = object : RemoteMediaClient.Callback() {
+        callback = object : RemoteMediaClient.Callback() {
             override fun onStatusUpdated() {
                 val state = client.playerState
                 val pos = client.approximateStreamPosition
