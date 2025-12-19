@@ -623,10 +623,15 @@ class PlayerViewModel @Inject constructor(
     private val colorSchemeRequestChannel = Channel<String>(Channel.UNLIMITED)
     private val urisBeingProcessed = mutableSetOf<String>()
 
+    private val controllerHandlerThread = HandlerThread("MediaControllerThread").apply { start() }
+    private val controllerDispatcher = controllerHandlerThread.asCoroutineDispatcher()
+
     private var mediaController: MediaController? = null
     private val sessionToken = SessionToken(context, ComponentName(context, MusicService::class.java))
     private val mediaControllerFuture: ListenableFuture<MediaController> =
-        MediaController.Builder(context, sessionToken).buildAsync()
+        MediaController.Builder(context, sessionToken)
+            .setApplicationLooper(controllerHandlerThread.looper)
+            .buildAsync()
     private var pendingRepeatMode: Int? = null
 
     private var pendingPlaybackAction: (() -> Unit)? = null
@@ -1667,8 +1672,7 @@ class PlayerViewModel @Inject constructor(
                         return@launch
                     }
 
-                    val controllerDispatcher = localPlayer.applicationLooper?.let { Handler(it).asCoroutineDispatcher() }
-                    val playerContext = controllerDispatcher ?: Dispatchers.Main.immediate
+                    val playerContext = controllerDispatcher
 
                     Timber.tag(CAST_LOG_TAG).i(
                         "Dispatching local player rebuild on thread=%s dispatcher=%s controllerLooperMain=%s",
@@ -4376,6 +4380,7 @@ class PlayerViewModel @Inject constructor(
         bluetoothStateReceiver?.let { context.unregisterReceiver(it) }
         audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
         sessionManager.removeSessionManagerListener(castSessionManagerListener as SessionManagerListener<CastSession>, CastSession::class.java)
+        controllerHandlerThread.quitSafely()
     }
 
     // Sleep Timer Control Functions
