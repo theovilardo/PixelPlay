@@ -44,7 +44,6 @@ import android.os.Build
 import android.os.Bundle
 import android.content.pm.PackageManager
 import android.os.Handler
-import android.os.Looper
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import androidx.appcompat.app.AlertDialog
@@ -623,15 +622,10 @@ class PlayerViewModel @Inject constructor(
     private val colorSchemeRequestChannel = Channel<String>(Channel.UNLIMITED)
     private val urisBeingProcessed = mutableSetOf<String>()
 
-    private val controllerHandlerThread = HandlerThread("MediaControllerThread").apply { start() }
-    private val controllerDispatcher = Handler(controllerHandlerThread.looper).asCoroutineDispatcher()
-
     private var mediaController: MediaController? = null
     private val sessionToken = SessionToken(context, ComponentName(context, MusicService::class.java))
     private val mediaControllerFuture: ListenableFuture<MediaController> =
-        MediaController.Builder(context, sessionToken)
-            .setApplicationLooper(controllerHandlerThread.looper)
-            .buildAsync()
+        MediaController.Builder(context, sessionToken).buildAsync()
     private var pendingRepeatMode: Int? = null
 
     private var pendingPlaybackAction: (() -> Unit)? = null
@@ -1672,13 +1666,13 @@ class PlayerViewModel @Inject constructor(
                         return@launch
                     }
 
-                    val playerContext = controllerDispatcher
+                    val playerContext = Dispatchers.Main.immediate
 
                     Timber.tag(CAST_LOG_TAG).i(
                         "Dispatching local player rebuild on thread=%s dispatcher=%s controllerLooperMain=%s",
                         Thread.currentThread().name,
                         playerContext,
-                        localPlayer.applicationLooper == Looper.getMainLooper()
+                        true
                     )
                     withContext(playerContext) {
                         Timber.tag(CAST_LOG_TAG).i("Entered player rebuild context on thread=%s", Thread.currentThread().name)
@@ -4380,7 +4374,6 @@ class PlayerViewModel @Inject constructor(
         bluetoothStateReceiver?.let { context.unregisterReceiver(it) }
         audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
         sessionManager.removeSessionManagerListener(castSessionManagerListener as SessionManagerListener<CastSession>, CastSession::class.java)
-        controllerHandlerThread.quitSafely()
     }
 
     // Sleep Timer Control Functions
