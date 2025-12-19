@@ -398,6 +398,7 @@ class MainActivity : ComponentActivity() {
         }
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = navBackStackEntry?.destination?.route
+        var isSearchBarActive by remember { mutableStateOf(false) }
         val routesWithHiddenNavigationBar = remember {
             setOf(
                 Screen.Settings.route,
@@ -415,17 +416,21 @@ class MainActivity : ComponentActivity() {
                 Screen.ArtistSettings.route
             )
         }
-        val shouldHideNavigationBar by remember(currentRoute) {
+        val shouldHideNavigationBar by remember(currentRoute, isSearchBarActive) {
             derivedStateOf {
-                currentRoute?.let { route ->
-                    routesWithHiddenNavigationBar.any { hiddenRoute ->
-                        if (hiddenRoute.contains("{")) {
-                            route.startsWith(hiddenRoute.substringBefore("{"))
-                        } else {
-                            route == hiddenRoute
+                if (currentRoute == Screen.Search.route && isSearchBarActive) {
+                    true
+                } else {
+                    currentRoute?.let { route ->
+                        routesWithHiddenNavigationBar.any { hiddenRoute ->
+                            if (hiddenRoute.contains("{")) {
+                                route.startsWith(hiddenRoute.substringBefore("{"))
+                            } else {
+                                route == hiddenRoute
+                            }
                         }
-                    }
-                } ?: false
+                    } ?: false
+                }
             }
         }
 
@@ -581,7 +586,8 @@ class MainActivity : ComponentActivity() {
                     playerViewModel = playerViewModel,
                     navController = navController,
                     paddingValues = innerPadding,
-                    userPreferencesRepository = userPreferencesRepository
+                    userPreferencesRepository = userPreferencesRepository,
+                    onSearchBarActiveChange = { isSearchBarActive = it }
                 )
 
                 UnifiedPlayerSheet(

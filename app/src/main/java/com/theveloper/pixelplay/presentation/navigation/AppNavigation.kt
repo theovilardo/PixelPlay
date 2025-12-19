@@ -48,7 +48,8 @@ fun AppNavigation(
     playerViewModel: PlayerViewModel,
     navController: NavHostController,
     paddingValues: PaddingValues,
-    userPreferencesRepository: UserPreferencesRepository
+    userPreferencesRepository: UserPreferencesRepository,
+    onSearchBarActiveChange: (Boolean) -> Unit
 ) {
     var startDestination by remember { mutableStateOf<String?>(null) }
 
@@ -79,7 +80,12 @@ fun AppNavigation(
                 popEnterTransition = { enterTransition() },
                 popExitTransition = { exitTransition() },
             ) {
-                SearchScreen(paddingValues = paddingValues, playerViewModel = playerViewModel, navController = navController)
+                SearchScreen(
+                    paddingValues = paddingValues,
+                    playerViewModel = playerViewModel,
+                    navController = navController,
+                    onSearchBarActiveChange = onSearchBarActiveChange
+                )
             }
             composable(
                 Screen.Library.route,

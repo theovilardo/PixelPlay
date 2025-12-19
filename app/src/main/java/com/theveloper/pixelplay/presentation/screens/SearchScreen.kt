@@ -43,6 +43,7 @@ import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -111,7 +112,8 @@ fun SearchScreen(
     paddingValues: PaddingValues,
     playerViewModel: PlayerViewModel = hiltViewModel(),
     playlistViewModel: PlaylistViewModel = hiltViewModel(),
-    navController: NavHostController
+    navController: NavHostController,
+    onSearchBarActiveChange: (Boolean) -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var active by remember { mutableStateOf(false) }
@@ -169,6 +171,14 @@ fun SearchScreen(
     }
 
     val colorScheme = MaterialTheme.colorScheme
+
+    LaunchedEffect(active) {
+        onSearchBarActiveChange(active)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { onSearchBarActiveChange(false) }
+    }
 
     Box(
         modifier = Modifier
