@@ -467,6 +467,13 @@ class PlayerViewModel @Inject constructor(
         val isShuffleEnabled: Boolean
     )
 
+    private data class LocalRebuildResult(
+        val startIndex: Int,
+        val targetSong: Song?,
+        val isPlaying: Boolean,
+        val totalDuration: Long
+    )
+
     fun setTrackVolume(volume: Float) {
         mediaController?.let {
             val clampedVolume = volume.coerceIn(0f, 1f)
@@ -1600,36 +1607,51 @@ class PlayerViewModel @Inject constructor(
                     )
 
                 if (queueData.finalQueue.isNotEmpty() && queueData.targetSongId != null) {
-                    val songMap = _masterAllSongs.value.associateBy { it.id }
-                    val startIndex = queueData.finalQueue.indexOfFirst { it.id == queueData.targetSongId }.coerceAtLeast(0)
-                    Timber.tag(CAST_LOG_TAG)
-                        .i(
-                            "Restoring local playback: startIndex=%d position=%d songId=%s",
-                            startIndex,
-                            lastPosition,
-                            queueData.targetSongId
-                        )
-                    val mediaItems = queueData.finalQueue.map { song ->
-                        MediaItem.Builder()
-                            .setMediaId(song.id)
-                            .setUri(song.contentUriString.toUri())
-                            .setMediaMetadata(
-                                MediaMetadata.Builder()
-                                    .setTitle(song.title)
-                                    .setArtist(song.artist)
-                                    .setArtworkUri(song.albumArtUriString?.toUri())
-                                    .build()
+                    val rebuildResult = withContext(Dispatchers.Default) {
+                        val startIndex = queueData.finalQueue.indexOfFirst { it.id == queueData.targetSongId }.coerceAtLeast(0)
+                        Timber.tag(CAST_LOG_TAG)
+                            .i(
+                                "Restoring local playback: startIndex=%d position=%d songId=%s",
+                                startIndex,
+                                lastPosition,
+                                queueData.targetSongId
                             )
-                            .build()
+                        val mediaItems = queueData.finalQueue.map { song ->
+                            MediaItem.Builder()
+                                .setMediaId(song.id)
+                                .setUri(song.contentUriString.toUri())
+                                .setMediaMetadata(
+                                    MediaMetadata.Builder()
+                                        .setTitle(song.title)
+                                        .setArtist(song.artist)
+                                        .setArtworkUri(song.albumArtUriString?.toUri())
+                                        .build()
+                                )
+                                .build()
+                        }
+
+                        localPlayer.shuffleModeEnabled = queueData.isShuffleEnabled
+                        localPlayer.repeatMode = when (lastRepeatMode) {
+                            MediaStatus.REPEAT_MODE_REPEAT_SINGLE -> Player.REPEAT_MODE_ONE
+                            MediaStatus.REPEAT_MODE_REPEAT_ALL, MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE -> Player.REPEAT_MODE_ALL
+                            else -> Player.REPEAT_MODE_OFF
+                        }
+                        localPlayer.setMediaItems(mediaItems, startIndex, lastPosition)
+                        localPlayer.prepare()
+                        if (shouldResumePlaying) {
+                            localPlayer.play()
+                        } else {
+                            localPlayer.pause()
+                        }
+                        val targetSong = queueData.finalQueue.getOrNull(startIndex)
+                        LocalRebuildResult(
+                            startIndex = startIndex,
+                            targetSong = targetSong,
+                            isPlaying = shouldResumePlaying,
+                            totalDuration = targetSong?.duration ?: 0L
+                        )
                     }
-                    localPlayer.shuffleModeEnabled = queueData.isShuffleEnabled
-                    localPlayer.repeatMode = when (lastRepeatMode) {
-                        MediaStatus.REPEAT_MODE_REPEAT_SINGLE -> Player.REPEAT_MODE_ONE
-                        MediaStatus.REPEAT_MODE_REPEAT_ALL, MediaStatus.REPEAT_MODE_REPEAT_ALL_AND_SHUFFLE -> Player.REPEAT_MODE_ALL
-                        else -> Player.REPEAT_MODE_OFF
-                    }
-                    localPlayer.setMediaItems(mediaItems, startIndex, lastPosition)
-                    localPlayer.prepare()
+
                     _playerUiState.update {
                         it.copy(
                             currentPlaybackQueue = queueData.finalQueue.toImmutableList(),
@@ -1638,15 +1660,14 @@ class PlayerViewModel @Inject constructor(
                     }
                     _stablePlayerState.update {
                         it.copy(
-                            currentSong = queueData.finalQueue.getOrNull(startIndex),
-                            isPlaying = shouldResumePlaying,
-                            totalDuration = queueData.finalQueue.getOrNull(startIndex)?.duration ?: it.totalDuration,
+                            currentSong = rebuildResult.targetSong,
+                            isPlaying = rebuildResult.isPlaying,
+                            totalDuration = rebuildResult.totalDuration.takeIf { it > 0 } ?: it.totalDuration,
                             isShuffleEnabled = queueData.isShuffleEnabled,
                             repeatMode = localPlayer.repeatMode
                         )
                     }
                     if (shouldResumePlaying) {
-                        localPlayer.play()
                         startProgressUpdates()
                         Timber.tag(CAST_LOG_TAG).i("Local playback resumed with play at position=%d", lastPosition)
                     } else {
