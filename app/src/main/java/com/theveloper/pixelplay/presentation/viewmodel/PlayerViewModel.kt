@@ -4832,6 +4832,13 @@ class PlayerViewModel @Inject constructor(
             if (result.success) {
                 val refreshedAlbumArtUri = result.updatedAlbumArtUri ?: song.albumArtUriString
                 invalidateCoverArtCaches(previousAlbumArt, refreshedAlbumArtUri)
+                withContext(Dispatchers.IO) {
+                    if (normalizedLyrics != null) {
+                        musicRepository.updateLyrics(song.id.toLong(), normalizedLyrics)
+                    } else {
+                        musicRepository.resetLyrics(song.id.toLong())
+                    }
+                }
                 val updatedSong = song.copy(
                     title = newTitle,
                     artist = newArtist,
