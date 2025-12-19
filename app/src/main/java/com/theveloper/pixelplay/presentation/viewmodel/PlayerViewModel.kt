@@ -1667,7 +1667,7 @@ class PlayerViewModel @Inject constructor(
                     }
 
                     val controllerDispatcher = localPlayer.applicationLooper?.let { Handler(it).asCoroutineDispatcher() }
-                    val playerContext = controllerDispatcher ?: Dispatchers.Default
+                    val playerContext = controllerDispatcher ?: Dispatchers.Main.immediate
 
                     Timber.tag(CAST_LOG_TAG).i("Dispatching local player rebuild on thread=%s dispatcher=%s", Thread.currentThread().name, playerContext)
                     withContext(playerContext) {
@@ -1689,19 +1689,22 @@ class PlayerViewModel @Inject constructor(
                     }
                     Timber.tag(CAST_LOG_TAG).i("Completed player rebuild dispatch on thread=%s", Thread.currentThread().name)
 
+                    val precomputedQueue = rebuildArtifacts.finalQueue.toImmutableList()
+                    val precomputedSong = rebuildArtifacts.finalQueue.getOrNull(rebuildArtifacts.startIndex)
+                    val precomputedTotalDuration = precomputedSong?.duration
+
                     withContext(Dispatchers.Main.immediate) {
                         _playerUiState.update {
                             it.copy(
-                                currentPlaybackQueue = rebuildArtifacts.finalQueue.toImmutableList(),
+                                currentPlaybackQueue = precomputedQueue,
                                 currentPosition = rebuildArtifacts.lastPosition
                             )
                         }
                         _stablePlayerState.update {
                             it.copy(
-                                currentSong = rebuildArtifacts.finalQueue.getOrNull(rebuildArtifacts.startIndex),
+                                currentSong = precomputedSong,
                                 isPlaying = rebuildArtifacts.shouldResumePlaying,
-                                totalDuration = rebuildArtifacts.finalQueue.getOrNull(rebuildArtifacts.startIndex)?.duration
-                                    ?: it.totalDuration,
+                                totalDuration = precomputedTotalDuration ?: it.totalDuration,
                                 isShuffleEnabled = rebuildArtifacts.isShuffleEnabled,
                                 repeatMode = localPlayer.repeatMode
                             )
