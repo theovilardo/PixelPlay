@@ -1587,14 +1587,17 @@ class PlayerViewModel @Inject constructor(
                         )
                     }
 
-                    withContext(Dispatchers.Main.immediate) {
+                    withContext(Dispatchers.Default) {
                         remoteProgressObserverJob?.cancel()
                         remoteMediaClient?.removeProgressListener(remoteProgressListener!!)
                         remoteMediaClient?.unregisterCallback(remoteMediaClientCallback!!)
+                        context.stopService(Intent(context, MediaFileHttpServerService::class.java))
+                    }
+
+                    withContext(Dispatchers.Main.immediate) {
                         castPlayer = null
                         _castSession.value = null
                         _isRemotePlaybackActive.value = false
-                        context.stopService(Intent(context, MediaFileHttpServerService::class.java))
                         disconnect(resetConnecting = false) // Don't reset connecting flag yet
                     }
                     val localPlayer = mediaController ?: return@launch
