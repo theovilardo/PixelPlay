@@ -461,6 +461,12 @@ class PlayerViewModel @Inject constructor(
     private var remoteMediaClientCallback: RemoteMediaClient.Callback? = null
     private var remoteProgressListener: RemoteMediaClient.ProgressListener? = null
 
+    private data class QueueTransferData(
+        val finalQueue: List<Song>,
+        val targetSongId: String?,
+        val isShuffleEnabled: Boolean
+    )
+
     fun setTrackVolume(volume: Float) {
         mediaController?.let {
             val clampedVolume = volume.coerceIn(0f, 1f)
