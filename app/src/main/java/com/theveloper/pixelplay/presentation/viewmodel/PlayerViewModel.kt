@@ -1662,8 +1662,7 @@ class PlayerViewModel @Inject constructor(
                     }
 
                     val controllerDispatcher = localPlayer.applicationLooper?.let { Handler(it).asCoroutineDispatcher() }
-                    val playerContext = controllerDispatcher?.let { Dispatchers.Main.immediate + it }
-                        ?: Dispatchers.Main.immediate
+                    val playerContext = controllerDispatcher ?: Dispatchers.Main.immediate
 
                     Timber.tag(CAST_LOG_TAG).i("Dispatching local player rebuild on thread=%s", Thread.currentThread().name)
                     withContext(playerContext) {
