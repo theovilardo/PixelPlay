@@ -926,13 +926,12 @@ fun LibraryNavigationPill(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        // --- PARTE 1: TÍTULO (Forma estática en la unión) ---
         Surface(
             shape = RoundedCornerShape(
                 topStart = pillRadius,
                 bottomStart = pillRadius,
-                topEnd = innerRadius, // Siempre fijo (recto/unido)
-                bottomEnd = innerRadius // Siempre fijo (recto/unido)
+                topEnd = innerRadius,
+                bottomEnd = innerRadius
             ),
             tonalElevation = 8.dp,
             color = MaterialTheme.colorScheme.primaryContainer,
@@ -942,8 +941,8 @@ fun LibraryNavigationPill(
                     RoundedCornerShape(
                         topStart = pillRadius,
                         bottomStart = pillRadius,
-                        topEnd = innerRadius, // Siempre fijo (recto/unido)
-                        bottomEnd = innerRadius // Siempre fijo (recto/unido)
+                        topEnd = innerRadius,
+                        bottomEnd = innerRadius
                     )
                 )
                 .clickable(onClick = onClick)
@@ -967,7 +966,7 @@ fun LibraryNavigationPill(
                         modifier = Modifier.padding(vertical = 10.dp),
                         style = MaterialTheme.typography.titleLarge.copy(fontSize = 26.sp),
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
             }

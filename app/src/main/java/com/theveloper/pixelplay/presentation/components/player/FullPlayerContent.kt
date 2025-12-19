@@ -9,6 +9,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
@@ -84,6 +85,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.drag
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.consumeAllChanges
@@ -729,6 +731,8 @@ fun FullPlayerContent(
                                 Text(
                                     modifier = Modifier.padding(start = 18.dp),
                                     text = "Now Playing",
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                     style = MaterialTheme.typography.labelLargeEmphasized,
                                     fontWeight = FontWeight.SemiBold
                                 )
@@ -797,10 +801,10 @@ fun FullPlayerContent(
                                 targetValue = if (showCastLabel) castCornersExpanded else castCornersCompact,
                                 animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
                             )
-                            val castButtonWidth by animateDpAsState(
-                                targetValue = if (showCastLabel) 176.dp else 50.dp,
-                                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
-                            )
+//                            val castButtonWidth by animateDpAsState(
+//                                targetValue = if (showCastLabel) 220.dp else 50.dp,
+//                                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+//                            )
                             val castContainerColor by animateColorAsState(
                                 targetValue = LocalMaterialTheme.current.onPrimary,
                                 animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
@@ -808,7 +812,17 @@ fun FullPlayerContent(
                             Box(
                                 modifier = Modifier
                                     .height(42.dp)
-                                    .width(castButtonWidth)
+                                    //.width(castButtonWidth)
+                                    .animateContentSize(
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                                            stiffness = Spring.StiffnessLow
+                                        )
+                                    )
+                                    .widthIn(
+                                        min = 50.dp,
+                                        max = if (showCastLabel) 190.dp else 58.dp
+                                    )
                                     .clip(
                                         RoundedCornerShape(
                                             topStart = castTopStart.coerceAtLeast(0.dp),
@@ -823,7 +837,8 @@ fun FullPlayerContent(
                             ) {
                                 Row(
                                     modifier = Modifier
-                                        .fillMaxWidth()
+                                        //.fillMaxWidth()
+                                        .align(Alignment.CenterEnd)
                                         .padding(start = 14.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Start
@@ -861,7 +876,8 @@ fun FullPlayerContent(
                                                         style = MaterialTheme.typography.labelMedium,
                                                         color = LocalMaterialTheme.current.primary,
                                                         maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        modifier = Modifier.weight(1f, fill = false)
                                                     )
                                                     AnimatedVisibility(visible = isCastConnecting) {
                                                         CircularProgressIndicator(

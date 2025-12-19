@@ -14,7 +14,6 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import android.content.Intent
 import android.content.Context
 import android.os.Build
@@ -56,7 +55,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.BluetoothDisabled
 import androidx.compose.material.icons.rounded.Headphones
-import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.Speaker
 import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material.icons.rounded.Wifi
@@ -70,8 +68,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -163,6 +159,9 @@ fun CastBottomSheet(
         buildList {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 add(Manifest.permission.BLUETOOTH_CONNECT)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(Manifest.permission.NEARBY_WIFI_DEVICES)
             }
             add(Manifest.permission.ACCESS_FINE_LOCATION)
         }
@@ -547,15 +546,7 @@ private fun CastSheetContent(
                 )
             }
 
-//            item(key = "activeDevice") {
-//                ActiveDeviceHero(
-//                    device = state.activeDevice,
-//                    onDisconnect = onDisconnect,
-//                    onVolumeChange = onVolumeChange
-//                )
-//            }
-
-            item(key = "deviceSectionHeader") {
+            stickyHeader(key = "deviceSectionHeader") {
                 DeviceSectionHeader(
                     modifier = Modifier.fillMaxWidth(),
                     hasDevices = state.devices.isNotEmpty(),
@@ -682,16 +673,24 @@ private fun CastSheetContainer(
     }
 
     fun dismissSheet(velocity: Float = 0f) {
-        if (isDismissing || hiddenOffsetPx.floatValue == 0f) return
+        if (isDismissing) return
         isDismissing = true
+        val targetOffset = when {
+            hiddenOffsetPx.floatValue > 0f -> hiddenOffsetPx.floatValue
+            sheetHeightPx > 0f -> sheetHeightPx
+            else -> sheetOffset.value + 1f // Ensure a movement path exists
+        }
         scope.launch {
             isVisible = false
-            sheetOffset.animateTo(
-                targetValue = hiddenOffsetPx.floatValue,
-                animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
-                initialVelocity = velocity
-            )
-            onDismiss()
+            try {
+                sheetOffset.animateTo(
+                    targetValue = targetOffset,
+                    animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
+                    initialVelocity = velocity
+                )
+            } finally {
+                onDismiss()
+            }
         }
     }
 
@@ -1169,58 +1168,6 @@ private fun buildVolumeLabel(value: Float, max: Float): String {
         "${(value * 100).toInt()}%"
     } else {
         "${value.toInt()} / ${max.toInt()}"
-    }
-}
-
-@Composable
-private fun DeviceList(
-    devices: List<CastDeviceUi>,
-    onSelectDevice: (String) -> Unit,
-    onDisconnect: () -> Unit,
-    bluetoothEnabled: Boolean
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 6.dp)
-            ,
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = "Nearby devices",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                )
-                Spacer(
-                    modifier = Modifier.height(6.dp)
-                )
-                Text(
-                    text = if (devices.isEmpty()) "No devices yet" else "Tap to connect",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        if (devices.isEmpty()) {
-            EmptyDeviceState()
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(bottom = 6.dp),
-                modifier = Modifier.heightIn(max = 360.dp)
-            ) {
-                items(devices, key = { it.id }) { device ->
-                    CastDeviceRow(
-                        device = device,
-                        onSelect = { onSelectDevice(device.id) },
-                        onDisconnect = onDisconnect
-                    )
-                }
-            }
-        }
     }
 }
 
