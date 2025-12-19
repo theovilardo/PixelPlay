@@ -624,7 +624,7 @@ class PlayerViewModel @Inject constructor(
     private val urisBeingProcessed = mutableSetOf<String>()
 
     private val controllerHandlerThread = HandlerThread("MediaControllerThread").apply { start() }
-    private val controllerDispatcher = controllerHandlerThread.asCoroutineDispatcher()
+    private val controllerDispatcher = Handler(controllerHandlerThread.looper).asCoroutineDispatcher()
 
     private var mediaController: MediaController? = null
     private val sessionToken = SessionToken(context, ComponentName(context, MusicService::class.java))
