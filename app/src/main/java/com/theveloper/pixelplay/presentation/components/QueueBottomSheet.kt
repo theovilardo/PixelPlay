@@ -462,6 +462,7 @@ fun QueueBottomSheet(
                     QueueMiniPlayer(
                         song = nowPlaying,
                         isPlaying = isPlaying,
+                        headerPadding = headerTopPadding,
                         onPlayPause = { viewModel.playPause() },
                         onNext = { viewModel.nextSong() },
                         colorScheme = albumColorScheme,
@@ -482,8 +483,8 @@ fun QueueBottomSheet(
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp)
-                            .padding(top = headerTopPadding, bottom = 12.dp)
+//                            .padding(horizontal = 12.dp)
+                            .padding(bottom = 10.dp)
                             .then(directSheetDragModifier)
                     )
                 }
@@ -1370,6 +1371,7 @@ private fun QueueMiniPlayer(
     onNext: () -> Unit,
     colorScheme: ColorScheme? = null,
     onTap: (() -> Unit)? = null,
+    headerPadding: Dp = 0.dp,
     modifier: Modifier = Modifier,
 ) {
     val colors = colorScheme ?: MaterialTheme.colorScheme
@@ -1415,8 +1417,8 @@ private fun QueueMiniPlayer(
                 ) {
                     onTap?.invoke()
                 }
-                .padding(horizontal = 12.dp, vertical = 12.dp)
-                .padding(end = 4.dp),
+                .padding(horizontal = 12.dp)
+                .padding(top = headerPadding, end = 4.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {

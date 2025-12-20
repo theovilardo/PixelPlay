@@ -172,8 +172,6 @@ import java.util.Calendar
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlin.random.Random
-import kotlin.random.Random
-import kotlin.random.Random
 
 private const val EXTERNAL_MEDIA_ID_PREFIX = "external:"
 private const val EXTERNAL_EXTRA_PREFIX = "com.theveloper.pixelplay.external."
