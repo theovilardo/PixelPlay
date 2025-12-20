@@ -752,8 +752,8 @@ fun UnifiedPlayerSheet(
     val bottomSheetOpenFraction by remember(effectiveQueueOpenFraction, castSheetOpenFraction) {
         derivedStateOf { max(effectiveQueueOpenFraction, castSheetOpenFraction) }
     }
-    val combinedDimLayerAlpha by remember(currentDimLayerAlpha, bottomSheetOpenFraction) {
-        derivedStateOf { max(currentDimLayerAlpha, bottomSheetOpenFraction * 0.45f) }
+    val queueScrimAlpha by remember(effectiveQueueOpenFraction) {
+        derivedStateOf { (effectiveQueueOpenFraction * 0.45f).coerceIn(0f, 0.45f) }
     }
 
     val updatedPendingSaveOverlay = rememberUpdatedState(pendingSaveQueueOverlay)
@@ -826,16 +826,6 @@ fun UnifiedPlayerSheet(
     val canShow = rememberUpdatedState(showPlayerContentArea)
     val miniH = rememberUpdatedState(miniPlayerContentHeightPx)
     val dens = rememberUpdatedState(LocalDensity.current) // opcional; útil para thresholds
-    val shouldShowDimOverlay by remember(
-        showPlayerContentArea,
-        playerContentExpansionFraction,
-        bottomSheetOpenFraction
-    ) {
-        derivedStateOf {
-            (showPlayerContentArea && playerContentExpansionFraction.value > 0f) ||
-                bottomSheetOpenFraction > 0f
-        }
-    }
 
     if (actuallyShowSheetContent) {
         Surface(
@@ -1287,14 +1277,12 @@ fun UnifiedPlayerSheet(
                     CompositionLocalProvider(
                         LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
                     ) {
-                        Box(
-                            modifier = Modifier.fillMaxSize()
-                        ) {
+                        Box(modifier = Modifier.fillMaxSize()) {
                             AnimatedVisibility(
                                 modifier = Modifier
                                     .matchParentSize()
                                     .zIndex(1f),
-                                visible = shouldShowDimOverlay,
+                                visible = queueScrimAlpha > 0f,
                                 enter = fadeIn(animationSpec = tween(ANIMATION_DURATION_MS)),
                                 exit = fadeOut(animationSpec = tween(ANIMATION_DURATION_MS))
                             ) {
@@ -1302,20 +1290,8 @@ fun UnifiedPlayerSheet(
                                     modifier = Modifier
                                         .fillMaxSize()
                                         .background(
-                                            color = MaterialTheme.colorScheme.scrim.copy(alpha = combinedDimLayerAlpha)
+                                            color = MaterialTheme.colorScheme.scrim.copy(alpha = queueScrimAlpha)
                                         )
-                                        .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null
-                                        ) {
-                                            when {
-                                                queueOpenFraction > 0f -> animateQueueSheet(false)
-                                                castSheetOpenFraction > 0f -> showCastSheet = false
-                                                currentSheetContentState == PlayerSheetState.EXPANDED -> {
-                                                    playerViewModel.collapsePlayerSheet()
-                                                }
-                                            }
-                                        }
                                 )
                             }
 
