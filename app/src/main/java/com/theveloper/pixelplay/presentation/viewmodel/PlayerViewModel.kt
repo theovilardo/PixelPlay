@@ -4813,13 +4813,16 @@ class PlayerViewModel @Inject constructor(
             Timber.d("Editing metadata for song: ${song.title} with URI: ${song.contentUriString}")
             Timber.d("New metadata: title=$newTitle, artist=$newArtist, album=$newAlbum, genre=$newGenre, lyrics=$newLyrics, trackNumber=$newTrackNumber")
             val previousAlbumArt = song.albumArtUriString
+            val trimmedLyrics = newLyrics.trim()
+            val normalizedLyrics = trimmedLyrics.takeIf { it.isNotBlank() }
+            val parsedLyrics = normalizedLyrics?.let { LyricsUtils.parseLyrics(it) }
             val result = withContext(Dispatchers.IO) {
                 songMetadataEditor.editSongMetadata(
                     newTitle = newTitle,
                     newArtist = newArtist,
                     newAlbum = newAlbum,
                     newGenre = newGenre,
-                    newLyrics = newLyrics,
+                    newLyrics = trimmedLyrics,
                     newTrackNumber = newTrackNumber,
                     coverArtUpdate = coverArtUpdate,
                     songId = song.id.toLong(),
@@ -4829,12 +4832,19 @@ class PlayerViewModel @Inject constructor(
             if (result.success) {
                 val refreshedAlbumArtUri = result.updatedAlbumArtUri ?: song.albumArtUriString
                 invalidateCoverArtCaches(previousAlbumArt, refreshedAlbumArtUri)
+                withContext(Dispatchers.IO) {
+                    if (normalizedLyrics != null) {
+                        musicRepository.updateLyrics(song.id.toLong(), normalizedLyrics)
+                    } else {
+                        musicRepository.resetLyrics(song.id.toLong())
+                    }
+                }
                 val updatedSong = song.copy(
                     title = newTitle,
                     artist = newArtist,
                     album = newAlbum,
                     genre = newGenre,
-                    lyrics = newLyrics,
+                    lyrics = normalizedLyrics,
                     trackNumber = newTrackNumber,
                     albumArtUriString = refreshedAlbumArtUri,
                 )
@@ -4865,7 +4875,12 @@ class PlayerViewModel @Inject constructor(
                 }
 
                 if (_stablePlayerState.value.currentSong?.id == song.id) {
-                    _stablePlayerState.update { it.copy(currentSong = updatedSong) }
+                    _stablePlayerState.update {
+                        it.copy(
+                            currentSong = updatedSong,
+                            lyrics = parsedLyrics
+                        )
+                    }
                 }
 
                 if (_selectedSongForInfo.value?.id == song.id) {
