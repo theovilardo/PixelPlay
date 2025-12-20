@@ -122,6 +122,7 @@ import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.sign
 
@@ -615,6 +616,7 @@ fun UnifiedPlayerSheet(
     }
     var pendingSaveQueueOverlay by remember { mutableStateOf<SaveQueueOverlayData?>(null) }
     var showCastSheet by remember { mutableStateOf(false) }
+    var castSheetOpenFraction by remember { mutableFloatStateOf(0f) }
     var isDragging by remember { mutableStateOf(false) }
     var isDraggingPlayerArea by remember { mutableStateOf(false) }
     val velocityTracker = remember { VelocityTracker() }
@@ -742,6 +744,12 @@ fun UnifiedPlayerSheet(
             )
         }
     }
+    val bottomSheetOpenFraction by remember(queueOpenFraction, castSheetOpenFraction) {
+        derivedStateOf { max(queueOpenFraction, castSheetOpenFraction) }
+    }
+    val combinedDimLayerAlpha by remember(currentDimLayerAlpha, bottomSheetOpenFraction) {
+        derivedStateOf { max(currentDimLayerAlpha, bottomSheetOpenFraction * 0.45f) }
+    }
 
     val updatedPendingSaveOverlay = rememberUpdatedState(pendingSaveQueueOverlay)
     fun launchSaveQueueOverlay(
@@ -813,9 +821,19 @@ fun UnifiedPlayerSheet(
     val canShow = rememberUpdatedState(showPlayerContentArea)
     val miniH = rememberUpdatedState(miniPlayerContentHeightPx)
     val dens = rememberUpdatedState(LocalDensity.current) // opcional; útil para thresholds
+    val shouldShowDimOverlay by remember(
+        showPlayerContentArea,
+        playerContentExpansionFraction,
+        bottomSheetOpenFraction
+    ) {
+        derivedStateOf {
+            (showPlayerContentArea && playerContentExpansionFraction.value > 0f) ||
+                bottomSheetOpenFraction > 0f
+        }
+    }
 
     AnimatedVisibility(
-        visible = showPlayerContentArea && playerContentExpansionFraction.value > 0f && (!internalIsKeyboardVisible || pendingSaveQueueOverlay != null),
+        visible = shouldShowDimOverlay && (!internalIsKeyboardVisible || pendingSaveQueueOverlay != null),
         enter = fadeIn(animationSpec = tween(ANIMATION_DURATION_MS)),
         exit = fadeOut(animationSpec = tween(ANIMATION_DURATION_MS))
     ) {
@@ -823,16 +841,18 @@ fun UnifiedPlayerSheet(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
-                    color = if (isDarkTheme) Color.Black.copy(alpha = currentDimLayerAlpha) else Color.White.copy(
-                        alpha = currentDimLayerAlpha
-                    )
+                    color = MaterialTheme.colorScheme.scrim.copy(alpha = combinedDimLayerAlpha)
                 )
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
                 ) {
-                    if (currentSheetContentState == PlayerSheetState.EXPANDED) {
-                        playerViewModel.collapsePlayerSheet()
+                    when {
+                        queueOpenFraction > 0f -> animateQueueSheet(false)
+                        castSheetOpenFraction > 0f -> showCastSheet = false
+                        currentSheetContentState == PlayerSheetState.EXPANDED -> {
+                            playerViewModel.collapsePlayerSheet()
+                        }
                     }
                 }
         )
@@ -1162,12 +1182,12 @@ fun UnifiedPlayerSheet(
                                             LocalMaterialTheme provides (albumColorScheme
                                                 ?: MaterialTheme.colorScheme)
                                         ) {
-                                            val fullPlayerScale by remember(queueOpenFraction) {
+                                            val fullPlayerScale by remember(bottomSheetOpenFraction) {
                                                 derivedStateOf {
                                                     lerp(
                                                         1f,
                                                         0.95f,
-                                                        queueOpenFraction
+                                                        bottomSheetOpenFraction
                                                     )
                                                 }
                                             }
@@ -1372,7 +1392,11 @@ fun UnifiedPlayerSheet(
             ) {
                 CastBottomSheet(
                     playerViewModel = playerViewModel,
-                    onDismiss = { showCastSheet = false }
+                    onDismiss = {
+                        castSheetOpenFraction = 0f
+                        showCastSheet = false
+                    },
+                    onExpansionChanged = { fraction -> castSheetOpenFraction = fraction }
                 )
             }
         }
