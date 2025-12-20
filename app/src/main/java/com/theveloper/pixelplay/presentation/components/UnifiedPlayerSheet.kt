@@ -1281,7 +1281,7 @@ fun UnifiedPlayerSheet(
                             AnimatedVisibility(
                                 modifier = Modifier
                                     .matchParentSize()
-                                    .zIndex(1f),
+                                    .zIndex(0f),
                                 visible = queueScrimAlpha > 0f,
                                 enter = fadeIn(animationSpec = tween(ANIMATION_DURATION_MS)),
                                 exit = fadeOut(animationSpec = tween(ANIMATION_DURATION_MS))
@@ -1299,6 +1299,7 @@ fun UnifiedPlayerSheet(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
                                     .fillMaxWidth()
+                                    .zIndex(1f)
                                     .offset {
                                         IntOffset(
                                             x = 0,
