@@ -130,6 +130,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Velocity
+import androidx.compose.runtime.snapshotFlow
 import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -138,7 +139,8 @@ import kotlin.math.roundToInt
 @Composable
 fun CastBottomSheet(
     playerViewModel: PlayerViewModel,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onExpansionChanged: (Float) -> Unit = {}
 ) {
     val routes by playerViewModel.castRoutes.collectAsState()
     val selectedRoute by playerViewModel.selectedRoute.collectAsState()
@@ -284,7 +286,8 @@ fun CastBottomSheet(
     )
 
     CastSheetContainer(
-        onDismiss = onDismiss
+        onDismiss = onDismiss,
+        onExpansionChanged = onExpansionChanged
     ) {
         if (missingPermissions.isNotEmpty()) {
             CastPermissionStep(
@@ -634,6 +637,7 @@ private fun CastSheetContent(
 @Composable
 private fun CastSheetContainer(
     onDismiss: () -> Unit,
+    onExpansionChanged: (Float) -> Unit = {},
     content: @Composable () -> Unit
 ) {
     val density = LocalDensity.current
@@ -810,6 +814,19 @@ private fun CastSheetContainer(
                 content()
             }
         }
+    }
+
+    LaunchedEffect(hiddenOffsetPx.floatValue) {
+        snapshotFlow { sheetOffset.value }
+            .collect { offset ->
+                val hidden = hiddenOffsetPx.floatValue
+                val fraction = if (hidden > 0f) {
+                    (1f - (offset / hidden)).coerceIn(0f, 1f)
+                } else {
+                    0f
+                }
+                onExpansionChanged(fraction)
+            }
     }
 }
 
