@@ -837,32 +837,6 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    AnimatedVisibility(
-        visible = shouldShowDimOverlay && (!internalIsKeyboardVisible || pendingSaveQueueOverlay != null),
-        enter = fadeIn(animationSpec = tween(ANIMATION_DURATION_MS)),
-        exit = fadeOut(animationSpec = tween(ANIMATION_DURATION_MS))
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    color = MaterialTheme.colorScheme.scrim.copy(alpha = combinedDimLayerAlpha)
-                )
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) {
-                    when {
-                        queueOpenFraction > 0f -> animateQueueSheet(false)
-                        castSheetOpenFraction > 0f -> showCastSheet = false
-                        currentSheetContentState == PlayerSheetState.EXPANDED -> {
-                            playerViewModel.collapsePlayerSheet()
-                        }
-                    }
-                }
-        )
-    }
-
     if (actuallyShowSheetContent) {
         Surface(
             modifier = Modifier
@@ -1313,7 +1287,38 @@ fun UnifiedPlayerSheet(
                     CompositionLocalProvider(
                         LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
                     ) {
-                        Box {
+                        Box(
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            AnimatedVisibility(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .zIndex(1f),
+                                visible = shouldShowDimOverlay,
+                                enter = fadeIn(animationSpec = tween(ANIMATION_DURATION_MS)),
+                                exit = fadeOut(animationSpec = tween(ANIMATION_DURATION_MS))
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            color = MaterialTheme.colorScheme.scrim.copy(alpha = combinedDimLayerAlpha)
+                                        )
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null
+                                        ) {
+                                            when {
+                                                queueOpenFraction > 0f -> animateQueueSheet(false)
+                                                castSheetOpenFraction > 0f -> showCastSheet = false
+                                                currentSheetContentState == PlayerSheetState.EXPANDED -> {
+                                                    playerViewModel.collapsePlayerSheet()
+                                                }
+                                            }
+                                        }
+                                )
+                            }
+
                             QueueBottomSheet(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
