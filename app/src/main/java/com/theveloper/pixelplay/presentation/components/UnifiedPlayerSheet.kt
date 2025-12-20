@@ -744,8 +744,13 @@ fun UnifiedPlayerSheet(
             )
         }
     }
-    val bottomSheetOpenFraction by remember(queueOpenFraction, castSheetOpenFraction) {
-        derivedStateOf { max(queueOpenFraction, castSheetOpenFraction) }
+    val effectiveQueueOpenFraction by remember(queueOpenFraction, showQueueSheet, queueHiddenOffsetPx) {
+        derivedStateOf {
+            if (queueHiddenOffsetPx == 0f && showQueueSheet) 1f else queueOpenFraction
+        }
+    }
+    val bottomSheetOpenFraction by remember(effectiveQueueOpenFraction, castSheetOpenFraction) {
+        derivedStateOf { max(effectiveQueueOpenFraction, castSheetOpenFraction) }
     }
     val combinedDimLayerAlpha by remember(currentDimLayerAlpha, bottomSheetOpenFraction) {
         derivedStateOf { max(currentDimLayerAlpha, bottomSheetOpenFraction * 0.45f) }
