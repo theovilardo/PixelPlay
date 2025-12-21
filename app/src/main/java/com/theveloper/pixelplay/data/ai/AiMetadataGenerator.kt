@@ -69,7 +69,7 @@ class AiMetadataGenerator @Inject constructor(
             $systemPrompt
 
             Song title: "${song.title}"
-            Song artist: "${song.artist}"
+            Song artist: "${song.displayArtist}"
             $albumInfo
             Fields to complete: [$fieldsJson]
             """.trimIndent()

@@ -1,6 +1,5 @@
 package com.theveloper.pixelplay.presentation.screens
 
-import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
@@ -10,7 +9,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,7 +51,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -63,8 +60,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -78,7 +73,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -87,11 +81,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.theveloper.pixelplay.R
@@ -107,7 +99,6 @@ fun ArtistSettingsScreen(
     viewModel: ArtistSettingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val context = LocalContext.current
     val density = LocalDensity.current
     val coroutineScope = rememberCoroutineScope()
     val lazyListState = rememberLazyListState()
@@ -206,17 +197,6 @@ fun ArtistSettingsScreen(
                     }
                 ) {
                     Column(modifier = Modifier.clip(shape = RoundedCornerShape(24.dp))) {
-                        // Enable Artist Separation Toggle
-                        ToggleSettingsItem(
-                            title = "Enable Artist Separation",
-                            subtitle = "Split multi-artist tags (e.g., \"Artist1/Artist2\")",
-                            icon = Icons.Outlined.Person,
-                            checked = uiState.artistSeparationEnabled,
-                            onCheckedChange = { viewModel.setArtistSeparationEnabled(it) }
-                        )
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
                         // Configure Delimiters
                         SettingsItem(
                             title = "Configure Delimiters",
@@ -256,12 +236,18 @@ fun ArtistSettingsScreen(
                     }
                 ) {
                     Column(modifier = Modifier.clip(shape = RoundedCornerShape(24.dp))) {
-                        ToggleSettingsItem(
+                        SwitchSettingItem(
                             title = "Group by Album Artist",
                             subtitle = "Show collaboration albums under main artist",
-                            icon = Icons.Rounded.Album,
                             checked = uiState.groupByAlbumArtist,
-                            onCheckedChange = { viewModel.setGroupByAlbumArtist(it) }
+                            onCheckedChange = { viewModel.setGroupByAlbumArtist(it) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Album,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            }
                         )
                     }
                 }
@@ -271,7 +257,7 @@ fun ArtistSettingsScreen(
             item {
                 InfoCard(
                     title = "About Multi-Artist Parsing",
-                    content = "When enabled, PixelPlayer will automatically split artist tags containing multiple artists. This is useful for songs downloaded with yt-dlp or other tools that use delimiters like '/' to separate artists.\n\nBackslash (\\) can be used to escape delimiters."
+                    content = "PixelPlayer automatically splits artist tags containing multiple artists. This is useful for songs downloaded with yt-dlp or other tools that use delimiters like '/' to separate artists.\n\nBackslash (\\) can be used to escape delimiters."
                 )
             }
 
@@ -407,72 +393,6 @@ private fun RescanRequiredBanner(
                     style = MaterialTheme.typography.labelMedium
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun ToggleSettingsItem(
-    title: String,
-    subtitle: String,
-    icon: ImageVector,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .clickable { onCheckedChange(!checked) }
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth()
-        ) {
-            Box(
-                modifier = Modifier
-                    .padding(end = 16.dp)
-                    .size(24.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.secondary
-                )
-            }
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(end = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Switch(
-                checked = checked,
-                onCheckedChange = onCheckedChange,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = MaterialTheme.colorScheme.primary,
-                    checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                    uncheckedThumbColor = MaterialTheme.colorScheme.outline,
-                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            )
         }
     }
 }

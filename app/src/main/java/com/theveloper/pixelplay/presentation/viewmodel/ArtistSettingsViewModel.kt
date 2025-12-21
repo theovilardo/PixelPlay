@@ -15,7 +15,6 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class ArtistSettingsUiState(
-    val artistSeparationEnabled: Boolean = false,
     val artistDelimiters: List<String> = UserPreferencesRepository.DEFAULT_ARTIST_DELIMITERS,
     val groupByAlbumArtist: Boolean = false,
     val rescanRequired: Boolean = false,
@@ -40,12 +39,6 @@ class ArtistSettingsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            userPreferencesRepository.artistSeparationEnabledFlow.collect { enabled ->
-                _uiState.update { it.copy(artistSeparationEnabled = enabled) }
-            }
-        }
-
-        viewModelScope.launch {
             userPreferencesRepository.artistDelimitersFlow.collect { delimiters ->
                 _uiState.update { it.copy(artistDelimiters = delimiters) }
             }
@@ -67,12 +60,6 @@ class ArtistSettingsViewModel @Inject constructor(
             syncManager.isSyncing.collect { syncing ->
                 _uiState.update { it.copy(isResyncing = syncing) }
             }
-        }
-    }
-
-    fun setArtistSeparationEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            userPreferencesRepository.setArtistSeparationEnabled(enabled)
         }
     }
 

@@ -1518,7 +1518,7 @@ private fun MiniPlayerContentInternal(
                 gradientEdgeColor = LocalMaterialTheme.current.primaryContainer
             )
             AutoScrollingText(
-                text = song.artist,
+                text = song.displayArtist,
                 style = artistStyle,
                 gradientEdgeColor = LocalMaterialTheme.current.primaryContainer
             )

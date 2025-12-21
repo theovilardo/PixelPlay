@@ -17,7 +17,6 @@ import com.theveloper.pixelplay.data.model.TransitionSettings
 import com.theveloper.pixelplay.data.preferences.FullPlayerLoadingTweaks
 import dagger.hilt.android.qualifiers.ApplicationContext
 import androidx.datastore.preferences.core.MutablePreferences
-import androidx.lifecycle.viewModelScope
 import androidx.media3.common.Player
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -107,7 +106,6 @@ class UserPreferencesRepository @Inject constructor(
         val FULL_PLAYER_PLACEHOLDER_TRANSPARENT = booleanPreferencesKey("full_player_placeholder_transparent")
 
         // Multi-Artist Settings
-        val ARTIST_SEPARATION_ENABLED = booleanPreferencesKey("artist_separation_enabled")
         val ARTIST_DELIMITERS = stringPreferencesKey("artist_delimiters")
         val GROUP_BY_ALBUM_ARTIST = booleanPreferencesKey("group_by_album_artist")
         val ARTIST_SETTINGS_RESCAN_REQUIRED = booleanPreferencesKey("artist_settings_rescan_required")
@@ -152,17 +150,6 @@ class UserPreferencesRepository @Inject constructor(
     }
 
     // ===== Multi-Artist Settings =====
-
-    val artistSeparationEnabledFlow: Flow<Boolean> = dataStore.data
-        .map { preferences -> preferences[PreferencesKeys.ARTIST_SEPARATION_ENABLED] ?: false }
-
-    suspend fun setArtistSeparationEnabled(enabled: Boolean) {
-        dataStore.edit { preferences ->
-            preferences[PreferencesKeys.ARTIST_SEPARATION_ENABLED] = enabled
-            // Mark rescan as required when this setting changes
-            preferences[PreferencesKeys.ARTIST_SETTINGS_RESCAN_REQUIRED] = true
-        }
-    }
 
     val artistDelimitersFlow: Flow<List<String>> = dataStore.data
         .map { preferences ->
