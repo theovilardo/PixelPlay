@@ -165,15 +165,20 @@ class SyncWorker @AssistedInject constructor(
         val allCrossRefs = mutableListOf<SongArtistCrossRef>()
         val artistTrackCounts = mutableMapOf<Long, Int>()
         val albumMap = mutableMapOf<Pair<String, String>, Long>()
+        val artistSplitCache = mutableMapOf<String, List<String>>()
         val correctedSongs = ArrayList<SongEntity>(songs.size)
 
         songs.forEach { song ->
-            val artistsForSong = song.artistName.splitArtistsByDelimiters(artistDelimiters)
+            val rawArtistName = song.artistName
+            val songArtistNameTrimmed = rawArtistName.trim()
+            val artistsForSong = artistSplitCache.getOrPut(rawArtistName) {
+                rawArtistName.splitArtistsByDelimiters(artistDelimiters)
+            }
 
             artistsForSong.forEach { artistName ->
                 val normalizedName = artistName.trim()
                 if (normalizedName.isNotEmpty() && !artistNameToId.containsKey(normalizedName)) {
-                    val id = if (normalizedName == song.artistName.trim()) {
+                    val id = if (normalizedName == songArtistNameTrimmed) {
                         song.artistId
                     } else {
                         nextArtistId.getAndIncrement()
@@ -182,42 +187,10 @@ class SyncWorker @AssistedInject constructor(
                 }
             }
 
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
             val primaryArtistName = artistsForSong.firstOrNull()
                 ?.trim()
                 ?.takeIf { it.isNotEmpty() }
-=======
-            val primaryArtistName = artistsForSong.firstOrNull()?.trim().takeIf { it.isNotEmpty() }
->>>>>>> theirs
                 ?: songArtistNameTrimmed
-=======
-            val primaryArtistName = artistsForSong.firstOrNull()?.trim() ?: song.artistName
->>>>>>> theirs
-=======
-            val primaryArtistName = artistsForSong.firstOrNull()?.trim() ?: song.artistName
->>>>>>> theirs
-=======
-            val primaryArtistName = artistsForSong.firstOrNull()?.trim() ?: song.artistName
->>>>>>> theirs
-=======
-            val primaryArtistName = artistsForSong.firstOrNull()?.trim() ?: song.artistName
->>>>>>> theirs
-=======
-            val primaryArtistName = artistsForSong.firstOrNull()?.trim() ?: song.artistName
->>>>>>> theirs
-=======
-            val primaryArtistName = artistsForSong.firstOrNull()?.trim() ?: song.artistName
->>>>>>> theirs
-=======
-            val primaryArtistName = artistsForSong.firstOrNull()?.trim() ?: song.artistName
->>>>>>> theirs
             val primaryArtistId = artistNameToId[primaryArtistName] ?: song.artistId
 
             artistsForSong.forEachIndexed { index, artistName ->
