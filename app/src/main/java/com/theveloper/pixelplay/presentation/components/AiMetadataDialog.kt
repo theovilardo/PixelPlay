@@ -19,7 +19,7 @@ fun AiMetadataDialog(
     val missingFields = remember {
         val fields = mutableListOf<String>()
         if (song.title.isBlank()) fields.add("Title")
-        if (song.artist.isBlank()) fields.add("Artist")
+        if (song.displayArtist.isBlank()) fields.add("Artist")
         if (song.album.isBlank()) fields.add("Album")
         if (song.genre.isNullOrBlank()) fields.add("Genre")
         fields

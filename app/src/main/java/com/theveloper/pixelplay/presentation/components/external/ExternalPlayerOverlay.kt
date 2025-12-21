@@ -239,7 +239,7 @@ fun ExternalPlayerOverlay(
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = currentSong.artist,
+                                    text = currentSong.displayArtist,
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1,

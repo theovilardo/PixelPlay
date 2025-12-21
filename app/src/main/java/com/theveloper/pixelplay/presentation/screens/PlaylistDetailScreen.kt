@@ -1034,7 +1034,7 @@ fun SongPickerBottomSheet(
                                 Column {
                                     Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Text(
-                                        song.artist,
+                                        song.displayArtist,
                                         style = MaterialTheme.typography.bodySmall,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis

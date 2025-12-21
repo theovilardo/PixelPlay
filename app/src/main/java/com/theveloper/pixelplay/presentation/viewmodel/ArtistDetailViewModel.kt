@@ -1,6 +1,7 @@
 
 package com.theveloper.pixelplay.presentation.viewmodel
 
+import android.util.Log
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -60,12 +61,14 @@ class ArtistDetailViewModel @Inject constructor(
 
     private fun loadArtistData(id: Long) {
         viewModelScope.launch {
+            Log.d("ArtistDebug", "loadArtistData: id=$id")
             _uiState.update { it.copy(isLoading = true, error = null) }
             try {
                 val artistDetailsFlow = musicRepository.getArtistById(id)
                 val artistSongsFlow = musicRepository.getSongsForArtist(id)
 
                 combine(artistDetailsFlow, artistSongsFlow) { artist, songs ->
+                    Log.d("ArtistDebug", "loadArtistData: id=$id found=${artist != null} songs=${songs.size}")
                     if (artist != null) {
                         val albumSections = buildAlbumSections(songs)
                         val orderedSongs = albumSections.flatMap { it.songs }

@@ -436,7 +436,7 @@ fun SongListItemFavsWrapper(
         modifier = modifier,
         cardCorners = 0.dp,
         title = song.title,
-        artist = song.artist,
+        artist = song.displayArtist,
         albumArtUrl = song.albumArtUriString,
         isPlaying = stablePlayerState.isPlaying,
         isCurrentSong = song.id == stablePlayerState.currentSong?.id,

@@ -83,7 +83,7 @@ fun EditSongSheet(
     generateAiMetadata: suspend (List<String>) -> Result<com.theveloper.pixelplay.data.ai.SongMetadata>
 ) {
     var title by remember { mutableStateOf(song.title) }
-    var artist by remember { mutableStateOf(song.artist) }
+    var artist by remember { mutableStateOf(song.displayArtist) }
     var album by remember { mutableStateOf(song.album) }
     var genre by remember { mutableStateOf(song.genre ?: "") }
     var lyrics by remember { mutableStateOf(song.lyrics ?: "") }
@@ -107,7 +107,7 @@ fun EditSongSheet(
 
     LaunchedEffect(song) {
         title = song.title
-        artist = song.artist
+        artist = song.displayArtist
         album = song.album
         genre = song.genre ?: ""
         lyrics = song.lyrics ?: ""

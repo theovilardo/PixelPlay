@@ -1349,7 +1349,7 @@ fun SaveQueueAsPlaylistSheet(
                                 Column {
                                     Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Text(
-                                        song.artist,
+                                        song.displayArtist,
                                         style = MaterialTheme.typography.bodySmall,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -1445,7 +1445,7 @@ private fun QueueMiniPlayer(
                     gradientEdgeColor = colors.primaryContainer
                 )
                 AutoScrollingText(
-                    text = song.artist,
+                    text = song.displayArtist,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         color = colors.onPrimaryContainer.copy(alpha = 0.7f)
                     ),
@@ -1733,7 +1733,7 @@ fun QueuePlaylistSongItem(
                             style = MaterialTheme.typography.bodyLarge
                         )
                         Text(
-                            song.artist, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            song.displayArtist, maxLines = 1, overflow = TextOverflow.Ellipsis,
                             style = MaterialTheme.typography.bodyMedium,
                             color = if (isCurrentSong) colors.primary.copy(alpha = 0.8f) else colors.onSurfaceVariant
                         )

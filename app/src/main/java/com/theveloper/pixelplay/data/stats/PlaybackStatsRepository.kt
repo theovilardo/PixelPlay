@@ -234,7 +234,7 @@ class PlaybackStatsRepository @Inject constructor(
                 val song = songMap[songId] ?: return@mapNotNull null
                 val title = song.title.takeIf { it.isNotBlank() }
                     ?: song.path.substringAfterLast('/').ifBlank { return@mapNotNull null }
-                val artist = song.artist.takeIf { it.isNotBlank() } ?: "Unknown Artist"
+                val artist = song.displayArtist.takeIf { it.isNotBlank() } ?: "Unknown Artist"
                 SongPlaybackSummary(
                     songId = songId,
                     title = title,

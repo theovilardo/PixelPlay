@@ -165,6 +165,12 @@ interface MusicDao {
         applyDirectoryFilter: Boolean
     ): Flow<List<ArtistEntity>>
 
+    /**
+     * Unfiltered list of all artists (including those only reachable via cross-refs).
+     */
+    @Query("SELECT * FROM artists ORDER BY name ASC")
+    fun getAllArtistsRaw(): Flow<List<ArtistEntity>>
+
     @Query("SELECT * FROM artists WHERE id = :artistId")
     fun getArtistById(artistId: Long): Flow<ArtistEntity?>
 
@@ -185,6 +191,12 @@ interface MusicDao {
         allowedParentDirs: List<String>,
         applyDirectoryFilter: Boolean
     ): List<ArtistEntity>
+
+    /**
+     * Unfiltered list of all artists (one-shot).
+     */
+    @Query("SELECT * FROM artists ORDER BY name ASC")
+    suspend fun getAllArtistsListRaw(): List<ArtistEntity>
 
     @Query("""
         SELECT DISTINCT artists.* FROM artists
@@ -300,6 +312,9 @@ interface MusicDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertSongArtistCrossRefs(crossRefs: List<SongArtistCrossRef>)
+
+    @Query("SELECT * FROM song_artist_cross_ref")
+    fun getAllSongArtistCrossRefs(): Flow<List<SongArtistCrossRef>>
 
     @Query("DELETE FROM song_artist_cross_ref")
     suspend fun clearAllSongArtistCrossRefs()

@@ -408,7 +408,7 @@ fun SongInfoBottomSheet(
                             .clip(shape = listItemShape)
                             .clickable(onClick = onNavigateToArtist),
                         headlineContent = { Text("Artist") },
-                        supportingContent = { Text(song.artist) },
+                        supportingContent = { Text(song.displayArtist) },
                         leadingContent = { Icon(Icons.Rounded.Person, contentDescription = "Artist icon") }
                     )
                     ListItem(

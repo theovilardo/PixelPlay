@@ -72,7 +72,7 @@ class AiPlaylistGenerator @Inject constructor(
                 {
                     "id": "${song.id}",
                     "title": "${song.title.replace("\"", "'")}",
-                    "artist": "${song.artist.replace("\"", "'")}",
+                    "artist": "${song.displayArtist.replace("\"", "'")}",
                     "genre": "${song.genre?.replace("\"", "'") ?: "unknown"}",
                     "relevance_score": $score
                 }

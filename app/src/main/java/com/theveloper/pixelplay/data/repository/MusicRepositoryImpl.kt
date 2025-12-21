@@ -36,9 +36,12 @@ import androidx.sqlite.db.SimpleSQLiteQuery
 
 import com.theveloper.pixelplay.data.model.Genre
 import com.theveloper.pixelplay.data.database.SongEntity
+import com.theveloper.pixelplay.data.database.SongArtistCrossRef
+import com.theveloper.pixelplay.data.database.ArtistEntity
 import com.theveloper.pixelplay.data.database.toAlbum
 import com.theveloper.pixelplay.data.database.toArtist
 import com.theveloper.pixelplay.data.database.toSong
+import com.theveloper.pixelplay.data.database.toSongWithArtistRefs
 import com.theveloper.pixelplay.data.model.Lyrics
 import com.theveloper.pixelplay.data.model.SyncedLine
 import com.theveloper.pixelplay.utils.LogUtils
@@ -101,6 +104,10 @@ class MusicRepositoryImpl @Inject constructor(
         songs.filterBlocked(config)
     }.conflate()
 
+    private val allArtistsFlow = musicDao.getAllArtistsRaw()
+
+    private val allCrossRefsFlow = musicDao.getAllSongArtistCrossRefs()
+
     private fun normalizePath(path: String): String =
         runCatching { File(path).canonicalPath }.getOrElse { File(path).absolutePath }
 
@@ -113,6 +120,43 @@ class MusicRepositoryImpl @Inject constructor(
         }
     }
 
+    private fun List<SongArtistCrossRef>.filterBySongs(songIds: Set<Long>): List<SongArtistCrossRef> {
+        if (songIds.isEmpty()) return emptyList()
+        return filter { songIds.contains(it.songId) }
+    }
+
+    private fun mapSongList(
+        songs: List<SongEntity>,
+        config: DirectoryFilterConfig?,
+        artists: List<ArtistEntity>,
+        crossRefs: List<SongArtistCrossRef>
+    ): List<Song> {
+        val allowedSongs = config?.let { songs.filterBlocked(it) } ?: songs
+        if (allowedSongs.isEmpty()) return emptyList()
+
+        val allowedSongIds = allowedSongs.map { it.id }.toSet()
+        val filteredCrossRefs = crossRefs.filterBySongs(allowedSongIds)
+        val artistIds = filteredCrossRefs.map { it.artistId }.toSet()
+        val artistMap = artists.filter { artistIds.contains(it.id) }.associateBy { it.id }
+        val crossRefsBySong = filteredCrossRefs.groupBy { it.songId }
+
+        return allowedSongs.map { song ->
+            val songCrossRefs = crossRefsBySong[song.id].orEmpty()
+            val songArtists = songCrossRefs.mapNotNull { artistMap[it.artistId] }
+            song.toSongWithArtistRefs(songArtists, songCrossRefs)
+        }
+    }
+
+    private fun mapSingleSong(
+        song: SongEntity?,
+        config: DirectoryFilterConfig?,
+        artists: List<ArtistEntity>,
+        crossRefs: List<SongArtistCrossRef>
+    ): Song? {
+        if (song == null) return null
+        return mapSongList(listOf(song), config, artists, crossRefs).firstOrNull()
+    }
+
     private suspend fun permittedSongsOnce(): Pair<List<SongEntity>, DirectoryFilterConfig> {
         val config = directoryFilterConfig.first()
         val songs = musicDao.getAllSongsList().filterBlocked(config)
@@ -122,9 +166,13 @@ class MusicRepositoryImpl @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun getAudioFiles(): Flow<List<Song>> {
         LogUtils.d(this, "getAudioFiles")
-        return permittedSongsFlow
-            .map { songs -> songs.map { it.toSong() } }
-            .flowOn(Dispatchers.IO)
+        return combine(
+            permittedSongsFlow,
+            allArtistsFlow,
+            allCrossRefsFlow
+        ) { songs, artists, crossRefs ->
+            mapSongList(songs, null, artists, crossRefs)
+        }.flowOn(Dispatchers.IO)
     }
 
     override fun getAlbums(): Flow<List<Album>> {
@@ -159,9 +207,15 @@ class MusicRepositoryImpl @Inject constructor(
         return combine(
             musicDao.getArtists(allowedParentDirs = emptyList(), applyDirectoryFilter = false),
             permittedSongsFlow,
-            directoryFilterConfig
-        ) { artists, allowedSongs, _ ->
-            val allowedArtistIds = allowedSongs.map { it.artistId }.toSet()
+            directoryFilterConfig,
+            allCrossRefsFlow
+        ) { artists, allowedSongs, _, crossRefs ->
+            val allowedSongIds = allowedSongs.map { it.id }.toSet()
+            val allowedCrossRefs = crossRefs.filterBySongs(allowedSongIds)
+            val allowedArtistIds = allowedCrossRefs.map { it.artistId }.toMutableSet()
+            // Fallback to primary artist ids in case cross-refs are empty for some reason
+            allowedArtistIds.addAll(allowedSongs.map { it.artistId })
+
             artists.filter { allowedArtistIds.contains(it.id) }
                 .map { it.toArtist() }
         }.conflate().flowOn(Dispatchers.IO)
@@ -172,9 +226,11 @@ class MusicRepositoryImpl @Inject constructor(
         LogUtils.d(this, "getSongsForAlbum: $albumId")
         return combine(
             musicDao.getSongsByAlbumId(albumId),
-            directoryFilterConfig
-        ) { songEntities, config ->
-            songEntities.filterBlocked(config).map { it.toSong() }
+            directoryFilterConfig,
+            allArtistsFlow,
+            allCrossRefsFlow
+        ) { songEntities, config, artists, crossRefs ->
+            mapSongList(songEntities, config, artists, crossRefs)
         }.conflate().flowOn(Dispatchers.IO)
     }
 
@@ -183,9 +239,15 @@ class MusicRepositoryImpl @Inject constructor(
         // Only return the artist if the user has access to at least one song by this artist
         return combine(
             musicDao.getArtistById(artistId),
-            permittedSongsFlow
-        ) { artistEntity, allowedSongs ->
-            val hasAccess = artistEntity != null && allowedSongs.any { it.artistId == artistId }
+            permittedSongsFlow,
+            allCrossRefsFlow
+        ) { artistEntity, allowedSongs, crossRefs ->
+            val allowedSongIds = allowedSongs.map { it.id }.toSet()
+            val allowedCrossRefs = crossRefs.filterBySongs(allowedSongIds)
+            val hasAccess = artistEntity != null && (
+                allowedCrossRefs.any { it.artistId == artistId } ||
+                allowedSongs.any { it.artistId == artistId }
+            )
             if (hasAccess) artistEntity?.toArtist() else null
         }.flowOn(Dispatchers.IO)
     }
@@ -200,9 +262,11 @@ class MusicRepositoryImpl @Inject constructor(
         LogUtils.d(this, "getSongsForArtist: $artistId")
         return combine(
             musicDao.getSongsForArtist(artistId), // Use junction table query
-            directoryFilterConfig
-        ) { songEntities, config ->
-            songEntities.filterBlocked(config).map { it.toSong() }
+            directoryFilterConfig,
+            allArtistsFlow,
+            allCrossRefsFlow
+        ) { songEntities, config, artists, crossRefs ->
+            mapSongList(songEntities, config, artists, crossRefs)
         }.conflate().flowOn(Dispatchers.IO)
     }
 
@@ -244,9 +308,11 @@ class MusicRepositoryImpl @Inject constructor(
                 allowedParentDirs = emptyList(),
                 applyDirectoryFilter = false
             ),
-            directoryFilterConfig
-        ) { songs, config ->
-            songs.filterBlocked(config).map { it.toSong() }
+            directoryFilterConfig,
+            allArtistsFlow,
+            allCrossRefsFlow
+        ) { songs, config, artists, crossRefs ->
+            mapSongList(songs, config, artists, crossRefs)
         }.conflate().flowOn(Dispatchers.IO)
     }
 
@@ -277,9 +343,14 @@ class MusicRepositoryImpl @Inject constructor(
                 applyDirectoryFilter = false
             ),
             permittedSongsFlow,
-            directoryFilterConfig
-        ) { artists, allowedSongs, _ ->
-            val allowedArtistIds = allowedSongs.map { it.artistId }.toSet()
+            directoryFilterConfig,
+            allCrossRefsFlow
+        ) { artists, allowedSongs, _, crossRefs ->
+            val allowedSongIds = allowedSongs.map { it.id }.toSet()
+            val allowedCrossRefs = crossRefs.filterBySongs(allowedSongIds)
+            val allowedArtistIds = allowedCrossRefs.map { it.artistId }.toMutableSet()
+            allowedArtistIds.addAll(allowedSongs.map { it.artistId })
+
             artists.filter { allowedArtistIds.contains(it.id) }
                 .map { it.toArtist() }
         }.conflate().flowOn(Dispatchers.IO)
@@ -379,12 +450,14 @@ class MusicRepositoryImpl @Inject constructor(
                 allowedParentDirs = emptyList(),
                 applyDirectoryFilter = false
             ),
-            directoryFilterConfig
-        ) { entities, config ->
+            directoryFilterConfig,
+            allArtistsFlow,
+            allCrossRefsFlow
+        ) { entities, config, artists, crossRefs ->
             val permittedEntities = entities.filterBlocked(config)
-            val songsMap = permittedEntities.associateBy { it.id.toString() }
-            // Ensure the order of original songIds is preserved
-            songIds.mapNotNull { idToFind -> songsMap[idToFind]?.toSong() }
+            val mapped = mapSongList(permittedEntities, null, artists, crossRefs)
+            val songsMap = mapped.associateBy { it.id }
+            songIds.mapNotNull { idToFind -> songsMap[idToFind] }
         }.conflate().flowOn(Dispatchers.IO)
     }
 
@@ -412,12 +485,12 @@ class MusicRepositoryImpl @Inject constructor(
 
     override suspend fun getAllArtistsOnce(): List<Artist> = withContext(Dispatchers.IO) {
         val (songs, _) = permittedSongsOnce()
+        val crossRefs = allCrossRefsFlow.first()
 
-        val allowedArtistIds = songs.map { it.artistId }.toSet()
-        val artists = musicDao.getAllArtistsList(
-            allowedParentDirs = emptyList(),
-            applyDirectoryFilter = false
-        )
+        val allowedSongIds = songs.map { it.id }.toSet()
+        val allowedArtistIds = crossRefs.filterBySongs(allowedSongIds).map { it.artistId }.toMutableSet()
+        allowedArtistIds.addAll(songs.map { it.artistId })
+        val artists = musicDao.getAllArtistsListRaw()
         artists.filter { allowedArtistIds.contains(it.id) }
             .map { it.toArtist() }
     }
@@ -444,12 +517,14 @@ class MusicRepositoryImpl @Inject constructor(
         // Si una canción existe pero está en un directorio no permitido, no debería devolverse.
         return combine(
             musicDao.getSongById(songLongId),
-            directoryFilterConfig
-        ) { songEntity, config ->
+            directoryFilterConfig,
+            allArtistsFlow,
+            allCrossRefsFlow
+        ) { songEntity, config, artists, crossRefs ->
             songEntity?.takeIf { song ->
                 val normalizedParent = normalizePath(song.parentDirectoryPath)
                 config.normalizedBlocked.none { normalizedParent == it || normalizedParent.startsWith("$it/") }
-            }?.toSong()
+            }?.let { mapSingleSong(it, null, artists, crossRefs) }
         }.conflate().flowOn(Dispatchers.IO)
     }
 

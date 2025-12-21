@@ -1708,7 +1708,7 @@ class PlayerViewModel @Inject constructor(
                                     .setMediaMetadata(
                                         MediaMetadata.Builder()
                                             .setTitle(song.title)
-                                            .setArtist(song.artist)
+                                            .setArtist(song.displayArtist)
                                             .setArtworkUri(song.albumArtUriString?.toUri())
                                             .build()
                                     )
@@ -2350,13 +2350,24 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun triggerArtistNavigationFromPlayer(artistId: Long) {
-        if (artistId <= 0) return
+        if (artistId <= 0) {
+            Log.d("ArtistDebug", "triggerArtistNavigationFromPlayer ignored invalid artistId=$artistId")
+            return
+        }
 
         val existingJob = artistNavigationJob
-        if (existingJob != null && existingJob.isActive) return
+        if (existingJob != null && existingJob.isActive) {
+            Log.d("ArtistDebug", "triggerArtistNavigationFromPlayer ignored; navigation already in progress for artistId=$artistId")
+            return
+        }
 
         artistNavigationJob?.cancel()
         artistNavigationJob = viewModelScope.launch {
+            val currentSong = _stablePlayerState.value.currentSong
+            Log.d(
+                "ArtistDebug",
+                "triggerArtistNavigationFromPlayer: artistId=$artistId, songId=${currentSong?.id}, title=${currentSong?.title}"
+            )
             collapsePlayerSheet()
 
             withTimeoutOrNull(900) {
@@ -3209,7 +3220,7 @@ class PlayerViewModel @Inject constructor(
                     val mediaItems = songsToPlay.map { song ->
                         val metadataBuilder = MediaMetadata.Builder()
                             .setTitle(song.title)
-                            .setArtist(song.artist)
+                            .setArtist(song.displayArtist)
                         playlistId?.let {
                             val extras = Bundle()
                             extras.putString("playlistId", it)
@@ -3286,7 +3297,7 @@ class PlayerViewModel @Inject constructor(
     private fun buildMediaMetadataForSong(song: Song): MediaMetadata {
         val metadataBuilder = MediaMetadata.Builder()
             .setTitle(song.title)
-            .setArtist(song.artist)
+            .setArtist(song.displayArtist)
             .setAlbumTitle(song.album)
 
         song.albumArtUriString?.toUri()?.let { artworkUri ->
@@ -3476,7 +3487,7 @@ class PlayerViewModel @Inject constructor(
                 .setUri(song.contentUriString.toUri())
                 .setMediaMetadata(MediaMetadata.Builder()
                     .setTitle(song.title)
-                    .setArtist(song.artist)
+                    .setArtist(song.displayArtist)
                     .setArtworkUri(song.albumArtUriString?.toUri())
                     .build())
                 .build()
@@ -3492,7 +3503,7 @@ class PlayerViewModel @Inject constructor(
                 .setMediaMetadata(
                     MediaMetadata.Builder()
                         .setTitle(song.title)
-                        .setArtist(song.artist)
+                        .setArtist(song.displayArtist)
                         .setArtworkUri(song.albumArtUriString?.toUri())
                         .build()
                 )
@@ -3519,7 +3530,7 @@ class PlayerViewModel @Inject constructor(
                 val dialog = MaterialAlertDialogBuilder(activity)
                     .setTitle("Delete song?")
                     .setMessage("""
-                    "${song.title}" by ${song.artist}
+                    "${song.title}" by ${song.displayArtist}
 
                     This song will be permanently deleted from your device and cannot be recovered.
                 """.trimIndent())

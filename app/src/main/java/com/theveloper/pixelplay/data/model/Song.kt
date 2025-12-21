@@ -2,6 +2,7 @@ package com.theveloper.pixelplay.data.model
 
 import android.net.Uri
 import androidx.compose.runtime.Immutable
+import com.theveloper.pixelplay.utils.splitArtistsByDelimiters
 
 @Immutable
 data class Song(
@@ -9,8 +10,7 @@ data class Song(
     val title: String,
     /**
      * Legacy artist display string.
-     * - If multi-artist support (e.g., artistSeparationEnabled) is disabled, this contains the primary artist or a combined artist string from metadata.
-     * - If multi-artist support is enabled, this typically contains only the primary artist for backward compatibility.
+     * - With multi-artist parsing enabled by default, this typically contains only the primary artist for backward compatibility.
      * For accurate display of all artists, use the [artists] list and [displayArtist] property.
      */
     val artist: String,
@@ -33,16 +33,21 @@ data class Song(
     val bitrate: Int?,
     val sampleRate: Int?,
 ) {
+    private val defaultArtistDelimiters = listOf("/", ";", ",", "+", "&")
+
     /**
      * Returns the display string for artists.
      * If multiple artists exist, joins them with ", ".
-     * Falls back to the artist field if artists list is empty.
+     * Falls back to splitting the legacy artist string using common delimiters,
+     * and finally the raw artist field if nothing else is available.
      */
     val displayArtist: String
-        get() = if (artists.isNotEmpty()) {
-            artists.sortedByDescending { it.isPrimary }.joinToString(", ") { it.name }
-        } else {
-            artist
+        get() {
+            if (artists.isNotEmpty()) {
+                return artists.sortedByDescending { it.isPrimary }.joinToString(", ") { it.name }
+            }
+            val split = artist.splitArtistsByDelimiters(defaultArtistDelimiters)
+            return if (split.isNotEmpty()) split.joinToString(", ") else artist
         }
 
     /**

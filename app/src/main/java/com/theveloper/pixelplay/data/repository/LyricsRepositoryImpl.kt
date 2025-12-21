@@ -59,7 +59,7 @@ class LyricsRepositoryImpl @Inject constructor(
             LogUtils.d(this@LyricsRepositoryImpl, "Fetching lyrics from remote for: ${song.title}")
             val response = lrcLibApiService.getLyrics(
                 trackName = song.title,
-                artistName = song.artist,
+                artistName = song.displayArtist,
                 albumName = song.album,
                 duration = (song.duration / 1000).toInt()
             )

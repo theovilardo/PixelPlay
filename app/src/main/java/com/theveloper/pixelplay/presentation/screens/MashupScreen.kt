@@ -340,9 +340,8 @@ private fun SongPickerItem(song: Song, onClick: () -> Unit) {
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(text = song.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold)
-            Text(text = song.artist, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+            Text(text = song.displayArtist, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
-
 

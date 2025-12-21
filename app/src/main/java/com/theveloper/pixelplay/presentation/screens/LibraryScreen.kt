@@ -1936,7 +1936,7 @@ fun EnhancedSongListItem(
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = song.artist,
+                        text = song.displayArtist,
                         style = MaterialTheme.typography.bodyMedium,
                         color = contentColor.copy(alpha = 0.7f),
                         maxLines = 1,

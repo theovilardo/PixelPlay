@@ -1038,7 +1038,7 @@ private fun SongMetadataDisplaySection(
             DeferAt(expansionFraction, metadataThreshold) {
                 PlayerSongInfo(
                     title = currentSong.title,
-                    artist = currentSong.artist,
+                    artist = currentSong.displayArtist,
                     artistId = currentSong.artistId,
                     artists = currentSongArtists,
                     expansionFraction = expansionFraction,
