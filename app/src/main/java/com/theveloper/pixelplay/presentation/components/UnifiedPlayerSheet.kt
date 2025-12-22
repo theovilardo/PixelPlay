@@ -120,6 +120,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import kotlin.coroutines.cancellation.CancellationException
@@ -255,6 +256,10 @@ fun UnifiedPlayerSheet(
     }
 
     val playerContentExpansionFraction = playerViewModel.playerContentExpansionFraction
+    val sampledExpansionFraction by remember {
+        snapshotFlow { playerContentExpansionFraction.value }
+            .sample(16L)
+    }.collectAsStateWithLifecycle(initialValue = 0f)
     val visualOvershootScaleY = remember { Animatable(1f) }
     val initialFullPlayerOffsetY = remember(density) { with(density) { 24.dp.toPx() } }
     val sheetAnimationSpec = remember {
@@ -289,9 +294,9 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val fullPlayerContentAlpha by remember {
+    val fullPlayerContentAlpha by remember(sampledExpansionFraction) {
         derivedStateOf {
-            (playerContentExpansionFraction.value - 0.25f).coerceIn(0f, 0.75f) / 0.75f
+            (sampledExpansionFraction - 0.25f).coerceIn(0f, 0.75f) / 0.75f
         }
     }
 
@@ -334,7 +339,7 @@ fun UnifiedPlayerSheet(
         val adjustedY = lerp(
             sheetCollapsedTargetY,
             sheetExpandedTargetY,
-            playerContentExpansionFraction.value
+            sampledExpansionFraction
         )
 
         sheetAnimationMutex.mutate {
@@ -395,7 +400,7 @@ fun UnifiedPlayerSheet(
 
     val playerContentAreaActualHeightPx by remember(
         showPlayerContentArea,
-        playerContentExpansionFraction,
+        sampledExpansionFraction,
         containerHeight,
         miniPlayerContentHeightPx
     ) {
@@ -405,7 +410,7 @@ fun UnifiedPlayerSheet(
                 lerp(
                     miniPlayerContentHeightPx,
                     containerHeightPx,
-                    playerContentExpansionFraction.value
+                    sampledExpansionFraction
                 )
             } else {
                 0f
@@ -414,14 +419,14 @@ fun UnifiedPlayerSheet(
     }
     val playerContentAreaHeightDp by remember(
         showPlayerContentArea,
-        playerContentExpansionFraction,
+        sampledExpansionFraction,
         containerHeight
     ) {
         derivedStateOf {
             if (showPlayerContentArea) lerp(
                 MiniPlayerHeight,
                 containerHeight,
-                playerContentExpansionFraction.value
+                sampledExpansionFraction
             )
             else 0.dp
         }
@@ -438,7 +443,7 @@ fun UnifiedPlayerSheet(
 
     val animatedTotalSheetHeightPx by remember(
         isPlayerSlotOccupied,
-        playerContentExpansionFraction,
+        sampledExpansionFraction,
         screenHeightPx,
         totalSheetHeightWhenContentCollapsedPx
     ) {
@@ -447,7 +452,7 @@ fun UnifiedPlayerSheet(
                 lerp(
                     totalSheetHeightWhenContentCollapsedPx,
                     screenHeightPx,
-                    playerContentExpansionFraction.value
+                    sampledExpansionFraction
                 )
             } else {
                 0f
@@ -503,7 +508,7 @@ fun UnifiedPlayerSheet(
                     val expandedCorner = 0.dp
                     lerp(expandedCorner, collapsedCornerTarget, predictiveBackCollapseProgress)
                 } else {
-                    val fraction = playerContentExpansionFraction.value
+                    val fraction = sampledExpansionFraction
                     val expandedTarget = 0.dp
                     lerp(collapsedCornerTarget, expandedTarget, fraction)
                 }
@@ -524,7 +529,7 @@ fun UnifiedPlayerSheet(
     val playerContentActualBottomRadiusTargetValue by remember(
         navBarStyle,
         showPlayerContentArea,
-        playerContentExpansionFraction,
+        sampledExpansionFraction,
         stablePlayerState.isPlaying,
         stablePlayerState.currentSong,
         predictiveBackCollapseProgress,
@@ -535,7 +540,7 @@ fun UnifiedPlayerSheet(
     ) {
         derivedStateOf {
             if (navBarStyle == NavBarStyle.FULL_WIDTH) {
-                val fraction = playerContentExpansionFraction.value
+                val fraction = sampledExpansionFraction
                 return@derivedStateOf lerp(32.dp, 26.dp, fraction)
             }
 
@@ -546,7 +551,7 @@ fun UnifiedPlayerSheet(
                     lerp(expandedRadius, collapsedRadiusTarget, predictiveBackCollapseProgress)
                 } else {
                     if (showPlayerContentArea) {
-                        val fraction = playerContentExpansionFraction.value
+                        val fraction = sampledExpansionFraction
                         val collapsedRadius = if (isNavBarHidden) 60.dp else 12.dp
                         if (fraction < 0.2f) {
                             lerp(collapsedRadius, 26.dp, (fraction / 0.2f).coerceIn(0f, 1f))
@@ -565,7 +570,7 @@ fun UnifiedPlayerSheet(
             if (currentSheetContentState == PlayerSheetState.COLLAPSED &&
                 swipeDismissProgress.value > 0f &&
                 showPlayerContentArea &&
-                playerContentExpansionFraction.value < 0.01f
+                sampledExpansionFraction < 0.01f
             ) {
                 val baseCollapsedRadius = if (isNavBarHidden) 32.dp else 12.dp
                 lerp(baseCollapsedRadius, navBarCornerRadius.dp, swipeDismissProgress.value)
@@ -594,7 +599,7 @@ fun UnifiedPlayerSheet(
                 lerp(
                     actualCollapsedStateHorizontalPadding,
                     0.dp,
-                    playerContentExpansionFraction.value
+                    sampledExpansionFraction
                 )
             } else {
                 actualCollapsedStateHorizontalPadding
@@ -608,7 +613,7 @@ fun UnifiedPlayerSheet(
         currentSheetContentState
     ) {
         derivedStateOf {
-            val baseAlpha = playerContentExpansionFraction.value
+            val baseAlpha = sampledExpansionFraction
             if (predictiveBackCollapseProgress > 0f && currentSheetContentState == PlayerSheetState.EXPANDED) {
                 lerp(baseAlpha, 0f, predictiveBackCollapseProgress)
             } else {
@@ -814,7 +819,7 @@ fun UnifiedPlayerSheet(
 
     val albumColorScheme = targetColorScheme
 
-    val t = rememberExpansionTransition(playerContentExpansionFraction.value)
+    val t = rememberExpansionTransition(sampledExpansionFraction)
 
     val playerAreaElevation by t.animateDp(label = "elev") { f -> lerp(2.dp, 12.dp, f) }
 
@@ -1023,7 +1028,7 @@ fun UnifiedPlayerSheet(
                                             isDraggingPlayerArea = true
                                             velocityTracker.resetTracking()
                                             initialFractionOnDragStart =
-                                                playerContentExpansionFraction.value
+                                                sampledExpansionFraction
                                             initialYOnDragStart = currentSheetTranslationY.value
                                             accumulatedDragYSinceStart = 0f
                                         },
@@ -1187,7 +1192,7 @@ fun UnifiedPlayerSheet(
                                                     currentQueueSourceName = currentQueueSourceName,
                                                     isShuffleEnabled = stablePlayerState.isShuffleEnabled,
                                                     repeatMode = stablePlayerState.repeatMode,
-                                                    expansionFraction = playerContentExpansionFraction.value,
+                                                    expansionFraction = sampledExpansionFraction,
                                                     currentSheetState = currentSheetContentState,
                                                     carouselStyle = carouselStyle,
                                                     loadingTweaks = fullPlayerLoadingTweaks,
