@@ -3,6 +3,7 @@ package com.theveloper.pixelplay.presentation.components.subcomps
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,11 +47,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -64,6 +68,7 @@ import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.repository.LyricsSearchResult
 import com.theveloper.pixelplay.presentation.viewmodel.LyricsSearchUiState
 import com.theveloper.pixelplay.utils.ProviderText
+import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 
 @Composable
 fun FetchLyricsDialog(
@@ -150,8 +155,13 @@ private fun IdleContent(
     // Icono Decorativo Grande
     Box(
         modifier = Modifier
-            .size(80.dp)
-            .clip(RoundedCornerShape(24.dp)) // Forma "Squircle" agradable
+            .size(72.dp)
+            .clip(RoundedStarShape(
+                sides = 8,
+                curve = 0.1,
+                rotation = 0f,
+                //iterations = 45
+            )) // Forma "Squircle" agradable
             .background(MaterialTheme.colorScheme.secondaryContainer),
         contentAlignment = Alignment.Center
     ) {
@@ -254,11 +264,14 @@ private fun IdleContent(
             Text(stringResource(R.string.search))
         }
 
-        OutlinedButton(
+        Button(
             onClick = onImport,
             modifier = Modifier.fillMaxWidth().height(52.dp),
             shape = RoundedCornerShape(12.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.secondary,
+                contentColor = MaterialTheme.colorScheme.onSecondary
+            )
         ) {
             Icon(Icons.Rounded.CloudUpload, contentDescription = null, modifier = Modifier.size(20.dp))
             Spacer(modifier = Modifier.width(8.dp))
@@ -285,7 +298,7 @@ private fun LoadingContent() {
         CircularProgressIndicator(
             modifier = Modifier.size(56.dp),
             strokeWidth = 4.dp,
-            strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+            strokeCap = StrokeCap.Round
         )
         Spacer(modifier = Modifier.height(24.dp))
         Text(
