@@ -118,6 +118,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
@@ -162,20 +163,39 @@ fun UnifiedPlayerSheet(
     }
 
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsStateWithLifecycle()
-    // Granular collection for playerUiState fields used directly by UnifiedPlayerSheet or its main sub-components
-    val currentPosition by remember {
-        playerViewModel.playerUiState.map { it.currentPosition }.distinctUntilChanged()
-    }.collectAsStateWithLifecycle(initialValue = 0L)
-    val remotePosition by playerViewModel.remotePosition.collectAsStateWithLifecycle()
-    val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsStateWithLifecycle()
-    val positionToDisplay = if (isRemotePlaybackActive) remotePosition else currentPosition
-    val isFavorite by playerViewModel.isCurrentSongFavorite.collectAsStateWithLifecycle()
+    val isCastConnecting by playerViewModel.isCastConnecting.collectAsStateWithLifecycle()
 
-    val currentPlaybackQueue by remember {
-        playerViewModel.playerUiState.map { it.currentPlaybackQueue }.distinctUntilChanged()
+    val showPlayerContentArea by remember(stablePlayerState.currentSong, isCastConnecting) {
+        derivedStateOf { stablePlayerState.currentSong != null || isCastConnecting }
+    }
+
+    val currentPosition by remember(showPlayerContentArea) {
+        if (showPlayerContentArea) playerViewModel.positionForUi else flowOf(0L)
+    }.collectAsStateWithLifecycle(initialValue = 0L)
+    val remotePosition by remember(showPlayerContentArea) {
+        if (showPlayerContentArea) playerViewModel.remotePositionForUi else flowOf(0L)
+    }.collectAsStateWithLifecycle(initialValue = 0L)
+    val isRemotePlaybackActive by remember(showPlayerContentArea) {
+        if (showPlayerContentArea) playerViewModel.isRemotePlaybackActive else flowOf(false)
+    }.collectAsStateWithLifecycle(initialValue = false)
+    val positionToDisplay = if (isRemotePlaybackActive) remotePosition else currentPosition
+    val isFavorite by remember(showPlayerContentArea) {
+        if (showPlayerContentArea) playerViewModel.isCurrentSongFavorite else flowOf(false)
+    }.collectAsStateWithLifecycle(initialValue = false)
+
+    val currentPlaybackQueue by remember(showPlayerContentArea) {
+        if (showPlayerContentArea) {
+            playerViewModel.playerUiState.map { it.currentPlaybackQueue }.distinctUntilChanged()
+        } else {
+            flowOf(persistentListOf())
+        }
     }.collectAsStateWithLifecycle(initialValue = persistentListOf())
-    val currentQueueSourceName by remember {
-        playerViewModel.playerUiState.map { it.currentQueueSourceName }.distinctUntilChanged()
+    val currentQueueSourceName by remember(showPlayerContentArea) {
+        if (showPlayerContentArea) {
+            playerViewModel.playerUiState.map { it.currentQueueSourceName }.distinctUntilChanged()
+        } else {
+            flowOf("")
+        }
     }.collectAsStateWithLifecycle(initialValue = "")
     val showDismissUndoBar by remember {
         playerViewModel.playerUiState.map { it.showDismissUndoBar }.distinctUntilChanged()
@@ -226,12 +246,6 @@ fun UnifiedPlayerSheet(
     val miniPlayerContentHeightPx = remember { with(density) { MiniPlayerHeight.toPx() } }
     val miniPlayerAndSpacerHeightPx =
         remember(density, MiniPlayerHeight) { with(density) { MiniPlayerHeight.toPx() } }
-
-    val isCastConnecting by playerViewModel.isCastConnecting.collectAsStateWithLifecycle()
-
-    val showPlayerContentArea by remember {
-        derivedStateOf { stablePlayerState.currentSong != null || isCastConnecting }
-    }
 
     // Use the granular showDismissUndoBar here
     val isPlayerSlotOccupied by remember(showPlayerContentArea, showDismissUndoBar) {

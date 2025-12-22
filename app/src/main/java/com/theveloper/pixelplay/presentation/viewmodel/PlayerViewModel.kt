@@ -189,6 +189,7 @@ private const val EXTERNAL_EXTRA_MIME_TYPE = EXTERNAL_EXTRA_PREFIX + "MIME_TYPE"
 private const val EXTERNAL_EXTRA_BITRATE = EXTERNAL_EXTRA_PREFIX + "BITRATE"
 private const val EXTERNAL_EXTRA_SAMPLE_RATE = EXTERNAL_EXTRA_PREFIX + "SAMPLE_RATE"
 private const val CAST_LOG_TAG = "PlayerCastTransfer"
+private const val POSITION_UI_SAMPLE_MS = 75L
 
 enum class PlayerSheetState {
     COLLAPSED,
@@ -295,6 +296,21 @@ class PlayerViewModel @Inject constructor(
     private val _masterAllSongs = MutableStateFlow<ImmutableList<Song>>(persistentListOf())
     private val _stablePlayerState = MutableStateFlow(StablePlayerState())
     val stablePlayerState: StateFlow<StablePlayerState> = _stablePlayerState.asStateFlow()
+    val positionForUi: StateFlow<Long> = playerUiState
+        .map { it.currentPosition }
+        .sample(POSITION_UI_SAMPLE_MS)
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            0L
+        )
+    val remotePositionForUi: StateFlow<Long> = remotePosition
+        .sample(POSITION_UI_SAMPLE_MS)
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            0L
+        )
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val currentSongArtists: StateFlow<List<Artist>> = stablePlayerState
