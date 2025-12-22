@@ -484,7 +484,7 @@ fun QueueBottomSheet(
                         modifier = Modifier
                             .fillMaxWidth()
 //                            .padding(horizontal = 12.dp)
-                            .padding(bottom = 10.dp)
+                            .padding(bottom = 0.dp)
                             .then(directSheetDragModifier)
                     )
                 }
@@ -1401,10 +1401,19 @@ private fun QueueMiniPlayer(
     )
 
     Surface(
-        modifier = modifier,
+        modifier = modifier
+            .background(
+                brush = Brush.verticalGradient(
+                    listOf(
+                        colors.primaryContainer,
+                        //colors.primaryContainer,
+                        Color.Transparent
+                    )
+                )
+            ),
         shape = shape,
         tonalElevation = 10.dp,
-        color = colors.primaryContainer,
+        color = Color.Transparent
     ) {
         Row(
             modifier = Modifier
@@ -1418,7 +1427,7 @@ private fun QueueMiniPlayer(
                     onTap?.invoke()
                 }
                 .padding(horizontal = 12.dp)
-                .padding(top = headerPadding, end = 4.dp, bottom = 12.dp),
+                .padding(top = headerPadding, bottom = 20.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
