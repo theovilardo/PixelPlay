@@ -260,7 +260,7 @@ fun UnifiedPlayerSheet(
     val sheetAnimationSpec = remember {
         spring<Float>(
             dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessLow
+            stiffness = Spring.StiffnessMedium
         )
     }
     val sheetAnimationMutex = remember { MutatorMutex() }
