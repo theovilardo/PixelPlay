@@ -5049,28 +5049,6 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             _lyricsSearchUiState.value = LyricsSearchUiState.Loading
             if (currentSong != null) {
-                val handlePickResult: (Throwable) -> Unit = { error ->
-                    if (error is NoLyricsFoundException) {
-                        // Perform a generic search and let the user pick
-                        musicRepository.searchRemoteLyrics(currentSong)
-                            .onSuccess { (query, results) ->
-                                _lyricsSearchUiState.value = LyricsSearchUiState.PickResult(query, results)
-                            }
-                            .onFailure { searchError ->
-                                _lyricsSearchUiState.value = if (searchError is NoLyricsFoundException) {
-                                    LyricsSearchUiState.Error(
-                                        context.getString(R.string.lyrics_not_found),
-                                        searchError.query
-                                    )
-                                } else {
-                                    LyricsSearchUiState.Error(searchError.message ?: "Unknown error")
-                                }
-                            }
-                    } else {
-                        _lyricsSearchUiState.value = LyricsSearchUiState.Error(error.message ?: "Unknown error")
-                    }
-                }
-
                 if (forcePickResults) {
                     musicRepository.searchRemoteLyrics(currentSong)
                         .onSuccess { (query, results) ->
@@ -5091,7 +5069,24 @@ class PlayerViewModel @Inject constructor(
                             updateSongInStates(updatedSong, lyrics)
                         }
                         .onFailure { error ->
-                            handlePickResult(error)
+                            if (error is NoLyricsFoundException) {
+                                musicRepository.searchRemoteLyrics(currentSong)
+                                    .onSuccess { (query, results) ->
+                                        _lyricsSearchUiState.value = LyricsSearchUiState.PickResult(query, results)
+                                    }
+                                    .onFailure { searchError ->
+                                        _lyricsSearchUiState.value = if (searchError is NoLyricsFoundException) {
+                                            LyricsSearchUiState.Error(
+                                                context.getString(R.string.lyrics_not_found),
+                                                searchError.query
+                                            )
+                                        } else {
+                                            LyricsSearchUiState.Error(searchError.message ?: "Unknown error")
+                                        }
+                                    }
+                            } else {
+                                _lyricsSearchUiState.value = LyricsSearchUiState.Error(error.message ?: "Unknown error")
+                            }
                         }
                 }
             } else {
