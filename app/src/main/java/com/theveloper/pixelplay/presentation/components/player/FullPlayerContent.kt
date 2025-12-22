@@ -59,7 +59,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -173,9 +173,9 @@ fun FullPlayerContent(
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     var showLyricsSheet by remember { mutableStateOf(false) }
     var showArtistPicker by rememberSaveable { mutableStateOf(false) }
-    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
-    val lyricsSearchUiState by playerViewModel.lyricsSearchUiState.collectAsState()
-    val currentSongArtists by playerViewModel.currentSongArtists.collectAsState()
+    val stablePlayerState by playerViewModel.stablePlayerState.collectAsStateWithLifecycle()
+    val lyricsSearchUiState by playerViewModel.lyricsSearchUiState.collectAsStateWithLifecycle()
+    val currentSongArtists by playerViewModel.currentSongArtists.collectAsStateWithLifecycle()
 
     var showFetchLyricsDialog by remember { mutableStateOf(false) }
     var totalDrag by remember { mutableStateOf(0f) }
@@ -204,7 +204,7 @@ fun FullPlayerContent(
     // totalDurationValue is derived from stablePlayerState, so it's fine.
     val totalDurationValue by remember {
         playerViewModel.stablePlayerState.map { it.totalDuration }.distinctUntilChanged()
-    }.collectAsState(initial = 0L)
+    }.collectAsStateWithLifecycle(initialValue = 0L)
 
     val stableControlAnimationSpec = remember {
         tween<Float>(durationMillis = 240, easing = FastOutSlowInEasing)
@@ -432,7 +432,7 @@ fun FullPlayerContent(
     }
 
     val gestureScope = rememberCoroutineScope()
-    val isCastConnecting by playerViewModel.isCastConnecting.collectAsState()
+    val isCastConnecting by playerViewModel.isCastConnecting.collectAsStateWithLifecycle()
 
     // Sub sections , to be reused in different layout modes
 
@@ -726,7 +726,7 @@ fun FullPlayerContent(
                         navigationIconContentColor = LocalMaterialTheme.current.onPrimaryContainer
                     ),
                     title = {
-                        val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
+                        val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsStateWithLifecycle()
                         if (!isCastConnecting) {
                             AnimatedVisibility(visible = (!isRemotePlaybackActive)) {
                                 Text(
@@ -773,10 +773,10 @@ fun FullPlayerContent(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
-                            val selectedRouteName by playerViewModel.selectedRoute.map { it?.name }.collectAsState(initial = null)
-                            val isBluetoothEnabled by playerViewModel.isBluetoothEnabled.collectAsState()
-                            val bluetoothName by playerViewModel.bluetoothName.collectAsState()
+                            val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsStateWithLifecycle()
+                            val selectedRouteName by playerViewModel.selectedRoute.map { it?.name }.collectAsStateWithLifecycle(initialValue = null)
+                            val isBluetoothEnabled by playerViewModel.isBluetoothEnabled.collectAsStateWithLifecycle()
+                            val bluetoothName by playerViewModel.bluetoothName.collectAsStateWithLifecycle()
                             val showCastLabel = isCastConnecting || (isRemotePlaybackActive && selectedRouteName != null)
                             val isBluetoothActive =
                                 isBluetoothEnabled && !bluetoothName.isNullOrEmpty() && !isRemotePlaybackActive && !isCastConnecting
@@ -942,7 +942,7 @@ fun FullPlayerContent(
     ) {
         LyricsSheet(
             stablePlayerStateFlow = playerViewModel.stablePlayerState,
-            playerUiStateFlow = playerViewModel.playerUiState,
+            positionFlow = playerViewModel.positionForUi,
             lyricsSearchUiState = lyricsSearchUiState,
             resetLyricsForCurrentSong = {
                 showLyricsSheet = false

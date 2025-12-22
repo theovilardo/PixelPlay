@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,7 +53,6 @@ import com.theveloper.pixelplay.presentation.screens.TabAnimation
 import com.theveloper.pixelplay.presentation.components.subcomps.FetchLyricsDialog
 import com.theveloper.pixelplay.presentation.components.subcomps.PlayerSeekBar
 import com.theveloper.pixelplay.presentation.viewmodel.LyricsSearchUiState
-import com.theveloper.pixelplay.presentation.viewmodel.PlayerUiState
 import com.theveloper.pixelplay.presentation.viewmodel.StablePlayerState
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import com.theveloper.pixelplay.utils.BubblesLine
@@ -64,7 +64,6 @@ import com.theveloper.pixelplay.presentation.components.snapping.rememberSnapper
 import com.theveloper.pixelplay.utils.LyricsUtils
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -73,7 +72,7 @@ import kotlin.math.roundToInt
 @Composable
 fun LyricsSheet(
     stablePlayerStateFlow: StateFlow<StablePlayerState>,
-    playerUiStateFlow: StateFlow<PlayerUiState>,
+    positionFlow: Flow<Long>,
     lyricsSearchUiState: LyricsSearchUiState,
     resetLyricsForCurrentSong: () -> Unit,
     onSearchLyrics: (Boolean) -> Unit,
@@ -98,7 +97,7 @@ fun LyricsSheet(
     autoscrollAnimationSpec: AnimationSpec<Float> = tween(durationMillis = 450, easing = FastOutSlowInEasing)
 ) {
     BackHandler { onBackClick() }
-    val stablePlayerState by stablePlayerStateFlow.collectAsState()
+    val stablePlayerState by stablePlayerStateFlow.collectAsStateWithLifecycle()
 
     val isLoadingLyrics by remember { derivedStateOf { stablePlayerState.isLoadingLyrics } }
     val lyrics by remember { derivedStateOf { stablePlayerState.lyrics } }
@@ -354,10 +353,7 @@ fun LyricsSheet(
     ) { paddingValues ->
         val syncedListState = rememberLazyListState()
         val staticListState = rememberLazyListState()
-        val playerUiState by playerUiStateFlow.collectAsState()
-        val positionFlow = remember(playerUiStateFlow) {
-            playerUiStateFlow.map { it.currentPosition }
-        }
+        val position by positionFlow.collectAsStateWithLifecycle(initialValue = 0L)
 
         LaunchedEffect(lyrics) {
             syncedListState.scrollToItem(0)
@@ -501,7 +497,7 @@ fun LyricsSheet(
                     backgroundColor = backgroundColor,
                     onBackgroundColor = onBackgroundColor,
                     primaryColor = accentColor,
-                    currentPosition = playerUiState.currentPosition,
+                    currentPosition = position,
                     totalDuration = stablePlayerState.totalDuration,
                     onSeek = onSeekTo,
                     isPlaying = isPlaying,
