@@ -159,4 +159,25 @@ class LyricsUtilsTest {
         assertEquals(178_920, synced.last().time)
         assertEquals("", synced.last().line)
     }
+
+    @Test
+    fun parseLyrics_stripsAdditionalLrcTimestampsFromLines() {
+        val lrc = """
+            [00:12.57] Sinking under
+            [00:26.42][01:12.34] Three in the morning, I ain't slept all weekend
+            [00:41.71][00:52.96][01:27.42] My heart keeps breaking
+        """.trimIndent()
+
+        val lyrics = LyricsUtils.parseLyrics(lrc)
+        val synced = requireNotNull(lyrics.synced)
+
+        assertEquals(
+            listOf(
+                "Sinking under",
+                "Three in the morning, I ain't slept all weekend",
+                "My heart keeps breaking"
+            ),
+            synced.map { it.line }
+        )
+    }
 }

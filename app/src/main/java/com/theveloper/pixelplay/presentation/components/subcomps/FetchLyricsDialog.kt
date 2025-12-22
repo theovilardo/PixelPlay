@@ -3,6 +3,7 @@ package com.theveloper.pixelplay.presentation.components.subcomps
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,7 +33,9 @@ import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -41,10 +44,17 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -58,17 +68,20 @@ import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.repository.LyricsSearchResult
 import com.theveloper.pixelplay.presentation.viewmodel.LyricsSearchUiState
 import com.theveloper.pixelplay.utils.ProviderText
+import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 
 @Composable
 fun FetchLyricsDialog(
     uiState: LyricsSearchUiState,
     currentSong: Song?,
-    onConfirm: () -> Unit,
+    onConfirm: (Boolean) -> Unit,
     onPickResult: (LyricsSearchResult) -> Unit,
     onDismiss: () -> Unit,
     onImport: () -> Unit
 ) {
     if (uiState is LyricsSearchUiState.Success) return
+
+    var forcePickResults by rememberSaveable { mutableStateOf(false) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -96,7 +109,9 @@ fun FetchLyricsDialog(
                     LyricsSearchUiState.Idle -> {
                         IdleContent(
                             currentSong = currentSong,
-                            onSearch = onConfirm,
+                            forcePickResults = forcePickResults,
+                            onToggleForcePickResults = { forcePickResults = it },
+                            onSearch = { onConfirm(forcePickResults) },
                             onImport = onImport,
                             onCancel = onDismiss
                         )
@@ -131,6 +146,8 @@ fun FetchLyricsDialog(
 @Composable
 private fun IdleContent(
     currentSong: Song?,
+    forcePickResults: Boolean,
+    onToggleForcePickResults: (Boolean) -> Unit,
     onSearch: () -> Unit,
     onImport: () -> Unit,
     onCancel: () -> Unit
@@ -138,8 +155,13 @@ private fun IdleContent(
     // Icono Decorativo Grande
     Box(
         modifier = Modifier
-            .size(80.dp)
-            .clip(RoundedCornerShape(24.dp)) // Forma "Squircle" agradable
+            .size(72.dp)
+            .clip(RoundedStarShape(
+                sides = 8,
+                curve = 0.1,
+                rotation = 0f,
+                //iterations = 45
+            )) // Forma "Squircle" agradable
             .background(MaterialTheme.colorScheme.secondaryContainer),
         contentAlignment = Alignment.Center
     ) {
@@ -188,6 +210,45 @@ private fun IdleContent(
 
     Spacer(modifier = Modifier.height(32.dp))
 
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.fetch_lyrics_show_options_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+                Text(
+                    text = stringResource(R.string.fetch_lyrics_show_options_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.75f)
+                )
+            }
+            Switch(
+                checked = forcePickResults,
+                onCheckedChange = onToggleForcePickResults,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                    checkedTrackColor = MaterialTheme.colorScheme.primary
+                )
+            )
+        }
+    }
+
+    Spacer(modifier = Modifier.height(16.dp))
+
     // Botones de Acción (Vertical para mejor touch target)
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -203,11 +264,14 @@ private fun IdleContent(
             Text(stringResource(R.string.search))
         }
 
-        OutlinedButton(
+        Button(
             onClick = onImport,
             modifier = Modifier.fillMaxWidth().height(52.dp),
             shape = RoundedCornerShape(12.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.secondary,
+                contentColor = MaterialTheme.colorScheme.onSecondary
+            )
         ) {
             Icon(Icons.Rounded.CloudUpload, contentDescription = null, modifier = Modifier.size(20.dp))
             Spacer(modifier = Modifier.width(8.dp))
@@ -234,7 +298,7 @@ private fun LoadingContent() {
         CircularProgressIndicator(
             modifier = Modifier.size(56.dp),
             strokeWidth = 4.dp,
-            strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+            strokeCap = StrokeCap.Round
         )
         Spacer(modifier = Modifier.height(24.dp))
         Text(
