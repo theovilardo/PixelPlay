@@ -132,6 +132,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -397,6 +398,7 @@ class PlayerViewModel @Inject constructor(
 
     private var sleepTimerJob: Job? = null
     private var eotSongMonitorJob: Job? = null
+    private var lyricsLoadingJob: Job? = null
     private var countedMediaListener: Player.Listener? = null
     private var countedOriginalSongId: String? = null
 
@@ -2565,6 +2567,7 @@ class PlayerViewModel @Inject constructor(
             }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 transitionSchedulerJob?.cancel()
+                lyricsLoadingJob?.cancel()
                 transitionSchedulerJob = viewModelScope.launch {
                     if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
                         val activeEotSongId = EotStateHolder.eotTargetSongId.value
@@ -2589,9 +2592,12 @@ class PlayerViewModel @Inject constructor(
                         val song = resolveSongFromMediaItem(transitionedItem)
                         resetLyricsSearchState()
                         _stablePlayerState.update {
+                            val hasSong = song != null
                             it.copy(
                                 currentSong = song,
-                                totalDuration = playerCtrl.duration.coerceAtLeast(0L)
+                                totalDuration = if (hasSong) playerCtrl.duration.coerceAtLeast(0L) else 0L,
+                                lyrics = null,
+                                isLoadingLyrics = hasSong
                             )
                         }
                         _playerUiState.update { it.copy(currentPosition = 0L) }
@@ -2612,8 +2618,15 @@ class PlayerViewModel @Inject constructor(
                         }
                     } ?: run {
                         if (!_isCastConnecting.value) {
+                            lyricsLoadingJob?.cancel()
                             _stablePlayerState.update {
-                                it.copy(currentSong = null, isPlaying = false)
+                                it.copy(
+                                    currentSong = null,
+                                    isPlaying = false,
+                                    lyrics = null,
+                                    isLoadingLyrics = false,
+                                    totalDuration = 0L
+                                )
                             }
                         }
                     }
@@ -2632,7 +2645,16 @@ class PlayerViewModel @Inject constructor(
                 if (playbackState == Player.STATE_IDLE && playerCtrl.mediaItemCount == 0) {
                     if (!_isCastConnecting.value) {
                         listeningStatsTracker.onPlaybackStopped()
-                        _stablePlayerState.update { it.copy(currentSong = null, isPlaying = false) }
+                        lyricsLoadingJob?.cancel()
+                        _stablePlayerState.update {
+                            it.copy(
+                                currentSong = null,
+                                isPlaying = false,
+                                lyrics = null,
+                                isLoadingLyrics = false,
+                                totalDuration = 0L
+                            )
+                        }
                         _playerUiState.update { it.copy(currentPosition = 0L) }
                     }
                 }
@@ -4828,15 +4850,27 @@ class PlayerViewModel @Inject constructor(
     private fun loadLyricsForCurrentSong() {
         val currentSong = _stablePlayerState.value.currentSong ?: return
 
-        viewModelScope.launch {
-            // 1. Indicar que estamos cargando
-            _stablePlayerState.update { it.copy(isLoadingLyrics = true, lyrics = null) }
+        lyricsLoadingJob?.cancel()
+        val targetSongId = currentSong.id
 
-            // 2. Obtener las letras desde el repositorio
-            val fetchedLyrics = musicRepository.getLyrics(currentSong)
+        lyricsLoadingJob = viewModelScope.launch {
+            _stablePlayerState.update { state ->
+                if (state.currentSong?.id != targetSongId) state
+                else state.copy(isLoadingLyrics = true, lyrics = null)
+            }
 
-            // 3. Actualizar el estado con el resultado
-            _stablePlayerState.update { it.copy(isLoadingLyrics = false, lyrics = fetchedLyrics) }
+            val fetchedLyrics = try {
+                musicRepository.getLyrics(currentSong)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (error: Exception) {
+                null
+            }
+
+            _stablePlayerState.update { state ->
+                if (state.currentSong?.id != targetSongId) state
+                else state.copy(isLoadingLyrics = false, lyrics = fetchedLyrics)
+            }
         }
     }
 
