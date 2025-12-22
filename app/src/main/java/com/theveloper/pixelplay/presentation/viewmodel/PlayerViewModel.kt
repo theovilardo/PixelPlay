@@ -296,6 +296,8 @@ class PlayerViewModel @Inject constructor(
     private val _masterAllSongs = MutableStateFlow<ImmutableList<Song>>(persistentListOf())
     private val _stablePlayerState = MutableStateFlow(StablePlayerState())
     val stablePlayerState: StateFlow<StablePlayerState> = _stablePlayerState.asStateFlow()
+    private val _remotePosition = MutableStateFlow(0L)
+    val remotePosition: StateFlow<Long> = _remotePosition.asStateFlow()
     val positionForUi: StateFlow<Long> = playerUiState
         .map { it.currentPosition }
         .sample(POSITION_UI_SAMPLE_MS)
@@ -467,8 +469,6 @@ class PlayerViewModel @Inject constructor(
     val isCastConnecting: StateFlow<Boolean> = _isCastConnecting.asStateFlow()
     private val castControlCategory = CastMediaControlIntent.categoryForCast(CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID)
     private var pendingCastRouteId: String? = null
-    private val _remotePosition = MutableStateFlow(0L)
-    val remotePosition: StateFlow<Long> = _remotePosition.asStateFlow()
     private var lastRemoteMediaStatus: MediaStatus? = null
     private var lastRemoteQueue: List<Song> = emptyList()
     private var lastRemoteSongId: String? = null
