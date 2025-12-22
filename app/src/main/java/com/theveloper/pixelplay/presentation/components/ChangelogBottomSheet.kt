@@ -55,6 +55,35 @@ data class ChangelogVersion(
 // The changelog data
 val changelog = listOf(
     ChangelogVersion(
+        version = "0.4.1-beta",
+        date = "2026-02-10",
+        sections = listOf(
+            ChangelogSection(
+                title = "Highlights",
+                items = listOf(
+                    "New blacklist method for music directory selection",
+                    "Added multi-artist separation (thanks to @lostf1sh)",
+                    "Improved animation performance (see experimental settings)",
+                    "Added new navigation method for the library screen",
+                    "New, more efficient shuffle method",
+                    "Improved animations across the app",
+                    "Improved lyrics fetch function"
+                )
+            ),
+            ChangelogSection(
+                title = "Fixes",
+                items = listOf(
+                    "Fixed long loading times for library preparation",
+                    "Fixed cast issues",
+                    "Fixed RepeatOne mode with Crossfade/Cast enabled",
+                    "Fixed playlist sorting and reordering issues",
+                    "Fixed metadata editing issues",
+                    "Fixed lyrics issues"
+                )
+            )
+        )
+    ),
+    ChangelogVersion(
         version = "0.4.0-beta",
         date = "2026-01-15",
         sections = listOf(

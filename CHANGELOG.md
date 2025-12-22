@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1-beta] - 2026-02-10
+
+### Added
+- New blacklist method for music directory selection
+- Added Multi artist separation (thanks to @lostf1sh)
+- Improved animation performance (check experimental features in settings)
+- Added new navigation method for the library screen
+- New more efficient shuffle method
+- Improved animations across the app
+- Improved lyrics fetch function
+
+### Fixed
+- Fixed long loading times for library preparation
+- Fixed cast issues
+- Fixed RepeatOne mode + Crossfade/Cast
+- Fixed playlist sorting/reordering issues
+- Fixed some metadata editing issues
+- Fixed lyrics issues
+
 ## [0.4.0-beta] - 2026-01-15
 
 ### Added
