@@ -32,6 +32,7 @@ kotlinx-coroutines = "1.8.0"
 kotlinxCollectionsImmutable = "0.3.7"
 kotlinxSerializationJson = "1.8.0"
 lifecycleRuntimeKtx = "2.9.0"
+lifecycleRuntimeCompose = "2.9.0"
 activityCompose = "1.10.1"
 composeBom = "2025.05.00"
 material = "1.13.0"
@@ -129,6 +130,7 @@ junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
+androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycleRuntimeCompose" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 androidx-ui = { group = "androidx.compose.ui", name = "ui" }
@@ -178,4 +180,3 @@ compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "
 
 dagger-hilt-android = { id = "com.google.dagger.hilt.android" , version.ref = "dagger" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp"}
-

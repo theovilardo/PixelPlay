@@ -61,7 +61,6 @@ import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -72,6 +71,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.theveloper.pixelplay.ui.theme.LocalPixelPlayDarkTheme
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -161,35 +161,35 @@ fun UnifiedPlayerSheet(
         }
     }
 
-    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
+    val stablePlayerState by playerViewModel.stablePlayerState.collectAsStateWithLifecycle()
     // Granular collection for playerUiState fields used directly by UnifiedPlayerSheet or its main sub-components
     val currentPosition by remember {
         playerViewModel.playerUiState.map { it.currentPosition }.distinctUntilChanged()
-    }.collectAsState(initial = 0L)
-    val remotePosition by playerViewModel.remotePosition.collectAsState()
-    val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
+    }.collectAsStateWithLifecycle(initialValue = 0L)
+    val remotePosition by playerViewModel.remotePosition.collectAsStateWithLifecycle()
+    val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsStateWithLifecycle()
     val positionToDisplay = if (isRemotePlaybackActive) remotePosition else currentPosition
-    val isFavorite by playerViewModel.isCurrentSongFavorite.collectAsState()
+    val isFavorite by playerViewModel.isCurrentSongFavorite.collectAsStateWithLifecycle()
 
     val currentPlaybackQueue by remember {
         playerViewModel.playerUiState.map { it.currentPlaybackQueue }.distinctUntilChanged()
-    }.collectAsState(initial = persistentListOf())
+    }.collectAsStateWithLifecycle(initialValue = persistentListOf())
     val currentQueueSourceName by remember {
         playerViewModel.playerUiState.map { it.currentQueueSourceName }.distinctUntilChanged()
-    }.collectAsState(initial = "")
+    }.collectAsStateWithLifecycle(initialValue = "")
     val showDismissUndoBar by remember {
         playerViewModel.playerUiState.map { it.showDismissUndoBar }.distinctUntilChanged()
-    }.collectAsState(initial = false)
+    }.collectAsStateWithLifecycle(initialValue = false)
 
 
-    val currentSheetContentState by playerViewModel.sheetState.collectAsState()
-    val predictiveBackCollapseProgress by playerViewModel.predictiveBackCollapseFraction.collectAsState()
+    val currentSheetContentState by playerViewModel.sheetState.collectAsStateWithLifecycle()
+    val predictiveBackCollapseProgress by playerViewModel.predictiveBackCollapseFraction.collectAsStateWithLifecycle()
     var prewarmFullPlayer by remember { mutableStateOf(false) }
 
-    val navBarCornerRadius by playerViewModel.navBarCornerRadius.collectAsState()
-    val navBarStyle by playerViewModel.navBarStyle.collectAsState()
-    val carouselStyle by playerViewModel.carouselStyle.collectAsState()
-    val fullPlayerLoadingTweaks by playerViewModel.fullPlayerLoadingTweaks.collectAsState()
+    val navBarCornerRadius by playerViewModel.navBarCornerRadius.collectAsStateWithLifecycle()
+    val navBarStyle by playerViewModel.navBarStyle.collectAsStateWithLifecycle()
+    val carouselStyle by playerViewModel.carouselStyle.collectAsStateWithLifecycle()
+    val fullPlayerLoadingTweaks by playerViewModel.fullPlayerLoadingTweaks.collectAsStateWithLifecycle()
     LaunchedEffect(stablePlayerState.currentSong?.id) {
         if (stablePlayerState.currentSong != null) {
             prewarmFullPlayer = true
@@ -227,7 +227,7 @@ fun UnifiedPlayerSheet(
     val miniPlayerAndSpacerHeightPx =
         remember(density, MiniPlayerHeight) { with(density) { MiniPlayerHeight.toPx() } }
 
-    val isCastConnecting by playerViewModel.isCastConnecting.collectAsState()
+    val isCastConnecting by playerViewModel.isCastConnecting.collectAsStateWithLifecycle()
 
     val showPlayerContentArea by remember {
         derivedStateOf { stablePlayerState.currentSong != null || isCastConnecting }
@@ -788,7 +788,7 @@ fun UnifiedPlayerSheet(
     val actuallyShowSheetContent = shouldShowSheet && (!internalIsKeyboardVisible || pendingSaveQueueOverlay != null)
 
     // val currentAlbumColorSchemePair by playerViewModel.currentAlbumArtColorSchemePair.collectAsState() // Replaced by activePlayerColorSchemePair
-    val activePlayerSchemePair by playerViewModel.activePlayerColorSchemePair.collectAsState()
+    val activePlayerSchemePair by playerViewModel.activePlayerColorSchemePair.collectAsStateWithLifecycle()
     val isDarkTheme = LocalPixelPlayDarkTheme.current
     val systemColorScheme = MaterialTheme.colorScheme // This is the standard M3 theme
 
@@ -1341,9 +1341,9 @@ fun UnifiedPlayerSheet(
                                 onToggleRepeat = { playerViewModel.cycleRepeatMode() },
                                 onToggleShuffle = { playerViewModel.toggleShuffle() },
                                 onClearQueue = { playerViewModel.clearQueueExceptCurrent() },
-                                activeTimerValueDisplay = playerViewModel.activeTimerValueDisplay.collectAsState().value,
-                                playCount = playerViewModel.playCount.collectAsState().value,
-                                isEndOfTrackTimerActive = playerViewModel.isEndOfTrackTimerActive.collectAsState().value,
+                                activeTimerValueDisplay = playerViewModel.activeTimerValueDisplay.collectAsStateWithLifecycle().value,
+                                playCount = playerViewModel.playCount.collectAsStateWithLifecycle().value,
+                                isEndOfTrackTimerActive = playerViewModel.isEndOfTrackTimerActive.collectAsStateWithLifecycle().value,
                                 onSetPredefinedTimer = { minutes ->
                                     playerViewModel.setSleepTimer(
                                         minutes

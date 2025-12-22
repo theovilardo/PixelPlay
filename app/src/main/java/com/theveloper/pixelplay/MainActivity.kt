@@ -36,7 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -175,13 +175,13 @@ class MainActivity : ComponentActivity() {
         setContent {
             val mainViewModel: MainViewModel = hiltViewModel()
             val systemDarkTheme = isSystemInDarkTheme()
-            val appThemeMode by userPreferencesRepository.appThemeModeFlow.collectAsState(initial = AppThemeMode.FOLLOW_SYSTEM)
+            val appThemeMode by userPreferencesRepository.appThemeModeFlow.collectAsStateWithLifecycle(initialValue = AppThemeMode.FOLLOW_SYSTEM)
             val useDarkTheme = when (appThemeMode) {
                 AppThemeMode.DARK -> true
                 AppThemeMode.LIGHT -> false
                 else -> systemDarkTheme
             }
-            val isSetupComplete by mainViewModel.isSetupComplete.collectAsState()
+            val isSetupComplete by mainViewModel.isSetupComplete.collectAsStateWithLifecycle()
             var showSetupScreen by remember { mutableStateOf<Boolean?>(null) }
 
             LaunchedEffect(isSetupComplete) {
@@ -349,8 +349,8 @@ class MainActivity : ComponentActivity() {
     private fun MainAppContent(playerViewModel: PlayerViewModel, mainViewModel: MainViewModel) {
         Trace.beginSection("MainActivity.MainAppContent")
         val navController = rememberNavController()
-        val isSyncing by mainViewModel.isSyncing.collectAsState()
-        val isLibraryEmpty by mainViewModel.isLibraryEmpty.collectAsState()
+        val isSyncing by mainViewModel.isSyncing.collectAsStateWithLifecycle()
+        val isLibraryEmpty by mainViewModel.isLibraryEmpty.collectAsStateWithLifecycle()
 
         // Estado para controlar si el indicador de carga puede mostrarse después de un delay
         var canShowLoadingIndicator by remember { mutableStateOf(false) }
@@ -434,7 +434,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        val navBarStyle by playerViewModel.navBarStyle.collectAsState()
+        val navBarStyle by playerViewModel.navBarStyle.collectAsStateWithLifecycle()
 
         val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
@@ -449,9 +449,9 @@ class MainActivity : ComponentActivity() {
             bottomBar = {
                 if (!shouldHideNavigationBar) {
                     val playerContentExpansionFraction = playerViewModel.playerContentExpansionFraction.value
-                    val showPlayerContentArea = playerViewModel.stablePlayerState.collectAsState().value.currentSong != null
-                    val currentSheetContentState by playerViewModel.sheetState.collectAsState()
-                    val navBarCornerRadius by playerViewModel.navBarCornerRadius.collectAsState()
+                    val showPlayerContentArea = playerViewModel.stablePlayerState.collectAsStateWithLifecycle().value.currentSong != null
+                    val currentSheetContentState by playerViewModel.sheetState.collectAsStateWithLifecycle()
+                    val navBarCornerRadius by playerViewModel.navBarCornerRadius.collectAsStateWithLifecycle()
                     val navBarElevation = 3.dp
 
                     val playerContentActualBottomRadiusTargetValue by remember(
@@ -566,7 +566,7 @@ class MainActivity : ComponentActivity() {
                 val screenHeightPx = remember(configuration) { with(density) { configuration.containerSize.height } }
                 val containerHeight = this.maxHeight
 
-                val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
+                val stablePlayerState by playerViewModel.stablePlayerState.collectAsStateWithLifecycle()
                 val showPlayerContentInitially = stablePlayerState.currentSong != null
 
                 val routesWithHiddenMiniPlayer = remember { setOf(Screen.NavBarCrRad.route) }
@@ -600,7 +600,7 @@ class MainActivity : ComponentActivity() {
                     isNavBarHidden = shouldHideNavigationBar
                 )
 
-                val playerUiState by playerViewModel.playerUiState.collectAsState()
+                val playerUiState by playerViewModel.playerUiState.collectAsStateWithLifecycle()
 
                 AnimatedVisibility(
                     visible = playerUiState.showDismissUndoBar,
