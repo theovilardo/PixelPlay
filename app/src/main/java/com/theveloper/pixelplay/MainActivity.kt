@@ -182,38 +182,34 @@ class MainActivity : ComponentActivity() {
                 else -> systemDarkTheme
             }
             val isSetupComplete by mainViewModel.isSetupComplete.collectAsStateWithLifecycle()
-            var showSetupScreen by remember { mutableStateOf<Boolean?>(null) }
+            var showSetupScreen by remember { mutableStateOf(false) }
 
             LaunchedEffect(isSetupComplete) {
-                if (showSetupScreen == null) {
-                    showSetupScreen = !isSetupComplete
-                }
+                showSetupScreen = !isSetupComplete
             }
 
             PixelPlayTheme(
                 darkTheme = useDarkTheme
             ) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    if (showSetupScreen != null) {
-                        AnimatedContent(
-                            targetState = showSetupScreen,
-                            transitionSpec = {
-                                if (targetState == false) {
-                                    // Transition from Setup to Main App
-                                    scaleIn(initialScale = 0.8f, animationSpec = tween(400)) + fadeIn(animationSpec = tween(400)) togetherWith
-                                            slideOutHorizontally(targetOffsetX = { -it }, animationSpec = tween(400)) + fadeOut(animationSpec = tween(400))
-                                } else {
-                                    // Placeholder for other transitions, e.g., Main App to Setup
-                                    fadeIn(animationSpec = tween(400)) togetherWith fadeOut(animationSpec = tween(400))
-                                }
-                            },
-                            label = "SetupTransition"
-                        ) { targetState ->
-                            if (targetState == true) {
-                                SetupScreen(onSetupComplete = { showSetupScreen = false })
+                    AnimatedContent(
+                        targetState = showSetupScreen,
+                        transitionSpec = {
+                            if (targetState == false) {
+                                // Transition from Setup to Main App
+                                scaleIn(initialScale = 0.8f, animationSpec = tween(400)) + fadeIn(animationSpec = tween(400)) togetherWith
+                                        slideOutHorizontally(targetOffsetX = { -it }, animationSpec = tween(400)) + fadeOut(animationSpec = tween(400))
                             } else {
-                                HandlePermissions(mainViewModel)
+                                // Placeholder for other transitions, e.g., Main App to Setup
+                                fadeIn(animationSpec = tween(400)) togetherWith fadeOut(animationSpec = tween(400))
                             }
+                        },
+                        label = "SetupTransition"
+                    ) { targetState ->
+                        if (targetState) {
+                            SetupScreen(onSetupComplete = { showSetupScreen = false })
+                        } else {
+                            HandlePermissions(mainViewModel)
                         }
                     }
                 }
