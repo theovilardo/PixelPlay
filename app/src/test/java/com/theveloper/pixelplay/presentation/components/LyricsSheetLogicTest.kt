@@ -69,4 +69,13 @@ class LyricsSheetLogicTest {
         assertTrue(metrics.topPadding >= 0.dp)
         assertTrue(metrics.zoneHeight > 0.dp)
     }
+
+    @Test
+    fun sanitizeLyricLineText_stripsLrcTimestampTags() {
+        val raw = "[00:26.42][01:12.34] Three in the morning, I ain't slept all weekend"
+
+        val sanitized = sanitizeLyricLineText(raw)
+
+        assertEquals("Three in the morning, I ain't slept all weekend", sanitized)
+    }
 }

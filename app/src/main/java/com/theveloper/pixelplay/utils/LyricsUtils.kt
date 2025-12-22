@@ -49,6 +49,7 @@ object LyricsUtils {
     private val LRC_WORD_REGEX = Pattern.compile("<(\\d{2}):(\\d{2})\\.(\\d{2,3})>([^<]*)")
     private val LRC_WORD_TAG_REGEX = Regex("<\\d{2}:\\d{2}\\.\\d{2,3}>")
     private val LRC_WORD_SPLIT_REGEX = Regex("(?=<\\d{2}:\\d{2}\\.\\d{2,3}>)")
+    private val LRC_TIMESTAMP_TAG_REGEX = Regex("\\[\\d{1,2}:\\d{2}(?:\\.\\d{1,3})?]")
 
     /**
      * Parsea un String que contiene una letra en formato LRC o texto plano.
@@ -74,7 +75,8 @@ object LyricsUtils {
                 val minutes = lineMatcher.group(1)?.toLong() ?: 0
                 val seconds = lineMatcher.group(2)?.toLong() ?: 0
                 val fraction = lineMatcher.group(3)?.toLong() ?: 0
-                val text = stripFormatCharacters(lineMatcher.group(4)?.trim() ?: "")
+                val textWithTags = stripFormatCharacters(lineMatcher.group(4)?.trim() ?: "")
+                val text = stripLrcTimestamps(textWithTags)
 
                 val millis = if (lineMatcher.group(3)?.length == 2) fraction * 10 else fraction
                 val lineTimestamp = minutes * 60 * 1000 + seconds * 1000 + millis
@@ -111,34 +113,34 @@ object LyricsUtils {
                 } else {
                     syncedLines.add(SyncedLine(lineTimestamp.toInt(), text))
                 }
-        } else {
-            // línea SIN timestamp
-            val stripped = stripFormatCharacters(line)
-            // Si ya detectamos que el archivo tiene sincronización y ya existe
-            // al menos una SyncedLine, tratamos esta línea como continuación
-            // de la anterior
-            if (isSynced && syncedLines.isNotEmpty()) {
-                val last = syncedLines.removeAt(syncedLines.lastIndex)
-                // Mantenemos el texto previo y añadimos la nueva línea con un salto de línea.
-                val mergedLineText = if (last.line.isEmpty()) {
-                    stripped
-                } else {
-                    last.line + "\n" + stripped
-                }
-                // Conservamos la lista de palabras sincronizadas si existía.
-                val merged = if (last.words?.isNotEmpty() == true) {
-                    SyncedLine(last.time, mergedLineText, last.words)
-                } else {
-                    SyncedLine(last.time, mergedLineText)
-                }
-
-                syncedLines.add(merged)
             } else {
-                // Si no hay sincronización en el archivo, es texto plano
-                plainLines.add(stripped)
+                // línea SIN timestamp
+                val stripped = stripLrcTimestamps(stripFormatCharacters(line))
+                // Si ya detectamos que el archivo tiene sincronización y ya existe
+                // al menos una SyncedLine, tratamos esta línea como continuación
+                // de la anterior
+                if (isSynced && syncedLines.isNotEmpty()) {
+                    val last = syncedLines.removeAt(syncedLines.lastIndex)
+                    // Mantenemos el texto previo y añadimos la nueva línea con un salto de línea.
+                    val mergedLineText = if (last.line.isEmpty()) {
+                        stripped
+                    } else {
+                        last.line + "\n" + stripped
+                    }
+                    // Conservamos la lista de palabras sincronizadas si existía.
+                    val merged = if (last.words?.isNotEmpty() == true) {
+                        SyncedLine(last.time, mergedLineText, last.words)
+                    } else {
+                        SyncedLine(last.time, mergedLineText)
+                    }
+
+                    syncedLines.add(merged)
+                } else {
+                    // Si no hay sincronización en el archivo, es texto plano
+                    plainLines.add(stripped)
+                }
             }
         }
-    }
 
         return if (isSynced && syncedLines.isNotEmpty()) {
             val sortedSyncedLines = syncedLines.sortedBy { it.time }
@@ -147,6 +149,12 @@ object LyricsUtils {
         } else {
             Lyrics(plain = plainLines)
         }
+    }
+
+    internal fun stripLrcTimestamps(value: String): String {
+        if (value.isEmpty()) return value
+        val withoutTags = LRC_TIMESTAMP_TAG_REGEX.replace(value, "")
+        return withoutTags.trimStart()
     }
 }
 

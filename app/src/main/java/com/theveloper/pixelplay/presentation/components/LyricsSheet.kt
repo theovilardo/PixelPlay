@@ -61,6 +61,7 @@ import com.theveloper.pixelplay.presentation.components.snapping.ExperimentalSna
 import com.theveloper.pixelplay.presentation.components.snapping.SnapperLayoutInfo
 import com.theveloper.pixelplay.presentation.components.snapping.rememberLazyListSnapperLayoutInfo
 import com.theveloper.pixelplay.presentation.components.snapping.rememberSnapperFlingBehavior
+import com.theveloper.pixelplay.utils.LyricsUtils
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -125,6 +126,9 @@ fun LyricsSheet(
             onDismiss = {
                 showFetchLyricsDialog = false
                 onDismissLyricsSearch()
+                if (lyrics == null && !isLoadingLyrics) {
+                    onBackClick()
+                }
             },
             onImport = onImportLyrics
         )
@@ -731,7 +735,8 @@ fun PlainLyricsLine(
 
 private val LeadingTagRegex = Regex("^v\\d+:\\s*", RegexOption.IGNORE_CASE)
 
-internal fun sanitizeLyricLineText(raw: String): String = raw.replace(LeadingTagRegex, "").trimStart()
+internal fun sanitizeLyricLineText(raw: String): String =
+    LyricsUtils.stripLrcTimestamps(raw).replace(LeadingTagRegex, "").trimStart()
 
 internal fun sanitizeSyncedWords(words: List<SyncedWord>): List<SyncedWord> =
     words.mapIndexedNotNull { index, word ->
