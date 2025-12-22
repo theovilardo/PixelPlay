@@ -119,6 +119,7 @@ fun LyricsSheet(
     if (showFetchLyricsDialog) {
         FetchLyricsDialog(
             uiState = lyricsSearchUiState,
+            currentSong = currentSong,
             onConfirm = onSearchLyrics,
             onPickResult = onPickResult,
             onDismiss = {

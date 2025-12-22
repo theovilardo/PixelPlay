@@ -396,6 +396,7 @@ fun FullPlayerContent(
     if (showFetchLyricsDialog) {
         FetchLyricsDialog(
             uiState = lyricsSearchUiState,
+            currentSong = stablePlayerState.currentSong,
             onConfirm = {
                 // El usuario confirma, iniciamos la búsqueda
                 playerViewModel.fetchLyricsForCurrentSong()
