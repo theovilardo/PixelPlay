@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.4.1-beta] - 2026-02-10
+## [0.4.5-beta] - 2026-02-10
 
 ### Added
 - New blacklist method for music directory selection
