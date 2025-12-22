@@ -64,7 +64,7 @@ fun BetaInfoBottomSheet(modifier: Modifier = Modifier) {
         item(key = "header") {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = "Beta 4",
+                    text = "Beta 4.5",
                     fontFamily = GoogleSansRounded,
                     style = ExpTitleTypography.displaySmall,
                     color = MaterialTheme.colorScheme.onSurface
@@ -134,12 +134,12 @@ fun BetaInfoBottomSheet(modifier: Modifier = Modifier) {
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
-                            text = "Welcome to the fourth beta!",
+                            text = "Welcome to the fifth beta!",
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "We’re still rounding the edges while PixelPlayer’s new features settle in.",
+                            text = "This build focuses on smoother navigation, faster scans, and better lyrics handling.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -183,13 +183,18 @@ fun BetaInfoBottomSheet(modifier: Modifier = Modifier) {
                             fontWeight = FontWeight.SemiBold
                         )
                     }
+                        Text(
+                            text = "Library prep now loads faster and includes a directory blacklist option.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Navigation, shuffle, animations, and playlist tools were refined for this beta.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     Text(
-                        text = "Some flows are still WIP. If something feels off, a fix is probably on the way.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "Animations, transitions, and playlist tools are being stabilized in this build.",
+                        text = "Lyrics fetching and casting got fixes, plus RepeatOne works correctly with Crossfade/Cast.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
