@@ -64,7 +64,7 @@ fun BetaInfoBottomSheet(modifier: Modifier = Modifier) {
         item(key = "header") {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = "Beta 5",
+                    text = "Beta 4.5",
                     fontFamily = GoogleSansRounded,
                     style = ExpTitleTypography.displaySmall,
                     color = MaterialTheme.colorScheme.onSurface
