@@ -198,6 +198,11 @@ fun BetaInfoBottomSheet(modifier: Modifier = Modifier) {
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Text(
+                        text = "Fixed queue crash when using Play Next and metadata editing corruption.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }

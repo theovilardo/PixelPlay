@@ -32,6 +32,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.theveloper.pixelplay.R
@@ -56,7 +61,7 @@ data class ChangelogVersion(
 val changelog = listOf(
     ChangelogVersion(
         version = "0.4.5-beta",
-        date = "2026-02-10",
+        date = "2025-12-22",
         sections = listOf(
             ChangelogSection(
                 title = "Highlights",
@@ -78,14 +83,17 @@ val changelog = listOf(
                     "Fixed RepeatOne mode with Crossfade/Cast enabled",
                     "Fixed playlist sorting and reordering issues",
                     "Fixed metadata editing issues",
-                    "Fixed lyrics issues"
+                    "Fixed lyrics issues",
+                    "Fixed queue crash when using Play Next with duplicate songs",
+                    "Fixed MP3 file corruption after metadata/cover art editing",
+                    "Fixed crossfade duration slider stepping behavior"
                 )
             )
         )
     ),
     ChangelogVersion(
         version = "0.4.0-beta",
-        date = "2026-01-15",
+        date = "2025-12-15",
         sections = listOf(
             ChangelogSection(
                 title = "Highlights",
@@ -339,8 +347,31 @@ fun ChangelogCategory(section: ChangelogSection) {
                             .size(8.dp)
                             .background(MaterialTheme.colorScheme.primary, CircleShape)
                     )
+                    val linkColor = MaterialTheme.colorScheme.primary
+                    val annotatedText = buildAnnotatedString {
+                        val mentionRegex = Regex("@(\\w+)")
+                        var lastIndex = 0
+                        mentionRegex.findAll(item).forEach { match ->
+                            append(item.substring(lastIndex, match.range.first))
+                            val username = match.groupValues[1]
+                            withLink(
+                                LinkAnnotation.Url(
+                                    url = "https://github.com/$username",
+                                    styles = TextLinkStyles(
+                                        style = SpanStyle(color = linkColor)
+                                    )
+                                )
+                            ) {
+                                append(match.value)
+                            }
+                            lastIndex = match.range.last + 1
+                        }
+                        if (lastIndex < item.length) {
+                            append(item.substring(lastIndex))
+                        }
+                    }
                     Text(
-                        text = item,
+                        text = annotatedText,
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface
                     )

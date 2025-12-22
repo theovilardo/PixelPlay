@@ -1379,7 +1379,7 @@ fun SliderSettingsItem(
                 onValueChange = { sliderValue = it },
                 onValueChangeFinished = { onValueChange(sliderValue) },
                 valueRange = valueRange,
-                steps = ((valueRange.endInclusive - valueRange.start) / 500).toInt() - 1,
+                steps = ((valueRange.endInclusive - valueRange.start) / 1000).toInt() - 1,
                 modifier = Modifier.fillMaxWidth()
             )
         }

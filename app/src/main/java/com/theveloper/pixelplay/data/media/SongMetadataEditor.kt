@@ -124,7 +124,8 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
             // Open file with read/write permissions
             ParcelFileDescriptor.open(audioFile, ParcelFileDescriptor.MODE_READ_WRITE).use { fd ->
                 // Get existing metadata or create empty map
-                val existingMetadata = TagLib.getMetadata(fd.dup().detachFd())
+                val metadataFd = fd.dup()
+                val existingMetadata = TagLib.getMetadata(metadataFd.detachFd())
                 val propertyMap = HashMap(existingMetadata?.propertyMap ?: emptyMap())
 
                 // Update metadata fields
@@ -137,7 +138,8 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
                 propertyMap["ALBUMARTIST"] = arrayOf(newArtist)
 
                 // Save metadata
-                val metadataSaved = TagLib.savePropertyMap(fd.dup().detachFd(), propertyMap)
+                val saveFd = fd.dup()
+                val metadataSaved = TagLib.savePropertyMap(saveFd.detachFd(), propertyMap)
                 if (!metadataSaved) {
                     Timber.e("Failed to save metadata for songId: $songId")
                     return false
@@ -151,13 +153,23 @@ class SongMetadataEditor(private val context: Context, private val musicDao: Mus
                         pictureType = "Front Cover",
                         mimeType = update.mimeType
                     )
-                    val coverSaved = TagLib.savePictures(fd.detachFd(), arrayOf(picture))
+                    val pictureFd = fd.dup()
+                    val coverSaved = TagLib.savePictures(pictureFd.detachFd(), arrayOf(picture))
                     if (!coverSaved) {
                         Timber.w("Failed to save cover art, but metadata was saved for songId: $songId")
                     } else {
                         Timber.d("Successfully embedded cover art for songId: $songId")
                     }
                 }
+            }
+
+            // Force file system sync to ensure data is written to disk
+            try {
+                java.io.RandomAccessFile(audioFile, "rw").use { raf ->
+                    raf.fd.sync()
+                }
+            } catch (e: Exception) {
+                Timber.w(e, "Could not sync file, changes should still be persisted")
             }
 
             Timber.d("Successfully updated file metadata: ${audioFile.path}")

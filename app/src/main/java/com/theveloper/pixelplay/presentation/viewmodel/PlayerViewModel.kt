@@ -3514,6 +3514,7 @@ class PlayerViewModel @Inject constructor(
                     .build())
                 .build()
             controller.addMediaItem(mediaItem)
+            // Queue UI is synced via onTimelineChanged listener
         }
     }
 
@@ -3538,6 +3539,7 @@ class PlayerViewModel @Inject constructor(
             }
 
             controller.addMediaItem(insertionIndex, mediaItem)
+            // Queue UI is synced via onTimelineChanged listener
         }
     }
     private suspend fun showMaterialDeleteConfirmation(activity: Activity, song: Song): Boolean {
