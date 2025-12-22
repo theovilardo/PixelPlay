@@ -76,7 +76,7 @@ fun LyricsSheet(
     playerUiStateFlow: StateFlow<PlayerUiState>,
     lyricsSearchUiState: LyricsSearchUiState,
     resetLyricsForCurrentSong: () -> Unit,
-    onSearchLyrics: () -> Unit,
+    onSearchLyrics: (Boolean) -> Unit,
     onPickResult: (LyricsSearchResult) -> Unit,
     onImportLyrics: () -> Unit,
     onDismissLyricsSearch: () -> Unit,

@@ -397,9 +397,9 @@ fun FullPlayerContent(
         FetchLyricsDialog(
             uiState = lyricsSearchUiState,
             currentSong = stablePlayerState.currentSong,
-            onConfirm = {
+            onConfirm = { forcePick ->
                 // El usuario confirma, iniciamos la búsqueda
-                playerViewModel.fetchLyricsForCurrentSong()
+                playerViewModel.fetchLyricsForCurrentSong(forcePick)
             },
             onPickResult = { result ->
                 playerViewModel.acceptLyricsSearchResultForCurrentSong(result)
@@ -948,7 +948,7 @@ fun FullPlayerContent(
                 showLyricsSheet = false
                 playerViewModel.resetLyricsForCurrentSong()
             },
-            onSearchLyrics = { playerViewModel.fetchLyricsForCurrentSong() },
+            onSearchLyrics = { forcePick -> playerViewModel.fetchLyricsForCurrentSong(forcePick) },
             onPickResult = { playerViewModel.acceptLyricsSearchResultForCurrentSong(it) },
             onImportLyrics = { filePickerLauncher.launch("*/*") },
             onDismissLyricsSearch = { playerViewModel.resetLyricsSearchState() },

@@ -22,6 +22,8 @@
     <string name="searched_for_x_format">Searched for \"%s\"</string>
     <string name="search">Search</string>
     <string name="searching_lyrics">Searching for lyrics…</string>
+    <string name="fetch_lyrics_show_options_title">Show lyric options</string>
+    <string name="fetch_lyrics_show_options_subtitle">Always open the picker instead of auto-applying the first match</string>
     <string name="error">Error</string>
     <string name="ok">OK</string>
     <string name="cancel">Cancel</string>

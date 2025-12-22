@@ -5044,38 +5044,56 @@ class PlayerViewModel @Inject constructor(
     /**
      * Busca la letra de la canción actual en el servicio remoto.
      */
-    fun fetchLyricsForCurrentSong() {
+    fun fetchLyricsForCurrentSong(forcePickResults: Boolean = false) {
         val currentSong = stablePlayerState.value.currentSong
         viewModelScope.launch {
             _lyricsSearchUiState.value = LyricsSearchUiState.Loading
             if (currentSong != null) {
-                musicRepository.getLyricsFromRemote(currentSong)
-                    .onSuccess { (lyrics, rawLyrics) -> // Deconstruct the pair
-                        _lyricsSearchUiState.value = LyricsSearchUiState.Success(lyrics)
-                        val updatedSong = currentSong.copy(lyrics = rawLyrics)
-                        updateSongInStates(updatedSong, lyrics)
+                val handlePickResult: (Throwable) -> Unit = { error ->
+                    if (error is NoLyricsFoundException) {
+                        // Perform a generic search and let the user pick
+                        musicRepository.searchRemoteLyrics(currentSong)
+                            .onSuccess { (query, results) ->
+                                _lyricsSearchUiState.value = LyricsSearchUiState.PickResult(query, results)
+                            }
+                            .onFailure { searchError ->
+                                _lyricsSearchUiState.value = if (searchError is NoLyricsFoundException) {
+                                    LyricsSearchUiState.Error(
+                                        context.getString(R.string.lyrics_not_found),
+                                        searchError.query
+                                    )
+                                } else {
+                                    LyricsSearchUiState.Error(searchError.message ?: "Unknown error")
+                                }
+                            }
+                    } else {
+                        _lyricsSearchUiState.value = LyricsSearchUiState.Error(error.message ?: "Unknown error")
                     }
-                    .onFailure { error ->
-                        if (error is NoLyricsFoundException) {
-                            // Perform a generic search and let the user pick
-                            musicRepository.searchRemoteLyrics(currentSong)
-                                .onSuccess { (query, results) ->
-                                    _lyricsSearchUiState.value = LyricsSearchUiState.PickResult(query, results)
-                                }
-                                .onFailure { searchError ->
-                                    _lyricsSearchUiState.value = if (searchError is NoLyricsFoundException) {
-                                        LyricsSearchUiState.Error(
-                                            context.getString(R.string.lyrics_not_found),
-                                            searchError.query
-                                        )
-                                    } else {
-                                        LyricsSearchUiState.Error(searchError.message ?: "Unknown error")
-                                    }
-                                }
-                        } else {
-                            _lyricsSearchUiState.value = LyricsSearchUiState.Error(error.message ?: "Unknown error")
+                }
+
+                if (forcePickResults) {
+                    musicRepository.searchRemoteLyrics(currentSong)
+                        .onSuccess { (query, results) ->
+                            _lyricsSearchUiState.value = LyricsSearchUiState.PickResult(query, results)
                         }
-                    }
+                        .onFailure { error ->
+                            _lyricsSearchUiState.value = if (error is NoLyricsFoundException) {
+                                LyricsSearchUiState.Error(context.getString(R.string.lyrics_not_found), error.query)
+                            } else {
+                                LyricsSearchUiState.Error(error.message ?: "Unknown error")
+                            }
+                        }
+                } else {
+                    musicRepository.getLyricsFromRemote(currentSong)
+                        .onSuccess { (lyrics, rawLyrics) -> // Deconstruct the pair
+                            _lyricsSearchUiState.value = LyricsSearchUiState.Success(lyrics)
+                            val updatedSong = currentSong.copy(lyrics = rawLyrics)
+                            updateSongInStates(updatedSong, lyrics)
+                        }
+                        .onFailure { error ->
+                            handlePickResult(error)
+                        }
+                }
             } else {
                 _lyricsSearchUiState.value = LyricsSearchUiState.Error("No song is currently playing.")
             }
