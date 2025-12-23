@@ -106,7 +106,6 @@ import com.theveloper.pixelplay.presentation.components.AlbumCarouselSection
 import com.theveloper.pixelplay.presentation.components.AutoScrollingTextOnDemand
 import com.theveloper.pixelplay.presentation.components.LocalMaterialTheme
 import com.theveloper.pixelplay.presentation.components.LyricsSheet
-import com.theveloper.pixelplay.presentation.components.ShimmerBox
 import com.theveloper.pixelplay.presentation.components.WavyMusicSlider
 import com.theveloper.pixelplay.presentation.components.scoped.DeferAt
 import com.theveloper.pixelplay.presentation.components.scoped.PrefetchAlbumNeighborsImg
@@ -216,6 +215,9 @@ fun FullPlayerContent(
     val controlTintPlayPauseIcon = LocalMaterialTheme.current.onPrimary
     val controlTintOtherIcons = LocalMaterialTheme.current.primary
 
+    val placeholderColor = LocalMaterialTheme.current.primary.copy(alpha = 0.08f)
+    val placeholderOnColor = LocalMaterialTheme.current.primary.copy(alpha = 0.04f)
+
     val isLandscape =
         LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
@@ -298,17 +300,10 @@ fun FullPlayerContent(
                 expansionFractionProvider = expansionFractionProvider,
                 normalStartThreshold = 0.08f,
                 placeholder = {
-                    Box(
-                        modifier = Modifier
-                            .height(carouselHeight)
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                    ) {
-                        if (loadingTweaks.transparentPlaceholders) {
-                             Box(Modifier.fillMaxSize())
-                        } else {
-                            ShimmerBox(Modifier.fillMaxSize())
-                        }
+                    if (loadingTweaks.transparentPlaceholders) {
+                        Box(Modifier.height(carouselHeight).fillMaxWidth())
+                    } else {
+                        AlbumPlaceholder(height = carouselHeight, placeholderColor, placeholderOnColor)
                     }
                 }
             ) {
@@ -342,41 +337,11 @@ fun FullPlayerContent(
             expansionFractionProvider = expansionFractionProvider,
             normalStartThreshold = 0.42f,
             placeholder = {
-                 Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                 ) {
-                     // Main controls placeholder
-                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(80.dp)
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                     ) {
-                         repeat(5) {
-                            val size = if (it == 2) 64.dp else 42.dp
-                            Box(modifier = Modifier.size(size).clip(CircleShape)) {
-                                if (!loadingTweaks.transparentPlaceholders) ShimmerBox(Modifier.fillMaxSize())
-                            }
-                         }
-                     }
-
-                     Spacer(modifier = Modifier.height(14.dp))
-
-                     // Toggles placeholder
-                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(60.dp)
-                            .padding(horizontal = 26.dp)
-                            .padding(bottom = 6.dp)
-                            .clip(RoundedCornerShape(30.dp))
-                     ) {
-                         if (!loadingTweaks.transparentPlaceholders) ShimmerBox(Modifier.fillMaxSize())
-                     }
-                 }
+                if (loadingTweaks.transparentPlaceholders) {
+                    Box(Modifier.fillMaxWidth().height(174.dp))
+                } else {
+                    ControlsPlaceholder(placeholderColor, placeholderOnColor)
+                }
             }
         ) {
             Column(
@@ -444,17 +409,10 @@ fun FullPlayerContent(
             expansionFractionProvider = expansionFractionProvider,
             normalStartThreshold = 0.20f,
             placeholder = {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp).height(70.dp),
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Box(Modifier.width(200.dp).height(24.dp).clip(RoundedCornerShape(4.dp))) {
-                         if (!loadingTweaks.transparentPlaceholders) ShimmerBox(Modifier.fillMaxSize())
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Box(Modifier.width(140.dp).height(16.dp).clip(RoundedCornerShape(4.dp))) {
-                         if (!loadingTweaks.transparentPlaceholders) ShimmerBox(Modifier.fillMaxSize())
-                    }
+                if (loadingTweaks.transparentPlaceholders) {
+                    Box(Modifier.fillMaxWidth().height(70.dp))
+                } else {
+                    MetadataPlaceholder(expansionFractionProvider(), placeholderColor, placeholderOnColor)
                 }
             }
         ) {
@@ -1073,34 +1031,20 @@ private fun PlayerProgressBarSection(
 
     val shouldDelay = loadingTweaks?.let { it.delayAll || it.delayProgressBar } ?: false
 
+    // Placeholder colors needed here too
+    val placeholderColor = LocalMaterialTheme.current.primary.copy(alpha = 0.08f)
+    val placeholderOnColor = LocalMaterialTheme.current.primary.copy(alpha = 0.04f)
+
     DelayedContent(
         shouldDelay = shouldDelay,
         showPlaceholders = loadingTweaks?.showPlaceholders ?: false,
         expansionFractionProvider = expansionFractionProvider,
         normalStartThreshold = 0.08f,
         placeholder = {
-                 Column(Modifier.fillMaxWidth().heightIn(min = 70.dp)) {
-                     Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp)
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp))
-                     ) {
-                     if (loadingTweaks?.transparentPlaceholders != true) ShimmerBox(Modifier.fillMaxSize())
-                 }
-
-                     Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                     ) {
-                     Box(Modifier.width(30.dp).height(12.dp).clip(RoundedCornerShape(2.dp))) {
-                         if (loadingTweaks?.transparentPlaceholders != true) ShimmerBox(Modifier.fillMaxSize())
-                     }
-                     Box(Modifier.width(30.dp).height(12.dp).clip(RoundedCornerShape(2.dp))) {
-                         if (loadingTweaks?.transparentPlaceholders != true) ShimmerBox(Modifier.fillMaxSize())
-                     }
-                 }
+             if (loadingTweaks?.transparentPlaceholders == true) {
+                 Box(Modifier.fillMaxWidth().heightIn(min = 70.dp))
+             } else {
+                 ProgressPlaceholder(expansionFractionProvider(), placeholderColor, placeholderOnColor)
              }
         }
     ) {
@@ -1276,6 +1220,165 @@ private fun PlayerSongInfo(
                 }
             )
         )
+    }
+}
+
+@Composable
+private fun PlaceholderBox(
+    modifier: Modifier,
+    cornerRadius: Dp = 12.dp,
+    color: Color
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(cornerRadius),
+        color = color,
+        tonalElevation = 0.dp
+    ) {}
+}
+
+@Composable
+private fun AlbumPlaceholder(height: Dp, color: Color, onColor: Color) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(height),
+        shape = RoundedCornerShape(18.dp),
+        color = color,
+        tonalElevation = 0.dp
+    ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+            Icon(
+                modifier = Modifier.size(86.dp),
+                painter = painterResource(R.drawable.pixelplay_base_monochrome),
+                contentDescription = null,
+                tint = onColor
+            )
+        }
+    }
+}
+
+@Composable
+private fun MetadataPlaceholder(expansionFraction: Float, color: Color, onColor: Color) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 70.dp)
+            // Removed vertical padding lerp to match real content's 70dp heightIn exactly
+            .padding(start = 4.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(
+            modifier = Modifier
+                .weight(0.85f)
+                .fillMaxWidth(0.9f)
+                .align(Alignment.CenterVertically),
+            verticalArrangement = Arrangement.spacedBy(10.dp) // Adjusted spacing to match visual density
+        ) {
+            PlaceholderBox(
+                modifier = Modifier
+                    .fillMaxWidth(0.7f) // Simulate title length
+                    .height(24.dp),
+                cornerRadius = 4.dp,
+                color = color
+            )
+            PlaceholderBox(
+                modifier = Modifier
+                    .fillMaxWidth(0.4f) // Simulate artist length
+                    .height(16.dp),
+                cornerRadius = 4.dp,
+                color = onColor
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        PlaceholderBox(
+            modifier = Modifier
+                .size(42.dp),
+            cornerRadius = 50.dp,
+            color = onColor
+        )
+    }
+}
+
+@Composable
+private fun ProgressPlaceholder(expansionFraction: Float, color: Color, onColor: Color) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer { alpha = expansionFraction }
+            .heightIn(min = 70.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp)
+        ) {
+            PlaceholderBox(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp), // Match WavySlider track height
+                cornerRadius = 3.dp,
+                color = color
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            PlaceholderBox(modifier = Modifier.width(30.dp).height(12.dp), cornerRadius = 2.dp, color = onColor)
+            PlaceholderBox(modifier = Modifier.width(30.dp).height(12.dp), cornerRadius = 2.dp, color = onColor)
+        }
+    }
+}
+
+@Composable
+private fun ControlsPlaceholder(color: Color, onColor: Color) {
+    Box(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Main Controls Row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(80.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                 // 5 buttons: Prev, Play/Pause, Next + 2 smaller extras
+                 // Size order: 42, 42, 64, 42, 42
+                 val sizes = listOf(42.dp, 42.dp, 64.dp, 42.dp, 42.dp)
+                 sizes.forEach { size ->
+                     PlaceholderBox(
+                         modifier = Modifier.size(size),
+                         cornerRadius = size / 2, // Circle
+                         color = if (size == 64.dp) color else onColor
+                     )
+                 }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Toggles Row
+            PlaceholderBox(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp) // Avg between min 58 and max 78
+                    .padding(horizontal = 26.dp)
+                    .padding(bottom = 6.dp),
+                cornerRadius = 30.dp,
+                color = onColor
+            )
+        }
     }
 }
 
