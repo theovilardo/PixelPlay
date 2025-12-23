@@ -98,6 +98,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import androidx.compose.ui.util.lerp
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
@@ -832,10 +833,8 @@ fun UnifiedPlayerSheet(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .graphicsLayer {
-                    translationY = visualSheetTranslationY
-                }
-                .height(animatedTotalSheetHeightWithShadowDp),
+                .offset { IntOffset(0, visualSheetTranslationY.roundToInt()) }
+                .height(containerHeight),
             shadowElevation = 0.dp,
             color = Color.Transparent
         ) {
@@ -976,7 +975,12 @@ fun UnifiedPlayerSheet(
                                 }
                                 .shadow(
                                     elevation = playerAreaElevation,
-                                    shape = playerShadowShape,
+                                    shape = RoundedCornerShape(
+                                        topStart = overallSheetTopCornerRadius,
+                                        topEnd = overallSheetTopCornerRadius,
+                                        bottomStart = playerContentActualBottomRadius,
+                                        bottomEnd = playerContentActualBottomRadius
+                                    ),
                                     clip = false
                                 )
                                 .background(
