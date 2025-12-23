@@ -1921,7 +1921,7 @@ fun EnhancedSongListItem(
                             text = song.title,
                             style = MaterialTheme.typography.bodyLarge,
                             gradientEdgeColor = containerColor,
-                            expansionFraction = 1f,
+                            expansionFractionProvider = { 1f },
                         )
 
                     } else {
