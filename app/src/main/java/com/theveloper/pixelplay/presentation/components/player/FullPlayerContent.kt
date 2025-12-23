@@ -1164,12 +1164,16 @@ private fun DelayedContent(
     placeholder: @Composable () -> Unit,
     content: @Composable () -> Unit
 ) {
+    // Smoother delayed transition: fade in during the last 15% (0.85 -> 1.0) instead of last 5% (0.95 -> 1.0)
+    // This prevents the "abrupt" pop-in during fast animations.
+    val delayedStartThreshold = 0.85f
+
     Box {
         // Content
         Box(
             modifier = Modifier.graphicsLayer {
                 val fraction = expansionFractionProvider()
-                val start = if (shouldDelay) 0.95f else normalStartThreshold
+                val start = if (shouldDelay) delayedStartThreshold else normalStartThreshold
                 val end = 1f
                 alpha = ((fraction - start) / (end - start)).coerceIn(0f, 1f)
             }
@@ -1182,8 +1186,8 @@ private fun DelayedContent(
             Box(
                 modifier = Modifier.graphicsLayer {
                     val fraction = expansionFractionProvider()
-                    // Disappear when content appears (0.95f)
-                    alpha = if (fraction < 0.95f) 1f else 0f
+                    // Disappear when content appears
+                    alpha = if (fraction < delayedStartThreshold) 1f else 0f
                 }
             ) {
                 placeholder()
@@ -1237,15 +1241,14 @@ private fun PlayerSongInfo(
         // Let's check AutoScrollingTextOnDemand. Assuming it uses it for scrolling trigger.
         // If we want to avoid recomposition, we might need to pass the provider or just 1f if scrolling logic handles itself.
         // For now, let's pass the current value from provider for logic correctness, but ideally this component should be optimized too.
-        val currentFraction = expansionFractionProvider()
-        AutoScrollingTextOnDemand(title, titleStyle, gradientEdgeColor, currentFraction)
+        AutoScrollingTextOnDemand(title, titleStyle, gradientEdgeColor, expansionFractionProvider)
         Spacer(modifier = Modifier.height(4.dp))
         
         AutoScrollingTextOnDemand(
             text = artist,
             style = artistStyle,
             gradientEdgeColor = gradientEdgeColor,
-            expansionFraction = currentFraction,
+            expansionFractionProvider = expansionFractionProvider,
             modifier = Modifier.combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,

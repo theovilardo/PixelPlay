@@ -34,11 +34,11 @@ fun AutoScrollingTextOnDemand(
     text: String,
     style: TextStyle,
     gradientEdgeColor: Color,
-    expansionFraction: Float,
+    expansionFractionProvider: () -> Float,
     modifier: Modifier = Modifier
 ) {
     var overflow by remember { mutableStateOf(false) }
-    val canStart by remember { derivedStateOf { expansionFraction > 0.20f && overflow } }
+    val canStart by remember { derivedStateOf { expansionFractionProvider() > 0.99f && overflow } }
 
 
 // Usamos un Text "medidor" sólo la primera composición para detectar overflow.
