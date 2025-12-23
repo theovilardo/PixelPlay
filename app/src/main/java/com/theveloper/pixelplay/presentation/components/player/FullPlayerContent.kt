@@ -283,7 +283,8 @@ fun FullPlayerContent(
                 .padding(vertical = 8.dp)
                 .graphicsLayer {
                     val fraction = expansionFractionProvider()
-                    val startThreshold = 0.08f
+                    val shouldDelay = loadingTweaks.delayAll || loadingTweaks.delayAlbumCarousel
+                    val startThreshold = if (shouldDelay) 0.95f else 0.08f
                     val endThreshold = 1f
                     alpha = ((fraction - startThreshold) / (endThreshold - startThreshold)).coerceIn(0f, 1f)
                 }
@@ -321,7 +322,8 @@ fun FullPlayerContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.graphicsLayer {
                 val fraction = expansionFractionProvider()
-                val startThreshold = 0.42f
+                val shouldDelay = loadingTweaks.delayAll || loadingTweaks.delayControls
+                val startThreshold = if (shouldDelay) 0.95f else 0.42f
                 val endThreshold = 1f
                 alpha = ((fraction - startThreshold) / (endThreshold - startThreshold)).coerceIn(0f, 1f)
             }
@@ -374,7 +376,8 @@ fun FullPlayerContent(
             activeTrackColor = LocalMaterialTheme.current.primary,
             inactiveTrackColor = LocalMaterialTheme.current.primary.copy(alpha = 0.2f),
             thumbColor = LocalMaterialTheme.current.primary,
-            timeTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f)
+            timeTextColor = LocalMaterialTheme.current.onPrimaryContainer.copy(alpha = 0.7f),
+            loadingTweaks = loadingTweaks
         )
     }
 
@@ -383,7 +386,8 @@ fun FullPlayerContent(
         // Metadata visibility
         Box(modifier = Modifier.graphicsLayer {
             val fraction = expansionFractionProvider()
-            val startThreshold = 0.20f
+            val shouldDelay = loadingTweaks.delayAll || loadingTweaks.delaySongMetadata
+            val startThreshold = if (shouldDelay) 0.95f else 0.20f
             val endThreshold = 1f
             alpha = ((fraction - startThreshold) / (endThreshold - startThreshold)).coerceIn(0f, 1f)
         }) {
@@ -527,7 +531,11 @@ fun FullPlayerContent(
             if (!isLandscape) {
                 TopAppBar(
                     modifier = Modifier.graphicsLayer {
-                        alpha = expansionFractionProvider().coerceIn(0f, 1f)
+                        val fraction = expansionFractionProvider()
+                        val shouldDelay = loadingTweaks.delayAll // Implicit "delayAll" affects TopBar too
+                        val startThreshold = if (shouldDelay) 0.95f else 0f
+                        val endThreshold = 1f
+                        alpha = ((fraction - startThreshold) / (endThreshold - startThreshold)).coerceIn(0f, 1f)
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = Color.Transparent,
@@ -953,6 +961,7 @@ private fun PlayerProgressBarSection(
     inactiveTrackColor: Color,
     thumbColor: Color,
     timeTextColor: Color,
+    loadingTweaks: FullPlayerLoadingTweaks? = null,
     modifier: Modifier = Modifier
 ) {
     val expansionFraction = expansionFractionProvider()
@@ -1001,7 +1010,8 @@ private fun PlayerProgressBarSection(
             .padding(vertical = lerp(2.dp, 0.dp, expansionFraction))
             .graphicsLayer {
                 val fraction = expansionFractionProvider()
-                val startThreshold = 0.08f
+                val shouldDelay = loadingTweaks?.let { it.delayAll || it.delayProgressBar } ?: false
+                val startThreshold = if (shouldDelay) 0.95f else 0.08f
                 val endThreshold = 1f
                 alpha = ((fraction - startThreshold) / (endThreshold - startThreshold)).coerceIn(0f, 1f)
             }
