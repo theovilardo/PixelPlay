@@ -7,7 +7,7 @@
     android:updatePeriodMillis="0"
     android:initialLayout="@layout/glance_default_layout"
     android:description="@string/glance_widget_description"
-    android:previewLayout="@layout/glance_widget_preview_4x2"
+    android:previewImage="@drawable/widget_preview_full"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
     android:widgetFeatures="reconfigurable|configuration_optional">
