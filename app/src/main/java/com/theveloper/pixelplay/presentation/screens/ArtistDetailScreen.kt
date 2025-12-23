@@ -59,6 +59,10 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -425,18 +429,32 @@ private fun CustomCollapsingTopBar(
                 .fillMaxSize()
                 .graphicsLayer { alpha = headerContentAlpha }
         ) {
-            MusicIconPattern(
-                modifier = Modifier.fillMaxSize(),
-                collapseFraction = collapseFraction
-            )
+            // Artist artwork or fallback pattern
+            if (!artist.imageUrl.isNullOrEmpty()) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(artist.imageUrl)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = artist.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                MusicIconPattern(
+                    modifier = Modifier.fillMaxSize(),
+                    collapseFraction = collapseFraction
+                )
+            }
 
+            // Gradient overlay for text readability
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
                             colorStops = arrayOf(
-                                0.4f to Color.Transparent,
+                                0.3f to Color.Transparent,
                                 1f to MaterialTheme.colorScheme.surface
                             )
                         )

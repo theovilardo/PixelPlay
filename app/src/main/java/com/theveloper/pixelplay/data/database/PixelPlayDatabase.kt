@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TransitionRuleEntity::class,
         SongArtistCrossRef::class
     ],
-    version = 10, // Incremented version for multi-artist support
+    version = 11, // Incremented version for artist image support
     exportSchema = false
 )
 abstract class PixelPlayDatabase : RoomDatabase() {
@@ -79,6 +79,13 @@ abstract class PixelPlayDatabase : RoomDatabase() {
                     INSERT OR REPLACE INTO song_artist_cross_ref (song_id, artist_id, is_primary)
                     SELECT id, artist_id, 1 FROM songs WHERE artist_id IS NOT NULL
                 """.trimIndent())
+            }
+        }
+
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add image_url column to artists table for Deezer artist images
+                db.execSQL("ALTER TABLE artists ADD COLUMN image_url TEXT DEFAULT NULL")
             }
         }
     }
