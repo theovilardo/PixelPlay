@@ -17,7 +17,9 @@ import com.theveloper.pixelplay.data.database.TransitionDao
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.preferences.dataStore
 import com.theveloper.pixelplay.data.media.SongMetadataEditor
+import com.theveloper.pixelplay.data.network.deezer.DeezerApiService
 import com.theveloper.pixelplay.data.network.lyrics.LrcLibApiService
+import com.theveloper.pixelplay.data.repository.ArtistImageRepository
 import com.theveloper.pixelplay.data.repository.LyricsRepository
 import com.theveloper.pixelplay.data.repository.LyricsRepositoryImpl
 import com.theveloper.pixelplay.data.repository.MusicRepository
@@ -30,12 +32,20 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
+import javax.inject.Qualifier
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+
+/**
+ * Qualifier for Deezer Retrofit instance.
+ */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class DeezerRetrofit
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -74,9 +84,10 @@ object AppModule {
             PixelPlayDatabase.MIGRATION_3_4,
             PixelPlayDatabase.MIGRATION_4_5,
             PixelPlayDatabase.MIGRATION_6_7,
-            PixelPlayDatabase.MIGRATION_9_10
+            PixelPlayDatabase.MIGRATION_9_10,
+            PixelPlayDatabase.MIGRATION_10_11
         )
-            .fallbackToDestructiveMigration()
+            .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
     }
 
@@ -194,5 +205,40 @@ object AppModule {
     @Singleton
     fun provideLrcLibApiService(retrofit: Retrofit): LrcLibApiService {
         return retrofit.create(LrcLibApiService::class.java)
+    }
+
+    /**
+     * Provee una instancia de Retrofit para la API de Deezer.
+     */
+    @Provides
+    @Singleton
+    @DeezerRetrofit
+    fun provideDeezerRetrofit(okHttpClient: OkHttpClient): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl("https://api.deezer.com/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
+
+    /**
+     * Provee el servicio de la API de Deezer.
+     */
+    @Provides
+    @Singleton
+    fun provideDeezerApiService(@DeezerRetrofit retrofit: Retrofit): DeezerApiService {
+        return retrofit.create(DeezerApiService::class.java)
+    }
+
+    /**
+     * Provee el repositorio de imágenes de artistas.
+     */
+    @Provides
+    @Singleton
+    fun provideArtistImageRepository(
+        deezerApiService: DeezerApiService,
+        musicDao: MusicDao
+    ): ArtistImageRepository {
+        return ArtistImageRepository(deezerApiService, musicDao)
     }
 }

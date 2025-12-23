@@ -111,6 +111,7 @@ import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.data.preferences.FullPlayerLoadingTweaks
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.LyricsSearchResult
+import com.theveloper.pixelplay.data.repository.ArtistImageRepository
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.data.repository.NoLyricsFoundException
 import com.theveloper.pixelplay.data.service.MusicNotificationProvider
@@ -287,7 +288,8 @@ class PlayerViewModel @Inject constructor(
     private val dailyMixManager: DailyMixManager,
     private val playbackStatsRepository: PlaybackStatsRepository,
     private val aiPlaylistGenerator: AiPlaylistGenerator,
-    private val aiMetadataGenerator: AiMetadataGenerator
+    private val aiMetadataGenerator: AiMetadataGenerator,
+    private val artistImageRepository: ArtistImageRepository
 ) : ViewModel() {
 
     private val _playerUiState = MutableStateFlow(PlayerUiState())
@@ -1948,6 +1950,30 @@ class PlayerViewModel @Inject constructor(
                 val artistsList = musicRepository.getAllArtistsOnce()
                 _playerUiState.update { it.copy(artists = artistsList.toImmutableList()) }
                 Log.d("PlayerViewModel", "Artists loaded in parallel. Count: ${artistsList.size}")
+                
+                // Fetch Deezer images for artists without images in background
+                launch(Dispatchers.IO) {
+                    val artistsWithoutImages = artistsList.filter { it.imageUrl.isNullOrEmpty() }
+                    Log.d("PlayerViewModel", "Fetching Deezer images for ${artistsWithoutImages.size} artists...")
+                    
+                    for (artist in artistsWithoutImages) {
+                        try {
+                            val imageUrl = artistImageRepository.getArtistImageUrl(artist.name, artist.id)
+                            if (!imageUrl.isNullOrEmpty()) {
+                                // Update artist in the UI state
+                                _playerUiState.update { currentState ->
+                                    val updatedArtists = currentState.artists.map { a ->
+                                        if (a.id == artist.id) a.copy(imageUrl = imageUrl) else a
+                                    }
+                                    currentState.copy(artists = updatedArtists.toImmutableList())
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.w("PlayerViewModel", "Failed to fetch image for ${artist.name}: ${e.message}")
+                        }
+                    }
+                    Log.d("PlayerViewModel", "Deezer artist image fetch completed")
+                }
             } catch (e: Exception) {
                 Log.e("PlayerViewModel", "Error loading artists in parallel", e)
             }

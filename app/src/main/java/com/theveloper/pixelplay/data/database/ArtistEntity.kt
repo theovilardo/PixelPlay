@@ -14,14 +14,16 @@ import com.theveloper.pixelplay.utils.normalizeMetadataTextOrEmpty
 data class ArtistEntity(
     @PrimaryKey val id: Long,
     @ColumnInfo(name = "name") val name: String,
-    @ColumnInfo(name = "track_count") val trackCount: Int
+    @ColumnInfo(name = "track_count") val trackCount: Int,
+    @ColumnInfo(name = "image_url") val imageUrl: String? = null
 )
 
 fun ArtistEntity.toArtist(): Artist {
     return Artist(
         id = this.id,
         name = this.name.normalizeMetadataTextOrEmpty(),
-        songCount = this.trackCount // El modelo Artist usa songCount, MediaStore usa NUMBER_OF_TRACKS
+        songCount = this.trackCount, // El modelo Artist usa songCount, MediaStore usa NUMBER_OF_TRACKS
+        imageUrl = this.imageUrl
     )
 }
 
@@ -33,6 +35,7 @@ fun Artist.toEntity(): ArtistEntity {
     return ArtistEntity(
         id = this.id,
         name = this.name,
-        trackCount = this.songCount
+        trackCount = this.songCount,
+        imageUrl = this.imageUrl
     )
 }
