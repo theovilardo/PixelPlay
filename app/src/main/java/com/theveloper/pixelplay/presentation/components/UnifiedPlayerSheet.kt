@@ -1174,6 +1174,7 @@ fun UnifiedPlayerSheet(
                                                     scaleY = fullPlayerScale
                                                 }
                                                 .zIndex(if (playerContentExpansionFraction.value >= 0.5f) 1f else 0f)
+                                                .offset { if (playerContentExpansionFraction.value <= 0.01f) IntOffset(0, 10000) else IntOffset.Zero }
                                         ) {
                                             FullPlayerContent(
                                                 currentSong = currentSongNonNull,

@@ -442,7 +442,7 @@ fun FullPlayerContent(
         BoxWithConstraints(
             modifier = modifier
                 .fillMaxWidth()
-                .padding(vertical = lerp(4.dp, 8.dp, expansionFraction))
+                .padding(vertical = 8.dp)
                 .graphicsLayer {
                     alpha = expansionFraction
                 }
@@ -608,8 +608,8 @@ fun FullPlayerContent(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(
-                    horizontal = lerp(8.dp, 24.dp, expansionFraction),
-                    vertical = lerp(0.dp, 0.dp, expansionFraction)
+                    horizontal = 24.dp,
+                    vertical = 0.dp
                 ),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceAround
@@ -643,8 +643,8 @@ fun FullPlayerContent(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(
-                    horizontal = lerp(8.dp, 24.dp, expansionFraction),
-                    vertical = lerp(0.dp, 0.dp, expansionFraction)
+                    horizontal = 24.dp,
+                    vertical = 0.dp
                 ),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -660,7 +660,7 @@ fun FullPlayerContent(
                     .weight(1f)
                     .padding(
                         horizontal = 0.dp,
-                        vertical = lerp(0.dp, 0.dp, expansionFraction)
+                        vertical = 0.dp
                     ),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceEvenly
@@ -1272,7 +1272,7 @@ private fun PlayerSongInfo(
     Column(
         horizontalAlignment = Alignment.Start,
             modifier = modifier
-                .padding(vertical = lerp(2.dp, 10.dp, expansionFraction))
+                .padding(vertical = 10.dp)
                 .fillMaxWidth(0.9f)
             .graphicsLayer {
                 alpha = expansionFraction
