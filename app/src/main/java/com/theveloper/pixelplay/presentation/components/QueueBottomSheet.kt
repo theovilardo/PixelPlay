@@ -1428,7 +1428,7 @@ private fun QueueMiniPlayer(
                     onTap?.invoke()
                 }
                 .padding(horizontal = 12.dp)
-                .padding(top = headerPadding, bottom = 20.dp),
+                .padding(top = headerPadding, bottom = 26.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
