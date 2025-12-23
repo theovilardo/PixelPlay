@@ -483,18 +483,22 @@ fun FullPlayerContent(
 
     Scaffold(
         containerColor = Color.Transparent,
-        modifier = Modifier.pointerInput(currentSheetState, expansionFraction) {
-            val isFullyExpanded =
-                currentSheetState == PlayerSheetState.EXPANDED && expansionFraction >= 0.99f
-            if (!isFullyExpanded) return@pointerInput
-
-            val queueDragActivationThresholdPx = with(this) { 6.dp.toPx() }
+        modifier = Modifier.pointerInput(currentSheetState) {
+            val queueDragActivationThresholdPx = 6.dp.toPx()
 
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
+                // Check condition AFTER the down event occurs
+                val isFullyExpanded = currentSheetState == PlayerSheetState.EXPANDED && expansionFractionProvider() >= 0.99f
+
+                if (!isFullyExpanded) {
+                    return@awaitEachGesture
+                }
+
+                // Proceed with gesture logic
                 var dragConsumedByQueue = false
                 val velocityTracker = VelocityTracker()
-                totalDrag = 0f
+                var totalDrag = 0f
 
                 drag(down.id) { change ->
                     val dragAmount = change.positionChange().y
@@ -517,8 +521,6 @@ fun FullPlayerContent(
                     val velocity = velocityTracker.calculateVelocity().y
                     onQueueRelease(totalDrag, velocity)
                 }
-
-                totalDrag = 0f
             }
         },
         topBar = {
