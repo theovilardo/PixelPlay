@@ -36,7 +36,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListItemInfo
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -264,18 +263,17 @@ fun QueueBottomSheet(
     var reorderHandleInUse by remember { mutableStateOf(false) }
     val updatedReorderHandleInUse by rememberUpdatedState(reorderHandleInUse)
 
-    fun mapLazyListIndexToLocal(indexInfo: LazyListItemInfo?): Int? {
-        val key = indexInfo?.key as? String ?: return null
-        // Key format is "songId_index", extract the index part
-        val indexPart = key.substringAfterLast('_').toIntOrNull()
-        return indexPart?.takeIf { it in items.indices }
+    fun mapKeyToLocalIndex(key: Any?): Int? {
+        val songId = key as? String ?: return null
+        val localIndex = items.indexOfFirst { it.id == songId }
+        return localIndex.takeIf { it != -1 }
     }
 
     val reorderableState = rememberReorderableLazyListState(
         lazyListState = listState,
         onMove = { from, to ->
-            val fromLocalIndex = mapLazyListIndexToLocal(from) ?: return@rememberReorderableLazyListState
-            val toLocalIndex = mapLazyListIndexToLocal(to) ?: return@rememberReorderableLazyListState
+            val fromLocalIndex = mapKeyToLocalIndex(from.key) ?: return@rememberReorderableLazyListState
+            val toLocalIndex = mapKeyToLocalIndex(to.key) ?: return@rememberReorderableLazyListState
             val movingSongId = items.getOrNull(fromLocalIndex)?.id
             items = items.toMutableList().apply {
                 add(toLocalIndex, removeAt(fromLocalIndex))
@@ -585,10 +583,10 @@ fun QueueBottomSheet(
                             Spacer(modifier = Modifier.height(6.dp))
                         }
 
-                        itemsIndexed(items, key = { index, s -> "${s.id}_$index" }) { index, song ->
+                        itemsIndexed(items, key = { _, s -> s.id }) { index, song ->
                             ReorderableItem(
                                 state = reorderableState,
-                                key = "${song.id}_$index",
+                                key = song.id,
                                 enabled = index != 0
                             ) { isDragging ->
                                 val scale by animateFloatAsState(
