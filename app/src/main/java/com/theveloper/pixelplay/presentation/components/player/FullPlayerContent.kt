@@ -526,7 +526,9 @@ fun FullPlayerContent(
         topBar = {
             if (!isLandscape) {
                 TopAppBar(
-                    modifier = Modifier.alpha(expansionFraction.coerceIn(0f, 1f)),
+                    modifier = Modifier.graphicsLayer {
+                        alpha = expansionFractionProvider().coerceIn(0f, 1f)
+                    },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = Color.Transparent,
                         titleContentColor = LocalMaterialTheme.current.onPrimaryContainer,
