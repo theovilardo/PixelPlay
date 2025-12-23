@@ -302,7 +302,6 @@ fun FullPlayerContent(
                         modifier = Modifier
                             .height(carouselHeight)
                             .fillMaxWidth()
-                            .padding(horizontal = 24.dp)
                             .clip(RoundedCornerShape(16.dp))
                     ) {
                         if (loadingTweaks.transparentPlaceholders) {
@@ -344,15 +343,15 @@ fun FullPlayerContent(
             normalStartThreshold = 0.42f,
             placeholder = {
                  Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 26.dp, vertical = 20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(24.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
                  ) {
                      // Main controls placeholder
                      Row(
-                        modifier = Modifier.fillMaxWidth().height(80.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(80.dp)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                      ) {
@@ -363,8 +362,18 @@ fun FullPlayerContent(
                             }
                          }
                      }
+
+                     Spacer(modifier = Modifier.height(14.dp))
+
                      // Toggles placeholder
-                     Box(modifier = Modifier.fillMaxWidth().height(60.dp).clip(RoundedCornerShape(30.dp))) {
+                     Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(60.dp)
+                            .padding(horizontal = 26.dp)
+                            .padding(bottom = 6.dp)
+                            .clip(RoundedCornerShape(30.dp))
+                     ) {
                          if (!loadingTweaks.transparentPlaceholders) ShimmerBox(Modifier.fillMaxSize())
                      }
                  }
@@ -1070,12 +1079,21 @@ private fun PlayerProgressBarSection(
         expansionFractionProvider = expansionFractionProvider,
         normalStartThreshold = 0.08f,
         placeholder = {
-             Column(Modifier.fillMaxWidth().height(70.dp).padding(vertical = 12.dp)) {
-                 Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp))) {
+                 Column(Modifier.fillMaxWidth().heightIn(min = 70.dp)) {
+                     Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                     ) {
                      if (loadingTweaks?.transparentPlaceholders != true) ShimmerBox(Modifier.fillMaxSize())
                  }
-                 Spacer(Modifier.height(8.dp))
-                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+
+                     Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                     ) {
                      Box(Modifier.width(30.dp).height(12.dp).clip(RoundedCornerShape(2.dp))) {
                          if (loadingTweaks?.transparentPlaceholders != true) ShimmerBox(Modifier.fillMaxSize())
                      }
