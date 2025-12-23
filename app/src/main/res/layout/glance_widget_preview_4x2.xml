@@ -20,7 +20,7 @@
             android:layout_width="80dp"
             android:layout_height="80dp"
             android:background="@drawable/widget_preview_album_art_background"
-            android:src="@drawable/ic_music_placeholder"
+            android:src="@drawable/ic_music_placeholder_preview"
             android:scaleType="centerInside"
             android:padding="18dp" />
 
