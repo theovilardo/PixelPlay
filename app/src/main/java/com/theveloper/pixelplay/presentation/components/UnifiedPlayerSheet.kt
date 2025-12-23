@@ -1120,93 +1120,96 @@ fun UnifiedPlayerSheet(
                             if (showPlayerContentArea) {
                                 // stablePlayerState.currentSong is already available from the top-level collection
                                 stablePlayerState.currentSong?.let { currentSongNonNull ->
-                                    if (miniAlpha > 0.01f) {
-                                        Crossfade(
-                                            targetState = albumColorScheme,
-                                            animationSpec = tween(durationMillis = 550, easing = FastOutSlowInEasing),
-                                            label = "miniPlayerColorScheme"
-                                        ) { scheme ->
-                                            CompositionLocalProvider(
-                                                LocalMaterialTheme provides (scheme ?: MaterialTheme.colorScheme)
+                                    // MiniPlayer
+                                    Crossfade(
+                                        targetState = albumColorScheme,
+                                        animationSpec = tween(durationMillis = 550, easing = FastOutSlowInEasing),
+                                        label = "miniPlayerColorScheme"
+                                    ) { scheme ->
+                                        CompositionLocalProvider(
+                                            LocalMaterialTheme provides (scheme ?: MaterialTheme.colorScheme)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .align(Alignment.TopCenter)
+                                                    .graphicsLayer {
+                                                        alpha = miniAlpha
+                                                    }
+                                                    .zIndex(if (playerContentExpansionFraction.value < 0.5f) 1f else 0f)
                                             ) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .align(Alignment.TopCenter)
-                                                        .graphicsLayer {
-                                                            alpha = miniAlpha//miniPlayerAlpha
-                                                        }
-                                                ) {
-                                                    MiniPlayerContentInternal(
-                                                        song = currentSongNonNull, // Use non-null version
-                                                        cornerRadiusAlb = (overallSheetTopCornerRadius.value * 0.5).dp,
-                                                        isPlaying = stablePlayerState.isPlaying, // from top-level stablePlayerState
-                                                        isCastConnecting = isCastConnecting,
-                                                        onPlayPause = { playerViewModel.playPause() },
-                                                        onPrevious = { playerViewModel.previousSong() },
-                                                        onNext = { playerViewModel.nextSong() },
-                                                        modifier = Modifier.fillMaxSize()
-                                                    )
-                                                }
+                                                MiniPlayerContentInternal(
+                                                    song = currentSongNonNull, // Use non-null version
+                                                    cornerRadiusAlb = (overallSheetTopCornerRadius.value * 0.5).dp,
+                                                    isPlaying = stablePlayerState.isPlaying, // from top-level stablePlayerState
+                                                    isCastConnecting = isCastConnecting,
+                                                    onPlayPause = { playerViewModel.playPause() },
+                                                    onPrevious = { playerViewModel.previousSong() },
+                                                    onNext = { playerViewModel.nextSong() },
+                                                    modifier = Modifier.fillMaxSize()
+                                                )
                                             }
                                         }
                                     }
 
-                                    if (fullPlayerContentAlpha > 0f) {
-                                        CompositionLocalProvider(
-                                            LocalMaterialTheme provides (albumColorScheme
-                                                ?: MaterialTheme.colorScheme)
-                                        ) {
-                                            val fullPlayerScale by remember(bottomSheetOpenFraction) {
-                                                derivedStateOf {
-                                                    lerp(
-                                                        1f,
-                                                        0.95f,
-                                                        bottomSheetOpenFraction
-                                                    )
-                                                }
-                                            }
-                                            Box(modifier = Modifier.graphicsLayer {
-                                                alpha = fullPlayerContentAlpha
-                                                translationY = fullPlayerTranslationY
-                                                scaleX = fullPlayerScale
-                                                scaleY = fullPlayerScale
-                                            }) {
-                                                FullPlayerContent(
-                                                    currentSong = currentSongNonNull,
-                                                    currentPlaybackQueue = currentPlaybackQueue,
-                                                    currentQueueSourceName = currentQueueSourceName,
-                                                    isShuffleEnabled = stablePlayerState.isShuffleEnabled,
-                                                    repeatMode = stablePlayerState.repeatMode,
-                                                    expansionFraction = playerContentExpansionFraction.value,
-                                                    currentSheetState = currentSheetContentState,
-                                                    carouselStyle = carouselStyle,
-                                                    loadingTweaks = fullPlayerLoadingTweaks,
-                                                    playerViewModel = playerViewModel,
-                                                    // State Providers
-                                                    currentPositionProvider = { positionToDisplay },
-                                                    isPlayingProvider = { stablePlayerState.isPlaying },
-                                                    isFavoriteProvider = { isFavorite },
-                                                    // Event Handlers
-                                                    onPlayPause = playerViewModel::playPause,
-                                                    onSeek = playerViewModel::seekTo,
-                                                    onNext = playerViewModel::nextSong,
-                                                    onPrevious = playerViewModel::previousSong,
-                                                    onCollapse = playerViewModel::collapsePlayerSheet,
-                                                    onShowQueueClicked = { animateQueueSheet(true) },
-                                                    onQueueDragStart = { beginQueueDrag() },
-                                                    onQueueDrag = { dragQueueBy(it) },
-                                                    onQueueRelease = { totalDrag, velocity ->
-                                                        endQueueDrag(
-                                                            totalDrag,
-                                                            velocity
-                                                        )
-                                                    },
-                                                    onShowCastClicked = { showCastSheet = true },
-                                                    onShuffleToggle = playerViewModel::toggleShuffle,
-                                                    onRepeatToggle = playerViewModel::cycleRepeatMode,
-                                                    onFavoriteToggle = playerViewModel::toggleFavorite,
+                                    // FullPlayer
+                                    CompositionLocalProvider(
+                                        LocalMaterialTheme provides (albumColorScheme
+                                            ?: MaterialTheme.colorScheme)
+                                    ) {
+                                        val fullPlayerScale by remember(bottomSheetOpenFraction) {
+                                            derivedStateOf {
+                                                lerp(
+                                                    1f,
+                                                    0.95f,
+                                                    bottomSheetOpenFraction
                                                 )
                                             }
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .graphicsLayer {
+                                                    alpha = fullPlayerContentAlpha
+                                                    translationY = fullPlayerTranslationY
+                                                    scaleX = fullPlayerScale
+                                                    scaleY = fullPlayerScale
+                                                }
+                                                .zIndex(if (playerContentExpansionFraction.value >= 0.5f) 1f else 0f)
+                                        ) {
+                                            FullPlayerContent(
+                                                currentSong = currentSongNonNull,
+                                                currentPlaybackQueue = currentPlaybackQueue,
+                                                currentQueueSourceName = currentQueueSourceName,
+                                                isShuffleEnabled = stablePlayerState.isShuffleEnabled,
+                                                repeatMode = stablePlayerState.repeatMode,
+                                                expansionFraction = playerContentExpansionFraction.value,
+                                                currentSheetState = currentSheetContentState,
+                                                carouselStyle = carouselStyle,
+                                                loadingTweaks = fullPlayerLoadingTweaks,
+                                                playerViewModel = playerViewModel,
+                                                // State Providers
+                                                currentPositionProvider = { positionToDisplay },
+                                                isPlayingProvider = { stablePlayerState.isPlaying },
+                                                isFavoriteProvider = { isFavorite },
+                                                // Event Handlers
+                                                onPlayPause = playerViewModel::playPause,
+                                                onSeek = playerViewModel::seekTo,
+                                                onNext = playerViewModel::nextSong,
+                                                onPrevious = playerViewModel::previousSong,
+                                                onCollapse = playerViewModel::collapsePlayerSheet,
+                                                onShowQueueClicked = { animateQueueSheet(true) },
+                                                onQueueDragStart = { beginQueueDrag() },
+                                                onQueueDrag = { dragQueueBy(it) },
+                                                onQueueRelease = { totalDrag, velocity ->
+                                                    endQueueDrag(
+                                                        totalDrag,
+                                                        velocity
+                                                    )
+                                                },
+                                                onShowCastClicked = { showCastSheet = true },
+                                                onShuffleToggle = playerViewModel::toggleShuffle,
+                                                onRepeatToggle = playerViewModel::cycleRepeatMode,
+                                                onFavoriteToggle = playerViewModel::toggleFavorite,
+                                            )
                                         }
                                     }
                                 }
