@@ -1,0 +1,81 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="250dp"
+    android:height="180dp"
+    android:viewportWidth="250"
+    android:viewportHeight="180">
+
+    <!-- Main Background: Rounded Rect -->
+    <path
+        android:pathData="M28,0 h194 a28,28 0 0 1 28,28 v124 a28,28 0 0 1 -28,28 h-194 a28,28 0 0 1 -28,-28 v-124 a28,28 0 0 1 28,-28 z"
+        android:fillColor="#FF2C1D4D"/>
+
+    <!-- Content Group -->
+    <group android:translateX="16" android:translateY="16">
+        <!-- Top Section -->
+
+        <!-- Album Art Background (Rounded Rect 16dp) -->
+        <!-- 80x80 box -->
+        <path
+            android:pathData="M16,0 h48 a16,16 0 0 1 16,16 v48 a16,16 0 0 1 -16,16 h-48 a16,16 0 0 1 -16,-16 v-48 a16,16 0 0 1 16,-16 z"
+            android:fillColor="#FFE8DEF8"/>
+
+        <!-- Album Art Icon (Simplified Note) centered in 80x80 -->
+        <group android:translateX="28" android:translateY="28" android:scaleX="1" android:scaleY="1">
+             <!-- reusing path from ic_music_placeholder, scaled or just drawn -->
+             <path
+                android:fillColor="#FF1D192B"
+                android:pathData="M12,3v10.55c-0.59,-0.34 -1.27,-0.55 -2,-0.55 -2.21,0 -4,1.79 -4,4s1.79,4 4,4 4,-1.79 4,-4V7h4V3h-6z"/>
+        </group>
+
+        <!-- Text Lines -->
+        <group android:translateX="92" android:translateY="15">
+            <!-- Title Line 1 -->
+            <path android:fillColor="#FFFFFFFF" android:pathData="M0,0 h100 v12 h-100 z"/>
+            <!-- Title Line 2 (shorter) -->
+            <path android:fillColor="#FFFFFFFF" android:pathData="M0,16 h70 v12 h-70 z"/>
+
+            <!-- Artist Line -->
+            <path android:fillColor="#AAFFFFFF" android:pathData="M0,40 h50 v10 h-50 z"/>
+        </group>
+
+    </group>
+
+    <!-- Bottom Section: Controls -->
+    <!-- Centered horizontally in 250 width. Buttons are roughly 56x56 in the real layout if available, but let's stick to ~48 for nice padding -->
+    <!-- Center: 125. Play is at center. -->
+
+    <group android:translateY="110">
+
+        <!-- Prev Button Bg (Circle) -->
+        <!-- Center roughly at 125 - 56 - 8 = 61 -->
+        <path
+            android:pathData="M55,24 a24,24 0 1 0 48,0 a24,24 0 1 0 -48,0 z"
+            android:fillColor="#FFE8DEF8"/>
+        <!-- Prev Icon -->
+        <group android:translateX="67" android:translateY="12">
+             <path android:fillColor="#FF1D192B" android:pathData="M6,18L6,6h2v12H6zm3.5,0V6l8.5,6-8.5,6z"/>
+        </group>
+
+        <!-- Play Button Bg (Circle) -->
+        <!-- Center at 125 -->
+        <path
+            android:pathData="M101,24 a24,24 0 1 0 48,0 a24,24 0 1 0 -48,0 z"
+            android:fillColor="#FFEADDFF"/>
+         <!-- Play Icon -->
+         <group android:translateX="113" android:translateY="12">
+             <path android:fillColor="#FF2D2931" android:pathData="M8,5v14l11,-7z"/>
+         </group>
+
+        <!-- Next Button Bg (Circle) -->
+        <!-- Center roughly at 125 + 56 + 8 = 189 -->
+        <path
+            android:pathData="M147,24 a24,24 0 1 0 48,0 a24,24 0 1 0 -48,0 z"
+            android:fillColor="#FFE8DEF8"/>
+        <!-- Next Icon -->
+        <group android:translateX="159" android:translateY="12">
+            <path android:fillColor="#FF1D192B" android:pathData="M6,18l8.5,-6L6,6v12zM16,6v12h2V6h-2z"/>
+        </group>
+
+    </group>
+
+</vector>
