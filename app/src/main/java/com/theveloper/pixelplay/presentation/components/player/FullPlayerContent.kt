@@ -106,6 +106,7 @@ import com.theveloper.pixelplay.presentation.components.AlbumCarouselSection
 import com.theveloper.pixelplay.presentation.components.AutoScrollingTextOnDemand
 import com.theveloper.pixelplay.presentation.components.LocalMaterialTheme
 import com.theveloper.pixelplay.presentation.components.LyricsSheet
+import com.theveloper.pixelplay.presentation.components.ShimmerBox
 import com.theveloper.pixelplay.presentation.components.WavyMusicSlider
 import com.theveloper.pixelplay.presentation.components.scoped.DeferAt
 import com.theveloper.pixelplay.presentation.components.scoped.PrefetchAlbumNeighborsImg
@@ -277,95 +278,138 @@ fun FullPlayerContent(
     @SuppressLint("UnusedBoxWithConstraintsScope")
     @Composable
     fun AlbumCoverSection(modifier: Modifier = Modifier) {
+        val shouldDelay = loadingTweaks.delayAll || loadingTweaks.delayAlbumCarousel
+
         BoxWithConstraints(
             modifier = modifier
                 .fillMaxWidth()
                 .padding(vertical = 8.dp)
-                .graphicsLayer {
-                    val fraction = expansionFractionProvider()
-                    val shouldDelay = loadingTweaks.delayAll || loadingTweaks.delayAlbumCarousel
-                    val startThreshold = if (shouldDelay) 0.95f else 0.08f
-                    val endThreshold = 1f
-                    alpha = ((fraction - startThreshold) / (endThreshold - startThreshold)).coerceIn(0f, 1f)
-                }
         ) {
             val carouselHeight = when (carouselStyle) {
                 CarouselStyle.NO_PEEK -> maxWidth
                 CarouselStyle.ONE_PEEK -> maxWidth * 0.8f
-                CarouselStyle.TWO_PEEK -> maxWidth * 0.6f // Main item is 60% of width
+                CarouselStyle.TWO_PEEK -> maxWidth * 0.6f
                 else -> maxWidth * 0.8f
             }
 
-            // Always compose, control visibility with alpha above
-            AlbumCarouselSection(
-                currentSong = song,
-                queue = currentPlaybackQueue,
-                expansionFraction = 1f, // Static layout
-                onSongSelected = { newSong ->
-                    if (newSong.id != song.id) {
-                        playerViewModel.showAndPlaySong(
-                            song = newSong,
-                            contextSongs = currentPlaybackQueue,
-                            queueName = currentQueueSourceName
-                        )
+            DelayedContent(
+                shouldDelay = shouldDelay,
+                showPlaceholders = loadingTweaks.showPlaceholders,
+                expansionFractionProvider = expansionFractionProvider,
+                normalStartThreshold = 0.08f,
+                placeholder = {
+                    Box(
+                        modifier = Modifier
+                            .height(carouselHeight)
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                    ) {
+                        if (loadingTweaks.transparentPlaceholders) {
+                             Box(Modifier.fillMaxSize())
+                        } else {
+                            ShimmerBox(Modifier.fillMaxSize())
+                        }
                     }
-                },
-                carouselStyle = carouselStyle,
-                modifier = Modifier.height(carouselHeight)
-            )
+                }
+            ) {
+                 AlbumCarouselSection(
+                    currentSong = song,
+                    queue = currentPlaybackQueue,
+                    expansionFraction = 1f, // Static layout
+                    onSongSelected = { newSong ->
+                        if (newSong.id != song.id) {
+                            playerViewModel.showAndPlaySong(
+                                song = newSong,
+                                contextSongs = currentPlaybackQueue,
+                                queueName = currentQueueSourceName
+                            )
+                        }
+                    },
+                    carouselStyle = carouselStyle,
+                    modifier = Modifier.height(carouselHeight)
+                )
+            }
         }
     }
 
     @Composable
     fun ControlsSection() {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.graphicsLayer {
-                val fraction = expansionFractionProvider()
-                val shouldDelay = loadingTweaks.delayAll || loadingTweaks.delayControls
-                val startThreshold = if (shouldDelay) 0.95f else 0.42f
-                val endThreshold = 1f
-                alpha = ((fraction - startThreshold) / (endThreshold - startThreshold)).coerceIn(0f, 1f)
+        val shouldDelay = loadingTweaks.delayAll || loadingTweaks.delayControls
+
+        DelayedContent(
+            shouldDelay = shouldDelay,
+            showPlaceholders = loadingTweaks.showPlaceholders,
+            expansionFractionProvider = expansionFractionProvider,
+            normalStartThreshold = 0.42f,
+            placeholder = {
+                 Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 26.dp, vertical = 20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(24.dp)
+                 ) {
+                     // Main controls placeholder
+                     Row(
+                        modifier = Modifier.fillMaxWidth().height(80.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                     ) {
+                         repeat(5) {
+                            val size = if (it == 2) 64.dp else 42.dp
+                            Box(modifier = Modifier.size(size).clip(CircleShape)) {
+                                if (!loadingTweaks.transparentPlaceholders) ShimmerBox(Modifier.fillMaxSize())
+                            }
+                         }
+                     }
+                     // Toggles placeholder
+                     Box(modifier = Modifier.fillMaxWidth().height(60.dp).clip(RoundedCornerShape(30.dp))) {
+                         if (!loadingTweaks.transparentPlaceholders) ShimmerBox(Modifier.fillMaxSize())
+                     }
+                 }
             }
         ) {
-            AnimatedPlaybackControls(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                isPlayingProvider = isPlayingProvider,
-                onPrevious = onPrevious,
-                onPlayPause = onPlayPause,
-                onNext = onNext,
-                height = 80.dp,
-                pressAnimationSpec = stableControlAnimationSpec,
-                releaseDelay = 220L,
-                colorOtherButtons = controlOtherButtonsColor,
-                colorPlayPause = controlPlayPauseColor,
-                tintPlayPauseIcon = controlTintPlayPauseIcon,
-                tintOtherIcons = controlTintOtherIcons
-            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                AnimatedPlaybackControls(
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    isPlayingProvider = isPlayingProvider,
+                    onPrevious = onPrevious,
+                    onPlayPause = onPlayPause,
+                    onNext = onNext,
+                    height = 80.dp,
+                    pressAnimationSpec = stableControlAnimationSpec,
+                    releaseDelay = 220L,
+                    colorOtherButtons = controlOtherButtonsColor,
+                    colorPlayPause = controlPlayPauseColor,
+                    tintPlayPauseIcon = controlTintPlayPauseIcon,
+                    tintOtherIcons = controlTintOtherIcons
+                )
 
-            Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-            BottomToggleRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 58.dp, max = 78.dp)
-                    .padding(horizontal = 26.dp, vertical = 0.dp)
-                    .padding(bottom = 6.dp),
-                isShuffleEnabled = isShuffleEnabled,
-                repeatMode = repeatMode,
-                isFavoriteProvider = isFavoriteProvider,
-                onShuffleToggle = onShuffleToggle,
-                onRepeatToggle = onRepeatToggle,
-                onFavoriteToggle = onFavoriteToggle
-            )
+                BottomToggleRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 58.dp, max = 78.dp)
+                        .padding(horizontal = 26.dp, vertical = 0.dp)
+                        .padding(bottom = 6.dp),
+                    isShuffleEnabled = isShuffleEnabled,
+                    repeatMode = repeatMode,
+                    isFavoriteProvider = isFavoriteProvider,
+                    onShuffleToggle = onShuffleToggle,
+                    onRepeatToggle = onRepeatToggle,
+                    onFavoriteToggle = onFavoriteToggle
+                )
+            }
         }
     }
 
     @Composable
     fun PlayerProgressSection() {
-        // Progress logic is now completely inside this function and alpha is handled via graphicsLayer
-        // to prevent recomposition of the parent
         PlayerProgressBarSection(
             currentPositionProvider = currentPositionProvider,
             totalDurationValue = totalDurationValue,
@@ -383,14 +427,28 @@ fun FullPlayerContent(
 
     @Composable
     fun SongMetadataSection() {
-        // Metadata visibility
-        Box(modifier = Modifier.graphicsLayer {
-            val fraction = expansionFractionProvider()
-            val shouldDelay = loadingTweaks.delayAll || loadingTweaks.delaySongMetadata
-            val startThreshold = if (shouldDelay) 0.95f else 0.20f
-            val endThreshold = 1f
-            alpha = ((fraction - startThreshold) / (endThreshold - startThreshold)).coerceIn(0f, 1f)
-        }) {
+        val shouldDelay = loadingTweaks.delayAll || loadingTweaks.delaySongMetadata
+
+        DelayedContent(
+            shouldDelay = shouldDelay,
+            showPlaceholders = loadingTweaks.showPlaceholders,
+            expansionFractionProvider = expansionFractionProvider,
+            normalStartThreshold = 0.20f,
+            placeholder = {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp).height(70.dp),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Box(Modifier.width(200.dp).height(24.dp).clip(RoundedCornerShape(4.dp))) {
+                         if (!loadingTweaks.transparentPlaceholders) ShimmerBox(Modifier.fillMaxSize())
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Box(Modifier.width(140.dp).height(16.dp).clip(RoundedCornerShape(4.dp))) {
+                         if (!loadingTweaks.transparentPlaceholders) ShimmerBox(Modifier.fillMaxSize())
+                    }
+                }
+            }
+        ) {
             SongMetadataDisplaySection(
                 modifier = Modifier
                     .padding(start = 0.dp),
@@ -532,8 +590,8 @@ fun FullPlayerContent(
                 TopAppBar(
                     modifier = Modifier.graphicsLayer {
                         val fraction = expansionFractionProvider()
-                        val shouldDelay = loadingTweaks.delayAll // Implicit "delayAll" affects TopBar too
-                        val startThreshold = if (shouldDelay) 0.95f else 0f
+                        // TopBar should always fade in smoothly, ignoring delayAll to avoid empty UI
+                        val startThreshold = 0f
                         val endThreshold = 1f
                         alpha = ((fraction - startThreshold) / (endThreshold - startThreshold)).coerceIn(0f, 1f)
                     },
@@ -1004,59 +1062,114 @@ private fun PlayerProgressBarSection(
     val effectiveProgress = animatedProgress.value
     val effectivePosition = (effectiveProgress * durationForCalc).roundToLong().coerceIn(0L, totalDurationValue.coerceAtLeast(0L))
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = lerp(2.dp, 0.dp, expansionFraction))
-            .graphicsLayer {
-                val fraction = expansionFractionProvider()
-                val shouldDelay = loadingTweaks?.let { it.delayAll || it.delayProgressBar } ?: false
-                val startThreshold = if (shouldDelay) 0.95f else 0.08f
-                val endThreshold = 1f
-                alpha = ((fraction - startThreshold) / (endThreshold - startThreshold)).coerceIn(0f, 1f)
-            }
-            .heightIn(min = 70.dp)
-    ) {
-        WavyMusicSlider(
-            value = effectiveProgress,
-            onValueChange = { newValue -> sliderDragValue = newValue },
-            onValueChangeFinished = {
-                sliderDragValue?.let { finalValue ->
-                    onSeek((finalValue * durationForCalc).roundToLong())
-                }
-                sliderDragValue = null
-            },
-            interactionSource = interactionSource,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            trackHeight = 6.dp,
-            thumbRadius = 8.dp,
-            activeTrackColor = activeTrackColor,
-            inactiveTrackColor = inactiveTrackColor,
-            thumbColor = thumbColor,
-            waveLength = 30.dp,
-            isPlaying = (isPlayingProvider() && isExpanded),
-            isWaveEligible = isExpanded
-        )
+    val shouldDelay = loadingTweaks?.let { it.delayAll || it.delayProgressBar } ?: false
 
-        Row(
-            modifier = Modifier
+    DelayedContent(
+        shouldDelay = shouldDelay,
+        showPlaceholders = loadingTweaks?.showPlaceholders ?: false,
+        expansionFractionProvider = expansionFractionProvider,
+        normalStartThreshold = 0.08f,
+        placeholder = {
+             Column(Modifier.fillMaxWidth().height(70.dp).padding(vertical = 12.dp)) {
+                 Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp))) {
+                     if (loadingTweaks?.transparentPlaceholders != true) ShimmerBox(Modifier.fillMaxSize())
+                 }
+                 Spacer(Modifier.height(8.dp))
+                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                     Box(Modifier.width(30.dp).height(12.dp).clip(RoundedCornerShape(2.dp))) {
+                         if (loadingTweaks?.transparentPlaceholders != true) ShimmerBox(Modifier.fillMaxSize())
+                     }
+                     Box(Modifier.width(30.dp).height(12.dp).clip(RoundedCornerShape(2.dp))) {
+                         if (loadingTweaks?.transparentPlaceholders != true) ShimmerBox(Modifier.fillMaxSize())
+                     }
+                 }
+             }
+        }
+    ) {
+        Column(
+            modifier = modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(vertical = lerp(2.dp, 0.dp, expansionFraction))
+                .heightIn(min = 70.dp)
         ) {
-            Text(
-                formatDuration(effectivePosition),
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                color = timeTextColor
+            WavyMusicSlider(
+                value = effectiveProgress,
+                onValueChange = { newValue -> sliderDragValue = newValue },
+                onValueChangeFinished = {
+                    sliderDragValue?.let { finalValue ->
+                        onSeek((finalValue * durationForCalc).roundToLong())
+                    }
+                    sliderDragValue = null
+                },
+                interactionSource = interactionSource,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                trackHeight = 6.dp,
+                thumbRadius = 8.dp,
+                activeTrackColor = activeTrackColor,
+                inactiveTrackColor = inactiveTrackColor,
+                thumbColor = thumbColor,
+                waveLength = 30.dp,
+                isPlaying = (isPlayingProvider() && isExpanded),
+                isWaveEligible = isExpanded
             )
-            Text(
-                formatDuration(totalDurationValue),
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                color = timeTextColor
-            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    formatDuration(effectivePosition),
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                    color = timeTextColor
+                )
+                Text(
+                    formatDuration(totalDurationValue),
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                    color = timeTextColor
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DelayedContent(
+    shouldDelay: Boolean,
+    showPlaceholders: Boolean,
+    expansionFractionProvider: () -> Float,
+    normalStartThreshold: Float,
+    placeholder: @Composable () -> Unit,
+    content: @Composable () -> Unit
+) {
+    Box {
+        // Content
+        Box(
+            modifier = Modifier.graphicsLayer {
+                val fraction = expansionFractionProvider()
+                val start = if (shouldDelay) 0.95f else normalStartThreshold
+                val end = 1f
+                alpha = ((fraction - start) / (end - start)).coerceIn(0f, 1f)
+            }
+        ) {
+            content()
+        }
+
+        // Placeholder
+        if (shouldDelay && showPlaceholders) {
+            Box(
+                modifier = Modifier.graphicsLayer {
+                    val fraction = expansionFractionProvider()
+                    // Disappear when content appears (0.95f)
+                    alpha = if (fraction < 0.95f) 1f else 0f
+                }
+            ) {
+                placeholder()
+            }
         }
     }
 }
