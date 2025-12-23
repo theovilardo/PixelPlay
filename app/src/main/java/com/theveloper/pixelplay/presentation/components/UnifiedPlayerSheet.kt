@@ -1237,7 +1237,7 @@ fun UnifiedPlayerSheet(
                                     currentQueueSourceName = currentQueueSourceName,
                                     isShuffleEnabled = stablePlayerState.isShuffleEnabled,
                                     repeatMode = stablePlayerState.repeatMode,
-                                    expansionFraction = 1f,
+                                    expansionFractionProvider = { 1f },
                                     currentSheetState = PlayerSheetState.EXPANDED,
                                     carouselStyle = carouselStyle,
                                     loadingTweaks = fullPlayerLoadingTweaks,
