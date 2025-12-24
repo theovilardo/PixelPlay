@@ -175,48 +175,69 @@ class BaselineProfileGenerator {
     }
 
     private fun androidx.benchmark.macro.MacrobenchmarkScope.openAndInteractWithPlayer() {
-        // 1. Expand Player
-        val miniPlayerSelector = By.descContains("Carátula")
-        // Check if exists before clicking, or fallback to swipe
-        if (device.findObject(miniPlayerSelector) != null) {
-            device.clickRetry(miniPlayerSelector)
-        } else {
-            // Fallback: Swipe up
-            val height = device.displayHeight
-            val width = device.displayWidth
-            device.swipe(width / 2, (height * 0.9).toInt(), width / 2, height / 2, 20)
-        }
-        device.waitForIdle()
-
-        // 2. Interact with Player Controls
-        // Use regex for Play/Pause
+        // 1. Wait for MiniPlayer (Play/Pause button is a good indicator)
         val playPausePattern = Pattern.compile(".*(Play|Pause).*", Pattern.CASE_INSENSITIVE)
         val playPauseSelector = By.desc(playPausePattern)
 
-        // Repeat interactions, finding FRESH objects each time to avoid StaleObjectException
+        // Wait up to 5s for playback to start and MiniPlayer to appear
+        if (!device.wait(Until.hasObject(playPauseSelector), 5000)) {
+            return // No player visible, abort interactions
+        }
+
+        // 2. Try to Expand Player
+        var isExpanded = false
+        val queueSelector = By.descContains("Queue")
+
+        // Strategy A: Click MiniPlayer Artwork ("Carátula")
+        val miniPlayerArt = device.wait(Until.findObject(By.descContains("Carátula")), 2000)
+        if (miniPlayerArt != null) {
+            miniPlayerArt.click()
+            device.waitForIdle()
+            // Verification: Look for "Queue" button which is only in Expanded Sheet
+            if (device.wait(Until.hasObject(queueSelector), 3000)) {
+                isExpanded = true
+            }
+        }
+
+        // Strategy B: Swipe Up (if click failed or didn't expand)
+        if (!isExpanded) {
+            val height = device.displayHeight
+            val width = device.displayWidth
+            // Swipe from 85% height (above nav bar) to 30% height
+            device.swipe(width / 2, (height * 0.85).toInt(), width / 2, (height * 0.3).toInt(), 30)
+            device.waitForIdle()
+
+            if (device.wait(Until.hasObject(queueSelector), 3000)) {
+                isExpanded = true
+            }
+        }
+
+        // If still not expanded, we skip the deep interactions to avoid getting lost
+        if (!isExpanded) return
+
+        // 3. Interact with Expanded Player
+
+        // Toggle Play/Pause (Animations)
         repeat(3) {
              device.clickRetry(playPauseSelector)
              device.waitForIdle()
              Thread.sleep(800)
         }
 
-        // 3. Swipe Art / Carousel
+        // Swipe Art / Carousel
         val height = device.displayHeight
         val width = device.displayWidth
         device.swipe((width * 0.8).toInt(), (height * 0.4).toInt(), (width * 0.2).toInt(), (height * 0.4).toInt(), 30)
         device.waitForIdle()
 
-        // 4. Open and Close Queue
-        val queueSelector = By.descContains("Queue")
+        // Open and Close Queue
         device.clickRetry(queueSelector)
         device.waitForIdle()
-
         scrollList()
-
-        device.pressBack()
+        device.pressBack() // Close Queue
         device.waitForIdle()
 
-        // 5. Collapse Player
+        // 4. Collapse Player
         device.pressBack()
         device.waitForIdle()
     }
