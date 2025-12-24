@@ -94,7 +94,7 @@ class BaselineProfileGenerator {
         val pattern = Pattern.compile(allowPatterns.joinToString("|"), Pattern.CASE_INSENSITIVE)
 
         repeat(3) {
-            val button = device.wait(Until.findObject(By.textPattern(pattern)), 2000)
+            val button = device.wait(Until.findObject(By.text(pattern)), 2000)
             if (button != null) {
                 button.click()
                 device.waitForIdle()
@@ -109,7 +109,7 @@ class BaselineProfileGenerator {
         // Try to click through potential onboarding screens
         var attempts = 0
         while (attempts < 5) {
-            val button = device.wait(Until.findObject(By.textPattern(pattern)), 2000)
+            val button = device.wait(Until.findObject(By.text(pattern)), 2000)
             if (button != null) {
                 button.click()
                 device.waitForIdle()
