@@ -4,7 +4,10 @@ import androidx.benchmark.macro.junit4.BaselineProfileRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
 import androidx.test.uiautomator.By
+import androidx.test.uiautomator.BySelector
 import androidx.test.uiautomator.Direction
+import androidx.test.uiautomator.StaleObjectException
+import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
 import org.junit.Rule
 import org.junit.Test
@@ -48,24 +51,21 @@ class BaselineProfileGenerator {
             // 5. Navigation: Switch Tabs
             val tabs = listOf("Search", "Library", "Home")
             tabs.forEach { tabName ->
-                val tab = device.wait(Until.findObject(By.text(tabName)), 3000)
-                tab?.click()
+                device.clickRetry(By.text(tabName))
                 device.waitForIdle()
             }
 
             // 6. List Interaction (Library)
-            val libraryTab = device.wait(Until.findObject(By.text("Library")), 3000)
-            if (libraryTab != null) {
-                libraryTab.click()
-                device.waitForIdle()
-                scrollList()
-            }
+            device.clickRetry(By.text("Library"))
+            device.waitForIdle()
+            scrollList()
 
             // 7. Open Detail / Play Song
             try {
                 val list = device.wait(Until.findObject(By.scrollable(true)), 3000)
                 if (list != null) {
                     val rect = list.visibleBounds
+                    // Click by coordinates to avoid StaleObjectException on list items
                     device.click(rect.centerX(), rect.top + (rect.height() / 5))
                     device.waitForIdle()
                 }
@@ -76,30 +76,34 @@ class BaselineProfileGenerator {
             // 8. UnifiedPlayerSheet Interaction
             openAndInteractWithPlayer()
 
-            // 9. Workaround for "Waiting for app processes to flush profiles..." error (Xiaomi/Android 14+)
-            // We manually signal the app to save the profile and then kill it.
-            // This prevents the rule's internal dump command from triggering the verbose wait message.
+            // 9. Workaround for Xiaomi/Android 14+ profile flush error
             try {
-                // Find PID
                 val pidOutput = device.executeShellCommand("pidof $packageName").trim()
                 if (pidOutput.isNotEmpty()) {
-                    // pidof might return multiple PIDs, take the first
                     val pid = pidOutput.split("\\s+".toRegex()).first()
-
-                    // Send SIGUSR1 (10) to force ART to save the profile to disk
                     device.executeShellCommand("kill -10 $pid")
-
-                    // Wait for the flush to complete (2s should be enough)
                     Thread.sleep(2000)
-
-                    // Force stop the app.
-                    // When the rule subsequently calls `pm dump-profiles`, it should find the app dead
-                    // and read the saved profile from disk without printing "Waiting for..."
                     device.executeShellCommand("am force-stop $packageName")
                 }
             } catch (e: Exception) {
-                // Log and ignore
-                android.util.Log.e("BaselineProfile", "Failed to run flush workaround", e)
+                // Ignore
+            }
+        }
+    }
+
+    private fun UiDevice.clickRetry(selector: BySelector) {
+        var attempts = 0
+        while (attempts < 3) {
+            try {
+                val obj = wait(Until.findObject(selector), 2000)
+                if (obj != null) {
+                    obj.click()
+                    return
+                } else {
+                    return // Object not found
+                }
+            } catch (e: StaleObjectException) {
+                attempts++
             }
         }
     }
@@ -109,11 +113,8 @@ class BaselineProfileGenerator {
         val pattern = Pattern.compile(allowPatterns.joinToString("|"), Pattern.CASE_INSENSITIVE)
 
         repeat(3) {
-            val button = device.wait(Until.findObject(By.text(pattern)), 2000)
-            if (button != null) {
-                button.click()
-                device.waitForIdle()
-            }
+            device.clickRetry(By.text(pattern))
+            device.waitForIdle()
         }
     }
 
@@ -123,45 +124,46 @@ class BaselineProfileGenerator {
 
         var attempts = 0
         while (attempts < 5) {
-            val button = device.wait(Until.findObject(By.text(pattern)), 2000)
-            if (button != null) {
-                button.click()
-                device.waitForIdle()
-            } else {
-                break
-            }
+            // Check if exists first to break loop
+            if (device.findObject(By.text(pattern)) == null) break
+
+            device.clickRetry(By.text(pattern))
+            device.waitForIdle()
             attempts++
         }
     }
 
     private fun androidx.benchmark.macro.MacrobenchmarkScope.scrollList() {
-        val list = device.wait(Until.findObject(By.scrollable(true)), 2000) ?: return
-        list.setGestureMargin(device.displayWidth / 10)
+        try {
+            val list = device.wait(Until.findObject(By.scrollable(true)), 2000) ?: return
+            list.setGestureMargin(device.displayWidth / 10)
 
-        list.fling(Direction.DOWN)
-        device.waitForIdle()
+            list.fling(Direction.DOWN)
+            device.waitForIdle()
 
-        list.fling(Direction.UP)
-        device.waitForIdle()
+            list.fling(Direction.UP)
+            device.waitForIdle()
+        } catch (e: StaleObjectException) {
+            // Ignore scrolling errors
+        }
     }
 
     private fun androidx.benchmark.macro.MacrobenchmarkScope.openAndInteractWithPlayer() {
-        val playerTrigger = device.wait(Until.findObject(By.descContains("Carátula")), 2000)
+        // Try to expand player
+        // Use clickRetry to handle potential UI updates
+        device.clickRetry(By.descContains("Carátula"))
+        device.waitForIdle()
 
-        if (playerTrigger != null) {
-            playerTrigger.click()
-            device.waitForIdle()
+        // Interact with Queue
+        device.clickRetry(By.descContains("Queue"))
+        device.waitForIdle()
 
-            val queueBtn = device.wait(Until.findObject(By.descContains("Queue")), 2000)
-            if (queueBtn != null) {
-                queueBtn.click()
-                device.waitForIdle()
-                device.pressBack()
-                device.waitForIdle()
-            }
+        // Close Queue (Back)
+        device.pressBack()
+        device.waitForIdle()
 
-            device.pressBack()
-            device.waitForIdle()
-        }
+        // Collapse Player (Back)
+        device.pressBack()
+        device.waitForIdle()
     }
 }
