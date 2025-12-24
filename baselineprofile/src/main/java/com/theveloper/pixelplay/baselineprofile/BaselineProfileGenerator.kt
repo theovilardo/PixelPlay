@@ -14,6 +14,7 @@ import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
 import java.io.Closeable
 import kotlinx.coroutines.runBlocking
+import okio.Path.Companion.toPath
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -57,7 +58,7 @@ class BaselineProfileGenerator {
 private fun markSetupComplete() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val dataStore = PreferenceDataStoreFactory.createWithPath(
-        produceFile = { context.preferencesDataStoreFile("settings").toPath() },
+        produceFile = { context.preferencesDataStoreFile("settings").absolutePath.toPath() },
     )
     runBlocking {
         dataStore.edit { prefs ->
