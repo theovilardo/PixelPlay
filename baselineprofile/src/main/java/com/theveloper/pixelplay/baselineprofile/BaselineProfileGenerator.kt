@@ -1,6 +1,5 @@
 package com.theveloper.pixelplay.baselineprofile
 
-import android.content.Intent
 import androidx.benchmark.macro.junit4.BaselineProfileRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
@@ -32,10 +31,10 @@ class BaselineProfileGenerator {
             device.executeShellCommand("pm grant $packageName android.permission.POST_NOTIFICATIONS")
             device.executeShellCommand("appops set $packageName MANAGE_EXTERNAL_STORAGE allow")
 
-            // 2. Start the Activity
-            startActivityAndWait { intent ->
-                intent.putExtra("is_benchmark", true)
-            }
+            // 2. Start the Activity manually
+            // We use manual AM START to bypass strict frame detection checks in startActivityAndWait
+            // which can fail on some devices/emulators (causing "Unable to confirm activity launch completion").
+            device.executeShellCommand("am start -n $packageName/.MainActivity --ez is_benchmark true")
 
             // 3. Handle First Run / Permissions Dialogs / Onboarding
             handlePermissionDialogs()
