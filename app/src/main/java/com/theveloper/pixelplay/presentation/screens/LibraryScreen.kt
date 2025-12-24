@@ -274,8 +274,8 @@ fun LibraryScreen(
     }
 
     val isCompactNavigation = libraryNavigationMode == LibraryNavigationMode.COMPACT_PILL
-    val currentTabTitle = tabTitles.getOrNull(pagerState.currentPage)?.toLibraryTabIdOrNull()?.displayTitle()
-        ?: currentTabId.displayTitle()
+    val currentTab = tabTitles.getOrNull(pagerState.currentPage)?.toLibraryTabIdOrNull() ?: currentTabId
+    val currentTabTitle = currentTab.displayTitle()
 
     Scaffold(
         modifier = Modifier.background(brush = gradientBrush),
@@ -286,7 +286,8 @@ fun LibraryScreen(
                         LibraryNavigationPill(
                             title = currentTabTitle,
                             isExpanded = showTabSwitcherSheet,
-                            animationDirection = 1,
+                            iconRes = currentTab.iconRes(),
+                            animationDirection = pillAnimationDirection,
                             onClick = {
                                 showTabSwitcherSheet = true
                             },
@@ -896,6 +897,7 @@ fun LibraryScreen(
 fun LibraryNavigationPill(
     title: String,
     isExpanded: Boolean,
+    iconRes: Int,
     animationDirection: Int,
     onClick: () -> Unit,
     onArrowClick: () -> Unit
@@ -953,7 +955,7 @@ fun LibraryNavigationPill(
                 contentAlignment = Alignment.CenterStart
             ) {
                 AnimatedContent(
-                    targetState = title,
+                    targetState = iconRes to title,
                     transitionSpec = {
                         val direction = animationDirection.coerceIn(-1, 1)
                         val slideIn = slideInHorizontally { fullWidth -> if (direction >= 0) fullWidth else -fullWidth } + fadeIn()
@@ -961,14 +963,24 @@ fun LibraryNavigationPill(
                         slideIn.togetherWith(slideOut)
                     },
                     label = "LibraryPillTitle"
-                ) { targetTitle ->
-                    Text(
-                        text = targetTitle,
+                ) { (targetIcon, targetTitle) ->
+                    Row(
                         modifier = Modifier.padding(vertical = 10.dp),
-                        style = MaterialTheme.typography.titleLarge.copy(fontSize = 26.sp),
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            painter = painterResource(id = targetIcon),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = targetTitle,
+                            style = MaterialTheme.typography.titleLarge.copy(fontSize = 26.sp),
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
                 }
             }
         }
