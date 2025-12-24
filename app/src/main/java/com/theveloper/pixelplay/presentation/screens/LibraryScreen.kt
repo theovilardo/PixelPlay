@@ -63,7 +63,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -200,8 +199,6 @@ fun LibraryScreen(
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var showReorderTabsSheet by remember { mutableStateOf(false) }
     var showTabSwitcherSheet by remember { mutableStateOf(false) }
-    var lastPillPage by remember { mutableIntStateOf(pagerState.currentPage) }
-    var pillAnimationDirection by remember { mutableIntStateOf(0) }
 
     val stableOnMoreOptionsClick: (Song) -> Unit = remember {
         { song ->
@@ -226,12 +223,6 @@ fun LibraryScreen(
         Trace.beginSection("LibraryScreen.PageChangeTabLoad")
         playerViewModel.onLibraryTabSelected(pagerState.currentPage)
         Trace.endSection()
-    }
-
-    LaunchedEffect(pagerState.currentPage) {
-        val direction = pagerState.currentPage.compareTo(lastPillPage)
-        pillAnimationDirection = direction
-        lastPillPage = pagerState.currentPage
     }
 
     val fabState by remember { derivedStateOf { pagerState.currentPage } } // UI sin cambios
@@ -274,8 +265,8 @@ fun LibraryScreen(
     }
 
     val isCompactNavigation = libraryNavigationMode == LibraryNavigationMode.COMPACT_PILL
-    val currentTabTitle = tabTitles.getOrNull(pagerState.currentPage)?.toLibraryTabIdOrNull()?.displayTitle()
-        ?: currentTabId.displayTitle()
+    val currentTab = tabTitles.getOrNull(pagerState.currentPage)?.toLibraryTabIdOrNull() ?: currentTabId
+    val currentTabTitle = currentTab.displayTitle()
 
     Scaffold(
         modifier = Modifier.background(brush = gradientBrush),
@@ -286,7 +277,8 @@ fun LibraryScreen(
                         LibraryNavigationPill(
                             title = currentTabTitle,
                             isExpanded = showTabSwitcherSheet,
-                            animationDirection = 1,
+                            iconRes = currentTab.iconRes(),
+                            pageIndex = pagerState.currentPage,
                             onClick = {
                                 showTabSwitcherSheet = true
                             },
@@ -896,10 +888,13 @@ fun LibraryScreen(
 fun LibraryNavigationPill(
     title: String,
     isExpanded: Boolean,
-    animationDirection: Int,
+    iconRes: Int,
+    pageIndex: Int,
     onClick: () -> Unit,
     onArrowClick: () -> Unit
 ) {
+    data class PillState(val pageIndex: Int, val iconRes: Int, val title: String)
+
     val pillRadius = 26.dp
     val innerRadius = 4.dp
     // Radio para cuando está expandido/seleccionado (totalmente redondo)
@@ -953,22 +948,32 @@ fun LibraryNavigationPill(
                 contentAlignment = Alignment.CenterStart
             ) {
                 AnimatedContent(
-                    targetState = title,
+                    targetState = PillState(pageIndex = pageIndex, iconRes = iconRes, title = title),
                     transitionSpec = {
-                        val direction = animationDirection.coerceIn(-1, 1)
+                        val direction = targetState.pageIndex.compareTo(initialState.pageIndex).coerceIn(-1, 1)
                         val slideIn = slideInHorizontally { fullWidth -> if (direction >= 0) fullWidth else -fullWidth } + fadeIn()
                         val slideOut = slideOutHorizontally { fullWidth -> if (direction >= 0) -fullWidth else fullWidth } + fadeOut()
                         slideIn.togetherWith(slideOut)
                     },
                     label = "LibraryPillTitle"
-                ) { targetTitle ->
-                    Text(
-                        text = targetTitle,
+                ) { targetState ->
+                    Row(
                         modifier = Modifier.padding(vertical = 10.dp),
-                        style = MaterialTheme.typography.titleLarge.copy(fontSize = 26.sp),
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            painter = painterResource(id = targetState.iconRes),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = targetState.title,
+                            style = MaterialTheme.typography.titleLarge.copy(fontSize = 26.sp),
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
                 }
             }
         }
