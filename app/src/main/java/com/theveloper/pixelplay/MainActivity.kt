@@ -82,7 +82,10 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.ui.theme.DarkColorScheme
 import com.theveloper.pixelplay.ui.theme.LightColorScheme
 import com.theveloper.pixelplay.ui.theme.PixelPlayTheme
+import com.theveloper.pixelplay.utils.CrashHandler
+import com.theveloper.pixelplay.utils.CrashLogData
 import com.theveloper.pixelplay.utils.LogUtils
+import com.theveloper.pixelplay.presentation.components.CrashReportDialog
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.delay
@@ -183,10 +186,22 @@ class MainActivity : ComponentActivity() {
             }
             val isSetupComplete by mainViewModel.isSetupComplete.collectAsState()
             var showSetupScreen by remember { mutableStateOf<Boolean?>(null) }
+            
+            // Crash report dialog state
+            var showCrashReportDialog by remember { mutableStateOf(false) }
+            var crashLogData by remember { mutableStateOf<CrashLogData?>(null) }
 
             LaunchedEffect(isSetupComplete) {
                 if (showSetupScreen == null) {
                     showSetupScreen = !isSetupComplete
+                }
+            }
+            
+            // Check for crash log when app starts
+            LaunchedEffect(Unit) {
+                if (CrashHandler.hasCrashLog()) {
+                    crashLogData = CrashHandler.getCrashLog()
+                    showCrashReportDialog = true
                 }
             }
 
@@ -215,6 +230,18 @@ class MainActivity : ComponentActivity() {
                                 HandlePermissions(mainViewModel)
                             }
                         }
+                    }
+                    
+                    // Show crash report dialog if needed
+                    if (showCrashReportDialog && crashLogData != null) {
+                        CrashReportDialog(
+                            crashLog = crashLogData!!,
+                            onDismiss = {
+                                CrashHandler.clearCrashLog()
+                                crashLogData = null
+                                showCrashReportDialog = false
+                            }
+                        )
                     }
                 }
             }

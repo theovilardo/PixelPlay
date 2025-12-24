@@ -420,4 +420,12 @@ class SettingsViewModel @Inject constructor(
             userPreferencesRepository.resetGeminiSystemPrompt()
         }
     }
+
+    /**
+     * Triggers a test crash to verify the crash handler is working correctly.
+     * This should only be used for testing in Developer Options.
+     */
+    fun triggerTestCrash() {
+        throw RuntimeException("Test crash triggered from Developer Options - This is intentional for testing the crash reporting system")
+    }
 }

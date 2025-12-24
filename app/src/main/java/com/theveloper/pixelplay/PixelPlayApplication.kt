@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 import com.theveloper.pixelplay.data.worker.SyncManager
+import com.theveloper.pixelplay.utils.CrashHandler
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 import android.os.StrictMode // Importar StrictMode
@@ -30,6 +31,9 @@ class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Pr
 
     override fun onCreate() {
         super.onCreate()
+        
+        // Install crash handler to catch and save uncaught exceptions
+        CrashHandler.install(this)
 
 //        if (BuildConfig.DEBUG) {
 //            Timber.plant(Timber.DebugTree())

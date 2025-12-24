@@ -770,6 +770,19 @@ fun SettingsScreen(
                             },
                             onClick = { playerViewModel.forceUpdateDailyMix() }
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        SettingsItem(
+                            title = "Trigger Test Crash",
+                            subtitle = "Simulate a crash to test the crash reporting system.",
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.Warning,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            },
+                            onClick = { settingsViewModel.triggerTestCrash() }
+                        )
                     }
                 }
             }
