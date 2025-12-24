@@ -3,6 +3,7 @@ package com.theveloper.pixelplay.baselineprofile
 import androidx.benchmark.macro.junit4.BaselineProfileRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.BySelector
 import androidx.test.uiautomator.Direction
@@ -12,6 +13,7 @@ import androidx.test.uiautomator.Until
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
 import java.util.regex.Pattern
 
 @RunWith(AndroidJUnit4::class)
@@ -85,6 +87,27 @@ class BaselineProfileGenerator {
             // causing the parser to fail even if the flush was successful.
             if (e.message?.contains("Waiting for app processes to flush profiles") == true) {
                 android.util.Log.w("BaselineProfileGenerator", "Suppressed dump output error: ${e.message}")
+
+                // Attempt manual recovery: Copy the profile from the system location to the app's output dir
+                // so the Gradle plugin can still find it.
+                try {
+                    // Path derived from error message analysis
+                    val srcPath = "/data/misc/profman/$packageName-primary.prof.txt"
+
+                    val context = InstrumentationRegistry.getInstrumentation().targetContext
+                    val destDir = context.getExternalFilesDir(null)
+                    // Filename must match what the plugin expects: <Class>_<Method>-baseline-prof.txt
+                    val destFile = File(destDir, "BaselineProfileGenerator_generate-baseline-prof.txt")
+
+                    val device = androidx.test.uiautomator.UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+                    val cmd = "cp $srcPath ${destFile.absolutePath}"
+
+                    val output = device.executeShellCommand(cmd)
+                    android.util.Log.i("BaselineProfileGenerator", "Manually copied profile to ${destFile.absolutePath}. Output: $output")
+                } catch (recoveryEx: Exception) {
+                    android.util.Log.e("BaselineProfileGenerator", "Failed manual profile recovery", recoveryEx)
+                }
+
             } else {
                 throw e
             }
