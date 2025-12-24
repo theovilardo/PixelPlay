@@ -61,15 +61,35 @@ class BaselineProfileGenerator {
                 // 6. List Interaction (Library)
                 device.clickRetry(By.text("Library"))
                 device.waitForIdle()
+
+                // Explicitly go to Songs/Canciones to ensure we have items
+                val songsPattern = Pattern.compile(".*(Songs|Canciones).*", Pattern.CASE_INSENSITIVE)
+                device.clickRetry(By.text(songsPattern))
+                device.waitForIdle()
+
                 scrollList()
 
                 // 7. Open Detail / Play Song
+                val playPausePattern = Pattern.compile(".*(Play|Pause).*", Pattern.CASE_INSENSITIVE)
+
                 try {
                     val list = device.wait(Until.findObject(By.scrollable(true)), 3000)
                     if (list != null) {
                         val rect = list.visibleBounds
-                        device.click(rect.centerX(), rect.top + (rect.height() / 5))
-                        device.waitForIdle()
+
+                        // Try clicking at different heights to hit a song item (skip headers)
+                        val clickRatios = listOf(0.2, 0.35, 0.5)
+
+                        for (ratio in clickRatios) {
+                            device.click(rect.centerX(), rect.top + (rect.height() * ratio).toInt())
+                            device.waitForIdle()
+                            Thread.sleep(1500)
+
+                            // Check if player appeared
+                            if (device.findObject(By.desc(playPausePattern)) != null) {
+                                break
+                            }
+                        }
                     }
                 } catch (e: Exception) {
                     // Ignore
