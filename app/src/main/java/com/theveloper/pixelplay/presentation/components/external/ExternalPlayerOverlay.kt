@@ -38,7 +38,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,6 +58,7 @@ import com.theveloper.pixelplay.presentation.components.WavyMusicSlider
 import com.theveloper.pixelplay.presentation.components.player.AnimatedPlaybackControls
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.utils.formatDuration
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlin.math.roundToLong
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
@@ -69,11 +69,11 @@ fun ExternalPlayerOverlay(
     onDismiss: () -> Unit,
     onOpenFullPlayer: () -> Unit
 ) {
-    val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
-    val playerUiState by playerViewModel.playerUiState.collectAsState()
-    val remotePosition by playerViewModel.remotePosition.collectAsState()
-    val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsState()
-    val navBarCornerRadius by playerViewModel.navBarCornerRadius.collectAsState()
+    val stablePlayerState by playerViewModel.stablePlayerState.collectAsStateWithLifecycle()
+    val sampledPosition by playerViewModel.positionForUi.collectAsStateWithLifecycle(initialValue = 0L)
+    val sampledRemotePosition by playerViewModel.remotePositionForUi.collectAsStateWithLifecycle(initialValue = 0L)
+    val isRemotePlaybackActive by playerViewModel.isRemotePlaybackActive.collectAsStateWithLifecycle()
+    val navBarCornerRadius by playerViewModel.navBarCornerRadius.collectAsStateWithLifecycle()
     val currentSong = stablePlayerState.currentSong
 
     var sheetVisible by remember { mutableStateOf(true) }
@@ -160,7 +160,7 @@ fun ExternalPlayerOverlay(
                     }
                 } else {
                     val totalDuration = stablePlayerState.totalDuration.coerceAtLeast(0L)
-                    val rawPosition = if (isRemotePlaybackActive) remotePosition else playerUiState.currentPosition
+                    val rawPosition = if (isRemotePlaybackActive) sampledRemotePosition else sampledPosition
                     val position = rawPosition.coerceIn(0L, totalDuration)
                     val progressFraction = if (totalDuration > 0) position.toFloat() / totalDuration else 0f
 
