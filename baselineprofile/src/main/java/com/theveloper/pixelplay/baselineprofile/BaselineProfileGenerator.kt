@@ -32,8 +32,6 @@ class BaselineProfileGenerator {
             device.executeShellCommand("appops set $packageName MANAGE_EXTERNAL_STORAGE allow")
 
             // 2. Start the Activity manually
-            // We use manual AM START to bypass strict frame detection checks in startActivityAndWait
-            // which can fail on some devices/emulators (causing "Unable to confirm activity launch completion").
             device.executeShellCommand("am start -n $packageName/.MainActivity --ez is_benchmark true")
 
             // 3. Handle First Run / Permissions Dialogs / Onboarding
@@ -41,9 +39,7 @@ class BaselineProfileGenerator {
             handleOnboarding()
 
             // 4. Wait for Home Screen Content
-            // Increased timeout to 15s to ensure cold start completes
             if (!device.wait(Until.hasObject(By.text("Home")), 15000)) {
-                // If not found, try handling onboarding one more time or fail
                  handleOnboarding()
                  device.wait(Until.hasObject(By.text("Home")), 5000)
             }
@@ -67,11 +63,9 @@ class BaselineProfileGenerator {
 
             // 7. Open Detail / Play Song
             try {
-                // Wait for a scrollable list to appear
                 val list = device.wait(Until.findObject(By.scrollable(true)), 3000)
                 if (list != null) {
                     val rect = list.visibleBounds
-                    // Click 20% down from the top to hit an item
                     device.click(rect.centerX(), rect.top + (rect.height() / 5))
                     device.waitForIdle()
                 }
@@ -82,9 +76,31 @@ class BaselineProfileGenerator {
             // 8. UnifiedPlayerSheet Interaction
             openAndInteractWithPlayer()
 
-            // 9. Final Idle
-            device.pressHome()
-            device.waitForIdle(2000)
+            // 9. Workaround for "Waiting for app processes to flush profiles..." error (Xiaomi/Android 14+)
+            // We manually signal the app to save the profile and then kill it.
+            // This prevents the rule's internal dump command from triggering the verbose wait message.
+            try {
+                // Find PID
+                val pidOutput = device.executeShellCommand("pidof $packageName").trim()
+                if (pidOutput.isNotEmpty()) {
+                    // pidof might return multiple PIDs, take the first
+                    val pid = pidOutput.split("\\s+".toRegex()).first()
+
+                    // Send SIGUSR1 (10) to force ART to save the profile to disk
+                    device.executeShellCommand("kill -10 $pid")
+
+                    // Wait for the flush to complete (2s should be enough)
+                    Thread.sleep(2000)
+
+                    // Force stop the app.
+                    // When the rule subsequently calls `pm dump-profiles`, it should find the app dead
+                    // and read the saved profile from disk without printing "Waiting for..."
+                    device.executeShellCommand("am force-stop $packageName")
+                }
+            } catch (e: Exception) {
+                // Log and ignore
+                android.util.Log.e("BaselineProfile", "Failed to run flush workaround", e)
+            }
         }
     }
 
@@ -105,7 +121,6 @@ class BaselineProfileGenerator {
         val nextPatterns = listOf("Next", "Continue", "Skip", "Done", "Get Started", "Siguiente", "Continuar", "Omitir", "Empezar")
         val pattern = Pattern.compile(nextPatterns.joinToString("|"), Pattern.CASE_INSENSITIVE)
 
-        // Try to click through potential onboarding screens
         var attempts = 0
         while (attempts < 5) {
             val button = device.wait(Until.findObject(By.text(pattern)), 2000)
@@ -131,23 +146,20 @@ class BaselineProfileGenerator {
     }
 
     private fun androidx.benchmark.macro.MacrobenchmarkScope.openAndInteractWithPlayer() {
-        // Try to find the MiniPlayer artwork or container to expand
         val playerTrigger = device.wait(Until.findObject(By.descContains("Carátula")), 2000)
 
         if (playerTrigger != null) {
             playerTrigger.click()
             device.waitForIdle()
 
-            // Interact with Queue button
             val queueBtn = device.wait(Until.findObject(By.descContains("Queue")), 2000)
             if (queueBtn != null) {
                 queueBtn.click()
                 device.waitForIdle()
-                device.pressBack() // Close queue
+                device.pressBack()
                 device.waitForIdle()
             }
 
-            // Collapse the player
             device.pressBack()
             device.waitForIdle()
         }
