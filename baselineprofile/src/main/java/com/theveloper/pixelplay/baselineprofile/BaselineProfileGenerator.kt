@@ -190,9 +190,10 @@ class BaselineProfileGenerator {
 
         // 2. Interact with Player Controls to trigger animations
         // Toggle Play/Pause a few times
-        // Note: Play/Pause content description might change depending on state.
-        // We look for commonly used descriptions.
-        val playPauseBtn = device.wait(Until.findObject(By.descContains("Play").or(By.descContains("Pause"))), 2000)
+        // Use regex to match "Play" or "Pause" since .or() is not available on BySelector
+        val playPausePattern = Pattern.compile(".*(Play|Pause).*", Pattern.CASE_INSENSITIVE)
+        val playPauseBtn = device.wait(Until.findObject(By.desc(playPausePattern)), 2000)
+
         if (playPauseBtn != null) {
              repeat(2) {
                  playPauseBtn.click()
