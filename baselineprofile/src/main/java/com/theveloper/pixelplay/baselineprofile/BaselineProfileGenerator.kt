@@ -77,13 +77,38 @@ class BaselineProfileGenerator {
             openAndInteractWithPlayer()
 
             // 9. Workaround for Xiaomi/Android 14+ profile flush error
+            // Aggressive strategy: Signal save -> Wait -> Aggressive Kill -> Verify Dead
             try {
                 val pidOutput = device.executeShellCommand("pidof $packageName").trim()
                 if (pidOutput.isNotEmpty()) {
-                    val pid = pidOutput.split("\\s+".toRegex()).first()
-                    device.executeShellCommand("kill -10 $pid")
-                    Thread.sleep(2000)
-                    device.executeShellCommand("am force-stop $packageName")
+                    val pids = pidOutput.split("\\s+".toRegex())
+
+                    // 1. Signal all processes to save profile
+                    pids.forEach { pid ->
+                        device.executeShellCommand("kill -10 $pid")
+                    }
+
+                    // 2. Wait generous time for flush (5s)
+                    Thread.sleep(5000)
+
+                    // 3. Kill and Verify
+                    var isDead = false
+                    repeat(10) {
+                        device.executeShellCommand("am force-stop $packageName")
+                        Thread.sleep(500)
+                        val checkPid = device.executeShellCommand("pidof $packageName").trim()
+                        if (checkPid.isEmpty()) {
+                            isDead = true
+                            return@repeat
+                        }
+                    }
+
+                    // If still alive, use kill -9 as last resort (though force-stop should suffice)
+                    if (!isDead) {
+                         pids.forEach { pid ->
+                             device.executeShellCommand("kill -9 $pid")
+                         }
+                    }
                 }
             } catch (e: Exception) {
                 // Ignore
@@ -124,9 +149,7 @@ class BaselineProfileGenerator {
 
         var attempts = 0
         while (attempts < 5) {
-            // Check if exists first to break loop
             if (device.findObject(By.text(pattern)) == null) break
-
             device.clickRetry(By.text(pattern))
             device.waitForIdle()
             attempts++
@@ -149,20 +172,15 @@ class BaselineProfileGenerator {
     }
 
     private fun androidx.benchmark.macro.MacrobenchmarkScope.openAndInteractWithPlayer() {
-        // Try to expand player
-        // Use clickRetry to handle potential UI updates
         device.clickRetry(By.descContains("Carátula"))
         device.waitForIdle()
 
-        // Interact with Queue
         device.clickRetry(By.descContains("Queue"))
         device.waitForIdle()
 
-        // Close Queue (Back)
         device.pressBack()
         device.waitForIdle()
 
-        // Collapse Player (Back)
         device.pressBack()
         device.waitForIdle()
     }
