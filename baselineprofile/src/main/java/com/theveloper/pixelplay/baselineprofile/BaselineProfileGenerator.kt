@@ -104,6 +104,10 @@ class BaselineProfileGenerator {
 
                     val output = device.executeShellCommand(cmd)
                     android.util.Log.i("BaselineProfileGenerator", "Manually copied profile to ${destFile.absolutePath}. Output: $output")
+
+                    // CRITICAL: Print the magic string so the Gradle plugin picks up the file!
+                    println("Profile saved to '${destFile.absolutePath}'")
+
                 } catch (recoveryEx: Exception) {
                     android.util.Log.e("BaselineProfileGenerator", "Failed manual profile recovery", recoveryEx)
                 }
