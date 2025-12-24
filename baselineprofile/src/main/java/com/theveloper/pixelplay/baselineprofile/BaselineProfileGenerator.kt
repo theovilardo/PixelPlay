@@ -122,6 +122,7 @@ class BaselineProfileGenerator {
         var attempts = 0
         while (attempts < 3) {
             try {
+                // Always find a FRESH object
                 val obj = wait(Until.findObject(selector), 2000)
                 if (obj != null) {
                     obj.click()
@@ -175,57 +176,47 @@ class BaselineProfileGenerator {
 
     private fun androidx.benchmark.macro.MacrobenchmarkScope.openAndInteractWithPlayer() {
         // 1. Expand Player
-        // Try clicking MiniPlayer artwork
-        val miniPlayer = device.wait(Until.findObject(By.descContains("Carátula")), 2000)
-        if (miniPlayer != null) {
-            miniPlayer.click()
+        val miniPlayerSelector = By.descContains("Carátula")
+        // Check if exists before clicking, or fallback to swipe
+        if (device.findObject(miniPlayerSelector) != null) {
+            device.clickRetry(miniPlayerSelector)
         } else {
-            // Fallback: Swipe up from bottom-ish area to expand sheet
+            // Fallback: Swipe up
             val height = device.displayHeight
             val width = device.displayWidth
-            // Swipe from 90% height to 50% height
             device.swipe(width / 2, (height * 0.9).toInt(), width / 2, height / 2, 20)
         }
         device.waitForIdle()
 
-        // 2. Interact with Player Controls to trigger animations
-        // Toggle Play/Pause a few times
-        // Use regex to match "Play" or "Pause" since .or() is not available on BySelector
+        // 2. Interact with Player Controls
+        // Use regex for Play/Pause
         val playPausePattern = Pattern.compile(".*(Play|Pause).*", Pattern.CASE_INSENSITIVE)
-        val playPauseBtn = device.wait(Until.findObject(By.desc(playPausePattern)), 2000)
+        val playPauseSelector = By.desc(playPausePattern)
 
-        if (playPauseBtn != null) {
-             repeat(2) {
-                 playPauseBtn.click()
-                 device.waitForIdle()
-                 Thread.sleep(800) // Allow animation to run longer
-             }
+        // Repeat interactions, finding FRESH objects each time to avoid StaleObjectException
+        repeat(3) {
+             device.clickRetry(playPauseSelector)
+             device.waitForIdle()
+             Thread.sleep(800)
         }
 
-        // 3. Swipe Art / Carousel (if applicable) to trigger layout calcs
-        // Swipe horizontally on the upper part of the screen
+        // 3. Swipe Art / Carousel
         val height = device.displayHeight
         val width = device.displayWidth
-        // Center-ish swipe
         device.swipe((width * 0.8).toInt(), (height * 0.4).toInt(), (width * 0.2).toInt(), (height * 0.4).toInt(), 30)
         device.waitForIdle()
 
-        // 4. Open and Close Queue (Heavy list)
-        val queueBtn = device.wait(Until.findObject(By.descContains("Queue")), 2000)
-        if (queueBtn != null) {
-            queueBtn.click()
-            device.waitForIdle()
+        // 4. Open and Close Queue
+        val queueSelector = By.descContains("Queue")
+        device.clickRetry(queueSelector)
+        device.waitForIdle()
 
-            // Scroll queue if possible
-            scrollList()
+        scrollList()
 
-            // Close Queue (Back)
-            device.pressBack()
-            device.waitForIdle()
-        }
+        device.pressBack()
+        device.waitForIdle()
 
         // 5. Collapse Player
-        // Press back to collapse
         device.pressBack()
         device.waitForIdle()
     }
