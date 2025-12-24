@@ -47,6 +47,7 @@ import com.theveloper.pixelplay.data.model.SyncedLine
 import com.theveloper.pixelplay.utils.LogUtils
 import com.theveloper.pixelplay.data.model.MusicFolder
 import com.theveloper.pixelplay.utils.LyricsUtils
+import com.theveloper.pixelplay.utils.DirectoryRuleResolver
 import kotlinx.coroutines.flow.conflate
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -76,6 +77,7 @@ class MusicRepositoryImpl @Inject constructor(
     private val directoryScanMutex = Mutex()
 
     private data class DirectoryFilterConfig(
+        val normalizedAllowed: Set<String>,
         val normalizedBlocked: Set<String>,
         val initialSetupDone: Boolean,
     ) {
@@ -83,10 +85,12 @@ class MusicRepositoryImpl @Inject constructor(
     }
 
     private val directoryFilterConfig: Flow<DirectoryFilterConfig> = combine(
+        userPreferencesRepository.allowedDirectoriesFlow,
         userPreferencesRepository.blockedDirectoriesFlow,
         userPreferencesRepository.initialSetupDoneFlow
-    ) { blocked, initialSetupDone ->
+    ) { allowed, blocked, initialSetupDone ->
         DirectoryFilterConfig(
+            normalizedAllowed = allowed.map(::normalizePath).toSet(),
             normalizedBlocked = blocked.map(::normalizePath).toSet(),
             initialSetupDone = initialSetupDone,
         )
@@ -114,9 +118,11 @@ class MusicRepositoryImpl @Inject constructor(
     private fun List<SongEntity>.filterBlocked(config: DirectoryFilterConfig): List<SongEntity> {
         if (!config.isFilterActive) return this
 
+        val resolver = DirectoryRuleResolver(config.normalizedAllowed, config.normalizedBlocked)
+
         return filter { song ->
             val normalizedParent = normalizePath(song.parentDirectoryPath)
-            config.normalizedBlocked.none { normalizedParent == it || normalizedParent.startsWith("$it/") }
+            !resolver.isBlocked(normalizedParent)
         }
     }
 
@@ -596,15 +602,19 @@ class MusicRepositoryImpl @Inject constructor(
     override fun getMusicFolders(): Flow<List<MusicFolder>> {
         return combine(
             getAudioFiles(),
+            userPreferencesRepository.allowedDirectoriesFlow,
             userPreferencesRepository.blockedDirectoriesFlow,
             userPreferencesRepository.isFolderFilterActiveFlow
-        ) { songs, blockedDirs, isFolderFilterActive ->
-            val normalizedBlocked = blockedDirs.map(::normalizePath)
+        ) { songs, allowedDirs, blockedDirs, isFolderFilterActive ->
+            val resolver = DirectoryRuleResolver(
+                allowedDirs.map(::normalizePath).toSet(),
+                blockedDirs.map(::normalizePath).toSet()
+            )
             val songsToProcess = if (isFolderFilterActive && blockedDirs.isNotEmpty()) {
                 songs.filter { song ->
                     val songDir = File(song.path).parentFile ?: return@filter false
                     val normalized = normalizePath(songDir.path)
-                    normalizedBlocked.none { normalized == it || normalized.startsWith("$it/") }
+                    !resolver.isBlocked(normalized)
                 }
             } else {
                 songs

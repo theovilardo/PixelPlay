@@ -3,6 +3,7 @@ package com.theveloper.pixelplay.presentation.viewmodel
 import android.content.Context
 import android.os.Environment
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
+import com.theveloper.pixelplay.utils.DirectoryRuleResolver
 import com.theveloper.pixelplay.utils.StorageInfo
 import com.theveloper.pixelplay.utils.StorageUtils
 import kotlinx.coroutines.CoroutineScope
@@ -69,6 +70,9 @@ class FileExplorerStateHolder(
 
     private val _rawCurrentDirectoryChildren = MutableStateFlow<List<RawDirectoryEntry>>(emptyList())
 
+    private val _allowedDirectories = MutableStateFlow<Set<String>>(emptySet())
+    val allowedDirectories: StateFlow<Set<String>> = _allowedDirectories.asStateFlow()
+
     private val _blockedDirectories = MutableStateFlow<Set<String>>(emptySet())
     val blockedDirectories: StateFlow<Set<String>> = _blockedDirectories.asStateFlow()
 
@@ -98,8 +102,14 @@ class FileExplorerStateHolder(
         refreshAvailableStorages()
 
         // Observer for preferences
-        userPreferencesRepository.blockedDirectoriesFlow
-            .onEach { blocked ->
+        combine(
+            userPreferencesRepository.allowedDirectoriesFlow,
+            userPreferencesRepository.blockedDirectoriesFlow
+        ) { allowed, blocked ->
+            Pair(allowed, blocked)
+        }
+            .onEach { (allowed, blocked) ->
+                _allowedDirectories.value = allowed.map(::normalizePath).toSet()
                 _blockedDirectories.value = blocked.map(::normalizePath).toSet()
             }
             .launchIn(scope)
@@ -107,21 +117,21 @@ class FileExplorerStateHolder(
         // Combiner to produce final UI list with isBlocked state
         combine(
             _rawCurrentDirectoryChildren,
+            _allowedDirectories,
             _blockedDirectories
-        ) { rawEntries, blocked ->
-            Pair(rawEntries, blocked)
+        ) { rawEntries, allowed, blocked ->
+            Triple(rawEntries, allowed, blocked)
         }
-            .mapLatest { (rawEntries, blocked) ->
+            .mapLatest { (rawEntries, allowed, blocked) ->
+                val resolver = DirectoryRuleResolver(allowed, blocked)
                 rawEntries.map { raw ->
-                    val normalizedPath = raw.canonicalPath
-                    val isBlocked = blocked.any { normalizedPath == it || normalizedPath.startsWith("$it/") }
                     DirectoryEntry(
                         file = raw.file,
                         directAudioCount = raw.directAudioCount,
                         totalAudioCount = raw.totalAudioCount,
                         canonicalPath = raw.canonicalPath,
                         displayName = raw.displayName,
-                        isBlocked = isBlocked
+                        isBlocked = resolver.isBlocked(raw.canonicalPath)
                     )
                 }
             }
@@ -201,20 +211,26 @@ class FileExplorerStateHolder(
 
     fun toggleDirectoryAllowed(file: File) {
         scope.launch {
+            val currentAllowed = _allowedDirectories.value.toMutableSet()
             val currentBlocked = _blockedDirectories.value.toMutableSet()
             val path = normalizePath(file)
 
-            val isCurrentlyBlocked = currentBlocked.any { path == it || path.startsWith("$it/") }
+            val resolver = DirectoryRuleResolver(currentAllowed, currentBlocked)
+            val isCurrentlyBlocked = resolver.isBlocked(path)
+
             if (isCurrentlyBlocked) {
-                currentBlocked.removeAll { it == path || it.startsWith("$path/") }
-                userPreferencesRepository.updateDirectorySelections(emptySet(), currentBlocked)
+                currentBlocked.remove(path)
+                currentAllowed.removeAll { it.startsWith("$path/") }
+                currentAllowed.add(path)
+                userPreferencesRepository.updateDirectorySelections(currentAllowed, currentBlocked)
                 return@launch
             }
 
-            currentBlocked.removeAll { it.startsWith("$path/") || path.startsWith("$it/") }
+            currentBlocked.removeAll { it.startsWith("$path/") }
+            currentAllowed.removeAll { it == path || it.startsWith("$path/") }
             currentBlocked.add(path)
 
-            userPreferencesRepository.updateDirectorySelections(emptySet(), currentBlocked)
+            userPreferencesRepository.updateDirectorySelections(currentAllowed, currentBlocked)
         }
     }
 
