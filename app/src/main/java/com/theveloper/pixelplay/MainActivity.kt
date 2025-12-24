@@ -690,6 +690,11 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         LogUtils.d(this, "onStart")
         playerViewModel.onMainActivityStart()
+
+        if (intent.getBooleanExtra("is_benchmark", false)) {
+            playerViewModel.loadDummyDataForBenchmark()
+        }
+
         val sessionToken = SessionToken(this, ComponentName(this, MusicService::class.java))
         mediaControllerFuture = MediaController.Builder(this, sessionToken).buildAsync()
         mediaControllerFuture?.addListener({

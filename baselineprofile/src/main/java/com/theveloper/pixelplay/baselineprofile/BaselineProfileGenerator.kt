@@ -38,67 +38,41 @@ class BaselineProfileGenerator {
                 device.executeShellCommand("appops set $packageName MANAGE_EXTERNAL_STORAGE allow")
 
                 // 2. Start the Activity manually
+                // is_benchmark=true triggers automatic dummy song loading and player expansion in MainActivity/ViewModel
                 device.executeShellCommand("am start -n $packageName/.MainActivity --ez is_benchmark true")
 
                 // 3. Handle First Run / Permissions Dialogs / Onboarding
                 handlePermissionDialogs()
                 handleOnboarding()
 
-                // 4. Wait for Home Screen Content
-                if (!device.wait(Until.hasObject(By.text("Home")), 15000)) {
+                // 4. Wait for Player Sheet to Expand
+                // The app should auto-expand the player. We check for "Queue" button which is only in the expanded sheet.
+                val queueSelector = By.descContains("Queue")
+                if (!device.wait(Until.hasObject(queueSelector), 10000)) {
+                     // Retry handling onboarding if player didn't show immediately
                      handleOnboarding()
-                     device.wait(Until.hasObject(By.text("Home")), 5000)
+                     // Maybe player is collapsed (mini player)? Try to expand manually if auto-expand failed
+                     val miniPlayer = device.wait(Until.findObject(By.descContains("Carátula")), 2000)
+                     if (miniPlayer != null) miniPlayer.click()
+
+                     device.wait(Until.hasObject(queueSelector), 5000)
                 }
                 device.waitForIdle()
 
-                // 5. Navigation: Switch Tabs
+                // 5. Interact with UnifiedPlayerSheet
+                openAndInteractWithPlayer()
+
+                // 6. Navigation: Collapse and go to Tabs (to profile navigation too)
+                device.pressBack() // Collapse player
+                device.waitForIdle()
+
                 val tabs = listOf("Search", "Library", "Home")
                 tabs.forEach { tabName ->
                     device.clickRetry(By.text(tabName))
                     device.waitForIdle()
                 }
 
-                // 6. List Interaction (Library)
-                device.clickRetry(By.text("Library"))
-                device.waitForIdle()
-
-                // Explicitly go to Songs/Canciones to ensure we have items
-                val songsPattern = Pattern.compile(".*(Songs|Canciones).*", Pattern.CASE_INSENSITIVE)
-                device.clickRetry(By.text(songsPattern))
-                device.waitForIdle()
-
-                scrollList()
-
-                // 7. Open Detail / Play Song
-                val playPausePattern = Pattern.compile(".*(Play|Pause).*", Pattern.CASE_INSENSITIVE)
-
-                try {
-                    val list = device.wait(Until.findObject(By.scrollable(true)), 3000)
-                    if (list != null) {
-                        val rect = list.visibleBounds
-
-                        // Try clicking at different heights to hit a song item (skip headers)
-                        val clickRatios = listOf(0.2, 0.35, 0.5)
-
-                        for (ratio in clickRatios) {
-                            device.click(rect.centerX(), rect.top + (rect.height() * ratio).toInt())
-                            device.waitForIdle()
-                            Thread.sleep(1500)
-
-                            // Check if player appeared
-                            if (device.findObject(By.desc(playPausePattern)) != null) {
-                                break
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    // Ignore
-                }
-
-                // 8. UnifiedPlayerSheet Interaction
-                openAndInteractWithPlayer()
-
-                // 9. Final Idle
+                // 7. Final Idle
                 device.pressHome()
                 device.waitForIdle(2000)
             }
@@ -108,26 +82,16 @@ class BaselineProfileGenerator {
             if (e.message?.contains("Waiting for app processes to flush profiles") == true) {
                 android.util.Log.w("BaselineProfileGenerator", "Suppressed dump output error: ${e.message}")
 
-                // Attempt manual recovery: Copy the profile from the system location to the app's output dir
-                // so the Gradle plugin can still find it.
                 try {
-                    // Path derived from error message analysis
                     val srcPath = "/data/misc/profman/$packageName-primary.prof.txt"
-
                     val context = InstrumentationRegistry.getInstrumentation().targetContext
                     val destDir = context.getExternalFilesDir(null)
-                    // Filename must match what the plugin expects: <Class>_<Method>-baseline-prof.txt
                     val destFile = File(destDir, "BaselineProfileGenerator_generate-baseline-prof.txt")
-
                     val device = androidx.test.uiautomator.UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
                     val cmd = "cp $srcPath ${destFile.absolutePath}"
-
                     val output = device.executeShellCommand(cmd)
                     android.util.Log.i("BaselineProfileGenerator", "Manually copied profile to ${destFile.absolutePath}. Output: $output")
-
-                    // CRITICAL: Print the magic string so the Gradle plugin picks up the file!
                     println("Profile saved to '${destFile.absolutePath}'")
-
                 } catch (recoveryEx: Exception) {
                     android.util.Log.e("BaselineProfileGenerator", "Failed manual profile recovery", recoveryEx)
                 }
@@ -142,13 +106,12 @@ class BaselineProfileGenerator {
         var attempts = 0
         while (attempts < 3) {
             try {
-                // Always find a FRESH object
                 val obj = wait(Until.findObject(selector), 2000)
                 if (obj != null) {
                     obj.click()
                     return
                 } else {
-                    return // Object not found
+                    return
                 }
             } catch (e: StaleObjectException) {
                 attempts++
@@ -179,86 +142,44 @@ class BaselineProfileGenerator {
         }
     }
 
+    private fun androidx.benchmark.macro.MacrobenchmarkScope.openAndInteractWithPlayer() {
+        val queueSelector = By.descContains("Queue")
+
+        if (device.hasObject(queueSelector)) {
+            // Interact
+            val playPausePattern = Pattern.compile(".*(Play|Pause).*", Pattern.CASE_INSENSITIVE)
+            val playPauseSelector = By.desc(playPausePattern)
+
+            repeat(3) {
+                 device.clickRetry(playPauseSelector)
+                 device.waitForIdle()
+                 Thread.sleep(800)
+            }
+
+            val height = device.displayHeight
+            val width = device.displayWidth
+            device.swipe((width * 0.8).toInt(), (height * 0.4).toInt(), (width * 0.2).toInt(), (height * 0.4).toInt(), 30)
+            device.waitForIdle()
+
+            device.clickRetry(queueSelector)
+            device.waitForIdle()
+
+            try {
+                val list = device.wait(Until.findObject(By.scrollable(true)), 2000)
+                list?.fling(Direction.DOWN)
+            } catch (e: Exception) {}
+
+            device.pressBack()
+            device.waitForIdle()
+        }
+    }
+
     private fun androidx.benchmark.macro.MacrobenchmarkScope.scrollList() {
         try {
             val list = device.wait(Until.findObject(By.scrollable(true)), 2000) ?: return
             list.setGestureMargin(device.displayWidth / 10)
-
             list.fling(Direction.DOWN)
             device.waitForIdle()
-
-            list.fling(Direction.UP)
-            device.waitForIdle()
-        } catch (e: StaleObjectException) {
-            // Ignore scrolling errors
-        }
-    }
-
-    private fun androidx.benchmark.macro.MacrobenchmarkScope.openAndInteractWithPlayer() {
-        // 1. Wait for MiniPlayer (Play/Pause button is a good indicator)
-        val playPausePattern = Pattern.compile(".*(Play|Pause).*", Pattern.CASE_INSENSITIVE)
-        val playPauseSelector = By.desc(playPausePattern)
-
-        // Wait up to 5s for playback to start and MiniPlayer to appear
-        if (!device.wait(Until.hasObject(playPauseSelector), 5000)) {
-            return // No player visible, abort interactions
-        }
-
-        // 2. Try to Expand Player
-        var isExpanded = false
-        val queueSelector = By.descContains("Queue")
-
-        // Strategy A: Click MiniPlayer Artwork ("Carátula")
-        val miniPlayerArt = device.wait(Until.findObject(By.descContains("Carátula")), 2000)
-        if (miniPlayerArt != null) {
-            miniPlayerArt.click()
-            device.waitForIdle()
-            // Verification: Look for "Queue" button which is only in Expanded Sheet
-            if (device.wait(Until.hasObject(queueSelector), 3000)) {
-                isExpanded = true
-            }
-        }
-
-        // Strategy B: Swipe Up (if click failed or didn't expand)
-        if (!isExpanded) {
-            val height = device.displayHeight
-            val width = device.displayWidth
-            // Swipe from 85% height (above nav bar) to 30% height
-            device.swipe(width / 2, (height * 0.85).toInt(), width / 2, (height * 0.3).toInt(), 30)
-            device.waitForIdle()
-
-            if (device.wait(Until.hasObject(queueSelector), 3000)) {
-                isExpanded = true
-            }
-        }
-
-        // If still not expanded, we skip the deep interactions to avoid getting lost
-        if (!isExpanded) return
-
-        // 3. Interact with Expanded Player
-
-        // Toggle Play/Pause (Animations)
-        repeat(3) {
-             device.clickRetry(playPauseSelector)
-             device.waitForIdle()
-             Thread.sleep(800)
-        }
-
-        // Swipe Art / Carousel
-        val height = device.displayHeight
-        val width = device.displayWidth
-        device.swipe((width * 0.8).toInt(), (height * 0.4).toInt(), (width * 0.2).toInt(), (height * 0.4).toInt(), 30)
-        device.waitForIdle()
-
-        // Open and Close Queue
-        device.clickRetry(queueSelector)
-        device.waitForIdle()
-        scrollList()
-        device.pressBack() // Close Queue
-        device.waitForIdle()
-
-        // 4. Collapse Player
-        device.pressBack()
-        device.waitForIdle()
+        } catch (e: Exception) {}
     }
 }
