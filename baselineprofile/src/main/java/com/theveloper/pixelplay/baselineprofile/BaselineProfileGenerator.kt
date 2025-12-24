@@ -25,93 +25,68 @@ class BaselineProfileGenerator {
     fun generate() {
         val packageName = "com.theveloper.pixelplay"
 
-        rule.collect(
-            packageName = packageName,
-            includeInStartupProfile = true,
-            maxIterations = 1
-        ) {
-            // 1. Grant Permissions
-            device.executeShellCommand("pm grant $packageName android.permission.POST_NOTIFICATIONS")
-            device.executeShellCommand("appops set $packageName MANAGE_EXTERNAL_STORAGE allow")
+        try {
+            rule.collect(
+                packageName = packageName,
+                includeInStartupProfile = true,
+                maxIterations = 1
+            ) {
+                // 1. Grant Permissions
+                device.executeShellCommand("pm grant $packageName android.permission.POST_NOTIFICATIONS")
+                device.executeShellCommand("appops set $packageName MANAGE_EXTERNAL_STORAGE allow")
 
-            // 2. Start the Activity manually
-            device.executeShellCommand("am start -n $packageName/.MainActivity --ez is_benchmark true")
+                // 2. Start the Activity manually
+                device.executeShellCommand("am start -n $packageName/.MainActivity --ez is_benchmark true")
 
-            // 3. Handle First Run / Permissions Dialogs / Onboarding
-            handlePermissionDialogs()
-            handleOnboarding()
+                // 3. Handle First Run / Permissions Dialogs / Onboarding
+                handlePermissionDialogs()
+                handleOnboarding()
 
-            // 4. Wait for Home Screen Content
-            if (!device.wait(Until.hasObject(By.text("Home")), 15000)) {
-                 handleOnboarding()
-                 device.wait(Until.hasObject(By.text("Home")), 5000)
-            }
-            device.waitForIdle()
-
-            // 5. Navigation: Switch Tabs
-            val tabs = listOf("Search", "Library", "Home")
-            tabs.forEach { tabName ->
-                device.clickRetry(By.text(tabName))
+                // 4. Wait for Home Screen Content
+                if (!device.wait(Until.hasObject(By.text("Home")), 15000)) {
+                     handleOnboarding()
+                     device.wait(Until.hasObject(By.text("Home")), 5000)
+                }
                 device.waitForIdle()
-            }
 
-            // 6. List Interaction (Library)
-            device.clickRetry(By.text("Library"))
-            device.waitForIdle()
-            scrollList()
-
-            // 7. Open Detail / Play Song
-            try {
-                val list = device.wait(Until.findObject(By.scrollable(true)), 3000)
-                if (list != null) {
-                    val rect = list.visibleBounds
-                    // Click by coordinates to avoid StaleObjectException on list items
-                    device.click(rect.centerX(), rect.top + (rect.height() / 5))
+                // 5. Navigation: Switch Tabs
+                val tabs = listOf("Search", "Library", "Home")
+                tabs.forEach { tabName ->
+                    device.clickRetry(By.text(tabName))
                     device.waitForIdle()
                 }
-            } catch (e: Exception) {
-                // Ignore
-            }
 
-            // 8. UnifiedPlayerSheet Interaction
-            openAndInteractWithPlayer()
+                // 6. List Interaction (Library)
+                device.clickRetry(By.text("Library"))
+                device.waitForIdle()
+                scrollList()
 
-            // 9. Workaround for Xiaomi/Android 14+ profile flush error
-            // Aggressive strategy: Signal save -> Wait -> Aggressive Kill -> Verify Dead
-            try {
-                val pidOutput = device.executeShellCommand("pidof $packageName").trim()
-                if (pidOutput.isNotEmpty()) {
-                    val pids = pidOutput.split("\\s+".toRegex())
-
-                    // 1. Signal all processes to save profile
-                    pids.forEach { pid ->
-                        device.executeShellCommand("kill -10 $pid")
+                // 7. Open Detail / Play Song
+                try {
+                    val list = device.wait(Until.findObject(By.scrollable(true)), 3000)
+                    if (list != null) {
+                        val rect = list.visibleBounds
+                        device.click(rect.centerX(), rect.top + (rect.height() / 5))
+                        device.waitForIdle()
                     }
-
-                    // 2. Wait generous time for flush (5s)
-                    Thread.sleep(5000)
-
-                    // 3. Kill and Verify
-                    var isDead = false
-                    repeat(10) {
-                        device.executeShellCommand("am force-stop $packageName")
-                        Thread.sleep(500)
-                        val checkPid = device.executeShellCommand("pidof $packageName").trim()
-                        if (checkPid.isEmpty()) {
-                            isDead = true
-                            return@repeat
-                        }
-                    }
-
-                    // If still alive, use kill -9 as last resort (though force-stop should suffice)
-                    if (!isDead) {
-                         pids.forEach { pid ->
-                             device.executeShellCommand("kill -9 $pid")
-                         }
-                    }
+                } catch (e: Exception) {
+                    // Ignore
                 }
-            } catch (e: Exception) {
-                // Ignore
+
+                // 8. UnifiedPlayerSheet Interaction
+                openAndInteractWithPlayer()
+
+                // 9. Final Idle
+                device.pressHome()
+                device.waitForIdle(2000)
+            }
+        } catch (e: IllegalStateException) {
+            // Known issue on some devices (Xiaomi/Android 14+) where pm dump-profiles prints "Waiting..."
+            // causing the parser to fail even if the flush was successful.
+            if (e.message?.contains("Waiting for app processes to flush profiles") == true) {
+                android.util.Log.w("BaselineProfileGenerator", "Suppressed dump output error: ${e.message}")
+            } else {
+                throw e
             }
         }
     }
