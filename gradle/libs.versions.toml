@@ -53,6 +53,8 @@ roomRuntime = "2.7.1"
 accompanist = "0.37.3"
 checkerframework = "3.49.5" # O la versión más reciente que encuentres
 taglib = "1.0.5"
+datastore = "1.1.1"
+androidxTestCore = "1.6.1"
 
 # DI
 dagger = "2.53.1"
@@ -177,6 +179,9 @@ androidx-compose-material3 = { group = "androidx.compose.material3", name = "mat
 androidx-uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }
 androidx-benchmark-macro-junit4 = { group = "androidx.benchmark", name = "benchmark-macro-junit4", version.ref = "benchmarkMacroJunit4" }
 androidx-profileinstaller = { group = "androidx.profileinstaller", name = "profileinstaller", version.ref = "profileinstaller" }
+androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
+androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTestCore" }
+kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinx-coroutines" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

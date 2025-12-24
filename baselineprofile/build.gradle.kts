@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.theveloper.pixelplay.baselineprofile"
-    compileSdk = 36
+    compileSdk = 35
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -19,7 +19,7 @@ android {
 
     defaultConfig {
         minSdk = 29
-        targetSdk = 36
+        targetSdk = 35
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -39,14 +39,17 @@ dependencies {
     implementation(libs.androidx.espresso.core)
     implementation(libs.androidx.uiautomator)
     implementation(libs.androidx.benchmark.macro.junit4)
+    implementation(libs.androidx.test.core)
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.kotlinx.coroutines.android)
 }
 
 androidComponents {
     onVariants { v ->
         val artifactsLoader = v.artifacts.getBuiltArtifactsLoader()
-        v.instrumentationRunnerArguments.put(
-            "targetAppId",
-            v.testedApks.map { artifactsLoader.load(it)?.applicationId }
-        )
+        val targetAppIdProvider = v.testedApks.map { testedApk ->
+            artifactsLoader.load(testedApk)?.applicationId ?: ""
+        }
+        v.instrumentationRunnerArguments.put("targetAppId", targetAppIdProvider)
     }
 }
