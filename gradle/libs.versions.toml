@@ -78,6 +78,10 @@ mediarouterVersion = "1.8.1"
 playServicesCastFramework = "22.2.0"
 navigationRuntimeKtx = "2.9.6"
 material3Version = "1.4.0"
+uiautomator = "2.2.0"
+benchmarkMacroJunit4 = "1.2.4"
+baselineprofile = "1.2.4"
+profileinstaller = "1.3.1"
 
 [libraries]
 accompanist-drawablepainter = { module = "com.google.accompanist:accompanist-drawablepainter", version.ref = "accompanistDrawablepainter" }
@@ -170,6 +174,9 @@ androidx-mediarouter = { group = "androidx.mediarouter", name = "mediarouter", v
 play-services-cast-framework = { group = "com.google.android.gms", name = "play-services-cast-framework", version.ref = "playServicesCastFramework" }
 androidx-navigation-runtime-ktx = { group = "androidx.navigation", name = "navigation-runtime-ktx", version.ref = "navigationRuntimeKtx" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3Version" }
+androidx-uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }
+androidx-benchmark-macro-junit4 = { group = "androidx.benchmark", name = "benchmark-macro-junit4", version.ref = "benchmarkMacroJunit4" }
+androidx-profileinstaller = { group = "androidx.profileinstaller", name = "profileinstaller", version.ref = "profileinstaller" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -178,4 +185,6 @@ compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "
 
 dagger-hilt-android = { id = "com.google.dagger.hilt.android" , version.ref = "dagger" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp"}
+android-test = { id = "com.android.test", version.ref = "agp" }
+baselineprofile = { id = "androidx.baselineprofile", version.ref = "baselineprofile" }
 

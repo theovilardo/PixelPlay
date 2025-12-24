@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.dagger.hilt.android)
     kotlin("plugin.serialization") version "2.1.0"
     alias(libs.plugins.jetbrains.kotlin.android)
+    alias(libs.plugins.baselineprofile)
     // id("com.google.protobuf") version "0.9.5" // Eliminado plugin de Protobuf
 }
 
@@ -72,6 +73,8 @@ android {
 }
 
 dependencies {
+    implementation(libs.androidx.profileinstaller)
+    "baselineProfile"(project(":baselineprofile"))
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     implementation(libs.androidx.core.ktx)
