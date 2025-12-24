@@ -93,7 +93,7 @@ fun LyricsSheet(
     onSeekTo: (Long) -> Unit,
     onPlayPause: () -> Unit, // New parameter
     modifier: Modifier = Modifier,
-    highlightZoneFraction: Float = 0.22f,
+    highlightZoneFraction: Float = 0.08f, // Reduced from 0.22 for less padding
     highlightOffsetDp: Dp = 32.dp,
     autoscrollAnimationSpec: AnimationSpec<Float> = tween(durationMillis = 450, easing = FastOutSlowInEasing)
 ) {
@@ -108,12 +108,18 @@ fun LyricsSheet(
     val context = LocalContext.current
 
     var showFetchLyricsDialog by remember { mutableStateOf(false) }
+    // Flag to prevent dialog from showing briefly after reset
+    var wasResetTriggered by remember { mutableStateOf(false) }
 
     LaunchedEffect(currentSong, lyrics, isLoadingLyrics) {
         if (currentSong != null && lyrics == null && !isLoadingLyrics) {
-            showFetchLyricsDialog = true
+            // Only show dialog if reset was not just triggered
+            if (!wasResetTriggered) {
+                showFetchLyricsDialog = true
+            }
         } else if (lyrics != null || isLoadingLyrics) {
             showFetchLyricsDialog = false
+            wasResetTriggered = false // Reset the flag when lyrics are loaded
         }
     }
 
@@ -258,6 +264,7 @@ fun LyricsSheet(
                                         text = { Text(text = "Reset imported lyrics") },
                                         onClick = {
                                             expanded = false
+                                            wasResetTriggered = true
                                             resetLyricsForCurrentSong()
                                         }
                                     )
@@ -431,6 +438,7 @@ fun LyricsSheet(
                                             providerText = context.resources.getString(R.string.lyrics_provided_by),
                                             uri = context.resources.getString(R.string.lrclib_uri),
                                             textAlign = TextAlign.Center,
+                                            accentColor = accentColor,
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .padding(vertical = 16.dp)
@@ -577,8 +585,8 @@ fun SyncedLyricsList(
                 state = listState,
                 flingBehavior = flingBehavior,
                 contentPadding = PaddingValues(
-                    top = metrics.topPadding,
-                    bottom = metrics.bottomPadding
+                    top = 220.dp, // Slightly increased top padding
+                    bottom = 200.dp // Bottom padding for FAB and seek bar
                 )
             ) {
                 itemsIndexed(

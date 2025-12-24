@@ -90,13 +90,7 @@ fun FetchLyricsDialog(
         Surface(
             modifier = Modifier
                 .padding(24.dp)
-                .fillMaxWidth()
-                .animateContentSize( // Animación suave al cambiar de estado
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioLowBouncy,
-                        stiffness = Spring.StiffnessMedium
-                    )
-                ),
+                .fillMaxWidth(),
             shape = RoundedCornerShape(32.dp), // Forma muy redondeada (Expressive)
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             tonalElevation = 6.dp
@@ -361,6 +355,8 @@ private fun ResultItemCard(
     result: LyricsSearchResult,
     onClick: () -> Unit
 ) {
+    val hasSyncedLyrics = !result.record.syncedLyrics.isNullOrEmpty()
+    
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(16.dp),
@@ -371,31 +367,57 @@ private fun ResultItemCard(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Un pequeño indicador visual o "track number" si existiera
+            // Icon indicator
             Box(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                    .background(
+                        if (hasSyncedLyrics) MaterialTheme.colorScheme.primaryContainer
+                        else MaterialTheme.colorScheme.surfaceVariant
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Rounded.MusicNote,
                     contentDescription = null,
                     modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    tint = if (hasSyncedLyrics) MaterialTheme.colorScheme.onPrimaryContainer
+                           else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
             Spacer(modifier = Modifier.width(16.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = result.record.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = result.record.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f, fill = false),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (hasSyncedLyrics) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ) {
+                            Text(
+                                text = "SYNCED",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
                 Text(
                     text = "${result.record.artistName} • ${result.record.albumName}",
                     style = MaterialTheme.typography.bodyMedium,

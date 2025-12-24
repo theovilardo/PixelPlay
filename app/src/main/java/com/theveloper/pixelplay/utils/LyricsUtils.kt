@@ -195,20 +195,27 @@ fun ProviderText(
     providerText: String,
     uri: String,
     modifier: Modifier = Modifier,
-    textAlign: TextAlign? = null
+    textAlign: TextAlign? = null,
+    accentColor: Color? = null
 ) {
     val uriHandler = LocalUriHandler.current
+    val linkColor = accentColor ?: MaterialTheme.colorScheme.primary
+    val textColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
     val annotatedString = buildAnnotatedString {
-        append(providerText)
+        withStyle(style = SpanStyle(color = textColor)) {
+            append(providerText)
+        }
         pushStringAnnotation(tag = "URL", annotation = uri)
-        withStyle(style = SpanStyle(color = MaterialTheme.colorScheme.primary)) {
+        withStyle(style = SpanStyle(color = linkColor)) {
             append(" LRCLIB")
         }
         pop()
     }
 
-    textAlign?.let { MaterialTheme.typography.bodySmall.copy(textAlign = it) }?.let {
-        ClickableText(
+    val baseStyle = MaterialTheme.typography.bodySmall
+    val finalStyle = textAlign?.let { baseStyle.copy(textAlign = it) } ?: baseStyle
+    
+    ClickableText(
         text = annotatedString,
         onClick = { offset ->
             annotatedString.getStringAnnotations(tag = "URL", start = offset, end = offset)
@@ -216,10 +223,9 @@ fun ProviderText(
                     uriHandler.openUri(annotation.item)
                 }
         },
-        style = it,
+        style = finalStyle,
         modifier = modifier
     )
-    }
 }
 
 /**

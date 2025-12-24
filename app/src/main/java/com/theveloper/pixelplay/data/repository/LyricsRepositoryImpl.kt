@@ -97,38 +97,71 @@ class LyricsRepositoryImpl @Inject constructor(
 
     override suspend fun searchRemote(song: Song): Result<Pair<String, List<LyricsSearchResult>>> = withContext(Dispatchers.IO) {
         try {
-            val query = song.title
-            LogUtils.d(this@LyricsRepositoryImpl, "Searching remote for lyrics for: $query")
-            val responses = lrcLibApiService.searchLyrics(query)
-            LogUtils.d(this@LyricsRepositoryImpl, "  Found ${responses?.size ?: 0} responses")
+            LogUtils.d(this@LyricsRepositoryImpl, "Searching remote for lyrics for: ${song.title} by ${song.displayArtist}")
+            
+            // Strategy 1: Search with q parameter combining title and artist
+            val combinedQuery = "${song.title} ${song.displayArtist}"
+            var responses = lrcLibApiService.searchLyrics(
+                query = combinedQuery,
+                artistName = song.displayArtist
+            )
+            LogUtils.d(this@LyricsRepositoryImpl, "  Strategy 1 (q + artist): Found ${responses?.size ?: 0} responses")
+            
+            // Strategy 2: Search with track_name and artist_name
+            if (responses.isNullOrEmpty()) {
+                responses = lrcLibApiService.searchLyrics(
+                    trackName = song.title,
+                    artistName = song.displayArtist
+                )
+                LogUtils.d(this@LyricsRepositoryImpl, "  Strategy 2 (track + artist): Found ${responses?.size ?: 0} responses")
+            }
+            
+            // Strategy 3: Search with just track_name (original behavior)
+            if (responses.isNullOrEmpty()) {
+                responses = lrcLibApiService.searchLyrics(trackName = song.title)
+                LogUtils.d(this@LyricsRepositoryImpl, "  Strategy 3 (track only): Found ${responses?.size ?: 0} responses")
+            }
+            
+            // Strategy 4: Search with just q parameter (most flexible)
+            if (responses.isNullOrEmpty()) {
+                responses = lrcLibApiService.searchLyrics(query = song.title)
+                LogUtils.d(this@LyricsRepositoryImpl, "  Strategy 4 (q only): Found ${responses?.size ?: 0} responses")
+            }
 
             if (responses != null && responses.isNotEmpty()) {
-                val results = responses.map { response ->
-                    // check duration first
-                    if (abs(response.duration - song.duration / 1000) > 2) {
-                        return@map null
+                val songDurationSeconds = song.duration / 1000
+                val results = responses.mapNotNull { response ->
+                    // Increased duration tolerance from 2 to 5 seconds
+                    val durationDiff = abs(response.duration - songDurationSeconds)
+                    if (durationDiff > 5) {
+                        LogUtils.d(this@LyricsRepositoryImpl, "  Skipping '${response.name}' - duration mismatch: ${response.duration}s vs ${songDurationSeconds}s (diff: ${durationDiff}s)")
+                        return@mapNotNull null
                     }
 
-                    val rawLyrics = response.syncedLyrics ?: response.plainLyrics!!
+                    val rawLyrics = response.syncedLyrics ?: response.plainLyrics ?: return@mapNotNull null
                     val parsedLyrics = LyricsUtils.parseLyrics(rawLyrics).copy(areFromRemote = true)
                     if (!parsedLyrics.isValid()) {
                         LogUtils.w(this@LyricsRepositoryImpl, "Parsed lyrics are empty for: ${song.title}")
-                        return@map null
+                        return@mapNotNull null
                     }
-                    LogUtils.d(this@LyricsRepositoryImpl, "  Found: ${response.name} (${response.id})")
+                    val hasSynced = !response.syncedLyrics.isNullOrEmpty()
+                    LogUtils.d(this@LyricsRepositoryImpl, "  Found: ${response.name} by ${response.artistName} (synced: $hasSynced)")
                     LyricsSearchResult(response, parsedLyrics, rawLyrics)
-                }.filterNotNull()
+                }
+                // Sort results: prioritize entries with synced lyrics
+                .sortedByDescending { !it.record.syncedLyrics.isNullOrEmpty() }
 
                 if (results.isNotEmpty()) {
-                    LogUtils.d(this@LyricsRepositoryImpl, "Found ${results.size} lyrics for: ${song.title}")
-                    Result.success(Pair(query, results))
+                    val syncedCount = results.count { !it.record.syncedLyrics.isNullOrEmpty() }
+                    LogUtils.d(this@LyricsRepositoryImpl, "Found ${results.size} lyrics for: ${song.title} ($syncedCount with synced)")
+                    Result.success(Pair(combinedQuery, results))
                 } else {
-                    LogUtils.d(this@LyricsRepositoryImpl, "No lyrics found remotely for: ${song.title}")
-                    Result.failure(NoLyricsFoundException(query))
+                    LogUtils.d(this@LyricsRepositoryImpl, "No matching lyrics found for: ${song.title}")
+                    Result.failure(NoLyricsFoundException(combinedQuery))
                 }
             } else {
                 LogUtils.d(this@LyricsRepositoryImpl, "No lyrics found remotely for: ${song.title}")
-                Result.failure(NoLyricsFoundException(query))
+                Result.failure(NoLyricsFoundException(combinedQuery))
             }
         } catch (e: Exception) {
             LogUtils.e(this@LyricsRepositoryImpl, e, "Error searching remote for lyrics")
