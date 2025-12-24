@@ -12,6 +12,7 @@ import androidx.test.uiautomator.By
 import androidx.test.uiautomator.Direction
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
+import java.io.Closeable
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -56,14 +57,14 @@ class BaselineProfileGenerator {
 private fun markSetupComplete() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val dataStore = PreferenceDataStoreFactory.createWithPath(
-        produceFile = { context.preferencesDataStoreFile("settings") },
+        produceFile = { context.preferencesDataStoreFile("settings").toPath() },
     )
     runBlocking {
         dataStore.edit { prefs ->
             prefs[booleanPreferencesKey("initial_setup_done")] = true
         }
     }
-    dataStore.close()
+    (dataStore as Closeable).close()
 }
 
 private fun androidx.benchmark.macro.MacrobenchmarkScope.launchToHome(packageName: String) {
@@ -71,15 +72,15 @@ private fun androidx.benchmark.macro.MacrobenchmarkScope.launchToHome(packageNam
     startActivityAndWait()
 
     device.wait(Until.hasObject(By.pkg(packageName)), STARTUP_TIMEOUT_MS)
-    handlePermissionDialogs()
+    device.handlePermissionDialogs()
     waitForBottomNav()
 }
 
 private fun androidx.benchmark.macro.MacrobenchmarkScope.exploreMainTabs() {
     clickTab("Search")
-    waitForIdle()
+    device.waitForIdle()
     clickTab("Library")
-    waitForIdle()
+    device.waitForIdle()
     scrollPrimaryLists()
     openAnyDetailAndReturn()
     clickTab("Home")
