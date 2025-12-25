@@ -167,8 +167,9 @@ class BaselineProfileGenerator {
 
     private fun MacrobenchmarkScope.waitForTab(tabNamePattern: String): Boolean {
         val pattern = Pattern.compile(tabNamePattern, Pattern.CASE_INSENSITIVE)
-        val tab = device.wait(Until.findObject(By.text(pattern)), 10000)
-                  ?: device.wait(Until.findObject(By.desc(pattern)), 1000)
+        // Optimized: Check description first (since we added semantics), then text as fallback.
+        val tab = device.wait(Until.findObject(By.desc(pattern)), 5000)
+                  ?: device.wait(Until.findObject(By.text(pattern)), 5000)
         return tab != null
     }
 

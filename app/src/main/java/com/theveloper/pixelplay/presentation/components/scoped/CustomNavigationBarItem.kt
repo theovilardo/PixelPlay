@@ -101,7 +101,9 @@ fun RowScope.CustomNavigationBarItem(
                 indication = null //ripple(bounded = true, radius = 24.dp) // Ripple contenido
             )
             .semantics {
-                 this.contentDescription = contentDescription ?: ""
+                 if (contentDescription != null) {
+                     this.contentDescription = contentDescription
+                 }
             },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
