@@ -56,8 +56,13 @@ class BaselineProfileGenerator {
                 // 2. HOME SCROLL FLOW
                 // =================================================================================
                 Log.d("BaselineProfileGenerator", "STEP 1: Home Scroll")
-                clickTab("Home|Inicio")
-                safeScrollContent()
+                // Wait specifically for the Home tab to ensure we are ready. Long timeout.
+                if (waitForTab("Home|Inicio")) {
+                    clickTab("Home|Inicio")
+                    safeScrollContent()
+                } else {
+                    Log.e("BaselineProfileGenerator", "Home tab not found. Skipping Home Scroll.")
+                }
 
                 // =================================================================================
                 // 3. SETTINGS FLOW (From Home)
@@ -69,7 +74,7 @@ class BaselineProfileGenerator {
                 // 4. MAIN TABS NAVIGATION
                 // =================================================================================
                 Log.d("BaselineProfileGenerator", "STEP 3: Main Tabs Navigation")
-                val tabs = listOf("Search|Buscar", "Library|Biblioteca", "Home|Inicio", "Library|Biblioteca")
+                val tabs = listOf("Search|Buscar", "Library|Biblioteca", "Home|Inicio")
                 tabs.forEach { tab ->
                     clickTab(tab)
                     device.waitForIdle(1000)
@@ -109,11 +114,17 @@ class BaselineProfileGenerator {
     }
 
     private fun MacrobenchmarkScope.handlePermissionDialogs() {
-        val pattern = Pattern.compile("Allow|While using the app|Permitir|Aceptar|Grant", Pattern.CASE_INSENSITIVE)
+        // "Grant Permission" is the button text in PermissionsNotGrantedScreen
+        val pattern = Pattern.compile("Allow|While using the app|Permitir|Aceptar|Grant|Grant Permission", Pattern.CASE_INSENSITIVE)
         repeat(4) {
             try {
                 val dialogBtn = device.findObject(By.text(pattern))
-                if (dialogBtn?.isClickable == true) dialogBtn.click() else dialogBtn?.parent?.click()
+                if (dialogBtn?.isClickable == true) {
+                    Log.d("BaselineProfileGenerator", "Clicking permission/dialog button: ${dialogBtn.text}")
+                    dialogBtn.click()
+                } else if (dialogBtn?.parent?.isClickable == true) {
+                    dialogBtn.parent.click()
+                }
             } catch (e: Exception) {}
             device.waitForIdle(500)
         }
@@ -124,6 +135,8 @@ class BaselineProfileGenerator {
         try {
             if (device.wait(Until.gone(By.text(loadingPattern)), 15000)) {
                 Log.d("BaselineProfileGenerator", "Loading overlay disappeared.")
+            } else {
+                // It might not have appeared if benchmarks run fast or hot
             }
         } catch (e: Exception) {
             Log.w("BaselineProfileGenerator", "Exception waiting for loading: ${e.message}")
@@ -142,7 +155,8 @@ class BaselineProfileGenerator {
     }
 
     private fun MacrobenchmarkScope.ensurePlayerCollapsed() {
-        val fullPlayerIndicators = Pattern.compile(".*(Queue|Cola|Shuffle|Aleatorio|Repeat|Repetir).*", Pattern.CASE_INSENSITIVE)
+        // Queue/Cola are strong indicators of the full player
+        val fullPlayerIndicators = Pattern.compile(".*(Queue|Cola|Shuffle|Aleatorio).*", Pattern.CASE_INSENSITIVE)
         try {
             if (device.hasObject(By.desc(fullPlayerIndicators))) {
                 Log.d("BaselineProfileGenerator", "Collapsing expanded player...")
@@ -152,20 +166,29 @@ class BaselineProfileGenerator {
         } catch (e: Exception) {}
     }
 
+    private fun MacrobenchmarkScope.waitForTab(tabNamePattern: String): Boolean {
+        val pattern = Pattern.compile(tabNamePattern, Pattern.CASE_INSENSITIVE)
+        // Wait up to 10 seconds for the tab to appear (initial load)
+        val tab = device.wait(Until.findObject(By.text(pattern)), 10000)
+                  ?: device.wait(Until.findObject(By.desc(pattern)), 1000)
+        return tab != null
+    }
+
     private fun MacrobenchmarkScope.clickTab(tabNamePattern: String) {
         try {
             val pattern = Pattern.compile(tabNamePattern, Pattern.CASE_INSENSITIVE)
-            // Try description first (Icon only tabs usually have desc)
-            var tab = device.wait(Until.findObject(By.desc(pattern)), 2000)
+            // Try text first (BottomNavigationItem label)
+            var tab = device.findObject(By.text(pattern))
             if (tab == null) {
-                tab = device.findObject(By.text(pattern))
+                // Fallback to description
+                tab = device.findObject(By.desc(pattern))
             }
 
             if (tab != null) {
                 if (tab.isClickable) tab.click() else tab.parent?.click()
                 device.waitForIdle(1500)
             } else {
-                Log.w("BaselineProfileGenerator", "Tab not found: $tabNamePattern")
+                Log.w("BaselineProfileGenerator", "Tab not found for click: $tabNamePattern")
             }
         } catch (e: Exception) {
             Log.e("BaselineProfileGenerator", "Nav error: $tabNamePattern", e)
@@ -173,8 +196,8 @@ class BaselineProfileGenerator {
     }
 
     private fun MacrobenchmarkScope.navigateToSettingsAndScroll() {
-        // Look for Settings icon in Top Bar
-        val settingsPattern = Pattern.compile(".*(Settings|Ajustes|Configuración).*", Pattern.CASE_INSENSITIVE)
+        // Look for Settings icon in Top Bar. In code it is contentDescription="Settings" (Hardcoded)
+        val settingsPattern = Pattern.compile("Settings|Ajustes|Configuración", Pattern.CASE_INSENSITIVE)
         try {
             val settingsBtn = device.findObject(By.desc(settingsPattern))
             if (settingsBtn != null) {
@@ -184,7 +207,7 @@ class BaselineProfileGenerator {
                 // Scroll the Settings screen
                 safeScrollContent()
 
-                // Back to previous screen
+                // Back to previous screen (Home)
                 device.pressBack()
                 device.waitForIdle(1500)
             } else {
@@ -211,7 +234,6 @@ class BaselineProfileGenerator {
             device.waitForIdle(1000)
 
             // Scroll Back Up (Swipe DOWN) - View content above
-            // The margin prevents this from grabbing status bar
             scrollable.scroll(Direction.UP, 1.0f)
             device.waitForIdle(500)
         } else {
