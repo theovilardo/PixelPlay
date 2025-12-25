@@ -40,10 +40,10 @@ class BaselineProfileGenerator {
                 // 1. Setup & Permissions
                 setupPermissions(packageName)
 
-                // 2. Start App
-                startActivityAndWait { intent ->
-                    intent.putExtra("is_benchmark", true)
-                }
+                // 2. Start App MANUALLY (avoiding startActivityAndWait timeout crash)
+                // We use the shell command directly as it proved more robust for this device.
+                Log.d("BaselineProfileGenerator", "Starting activity via shell command...")
+                device.executeShellCommand("am start -n $packageName/.MainActivity --ez is_benchmark true")
 
                 // Wait for any initial splash/loading
                 device.waitForIdle(2000)
@@ -61,16 +61,17 @@ class BaselineProfileGenerator {
                 ensurePlayerCollapsed()
 
                 // 3. Navigation & List Scrolling (Critical for Jank)
-                // We iterate through tabs and scroll them to capture list rendering paths
+                Log.d("BaselineProfileGenerator", "Running Tabs and Scrolling Flow...")
                 runTabsAndScrollingFlow()
 
                 // 4. Heavy Components: UnifiedPlayerSheet
-                // This is the highest priority for the user to fix animation jank
+                Log.d("BaselineProfileGenerator", "Running UnifiedPlayerSheet Flow...")
                 runUnifiedPlayerSheetFlow()
 
                 // 5. Finalize
                 device.pressHome()
                 device.waitForIdle(1000)
+                Log.d("BaselineProfileGenerator", "Generation Finished.")
             }
         } catch (e: Exception) {
             // Preserve the user's custom rescue logic for their environment
@@ -102,9 +103,13 @@ class BaselineProfileGenerator {
         val loadingPattern = Pattern.compile("Preparing your library|Sincronizando biblioteca", Pattern.CASE_INSENSITIVE)
         try {
             // Wait up to 15 seconds for the loading screen to be gone
-            device.wait(Until.gone(By.text(loadingPattern)), 15000)
+            if (device.wait(Until.gone(By.text(loadingPattern)), 15000)) {
+                Log.d("BaselineProfileGenerator", "Loading overlay disappeared.")
+            } else {
+                Log.w("BaselineProfileGenerator", "Loading overlay wait timed out (it might not have appeared).")
+            }
         } catch (e: Exception) {
-            Log.w("BaselineProfileGenerator", "Loading overlay did not disappear or was not found.")
+            Log.w("BaselineProfileGenerator", "Exception waiting for loading overlay: ${e.message}")
         }
     }
 
@@ -141,6 +146,7 @@ class BaselineProfileGenerator {
 
         for (tabName in bottomTabs) {
             try {
+                Log.d("BaselineProfileGenerator", "Attempting to navigate to tab: $tabName")
                 val pattern = Pattern.compile(tabName, Pattern.CASE_INSENSITIVE)
                 // Try finding by text or description (Navigation items usually have both)
                 val selector = By.text(pattern)
@@ -155,7 +161,7 @@ class BaselineProfileGenerator {
                 if (tab != null) {
                     // If the tab is not clickable (maybe it's a child text), click parent
                     if (tab.isClickable) tab.click() else tab.parent?.click()
-                    device.waitForIdle(1500)
+                    device.waitForIdle(2000) // Visual pause for the user
 
                     // Special flows for specific tabs
                     if (tabName.contains("Library", true) || tabName.contains("Biblioteca", true)) {
@@ -177,6 +183,7 @@ class BaselineProfileGenerator {
     }
 
     private fun MacrobenchmarkScope.runLibrarySubTabsFlow() {
+        Log.d("BaselineProfileGenerator", "Running Library Sub-Tabs Flow...")
         // Top tabs in LibraryScreen
         val libraryTabs = listOf("Albums|Álbumes", "Artists|Artistas", "Songs|Canciones")
 
@@ -200,13 +207,14 @@ class BaselineProfileGenerator {
     }
 
     private fun MacrobenchmarkScope.runSettingsFlow() {
+        Log.d("BaselineProfileGenerator", "Running Settings Flow...")
         // In Library Screen, look for Settings icon
         val settingsPattern = Pattern.compile(".*(Settings|Ajustes|Configuración).*", Pattern.CASE_INSENSITIVE)
         try {
             val settingsBtn = device.findObject(By.desc(settingsPattern))
             if (settingsBtn != null) {
                 settingsBtn.click()
-                device.waitForIdle(1500)
+                device.waitForIdle(2000) // Visual pause
 
                 // Scroll Settings
                 scrollContent()
@@ -214,6 +222,8 @@ class BaselineProfileGenerator {
                 // Back to Library
                 device.pressBack()
                 device.waitForIdle(1000)
+            } else {
+                Log.w("BaselineProfileGenerator", "Settings button not found")
             }
         } catch (e: Exception) {
             Log.w("BaselineProfileGenerator", "Could not find/interact with Settings.")
@@ -270,12 +280,16 @@ class BaselineProfileGenerator {
                 cover.click()
                 // Wait for expanded state
                 device.wait(Until.hasObject(fullPlayerIndicator), 5000)
+                device.waitForIdle(1000) // Visual pause
+            } else {
+                Log.w("BaselineProfileGenerator", "MiniPlayer cover not found to expand.")
             }
         } catch (e: Exception) {}
 
         // 2. Interact if Expanded
         if (device.hasObject(fullPlayerIndicator)) {
             try {
+                Log.d("BaselineProfileGenerator", "Interacting with UnifiedPlayerSheet...")
                 // Swipe Cover (Pager interaction)
                 val fullCover = device.findObject(coverSelector)
                 fullCover?.swipe(Direction.LEFT, 0.8f)
