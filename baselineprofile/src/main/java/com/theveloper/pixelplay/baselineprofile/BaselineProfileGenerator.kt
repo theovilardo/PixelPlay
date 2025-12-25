@@ -56,7 +56,6 @@ class BaselineProfileGenerator {
                 // 2. HOME SCROLL FLOW
                 // =================================================================================
                 Log.d("BaselineProfileGenerator", "STEP 1: Home Scroll")
-                // Wait specifically for the Home tab to ensure we are ready. Long timeout.
                 if (waitForTab("Home|Inicio")) {
                     clickTab("Home|Inicio")
                     safeScrollContent()
@@ -65,7 +64,7 @@ class BaselineProfileGenerator {
                 }
 
                 // =================================================================================
-                // 3. SETTINGS FLOW (From Home)
+                // 3. SETTINGS FLOW
                 // =================================================================================
                 Log.d("BaselineProfileGenerator", "STEP 2: Settings")
                 navigateToSettingsAndScroll()
@@ -85,12 +84,17 @@ class BaselineProfileGenerator {
                 // =================================================================================
                 Log.d("BaselineProfileGenerator", "STEP 4: Library Internal Tabs")
                 clickTab("Library|Biblioteca")
+                device.waitForIdle(1000)
                 runLibraryPagerSwipeFlow()
 
                 // =================================================================================
-                // 6. UNIFIED PLAYER SHEET (Heavy Component)
+                // 6. UNIFIED PLAYER SHEET
                 // =================================================================================
                 Log.d("BaselineProfileGenerator", "STEP 5: UnifiedPlayerSheet")
+                // Important: Go back to Home first to ensure MiniPlayer is visible/accessible
+                clickTab("Home|Inicio")
+                device.waitForIdle(1000)
+
                 runUnifiedPlayerSheetFlow()
 
                 // =================================================================================
@@ -114,13 +118,11 @@ class BaselineProfileGenerator {
     }
 
     private fun MacrobenchmarkScope.handlePermissionDialogs() {
-        // "Grant Permission" is the button text in PermissionsNotGrantedScreen
         val pattern = Pattern.compile("Allow|While using the app|Permitir|Aceptar|Grant|Grant Permission", Pattern.CASE_INSENSITIVE)
         repeat(4) {
             try {
                 val dialogBtn = device.findObject(By.text(pattern))
                 if (dialogBtn?.isClickable == true) {
-                    Log.d("BaselineProfileGenerator", "Clicking permission/dialog button: ${dialogBtn.text}")
                     dialogBtn.click()
                 } else if (dialogBtn?.parent?.isClickable == true) {
                     dialogBtn.parent.click()
@@ -135,8 +137,6 @@ class BaselineProfileGenerator {
         try {
             if (device.wait(Until.gone(By.text(loadingPattern)), 15000)) {
                 Log.d("BaselineProfileGenerator", "Loading overlay disappeared.")
-            } else {
-                // It might not have appeared if benchmarks run fast or hot
             }
         } catch (e: Exception) {
             Log.w("BaselineProfileGenerator", "Exception waiting for loading: ${e.message}")
@@ -155,7 +155,6 @@ class BaselineProfileGenerator {
     }
 
     private fun MacrobenchmarkScope.ensurePlayerCollapsed() {
-        // Queue/Cola are strong indicators of the full player
         val fullPlayerIndicators = Pattern.compile(".*(Queue|Cola|Shuffle|Aleatorio).*", Pattern.CASE_INSENSITIVE)
         try {
             if (device.hasObject(By.desc(fullPlayerIndicators))) {
@@ -168,7 +167,6 @@ class BaselineProfileGenerator {
 
     private fun MacrobenchmarkScope.waitForTab(tabNamePattern: String): Boolean {
         val pattern = Pattern.compile(tabNamePattern, Pattern.CASE_INSENSITIVE)
-        // Wait up to 10 seconds for the tab to appear (initial load)
         val tab = device.wait(Until.findObject(By.text(pattern)), 10000)
                   ?: device.wait(Until.findObject(By.desc(pattern)), 1000)
         return tab != null
@@ -177,15 +175,21 @@ class BaselineProfileGenerator {
     private fun MacrobenchmarkScope.clickTab(tabNamePattern: String) {
         try {
             val pattern = Pattern.compile(tabNamePattern, Pattern.CASE_INSENSITIVE)
-            // Try text first (BottomNavigationItem label)
-            var tab = device.findObject(By.text(pattern))
+            // Prioritize description since we improved accessibility
+            var tab = device.findObject(By.desc(pattern))
             if (tab == null) {
-                // Fallback to description
-                tab = device.findObject(By.desc(pattern))
+                tab = device.findObject(By.text(pattern))
             }
 
             if (tab != null) {
-                if (tab.isClickable) tab.click() else tab.parent?.click()
+                if (tab.isClickable) {
+                    tab.click()
+                } else if (tab.parent?.isClickable == true) {
+                    tab.parent.click()
+                } else {
+                    // Last resort: click center of the object
+                    tab.click()
+                }
                 device.waitForIdle(1500)
             } else {
                 Log.w("BaselineProfileGenerator", "Tab not found for click: $tabNamePattern")
@@ -196,18 +200,13 @@ class BaselineProfileGenerator {
     }
 
     private fun MacrobenchmarkScope.navigateToSettingsAndScroll() {
-        // Look for Settings icon in Top Bar. In code it is contentDescription="Settings" (Hardcoded)
         val settingsPattern = Pattern.compile("Settings|Ajustes|Configuración", Pattern.CASE_INSENSITIVE)
         try {
             val settingsBtn = device.findObject(By.desc(settingsPattern))
             if (settingsBtn != null) {
                 settingsBtn.click()
                 device.waitForIdle(2000)
-
-                // Scroll the Settings screen
                 safeScrollContent()
-
-                // Back to previous screen (Home)
                 device.pressBack()
                 device.waitForIdle(1500)
             } else {
@@ -221,19 +220,15 @@ class BaselineProfileGenerator {
     private fun MacrobenchmarkScope.safeScrollContent() {
         val scrollable = device.findObject(By.scrollable(true))
         if (scrollable != null) {
-            // High gesture margin to avoid pulling Notification Shade (Status Bar)
-            // 25% of screen height from top/bottom
+            // Margin to avoid Notification Shade
             scrollable.setGestureMargin(device.displayHeight / 4)
 
-            // Scroll Down (Swipe UP) - View content below
             scrollable.scroll(Direction.DOWN, 1.0f)
             device.waitForIdle(500)
 
-            // Fling (Fast Scroll)
             scrollable.fling(Direction.DOWN)
             device.waitForIdle(1000)
 
-            // Scroll Back Up (Swipe DOWN) - View content above
             scrollable.scroll(Direction.UP, 1.0f)
             device.waitForIdle(500)
         } else {
@@ -242,25 +237,26 @@ class BaselineProfileGenerator {
     }
 
     private fun MacrobenchmarkScope.runLibraryPagerSwipeFlow() {
-        // Swipe laterally through the Pager
         val screenWidth = device.displayWidth
         val screenHeight = device.displayHeight
 
+        // Coordinates for lateral swipe (Right to Left)
         val startX = (screenWidth * 0.9).toInt()
         val endX = (screenWidth * 0.1).toInt()
         val centerY = (screenHeight * 0.5).toInt()
 
-        // Iterate through typical number of tabs (Songs, Albums, Artists, Playlists, Liked, Folders)
+        // 6 tabs: Songs, Albums, Artists, Playlists, Liked, Folders
         repeat(6) { i ->
             Log.d("BaselineProfileGenerator", "Library Tab Swipe $i")
 
-            // Scroll current tab content
+            // 1. Scroll content of current tab
             safeScrollContent()
             device.waitForIdle(500)
 
-            // Swipe to next tab (Right-to-Left)
-            device.swipe(startX, centerY, endX, centerY, 25)
-            device.waitForIdle(1500) // Wait for pager snap & content load
+            // 2. Swipe to next tab
+            // Increased steps from 25 to 40 for a smoother/slower swipe that Pager likes better
+            device.swipe(startX, centerY, endX, centerY, 40)
+            device.waitForIdle(1500)
         }
     }
 
@@ -273,6 +269,7 @@ class BaselineProfileGenerator {
             val cover = device.findObject(coverSelector)
             if (cover != null) {
                 cover.click()
+                // Wait for expansion
                 device.wait(Until.hasObject(fullPlayerIndicator), 5000)
                 device.waitForIdle(1500)
             } else {
@@ -284,7 +281,9 @@ class BaselineProfileGenerator {
         // 2. Interact
         if (device.hasObject(fullPlayerIndicator)) {
             try {
-                // Swipe Carousel (Pager)
+                Log.d("BaselineProfileGenerator", "Interacting with UnifiedPlayerSheet...")
+
+                // Swipe Carousel
                 val fullCover = device.findObject(coverSelector)
                 fullCover?.swipe(Direction.LEFT, 0.8f)
                 device.waitForIdle(1000)
@@ -294,13 +293,17 @@ class BaselineProfileGenerator {
                 shuffleBtn?.click()
                 device.waitForIdle(500)
 
-                val repeatBtn = device.findObject(By.desc(Pattern.compile(".*(Repeat|Repetir).*", Pattern.CASE_INSENSITIVE)))
-                repeatBtn?.click()
-                device.waitForIdle(500)
+                // Slider Interaction - WavyMusicSlider
+                // It sits above controls. We target the bottom 15-20% area.
+                val screenHeight = device.displayHeight
+                val screenWidth = device.displayWidth
 
-                // Slider Interaction (Generic swipe at bottom)
-                val sliderY = (device.displayHeight * 0.82).toInt()
-                device.swipe((device.displayWidth * 0.2).toInt(), sliderY, (device.displayWidth * 0.8).toInt(), sliderY, 40)
+                // Approximate slider Y position (e.g., 85% down the screen)
+                val sliderY = (screenHeight * 0.85).toInt()
+
+                // Drag from left (20%) to right (80%)
+                Log.d("BaselineProfileGenerator", "Interacting with Slider at Y=$sliderY")
+                device.swipe((screenWidth * 0.2).toInt(), sliderY, (screenWidth * 0.8).toInt(), sliderY, 50)
                 device.waitForIdle(1000)
 
                 // Close
