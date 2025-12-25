@@ -13,6 +13,7 @@ import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.StaleObjectException
 import android.content.Intent
 import android.graphics.Point
+import android.util.Log
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -40,8 +41,6 @@ class BaselineProfileGenerator {
                 setupPermissions(packageName)
 
                 // 2. Start App
-                // Using startActivityAndWait can sometimes timeout if the app doesn't report fully drawn fast enough.
-                // We trust the process starts and we wait for UI manually.
                 startActivityAndWait { intent ->
                     intent.putExtra("is_benchmark", true)
                 }
@@ -57,6 +56,9 @@ class BaselineProfileGenerator {
 
                 // Handle Onboarding (if any remains)
                 handleOnboarding()
+
+                // Ensure Player is collapsed before starting navigation tests
+                ensurePlayerCollapsed()
 
                 // 3. Navigation & List Scrolling (Critical for Jank)
                 // We iterate through tabs and scroll them to capture list rendering paths
@@ -77,7 +79,6 @@ class BaselineProfileGenerator {
     }
 
     private fun MacrobenchmarkScope.setupPermissions(packageName: String) {
-        // Permissions are crucial for the app to show content and not be empty
         device.executeShellCommand("pm grant $packageName android.permission.POST_NOTIFICATIONS")
         device.executeShellCommand("appops set $packageName MANAGE_EXTERNAL_STORAGE allow")
         device.executeShellCommand("pm grant $packageName android.permission.READ_MEDIA_AUDIO")
@@ -103,7 +104,7 @@ class BaselineProfileGenerator {
             // Wait up to 15 seconds for the loading screen to be gone
             device.wait(Until.gone(By.text(loadingPattern)), 15000)
         } catch (e: Exception) {
-            // Proceed anyway, maybe it wasn't there
+            Log.w("BaselineProfileGenerator", "Loading overlay did not disappear or was not found.")
         }
     }
 
@@ -118,9 +119,20 @@ class BaselineProfileGenerator {
         }
     }
 
+    private fun MacrobenchmarkScope.ensurePlayerCollapsed() {
+        // Indicators of Expanded Player (not present in MiniPlayer)
+        val fullPlayerIndicators = Pattern.compile(".*(Queue|Cola|Shuffle|Aleatorio|Repeat|Repetir).*", Pattern.CASE_INSENSITIVE)
+
+        try {
+            if (device.hasObject(By.desc(fullPlayerIndicators))) {
+                Log.d("BaselineProfileGenerator", "Player seems expanded. Collapsing...")
+                device.pressBack()
+                device.waitForIdle(1000)
+            }
+        } catch (e: Exception) {}
+    }
+
     private fun MacrobenchmarkScope.runTabsAndScrollingFlow() {
-        // Explicitly target the Bottom Navigation items
-        // We use both text and desc to be robust
         val bottomTabs = listOf(
             "Library|Biblioteca",
             "Home|Inicio",
@@ -129,27 +141,37 @@ class BaselineProfileGenerator {
 
         for (tabName in bottomTabs) {
             try {
-                // Try finding by text or description (Navigation items usually have both)
                 val pattern = Pattern.compile(tabName, Pattern.CASE_INSENSITIVE)
+                // Try finding by text or description (Navigation items usually have both)
                 val selector = By.text(pattern)
+                val descSelector = By.desc(pattern)
 
                 // Click the tab
-                val tab = device.wait(Until.findObject(selector), 5000)
+                var tab = device.wait(Until.findObject(selector), 3000)
+                if (tab == null) {
+                    tab = device.findObject(descSelector)
+                }
+
                 if (tab != null) {
-                    tab.click()
+                    // If the tab is not clickable (maybe it's a child text), click parent
+                    if (tab.isClickable) tab.click() else tab.parent?.click()
                     device.waitForIdle(1500)
 
-                    // If we are in Library, we also want to exercise the top tabs (Songs, Albums, Artists)
+                    // Special flows for specific tabs
                     if (tabName.contains("Library", true) || tabName.contains("Biblioteca", true)) {
                         runLibrarySubTabsFlow()
+                        // Run settings flow from Library
+                        runSettingsFlow()
+                    } else if (tabName.contains("Search", true) || tabName.contains("Buscar", true)) {
+                        scrollContent()
                     } else {
-                        // Just scroll the main content for Home/Search
                         scrollContent()
                     }
+                } else {
+                    Log.w("BaselineProfileGenerator", "Could not find tab: $tabName")
                 }
             } catch (e: Exception) {
-               // Log but continue
-               android.util.Log.w("BaselineProfileGenerator", "Failed to navigate to tab: $tabName")
+               Log.e("BaselineProfileGenerator", "Error navigating to tab: $tabName", e)
             }
         }
     }
@@ -168,8 +190,8 @@ class BaselineProfileGenerator {
 
                     scrollContent()
 
-                    // Specific drill-down for Albums to test detail screen transition
-                    if (subTabName.contains("Albums", true)) {
+                    // Specific drill-down for Albums
+                    if (subTabName.contains("Albums", true) || subTabName.contains("Álbumes", true)) {
                         enterDetailAndScroll()
                     }
                 }
@@ -177,21 +199,38 @@ class BaselineProfileGenerator {
         }
     }
 
+    private fun MacrobenchmarkScope.runSettingsFlow() {
+        // In Library Screen, look for Settings icon
+        val settingsPattern = Pattern.compile(".*(Settings|Ajustes|Configuración).*", Pattern.CASE_INSENSITIVE)
+        try {
+            val settingsBtn = device.findObject(By.desc(settingsPattern))
+            if (settingsBtn != null) {
+                settingsBtn.click()
+                device.waitForIdle(1500)
+
+                // Scroll Settings
+                scrollContent()
+
+                // Back to Library
+                device.pressBack()
+                device.waitForIdle(1000)
+            }
+        } catch (e: Exception) {
+            Log.w("BaselineProfileGenerator", "Could not find/interact with Settings.")
+        }
+    }
+
     private fun MacrobenchmarkScope.scrollContent() {
-        // Find any scrollable container (LazyColumn, LazyGrid, etc.)
         val scrollable = device.findObject(By.scrollable(true))
         if (scrollable != null) {
             scrollable.setGestureMargin(device.displayWidth / 10)
 
-            // Slow scroll (layout/measure)
             scrollable.scroll(Direction.DOWN, 1.0f)
             device.waitForIdle(500)
 
-            // Fast scroll (fling/jank)
             scrollable.fling(Direction.DOWN)
             device.waitForIdle(800)
 
-            // Scroll back up to reset for next interaction
             scrollable.scroll(Direction.UP, 1.0f)
             device.waitForIdle(500)
         }
@@ -200,13 +239,10 @@ class BaselineProfileGenerator {
     private fun MacrobenchmarkScope.enterDetailAndScroll() {
         try {
             val scrollable = device.findObject(By.scrollable(true))
-            // We need to click an item inside the scrollable.
-            // Using a point in the center-top of the scrollable is often safer than finding children objects
-            // which might be complex in Compose.
             if (scrollable != null) {
                 val bounds = scrollable.visibleBounds
-                // Click slightly below the top to avoid clicking headers
-                val clickPoint = Point(bounds.centerX(), bounds.top + 200)
+                // Click center-top to hit an item, avoiding headers
+                val clickPoint = Point(bounds.centerX(), bounds.top + (bounds.height() / 4))
                 device.click(clickPoint.x, clickPoint.y)
 
                 device.waitForIdle(2000) // Wait for transition
@@ -224,24 +260,23 @@ class BaselineProfileGenerator {
     private fun MacrobenchmarkScope.runUnifiedPlayerSheetFlow() {
         // Selectors
         val coverSelector = By.desc(Pattern.compile(".*(Carátula|Cover|Album Art).*", Pattern.CASE_INSENSITIVE))
-        // The Queue button is a good indicator that the sheet is fully expanded
-        val queueButtonSelector = By.desc(Pattern.compile(".*(Queue|Cola).*", Pattern.CASE_INSENSITIVE))
+        // Use Queue or Shuffle as indicator of full player
+        val fullPlayerIndicator = By.desc(Pattern.compile(".*(Queue|Cola|Shuffle|Aleatorio).*", Pattern.CASE_INSENSITIVE))
 
         // 1. Expand Player
         try {
-            // Find miniplayer cover and click
             val cover = device.findObject(coverSelector)
             if (cover != null) {
                 cover.click()
                 // Wait for expanded state
-                device.wait(Until.hasObject(queueButtonSelector), 5000)
+                device.wait(Until.hasObject(fullPlayerIndicator), 5000)
             }
         } catch (e: Exception) {}
 
         // 2. Interact if Expanded
-        if (device.hasObject(queueButtonSelector)) {
+        if (device.hasObject(fullPlayerIndicator)) {
             try {
-                // Swipe Cover (Pager interaction) - Critical for GPU profiling
+                // Swipe Cover (Pager interaction)
                 val fullCover = device.findObject(coverSelector)
                 fullCover?.swipe(Direction.LEFT, 0.8f)
                 device.waitForIdle(1000)
@@ -252,14 +287,14 @@ class BaselineProfileGenerator {
                 if (playBtn?.isClickable == true) playBtn.click() else playBtn?.parent?.click()
                 device.waitForIdle(500)
 
-                // Open Queue BottomSheet
-                val queueBtn = device.findObject(queueButtonSelector)
-                if (queueBtn?.isClickable == true) queueBtn.click() else queueBtn?.parent?.click()
-                device.waitForIdle(1500)
-
-                // Close Queue (Back press)
-                device.pressBack()
-                device.waitForIdle(1000)
+                // Open Queue BottomSheet if found
+                val queueBtn = device.findObject(By.desc(Pattern.compile(".*(Queue|Cola).*", Pattern.CASE_INSENSITIVE)))
+                if (queueBtn?.isClickable == true) {
+                    queueBtn.click()
+                    device.waitForIdle(1500)
+                    device.pressBack() // Close Queue
+                    device.waitForIdle(1000)
+                }
             } catch (e: Exception) {}
 
             // 3. Collapse Player
@@ -278,7 +313,7 @@ class BaselineProfileGenerator {
 
     private fun recoverBaselineProfile(packageName: String, instrumentation: android.app.Instrumentation, e: Exception) {
         val deviceManual = UiDevice.getInstance(instrumentation)
-        android.util.Log.e("BaselineProfileGenerator", "FALLO DETECTADO: ${e.message}")
+        Log.e("BaselineProfileGenerator", "FALLO DETECTADO: ${e.message}")
 
         if (e.message?.contains("flush profiles") == true || e is IllegalStateException || e is StaleObjectException || e.message?.contains("Unable to confirm activity launch") == true) {
             val srcPath = "/data/misc/profman/$packageName-primary.prof.txt"
@@ -292,7 +327,7 @@ class BaselineProfileGenerator {
                 try { deviceManual.executeShellCommand("cp $srcPath $dest") } catch (ignore: Exception) {}
             }
 
-            android.util.Log.i("BaselineProfileGenerator", "Attempted manual rescue of profile to: $paths")
+            Log.i("BaselineProfileGenerator", "Attempted manual rescue of profile to: $paths")
         } else {
             throw e
         }
