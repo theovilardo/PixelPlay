@@ -63,6 +63,10 @@ import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.ContainedLoadingIndicator
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuBoxScope
 import androidx.compose.material3.ExposedDropdownMenuDefaults
@@ -136,6 +140,8 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerSheetState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.SettingsViewModel
 import com.theveloper.pixelplay.data.worker.SyncProgress
+import com.theveloper.pixelplay.presentation.viewmodel.LyricsRefreshProgress
+import com.theveloper.pixelplay.presentation.viewmodel.FailedSongInfo
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
@@ -208,12 +214,16 @@ fun SettingsScreen(
     val isSyncing by settingsViewModel.isSyncing.collectAsState()
     val syncProgress by settingsViewModel.syncProgress.collectAsState()
     val explorerRoot = settingsViewModel.explorerRoot()
+    val isRefreshingLyrics by settingsViewModel.isRefreshingLyrics.collectAsState()
+    val lyricsRefreshProgress by settingsViewModel.lyricsRefreshProgress.collectAsState()
+    val lastFailedSongs by settingsViewModel.lastFailedSongs.collectAsState()
 
     val context = LocalContext.current
 
     var showClearLyricsDialog by remember { mutableStateOf(false) }
     var showExplorerSheet by remember { mutableStateOf(false) }
     var refreshRequested by remember { mutableStateOf(false) }
+    var showFailedSongsDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         settingsViewModel.primeExplorer()
@@ -329,6 +339,34 @@ fun SettingsScreen(
         RefreshingLibraryDialog(syncProgress = syncProgress)
     }
 
+    if (isRefreshingLyrics || lyricsRefreshProgress.isComplete) {
+        RefreshingLyricsDialog(
+            progress = lyricsRefreshProgress,
+            onDismiss = { 
+                settingsViewModel.dismissLyricsRefreshDialog()
+                // Show failed songs dialog if there are failures
+                if (lyricsRefreshProgress.hasFailedSongs) {
+                    showFailedSongsDialog = true
+                }
+            },
+            onRefreshAgain = {
+                settingsViewModel.dismissLyricsRefreshDialog()
+                settingsViewModel.refreshAllLyrics()
+            }
+        )
+    }
+
+    if (showFailedSongsDialog && lastFailedSongs.isNotEmpty()) {
+        FailedSongsDialog(
+            failedSongs = lastFailedSongs,
+            onDismiss = { showFailedSongsDialog = false },
+            onRefreshAgain = {
+                showFailedSongsDialog = false
+                settingsViewModel.refreshAllLyrics()
+            }
+        )
+    }
+
     Box(
         modifier = Modifier
             .nestedScroll(nestedScrollConnection)
@@ -412,6 +450,27 @@ fun SettingsScreen(
                                     Toast.LENGTH_SHORT
                                 ).show()
                                 settingsViewModel.refreshLibrary()
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        RefreshLyricsItem(
+                            isRefreshing = isRefreshingLyrics,
+                            progress = lyricsRefreshProgress,
+                            onRefresh = {
+                                if (isRefreshingLyrics) {
+                                    Toast.makeText(
+                                        context,
+                                        "Lyrics refresh is already in progress",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    return@RefreshLyricsItem
+                                }
+                                Toast.makeText(
+                                    context,
+                                    "Fetching lyrics…",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                settingsViewModel.refreshAllLyrics()
                             }
                         )
                         Spacer(modifier = Modifier.height(4.dp))
@@ -920,15 +979,31 @@ private fun ExplorerWarmupDialog(onCancel: () -> Unit) {
 
 @Composable
 private fun RefreshingLibraryDialog(syncProgress: SyncProgress) {
+    // Animate progress for smooth transitions
+    val animatedProgress by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = syncProgress.progress,
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = 300),
+        label = "libraryProgress"
+    )
+
     AlertDialog(
         onDismissRequest = {},
         confirmButton = {},
         icon = { 
-            Box(contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(48.dp)
+            ) {
+                @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+                ContainedLoadingIndicator()
             }
         },
-        title = { Text(text = "Refreshing library") },
+        title = { 
+            Text(
+                text = "Refreshing library",
+                fontFamily = GoogleSansRounded
+            ) 
+        },
         text = {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -937,23 +1012,29 @@ private fun RefreshingLibraryDialog(syncProgress: SyncProgress) {
                 if (syncProgress.hasProgress) {
                     Text(
                         text = "Scanned ${syncProgress.currentCount} of ${syncProgress.totalCount} songs",
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontFamily = GoogleSansRounded
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    LinearProgressIndicator(
-                        progress = { syncProgress.progress },
-                        modifier = Modifier.fillMaxWidth()
+                    @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+                    LinearWavyProgressIndicator(
+                        progress = { animatedProgress },
+                        modifier = Modifier.fillMaxWidth(),
+                        amplitude = { 1f },
+                        wavelength = 24.dp
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "${(syncProgress.progress * 100).toInt()}%",
+                        text = "${(animatedProgress * 100).toInt()}%",
                         style = MaterialTheme.typography.labelMedium,
+                        fontFamily = GoogleSansRounded,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 } else {
                     Text(
-                        text = "Rebuilding your music library. This runs in the background and may take a moment.",
-                        style = MaterialTheme.typography.bodyMedium
+                        text = "Rebuilding your music library. This may take a moment.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontFamily = GoogleSansRounded
                     )
                 }
             }
@@ -1046,6 +1127,288 @@ private fun RefreshLibraryItem(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RefreshingLyricsDialog(
+    progress: LyricsRefreshProgress,
+    onDismiss: () -> Unit,
+    onRefreshAgain: () -> Unit
+) {
+    val title = if (progress.isComplete) "Lyrics Refresh Complete" else "Fetching Lyrics"
+    
+    // Animate progress for smooth transitions
+    val animatedProgress by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = progress.progress,
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = 300),
+        label = "lyricsProgress"
+    )
+
+    AlertDialog(
+        onDismissRequest = { if (progress.isComplete) onDismiss() },
+        confirmButton = {
+            if (progress.isComplete) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (progress.hasFailedSongs) {
+                        TextButton(onClick = onRefreshAgain) {
+                            Text(
+                                text = "Refresh Again",
+                                fontFamily = GoogleSansRounded
+                            )
+                        }
+                    }
+                    TextButton(onClick = onDismiss) {
+                        Text(
+                            text = if (progress.hasFailedSongs) "View Failed" else "Done",
+                            fontFamily = GoogleSansRounded
+                        )
+                    }
+                }
+            }
+        },
+        icon = {
+            if (!progress.isComplete) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+                    ContainedLoadingIndicator()
+                }
+            }
+        },
+        title = { 
+            Text(
+                text = title,
+                fontFamily = GoogleSansRounded
+            ) 
+        },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (progress.hasProgress) {
+                    if (!progress.isComplete) {
+                        Text(
+                            text = "Processing ${progress.currentCount} of ${progress.totalSongs} songs",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontFamily = GoogleSansRounded
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+                        LinearWavyProgressIndicator(
+                            progress = { animatedProgress },
+                            modifier = Modifier.fillMaxWidth(),
+                            amplitude = { 1f },
+                            wavelength = 24.dp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "${(progress.progress * 100).toInt()}%",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontFamily = GoogleSansRounded,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "✓ Saved: ${progress.savedCount}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontFamily = GoogleSansRounded,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "✗ Not found: ${progress.notFoundCount}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontFamily = GoogleSansRounded,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Text(
+                            text = "→ Skipped: ${progress.skippedCount}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontFamily = GoogleSansRounded,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "Preparing to fetch lyrics...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontFamily = GoogleSansRounded
+                    )
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun FailedSongsDialog(
+    failedSongs: List<FailedSongInfo>,
+    onDismiss: () -> Unit,
+    onRefreshAgain: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onRefreshAgain) {
+                    Text(
+                        text = "Refresh Again",
+                        fontFamily = GoogleSansRounded
+                    )
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(
+                        text = "Done",
+                        fontFamily = GoogleSansRounded
+                    )
+                }
+            }
+        },
+        title = { 
+            Text(
+                text = "Failed Songs (${failedSongs.size})",
+                fontFamily = GoogleSansRounded
+            ) 
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "These songs couldn't be found. You can add lyrics manually from the Now Playing screen.",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = GoogleSansRounded,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // Scrollable list of failed songs
+                androidx.compose.foundation.lazy.LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(250.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(failedSongs.size) { index ->
+                        val song = failedSongs[index]
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp)
+                            ) {
+                                Text(
+                                    text = song.title,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontFamily = GoogleSansRounded,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = song.artist,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontFamily = GoogleSansRounded,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun RefreshLyricsItem(
+    isRefreshing: Boolean,
+    progress: LyricsRefreshProgress,
+    onRefresh: () -> Unit
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .padding(end = 16.dp)
+                        .size(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.rounded_lyrics_24),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary
+                    )
+                }
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = "Refresh Lyrics",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Automatically fetch lyrics for all songs using lrclib.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                FilledIconButton(
+                    onClick = onRefresh,
+                    enabled = !isRefreshing,
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Sync,
+                        contentDescription = "Refresh lyrics",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+
+            if (isRefreshing && progress.hasProgress) {
+                Spacer(modifier = Modifier.height(12.dp))
+                LinearProgressIndicator(
+                    progress = { progress.progress },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Processing ${progress.currentCount} of ${progress.totalSongs} songs",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

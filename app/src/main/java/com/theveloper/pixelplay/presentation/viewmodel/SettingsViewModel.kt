@@ -9,10 +9,13 @@ import com.theveloper.pixelplay.data.preferences.LibraryNavigationMode
 import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.preferences.FullPlayerLoadingTweaks
+import com.theveloper.pixelplay.data.repository.LyricsRepository
+import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.data.worker.SyncManager
 import com.theveloper.pixelplay.data.worker.SyncProgress
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -21,6 +24,7 @@ import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.data.ai.GeminiModelService
 import com.theveloper.pixelplay.data.ai.GeminiModel
 import com.theveloper.pixelplay.data.preferences.LaunchTab
+import com.theveloper.pixelplay.data.model.Song
 import java.io.File
 
 data class SettingsUiState(
@@ -45,11 +49,33 @@ data class SettingsUiState(
     val fullPlayerLoadingTweaks: FullPlayerLoadingTweaks = FullPlayerLoadingTweaks()
 )
 
+data class FailedSongInfo(
+    val id: String,
+    val title: String,
+    val artist: String
+)
+
+data class LyricsRefreshProgress(
+    val totalSongs: Int = 0,
+    val currentCount: Int = 0,
+    val savedCount: Int = 0,
+    val notFoundCount: Int = 0,
+    val skippedCount: Int = 0,
+    val isComplete: Boolean = false,
+    val failedSongs: List<FailedSongInfo> = emptyList()
+) {
+    val hasProgress: Boolean get() = totalSongs > 0
+    val progress: Float get() = if (totalSongs > 0) currentCount.toFloat() / totalSongs else 0f
+    val hasFailedSongs: Boolean get() = failedSongs.isNotEmpty()
+}
+
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val syncManager: SyncManager,
     private val geminiModelService: GeminiModelService,
+    private val lyricsRepository: LyricsRepository,
+    private val musicRepository: MusicRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -89,6 +115,16 @@ class SettingsViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = SyncProgress()
         )
+
+    private val _isRefreshingLyrics = MutableStateFlow(false)
+    val isRefreshingLyrics: StateFlow<Boolean> = _isRefreshingLyrics.asStateFlow()
+
+    private val _lyricsRefreshProgress = MutableStateFlow(LyricsRefreshProgress())
+    val lyricsRefreshProgress: StateFlow<LyricsRefreshProgress> = _lyricsRefreshProgress.asStateFlow()
+
+    // Persistent failed songs list - survives dialog dismissal until next refresh
+    private val _lastFailedSongs = MutableStateFlow<List<FailedSongInfo>>(emptyList())
+    val lastFailedSongs: StateFlow<List<FailedSongInfo>> = _lastFailedSongs.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -419,6 +455,98 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferencesRepository.resetGeminiSystemPrompt()
         }
+    }
+
+    /**
+     * Fetches lyrics for all songs in the library using the lrclib API.
+     * Uses the fast direct fetch method. Failed songs are tracked and persisted.
+     * Prioritizes synced lyrics over plain lyrics.
+     * Skips songs that already have lyrics stored.
+     */
+    fun refreshAllLyrics() {
+        if (_isRefreshingLyrics.value) return
+
+        viewModelScope.launch {
+            _isRefreshingLyrics.value = true
+            _lyricsRefreshProgress.value = LyricsRefreshProgress()
+            _lastFailedSongs.value = emptyList() // Clear previous failed songs on new refresh
+
+            try {
+                val songs = musicRepository.getAudioFiles().first()
+                val totalSongs = songs.size
+                var currentCount = 0
+                var savedCount = 0
+                var notFoundCount = 0
+                var skippedCount = 0
+                val failedSongs = mutableListOf<FailedSongInfo>()
+
+                _lyricsRefreshProgress.value = LyricsRefreshProgress(
+                    totalSongs = totalSongs,
+                    currentCount = 0,
+                    savedCount = 0,
+                    notFoundCount = 0,
+                    skippedCount = 0
+                )
+
+                for (song in songs) {
+                    // Skip songs that already have lyrics
+                    if (!song.lyrics.isNullOrBlank()) {
+                        skippedCount++
+                        currentCount++
+                        _lyricsRefreshProgress.value = LyricsRefreshProgress(
+                            totalSongs = totalSongs,
+                            currentCount = currentCount,
+                            savedCount = savedCount,
+                            notFoundCount = notFoundCount,
+                            skippedCount = skippedCount,
+                            failedSongs = failedSongs.toList()
+                        )
+                        continue
+                    }
+
+                    // Fast fetch using direct API call
+                    val result = lyricsRepository.fetchFromRemote(song)
+                    result.onSuccess {
+                        savedCount++
+                    }.onFailure {
+                        notFoundCount++
+                        failedSongs.add(FailedSongInfo(
+                            id = song.id,
+                            title = song.title,
+                            artist = song.displayArtist
+                        ))
+                    }
+
+                    currentCount++
+                    _lyricsRefreshProgress.value = LyricsRefreshProgress(
+                        totalSongs = totalSongs,
+                        currentCount = currentCount,
+                        savedCount = savedCount,
+                        notFoundCount = notFoundCount,
+                        skippedCount = skippedCount,
+                        failedSongs = failedSongs.toList()
+                    )
+
+                    // Small delay to be respectful to the API
+                    delay(50)
+                }
+
+                // Store failed songs persistently
+                _lastFailedSongs.value = failedSongs.toList()
+                _lyricsRefreshProgress.value = _lyricsRefreshProgress.value.copy(isComplete = true)
+            } finally {
+                _isRefreshingLyrics.value = false
+            }
+        }
+    }
+
+    fun dismissLyricsRefreshDialog() {
+        // Only reset progress, keep lastFailedSongs for viewing later
+        _lyricsRefreshProgress.value = LyricsRefreshProgress()
+    }
+
+    fun clearFailedSongs() {
+        _lastFailedSongs.value = emptyList()
     }
 
     /**

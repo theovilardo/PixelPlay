@@ -472,8 +472,8 @@ fun LibraryScreen(
                             onMainActionClick = {
                                 when (tabTitles.getOrNull(pagerState.currentPage)?.toLibraryTabIdOrNull()) {
                                     LibraryTabId.PLAYLISTS -> showCreatePlaylistDialog = true
-                                    LibraryTabId.LIKED -> playerViewModel.toggleShuffle()
-                                    else -> playerViewModel.toggleShuffle()
+                                    LibraryTabId.LIKED -> playerViewModel.shuffleFavoriteSongs()
+                                    else -> playerViewModel.shuffleAllSongs()
                                 }
                             },
                             iconRotation = iconRotation,
