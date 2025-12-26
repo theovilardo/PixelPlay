@@ -18,7 +18,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MediumExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -193,6 +194,7 @@ val changelog = listOf(
 )
 
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ChangelogBottomSheet(
     modifier: Modifier = Modifier
@@ -247,7 +249,7 @@ fun ChangelogBottomSheet(
             }
         }
 
-        ExtendedFloatingActionButton(
+        MediumExtendedFloatingActionButton(
             onClick = { openUrl(context, changelogUrl) },
             shape = AbsoluteSmoothCornerShape(
                 cornerRadiusBR = fabCornerRadius,

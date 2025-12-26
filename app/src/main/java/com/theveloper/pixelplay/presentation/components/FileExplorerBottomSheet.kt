@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
+
 package com.theveloper.pixelplay.presentation.components
 
 import androidx.compose.animation.AnimatedContent
@@ -44,8 +46,9 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.MediumExtendedFloatingActionButton
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -88,6 +91,7 @@ import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import com.theveloper.pixelplay.utils.StorageInfo
 import java.io.File
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun FileExplorerDialog(
     visible: Boolean,
@@ -222,7 +226,7 @@ fun FileExplorerContent(
         },
         contentWindowInsets = WindowInsets.systemBars,
         floatingActionButton = {
-            ExtendedFloatingActionButton(
+            MediumExtendedFloatingActionButton(
                 modifier = Modifier.padding(end = 12.dp),
                 onClick = onDone,
                 containerColor = MaterialTheme.colorScheme.tertiaryContainer,
@@ -466,7 +470,7 @@ private fun ExplorerLoadingState() {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        CircularProgressIndicator()
+        ContainedLoadingIndicator()
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = "Loading folders…",

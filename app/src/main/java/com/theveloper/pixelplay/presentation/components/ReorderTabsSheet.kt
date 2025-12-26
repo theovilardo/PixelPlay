@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
+
 package com.theveloper.pixelplay.presentation.components
 
 import androidx.compose.foundation.background
@@ -20,9 +22,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DragIndicator
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MediumExtendedFloatingActionButton
 import androidx.compose.material3.FabPosition
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,7 +56,7 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ReorderTabsSheet(
     tabs: List<String>,
@@ -145,7 +148,7 @@ fun ReorderTabsSheet(
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        CircularProgressIndicator()
+                        ContainedLoadingIndicator()
                         Spacer(modifier = Modifier.height(16.dp))
                         Text("Reordering tabs...")
                     }
@@ -233,7 +236,7 @@ fun FloatingToolBar(
                     )
                 }
 
-                ExtendedFloatingActionButton(
+                MediumExtendedFloatingActionButton(
                     modifier = Modifier
                         .align(Alignment.CenterVertically),
                     shape = CircleShape,

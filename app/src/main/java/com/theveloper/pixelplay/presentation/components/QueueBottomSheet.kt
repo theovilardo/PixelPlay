@@ -81,8 +81,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.MediumExtendedFloatingActionButton
+import androidx.compose.material3.MediumFloatingActionButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material.icons.filled.Add
@@ -748,7 +748,7 @@ fun QueueBottomSheet(
 
                     Spacer(modifier = Modifier.width(4.dp))
 
-                    FloatingActionButton(
+                    MediumFloatingActionButton(
                         modifier = Modifier
                             .fillMaxHeight()
                             .aspectRatio(1f),

@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
+
 package com.theveloper.pixelplay.presentation.screens
 
 import androidx.activity.compose.BackHandler
@@ -26,11 +28,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.LargeFloatingActionButton
+import androidx.compose.material3.LargeExtendedFloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -83,7 +87,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @androidx.annotation.OptIn(UnstableApi::class)
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun AlbumDetailScreen(
     albumId: String,
@@ -116,7 +120,7 @@ fun AlbumDetailScreen(
     when {
         uiState.isLoading && uiState.album == null -> {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+            ContainedLoadingIndicator()
             }
         }
 
@@ -468,7 +472,7 @@ private fun CollapsingAlbumTopBar(
                 }
             }
 
-            LargeFloatingActionButton(
+            LargeExtendedFloatingActionButton(
                 onClick = onPlayClick,
                 shape = RoundedStarShape(sides = 8, curve = 0.05, rotation = 0f),
                 modifier = Modifier

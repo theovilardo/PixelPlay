@@ -27,12 +27,13 @@ import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.LargeFloatingActionButton
+import androidx.compose.material3.LargeExtendedFloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -83,6 +84,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 @androidx.annotation.OptIn(UnstableApi::class)
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun DailyMixScreen(
     mainViewModel: MainViewModel = hiltViewModel(),
@@ -220,7 +222,7 @@ fun DailyMixScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator()
+                ContainedLoadingIndicator()
             }
         } else {
             LazyColumn(
@@ -516,7 +518,7 @@ private fun ExpressiveDailyMixHeader(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                 )
             }
-            LargeFloatingActionButton(
+            LargeExtendedFloatingActionButton(
                 modifier = Modifier,
                 onClick = onShowMenu,
                 shape = RoundedStarShape(

@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
+
 package com.theveloper.pixelplay.presentation.screens
 
 import androidx.compose.animation.core.Animatable
@@ -40,17 +42,18 @@ import androidx.compose.material.icons.outlined.Hearing
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
@@ -185,7 +188,7 @@ fun StatsScreen(
     ) {
         if (uiState.isLoading && summary == null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+                ContainedLoadingIndicator()
             }
         } else {
             val showDailyRhythm = summary?.range == StatsTimeRange.DAY || summary?.range == StatsTimeRange.WEEK
@@ -499,7 +502,7 @@ private fun SummaryProgressRow(
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
-        LinearProgressIndicator(
+        LinearWavyProgressIndicator(
             progress = { progressValue },
             modifier = Modifier
                 .fillMaxWidth()

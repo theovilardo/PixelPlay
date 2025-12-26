@@ -34,8 +34,9 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.MediumFloatingActionButton
+import androidx.compose.material3.MediumExtendedFloatingActionButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 // Removed TopAppBar and TopAppBarDefaults as GradientTopBar will be used
@@ -141,7 +142,7 @@ fun GenreDetailScreen(
         },
         floatingActionButton = {
             if (uiState.songs.isNotEmpty()) {
-                MediumFloatingActionButton(
+                MediumExtendedFloatingActionButton(
                     modifier = Modifier
                         .padding(
                             end = 10.dp,
@@ -169,7 +170,7 @@ fun GenreDetailScreen(
                 .padding(top = paddingValues.calculateTopPadding())
         ) {
             if (uiState.isLoadingGenreName && uiState.genre == null) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                ContainedLoadingIndicator(modifier = Modifier.align(Alignment.Center))
             } else if (uiState.error != null && uiState.genre == null) {
                 Text(
                     text = "Error: ${uiState.error}",
@@ -178,7 +179,7 @@ fun GenreDetailScreen(
                 )
             } else {
                 if (uiState.isLoadingSongs) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    ContainedLoadingIndicator(modifier = Modifier.align(Alignment.Center))
                 } else if (uiState.songs.isEmpty()) {
                     Text(
                         if (uiState.error != null) "Error loading songs: ${uiState.error}" else "No songs found for this genre.",

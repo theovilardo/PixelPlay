@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
+
 package com.theveloper.pixelplay.presentation.screens
 
 import android.os.Trace
@@ -44,7 +46,7 @@ import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
@@ -57,6 +59,7 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -172,7 +175,7 @@ val ListExtraBottomGap = 30.dp
 val PlayerSheetCollapsedCornerRadius = 32.dp
 
 @RequiresApi(Build.VERSION_CODES.R)
-@OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun LibraryScreen(
@@ -707,7 +710,7 @@ fun LibraryScreen(
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator(modifier = Modifier.size(64.dp))
+                                ContainedLoadingIndicator(modifier = Modifier.size(64.dp))
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
                                     text = "Generating metadata with AI...",
@@ -724,7 +727,7 @@ fun LibraryScreen(
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator(modifier = Modifier.size(64.dp))
+                                ContainedLoadingIndicator(modifier = Modifier.size(64.dp))
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
                                     text = "Sincronizando biblioteca...",
@@ -1303,7 +1306,7 @@ fun LibraryFoldersTab(
             when {
                 shouldShowLoading -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                        ContainedLoadingIndicator()
                     }
                 }
 
@@ -1618,7 +1621,7 @@ fun LibrarySongsTab(
 
     if (isLoadingInitial && songs.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator() // O Shimmer para la lista completa
+            ContainedLoadingIndicator() // O Shimmer para la lista completa
         }
     } else {
         // Determine content based on loading state and data availability
@@ -2027,7 +2030,7 @@ fun LibraryAlbumsTab(
     }
 
     if (isLoading && albums.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { ContainedLoadingIndicator() }
     } else if (albums.isEmpty() && !isLoading) { // canLoadMore removed
         Box(modifier = Modifier
             .fillMaxSize()
@@ -2247,7 +2250,7 @@ fun LibraryArtistsTab(
     onRefresh: () -> Unit
 ) {
     val listState = rememberLazyListState()
-    if (isLoading && artists.isEmpty()) { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
+    if (isLoading && artists.isEmpty()) { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { ContainedLoadingIndicator() } }
     else if (artists.isEmpty() && !isLoading) { /* ... No artists ... */ } // canLoadMore removed
     else {
         Box(

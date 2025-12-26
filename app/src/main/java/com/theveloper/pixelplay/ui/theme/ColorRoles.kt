@@ -80,10 +80,26 @@ fun extractSeedColor(bitmap: Bitmap): Color {
 }
 
 fun generateColorSchemeFromSeed(seedColor: Color): ColorSchemePair {
-
+    val (_, originalChroma, _) = seedColor.toHct()
+    
+    // If original chroma is low (grayscale/monochrome/desaturated), preserve neutrality
+    // instead of forcing vibrant colors. Threshold of 0.20 catches most grayscale images
+    // even when Palette extracts slight color hints
+    val isGrayscale = originalChroma < 0.20f
+    
     // Keep a vivid seed for light and a slightly deeper variant for dark to preserve contrast
-    val lightSeed = seedColor.withMinChroma(minChroma = 0.46f, maxChroma = 0.72f)
-    val darkSeed = seedColor.withMinChroma(minChroma = 0.36f, maxChroma = 0.6f)
+    // For grayscale images, use zero chroma to maintain truly neutral tones (no color tint)
+    val lightSeed = if (isGrayscale) {
+        seedColor.withChroma(0f) // Completely neutral - no color tint
+    } else {
+        seedColor.withMinChroma(minChroma = 0.46f, maxChroma = 0.72f)
+    }
+    
+    val darkSeed = if (isGrayscale) {
+        seedColor.withChroma(0f) // Completely neutral - no color tint
+    } else {
+        seedColor.withMinChroma(minChroma = 0.36f, maxChroma = 0.6f)
+    }
 
     // --- Tonal Palettes ---
     // Primary Tones
@@ -106,9 +122,13 @@ fun generateColorSchemeFromSeed(seedColor: Color): ColorSchemePair {
     val darkPrimary78 = darkSeed.tone(78)
     val darkPrimary92 = darkSeed.tone(92)
 
-    // Secondary Tones (Shift hue, adjust chroma)
-    val secondarySeed = hctToColor((lightSeed.toHct().first + 38f) % 360f, 0.36f, lightSeed.toHct().third)
-        .withMinChroma(0.32f, maxChroma = 0.54f)
+    // Secondary Tones (Shift hue, adjust chroma) - For grayscale, use neutral
+    val secondarySeed = if (isGrayscale) {
+        lightSeed.withChroma(0f) // Neutral gray for grayscale images
+    } else {
+        hctToColor((lightSeed.toHct().first + 38f) % 360f, 0.36f, lightSeed.toHct().third)
+            .withMinChroma(0.32f, maxChroma = 0.54f)
+    }
     val lightSecondary10 = secondarySeed.tone(10)
     val lightSecondary40 = secondarySeed.tone(40)
     val lightSecondary46 = secondarySeed.tone(46)
@@ -127,9 +147,13 @@ fun generateColorSchemeFromSeed(seedColor: Color): ColorSchemePair {
     val darkSecondary70 = secondarySeed.tone(70)
     val darkSecondary82 = secondarySeed.tone(82)
 
-    // Tertiary Tones (Shift hue differently, adjust chroma)
-    val tertiarySeed = hctToColor((lightSeed.toHct().first + 115f) % 360f, 0.38f, lightSeed.toHct().third)
-        .withMinChroma(0.3f, maxChroma = 0.56f)
+    // Tertiary Tones (Shift hue differently, adjust chroma) - For grayscale, use neutral
+    val tertiarySeed = if (isGrayscale) {
+        lightSeed.withChroma(0f) // Neutral gray for grayscale images
+    } else {
+        hctToColor((lightSeed.toHct().first + 115f) % 360f, 0.38f, lightSeed.toHct().third)
+            .withMinChroma(0.3f, maxChroma = 0.56f)
+    }
     val lightTertiary10 = tertiarySeed.tone(10)
     val lightTertiary40 = tertiarySeed.tone(40)
     val lightTertiary48 = tertiarySeed.tone(48)
@@ -147,8 +171,8 @@ fun generateColorSchemeFromSeed(seedColor: Color): ColorSchemePair {
     val darkTertiary72 = tertiarySeed.tone(72)
     val darkTertiary84 = tertiarySeed.tone(84)
 
-    // Neutral Tones (Very low chroma from seed)
-    val lightNeutralSeed = lightSeed.withChroma(0.1f)
+    // Neutral Tones (Very low chroma from seed) - For grayscale, use pure neutral
+    val lightNeutralSeed = if (isGrayscale) lightSeed.withChroma(0f) else lightSeed.withChroma(0.1f)
     val lightNeutral4 = lightNeutralSeed.tone(4)
     val lightNeutral10 = lightNeutralSeed.tone(10)
     val lightNeutral16 = lightNeutralSeed.tone(16)
@@ -163,7 +187,7 @@ fun generateColorSchemeFromSeed(seedColor: Color): ColorSchemePair {
     val lightNeutral98 = lightNeutralSeed.tone(98)
     val lightNeutral99 = lightNeutralSeed.tone(99)
 
-    val darkNeutralSeed = darkSeed.withChroma(0.08f)
+    val darkNeutralSeed = if (isGrayscale) darkSeed.withChroma(0f) else darkSeed.withChroma(0.08f)
     val darkNeutral6 = darkNeutralSeed.tone(6) // deeper dark surface
     val darkNeutral10 = darkNeutralSeed.tone(10) // Surface Dark, Background Dark
     val darkNeutral16 = darkNeutralSeed.tone(16)

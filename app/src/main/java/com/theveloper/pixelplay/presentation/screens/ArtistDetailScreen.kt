@@ -1,3 +1,4 @@
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
 
 package com.theveloper.pixelplay.presentation.screens
 
@@ -65,7 +66,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 
 @androidx.annotation.OptIn(UnstableApi::class)
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ArtistDetailScreen(
     artistId: String,
@@ -171,7 +172,7 @@ fun ArtistDetailScreen(
             when {
                 uiState.isLoading && uiState.artist == null -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                        ContainedLoadingIndicator()
                     }
                 }
                 uiState.error != null && uiState.artist == null -> {
@@ -519,7 +520,7 @@ private fun CustomCollapsingTopBar(
             }
 
             // Botón de Play
-            LargeFloatingActionButton(
+            LargeExtendedFloatingActionButton(
                 onClick = onPlayClick,
                 shape = RoundedStarShape(sides = 8, curve = 0.05, rotation = 0f),
                 modifier = Modifier

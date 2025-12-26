@@ -69,7 +69,7 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun LyricsSheet(
     stablePlayerStateFlow: StateFlow<StablePlayerState>,
@@ -330,7 +330,7 @@ fun LyricsSheet(
             }
         },
         floatingActionButton = {
-            LargeFloatingActionButton(
+            LargeExtendedFloatingActionButton(
                 modifier = Modifier.padding(bottom = 64.dp),
                 onClick = onPlayPause,
                 shape = fabShape,
@@ -400,7 +400,7 @@ fun LyricsSheet(
                                             style = MaterialTheme.typography.titleMedium
                                         )
                                         Spacer(modifier = Modifier.height(8.dp))
-                                        LinearProgressIndicator(
+                                        LinearWavyProgressIndicator(
                                             trackColor = accentColor.copy(alpha = .5f),
                                             modifier = Modifier.width(100.dp)
                                         )

@@ -317,10 +317,17 @@ class DualPlayerEngine @Inject constructor(
             futureToTransfer.add(outgoingPlayer.getMediaItemAt(i))
         }
 
-        // 2. Move manual focus management to the new master player
+        // 2. Transfer playback settings (repeat mode, shuffle mode) before swap
+        val repeatModeToTransfer = outgoingPlayer.repeatMode
+        val shuffleModeToTransfer = outgoingPlayer.shuffleModeEnabled
+        incomingPlayer.repeatMode = repeatModeToTransfer
+        incomingPlayer.shuffleModeEnabled = shuffleModeToTransfer
+        Timber.tag("TransitionDebug").d("Transferred playback settings: repeatMode=%d, shuffle=%s", repeatModeToTransfer, shuffleModeToTransfer)
+
+        // 3. Move manual focus management to the new master player
         outgoingPlayer.removeListener(masterPlayerListener)
 
-        // 3. Swap References
+        // 4. Swap References
         playerA = incomingPlayer
         playerB = outgoingPlayer
 

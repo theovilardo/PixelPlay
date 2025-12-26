@@ -50,7 +50,7 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MediumFloatingActionButton
+import androidx.compose.material3.MediumExtendedFloatingActionButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -721,7 +721,7 @@ fun SetupBottomBar(
                 }
 
                 // 4. Aplica la forma y rotación animadas al botón
-                MediumFloatingActionButton(
+                MediumExtendedFloatingActionButton(
                     onClick = if (isLastPage) onFinishClicked else onNextClicked,
                     shape = AbsoluteSmoothCornerShape(
                         cornerRadiusTL = animatedTopStart.toInt().dp,
