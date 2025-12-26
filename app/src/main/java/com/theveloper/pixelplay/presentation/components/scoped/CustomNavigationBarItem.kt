@@ -45,6 +45,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -61,6 +63,7 @@ fun RowScope.CustomNavigationBarItem(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     label: @Composable (() -> Unit)? = null,
+    contentDescription: String? = null,
     alwaysShowLabel: Boolean = true,
     selectedIconColor: Color = MaterialTheme.colorScheme.onSecondaryContainer,
     unselectedIconColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -96,7 +99,12 @@ fun RowScope.CustomNavigationBarItem(
                 role = Role.Tab,
                 interactionSource = interactionSource,
                 indication = null //ripple(bounded = true, radius = 24.dp) // Ripple contenido
-            ),
+            )
+            .semantics {
+                 if (contentDescription != null) {
+                     this.contentDescription = contentDescription
+                 }
+            },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {

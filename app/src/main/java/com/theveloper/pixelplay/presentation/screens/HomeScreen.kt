@@ -1,6 +1,7 @@
 package com.theveloper.pixelplay.presentation.screens
 
 import android.widget.Toast
+import androidx.activity.compose.ReportDrawnWhen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -89,6 +90,11 @@ fun HomeScreen(
     playerViewModel: PlayerViewModel = hiltViewModel(),
     settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
+    // DETECTAR MODO BENCHMARK
+    val isBenchmarkMode = remember {
+        (context as? android.app.Activity)?.intent?.getBooleanExtra("is_benchmark", false) ?: false
+    }
     val statsViewModel: StatsViewModel = hiltViewModel()
     val settingsUiState by settingsViewModel.uiState.collectAsState()
     // 1) Observar sólo la lista de canciones, que cambia con poca frecuencia
@@ -102,6 +108,10 @@ fun HomeScreen(
             dailyMixSongs.isNotEmpty() -> dailyMixSongs
             else -> allSongs.toImmutableList()
         }
+    }
+
+    ReportDrawnWhen {
+        yourMixSongs.isNotEmpty() || isBenchmarkMode
     }
 
     val yourMixSong: String = "Today's Mix for you"
@@ -124,11 +134,11 @@ fun HomeScreen(
     val sheetState = rememberModalBottomSheetState()
     val betaSheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
+    LocalContext.current
 
     val weeklyStats by statsViewModel.weeklyOverview.collectAsState()
 
-    if (!settingsUiState.appRebrandDialogShown) {
+    if (!settingsUiState.appRebrandDialogShown && !isBenchmarkMode) {
         AppRebrandDialog(
             onDismiss = { settingsViewModel.setAppRebrandDialogShown(true) },
             onDoNotShowAgain = { settingsViewModel.setAppRebrandDialogShown(it) }

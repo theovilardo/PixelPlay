@@ -1863,6 +1863,63 @@ class PlayerViewModel @Inject constructor(
         Trace.endSection()
     }
 
+    fun loadDummyDataForBenchmark() {
+        Log.i("PlayerViewModel", "Loading dummy data for benchmark")
+        val dummySong = Song(
+            id = "dummy_1",
+            title = "Benchmark Song",
+            artist = "Benchmark Artist",
+            artistId = 1L,
+            album = "Benchmark Album",
+            albumId = 1L,
+            path = "",
+            contentUriString = "",
+            albumArtUriString = null,
+            duration = 180000L,
+            genre = "Benchmark",
+            lyrics = null,
+            isFavorite = false,
+            trackNumber = 1,
+            year = 2024,
+            dateAdded = System.currentTimeMillis(),
+            mimeType = "audio/mpeg",
+            bitrate = 320,
+            sampleRate = 44100
+        )
+
+        _playerUiState.update {
+            it.copy(
+                isLoadingInitialSongs = false,
+                isLoadingLibraryCategories = false
+            )
+        }
+
+        val dummyList = persistentListOf(dummySong)
+        _masterAllSongs.value = dummyList
+        _playerUiState.update {
+            it.copy(
+                allSongs = dummyList,
+                currentPlaybackQueue = dummyList,
+                currentQueueSourceName = "Benchmark",
+                currentPosition = 30000L
+            )
+        }
+
+        _stablePlayerState.update {
+            it.copy(
+                currentSong = dummySong,
+                isPlaying = true,
+                totalDuration = 180000L
+            )
+        }
+
+        _isSheetVisible.value = true
+        viewModelScope.launch {
+            delay(500)
+            _sheetState.value = PlayerSheetState.EXPANDED
+        }
+    }
+
     private fun checkAndUpdateDailyMixIfNeeded() {
         viewModelScope.launch {
             val lastUpdate = userPreferencesRepository.lastDailyMixUpdateFlow.first()

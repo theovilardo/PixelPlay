@@ -22,4 +22,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "PixelPlay"
 include(":app")
- 
+include(":baselineprofile")

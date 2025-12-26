@@ -175,6 +175,9 @@ class MainActivity : ComponentActivity() {
         }
         super.onCreate(savedInstanceState)
 
+        // LEER SEÑAL DE BENCHMARK
+        val isBenchmarkMode = intent.getBooleanExtra("is_benchmark", false)
+
         setContent {
             val mainViewModel: MainViewModel = hiltViewModel()
             val systemDarkTheme = isSystemInDarkTheme()
@@ -193,7 +196,7 @@ class MainActivity : ComponentActivity() {
 
             LaunchedEffect(isSetupComplete) {
                 if (showSetupScreen == null) {
-                    showSetupScreen = !isSetupComplete
+                    showSetupScreen = if (isBenchmarkMode) false else !isSetupComplete
                 }
             }
             
@@ -227,7 +230,7 @@ class MainActivity : ComponentActivity() {
                             if (targetState == true) {
                                 SetupScreen(onSetupComplete = { showSetupScreen = false })
                             } else {
-                                HandlePermissions(mainViewModel)
+                                HandlePermissions(mainViewModel, isBenchmarkMode)
                             }
                         }
                     }
@@ -324,7 +327,7 @@ class MainActivity : ComponentActivity() {
 
     @OptIn(ExperimentalPermissionsApi::class)
     @Composable
-    private fun HandlePermissions(mainViewModel: MainViewModel) {
+    private fun HandlePermissions(mainViewModel: MainViewModel, isBenchmark: Boolean) {
         val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             listOf(Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.POST_NOTIFICATIONS)
         } else {
@@ -333,6 +336,8 @@ class MainActivity : ComponentActivity() {
         val permissionState = rememberMultiplePermissionsState(permissions = permissions)
 
         var showAllFilesAccessDialog by remember { mutableStateOf(false) }
+        val needsAllFilesAccess = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+                !android.os.Environment.isExternalStorageManager()
 
         LaunchedEffect(Unit) {
             if (!permissionState.allPermissionsGranted) {
@@ -345,7 +350,7 @@ class MainActivity : ComponentActivity() {
                 LogUtils.i(this, "Permissions granted")
                 Log.i("MainActivity", "Permissions granted. Calling mainViewModel.startSync()")
                 mainViewModel.startSync()
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !android.os.Environment.isExternalStorageManager()) {
+                if (needsAllFilesAccess && !isBenchmark) {
                     showAllFilesAccessDialog = true
                 }
             }
@@ -712,6 +717,11 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         LogUtils.d(this, "onStart")
         playerViewModel.onMainActivityStart()
+
+        if (intent.getBooleanExtra("is_benchmark", false)) {
+            playerViewModel.loadDummyDataForBenchmark()
+        }
+
         val sessionToken = SessionToken(this, ComponentName(this, MusicService::class.java))
         mediaControllerFuture = MediaController.Builder(this, sessionToken).buildAsync()
         mediaControllerFuture?.addListener({
