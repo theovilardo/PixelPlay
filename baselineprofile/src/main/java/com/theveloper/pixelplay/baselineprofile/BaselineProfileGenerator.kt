@@ -205,42 +205,60 @@ class BaselineProfileGenerator {
                         Thread.sleep(800)
                     }
 
-                    // 2. Wavy Slider
-                    val sliderY = (device.displayHeight * 0.72).toInt() // Adjusted Y to avoid nav bar/bottom controls
-                    device.swipe(leftX, sliderY, rightX, sliderY, 80)
-                    Thread.sleep(1000)
-                    device.swipe(rightX, sliderY, leftX, sliderY, 80)
-                    Thread.sleep(1500)
-
-                    // 3. Playback Controls
+                    // 2. Playback Controls & Wavy Slider Targeting
                     val playPausePattern = Pattern.compile(".*(Play|Pause|Reproducir|Pausar).*", Pattern.CASE_INSENSITIVE)
                     val nextPattern = Pattern.compile(".*(Next|Siguiente).*", Pattern.CASE_INSENSITIVE)
                     val prevPattern = Pattern.compile(".*(Previous|Anterior).*", Pattern.CASE_INSENSITIVE)
 
+                    // Find controls to anchor slider swipe
+                    val playButton = device.wait(Until.findObject(By.desc(playPausePattern)), 2000)
+
+                    // Wavy Slider Interaction
+                    if (playButton != null) {
+                        // Slider is typically above the controls.
+                        // Calculating Y based on Play button position minus an offset (approx 12% of screen height)
+                        val sliderY = playButton.visibleBounds.top - (device.displayHeight * 0.12).toInt()
+                        device.swipe(leftX, sliderY, rightX, sliderY, 80)
+                        Thread.sleep(1000)
+                        device.swipe(rightX, sliderY, leftX, sliderY, 80)
+                        Thread.sleep(1500)
+                    } else {
+                        Log.w("BaselineProfileGenerator", "Play/Pause button not found, skipping slider interaction")
+                        // Fallback blindly if needed, or just skip
+                    }
+
+                    // Toggle Controls
                     device.findObject(By.desc(prevPattern))?.click()
                     Thread.sleep(1000)
                     device.findObject(By.desc(nextPattern))?.click()
                     Thread.sleep(1000)
-                    device.findObject(By.desc(playPausePattern))?.click()
-                    Thread.sleep(1000)
-                    device.findObject(By.desc(playPausePattern))?.click() // Toggle back
-                    Thread.sleep(1000)
-
-                    // 4. Queue BottomSheet (Fling Up)
-                    // Start higher to avoid triggering Home gesture
-                    val flingStartY = (device.displayHeight * 0.92).toInt()
-                    val flingEndY = (device.displayHeight * 0.3).toInt()
-                    device.swipe(device.displayWidth / 2, flingStartY, device.displayWidth / 2, flingEndY, 25)
-                    Thread.sleep(2000)
-
-                    // Scroll Queue content multiple times
-                    repeat(3) {
-                        scrollBottomSheetContent()
-                        Thread.sleep(600)
+                    if (playButton != null) {
+                        playButton.click()
+                        Thread.sleep(1000)
+                        playButton.click() // Toggle back
+                        Thread.sleep(1000)
                     }
 
-                    device.pressBack() // Close Queue
-                    Thread.sleep(1500)
+                    // 4. Queue BottomSheet (Open via Button)
+                    // Instead of fling, we click the Queue button in the TopBar ("Song options" or "Opciones de canción")
+                    val queueButtonPattern = Pattern.compile(".*(Song options|Opciones|Queue|Cola).*", Pattern.CASE_INSENSITIVE)
+                    val queueButton = device.wait(Until.findObject(By.desc(queueButtonPattern)), 3000)
+
+                    if (queueButton != null) {
+                        queueButton.click()
+                        Thread.sleep(2000) // Wait for sheet to open
+
+                        // Scroll Queue content multiple times
+                        repeat(3) {
+                            scrollBottomSheetContent()
+                            Thread.sleep(600)
+                        }
+
+                        device.pressBack() // Close Queue
+                        Thread.sleep(1500)
+                    } else {
+                        Log.w("BaselineProfileGenerator", "Queue/Song options button not found")
+                    }
 
                     device.pressBack() // Colapsar Player
                     Thread.sleep(1000)
