@@ -6,15 +6,13 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
-import androidx.test.uiautomator.BySelector
 import androidx.test.uiautomator.Direction
 import androidx.test.uiautomator.Until
 import androidx.test.uiautomator.UiDevice
-import androidx.test.uiautomator.StaleObjectException
+import android.util.Log
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
 import java.util.regex.Pattern
 
 @RunWith(AndroidJUnit4::class)
@@ -29,107 +27,202 @@ class BaselineProfileGenerator {
         val packageName = "com.theveloper.pixelplay"
         val instrumentation = InstrumentationRegistry.getInstrumentation()
 
-        try {
-            rule.collect(
-                packageName = packageName,
-                includeInStartupProfile = true,
-                maxIterations = 3
-            ) {
-                // 1. Permisos
-                device.executeShellCommand("pm grant $packageName android.permission.POST_NOTIFICATIONS")
-                device.executeShellCommand("appops set $packageName MANAGE_EXTERNAL_STORAGE allow")
+        rule.collect(
+            packageName = packageName,
+            includeInStartupProfile = true,
+            maxIterations = 1
+        ) {
+            try {
+                // 1. SETUP & STARTUP
+                setupResilientPermissions(packageName)
+                pressHome()
 
-                // 2. Inicio
-                device.executeShellCommand("am start -n $packageName/.MainActivity --ez is_benchmark true")
-                device.wait(Until.hasObject(By.pkg(packageName).depth(0)), 10000)
+                Log.d("BaselineProfileGenerator", "--- INICIANDO PIXELPLAY ---")
+
+                device.executeShellCommand("am start -n $packageName/.MainActivity")
+                device.wait(Until.hasObject(By.pkg(packageName)), 15000)
+                Thread.sleep(6000) // Tiempo extra para carga inicial
 
                 handlePermissionDialogs()
                 handleOnboarding()
 
-                // 3. Player (inglés/español)
-                val queueSelector = By.desc(Pattern.compile(".*(Queue|Cola|Siguiente).*", Pattern.CASE_INSENSITIVE))
-                val coverSelector = By.desc(Pattern.compile(".*(Carátula|Cover|Album Art).*", Pattern.CASE_INSENSITIVE))
-
-                if (!device.wait(Until.hasObject(queueSelector), 10000)) {
-                    device.findObject(coverSelector)?.click()
-                    device.wait(Until.hasObject(queueSelector), 5000)
+                // =================================================================================
+                // 2. AJUSTES (Ya funcionando)
+                // =================================================================================
+                runStep("Settings & Scroll") {
+                    val settingsPattern = Pattern.compile(".*(Settings|Configuraci|Ajustes).*", Pattern.CASE_INSENSITIVE)
+                    val settingsBtn = device.findObject(By.desc(settingsPattern)) ?: device.findObject(By.text(settingsPattern))
+                    settingsBtn?.let {
+                        device.click(it.visibleCenter.x, it.visibleCenter.y)
+                        Thread.sleep(2000)
+                        blindScroll()
+                        device.pressBack()
+                        Thread.sleep(2000) // Espera vital tras volver
+                    }
                 }
 
-                interactWithPlayerSheet(queueSelector)
-
-                // 4. Tabs
-                device.pressBack()
-                device.waitForIdle()
-
-                val tabs = listOf("Search|Buscar", "Library|Biblioteca", "Home|Inicio")
-                tabs.forEach { term ->
-                    val sel = By.text(Pattern.compile(term, Pattern.CASE_INSENSITIVE))
-                    try {
-                        val obj = device.wait(Until.findObject(sel), 3000)
-                        if (obj?.isClickable == true) obj.click() else obj?.parent?.click()
-                        device.waitForIdle(1000)
-                    } catch (e: Exception) {}
+                // =================================================================================
+                // 3. FORCE PLAY (Garantizar que el reproductor exista)
+                // =================================================================================
+                runStep("Force Play Song") {
+                    clickTab("Library|Biblioteca")
+                    Thread.sleep(2000)
+                    // Clic en la primera canción de la lista
+                    val midX = device.displayWidth / 2
+                    val firstItemY = (device.displayHeight * 0.35).toInt()
+                    device.click(midX, firstItemY)
+                    Thread.sleep(2500)
                 }
 
-                device.pressHome()
-                device.waitForIdle(2000)
-            }
-        } catch (e: Exception) {
-            val deviceManual = UiDevice.getInstance(instrumentation)
-            if (e.message?.contains("flush profiles") == true || e is IllegalStateException || e is StaleObjectException) {
+                // =================================================================================
+                // 4. MAIN TABS (Con bypass para Búsqueda)
+                // =================================================================================
+                runStep("Main Tabs Interaction") {
+                    // Pestaña Buscar: entramos, tocamos algo para registrar actividad y salimos
+                    clickTab("Search|Buscar")
+                    Thread.sleep(1500)
+                    device.click(device.displayWidth / 2, (device.displayHeight * 0.2).toInt()) // Clic en zona de búsqueda
+                    Thread.sleep(1000)
 
-                android.util.Log.e("BaselineProfileGenerator", "FALLO DETECTADO. INICIANDO RESCATE MULTI-RUTA...")
-
-                val srcPath = "/data/misc/profman/$packageName-primary.prof.txt"
-
-                // Intentamos 3 rutas diferentes por si una falla por permisos
-                val paths = listOf(
-                    "/storage/emulated/0/Download/baseline-rescue.txt",
-                    "/sdcard/baseline-rescue.txt",
-                    "${instrumentation.targetContext.getExternalFilesDir(null)}/baseline-rescue.txt"
-                )
-
-                paths.forEach { dest ->
-                    deviceManual.executeShellCommand("cp $srcPath $dest")
+                    // Volvemos a Home para tener el miniplayer a la vista
+                    clickTab("Home|Inicio")
+                    Thread.sleep(1500)
                 }
 
-                android.util.Log.i("BaselineProfileGenerator", "--------------------------------------------------------")
-                android.util.Log.i("BaselineProfileGenerator", "SI EL ARCHIVO NO SE GENERÓ AUTOMÁTICAMENTE, PRUEBA ESTOS COMANDOS:")
-                android.util.Log.i("BaselineProfileGenerator", "OPCIÓN A: adb pull ${paths[0]} ./baseline-prof.txt")
-                android.util.Log.i("BaselineProfileGenerator", "OPCIÓN B: adb pull ${paths[1]} ./baseline-prof.txt")
-                android.util.Log.i("BaselineProfileGenerator", "OPCIÓN C: adb pull ${paths[2]} ./baseline-prof.txt")
-                android.util.Log.i("BaselineProfileGenerator", "--------------------------------------------------------")
-            } else {
-                throw e
+                // =================================================================================
+                // 5. LIBRARY PAGER (Ya funcionando excelente)
+                // =================================================================================
+                runStep("Library Pager") {
+                    clickTab("Library|Biblioteca")
+                    Thread.sleep(1000)
+                    runLibraryPagerSwipeFlow()
+                }
+
+                // =================================================================================
+                // 6. PLAYER SHEET & WAVY SLIDER
+                // =================================================================================
+                runStep("Unified Player Sheet Expansion") {
+                    // Volver a Home para asegurar visibilidad
+                    clickTab("Home|Inicio")
+                    Thread.sleep(1500)
+
+                    val playerPattern = Pattern.compile(".*(Player|Reproductor|Mini|Carátula|Cover|Album Art).*", Pattern.CASE_INSENSITIVE)
+                    var miniPlayer = device.findObject(By.desc(playerPattern)) ?: device.findObject(By.text(playerPattern))
+
+                    if (miniPlayer == null) {
+                        Log.w("BaselineProfileGenerator", "MiniPlayer no detectado por texto, usando clic por zona física.")
+                        // Clic en el área central inferior, justo encima de las pestañas
+                        device.click(device.displayWidth / 2, (device.displayHeight * 0.88).toInt())
+                    } else {
+                        device.click(miniPlayer.visibleCenter.x, miniPlayer.visibleCenter.y)
+                    }
+                    Thread.sleep(3500) // Espera a expansión completa
+                }
+
+                runStep("Wavy Slider Action") {
+                    // Si el sheet abrió, el slider debería estar en el área baja
+                    val sliderY = (device.displayHeight * 0.80).toInt()
+                    val leftX = (device.displayWidth * 0.20).toInt()
+                    val rightX = (device.displayWidth * 0.80).toInt()
+
+                    device.swipe(leftX, sliderY, rightX, sliderY, 80)
+                    Thread.sleep(1000)
+                    device.swipe(rightX, sliderY, leftX, sliderY, 80)
+                    Thread.sleep(1500)
+
+                    device.pressBack() // Colapsar
+                    Thread.sleep(1000)
+                }
+
+                Log.d("BaselineProfileGenerator", "--- FLUJO FINALIZADO ---")
+                pressHome()
+
+            } catch (e: Exception) {
+                Log.e("BaselineProfileGenerator", "Error fatal: ${e.message}")
+            } finally {
+                recoverBaselineProfile(packageName, instrumentation)
             }
         }
     }
 
-    private fun MacrobenchmarkScope.interactWithPlayerSheet(queueSelector: BySelector) {
-        val playPausePattern = Pattern.compile(".*(Play|Pause|Reproducir|Pausa).*", Pattern.CASE_INSENSITIVE)
-        repeat(3) {
-            try {
-                val btn = device.findObject(By.desc(playPausePattern))
-                if (btn?.isClickable == true) btn.click() else btn?.parent?.click()
-                device.waitForIdle(800)
-            } catch (e: Exception) { }
+    private fun runStep(name: String, block: () -> Unit) {
+        try {
+            Log.d("BaselineProfileGenerator", ">> PASO: $name")
+            block()
+            Log.d("BaselineProfileGenerator", ">> OK")
+        } catch (e: Exception) {
+            Log.e("BaselineProfileGenerator", ">> FALLÓ $name: ${e.message}")
         }
-        device.pressBack()
+    }
+
+    private fun MacrobenchmarkScope.setupResilientPermissions(packageName: String) {
+        val permissions = listOf(
+            "android.permission.POST_NOTIFICATIONS",
+            "android.permission.READ_MEDIA_AUDIO",
+            "android.permission.READ_EXTERNAL_STORAGE",
+            "android.permission.WRITE_EXTERNAL_STORAGE"
+        )
+        permissions.forEach {
+            try { device.executeShellCommand("pm grant $packageName $it") } catch (ignore: Exception) {}
+        }
+        device.executeShellCommand("appops set $packageName MANAGE_EXTERNAL_STORAGE allow")
     }
 
     private fun MacrobenchmarkScope.handlePermissionDialogs() {
-        val pattern = Pattern.compile("Allow|While using the app|Permitir|Aceptar", Pattern.CASE_INSENSITIVE)
+        val pattern = Pattern.compile("Allow|Permitir|Aceptar|While using|Mientras", Pattern.CASE_INSENSITIVE)
         repeat(3) {
-            try { device.findObject(By.text(pattern))?.click() } catch (e: Exception) {}
-            device.waitForIdle(500)
+            device.findObject(By.text(pattern))?.click()
+            Thread.sleep(500)
         }
     }
 
     private fun MacrobenchmarkScope.handleOnboarding() {
-        val pattern = Pattern.compile("Next|Continue|Skip|Done|Get Started|Siguiente|Continuar|Omitir", Pattern.CASE_INSENSITIVE)
-        repeat(5) {
-            try { device.findObject(By.text(pattern))?.click() } catch (e: Exception) {}
-            device.waitForIdle(1000)
+        val pattern = Pattern.compile("Next|Continue|Skip|Done|Siguiente|Omitir|Empezar", Pattern.CASE_INSENSITIVE)
+        repeat(4) {
+            device.findObject(By.text(pattern))?.click()
+            Thread.sleep(1000)
         }
+    }
+
+    private fun MacrobenchmarkScope.clickTab(tabNamePattern: String) {
+        val pattern = Pattern.compile(tabNamePattern, Pattern.CASE_INSENSITIVE)
+        val tab = device.findObject(By.desc(pattern)) ?: device.findObject(By.text(pattern))
+        tab?.let {
+            device.click(it.visibleCenter.x, it.visibleCenter.y)
+            Thread.sleep(1500)
+        }
+    }
+
+    private fun MacrobenchmarkScope.blindScroll() {
+        val midX = device.displayWidth / 2
+        val bottomY = (device.displayHeight * 0.75).toInt()
+        val topY = (device.displayHeight * 0.25).toInt()
+        device.swipe(midX, bottomY, midX, topY, 45)
+        Thread.sleep(1200)
+        device.swipe(midX, topY, midX, bottomY, 45)
+        Thread.sleep(1200)
+    }
+
+    private fun MacrobenchmarkScope.runLibraryPagerSwipeFlow() {
+        val startX = (device.displayWidth * 0.85).toInt()
+        val endX = (device.displayWidth * 0.15).toInt()
+        val centerY = (device.displayHeight * 0.5).toInt()
+        repeat(4) {
+            device.swipe(startX, centerY, endX, centerY, 35)
+            Thread.sleep(1500)
+            blindScroll()
+        }
+    }
+
+    private fun recoverBaselineProfile(packageName: String, instrumentation: android.app.Instrumentation) {
+        val deviceManual = UiDevice.getInstance(instrumentation)
+        val srcPath = "/data/misc/profman/$packageName-primary.prof.txt"
+        val dest = "/storage/emulated/0/Download/baseline-rescue.txt"
+
+        deviceManual.executeShellCommand("pm dump-profiles --dump-classes-and-methods $packageName")
+        deviceManual.executeShellCommand("killall -s SIGUSR1 $packageName")
+        Thread.sleep(2500)
+        deviceManual.executeShellCommand("sh -c 'cat $srcPath > $dest'")
+        Log.i("BaselineProfileGenerator", "RESCATE MANUAL FINALIZADO EN: $dest")
     }
 }
