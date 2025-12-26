@@ -36,7 +36,9 @@ import androidx.compose.material.icons.rounded.ViewCarousel
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -188,6 +190,10 @@ fun ExperimentalSettingsScreen(
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             val delayAllEnabled = uiState.fullPlayerLoadingTweaks.delayAll
+                            val appearThresholdPercent = uiState.fullPlayerLoadingTweaks.contentAppearThresholdPercent
+                            val isAnyDelayEnabled = uiState.fullPlayerLoadingTweaks.let {
+                                it.delayAll || it.delayAlbumCarousel || it.delaySongMetadata || it.delayProgressBar || it.delayControls
+                            }
 
                             SwitchSettingItem(
                                 title = "Delay everything",
@@ -262,6 +268,58 @@ fun ExperimentalSettingsScreen(
                                     )
                                 }
                             )
+
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.LinearScale,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.secondary
+                                        )
+
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "Full player content appear threshold",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = "Control when delayed full player components become visible during expansion.",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+
+                                    Slider(
+                                        value = appearThresholdPercent.toFloat(),
+                                        onValueChange = { settingsViewModel.setFullPlayerAppearThreshold(it.roundToInt()) },
+                                        valueRange = 50f..100f,
+                                        steps = 50,
+                                        enabled = isAnyDelayEnabled
+                                    )
+
+                                    Text(
+                                        text = "Content appears at ${appearThresholdPercent}% of expansion",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
 
                             SwitchSettingItem(
                                 title = "Use placeholders for delayed items",

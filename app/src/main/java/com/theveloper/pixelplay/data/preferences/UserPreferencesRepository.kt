@@ -104,6 +104,7 @@ class UserPreferencesRepository @Inject constructor(
         val FULL_PLAYER_DELAY_CONTROLS = booleanPreferencesKey("full_player_delay_controls")
         val FULL_PLAYER_PLACEHOLDERS = booleanPreferencesKey("full_player_placeholders")
         val FULL_PLAYER_PLACEHOLDER_TRANSPARENT = booleanPreferencesKey("full_player_placeholder_transparent")
+        val FULL_PLAYER_DELAY_THRESHOLD = intPreferencesKey("full_player_delay_threshold_percent")
 
         // Multi-Artist Settings
         val ARTIST_DELIMITERS = stringPreferencesKey("artist_delimiters")
@@ -296,7 +297,8 @@ class UserPreferencesRepository @Inject constructor(
                 delayProgressBar = preferences[PreferencesKeys.FULL_PLAYER_DELAY_PROGRESS] ?: false,
                 delayControls = preferences[PreferencesKeys.FULL_PLAYER_DELAY_CONTROLS] ?: false,
                 showPlaceholders = preferences[PreferencesKeys.FULL_PLAYER_PLACEHOLDERS] ?: false,
-                transparentPlaceholders = preferences[PreferencesKeys.FULL_PLAYER_PLACEHOLDER_TRANSPARENT] ?: false
+                transparentPlaceholders = preferences[PreferencesKeys.FULL_PLAYER_PLACEHOLDER_TRANSPARENT] ?: false,
+                contentAppearThresholdPercent = preferences[PreferencesKeys.FULL_PLAYER_DELAY_THRESHOLD] ?: 100
             )
         }
 
@@ -870,6 +872,13 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setTransparentPlaceholders(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.FULL_PLAYER_PLACEHOLDER_TRANSPARENT] = enabled
+        }
+    }
+
+    suspend fun setFullPlayerAppearThreshold(thresholdPercent: Int) {
+        val coercedValue = thresholdPercent.coerceIn(50, 100)
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.FULL_PLAYER_DELAY_THRESHOLD] = coercedValue
         }
     }
 
