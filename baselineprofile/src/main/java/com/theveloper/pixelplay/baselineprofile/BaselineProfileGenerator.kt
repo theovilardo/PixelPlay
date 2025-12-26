@@ -120,9 +120,10 @@ class BaselineProfileGenerator {
                     if (moreOptions != null) {
                         moreOptions.click()
                         Thread.sleep(1500)
-                        blindScroll() // Scroll SongInfoBottomSheet
+                        scrollBottomSheetContent() // Scroll SongInfoBottomSheet UP only
+                        Thread.sleep(800)
                         device.pressBack() // Close Sheet
-                        Thread.sleep(1000)
+                        Thread.sleep(1500) // Wait for sheet to close fully
                     } else {
                         Log.w("BaselineProfileGenerator", "More options menu not found")
                     }
@@ -130,6 +131,9 @@ class BaselineProfileGenerator {
                     // Clic en la primera canción de la lista (Force Play)
                     val midX = device.displayWidth / 2
                     val firstItemY = (device.displayHeight * 0.35).toInt()
+
+                    // Wait safely to ensure we are back on the list
+                    Thread.sleep(1000)
                     device.click(midX, firstItemY)
                     Thread.sleep(2500)
                 }
@@ -225,7 +229,8 @@ class BaselineProfileGenerator {
                     // 4. Queue BottomSheet (Fling Up)
                     device.swipe(device.displayWidth / 2, device.displayHeight - 50, device.displayWidth / 2, 200, 15)
                     Thread.sleep(2000)
-                    blindScroll()
+                    scrollBottomSheetContent() // Scroll Queue UP only
+                    Thread.sleep(800)
                     device.pressBack() // Close Queue
                     Thread.sleep(1500)
 
@@ -299,6 +304,16 @@ class BaselineProfileGenerator {
         device.swipe(midX, bottomY, midX, topY, 45)
         Thread.sleep(1200)
         device.swipe(midX, topY, midX, bottomY, 45)
+        Thread.sleep(1200)
+    }
+
+    // New helper for safe bottom sheet scrolling (UP only)
+    private fun MacrobenchmarkScope.scrollBottomSheetContent() {
+        val midX = device.displayWidth / 2
+        val bottomY = (device.displayHeight * 0.75).toInt()
+        val topY = (device.displayHeight * 0.25).toInt()
+        // Only swipe UP to scroll content down. Avoid swiping DOWN which might dismiss the sheet.
+        device.swipe(midX, bottomY, midX, topY, 45)
         Thread.sleep(1200)
     }
 
