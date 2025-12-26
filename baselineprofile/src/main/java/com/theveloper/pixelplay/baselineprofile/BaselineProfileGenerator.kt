@@ -55,26 +55,40 @@ class BaselineProfileGenerator {
 
                     // Scroll to bottom
                     scrollToListBottom()
+                    Thread.sleep(1000)
 
                     // Daily Mix
                     val dailyMixPattern = Pattern.compile(".*(Daily Mix|Mix Diario).*", Pattern.CASE_INSENSITIVE)
-                    val dailyMix = device.findObject(By.text(dailyMixPattern)) ?: device.findObject(By.desc(dailyMixPattern))
-                    dailyMix?.click()
-                    Thread.sleep(2000)
-                    blindScroll() // Scroll inside Daily Mix
-                    device.pressBack()
-                    Thread.sleep(1000)
+                    val dailyMix = device.wait(Until.findObject(By.text(dailyMixPattern)), 3000)
+                        ?: device.wait(Until.findObject(By.desc(dailyMixPattern)), 1000)
+
+                    if (dailyMix != null) {
+                        dailyMix.click()
+                        Thread.sleep(2500)
+                        blindScroll() // Scroll inside Daily Mix
+                        device.pressBack()
+                        Thread.sleep(1500)
+                    } else {
+                        Log.w("BaselineProfileGenerator", "Daily Mix element not found")
+                    }
 
                     // Stats
                     val statsPattern = Pattern.compile(".*(Stats|Estadísticas).*", Pattern.CASE_INSENSITIVE)
-                    val stats = device.findObject(By.text(statsPattern)) ?: device.findObject(By.desc(statsPattern))
-                    stats?.click()
-                    Thread.sleep(2000)
-                    blindScroll() // Scroll inside Stats
-                    device.pressBack()
-                    Thread.sleep(1000)
+                    val stats = device.wait(Until.findObject(By.text(statsPattern)), 3000)
+                        ?: device.wait(Until.findObject(By.desc(statsPattern)), 1000)
+
+                    if (stats != null) {
+                        stats.click()
+                        Thread.sleep(2500)
+                        blindScroll() // Scroll inside Stats
+                        device.pressBack()
+                        Thread.sleep(1500)
+                    } else {
+                        Log.w("BaselineProfileGenerator", "Stats element not found")
+                    }
 
                     scrollToTop() // Regresar arriba para continuar flujo
+                    Thread.sleep(1000)
                 }
 
                 // =================================================================================
@@ -101,13 +115,16 @@ class BaselineProfileGenerator {
 
                     // 3-dot Menu Interaction
                     val moreOptionsPattern = Pattern.compile(".*(More options|Más opciones).*", Pattern.CASE_INSENSITIVE)
-                    val moreOptions = device.findObject(By.desc(moreOptionsPattern))
-                    moreOptions?.let {
-                        it.click()
+                    val moreOptions = device.wait(Until.findObject(By.desc(moreOptionsPattern)), 3000)
+
+                    if (moreOptions != null) {
+                        moreOptions.click()
                         Thread.sleep(1500)
                         blindScroll() // Scroll SongInfoBottomSheet
                         device.pressBack() // Close Sheet
                         Thread.sleep(1000)
+                    } else {
+                        Log.w("BaselineProfileGenerator", "More options menu not found")
                     }
 
                     // Clic en la primera canción de la lista (Force Play)
@@ -125,13 +142,17 @@ class BaselineProfileGenerator {
                     Thread.sleep(1500)
 
                     val unknownPattern = Pattern.compile(".*(Unknown|Desconocido).*", Pattern.CASE_INSENSITIVE)
-                    val genreCard = device.findObject(By.text(unknownPattern)) ?: device.findObject(By.desc(unknownPattern))
-                    genreCard?.let {
-                        it.click()
+                    val genreCard = device.wait(Until.findObject(By.text(unknownPattern)), 3000)
+                        ?: device.wait(Until.findObject(By.desc(unknownPattern)), 1000)
+
+                    if (genreCard != null) {
+                        genreCard.click()
                         Thread.sleep(2000)
                         blindScroll() // Scroll GenreDetail
                         device.pressBack()
                         Thread.sleep(1000)
+                    } else {
+                        Log.w("BaselineProfileGenerator", "Unknown Genre Card not found")
                     }
 
                     // Volvemos a Home para tener el miniplayer a la vista
@@ -157,7 +178,8 @@ class BaselineProfileGenerator {
                     Thread.sleep(1500)
 
                     val playerPattern = Pattern.compile(".*(Player|Reproductor|Mini|Carátula|Cover|Album Art).*", Pattern.CASE_INSENSITIVE)
-                    var miniPlayer = device.findObject(By.desc(playerPattern)) ?: device.findObject(By.text(playerPattern))
+                    var miniPlayer = device.wait(Until.findObject(By.desc(playerPattern)), 3000)
+                        ?: device.wait(Until.findObject(By.text(playerPattern)), 1000)
 
                     if (miniPlayer == null) {
                         Log.w("BaselineProfileGenerator", "MiniPlayer no detectado por texto, usando clic por zona física.")
@@ -282,21 +304,21 @@ class BaselineProfileGenerator {
 
     private fun MacrobenchmarkScope.scrollToListBottom() {
         val midX = device.displayWidth / 2
-        val bottomY = (device.displayHeight * 0.8).toInt()
-        val topY = (device.displayHeight * 0.2).toInt()
+        val bottomY = (device.displayHeight * 0.75).toInt()
+        val topY = (device.displayHeight * 0.25).toInt()
         repeat(4) {
-            device.swipe(midX, bottomY, midX, topY, 25)
-            Thread.sleep(600)
+            device.swipe(midX, bottomY, midX, topY, 45)
+            Thread.sleep(800)
         }
     }
 
     private fun MacrobenchmarkScope.scrollToTop() {
         val midX = device.displayWidth / 2
-        val bottomY = (device.displayHeight * 0.8).toInt()
-        val topY = (device.displayHeight * 0.2).toInt()
+        val bottomY = (device.displayHeight * 0.75).toInt()
+        val topY = (device.displayHeight * 0.25).toInt()
         repeat(4) {
-            device.swipe(midX, topY, midX, bottomY, 25)
-            Thread.sleep(600)
+            device.swipe(midX, topY, midX, bottomY, 45)
+            Thread.sleep(800)
         }
     }
 
