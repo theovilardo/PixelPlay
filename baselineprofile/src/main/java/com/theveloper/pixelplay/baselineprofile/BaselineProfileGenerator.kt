@@ -211,7 +211,8 @@ class BaselineProfileGenerator {
                     val prevPattern = Pattern.compile(".*(Previous|Anterior).*", Pattern.CASE_INSENSITIVE)
 
                     // Find controls to anchor slider swipe
-                    val playButton = device.wait(Until.findObject(By.desc(playPausePattern)), 2000)
+                    // First interaction to identify position
+                    var playButton = device.wait(Until.findObject(By.desc(playPausePattern)), 2000)
 
                     // Wavy Slider Interaction
                     if (playButton != null) {
@@ -224,7 +225,6 @@ class BaselineProfileGenerator {
                         Thread.sleep(1500)
                     } else {
                         Log.w("BaselineProfileGenerator", "Play/Pause button not found, skipping slider interaction")
-                        // Fallback blindly if needed, or just skip
                     }
 
                     // Toggle Controls
@@ -232,32 +232,40 @@ class BaselineProfileGenerator {
                     Thread.sleep(1000)
                     device.findObject(By.desc(nextPattern))?.click()
                     Thread.sleep(1000)
+
+                    // Play/Pause Interaction (Re-find to avoid StaleObjectException)
+                    playButton = device.wait(Until.findObject(By.desc(playPausePattern)), 1000)
                     if (playButton != null) {
-                        playButton.click()
-                        Thread.sleep(1000)
-                        playButton.click() // Toggle back
+                        playButton.click() // Pause
+                        Thread.sleep(1200)
+
+                        // Re-find again as icon/desc changed
+                        playButton = device.wait(Until.findObject(By.desc(playPausePattern)), 1000)
+                        playButton?.click() // Resume
                         Thread.sleep(1000)
                     }
 
-                    // 4. Queue BottomSheet (Open via Button)
-                    // Instead of fling, we click the Queue button in the TopBar ("Song options" or "Opciones de canción")
-                    val queueButtonPattern = Pattern.compile(".*(Song options|Opciones|Queue|Cola).*", Pattern.CASE_INSENSITIVE)
-                    val queueButton = device.wait(Until.findObject(By.desc(queueButtonPattern)), 3000)
+                    // 4. Queue BottomSheet (Fling Up as requested)
+                    // Fling from bottom of the player area up to the middle
+                    val startX = device.displayWidth / 2
+                    val startY = (device.displayHeight * 0.92).toInt() // Near bottom
+                    val endY = (device.displayHeight * 0.5).toInt()
 
-                    if (queueButton != null) {
-                        queueButton.click()
-                        Thread.sleep(2000) // Wait for sheet to open
+                    device.swipe(startX, startY, startX, endY, 10) // Fast swipe (fling speed ~10 steps)
+                    Thread.sleep(2500) // Wait for sheet to animate
 
+                    // Verify Queue is open (check for "Next Up" or similar text)
+                    val nextUpPattern = Pattern.compile(".*(Next Up|A continuación).*", Pattern.CASE_INSENSITIVE)
+                    if (device.wait(Until.hasObject(By.text(nextUpPattern)), 1000)) {
                         // Scroll Queue content multiple times
                         repeat(3) {
                             scrollBottomSheetContent()
                             Thread.sleep(600)
                         }
-
                         device.pressBack() // Close Queue
                         Thread.sleep(1500)
                     } else {
-                        Log.w("BaselineProfileGenerator", "Queue/Song options button not found")
+                        Log.w("BaselineProfileGenerator", "Queue did not open (Next Up text not found)")
                     }
 
                     device.pressBack() // Colapsar Player
@@ -268,7 +276,8 @@ class BaselineProfileGenerator {
                 pressHome()
 
             } catch (e: Exception) {
-                Log.e("BaselineProfileGenerator", "Error fatal: ${e.message}")
+                Log.e("BaselineProfileGenerator", "Error fatal: ${e.toString()}")
+                e.printStackTrace()
             } finally {
                 recoverBaselineProfile(packageName, instrumentation)
             }
@@ -281,7 +290,8 @@ class BaselineProfileGenerator {
             block()
             Log.d("BaselineProfileGenerator", ">> OK")
         } catch (e: Exception) {
-            Log.e("BaselineProfileGenerator", ">> FALLÓ $name: ${e.message}")
+            Log.e("BaselineProfileGenerator", ">> FALLÓ $name: ${e.toString()}")
+            e.printStackTrace()
         }
     }
 
