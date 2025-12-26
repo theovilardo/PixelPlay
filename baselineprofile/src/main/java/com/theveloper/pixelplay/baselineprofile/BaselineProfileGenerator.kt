@@ -47,6 +47,37 @@ class BaselineProfileGenerator {
                 handleOnboarding()
 
                 // =================================================================================
+                // 1.1. HOME SCREEN EXTENDED FLOW
+                // =================================================================================
+                runStep("Home Screen Extended Flow") {
+                    clickTab("Home|Inicio")
+                    Thread.sleep(1000)
+
+                    // Scroll to bottom
+                    scrollToListBottom()
+
+                    // Daily Mix
+                    val dailyMixPattern = Pattern.compile(".*(Daily Mix|Mix Diario).*", Pattern.CASE_INSENSITIVE)
+                    val dailyMix = device.findObject(By.text(dailyMixPattern)) ?: device.findObject(By.desc(dailyMixPattern))
+                    dailyMix?.click()
+                    Thread.sleep(2000)
+                    blindScroll() // Scroll inside Daily Mix
+                    device.pressBack()
+                    Thread.sleep(1000)
+
+                    // Stats
+                    val statsPattern = Pattern.compile(".*(Stats|Estadísticas).*", Pattern.CASE_INSENSITIVE)
+                    val stats = device.findObject(By.text(statsPattern)) ?: device.findObject(By.desc(statsPattern))
+                    stats?.click()
+                    Thread.sleep(2000)
+                    blindScroll() // Scroll inside Stats
+                    device.pressBack()
+                    Thread.sleep(1000)
+
+                    scrollToTop() // Regresar arriba para continuar flujo
+                }
+
+                // =================================================================================
                 // 2. AJUSTES (Ya funcionando)
                 // =================================================================================
                 runStep("Settings & Scroll") {
@@ -62,12 +93,24 @@ class BaselineProfileGenerator {
                 }
 
                 // =================================================================================
-                // 3. FORCE PLAY (Garantizar que el reproductor exista)
+                // 3. LIBRARY INTERACTION & PLAY (Modified)
                 // =================================================================================
-                runStep("Force Play Song") {
+                runStep("Library Interaction & Play") {
                     clickTab("Library|Biblioteca")
-                    Thread.sleep(2000)
-                    // Clic en la primera canción de la lista
+                    Thread.sleep(1500)
+
+                    // 3-dot Menu Interaction
+                    val moreOptionsPattern = Pattern.compile(".*(More options|Más opciones).*", Pattern.CASE_INSENSITIVE)
+                    val moreOptions = device.findObject(By.desc(moreOptionsPattern))
+                    moreOptions?.let {
+                        it.click()
+                        Thread.sleep(1500)
+                        blindScroll() // Scroll SongInfoBottomSheet
+                        device.pressBack() // Close Sheet
+                        Thread.sleep(1000)
+                    }
+
+                    // Clic en la primera canción de la lista (Force Play)
                     val midX = device.displayWidth / 2
                     val firstItemY = (device.displayHeight * 0.35).toInt()
                     device.click(midX, firstItemY)
@@ -75,14 +118,21 @@ class BaselineProfileGenerator {
                 }
 
                 // =================================================================================
-                // 4. MAIN TABS (Con bypass para Búsqueda)
+                // 4. SEARCH & GENRE FLOW (Modified)
                 // =================================================================================
-                runStep("Main Tabs Interaction") {
-                    // Pestaña Buscar: entramos, tocamos algo para registrar actividad y salimos
+                runStep("Search & Genre Flow") {
                     clickTab("Search|Buscar")
                     Thread.sleep(1500)
-                    device.click(device.displayWidth / 2, (device.displayHeight * 0.2).toInt()) // Clic en zona de búsqueda
-                    Thread.sleep(1000)
+
+                    val unknownPattern = Pattern.compile(".*(Unknown|Desconocido).*", Pattern.CASE_INSENSITIVE)
+                    val genreCard = device.findObject(By.text(unknownPattern)) ?: device.findObject(By.desc(unknownPattern))
+                    genreCard?.let {
+                        it.click()
+                        Thread.sleep(2000)
+                        blindScroll() // Scroll GenreDetail
+                        device.pressBack()
+                        Thread.sleep(1000)
+                    }
 
                     // Volvemos a Home para tener el miniplayer a la vista
                     clickTab("Home|Inicio")
@@ -99,9 +149,9 @@ class BaselineProfileGenerator {
                 }
 
                 // =================================================================================
-                // 6. PLAYER SHEET & WAVY SLIDER
+                // 6. PLAYER SHEET EXTENDED (Modified)
                 // =================================================================================
-                runStep("Unified Player Sheet Expansion") {
+                runStep("Unified Player Sheet Extended") {
                     // Volver a Home para asegurar visibilidad
                     clickTab("Home|Inicio")
                     Thread.sleep(1500)
@@ -117,20 +167,47 @@ class BaselineProfileGenerator {
                         device.click(miniPlayer.visibleCenter.x, miniPlayer.visibleCenter.y)
                     }
                     Thread.sleep(3500) // Espera a expansión completa
-                }
 
-                runStep("Wavy Slider Action") {
-                    // Si el sheet abrió, el slider debería estar en el área baja
+                    // 1. Carousel Swipe
+                    val carouselY = (device.displayHeight * 0.45).toInt()
+                    val leftX = (device.displayWidth * 0.2).toInt()
+                    val rightX = (device.displayWidth * 0.8).toInt()
+                    repeat(2) {
+                        device.swipe(rightX, carouselY, leftX, carouselY, 30)
+                        Thread.sleep(800)
+                        device.swipe(leftX, carouselY, rightX, carouselY, 30)
+                        Thread.sleep(800)
+                    }
+
+                    // 2. Wavy Slider
                     val sliderY = (device.displayHeight * 0.80).toInt()
-                    val leftX = (device.displayWidth * 0.20).toInt()
-                    val rightX = (device.displayWidth * 0.80).toInt()
-
                     device.swipe(leftX, sliderY, rightX, sliderY, 80)
                     Thread.sleep(1000)
                     device.swipe(rightX, sliderY, leftX, sliderY, 80)
                     Thread.sleep(1500)
 
-                    device.pressBack() // Colapsar
+                    // 3. Playback Controls
+                    val playPausePattern = Pattern.compile(".*(Play|Pause|Reproducir|Pausar).*", Pattern.CASE_INSENSITIVE)
+                    val nextPattern = Pattern.compile(".*(Next|Siguiente).*", Pattern.CASE_INSENSITIVE)
+                    val prevPattern = Pattern.compile(".*(Previous|Anterior).*", Pattern.CASE_INSENSITIVE)
+
+                    device.findObject(By.desc(prevPattern))?.click()
+                    Thread.sleep(1000)
+                    device.findObject(By.desc(nextPattern))?.click()
+                    Thread.sleep(1000)
+                    device.findObject(By.desc(playPausePattern))?.click()
+                    Thread.sleep(1000)
+                    device.findObject(By.desc(playPausePattern))?.click() // Toggle back
+                    Thread.sleep(1000)
+
+                    // 4. Queue BottomSheet (Fling Up)
+                    device.swipe(device.displayWidth / 2, device.displayHeight - 50, device.displayWidth / 2, 200, 15)
+                    Thread.sleep(2000)
+                    blindScroll()
+                    device.pressBack() // Close Queue
+                    Thread.sleep(1500)
+
+                    device.pressBack() // Colapsar Player
                     Thread.sleep(1000)
                 }
 
@@ -201,6 +278,26 @@ class BaselineProfileGenerator {
         Thread.sleep(1200)
         device.swipe(midX, topY, midX, bottomY, 45)
         Thread.sleep(1200)
+    }
+
+    private fun MacrobenchmarkScope.scrollToListBottom() {
+        val midX = device.displayWidth / 2
+        val bottomY = (device.displayHeight * 0.8).toInt()
+        val topY = (device.displayHeight * 0.2).toInt()
+        repeat(4) {
+            device.swipe(midX, bottomY, midX, topY, 25)
+            Thread.sleep(600)
+        }
+    }
+
+    private fun MacrobenchmarkScope.scrollToTop() {
+        val midX = device.displayWidth / 2
+        val bottomY = (device.displayHeight * 0.8).toInt()
+        val topY = (device.displayHeight * 0.2).toInt()
+        repeat(4) {
+            device.swipe(midX, topY, midX, bottomY, 25)
+            Thread.sleep(600)
+        }
     }
 
     private fun MacrobenchmarkScope.runLibraryPagerSwipeFlow() {
