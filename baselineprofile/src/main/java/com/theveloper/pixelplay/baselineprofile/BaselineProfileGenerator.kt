@@ -206,7 +206,7 @@ class BaselineProfileGenerator {
                     }
 
                     // 2. Wavy Slider
-                    val sliderY = (device.displayHeight * 0.80).toInt()
+                    val sliderY = (device.displayHeight * 0.72).toInt() // Adjusted Y to avoid nav bar/bottom controls
                     device.swipe(leftX, sliderY, rightX, sliderY, 80)
                     Thread.sleep(1000)
                     device.swipe(rightX, sliderY, leftX, sliderY, 80)
@@ -227,10 +227,18 @@ class BaselineProfileGenerator {
                     Thread.sleep(1000)
 
                     // 4. Queue BottomSheet (Fling Up)
-                    device.swipe(device.displayWidth / 2, device.displayHeight - 50, device.displayWidth / 2, 200, 15)
+                    // Start higher to avoid triggering Home gesture
+                    val flingStartY = (device.displayHeight * 0.92).toInt()
+                    val flingEndY = (device.displayHeight * 0.3).toInt()
+                    device.swipe(device.displayWidth / 2, flingStartY, device.displayWidth / 2, flingEndY, 25)
                     Thread.sleep(2000)
-                    scrollBottomSheetContent() // Scroll Queue UP only
-                    Thread.sleep(800)
+
+                    // Scroll Queue content multiple times
+                    repeat(3) {
+                        scrollBottomSheetContent()
+                        Thread.sleep(600)
+                    }
+
                     device.pressBack() // Close Queue
                     Thread.sleep(1500)
 
