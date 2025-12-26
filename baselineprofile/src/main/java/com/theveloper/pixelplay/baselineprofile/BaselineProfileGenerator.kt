@@ -47,7 +47,7 @@ class BaselineProfileGenerator {
                 handleOnboarding()
 
                 // =================================================================================
-                // 1.1. HOME SCREEN EXTENDED FLOW
+                // 1.1. HOME SCREEN EXTENDED FLOW (Daily Mix & Stats)
                 // =================================================================================
                 runStep("Home Screen Extended Flow") {
                     clickTab("Home|Inicio")
@@ -83,8 +83,6 @@ class BaselineProfileGenerator {
                         blindScroll() // Scroll inside Stats
                         device.pressBack()
                         Thread.sleep(1500)
-                    } else {
-                        Log.w("BaselineProfileGenerator", "Stats element not found")
                     }
 
                     scrollToTop() // Regresar arriba para continuar flujo
@@ -211,13 +209,11 @@ class BaselineProfileGenerator {
                     val prevPattern = Pattern.compile(".*(Previous|Anterior).*", Pattern.CASE_INSENSITIVE)
 
                     // Find controls to anchor slider swipe
-                    // First interaction to identify position
                     var playButton = device.wait(Until.findObject(By.desc(playPausePattern)), 2000)
 
                     // Wavy Slider Interaction
                     if (playButton != null) {
                         // Slider is typically above the controls.
-                        // Calculating Y based on Play button position minus an offset (approx 12% of screen height)
                         val sliderY = playButton.visibleBounds.top - (device.displayHeight * 0.12).toInt()
                         device.swipe(leftX, sliderY, rightX, sliderY, 80)
                         Thread.sleep(1000)
@@ -233,39 +229,33 @@ class BaselineProfileGenerator {
                     device.findObject(By.desc(nextPattern))?.click()
                     Thread.sleep(1000)
 
-                    // Play/Pause Interaction (Re-find to avoid StaleObjectException)
+                    // Play/Pause Interaction
                     playButton = device.wait(Until.findObject(By.desc(playPausePattern)), 1000)
                     if (playButton != null) {
                         playButton.click() // Pause
                         Thread.sleep(1200)
-
-                        // Re-find again as icon/desc changed
                         playButton = device.wait(Until.findObject(By.desc(playPausePattern)), 1000)
                         playButton?.click() // Resume
                         Thread.sleep(1000)
                     }
 
                     // 4. Queue BottomSheet (Fling Up as requested)
-                    // Fling from bottom of the player area up to the middle
                     val startX = device.displayWidth / 2
                     val startY = (device.displayHeight * 0.92).toInt() // Near bottom
                     val endY = (device.displayHeight * 0.5).toInt()
 
-                    device.swipe(startX, startY, startX, endY, 10) // Fast swipe (fling speed ~10 steps)
+                    device.swipe(startX, startY, startX, endY, 10) // Fast swipe (fling speed)
                     Thread.sleep(2500) // Wait for sheet to animate
 
-                    // Verify Queue is open (check for "Next Up" or similar text)
+                    // Verify Queue is open
                     val nextUpPattern = Pattern.compile(".*(Next Up|A continuación).*", Pattern.CASE_INSENSITIVE)
                     if (device.wait(Until.hasObject(By.text(nextUpPattern)), 1000)) {
-                        // Scroll Queue content multiple times
                         repeat(3) {
                             scrollBottomSheetContent()
                             Thread.sleep(600)
                         }
                         device.pressBack() // Close Queue
                         Thread.sleep(1500)
-                    } else {
-                        Log.w("BaselineProfileGenerator", "Queue did not open (Next Up text not found)")
                     }
 
                     device.pressBack() // Colapsar Player
@@ -343,12 +333,10 @@ class BaselineProfileGenerator {
         Thread.sleep(1200)
     }
 
-    // New helper for safe bottom sheet scrolling (UP only)
     private fun MacrobenchmarkScope.scrollBottomSheetContent() {
         val midX = device.displayWidth / 2
         val bottomY = (device.displayHeight * 0.75).toInt()
         val topY = (device.displayHeight * 0.25).toInt()
-        // Only swipe UP to scroll content down. Avoid swiping DOWN which might dismiss the sheet.
         device.swipe(midX, bottomY, midX, topY, 45)
         Thread.sleep(1200)
     }
@@ -386,13 +374,23 @@ class BaselineProfileGenerator {
 
     private fun recoverBaselineProfile(packageName: String, instrumentation: android.app.Instrumentation) {
         val deviceManual = UiDevice.getInstance(instrumentation)
+
+        // El Logcat confirmó que la ruta es:
         val srcPath = "/data/misc/profman/$packageName-primary.prof.txt"
-        val dest = "/storage/emulated/0/Download/baseline-rescue.txt"
+
+        // Destino en la carpeta de medios del benchmark (Donde SIEMPRE hay permisos de escritura/lectura)
+        val dest = "/sdcard/Android/media/com.theveloper.pixelplay.baselineprofile/baseline-prof.txt"
+
+        Log.i("BaselineProfileGenerator", "Forzando volcado de perfiles...")
 
         deviceManual.executeShellCommand("pm dump-profiles --dump-classes-and-methods $packageName")
         deviceManual.executeShellCommand("killall -s SIGUSR1 $packageName")
-        Thread.sleep(2500)
+        Thread.sleep(5000)
+
+        // Intentamos una copia estándar a una ruta que ADB puede leer sin Root
         deviceManual.executeShellCommand("sh -c 'cat $srcPath > $dest'")
-        Log.i("BaselineProfileGenerator", "RESCATE MANUAL FINALIZADO EN: $dest")
+
+        Log.i("BaselineProfileGenerator", "RESCATE FINALIZADO.")
+        Log.i("BaselineProfileGenerator", "SI FALLA EL PULL MANUAL, USA EL COMANDO ROOT DESDE TU MAC.")
     }
 }
