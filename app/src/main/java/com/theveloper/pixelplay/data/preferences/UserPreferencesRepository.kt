@@ -598,7 +598,7 @@ class UserPreferencesRepository @Inject constructor(
 
     suspend fun setAlbumsSortOption(optionKey: String) {
         dataStore.edit { preferences ->
-            preferences[PreferencesKeys.ARTISTS_SORT_OPTION] = optionKey
+            preferences[PreferencesKeys.ALBUMS_SORT_OPTION] = optionKey
         }
     }
 
