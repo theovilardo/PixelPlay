@@ -1127,33 +1127,30 @@ private fun DelayedContent(
         }
     }
 
-    val contentAlpha by remember {
-        derivedStateOf { if (isDelayGateOpen) baseAlpha else 0f }
-    }
-
-    val placeholderAlpha by remember(showPlaceholders, shouldDelay) {
-        derivedStateOf { if (shouldDelay && showPlaceholders && !isDelayGateOpen) 1f else 0f }
-    }
-
-    Box {
-        // Content
+    if (shouldDelay) {
+        Crossfade(
+            targetState = isDelayGateOpen,
+            label = "DelayedContentCrossfade"
+        ) { gateOpen ->
+            if (gateOpen) {
+                Box(
+                    modifier = Modifier.graphicsLayer {
+                        alpha = baseAlpha
+                    }
+                ) {
+                    content()
+                }
+            } else if (showPlaceholders) {
+                placeholder()
+            }
+        }
+    } else {
         Box(
             modifier = Modifier.graphicsLayer {
-                alpha = contentAlpha
+                alpha = baseAlpha
             }
         ) {
             content()
-        }
-
-        // Placeholder
-        if (shouldDelay && showPlaceholders) {
-            Box(
-                modifier = Modifier.graphicsLayer {
-                    alpha = placeholderAlpha
-                }
-            ) {
-                placeholder()
-            }
         }
     }
 }
