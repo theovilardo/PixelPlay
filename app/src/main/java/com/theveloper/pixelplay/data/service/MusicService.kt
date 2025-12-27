@@ -97,6 +97,7 @@ class MusicService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
 
+        engine.ensureInitialized()
         engine.masterPlayer.addListener(playerListener)
 
         // Handle player swaps (crossfade) to keep MediaSession in sync
@@ -314,9 +315,13 @@ class MusicService : MediaSessionService() {
             return
         }
 
-        if (player == null || !player.playWhenReady || player.mediaItemCount == 0 || player.playbackState == Player.STATE_ENDED) {
+        if (player == null || player.mediaItemCount == 0) {
             stopSelf()
+            super.onTaskRemoved(rootIntent)
+            return
         }
+
+        mediaSession?.let { onUpdateNotification(it) }
         super.onTaskRemoved(rootIntent)
     }
 
