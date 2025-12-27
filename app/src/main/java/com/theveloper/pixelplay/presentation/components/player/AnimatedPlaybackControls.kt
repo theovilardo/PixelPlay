@@ -26,6 +26,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,6 +69,8 @@ fun AnimatedPlaybackControls(
 ) {
     val isPlaying = isPlayingProvider()
     var lastClicked by remember { mutableStateOf<PlaybackButtonType?>(null) }
+    val latestIsPlayingProvider by rememberUpdatedState(newValue = isPlayingProvider)
+    val latestLastClicked by rememberUpdatedState(newValue = lastClicked)
     val isPlayPauseLocked =
         lastClicked == PlaybackButtonType.NEXT || lastClicked == PlaybackButtonType.PREVIOUS
     var playPauseVisualState by remember { mutableStateOf(isPlaying) }
@@ -82,7 +85,18 @@ fun AnimatedPlaybackControls(
     }
 
     LaunchedEffect(isPlaying) {
-        pendingPlayPauseState = isPlaying
+        if (isPlaying) {
+            pendingPlayPauseState = true
+            return@LaunchedEffect
+        }
+
+        val shouldDelay = latestLastClicked != PlaybackButtonType.PLAY_PAUSE
+        if (shouldDelay) {
+            delay(releaseDelay)
+        }
+        if (!latestIsPlayingProvider()) {
+            pendingPlayPauseState = false
+        }
     }
 
     LaunchedEffect(isPlayPauseLocked, pendingPlayPauseState) {
