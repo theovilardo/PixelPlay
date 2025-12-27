@@ -10,7 +10,8 @@ data class Album(
     val artist: String,
     val year: Int,
     val albumArtUriString: String?,
-    val songCount: Int
+    val songCount: Int,
+    val dateAdded: Long
 )
 
 @Immutable

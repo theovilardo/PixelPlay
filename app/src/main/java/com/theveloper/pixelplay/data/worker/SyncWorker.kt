@@ -242,7 +242,8 @@ class SyncWorker @AssistedInject constructor(
                 artistId = albumArtistId,
                 albumArtUriString = firstSong.albumArtUriString,
                 songCount = songsInAlbum.size,
-                year = firstSong.year
+                year = firstSong.year,
+                dateAdded = firstSong.dateAdded
             )
         }
 

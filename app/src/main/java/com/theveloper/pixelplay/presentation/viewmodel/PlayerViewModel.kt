@@ -4199,6 +4199,7 @@ class PlayerViewModel @Inject constructor(
             SortOption.AlbumTitleZA -> _playerUiState.value.albums.sortedByDescending { it.title }
             SortOption.AlbumArtist -> _playerUiState.value.albums.sortedBy { it.artist }
             SortOption.AlbumReleaseYear -> _playerUiState.value.albums.sortedByDescending { it.year }
+            SortOption.AlbumDateAdded -> _playerUiState.value.albums.sortedByDescending { it.dateAdded }
             else -> _playerUiState.value.albums
         }.toImmutableList()
         _playerUiState.update {
