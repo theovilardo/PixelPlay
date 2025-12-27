@@ -4220,6 +4220,7 @@ class PlayerViewModel @Inject constructor(
         val sortedArtists = when (sortOption) {
             SortOption.ArtistNameAZ -> _playerUiState.value.artists.sortedBy { it.name }
             SortOption.ArtistNameZA -> _playerUiState.value.artists.sortedByDescending { it.name }
+            SortOption.ArtistSongCount -> _playerUiState.value.artists.sortedByDescending { it.songCount }
             else -> _playerUiState.value.artists
         }.toImmutableList()
         _playerUiState.update {

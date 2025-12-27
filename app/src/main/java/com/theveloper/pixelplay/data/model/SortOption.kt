@@ -23,6 +23,7 @@ sealed class SortOption(val storageKey: String, val displayName: String) {
     // Artist Sort Options
     object ArtistNameAZ : SortOption("artist_name_az", "Name (A-Z)")
     object ArtistNameZA : SortOption("artist_name_za", "Name (Z-A)")
+    object ArtistSongCount : SortOption("artist_song_count", "Song Count")
     // object ArtistNumSongs : SortOption("artist_num_songs", "Number of Songs") // Requires ViewModel change & data
 
     // Playlist Sort Options
@@ -60,7 +61,8 @@ sealed class SortOption(val storageKey: String, val displayName: String) {
         )
         val ARTISTS: List<SortOption> = listOf(
             ArtistNameAZ,
-            ArtistNameZA
+            ArtistNameZA,
+            ArtistSongCount
         )
         val PLAYLISTS: List<SortOption> = listOf(
             PlaylistNameAZ,

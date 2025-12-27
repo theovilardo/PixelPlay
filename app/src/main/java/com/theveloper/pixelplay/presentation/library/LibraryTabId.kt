@@ -41,7 +41,8 @@ enum class LibraryTabId(
         label = "ARTIST",
         sortOptions = listOf(
             SortOption.ArtistNameAZ,
-            SortOption.ArtistNameZA
+            SortOption.ArtistNameZA,
+            SortOption.ArtistSongCount
         )
     ),
     Playlists(
