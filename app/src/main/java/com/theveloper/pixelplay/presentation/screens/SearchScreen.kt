@@ -317,7 +317,14 @@ fun SearchScreen(
                                     colorScheme = colorScheme
                                 )
                             } else if (searchResults.isNotEmpty()) {
-                                val rememberedOnItemSelected = remember { { active = false } }
+                                val rememberedOnItemSelected = remember(searchQuery, playerViewModel) {
+                                    {
+                                        if (searchQuery.isNotBlank()) {
+                                            playerViewModel.onSearchQuerySubmitted(searchQuery)
+                                        }
+                                        active = false
+                                    }
+                                }
                                 SearchResultsList(
                                     results = searchResults,
                                     playerViewModel = playerViewModel,
