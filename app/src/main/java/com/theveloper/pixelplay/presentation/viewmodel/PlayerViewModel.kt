@@ -463,6 +463,8 @@ class PlayerViewModel @Inject constructor(
     private var lastRemoteSongId: String? = null
     private var lastRemoteStreamPosition: Long = 0L
     private var lastRemoteRepeatMode: Int = Player.REPEAT_MODE_OFF
+    private var pendingRemoteSongId: String? = null
+    private var pendingRemoteSongMarkedAt: Long = 0L
     private val _trackVolume = MutableStateFlow(1.0f)
     val trackVolume: StateFlow<Float> = _trackVolume.asStateFlow()
     private val isRemotelySeeking = MutableStateFlow(false)
@@ -504,6 +506,49 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             _toastEvents.emit(message)
         }
+    }
+
+    private fun markPendingRemoteSong(song: Song?) {
+        if (song == null) return
+        pendingRemoteSongId = song.id
+        pendingRemoteSongMarkedAt = SystemClock.elapsedRealtime()
+        Timber.tag(CAST_LOG_TAG).d("Marked pending remote song: %s", song.id)
+        _stablePlayerState.update { state -> state.copy(currentSong = song) }
+        _playerUiState.update { state ->
+            val queue = if (state.currentPlaybackQueue.isNotEmpty()) {
+                state.currentPlaybackQueue
+            } else {
+                lastRemoteQueue
+            }
+            val updatedQueue = if (queue.any { it.id == song.id } || queue.isEmpty()) {
+                queue
+            } else {
+                queue + song
+            }
+            state.copy(currentPlaybackQueue = updatedQueue.toImmutableList(), currentPosition = 0L)
+        }
+    }
+
+    private fun resolvePendingRemoteSong(
+        reportedSong: Song?,
+        reportedSongId: String?,
+        songMap: Map<String, Song>
+    ): Song? {
+        val pendingId = pendingRemoteSongId ?: return reportedSong
+        val now = SystemClock.elapsedRealtime()
+        val isFresh = now - pendingRemoteSongMarkedAt < 4000
+        if (!isFresh) {
+            pendingRemoteSongId = null
+            return reportedSong
+        }
+        if (reportedSongId == pendingId) {
+            pendingRemoteSongId = null
+            return reportedSong ?: songMap[pendingId] ?: lastRemoteQueue.firstOrNull { it.id == pendingId }
+        }
+        return songMap[pendingId]
+            ?: reportedSong
+            ?: lastRemoteQueue.firstOrNull { it.id == pendingId }
+            ?: _stablePlayerState.value.currentSong
     }
 
     // Last Library Tab Index
@@ -1379,7 +1424,7 @@ class PlayerViewModel @Inject constructor(
                 val currentItemId = mediaStatus.getCurrentItemId()
                 val currentRemoteItem = mediaStatus.getQueueItemById(currentItemId)
                 val currentSongId = currentRemoteItem?.customData?.optString("songId")
-                val currentSong = currentSongId?.let { songMap[it] }
+                val reportedSong = currentSongId?.let { songMap[it] }
                 if (newQueue.isNotEmpty()) {
                     val isShrunkSubset =
                         newQueue.size < lastRemoteQueue.size && newQueue.all { song ->
@@ -1397,13 +1442,15 @@ class PlayerViewModel @Inject constructor(
                             )
                     }
                 }
-                if (currentSongId != null) {
-                    lastRemoteSongId = currentSongId
-                    Timber.tag(CAST_LOG_TAG).d("Cached current remote song id: %s", currentSongId)
+                val effectiveSong = resolvePendingRemoteSong(reportedSong, currentSongId, songMap)
+                val effectiveSongId = effectiveSong?.id ?: currentSongId
+                if (effectiveSongId != null) {
+                    lastRemoteSongId = effectiveSongId
+                    Timber.tag(CAST_LOG_TAG).d("Cached current remote song id: %s", effectiveSongId)
                 }
-                if (currentSong?.id != _stablePlayerState.value.currentSong?.id) {
+                if (effectiveSong?.id != _stablePlayerState.value.currentSong?.id) {
                     viewModelScope.launch {
-                        currentSong?.albumArtUriString?.toUri()?.let { uri ->
+                        effectiveSong?.albumArtUriString?.toUri()?.let { uri ->
                             extractAndGenerateColorScheme(uri)
                         }
                     }
@@ -1441,12 +1488,12 @@ class PlayerViewModel @Inject constructor(
                     )
                 val streamDuration = listOf(
                     remoteMediaClient.streamDuration,
-                    currentSong?.duration ?: 0L,
+                    effectiveSong?.duration ?: 0L,
                     0L
                 ).maxOrNull() ?: 0L
-                val effectiveSong = currentSong ?: _stablePlayerState.value.currentSong
+                val effectiveSongForStats = effectiveSong ?: _stablePlayerState.value.currentSong
                 listeningStatsTracker.ensureSession(
-                    song = effectiveSong,
+                    song = effectiveSongForStats,
                     positionMs = streamPosition,
                     durationMs = streamDuration,
                     isPlaying = isPlaying
@@ -2327,6 +2374,7 @@ class PlayerViewModel @Inject constructor(
 
             if (itemInQueue != null && queueMatchesContext) {
                 // Song is already in the remote queue, just jump to it.
+                markPendingRemoteSong(song)
                 castPlayer?.jumpToItem(itemInQueue.itemId, 0L)
                 if (isVoluntaryPlay) incrementSongScore(song)
             } else {
@@ -4123,6 +4171,15 @@ class PlayerViewModel @Inject constructor(
     fun nextSong() {
         val castSession = _castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
+            val queue = _playerUiState.value.currentPlaybackQueue
+            val currentId = _stablePlayerState.value.currentSong?.id
+            val currentIndex = queue.indexOfFirst { it.id == currentId }
+            val target = when {
+                currentIndex >= 0 && currentIndex + 1 < queue.size -> queue[currentIndex + 1]
+                queue.isNotEmpty() -> queue.last()
+                else -> null
+            }
+            markPendingRemoteSong(target)
             castPlayer?.next()
         } else {
             mediaController?.let {
@@ -4137,6 +4194,15 @@ class PlayerViewModel @Inject constructor(
     fun previousSong() {
         val castSession = _castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
+            val queue = _playerUiState.value.currentPlaybackQueue
+            val currentId = _stablePlayerState.value.currentSong?.id
+            val currentIndex = queue.indexOfFirst { it.id == currentId }
+            val target = when {
+                currentIndex > 0 -> queue[currentIndex - 1]
+                queue.isNotEmpty() -> queue.first()
+                else -> null
+            }
+            markPendingRemoteSong(target)
             castPlayer?.previous()
         } else {
             mediaController?.let { controller ->
