@@ -375,6 +375,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setFullPlayerAppearThreshold(thresholdPercent: Int) {
+        viewModelScope.launch {
+            userPreferencesRepository.setFullPlayerAppearThreshold(thresholdPercent)
+        }
+    }
+
     fun refreshLibrary() {
         viewModelScope.launch {
             if (isSyncing.value) return@launch

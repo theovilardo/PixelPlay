@@ -7,5 +7,6 @@ data class FullPlayerLoadingTweaks(
     val delayProgressBar: Boolean = false,
     val delayControls: Boolean = false,
     val showPlaceholders: Boolean = false,
-    val transparentPlaceholders: Boolean = false
+    val transparentPlaceholders: Boolean = false,
+    val contentAppearThresholdPercent: Int = 100
 )

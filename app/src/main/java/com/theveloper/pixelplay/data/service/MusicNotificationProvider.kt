@@ -38,7 +38,7 @@ class MusicNotificationProvider(
             .build()
 
         // 2. Create custom "Shuffle" button
-        val shuffleOn = session.player.shuffleModeEnabled
+        val shuffleOn = musicService.isManualShuffleEnabled()
         val shuffleCommandAction = if (shuffleOn) CUSTOM_COMMAND_SHUFFLE_OFF else CUSTOM_COMMAND_SHUFFLE_ON
         android.util.Log.d("MusicNotificationProvider", "Creating shuffle button. shuffleOn: $shuffleOn, command: $shuffleCommandAction")
         val shuffleIcon = if (shuffleOn) R.drawable.rounded_shuffle_on_24 else R.drawable.rounded_shuffle_24
@@ -75,6 +75,8 @@ class MusicNotificationProvider(
     companion object {
         const val CUSTOM_COMMAND_SHUFFLE_ON = "com.theveloper.pixelplay.SHUFFLE_ON"
         const val CUSTOM_COMMAND_SHUFFLE_OFF = "com.theveloper.pixelplay.SHUFFLE_OFF"
+        const val CUSTOM_COMMAND_SET_SHUFFLE_STATE = "com.theveloper.pixelplay.SET_SHUFFLE_STATE"
+        const val EXTRA_SHUFFLE_ENABLED = "com.theveloper.pixelplay.extra.SHUFFLE_ENABLED"
         const val CUSTOM_COMMAND_CYCLE_REPEAT_MODE = "com.theveloper.pixelplay.CYCLE_REPEAT"
         const val CUSTOM_COMMAND_LIKE = "com.theveloper.pixelplay.LIKE"
         const val CUSTOM_COMMAND_COUNTED_PLAY = "com.theveloper.pixelplay.COUNTED_PLAY"
