@@ -102,8 +102,8 @@ constructor(
         val FULL_PLAYER_DELAY_PROGRESS = booleanPreferencesKey("full_player_delay_progress")
         val FULL_PLAYER_DELAY_CONTROLS = booleanPreferencesKey("full_player_delay_controls")
         val FULL_PLAYER_PLACEHOLDERS = booleanPreferencesKey("full_player_placeholders")
-        val FULL_PLAYER_PLACEHOLDER_TRANSPARENT =
-                booleanPreferencesKey("full_player_placeholder_transparent")
+        val FULL_PLAYER_PLACEHOLDER_TRANSPARENT = booleanPreferencesKey("full_player_placeholder_transparent")
+        val FULL_PLAYER_DELAY_THRESHOLD = intPreferencesKey("full_player_delay_threshold_percent")
 
         // Multi-Artist Settings
         val ARTIST_DELIMITERS = stringPreferencesKey("artist_delimiters")
@@ -301,25 +301,19 @@ constructor(
                 preferences[PreferencesKeys.DISABLE_CAST_AUTOPLAY] ?: false
             }
 
-    val fullPlayerLoadingTweaksFlow: Flow<FullPlayerLoadingTweaks> =
-            dataStore.data.map { preferences ->
-                FullPlayerLoadingTweaks(
-                        delayAll = preferences[PreferencesKeys.FULL_PLAYER_DELAY_ALL] ?: true,
-                        delayAlbumCarousel = preferences[PreferencesKeys.FULL_PLAYER_DELAY_ALBUM]
-                                        ?: false,
-                        delaySongMetadata = preferences[PreferencesKeys.FULL_PLAYER_DELAY_METADATA]
-                                        ?: false,
-                        delayProgressBar = preferences[PreferencesKeys.FULL_PLAYER_DELAY_PROGRESS]
-                                        ?: false,
-                        delayControls = preferences[PreferencesKeys.FULL_PLAYER_DELAY_CONTROLS]
-                                        ?: false,
-                        showPlaceholders = preferences[PreferencesKeys.FULL_PLAYER_PLACEHOLDERS]
-                                        ?: false,
-                        transparentPlaceholders =
-                                preferences[PreferencesKeys.FULL_PLAYER_PLACEHOLDER_TRANSPARENT]
-                                        ?: false
-                )
-            }
+    val fullPlayerLoadingTweaksFlow: Flow<FullPlayerLoadingTweaks> = dataStore.data
+        .map { preferences ->
+            FullPlayerLoadingTweaks(
+                delayAll = preferences[PreferencesKeys.FULL_PLAYER_DELAY_ALL] ?: true,
+                delayAlbumCarousel = preferences[PreferencesKeys.FULL_PLAYER_DELAY_ALBUM] ?: false,
+                delaySongMetadata = preferences[PreferencesKeys.FULL_PLAYER_DELAY_METADATA] ?: false,
+                delayProgressBar = preferences[PreferencesKeys.FULL_PLAYER_DELAY_PROGRESS] ?: false,
+                delayControls = preferences[PreferencesKeys.FULL_PLAYER_DELAY_CONTROLS] ?: false,
+                showPlaceholders = preferences[PreferencesKeys.FULL_PLAYER_PLACEHOLDERS] ?: false,
+                transparentPlaceholders = preferences[PreferencesKeys.FULL_PLAYER_PLACEHOLDER_TRANSPARENT] ?: false,
+                contentAppearThresholdPercent = preferences[PreferencesKeys.FULL_PLAYER_DELAY_THRESHOLD] ?: 100
+            )
+        }
 
     val favoriteSongIdsFlow: Flow<Set<String>> =
             dataStore.data // Nuevo flujo para favoritos
@@ -898,8 +892,17 @@ constructor(
         }
     }
 
-    val libraryTabsOrderFlow: Flow<String?> =
-            dataStore.data.map { preferences -> preferences[PreferencesKeys.LIBRARY_TABS_ORDER] }
+    suspend fun setFullPlayerAppearThreshold(thresholdPercent: Int) {
+        val coercedValue = thresholdPercent.coerceIn(50, 100)
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.FULL_PLAYER_DELAY_THRESHOLD] = coercedValue
+        }
+    }
+
+    val libraryTabsOrderFlow: Flow<String?> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.LIBRARY_TABS_ORDER]
+        }
 
     suspend fun saveLibraryTabsOrder(order: String) {
         dataStore.edit { preferences -> preferences[PreferencesKeys.LIBRARY_TABS_ORDER] = order }

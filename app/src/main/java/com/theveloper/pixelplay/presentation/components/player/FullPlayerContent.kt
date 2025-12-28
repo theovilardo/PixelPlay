@@ -299,6 +299,7 @@ fun FullPlayerContent(
                 showPlaceholders = loadingTweaks.showPlaceholders,
                 expansionFractionProvider = expansionFractionProvider,
                 normalStartThreshold = 0.08f,
+                delayAppearThreshold = loadingTweaks.contentAppearThresholdPercent / 100f,
                 placeholder = {
                     if (loadingTweaks.transparentPlaceholders) {
                         Box(Modifier.height(carouselHeight).fillMaxWidth())
@@ -336,6 +337,7 @@ fun FullPlayerContent(
             showPlaceholders = loadingTweaks.showPlaceholders,
             expansionFractionProvider = expansionFractionProvider,
             normalStartThreshold = 0.42f,
+            delayAppearThreshold = loadingTweaks.contentAppearThresholdPercent / 100f,
             placeholder = {
                 if (loadingTweaks.transparentPlaceholders) {
                     Box(Modifier.fillMaxWidth().height(174.dp))
@@ -408,6 +410,7 @@ fun FullPlayerContent(
             showPlaceholders = loadingTweaks.showPlaceholders,
             expansionFractionProvider = expansionFractionProvider,
             normalStartThreshold = 0.20f,
+            delayAppearThreshold = loadingTweaks.contentAppearThresholdPercent / 100f,
             placeholder = {
                 if (loadingTweaks.transparentPlaceholders) {
                     Box(Modifier.fillMaxWidth().height(70.dp))
@@ -1040,6 +1043,7 @@ private fun PlayerProgressBarSection(
         showPlaceholders = loadingTweaks?.showPlaceholders ?: false,
         expansionFractionProvider = expansionFractionProvider,
         normalStartThreshold = 0.08f,
+        delayAppearThreshold = (loadingTweaks?.contentAppearThresholdPercent ?: 100) / 100f,
         placeholder = {
              if (loadingTweaks?.transparentPlaceholders == true) {
                  Box(Modifier.fillMaxWidth().heightIn(min = 70.dp))
@@ -1105,37 +1109,48 @@ private fun DelayedContent(
     showPlaceholders: Boolean,
     expansionFractionProvider: () -> Float,
     normalStartThreshold: Float,
+    delayAppearThreshold: Float,
     placeholder: @Composable () -> Unit,
     content: @Composable () -> Unit
 ) {
-    // Smoother delayed transition: fade in during the last 15% (0.85 -> 1.0) instead of last 5% (0.95 -> 1.0)
-    // This prevents the "abrupt" pop-in during fast animations.
-    val delayedStartThreshold = 0.85f
+    val expansionFraction by remember {
+        derivedStateOf { expansionFractionProvider().coerceIn(0f, 1f) }
+    }
 
-    Box {
-        // Content
+    val isDelayGateOpen by remember(shouldDelay, delayAppearThreshold) {
+        derivedStateOf { !shouldDelay || expansionFraction >= delayAppearThreshold.coerceIn(0f, 1f) }
+    }
+
+    val baseAlpha by remember(normalStartThreshold) {
+        derivedStateOf {
+            ((expansionFraction - normalStartThreshold) / (1f - normalStartThreshold)).coerceIn(0f, 1f)
+        }
+    }
+
+    if (shouldDelay) {
+        Crossfade(
+            targetState = isDelayGateOpen,
+            label = "DelayedContentCrossfade"
+        ) { gateOpen ->
+            if (gateOpen) {
+                Box(
+                    modifier = Modifier.graphicsLayer {
+                        alpha = baseAlpha
+                    }
+                ) {
+                    content()
+                }
+            } else if (showPlaceholders) {
+                placeholder()
+            }
+        }
+    } else {
         Box(
             modifier = Modifier.graphicsLayer {
-                val fraction = expansionFractionProvider()
-                val start = if (shouldDelay) delayedStartThreshold else normalStartThreshold
-                val end = 1f
-                alpha = ((fraction - start) / (end - start)).coerceIn(0f, 1f)
+                alpha = baseAlpha
             }
         ) {
             content()
-        }
-
-        // Placeholder
-        if (shouldDelay && showPlaceholders) {
-            Box(
-                modifier = Modifier.graphicsLayer {
-                    val fraction = expansionFractionProvider()
-                    // Disappear when content appears
-                    alpha = if (fraction < delayedStartThreshold) 1f else 0f
-                }
-            ) {
-                placeholder()
-            }
         }
     }
 }
