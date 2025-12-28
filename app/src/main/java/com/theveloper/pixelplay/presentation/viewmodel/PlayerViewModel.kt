@@ -1473,7 +1473,6 @@ class PlayerViewModel @Inject constructor(
                     pendingCastRouteId = null
                     _isCastConnecting.value = true
                     if (!ensureHttpServerRunning()) {
-                        sendToast("Could not start cast server. Check connection.")
                         _isCastConnecting.value = false
                         disconnect()
                         return@launch
@@ -4660,21 +4659,59 @@ class PlayerViewModel @Inject constructor(
             return true
         }
 
+        val connectivityManager =
+            context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val activeNetwork = connectivityManager.activeNetwork
+        val networkCapabilities = activeNetwork?.let { connectivityManager.getNetworkCapabilities(it) }
+
+        val hasLocalTransport = networkCapabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true ||
+            networkCapabilities?.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) == true
+
+        if (activeNetwork == null || !hasLocalTransport) {
+            sendToast("Connect to a Wi‑Fi or local network to cast.")
+            Timber.w("Cannot start cast server: no suitable local network")
+            return false
+        }
+
+        MediaFileHttpServerService.lastFailureReason = null
+
         context.startService(Intent(context, MediaFileHttpServerService::class.java).apply {
             action = MediaFileHttpServerService.ACTION_START_SERVER
         })
 
-        val startTime = System.currentTimeMillis()
-        val timeout = 5000L // 5 seconds
-        while (!MediaFileHttpServerService.isServerRunning || MediaFileHttpServerService.serverAddress == null) {
-            if (System.currentTimeMillis() - startTime > timeout) {
-                sendToast("Cast server failed to start. Check Wi-Fi connection.")
-                Timber.e("HTTP server start timed out.")
-                return false
+        val startTime = SystemClock.elapsedRealtime()
+        val backoffDelays = listOf(100L, 200L, 350L, 500L, 700L, 900L)
+        var attempt = 0
+
+        while (SystemClock.elapsedRealtime() - startTime < 5500L) {
+            if (MediaFileHttpServerService.isServerRunning && MediaFileHttpServerService.serverAddress != null) {
+                return true
             }
-            delay(100)
+
+            when (MediaFileHttpServerService.lastFailureReason) {
+                MediaFileHttpServerService.FailureReason.NO_NETWORK_ADDRESS -> {
+                    sendToast("Could not find a local IP address. Verify Wi‑Fi connectivity and try again.")
+                    Timber.e("HTTP server failed: no network address available")
+                    return false
+                }
+
+                MediaFileHttpServerService.FailureReason.START_EXCEPTION -> {
+                    sendToast("Cast server failed to start. Check your network and try again.")
+                    Timber.e("HTTP server failed to start due to exception")
+                    return false
+                }
+
+                else -> {}
+            }
+
+            val delayDuration = backoffDelays.getOrElse(attempt) { 1000L }
+            delay(delayDuration)
+            attempt++
         }
-        return true
+
+        sendToast("Starting cast server is taking longer than expected. Check Wi‑Fi and retry.")
+        Timber.e("HTTP server start timed out after waiting for address: %s", MediaFileHttpServerService.serverAddress)
+        return false
     }
 
     override fun onCleared() {
