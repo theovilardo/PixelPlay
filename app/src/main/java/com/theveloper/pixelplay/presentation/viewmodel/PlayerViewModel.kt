@@ -1423,6 +1423,9 @@ class PlayerViewModel @Inject constructor(
                         it.copy(currentPlaybackQueue = queueForUi)
                     }
                 }
+                if (!_isSheetVisible.value && (queueForUi.isNotEmpty() || previousQueue.isNotEmpty())) {
+                    _isSheetVisible.value = true
+                }
                 val isPlaying = mediaStatus.playerState == MediaStatus.PLAYER_STATE_PLAYING
                 lastKnownRemoteIsPlaying = isPlaying
                 val streamPosition = mediaStatus.streamPosition
@@ -1441,8 +1444,9 @@ class PlayerViewModel @Inject constructor(
                     currentSong?.duration ?: 0L,
                     0L
                 ).maxOrNull() ?: 0L
+                val effectiveSong = currentSong ?: _stablePlayerState.value.currentSong
                 listeningStatsTracker.ensureSession(
-                    song = currentSong,
+                    song = effectiveSong,
                     positionMs = streamPosition,
                     durationMs = streamDuration,
                     isPlaying = isPlaying
@@ -1451,7 +1455,7 @@ class PlayerViewModel @Inject constructor(
                     listeningStatsTracker.onPlaybackStopped()
                 }
                 _stablePlayerState.update {
-                    var nextSong = currentSong
+                    var nextSong = effectiveSong
                     // Prevent clearing the song if we are in the middle of a connection attempt
                     if (_isCastConnecting.value && nextSong == null) {
                         nextSong = it.currentSong
