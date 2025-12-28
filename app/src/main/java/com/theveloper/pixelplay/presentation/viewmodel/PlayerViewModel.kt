@@ -55,6 +55,8 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.media3.common.Timeline
 import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionError
+import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
 import androidx.mediarouter.media.MediaControlIntent
 import androidx.mediarouter.media.MediaRouteSelector
@@ -76,6 +78,7 @@ import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Size
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.DailyMixManager
@@ -630,8 +633,31 @@ class PlayerViewModel @Inject constructor(
 
     private var mediaController: MediaController? = null
     private val sessionToken = SessionToken(context, ComponentName(context, MusicService::class.java))
+    private val mediaControllerListener = object : MediaController.Listener {
+        override fun onCustomCommand(
+            controller: MediaController,
+            command: SessionCommand,
+            args: Bundle
+        ): ListenableFuture<SessionResult> {
+            if (command.customAction == MusicNotificationProvider.CUSTOM_COMMAND_SET_SHUFFLE_STATE) {
+                val enabled = args.getBoolean(
+                    MusicNotificationProvider.EXTRA_SHUFFLE_ENABLED,
+                    false
+                )
+                viewModelScope.launch {
+                    if (enabled != _stablePlayerState.value.isShuffleEnabled) {
+                        toggleShuffle()
+                    }
+                }
+                return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+            }
+            return Futures.immediateFuture(SessionResult(SessionError.ERROR_NOT_SUPPORTED))
+        }
+    }
     private val mediaControllerFuture: ListenableFuture<MediaController> =
-        MediaController.Builder(context, sessionToken).buildAsync()
+        MediaController.Builder(context, sessionToken)
+            .setListener(mediaControllerListener)
+            .buildAsync()
     private var pendingRepeatMode: Int? = null
 
     private var pendingPlaybackAction: (() -> Unit)? = null
@@ -1188,6 +1214,7 @@ class PlayerViewModel @Inject constructor(
                 mediaController = mediaControllerFuture.get()
                 setupMediaControllerListeners()
                 flushPendingRepeatMode()
+                syncShuffleStateWithSession(_stablePlayerState.value.isShuffleEnabled)
                 // Execute any pending action that was queued while the controller was connecting
                 pendingPlaybackAction?.invoke()
                 pendingPlaybackAction = null
@@ -1851,6 +1878,15 @@ class PlayerViewModel @Inject constructor(
             userPreferencesRepository.repeatModeFlow.collect { mode ->
                 applyPreferredRepeatMode(mode)
             }
+        }
+
+        viewModelScope.launch {
+            stablePlayerState
+                .map { it.isShuffleEnabled }
+                .distinctUntilChanged()
+                .collect { enabled ->
+                    syncShuffleStateWithSession(enabled)
+                }
         }
 
         Trace.endSection() // End PlayerViewModel.init
@@ -3426,6 +3462,17 @@ class PlayerViewModel @Inject constructor(
 
         metadataBuilder.setExtras(extras)
         return metadataBuilder.build()
+    }
+
+    private fun syncShuffleStateWithSession(enabled: Boolean) {
+        val controller = mediaController ?: return
+        val args = Bundle().apply {
+            putBoolean(MusicNotificationProvider.EXTRA_SHUFFLE_ENABLED, enabled)
+        }
+        controller.sendCustomCommand(
+            SessionCommand(MusicNotificationProvider.CUSTOM_COMMAND_SET_SHUFFLE_STATE, Bundle.EMPTY),
+            args
+        )
     }
 
     fun toggleShuffle(currentSongOverride: Song? = null) {
