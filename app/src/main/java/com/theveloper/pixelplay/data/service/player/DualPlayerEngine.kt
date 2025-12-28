@@ -236,6 +236,8 @@ class DualPlayerEngine @Inject constructor(
 
         if (playerB.mediaItemCount == 0) {
             Timber.tag("TransitionDebug").w("Skipping overlap - next player not prepared (count=0)")
+            playerA.volume = 1f
+            setPauseAtEndOfMediaItems(false)
             return
         }
 
@@ -255,6 +257,8 @@ class DualPlayerEngine @Inject constructor(
 
         if (playerB.playbackState != Player.STATE_READY) {
             Timber.tag("TransitionDebug").w("Player B not ready for overlap. State=%d", playerB.playbackState)
+            playerA.volume = 1f
+            setPauseAtEndOfMediaItems(false)
             return
         }
 
