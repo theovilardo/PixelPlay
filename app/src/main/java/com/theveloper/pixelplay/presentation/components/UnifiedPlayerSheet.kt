@@ -605,6 +605,11 @@ fun UnifiedPlayerSheet(
     }
 
     var showQueueSheet by remember { mutableStateOf(false) }
+    val allowQueueSheetInteraction by remember(showPlayerContentArea, currentSheetContentState) {
+        derivedStateOf {
+            showPlayerContentArea && currentSheetContentState == PlayerSheetState.EXPANDED
+        }
+    }
     val queueSheetOffset = remember(screenHeightPx) { Animatable(screenHeightPx) }
     var queueSheetHeightPx by remember { mutableFloatStateOf(0f) }
     val queueHiddenOffsetPx by remember(currentBottomPadding, queueSheetHeightPx, density) {
@@ -652,23 +657,24 @@ fun UnifiedPlayerSheet(
     }
 
     fun animateQueueSheet(targetExpanded: Boolean) {
-        scope.launch { animateQueueSheetInternal(targetExpanded) }
+        if (!allowQueueSheetInteraction && targetExpanded) return
+        scope.launch { animateQueueSheetInternal(targetExpanded && allowQueueSheetInteraction) }
     }
 
     fun beginQueueDrag() {
-        if (queueHiddenOffsetPx == 0f) return
+        if (queueHiddenOffsetPx == 0f || !allowQueueSheetInteraction) return
         showQueueSheet = true
         scope.launch { queueSheetOffset.stop() }
     }
 
     fun dragQueueBy(dragAmount: Float) {
-        if (queueHiddenOffsetPx == 0f) return
+        if (queueHiddenOffsetPx == 0f || !allowQueueSheetInteraction) return
         val newOffset = (queueSheetOffset.value + dragAmount).coerceIn(0f, queueHiddenOffsetPx)
         scope.launch { queueSheetOffset.snapTo(newOffset) }
     }
 
     fun endQueueDrag(totalDrag: Float, velocity: Float) {
-        if (queueHiddenOffsetPx == 0f) return
+        if (queueHiddenOffsetPx == 0f || !allowQueueSheetInteraction) return
         val isFastUpward = velocity < -650f
         val isFastDownward = velocity > 650f
         val shouldExpand =
@@ -692,6 +698,14 @@ fun UnifiedPlayerSheet(
                     hasHitTopEdge = false
                 }
             }
+    }
+
+    LaunchedEffect(allowQueueSheetInteraction, queueHiddenOffsetPx) {
+        if (allowQueueSheetInteraction) return@LaunchedEffect
+        showQueueSheet = false
+        if (queueHiddenOffsetPx > 0f) {
+            queueSheetOffset.snapTo(queueHiddenOffsetPx)
+        }
     }
 
     PredictiveBackHandler(
