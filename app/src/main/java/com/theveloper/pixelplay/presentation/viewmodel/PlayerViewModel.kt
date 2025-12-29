@@ -2412,9 +2412,17 @@ class PlayerViewModel @Inject constructor(
             val queueMatchesContext = remoteQueueItems.matchesQueueSongOrder(contextSongs)
 
             if (itemInQueue != null && queueMatchesContext) {
-                // Song is already in the remote queue, just jump to it.
+                // Song is already in the remote queue; prefer adjacent navigation commands to
+                // mirror the no-glitch behavior of next/previous buttons.
                 markPendingRemoteSong(song)
-                castPlayer?.jumpToItem(itemInQueue.itemId, 0L)
+                val currentItemId = remoteMediaClient.mediaStatus?.currentItemId
+                val currentIndex = remoteQueueItems.indexOfFirst { it.itemId == currentItemId }
+                val targetIndex = remoteQueueItems.indexOf(itemInQueue)
+                when {
+                    currentIndex >= 0 && targetIndex - currentIndex == 1 -> castPlayer?.next()
+                    currentIndex >= 0 && targetIndex - currentIndex == -1 -> castPlayer?.previous()
+                    else -> castPlayer?.jumpToItem(itemInQueue.itemId, 0L)
+                }
                 if (isVoluntaryPlay) incrementSongScore(song)
             } else {
                 // Song not in remote queue, so start a new playback session.
