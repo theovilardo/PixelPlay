@@ -512,6 +512,7 @@ class PlayerViewModel @Inject constructor(
         if (song == null) return
         pendingRemoteSongId = song.id
         pendingRemoteSongMarkedAt = SystemClock.elapsedRealtime()
+        lastRemoteSongId = song.id
         Timber.tag(CAST_LOG_TAG).d("Marked pending remote song: %s", song.id)
         _stablePlayerState.update { state -> state.copy(currentSong = song) }
         _isSheetVisible.value = true
@@ -1456,7 +1457,19 @@ class PlayerViewModel @Inject constructor(
                     Timber.tag(CAST_LOG_TAG).d("Cached current remote song id: %s", effectiveSongId)
                 }
                 val currentSongFallback = effectiveSong
-                    ?: _stablePlayerState.value.currentSong
+                    ?: run {
+                        val pendingId = pendingRemoteSongId
+                        val stableSong = _stablePlayerState.value.currentSong
+                        if (
+                            pendingId != null &&
+                            pendingId == stableSong?.id &&
+                            SystemClock.elapsedRealtime() - pendingRemoteSongMarkedAt < 4000
+                        ) {
+                            stableSong
+                        } else {
+                            _stablePlayerState.value.currentSong
+                        }
+                    }
                     ?: lastRemoteQueue.firstOrNull { it.id == lastRemoteSongId }
                 if (currentSongFallback?.id != _stablePlayerState.value.currentSong?.id) {
                     viewModelScope.launch {
