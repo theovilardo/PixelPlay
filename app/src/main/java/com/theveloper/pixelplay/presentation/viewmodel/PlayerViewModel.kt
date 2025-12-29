@@ -2406,16 +2406,16 @@ class PlayerViewModel @Inject constructor(
         val castSession = _castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
             val remoteMediaClient = castSession.remoteMediaClient!!
-            val remoteQueueItems = remoteMediaClient.mediaStatus?.queueItems ?: emptyList()
+            val mediaStatus = remoteMediaClient.mediaStatus
+            val remoteQueueItems = mediaStatus?.queueItems ?: emptyList()
             val itemInQueue = remoteQueueItems.find { it.customData?.optString("songId") == song.id }
 
-            val queueMatchesContext = remoteQueueItems.matchesQueueSongOrder(contextSongs)
-
-            if (itemInQueue != null && queueMatchesContext) {
+            if (itemInQueue != null) {
                 // Song is already in the remote queue; prefer adjacent navigation commands to
-                // mirror the no-glitch behavior of next/previous buttons.
+                // mirror the no-glitch behavior of next/previous buttons regardless of context
+                // mismatches.
                 markPendingRemoteSong(song)
-                val currentItemId = remoteMediaClient.mediaStatus?.currentItemId
+                val currentItemId = mediaStatus?.currentItemId
                 val currentIndex = remoteQueueItems.indexOfFirst { it.itemId == currentItemId }
                 val targetIndex = remoteQueueItems.indexOf(itemInQueue)
                 when {
@@ -2425,9 +2425,27 @@ class PlayerViewModel @Inject constructor(
                 }
                 if (isVoluntaryPlay) incrementSongScore(song)
             } else {
-                // Song not in remote queue, so start a new playback session.
-                if (isVoluntaryPlay) incrementSongScore(song)
-                playSongs(contextSongs, song, queueName, null)
+                val lastQueue = lastRemoteQueue
+                val currentRemoteId = mediaStatus
+                    ?.let { status ->
+                        status.getQueueItemById(status.getCurrentItemId())
+                            ?.customData?.optString("songId")
+                    } ?: lastRemoteSongId
+                val currentIndex = lastQueue.indexOfFirst { it.id == currentRemoteId }
+                val targetIndex = lastQueue.indexOfFirst { it.id == song.id }
+                if (currentIndex != -1 && targetIndex != -1) {
+                    markPendingRemoteSong(song)
+                    when (targetIndex - currentIndex) {
+                        1 -> castPlayer?.next()
+                        -1 -> castPlayer?.previous()
+                        else -> playSongs(contextSongs, song, queueName, null)
+                    }
+                    if (isVoluntaryPlay) incrementSongScore(song)
+                } else {
+                    // Song not in remote queue, so start a new playback session.
+                    if (isVoluntaryPlay) incrementSongScore(song)
+                    playSongs(contextSongs, song, queueName, null)
+                }
             }
         } else {
             // Local playback logic
