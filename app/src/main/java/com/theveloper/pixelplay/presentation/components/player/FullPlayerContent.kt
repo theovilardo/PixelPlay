@@ -879,10 +879,9 @@ private fun SongMetadataDisplaySection(
             .fillMaxWidth()
             .heightIn(min = 70.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Absolute.SpaceBetween
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         song?.let { currentSong ->
-            val textWeight = if (showQueueButton) 0.85f else 1f
             PlayerSongInfo(
                 title = currentSong.title,
                 artist = currentSong.displayArtist,
@@ -895,7 +894,7 @@ private fun SongMetadataDisplaySection(
                 playerViewModel = playerViewModel,
                 onClickArtist = onClickArtist,
                 modifier = Modifier
-                    .weight(textWeight)
+                    .weight(1f)
                     .align(Alignment.CenterVertically)
             )
         }
