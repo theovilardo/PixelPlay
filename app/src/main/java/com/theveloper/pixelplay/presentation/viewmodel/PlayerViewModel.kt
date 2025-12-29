@@ -1401,6 +1401,24 @@ class PlayerViewModel @Inject constructor(
 
         remoteProgressListener = RemoteMediaClient.ProgressListener { progress, _ ->
             if (!isRemotelySeeking.value) {
+                val pendingId = pendingRemoteSongId
+                if (pendingId != null && SystemClock.elapsedRealtime() - pendingRemoteSongMarkedAt < 4000) {
+                    val status = _castSession.value?.remoteMediaClient?.mediaStatus
+                    val activeId = status
+                        ?.getQueueItemById(status.getCurrentItemId())
+                        ?.customData
+                        ?.optString("songId")
+                    if (activeId == null || activeId != pendingId) {
+                        Timber.tag(CAST_LOG_TAG)
+                            .d(
+                                "Ignoring remote progress %d while pending target %s (active %s)",
+                                progress,
+                                pendingId,
+                                activeId
+                            )
+                        return@ProgressListener
+                    }
+                }
                 _remotePosition.value = progress
                 lastRemoteStreamPosition = progress
                 listeningStatsTracker.onProgress(progress, lastKnownRemoteIsPlaying)
