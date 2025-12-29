@@ -2787,7 +2787,7 @@ class PlayerViewModel @Inject constructor(
                             loadLyricsForCurrentSong()
                         }
                     } ?: run {
-                        if (!_isCastConnecting.value) {
+                        if (!_isCastConnecting.value && !_isRemotePlaybackActive.value) {
                             lyricsLoadingJob?.cancel()
                             _stablePlayerState.update {
                                 it.copy(
@@ -2813,7 +2813,7 @@ class PlayerViewModel @Inject constructor(
                     listeningStatsTracker.finalizeCurrentSession()
                 }
                 if (playbackState == Player.STATE_IDLE && playerCtrl.mediaItemCount == 0) {
-                    if (!_isCastConnecting.value) {
+                    if (!_isCastConnecting.value && !_isRemotePlaybackActive.value) {
                         listeningStatsTracker.onPlaybackStopped()
                         lyricsLoadingJob?.cancel()
                         _stablePlayerState.update {
