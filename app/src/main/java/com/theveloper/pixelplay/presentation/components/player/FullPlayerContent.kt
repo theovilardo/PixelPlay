@@ -878,7 +878,8 @@ private fun SongMetadataDisplaySection(
         modifier
             .fillMaxWidth()
             .heightIn(min = 70.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         song?.let { currentSong ->
             PlayerSongInfo(
@@ -894,10 +895,10 @@ private fun SongMetadataDisplaySection(
                 onClickArtist = onClickArtist,
                 modifier = Modifier
                     .weight(1f)
+                    .fillMaxWidth()
                     .align(Alignment.CenterVertically)
             )
         }
-        Spacer(modifier = Modifier.width(12.dp))
 
         if (showQueueButton) {
             Row(
@@ -1196,15 +1197,23 @@ private fun PlayerSongInfo(
         // Let's check AutoScrollingTextOnDemand. Assuming it uses it for scrolling trigger.
         // If we want to avoid recomposition, we might need to pass the provider or just 1f if scrolling logic handles itself.
         // For now, let's pass the current value from provider for logic correctness, but ideally this component should be optimized too.
-        AutoScrollingTextOnDemand(title, titleStyle, gradientEdgeColor, expansionFractionProvider)
+        AutoScrollingTextOnDemand(
+            title,
+            titleStyle,
+            gradientEdgeColor,
+            expansionFractionProvider,
+            modifier = Modifier.fillMaxWidth()
+        )
         Spacer(modifier = Modifier.height(4.dp))
-        
+
         AutoScrollingTextOnDemand(
             text = artist,
             style = artistStyle,
             gradientEdgeColor = gradientEdgeColor,
             expansionFractionProvider = expansionFractionProvider,
-            modifier = Modifier.combinedClickable(
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = {
