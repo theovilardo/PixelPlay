@@ -3467,6 +3467,14 @@ class PlayerViewModel @Inject constructor(
             val startIndex = songsToPlay.indexOf(startSong).coerceAtLeast(0)
             val repeatMode = _stablePlayerState.value.repeatMode
 
+            // Keep UI and callbacks pinned to the intended target while the cast queue rebuilds
+            // to avoid bouncing back to the previous track when switching contexts.
+            markPendingRemoteSong(startSong)
+            lastRemoteQueue = songsToPlay
+            lastRemoteSongId = startSong.id
+            lastRemoteStreamPosition = 0L
+            lastRemoteRepeatMode = repeatMode
+
             castPlayer?.loadQueue(
                 songs = songsToPlay,
                 startIndex = startIndex,
