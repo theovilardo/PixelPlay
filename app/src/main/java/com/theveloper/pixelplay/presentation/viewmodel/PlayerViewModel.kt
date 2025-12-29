@@ -514,6 +514,7 @@ class PlayerViewModel @Inject constructor(
         pendingRemoteSongMarkedAt = SystemClock.elapsedRealtime()
         Timber.tag(CAST_LOG_TAG).d("Marked pending remote song: %s", song.id)
         _stablePlayerState.update { state -> state.copy(currentSong = song) }
+        _isSheetVisible.value = true
         song.albumArtUriString?.toUri()?.let { uri ->
             viewModelScope.launch {
                 extractAndGenerateColorScheme(uri)
@@ -1449,14 +1450,17 @@ class PlayerViewModel @Inject constructor(
                     }
                 }
                 val effectiveSong = resolvePendingRemoteSong(reportedSong, currentSongId, songMap)
-                val effectiveSongId = effectiveSong?.id ?: currentSongId
+                val effectiveSongId = effectiveSong?.id ?: currentSongId ?: lastRemoteSongId
                 if (effectiveSongId != null) {
                     lastRemoteSongId = effectiveSongId
                     Timber.tag(CAST_LOG_TAG).d("Cached current remote song id: %s", effectiveSongId)
                 }
-                if (effectiveSong?.id != _stablePlayerState.value.currentSong?.id) {
+                val currentSongFallback = effectiveSong
+                    ?: _stablePlayerState.value.currentSong
+                    ?: lastRemoteQueue.firstOrNull { it.id == lastRemoteSongId }
+                if (currentSongFallback?.id != _stablePlayerState.value.currentSong?.id) {
                     viewModelScope.launch {
-                        effectiveSong?.albumArtUriString?.toUri()?.let { uri ->
+                        currentSongFallback?.albumArtUriString?.toUri()?.let { uri ->
                             extractAndGenerateColorScheme(uri)
                         }
                     }
@@ -1484,6 +1488,10 @@ class PlayerViewModel @Inject constructor(
                 val streamPosition = mediaStatus.streamPosition
                 lastRemoteStreamPosition = streamPosition
                 lastRemoteRepeatMode = mediaStatus.queueRepeatMode
+                if (!isRemotelySeeking.value) {
+                    _remotePosition.value = streamPosition
+                    _playerUiState.update { it.copy(currentPosition = streamPosition) }
+                }
                 Timber.tag(CAST_LOG_TAG)
                     .d(
                         "Status update applied: song=%s position=%d repeat=%d playing=%s",
@@ -1508,7 +1516,7 @@ class PlayerViewModel @Inject constructor(
                     listeningStatsTracker.onPlaybackStopped()
                 }
                 _stablePlayerState.update {
-                    var nextSong = effectiveSong
+                    var nextSong = currentSongFallback
                     // Prevent clearing the song if we are in the middle of a connection attempt
                     if (_isCastConnecting.value && nextSong == null) {
                         nextSong = it.currentSong
@@ -1520,6 +1528,9 @@ class PlayerViewModel @Inject constructor(
                         currentSong = nextSong,
                         totalDuration = streamDuration
                     )
+                }
+                if (_castSession.value != null) {
+                    _isSheetVisible.value = true
                 }
             }
         }
