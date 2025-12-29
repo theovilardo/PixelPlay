@@ -276,6 +276,7 @@ fun CastBottomSheet(
     }
 
     val uiState = CastSheetUiState(
+        wifiRadioOn = isWifiRadioOn,
         wifiEnabled = isWifiEnabled,
         wifiSsid = wifiName,
         isScanning = isRefreshing && availableRoutes.isEmpty(),
@@ -353,6 +354,7 @@ private data class ActiveDeviceUi(
 )
 
 private data class CastSheetUiState(
+    val wifiRadioOn: Boolean,
     val wifiEnabled: Boolean,
     val wifiSsid: String? = null,
     val isScanning: Boolean,
@@ -606,7 +608,8 @@ private fun CastSheetContent(
                 .clipToBounds(),
             collapseFraction = collapseFraction,
             isScanning = state.isScanning,
-            wifiEnabled = state.wifiEnabled,
+            wifiOn = state.wifiRadioOn,
+            wifiConnected = state.wifiEnabled,
             wifiSsid = state.wifiSsid,
             onWifiClick = onTurnOnWifi,
             isBluetoothEnabled = state.isBluetoothEnabled,
@@ -836,7 +839,8 @@ private fun CollapsibleCastTopBar(
     modifier: Modifier = Modifier,
     collapseFraction: Float,
     isScanning: Boolean,
-    wifiEnabled: Boolean,
+    wifiOn: Boolean,
+    wifiConnected: Boolean,
     wifiSsid: String?,
     onWifiClick: () -> Unit,
     isBluetoothEnabled: Boolean,
@@ -929,8 +933,8 @@ private fun CollapsibleCastTopBar(
             }
 
             QuickSettingsRow(
-                wifiOn = isWifiRadioOn,
-                wifiConnected = isWifiEnabled,
+                wifiOn = wifiOn,
+                wifiConnected = wifiConnected,
                 wifiSsid = wifiSsid,
                 onWifiClick = onWifiClick,
                 bluetoothEnabled = isBluetoothEnabled,
@@ -1645,6 +1649,7 @@ private fun ScanningIndicator(isActive: Boolean) {
 @Preview(showBackground = true)
 private fun CastSheetScanningPreview() {
     val state = CastSheetUiState(
+        wifiRadioOn = true,
         wifiEnabled = true,
         wifiSsid = "Home Wi-Fi",
         isScanning = true,
@@ -1703,6 +1708,7 @@ private fun CastSheetDevicesPreview() {
         )
     )
     val state = CastSheetUiState(
+        wifiRadioOn = true,
         wifiEnabled = true,
         wifiSsid = "Office 5G",
         isScanning = false,
@@ -1737,6 +1743,7 @@ private fun CastSheetDevicesPreview() {
 @Preview(showBackground = true)
 private fun CastSheetWifiOffPreview() {
     val state = CastSheetUiState(
+        wifiRadioOn = false,
         wifiEnabled = false,
         isScanning = false,
         isRefreshing = false,
