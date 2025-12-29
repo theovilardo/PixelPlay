@@ -514,6 +514,11 @@ class PlayerViewModel @Inject constructor(
         pendingRemoteSongMarkedAt = SystemClock.elapsedRealtime()
         Timber.tag(CAST_LOG_TAG).d("Marked pending remote song: %s", song.id)
         _stablePlayerState.update { state -> state.copy(currentSong = song) }
+        song.albumArtUriString?.toUri()?.let { uri ->
+            viewModelScope.launch {
+                extractAndGenerateColorScheme(uri)
+            }
+        }
         _playerUiState.update { state ->
             val queue = if (state.currentPlaybackQueue.isNotEmpty()) {
                 state.currentPlaybackQueue
@@ -527,6 +532,7 @@ class PlayerViewModel @Inject constructor(
             }
             state.copy(currentPlaybackQueue = updatedQueue.toImmutableList(), currentPosition = 0L)
         }
+        _remotePosition.value = 0L
     }
 
     private fun resolvePendingRemoteSong(
