@@ -41,6 +41,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
 import android.content.pm.PackageManager
@@ -426,6 +427,8 @@ class PlayerViewModel @Inject constructor(
 
     private val _isWifiEnabled = MutableStateFlow(false)
     val isWifiEnabled: StateFlow<Boolean> = _isWifiEnabled.asStateFlow()
+    private val _isWifiRadioOn = MutableStateFlow(false)
+    val isWifiRadioOn: StateFlow<Boolean> = _isWifiRadioOn.asStateFlow()
     private val _wifiName = MutableStateFlow<String?>(null)
     val wifiName: StateFlow<String?> = _wifiName.asStateFlow()
 
@@ -440,6 +443,8 @@ class PlayerViewModel @Inject constructor(
     private val mediaRouter: MediaRouter
     private val mediaRouterCallback: MediaRouter.Callback
     private val connectivityManager: ConnectivityManager
+    private val wifiManager: WifiManager?
+    private var wifiStateReceiver: BroadcastReceiver? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private val bluetoothAdapter: BluetoothAdapter?
     private val bluetoothManager: BluetoothManager
@@ -1076,6 +1081,15 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    private fun updateWifiRadioState() {
+        val state = wifiManager?.wifiState
+        _isWifiRadioOn.value = when (state) {
+            WifiManager.WIFI_STATE_ENABLED, WifiManager.WIFI_STATE_ENABLING -> true
+            WifiManager.WIFI_STATE_DISABLED, WifiManager.WIFI_STATE_DISABLING -> false
+            else -> wifiManager?.isWifiEnabled == true
+        }
+    }
+
     private fun updateBluetoothName(forceClear: Boolean = false) {
         if (!hasBluetoothPermission()) {
             if (forceClear) _bluetoothName.value = null
@@ -1143,6 +1157,7 @@ class PlayerViewModel @Inject constructor(
     fun refreshLocalConnectionInfo() {
         val currentNetwork = connectivityManager.activeNetwork
         val currentCaps = connectivityManager.getNetworkCapabilities(currentNetwork)
+        updateWifiRadioState()
         _isWifiEnabled.value = currentCaps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
         if (_isWifiEnabled.value) updateWifiInfo(currentNetwork)
 
@@ -1315,12 +1330,14 @@ class PlayerViewModel @Inject constructor(
 
         // Connectivity listeners
         connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
         bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         bluetoothAdapter = bluetoothManager.adapter
 
         // Initial state check
         val activeNetwork = connectivityManager.activeNetwork
         val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
+        updateWifiRadioState()
         _isWifiEnabled.value = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
         if (_isWifiEnabled.value) {
             updateWifiInfo(activeNetwork)
@@ -1358,6 +1375,17 @@ class PlayerViewModel @Inject constructor(
             .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
             .build()
         connectivityManager.registerNetworkCallback(networkRequest, networkCallback!!)
+
+        wifiStateReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == WifiManager.WIFI_STATE_CHANGED_ACTION) {
+                    updateWifiRadioState()
+                }
+            }
+        }
+        wifiStateReceiver?.let {
+            context.registerReceiver(it, IntentFilter(WifiManager.WIFI_STATE_CHANGED_ACTION))
+        }
 
         // Bluetooth listener
         bluetoothStateReceiver = object : BroadcastReceiver() {
@@ -4881,6 +4909,7 @@ class PlayerViewModel @Inject constructor(
         listeningStatsTracker.onCleared()
         mediaRouter.removeCallback(mediaRouterCallback)
         networkCallback?.let { connectivityManager.unregisterNetworkCallback(it) }
+        wifiStateReceiver?.let { context.unregisterReceiver(it) }
         bluetoothStateReceiver?.let { context.unregisterReceiver(it) }
         audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
         sessionManager.removeSessionManagerListener(castSessionManagerListener as SessionManagerListener<CastSession>, CastSession::class.java)

@@ -147,6 +147,7 @@ fun CastBottomSheet(
     val routeVolume by playerViewModel.routeVolume.collectAsState()
     val isRefreshing by playerViewModel.isRefreshingRoutes.collectAsState()
     val isWifiEnabled by playerViewModel.isWifiEnabled.collectAsState()
+    val isWifiRadioOn by playerViewModel.isWifiRadioOn.collectAsState()
     val wifiName by playerViewModel.wifiName.collectAsState()
     val isBluetoothEnabled by playerViewModel.isBluetoothEnabled.collectAsState()
     val bluetoothName by playerViewModel.bluetoothName.collectAsState()
@@ -928,7 +929,8 @@ private fun CollapsibleCastTopBar(
             }
 
             QuickSettingsRow(
-                wifiEnabled = wifiEnabled,
+                wifiOn = isWifiRadioOn,
+                wifiConnected = isWifiEnabled,
                 wifiSsid = wifiSsid,
                 onWifiClick = onWifiClick,
                 bluetoothEnabled = isBluetoothEnabled,
@@ -1385,7 +1387,8 @@ private fun BadgeChip(
 
 @Composable
 private fun QuickSettingsRow(
-    wifiEnabled: Boolean,
+    wifiOn: Boolean,
+    wifiConnected: Boolean,
     wifiSsid: String?,
     onWifiClick: () -> Unit,
     bluetoothEnabled: Boolean,
@@ -1397,12 +1400,14 @@ private fun QuickSettingsRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         QuickSettingTile(
-            label = if (wifiEnabled && !wifiSsid.isNullOrEmpty()) wifiSsid else "Wi-Fi",
-            subtitle = if (wifiEnabled) {
-                if (!wifiSsid.isNullOrEmpty()) "Connected" else "On"
-            } else "Off",
-            icon = if (wifiEnabled) Icons.Rounded.Wifi else Icons.Rounded.WifiOff,
-            isActive = wifiEnabled,
+            label = if (wifiConnected && !wifiSsid.isNullOrEmpty()) wifiSsid else "Wi-Fi",
+            subtitle = when {
+                !wifiOn -> "Off"
+                wifiConnected -> "Connected"
+                else -> "On"
+            },
+            icon = if (wifiOn) Icons.Rounded.Wifi else Icons.Rounded.WifiOff,
+            isActive = wifiOn,
             onClick = onWifiClick,
             modifier = Modifier.weight(1f)
         )
