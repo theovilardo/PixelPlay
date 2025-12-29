@@ -1432,6 +1432,15 @@ class PlayerViewModel @Inject constructor(
                 val currentItemId = mediaStatus.getCurrentItemId()
                 val currentRemoteItem = mediaStatus.getQueueItemById(currentItemId)
                 val currentSongId = currentRemoteItem?.customData?.optString("songId")
+                val pendingId = pendingRemoteSongId
+                val pendingIsFresh = pendingId != null &&
+                    SystemClock.elapsedRealtime() - pendingRemoteSongMarkedAt < 4000
+                if (pendingIsFresh && currentSongId != null && currentSongId != pendingId) {
+                    Timber.tag(CAST_LOG_TAG)
+                        .d("Ignoring outdated status with item %s while pending target %s", currentSongId, pendingId)
+                    remoteMediaClient.requestStatus()
+                    return
+                }
                 val reportedSong = currentSongId?.let { songMap[it] }
                 if (newQueue.isNotEmpty()) {
                     val isShrunkSubset =

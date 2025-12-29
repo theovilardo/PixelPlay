@@ -125,7 +125,12 @@ class CastPlayer(private val castSession: CastSession) {
     }
 
     fun jumpToItem(itemId: Int, position: Long) {
-        remoteMediaClient?.queueJumpToItem(itemId, position, null)
+        remoteMediaClient?.queueJumpToItem(itemId, position, null)?.setResultCallback { result ->
+            if (!result.status.isSuccess) {
+                Timber.w("Remote failed to jump to item %d: %s", itemId, result.status.statusMessage)
+            }
+            remoteMediaClient?.requestStatus()
+        }
     }
 
     fun setRepeatMode(repeatMode: Int) {
