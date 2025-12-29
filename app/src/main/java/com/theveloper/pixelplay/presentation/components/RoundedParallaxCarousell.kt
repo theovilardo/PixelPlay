@@ -50,6 +50,7 @@ import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Path
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 // Utilidad para “inflar” un rect en px (evita hairlines)
 private fun Rect.inflate(p: Float) =
@@ -154,6 +155,26 @@ fun RoundedHorizontalMultiBrowseCarousel(
         CarouselStyle.ONE_PEEK -> 1
         CarouselStyle.TWO_PEEK -> 2
         else -> 1 // Default to one peek
+    }
+
+    if (carouselStyle == CarouselStyle.NO_PEEK) {
+        LaunchedEffect(state.pagerState) {
+            snapshotFlow { state.pagerState.isScrollInProgress }
+                .distinctUntilChanged()
+                .collect { inProgress ->
+                    if (!inProgress) {
+                        val pageCount = state.pagerState.pageCount
+                        if (pageCount == 0) return@collect
+                        val currentPage = state.pagerState.currentPage
+                        val offset = state.pagerState.currentPageOffsetFraction
+                        if (offset != 0f) {
+                            val targetPage = (currentPage + offset.roundToInt())
+                                .coerceIn(0, pageCount - 1)
+                            state.animateScrollToItem(targetPage)
+                        }
+                    }
+                }
+        }
     }
 
     RoundedCarousel(

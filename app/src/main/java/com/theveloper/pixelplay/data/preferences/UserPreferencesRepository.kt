@@ -813,7 +813,7 @@ constructor(
 
     val carouselStyleFlow: Flow<String> =
             dataStore.data.map { preferences ->
-                preferences[PreferencesKeys.CAROUSEL_STYLE] ?: CarouselStyle.ONE_PEEK
+                preferences[PreferencesKeys.CAROUSEL_STYLE] ?: CarouselStyle.NO_PEEK
             }
 
     suspend fun setCarouselStyle(style: String) {

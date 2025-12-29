@@ -87,6 +87,7 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
@@ -274,12 +275,18 @@ fun PlaylistDetailScreen(
                     .fillMaxSize()
                     .padding(top = innerPadding.calculateTopPadding()), Alignment.Center
             ) { CircularProgressIndicator() }
+        } else if (uiState.playlistNotFound) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(top = innerPadding.calculateTopPadding()), Alignment.Center
+            ) { Text(stringResource(id = R.string.playlist_not_found)) }
         } else if (currentPlaylist == null) {
             Box(
                 Modifier
                     .fillMaxSize()
                     .padding(top = innerPadding.calculateTopPadding()), Alignment.Center
-            ) { Text("Playlist no encontrada.") }
+            ) { CircularProgressIndicator() }
         } else {
             Column(
                 modifier = Modifier

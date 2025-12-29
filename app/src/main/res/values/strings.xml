@@ -40,4 +40,5 @@
     <string name="next_track">Next track</string>
     <string name="pause_playback">Pause playback</string>
     <string name="play_playback">Play</string>
+    <string name="playlist_not_found">Playlist not found.</string>
 </resources>
