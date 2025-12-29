@@ -1,13 +1,10 @@
 package com.theveloper.pixelplay.data.service.player
 
 import android.net.Uri
-import android.os.Handler
-import android.os.Looper
 import com.google.android.gms.cast.MediaInfo
 import com.google.android.gms.cast.MediaMetadata
 import com.google.android.gms.cast.MediaQueueItem
 import com.google.android.gms.cast.MediaSeekOptions
-import com.google.android.gms.cast.MediaStatus
 import com.google.android.gms.cast.framework.CastSession
 import com.google.android.gms.cast.framework.media.RemoteMediaClient
 import com.google.android.gms.common.images.WebImage
@@ -51,10 +48,9 @@ class CastPlayer(private val castSession: CastSession) {
                         client.play()
                     }
 
-                    // Wait for remote to be ready before reporting success
-                    waitForRemoteReady {
-                        onComplete(true)
-                    }
+                    // Immediately acknowledge success and request a status update to avoid UI stalls.
+                    onComplete(true)
+                    client.requestStatus()
                 } else {
                     Timber.e("Remote media client failed to load queue: ${result.status.statusMessage}")
                     onComplete(false)
@@ -86,59 +82,6 @@ class CastPlayer(private val castSession: CastSession) {
             .build()
     }
 
-    private fun waitForRemoteReady(onReady: () -> Unit) {
-        val client = remoteMediaClient ?: return
-
-        val handler = Handler(Looper.getMainLooper())
-        var completed = false
-        var callback: RemoteMediaClient.Callback? = null
-
-        val fallback = Runnable {
-            if (completed) return@Runnable
-            completed = true
-            try {
-                callback?.let { client.unregisterCallback(it) }
-            } catch (_: Exception) {
-                // Best effort cleanup
-            }
-            Timber.d("waitForRemoteReady fallback triggered; proceeding after timeout")
-            onReady()
-        }
-
-        callback = object : RemoteMediaClient.Callback() {
-            override fun onStatusUpdated() {
-                val state = client.playerState
-                val pos = client.approximateStreamPosition
-
-                // Logic from reference project to avoid race conditions
-                if (state == MediaStatus.PLAYER_STATE_PLAYING ||
-                    state == MediaStatus.PLAYER_STATE_PAUSED ||
-                    state == MediaStatus.PLAYER_STATE_BUFFERING ||
-                    pos > 0
-                ) {
-                    if (completed) return
-                    completed = true
-                    try {
-                        client.unregisterCallback(this)
-                    } catch (e: Exception) {
-                        Timber.w(e, "Failed to unregister temporary callback")
-                    }
-                    handler.removeCallbacks(fallback)
-                    onReady()
-                }
-            }
-        }
-
-        try {
-            handler.postDelayed(fallback, 3000)
-            client.registerCallback(callback)
-            client.requestStatus()
-        } catch (e: Exception) {
-            Timber.e(e, "Error waiting for remote ready")
-            onReady() // Fallback to immediate complete if registration fails
-        }
-    }
-
     fun seek(position: Long) {
         val client = remoteMediaClient ?: return
         try {
@@ -164,15 +107,30 @@ class CastPlayer(private val castSession: CastSession) {
     }
 
     fun next() {
-        remoteMediaClient?.queueNext(null)
+        remoteMediaClient?.queueNext(null)?.setResultCallback {
+            if (!it.status.isSuccess) {
+                Timber.w("Remote failed to advance to next item: ${it.status.statusMessage}")
+            }
+            remoteMediaClient?.requestStatus()
+        }
     }
 
     fun previous() {
-        remoteMediaClient?.queuePrev(null)
+        remoteMediaClient?.queuePrev(null)?.setResultCallback {
+            if (!it.status.isSuccess) {
+                Timber.w("Remote failed to go to previous item: ${it.status.statusMessage}")
+            }
+            remoteMediaClient?.requestStatus()
+        }
     }
 
     fun jumpToItem(itemId: Int, position: Long) {
-        remoteMediaClient?.queueJumpToItem(itemId, position, null)
+        remoteMediaClient?.queueJumpToItem(itemId, position, null)?.setResultCallback { result ->
+            if (!result.status.isSuccess) {
+                Timber.w("Remote failed to jump to item %d: %s", itemId, result.status.statusMessage)
+            }
+            remoteMediaClient?.requestStatus()
+        }
     }
 
     fun setRepeatMode(repeatMode: Int) {

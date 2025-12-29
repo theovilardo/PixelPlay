@@ -42,6 +42,13 @@ class MediaFileHttpServerService : Service() {
         const val ACTION_STOP_SERVER = "ACTION_STOP_SERVER"
         var isServerRunning = false
         var serverAddress: String? = null
+        @Volatile
+        var lastFailureReason: FailureReason? = null
+    }
+
+    enum class FailureReason {
+        NO_NETWORK_ADDRESS,
+        START_EXCEPTION
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -59,10 +66,12 @@ class MediaFileHttpServerService : Service() {
                     val ipAddress = getIpAddress(applicationContext)
                     if (ipAddress == null) {
                         Timber.w("No suitable IP address found; cannot start HTTP server")
+                        lastFailureReason = FailureReason.NO_NETWORK_ADDRESS
                         stopSelf()
                         return@launch
                     }
                     serverAddress = "http://$ipAddress:8080"
+                    lastFailureReason = null
 
                     server = embeddedServer(Netty, port = 8080, host = "0.0.0.0") {
                         routing {
@@ -177,6 +186,7 @@ class MediaFileHttpServerService : Service() {
                     isServerRunning = true
                 } catch (e: Exception) {
                     Timber.e(e, "Failed to start HTTP cast server")
+                    lastFailureReason = FailureReason.START_EXCEPTION
                     stopSelf()
                 }
             }
@@ -210,6 +220,7 @@ class MediaFileHttpServerService : Service() {
         super.onDestroy()
         isServerRunning = false
         serverAddress = null
+        lastFailureReason = null
 
         val serverInstance = server
         server = null
