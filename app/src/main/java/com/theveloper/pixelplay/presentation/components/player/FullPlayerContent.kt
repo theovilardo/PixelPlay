@@ -882,6 +882,7 @@ private fun SongMetadataDisplaySection(
         horizontalArrangement = Arrangement.Absolute.SpaceBetween
     ) {
         song?.let { currentSong ->
+            val textWeight = if (showQueueButton) 0.85f else 1f
             PlayerSongInfo(
                 title = currentSong.title,
                 artist = currentSong.displayArtist,
@@ -894,7 +895,7 @@ private fun SongMetadataDisplaySection(
                 playerViewModel = playerViewModel,
                 onClickArtist = onClickArtist,
                 modifier = Modifier
-                    .weight(0.85f)
+                    .weight(textWeight)
                     .align(Alignment.CenterVertically)
             )
         }
@@ -1188,7 +1189,7 @@ private fun PlayerSongInfo(
         horizontalAlignment = Alignment.Start,
             modifier = modifier
                 .padding(vertical = 10.dp)
-                .fillMaxWidth(0.9f)
+                .fillMaxWidth()
             .graphicsLayer {
                 val fraction = expansionFractionProvider()
                 alpha = fraction // Or apply specific fade logic if desired

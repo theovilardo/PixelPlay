@@ -288,7 +288,9 @@ class PlaylistViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        playlistNotFound = false
+                        playlistNotFound = true,
+                        currentPlaylistDetails = null,
+                        currentPlaylistSongs = emptyList()
                     )
                 }
             }
