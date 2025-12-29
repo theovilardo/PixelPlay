@@ -878,8 +878,7 @@ private fun SongMetadataDisplaySection(
         modifier
             .fillMaxWidth()
             .heightIn(min = 70.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        verticalAlignment = Alignment.CenterVertically
     ) {
         song?.let { currentSong ->
             PlayerSongInfo(
@@ -894,11 +893,14 @@ private fun SongMetadataDisplaySection(
                 playerViewModel = playerViewModel,
                 onClickArtist = onClickArtist,
                 modifier = Modifier
-                    .weight(1f)
+                    .weight(1f, fill = true)
+                    .widthIn(min = 0.dp)
                     .fillMaxWidth()
                     .align(Alignment.CenterVertically)
             )
         }
+
+        Spacer(modifier = Modifier.width(12.dp))
 
         if (showQueueButton) {
             Row(
@@ -951,6 +953,7 @@ private fun SongMetadataDisplaySection(
             // Portrait Mode: Just the Lyrics button (Queue is in TopBar)
             FilledIconButton(
                 modifier = Modifier
+                    .align(Alignment.CenterVertically)
                     .size(width = 48.dp, height = 48.dp),
                 colors = IconButtonDefaults.filledIconButtonColors(
                     containerColor = LocalMaterialTheme.current.onPrimary,
