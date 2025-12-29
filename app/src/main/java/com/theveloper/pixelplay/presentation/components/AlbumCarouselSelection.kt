@@ -37,7 +37,7 @@ fun AlbumCarouselSection(
     expansionFraction: Float,
     onSongSelected: (Song) -> Unit,
     modifier: Modifier = Modifier,
-    carouselStyle: String = CarouselStyle.ONE_PEEK,
+    carouselStyle: String = CarouselStyle.NO_PEEK,
     itemSpacing: Dp = 8.dp
 ) {
     if (queue.isEmpty()) return

@@ -24,6 +24,7 @@ data class PlaylistUiState(
     val currentPlaylistSongs: List<Song> = emptyList(),
     val currentPlaylistDetails: Playlist? = null,
     val isLoading: Boolean = false,
+    val playlistNotFound: Boolean = false,
 
     // Para el diálogo/pantalla de selección de canciones
     val songSelectionPage: Int = 1, // Nuevo: para rastrear la página actual de selección
@@ -194,11 +195,13 @@ class PlaylistViewModel @Inject constructor(
 
     fun loadPlaylistDetails(playlistId: String) {
         viewModelScope.launch {
+            val shouldKeepExisting = _uiState.value.currentPlaylistDetails?.id == playlistId
             _uiState.update {
                 it.copy(
                     isLoading = true,
-                    currentPlaylistDetails = null,
-                    currentPlaylistSongs = emptyList()
+                    playlistNotFound = false,
+                    currentPlaylistDetails = if (shouldKeepExisting) it.currentPlaylistDetails else null,
+                    currentPlaylistSongs = if (shouldKeepExisting) it.currentPlaylistSongs else emptyList()
                 )
             } // Resetear detalles y canciones
             try {
@@ -220,12 +223,20 @@ class PlaylistViewModel @Inject constructor(
                                 currentPlaylistDetails = pseudoPlaylist,
                                 currentPlaylistSongs = applySortToSongs(songsList, it.currentPlaylistSongsSortOption),
                                 playlistSongsOrderMode = PlaylistSongsOrderMode.Sorted(it.currentPlaylistSongsSortOption),
-                                isLoading = false
+                                isLoading = false,
+                                playlistNotFound = false
                             )
                         }
                     } else {
                         Log.w("PlaylistVM", "Folder playlist with path $folderPath not found.")
-                        _uiState.update { it.copy(isLoading = false) }
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                playlistNotFound = true,
+                                currentPlaylistDetails = null,
+                                currentPlaylistSongs = emptyList()
+                            )
+                        }
                     }
                 } else {
                     // Obtener la playlist de las preferencias del usuario
@@ -255,12 +266,20 @@ class PlaylistViewModel @Inject constructor(
                                     ?: it.currentPlaylistSongsSortOption,
                                 playlistSongsOrderMode = orderMode,
                                 playlistOrderModes = it.playlistOrderModes + (playlistId to orderMode),
-                                isLoading = false
+                                isLoading = false,
+                                playlistNotFound = false
                             )
                         }
                     } else {
                         Log.w("PlaylistVM", "Playlist with id $playlistId not found.")
-                        _uiState.update { it.copy(isLoading = false) } // Mantener isLoading en false
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                playlistNotFound = true,
+                                currentPlaylistDetails = null,
+                                currentPlaylistSongs = emptyList()
+                            )
+                        } // Mantener isLoading en false
                         // Opcional: podrías establecer un error o un estado específico de "no encontrado"
                     }
                 }
@@ -268,7 +287,8 @@ class PlaylistViewModel @Inject constructor(
                 Log.e("PlaylistVM", "Error loading playlist details for id $playlistId", e)
                 _uiState.update {
                     it.copy(
-                        isLoading = false
+                        isLoading = false,
+                        playlistNotFound = false
                     )
                 }
             }
