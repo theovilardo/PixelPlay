@@ -299,6 +299,7 @@ fun FullPlayerContent(
                 shouldDelay = shouldDelay,
                 showPlaceholders = loadingTweaks.showPlaceholders,
                 expansionFractionProvider = expansionFractionProvider,
+                isExpandedOverride = currentSheetState == PlayerSheetState.EXPANDED,
                 normalStartThreshold = 0.08f,
                 delayAppearThreshold = loadingTweaks.contentAppearThresholdPercent / 100f,
                 placeholder = {
@@ -337,6 +338,7 @@ fun FullPlayerContent(
             shouldDelay = shouldDelay,
             showPlaceholders = loadingTweaks.showPlaceholders,
             expansionFractionProvider = expansionFractionProvider,
+            isExpandedOverride = currentSheetState == PlayerSheetState.EXPANDED,
             normalStartThreshold = 0.42f,
             delayAppearThreshold = loadingTweaks.contentAppearThresholdPercent / 100f,
             placeholder = {
@@ -410,6 +412,7 @@ fun FullPlayerContent(
             shouldDelay = shouldDelay,
             showPlaceholders = loadingTweaks.showPlaceholders,
             expansionFractionProvider = expansionFractionProvider,
+            isExpandedOverride = currentSheetState == PlayerSheetState.EXPANDED,
             normalStartThreshold = 0.20f,
             delayAppearThreshold = loadingTweaks.contentAppearThresholdPercent / 100f,
             placeholder = {
@@ -1039,6 +1042,7 @@ private fun PlayerProgressBarSection(
         shouldDelay = shouldDelay,
         showPlaceholders = loadingTweaks?.showPlaceholders ?: false,
         expansionFractionProvider = expansionFractionProvider,
+        isExpandedOverride = currentSheetState == PlayerSheetState.EXPANDED,
         normalStartThreshold = 0.08f,
         delayAppearThreshold = (loadingTweaks?.contentAppearThresholdPercent ?: 100) / 100f,
         placeholder = {
@@ -1105,6 +1109,7 @@ private fun DelayedContent(
     shouldDelay: Boolean,
     showPlaceholders: Boolean,
     expansionFractionProvider: () -> Float,
+    isExpandedOverride: Boolean = false,
     normalStartThreshold: Float,
     delayAppearThreshold: Float,
     placeholder: @Composable () -> Unit,
@@ -1114,19 +1119,25 @@ private fun DelayedContent(
     // the player, which kept delayed sections stuck on placeholders. Treat near-complete expansion as
     // fully expanded to ensure content becomes visible without needing an extra interaction.
     val expansionFraction by remember {
-        derivedStateOf { expansionFractionProvider().coerceIn(0f, 1f) }
+        derivedStateOf {
+            val raw = expansionFractionProvider().coerceIn(0f, 1f)
+            if (isExpandedOverride) 1f else raw
+        }
     }
     val easedExpansionFraction by remember {
-        derivedStateOf { if (expansionFraction >= 0.985f) 1f else expansionFraction }
+        derivedStateOf { if (expansionFraction >= 0.985f || isExpandedOverride) 1f else expansionFraction }
     }
 
-    val isDelayGateOpen by remember(shouldDelay, delayAppearThreshold) {
-        derivedStateOf { !shouldDelay || easedExpansionFraction >= delayAppearThreshold.coerceIn(0f, 1f) }
-    }
-
-    val baseAlpha by remember(normalStartThreshold) {
+    val isDelayGateOpen by remember(shouldDelay, delayAppearThreshold, isExpandedOverride) {
         derivedStateOf {
-            ((easedExpansionFraction - normalStartThreshold) / (1f - normalStartThreshold)).coerceIn(0f, 1f)
+            !shouldDelay || isExpandedOverride || easedExpansionFraction >= delayAppearThreshold.coerceIn(0f, 1f)
+        }
+    }
+
+    val baseAlpha by remember(normalStartThreshold, isExpandedOverride) {
+        derivedStateOf {
+            val effectiveFraction = if (isExpandedOverride) 1f else easedExpansionFraction
+            ((effectiveFraction - normalStartThreshold) / (1f - normalStartThreshold)).coerceIn(0f, 1f)
         }
     }
 
