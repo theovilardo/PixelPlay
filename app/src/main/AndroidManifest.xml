@@ -85,6 +85,8 @@
             <intent-filter>
                 <action android:name="android.media.browse.MediaBrowserService" />
                 <action android:name="androidx.media3.session.MediaSessionService"/>
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.APP_MUSIC" />
             </intent-filter>
         </service>
 
