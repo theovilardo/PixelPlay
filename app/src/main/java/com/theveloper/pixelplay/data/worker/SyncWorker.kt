@@ -325,7 +325,12 @@ class SyncWorker @AssistedInject constructor(
             MediaStore.Audio.Media.YEAR,
             MediaStore.Audio.Media.DATE_MODIFIED
         )
-        val selection = "((${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ?) OR ${MediaStore.Audio.Media.DATA} LIKE '%.m4a' OR ${MediaStore.Audio.Media.DATA} LIKE '%.flac')"
+        val selection = "((${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ?) " +
+                "OR ${MediaStore.Audio.Media.DATA} LIKE '%.m4a' " +
+                "OR ${MediaStore.Audio.Media.DATA} LIKE '%.flac' " +
+                "OR ${MediaStore.Audio.Media.DATA} LIKE '%.wav' " +
+                "OR ${MediaStore.Audio.Media.DATA} LIKE '%.opus' " +
+                "OR ${MediaStore.Audio.Media.DATA} LIKE '%.ogg')"
         val selectionArgs = arrayOf("10000")
         val sortOrder = null // Avoid extra sorting work; we'll sort downstream if needed
 
@@ -381,10 +386,13 @@ class SyncWorker @AssistedInject constructor(
                 var albumArtist = cursor.getString(albumArtistCol)?.normalizeMetadataTextOrEmpty()?.takeIf { it.isNotBlank() }
                 var trackNumber = cursor.getInt(trackCol)
                 var year = cursor.getInt(yearCol)
+                var genre: String? = null
 
 
-                // Fix for WAV files (Issue #462): Read metadata directly from file if it is a WAV
-                if (deepScan && filePath.endsWith(".wav", ignoreCase = true)) {
+                val shouldAugmentMetadata = deepScan || filePath.endsWith(".wav", true) ||
+                        filePath.endsWith(".opus", true) || filePath.endsWith(".ogg", true) ||
+                        filePath.endsWith(".oga", true) || filePath.endsWith(".aiff", true)
+                if (shouldAugmentMetadata) {
                     val file = java.io.File(filePath)
                     if (file.exists()) {
                         try {
@@ -392,6 +400,7 @@ class SyncWorker @AssistedInject constructor(
                                 if (!meta.title.isNullOrBlank()) title = meta.title
                                 if (!meta.artist.isNullOrBlank()) artist = meta.artist
                                 if (!meta.album.isNullOrBlank()) album = meta.album
+                                if (!meta.genre.isNullOrBlank()) genre = meta.genre
                                 if (meta.trackNumber != null) trackNumber = meta.trackNumber
                                 if (meta.year != null) year = meta.year
 
@@ -401,7 +410,7 @@ class SyncWorker @AssistedInject constructor(
                                 }
                             }
                         } catch (e: Exception) {
-                            Log.w(TAG, "Failed to read WAV metadata for $filePath", e)
+                            Log.w(TAG, "Failed to read metadata via TagLib for $filePath", e)
                         }
                     }
                 }
@@ -418,7 +427,7 @@ class SyncWorker @AssistedInject constructor(
                         contentUriString = contentUriString,
                         albumArtUriString = albumArtUriString,
                         duration = cursor.getLong(durationCol),
-                        genre = null,
+                        genre = genre,
                         filePath = filePath,
                         parentDirectoryPath = parentDir,
                         trackNumber = trackNumber,

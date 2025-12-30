@@ -83,6 +83,7 @@ object AudioMetaUtils {
             "audio/flac" -> "flac"
             "audio/x-wav", "audio/wav" -> "wav"
             "audio/ogg" -> "ogg"
+            "audio/opus" -> "opus"
             "audio/mp4", "audio/m4a" -> "m4a"
             "audio/aac" -> "aac"
             "audio/amr" -> "amr"
