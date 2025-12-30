@@ -278,6 +278,11 @@ class MusicService : MediaSessionService() {
             mediaSession?.let { refreshMediaSessionUi(it) }
         }
 
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            Timber.tag(TAG).d("Playback state changed: $playbackState")
+            mediaSession?.let { refreshMediaSessionUi(it) }
+        }
+
         override fun onMediaItemTransition(item: MediaItem?, reason: Int) {
             requestWidgetFullUpdate(force = true)
             mediaSession?.let { refreshMediaSessionUi(it) }

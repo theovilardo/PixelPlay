@@ -468,6 +468,7 @@ class PlayerViewModel @Inject constructor(
     private var lastRemoteSongId: String? = null
     private var lastRemoteStreamPosition: Long = 0L
     private var lastRemoteRepeatMode: Int = Player.REPEAT_MODE_OFF
+    private var lastRemoteItemId: Int? = null
     private var pendingRemoteSongId: String? = null
     private var pendingRemoteSongMarkedAt: Long = 0L
     private val _trackVolume = MutableStateFlow(1.0f)
@@ -518,6 +519,7 @@ class PlayerViewModel @Inject constructor(
         pendingRemoteSongId = song.id
         pendingRemoteSongMarkedAt = SystemClock.elapsedRealtime()
         lastRemoteSongId = song.id
+        lastRemoteItemId = null
         Timber.tag(CAST_LOG_TAG).d("Marked pending remote song: %s", song.id)
         _stablePlayerState.update { state -> state.copy(currentSong = song) }
         _isSheetVisible.value = true
@@ -1478,6 +1480,7 @@ class PlayerViewModel @Inject constructor(
                 val currentItemId = mediaStatus.getCurrentItemId()
                 val currentRemoteItem = mediaStatus.getQueueItemById(currentItemId)
                 val currentSongId = currentRemoteItem?.customData?.optString("songId")
+                val streamPosition = mediaStatus.streamPosition
                 val pendingId = pendingRemoteSongId
                 val pendingIsFresh = pendingId != null &&
                     SystemClock.elapsedRealtime() - pendingRemoteSongMarkedAt < 4000
@@ -1486,6 +1489,22 @@ class PlayerViewModel @Inject constructor(
                         .d("Ignoring outdated status with item %s while pending target %s", currentSongId, pendingId)
                     remoteMediaClient.requestStatus()
                     return
+                }
+                val itemChanged = lastRemoteItemId != currentItemId
+                if (itemChanged) {
+                    lastRemoteItemId = currentItemId
+                    if (pendingRemoteSongId != null && pendingRemoteSongId != currentSongId) {
+                        Timber.tag(CAST_LOG_TAG)
+                            .d(
+                                "Clearing stale pending id %s after remote item %s became active",
+                                pendingRemoteSongId,
+                                currentSongId
+                            )
+                        pendingRemoteSongId = null
+                    }
+                    isRemotelySeeking.value = false
+                    _remotePosition.value = streamPosition
+                    _playerUiState.update { it.copy(currentPosition = streamPosition) }
                 }
                 val reportedSong = currentSongId?.let { songMap[it] }
                 if (newQueue.isNotEmpty()) {
@@ -1553,7 +1572,6 @@ class PlayerViewModel @Inject constructor(
                 }
                 val isPlaying = mediaStatus.playerState == MediaStatus.PLAYER_STATE_PLAYING
                 lastKnownRemoteIsPlaying = isPlaying
-                val streamPosition = mediaStatus.streamPosition
                 lastRemoteStreamPosition = streamPosition
                 lastRemoteRepeatMode = mediaStatus.queueRepeatMode
                 if (!isRemotelySeeking.value) {
@@ -1743,6 +1761,7 @@ class PlayerViewModel @Inject constructor(
                 remoteProgressObserverJob?.cancel()
                 remoteMediaClient?.removeProgressListener(remoteProgressListener!!)
                 remoteMediaClient?.unregisterCallback(remoteMediaClientCallback!!)
+                lastRemoteItemId = null
                 Timber.tag(CAST_LOG_TAG).i(
                     "Transfer back: removed remote callbacks at +%dms",
                     SystemClock.elapsedRealtime() - startMs
