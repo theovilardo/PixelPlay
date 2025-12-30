@@ -874,97 +874,103 @@ private fun SongMetadataDisplaySection(
     onClickArtist: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
+    BoxWithConstraints(
         modifier
             .fillMaxWidth()
-            .heightIn(min = 70.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .heightIn(min = 70.dp)
     ) {
-        song?.let { currentSong ->
-            PlayerSongInfo(
-                title = currentSong.title,
-                artist = currentSong.displayArtist,
-                artistId = currentSong.artistId,
-                artists = currentSongArtists,
-                expansionFractionProvider = expansionFractionProvider,
-                textColor = textColor,
-                artistTextColor = artistTextColor,
-                gradientEdgeColor = gradientEdgeColor,
-                playerViewModel = playerViewModel,
-                onClickArtist = onClickArtist,
-                modifier = Modifier
-                    .weight(1f, fill = true)
-                    .widthIn(min = 0.dp)
-                    .fillMaxWidth()
-                    .align(Alignment.CenterVertically)
-            )
-        }
+        val trailingButtonsWidth = if (showQueueButton) 106.dp else 48.dp
+        val horizontalSpacing = 12.dp
+        val availableTextWidth = (maxWidth - trailingButtonsWidth - horizontalSpacing).coerceAtLeast(0.dp)
 
-        Spacer(modifier = Modifier.width(12.dp))
-
-        if (showQueueButton) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Box(
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(horizontalSpacing)
+        ) {
+            song?.let { currentSong ->
+                PlayerSongInfo(
+                    title = currentSong.title,
+                    artist = currentSong.displayArtist,
+                    artistId = currentSong.artistId,
+                    artists = currentSongArtists,
+                    expansionFractionProvider = expansionFractionProvider,
+                    textColor = textColor,
+                    artistTextColor = artistTextColor,
+                    gradientEdgeColor = gradientEdgeColor,
+                    playerViewModel = playerViewModel,
+                    onClickArtist = onClickArtist,
                     modifier = Modifier
-                        .size(height = 42.dp, width = 50.dp)
-                        .clip(
-                            RoundedCornerShape(
-                                topStart = 50.dp,
-                                topEnd = 6.dp,
-                                bottomStart = 50.dp,
-                                bottomEnd = 6.dp
+                        .widthIn(min = 0.dp, max = availableTextWidth)
+                        .fillMaxWidth()
+                        .align(Alignment.CenterVertically)
+                )
+            }
+
+            if (showQueueButton) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(height = 42.dp, width = 50.dp)
+                            .clip(
+                                RoundedCornerShape(
+                                    topStart = 50.dp,
+                                    topEnd = 6.dp,
+                                    bottomStart = 50.dp,
+                                    bottomEnd = 6.dp
+                                )
                             )
+                            .background(LocalMaterialTheme.current.onPrimary)
+                            .clickable { onClickLyrics() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.rounded_lyrics_24),
+                            contentDescription = "Lyrics",
+                            tint = LocalMaterialTheme.current.primary
                         )
-                        .background(LocalMaterialTheme.current.onPrimary)
-                        .clickable { onClickLyrics() },
-                    contentAlignment = Alignment.Center
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(height = 42.dp, width = 50.dp)
+                            .clip(
+                                RoundedCornerShape(
+                                    topStart = 6.dp,
+                                    topEnd = 50.dp,
+                                    bottomStart = 6.dp,
+                                    bottomEnd = 50.dp
+                                )
+                            )
+                            .background(LocalMaterialTheme.current.onPrimary)
+                            .clickable { onClickQueue() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.rounded_queue_music_24),
+                            contentDescription = "Queue",
+                            tint = LocalMaterialTheme.current.primary
+                        )
+                    }
+                }
+            } else {
+                // Portrait Mode: Just the Lyrics button (Queue is in TopBar)
+                FilledIconButton(
+                    modifier = Modifier
+                        .align(Alignment.CenterVertically)
+                        .size(width = 48.dp, height = 48.dp),
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = LocalMaterialTheme.current.onPrimary,
+                        contentColor = LocalMaterialTheme.current.primary
+                    ),
+                    onClick = onClickLyrics,
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.rounded_lyrics_24),
-                        contentDescription = "Lyrics",
-                        tint = LocalMaterialTheme.current.primary
+                        contentDescription = "Lyrics"
                     )
                 }
-                Box(
-                    modifier = Modifier
-                        .size(height = 42.dp, width = 50.dp)
-                        .clip(
-                            RoundedCornerShape(
-                                topStart = 6.dp,
-                                topEnd = 50.dp,
-                                bottomStart = 6.dp,
-                                bottomEnd = 50.dp
-                            )
-                        )
-                        .background(LocalMaterialTheme.current.onPrimary)
-                        .clickable { onClickQueue() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.rounded_queue_music_24),
-                        contentDescription = "Queue",
-                        tint = LocalMaterialTheme.current.primary
-                    )
-                }
-            }
-        } else {
-            // Portrait Mode: Just the Lyrics button (Queue is in TopBar)
-            FilledIconButton(
-                modifier = Modifier
-                    .align(Alignment.CenterVertically)
-                    .size(width = 48.dp, height = 48.dp),
-                colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = LocalMaterialTheme.current.onPrimary,
-                    contentColor = LocalMaterialTheme.current.primary
-                ),
-                onClick = onClickLyrics,
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.rounded_lyrics_24),
-                    contentDescription = "Lyrics"
-                )
             }
         }
     }
