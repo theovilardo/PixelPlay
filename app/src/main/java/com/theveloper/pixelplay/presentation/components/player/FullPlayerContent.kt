@@ -1110,17 +1110,23 @@ private fun DelayedContent(
     placeholder: @Composable () -> Unit,
     content: @Composable () -> Unit
 ) {
+    // Some carousel styles (e.g., one-peek) can leave the sheet fraction just shy of 1f when reopening
+    // the player, which kept delayed sections stuck on placeholders. Treat near-complete expansion as
+    // fully expanded to ensure content becomes visible without needing an extra interaction.
     val expansionFraction by remember {
         derivedStateOf { expansionFractionProvider().coerceIn(0f, 1f) }
     }
+    val easedExpansionFraction by remember {
+        derivedStateOf { if (expansionFraction >= 0.985f) 1f else expansionFraction }
+    }
 
     val isDelayGateOpen by remember(shouldDelay, delayAppearThreshold) {
-        derivedStateOf { !shouldDelay || expansionFraction >= delayAppearThreshold.coerceIn(0f, 1f) }
+        derivedStateOf { !shouldDelay || easedExpansionFraction >= delayAppearThreshold.coerceIn(0f, 1f) }
     }
 
     val baseAlpha by remember(normalStartThreshold) {
         derivedStateOf {
-            ((expansionFraction - normalStartThreshold) / (1f - normalStartThreshold)).coerceIn(0f, 1f)
+            ((easedExpansionFraction - normalStartThreshold) / (1f - normalStartThreshold)).coerceIn(0f, 1f)
         }
     }
 
