@@ -299,6 +299,7 @@ fun FullPlayerContent(
                 shouldDelay = shouldDelay,
                 showPlaceholders = loadingTweaks.showPlaceholders,
                 expansionFractionProvider = expansionFractionProvider,
+                isExpandedOverride = currentSheetState == PlayerSheetState.EXPANDED,
                 normalStartThreshold = 0.08f,
                 delayAppearThreshold = loadingTweaks.contentAppearThresholdPercent / 100f,
                 placeholder = {
@@ -337,6 +338,7 @@ fun FullPlayerContent(
             shouldDelay = shouldDelay,
             showPlaceholders = loadingTweaks.showPlaceholders,
             expansionFractionProvider = expansionFractionProvider,
+            isExpandedOverride = currentSheetState == PlayerSheetState.EXPANDED,
             normalStartThreshold = 0.42f,
             delayAppearThreshold = loadingTweaks.contentAppearThresholdPercent / 100f,
             placeholder = {
@@ -410,6 +412,7 @@ fun FullPlayerContent(
             shouldDelay = shouldDelay,
             showPlaceholders = loadingTweaks.showPlaceholders,
             expansionFractionProvider = expansionFractionProvider,
+            isExpandedOverride = currentSheetState == PlayerSheetState.EXPANDED,
             normalStartThreshold = 0.20f,
             delayAppearThreshold = loadingTweaks.contentAppearThresholdPercent / 100f,
             placeholder = {
@@ -879,7 +882,7 @@ private fun SongMetadataDisplaySection(
             .fillMaxWidth()
             .heightIn(min = 70.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Absolute.SpaceBetween
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         song?.let { currentSong ->
             PlayerSongInfo(
@@ -894,18 +897,15 @@ private fun SongMetadataDisplaySection(
                 playerViewModel = playerViewModel,
                 onClickArtist = onClickArtist,
                 modifier = Modifier
-                    .weight(0.85f)
+                    .weight(1f)
                     .align(Alignment.CenterVertically)
             )
         }
-        Spacer(
-            modifier = Modifier
-                .width(8.dp)
-        )
 
         if (showQueueButton) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
                     modifier = Modifier
@@ -954,7 +954,6 @@ private fun SongMetadataDisplaySection(
             // Portrait Mode: Just the Lyrics button (Queue is in TopBar)
             FilledIconButton(
                 modifier = Modifier
-                    .weight(0.15f)
                     .size(width = 48.dp, height = 48.dp),
                 colors = IconButtonDefaults.filledIconButtonColors(
                     containerColor = LocalMaterialTheme.current.onPrimary,
@@ -1043,6 +1042,7 @@ private fun PlayerProgressBarSection(
         shouldDelay = shouldDelay,
         showPlaceholders = loadingTweaks?.showPlaceholders ?: false,
         expansionFractionProvider = expansionFractionProvider,
+        isExpandedOverride = currentSheetState == PlayerSheetState.EXPANDED,
         normalStartThreshold = 0.08f,
         delayAppearThreshold = (loadingTweaks?.contentAppearThresholdPercent ?: 100) / 100f,
         placeholder = {
@@ -1109,22 +1109,35 @@ private fun DelayedContent(
     shouldDelay: Boolean,
     showPlaceholders: Boolean,
     expansionFractionProvider: () -> Float,
+    isExpandedOverride: Boolean = false,
     normalStartThreshold: Float,
     delayAppearThreshold: Float,
     placeholder: @Composable () -> Unit,
     content: @Composable () -> Unit
 ) {
+    // Some carousel styles (e.g., one-peek) can leave the sheet fraction just shy of 1f when reopening
+    // the player, which kept delayed sections stuck on placeholders. Treat near-complete expansion as
+    // fully expanded to ensure content becomes visible without needing an extra interaction.
     val expansionFraction by remember {
-        derivedStateOf { expansionFractionProvider().coerceIn(0f, 1f) }
-    }
-
-    val isDelayGateOpen by remember(shouldDelay, delayAppearThreshold) {
-        derivedStateOf { !shouldDelay || expansionFraction >= delayAppearThreshold.coerceIn(0f, 1f) }
-    }
-
-    val baseAlpha by remember(normalStartThreshold) {
         derivedStateOf {
-            ((expansionFraction - normalStartThreshold) / (1f - normalStartThreshold)).coerceIn(0f, 1f)
+            val raw = expansionFractionProvider().coerceIn(0f, 1f)
+            if (isExpandedOverride) 1f else raw
+        }
+    }
+    val easedExpansionFraction by remember {
+        derivedStateOf { if (expansionFraction >= 0.985f || isExpandedOverride) 1f else expansionFraction }
+    }
+
+    val isDelayGateOpen by remember(shouldDelay, delayAppearThreshold, isExpandedOverride) {
+        derivedStateOf {
+            !shouldDelay || isExpandedOverride || easedExpansionFraction >= delayAppearThreshold.coerceIn(0f, 1f)
+        }
+    }
+
+    val baseAlpha by remember(normalStartThreshold, isExpandedOverride) {
+        derivedStateOf {
+            val effectiveFraction = if (isExpandedOverride) 1f else easedExpansionFraction
+            ((effectiveFraction - normalStartThreshold) / (1f - normalStartThreshold)).coerceIn(0f, 1f)
         }
     }
 
@@ -1188,7 +1201,7 @@ private fun PlayerSongInfo(
         horizontalAlignment = Alignment.Start,
             modifier = modifier
                 .padding(vertical = 10.dp)
-                .fillMaxWidth(0.9f)
+                .fillMaxWidth()
             .graphicsLayer {
                 val fraction = expansionFractionProvider()
                 alpha = fraction // Or apply specific fade logic if desired
@@ -1201,15 +1214,23 @@ private fun PlayerSongInfo(
         // Let's check AutoScrollingTextOnDemand. Assuming it uses it for scrolling trigger.
         // If we want to avoid recomposition, we might need to pass the provider or just 1f if scrolling logic handles itself.
         // For now, let's pass the current value from provider for logic correctness, but ideally this component should be optimized too.
-        AutoScrollingTextOnDemand(title, titleStyle, gradientEdgeColor, expansionFractionProvider)
+        AutoScrollingTextOnDemand(
+            title,
+            titleStyle,
+            gradientEdgeColor,
+            expansionFractionProvider,
+            modifier = Modifier.fillMaxWidth()
+        )
         Spacer(modifier = Modifier.height(4.dp))
-        
+
         AutoScrollingTextOnDemand(
             text = artist,
             style = artistStyle,
             gradientEdgeColor = gradientEdgeColor,
             expansionFractionProvider = expansionFractionProvider,
-            modifier = Modifier.combinedClickable(
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = {

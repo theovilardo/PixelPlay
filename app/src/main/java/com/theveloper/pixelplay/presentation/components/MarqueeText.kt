@@ -28,6 +28,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Constraints
 
 @Composable
 fun AutoScrollingTextOnDemand(
@@ -148,7 +149,9 @@ fun AutoScrollingText(
         }
 
         val contentPlaceable = subcompose("content", content)[0].measure(constraints)
-        layout(contentPlaceable.width, contentPlaceable.height) {
+        val targetWidth = constraints.maxWidth.takeIf { it != Constraints.Infinity } ?: contentPlaceable.width
+
+        layout(targetWidth, contentPlaceable.height) {
             contentPlaceable.place(0, 0)
         }
     }
