@@ -22,6 +22,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.asStateFlow // Added
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -45,6 +46,10 @@ class DualPlayerEngine @Inject constructor(
     private var playerB: ExoPlayer
 
     private val onPlayerSwappedListeners = mutableListOf<(Player) -> Unit>()
+    
+    // Active Audio Session ID Flow
+    private val _activeAudioSessionId = kotlinx.coroutines.flow.MutableStateFlow(0)
+    val activeAudioSessionId: kotlinx.coroutines.flow.StateFlow<Int> = _activeAudioSessionId.asStateFlow()
 
     // Audio Focus Management
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -104,6 +109,16 @@ class DualPlayerEngine @Inject constructor(
 
     fun isTransitionRunning(): Boolean = transitionRunning
 
+    /**
+     * Returns the audio session ID of the master player.
+     * Use this to attach audio effects like Equalizer.
+     */
+    /**
+     * Returns the audio session ID of the master player.
+     * Use this to attach audio effects like Equalizer.
+     */
+    fun getAudioSessionId(): Int = playerA.audioSessionId
+
     init {
         // We initialize BOTH players with NO internal focus handling.
         // We manage Audio Focus manually via AudioFocusManager.
@@ -112,6 +127,9 @@ class DualPlayerEngine @Inject constructor(
 
         // Attach listener to initial master
         playerA.addListener(masterPlayerListener)
+        
+        // Initialize active session ID
+        _activeAudioSessionId.value = playerA.audioSessionId
     }
 
     private fun requestAudioFocus() {
@@ -355,6 +373,10 @@ class DualPlayerEngine @Inject constructor(
 
         // 6. Notify Service to update MediaSession
         onPlayerSwappedListeners.forEach { it(playerA) }
+        
+        // Update Session ID for Equalizer
+        _activeAudioSessionId.value = playerA.audioSessionId
+        
         Timber.tag("TransitionDebug").d("Players swapped EARLY. UI should now show next song.")
 
         // *** FADE LOOP ***
