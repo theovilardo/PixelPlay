@@ -1,0 +1,488 @@
+package com.theveloper.pixelplay.presentation.screens
+
+import android.content.Intent
+import android.os.Build
+import android.os.Environment
+import android.provider.Settings
+import android.widget.Toast
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ClearAll
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.LightMode
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.PlayCircle
+import androidx.compose.material.icons.outlined.Style
+import androidx.compose.material.icons.outlined.Warning
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Science
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
+import com.theveloper.pixelplay.R
+import com.theveloper.pixelplay.data.preferences.AppThemeMode
+import com.theveloper.pixelplay.data.preferences.CarouselStyle
+import com.theveloper.pixelplay.data.preferences.LaunchTab
+import com.theveloper.pixelplay.data.preferences.LibraryNavigationMode
+import com.theveloper.pixelplay.data.preferences.NavBarStyle
+import com.theveloper.pixelplay.data.preferences.ThemePreference
+import com.theveloper.pixelplay.data.worker.SyncProgress
+import com.theveloper.pixelplay.presentation.components.ExpressiveTopBarContent
+import com.theveloper.pixelplay.presentation.components.FileExplorerDialog
+import com.theveloper.pixelplay.presentation.model.SettingsCategory
+import com.theveloper.pixelplay.presentation.navigation.Screen
+import com.theveloper.pixelplay.presentation.viewmodel.LyricsRefreshProgress
+import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import com.theveloper.pixelplay.presentation.viewmodel.SettingsViewModel
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsCategoryScreen(
+    categoryId: String,
+    navController: NavController,
+    playerViewModel: PlayerViewModel,
+    settingsViewModel: SettingsViewModel = hiltViewModel(),
+    onBackClick: () -> Unit
+) {
+    val category = SettingsCategory.fromId(categoryId) ?: return
+    val context = LocalContext.current
+    
+    // State Collection (Duplicated from SettingsScreen for now to ensure functionality)
+    val uiState by settingsViewModel.uiState.collectAsState()
+    val geminiApiKey by settingsViewModel.geminiApiKey.collectAsState()
+    val currentPath by settingsViewModel.currentPath.collectAsState()
+    val directoryChildren by settingsViewModel.currentDirectoryChildren.collectAsState()
+    val availableStorages by settingsViewModel.availableStorages.collectAsState()
+    val selectedStorageIndex by settingsViewModel.selectedStorageIndex.collectAsState()
+    val isLoadingDirectories by settingsViewModel.isLoadingDirectories.collectAsState()
+    val isExplorerPriming by settingsViewModel.isExplorerPriming.collectAsState()
+    val isExplorerReady by settingsViewModel.isExplorerReady.collectAsState()
+    val isSyncing by settingsViewModel.isSyncing.collectAsState()
+    val syncProgress by settingsViewModel.syncProgress.collectAsState()
+    val explorerRoot = settingsViewModel.explorerRoot()
+    val isRefreshingLyrics by settingsViewModel.isRefreshingLyrics.collectAsState()
+    val lyricsRefreshProgress by settingsViewModel.lyricsRefreshProgress.collectAsState()
+
+    // Local State
+    var showExplorerSheet by remember { mutableStateOf(false) }
+    var refreshRequested by remember { mutableStateOf(false) }
+    var showClearLyricsDialog by remember { mutableStateOf(false) }
+    var showLyricsRefreshWarning by remember { mutableStateOf(false) }
+
+    // TopBar Animations (identical to SettingsScreen)
+    // TopBar Animations (identical to SettingsScreen)
+    val density = LocalDensity.current
+    val coroutineScope = rememberCoroutineScope()
+    val lazyListState = rememberLazyListState()
+    
+    val isLongTitle = category.title.length > 15
+    
+    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val minTopBarHeight = 64.dp + statusBarHeight
+    val maxTopBarHeight = if (isLongTitle) 220.dp else 180.dp
+
+    val minTopBarHeightPx = with(density) { minTopBarHeight.toPx() }
+    val maxTopBarHeightPx = with(density) { maxTopBarHeight.toPx() }
+    
+    val titlePaddingRange = if (isLongTitle) 16.dp to 64.dp else 24.dp to 64.dp // Slightly more padding for short titles? Or consistent? User said "too much padding... when expanded". 16dp is good.
+
+    val topBarHeight = remember(maxTopBarHeightPx) { Animatable(maxTopBarHeightPx) }
+    var collapseFraction by remember { mutableStateOf(0f) }
+
+    LaunchedEffect(topBarHeight.value, maxTopBarHeightPx) {
+        collapseFraction =
+                1f -
+                        ((topBarHeight.value - minTopBarHeightPx) /
+                                        (maxTopBarHeightPx - minTopBarHeightPx))
+                                .coerceIn(0f, 1f)
+    }
+
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                val delta = available.y
+                val isScrollingDown = delta < 0
+
+                if (!isScrollingDown &&
+                                (lazyListState.firstVisibleItemIndex > 0 ||
+                                        lazyListState.firstVisibleItemScrollOffset > 0)
+                ) {
+                    return Offset.Zero
+                }
+
+                val previousHeight = topBarHeight.value
+                val newHeight =
+                        (previousHeight + delta).coerceIn(minTopBarHeightPx, maxTopBarHeightPx)
+                val consumed = newHeight - previousHeight
+
+                if (consumed.roundToInt() != 0) {
+                    coroutineScope.launch { topBarHeight.snapTo(newHeight) }
+                }
+
+                val canConsumeScroll = !(isScrollingDown && newHeight == minTopBarHeightPx)
+                return if (canConsumeScroll) Offset(0f, consumed) else Offset.Zero
+            }
+        }
+    }
+
+    LaunchedEffect(lazyListState.isScrollInProgress) {
+        if (!lazyListState.isScrollInProgress) {
+            val shouldExpand = topBarHeight.value > (minTopBarHeightPx + maxTopBarHeightPx) / 2
+            val canExpand =
+                    lazyListState.firstVisibleItemIndex == 0 &&
+                            lazyListState.firstVisibleItemScrollOffset == 0
+
+            val targetValue =
+                    if (shouldExpand && canExpand) maxTopBarHeightPx else minTopBarHeightPx
+
+            if (topBarHeight.value != targetValue) {
+                coroutineScope.launch {
+                    topBarHeight.animateTo(targetValue, spring(stiffness = Spring.StiffnessMedium))
+                }
+            }
+        }
+    }
+
+    Box(
+        modifier =
+            Modifier.nestedScroll(nestedScrollConnection).fillMaxSize()
+    ) {
+        val currentTopBarHeightDp = with(density) { topBarHeight.value.toDp() }
+        
+        LazyColumn(
+            state = lazyListState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = currentTopBarHeightDp, start = 16.dp, end = 16.dp, bottom = 16.dp)
+        ) {
+            item {
+               // Use a simple Column for now, or ExpressiveSettingsGroup if preferred strictly for items
+               Column(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(Color.Transparent) 
+                ) {
+                    when (category) {
+                        SettingsCategory.LIBRARY -> {
+                             SettingsItem(
+                                title = "Excluded Directories",
+                                subtitle = "Folders here will be skipped when scanning your library.",
+                                leadingIcon = { Icon(Icons.Outlined.Folder, null, tint = MaterialTheme.colorScheme.secondary) },
+                                trailingIcon = { Icon(Icons.Rounded.ChevronRight, "Open", tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                                onClick = {
+                                    val hasAllFilesPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                        Environment.isExternalStorageManager()
+                                    } else true
+
+                                    if (!hasAllFilesPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                        val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                                        intent.data = "package:${context.packageName}".toUri()
+                                        context.startActivity(intent)
+                                        return@SettingsItem
+                                    }
+
+                                    showExplorerSheet = true
+                                    if (!isExplorerReady && !isExplorerPriming) {
+                                        settingsViewModel.primeExplorer()
+                                    }
+                                }
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            RefreshLibraryItem(
+                                isSyncing = isSyncing,
+                                syncProgress = syncProgress,
+                                onRefresh = {
+                                    if (isSyncing) return@RefreshLibraryItem
+                                    refreshRequested = true
+                                    Toast.makeText(context, "Refreshing library…", Toast.LENGTH_SHORT).show()
+                                    settingsViewModel.refreshLibrary()
+                                }
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            RefreshLyricsItem(
+                                isRefreshing = isRefreshingLyrics,
+                                progress = lyricsRefreshProgress,
+                                onRefresh = {
+                                    if (isRefreshingLyrics) return@RefreshLyricsItem
+                                    showLyricsRefreshWarning = true
+                                }
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            SettingsItem(
+                                title = "Reset Imported Lyrics",
+                                subtitle = "Remove all imported lyrics from the database.",
+                                leadingIcon = { Icon(Icons.Outlined.ClearAll, null, tint = MaterialTheme.colorScheme.secondary) },
+                                onClick = { showClearLyricsDialog = true }
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            SettingsItem(
+                                title = "Artists",
+                                subtitle = "Multi-artist parsing and organization options.",
+                                leadingIcon = { Icon(Icons.Outlined.Person, null, tint = MaterialTheme.colorScheme.secondary) },
+                                trailingIcon = { Icon(Icons.Rounded.ChevronRight, "Open", tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                                onClick = { navController.navigate(Screen.ArtistSettings.route) }
+                            )
+                        }
+                        SettingsCategory.APPEARANCE -> {
+                            ThemeSelectorItem(
+                                label = "App Theme",
+                                description = "Switch between light, dark, or follow system appearance.",
+                                options = mapOf(
+                                    AppThemeMode.LIGHT to "Light Theme",
+                                    AppThemeMode.DARK to "Dark Theme",
+                                    AppThemeMode.FOLLOW_SYSTEM to "Follow System"
+                                ),
+                                selectedKey = uiState.appThemeMode,
+                                onSelectionChanged = { settingsViewModel.setAppThemeMode(it) },
+                                leadingIcon = { Icon(Icons.Outlined.LightMode, null, tint = MaterialTheme.colorScheme.secondary) }
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            ThemeSelectorItem(
+                                label = "Player Theme",
+                                description = "Choose the appearance for the floating player.",
+                                options = mapOf(
+                                    ThemePreference.ALBUM_ART to "Album Art",
+                                    ThemePreference.DYNAMIC to "System Dynamic"
+                                ),
+                                selectedKey = uiState.playerThemePreference,
+                                onSelectionChanged = { settingsViewModel.setPlayerThemePreference(it) },
+                                leadingIcon = { Icon(Icons.Outlined.PlayCircle, null, tint = MaterialTheme.colorScheme.secondary) }
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            ThemeSelectorItem(
+                                label = "NavBar Style",
+                                description = "Choose the appearance for the navigation bar.",
+                                options = mapOf(
+                                    NavBarStyle.DEFAULT to "Default",
+                                    NavBarStyle.FULL_WIDTH to "Full Width"
+                                ),
+                                selectedKey = uiState.navBarStyle,
+                                onSelectionChanged = { settingsViewModel.setNavBarStyle(it) },
+                                leadingIcon = { Icon(Icons.Outlined.Style, null, tint = MaterialTheme.colorScheme.secondary) }
+                            )
+                            if (uiState.navBarStyle == NavBarStyle.DEFAULT) {
+                                Spacer(Modifier.height(4.dp))
+                                SettingsItem(
+                                    title = "NavBar Corner Radius",
+                                    subtitle = "Adjust the corner radius of the navigation bar.",
+                                    leadingIcon = { Icon(painterResource(R.drawable.rounded_rounded_corner_24), null, tint = MaterialTheme.colorScheme.secondary) },
+                                    trailingIcon = { Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                                    onClick = { navController.navigate("nav_bar_corner_radius") }
+                                )
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            ThemeSelectorItem(
+                                label = "Carousel Style",
+                                description = "Choose the appearance for the album carousel.",
+                                options = mapOf(
+                                    CarouselStyle.NO_PEEK to "No Peek",
+                                    CarouselStyle.ONE_PEEK to "One Peek"
+                                ),
+                                selectedKey = uiState.carouselStyle,
+                                onSelectionChanged = { settingsViewModel.setCarouselStyle(it) },
+                                leadingIcon = { Icon(painterResource(R.drawable.rounded_view_carousel_24), null, tint = MaterialTheme.colorScheme.secondary) }
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            ThemeSelectorItem(
+                                label = "Default Tab",
+                                description = "Choose the Default launch tab.",
+                                options = mapOf(
+                                    LaunchTab.HOME to "Home",
+                                    LaunchTab.SEARCH to "Search",
+                                    LaunchTab.LIBRARY to "Library",
+                                ),
+                                selectedKey = uiState.launchTab,
+                                onSelectionChanged = { settingsViewModel.setLaunchTab(it) },
+                                leadingIcon = { Icon(painterResource(R.drawable.tab_24), null, tint = MaterialTheme.colorScheme.secondary) }
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            ThemeSelectorItem(
+                                label = "Library Navigation",
+                                description = "Choose how to move between Library tabs.",
+                                options = mapOf(
+                                    LibraryNavigationMode.TAB_ROW to "Tab row (default)",
+                                    LibraryNavigationMode.COMPACT_PILL to "Compact pill & grid"
+                                ),
+                                selectedKey = uiState.libraryNavigationMode,
+                                onSelectionChanged = { settingsViewModel.setLibraryNavigationMode(it) },
+                                leadingIcon = { Icon(painterResource(R.drawable.rounded_library_music_24), null, tint = MaterialTheme.colorScheme.secondary) }
+                            )
+                        }
+                        SettingsCategory.PLAYBACK -> {
+                            ThemeSelectorItem(
+                                label = "Keep playing after closing",
+                                description = "If off, removing the app from recents will stop playback.",
+                                options = mapOf("true" to "On", "false" to "Off"),
+                                selectedKey = if (uiState.keepPlayingInBackground) "true" else "false",
+                                onSelectionChanged = { settingsViewModel.setKeepPlayingInBackground(it.toBoolean()) },
+                                leadingIcon = { Icon(Icons.Rounded.MusicNote, null, tint = MaterialTheme.colorScheme.secondary) }
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            ThemeSelectorItem(
+                                label = "Auto-play on cast connect/disconnect",
+                                description = "Start playing immediately after switching cast connections.",
+                                options = mapOf("false" to "Enabled", "true" to "Disabled"),
+                                selectedKey = if (uiState.disableCastAutoplay) "true" else "false",
+                                onSelectionChanged = { settingsViewModel.setDisableCastAutoplay(it.toBoolean()) },
+                                leadingIcon = { Icon(painterResource(R.drawable.rounded_cast_24), null, tint = MaterialTheme.colorScheme.secondary) }
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            ThemeSelectorItem(
+                                label = "Crossfade",
+                                description = "Enable smooth transition between songs.",
+                                options = mapOf("true" to "Enabled", "false" to "Disabled"),
+                                selectedKey = if (uiState.isCrossfadeEnabled) "true" else "false",
+                                onSelectionChanged = { settingsViewModel.setCrossfadeEnabled(it.toBoolean()) },
+                                leadingIcon = { Icon(painterResource(R.drawable.rounded_align_justify_space_even_24), null, tint = MaterialTheme.colorScheme.secondary) }
+                            )
+                            if (uiState.isCrossfadeEnabled) {
+                                Spacer(Modifier.height(4.dp))
+                                SliderSettingsItem(
+                                    label = "Crossfade Duration",
+                                    value = uiState.crossfadeDuration.toFloat(),
+                                    valueRange = 2000f..12000f,
+                                    onValueChange = { settingsViewModel.setCrossfadeDuration(it.toInt()) },
+                                    valueText = { value -> "${(value / 1000).toInt()}s" }
+                                )
+                            }
+                        }
+                        SettingsCategory.AI_INTEGRATION -> {
+                            GeminiApiKeyItem(
+                                apiKey = geminiApiKey,
+                                onApiKeyChange = { settingsViewModel.onGeminiApiKeyChange(it) },
+                                title = "Gemini API Key",
+                                subtitle = "Needed for AI-powered features."
+                            )
+                        }
+                        SettingsCategory.DEVELOPER -> {
+                             SettingsItem(
+                                title = "Experimental",
+                                subtitle = "Player UI loading experiments and toggles.",
+                                leadingIcon = { Icon(Icons.Rounded.Science, null, tint = MaterialTheme.colorScheme.secondary) },
+                                trailingIcon = { Icon(Icons.Rounded.ChevronRight, "Open", tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                                onClick = { navController.navigate(Screen.Experimental.route) }
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            SettingsItem(
+                                title = "Force Daily Mix Regeneration",
+                                subtitle = "Re-creates the daily mix playlist immediately.",
+                                leadingIcon = { Icon(painterResource(R.drawable.rounded_instant_mix_24), null, tint = MaterialTheme.colorScheme.secondary) },
+                                onClick = { playerViewModel.forceUpdateDailyMix() }
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            SettingsItem(
+                                title = "Trigger Test Crash",
+                                subtitle = "Simulate a crash to test the crash reporting system.",
+                                leadingIcon = { Icon(Icons.Outlined.Warning, null, tint = MaterialTheme.colorScheme.error) },
+                                onClick = { settingsViewModel.triggerTestCrash() }
+                            )
+                        }
+                        SettingsCategory.ABOUT -> {
+                             SettingsItem(
+                                title = "About PixelPlayer",
+                                subtitle = "App version, credits, and more.",
+                                leadingIcon = { Icon(Icons.Outlined.Info, null, tint = MaterialTheme.colorScheme.secondary) },
+                                trailingIcon = { Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                                onClick = { navController.navigate("about") }
+                            )
+                        }
+                        SettingsCategory.EQUALIZER -> {
+                             // Equalizer has its own screen, so this block is unreachable via standard navigation
+                             // but required for exhaustiveness.
+                        }
+
+                    }
+                }
+            }
+        }
+
+        SettingsTopBar(
+            collapseFraction = collapseFraction,
+            headerHeight = currentTopBarHeightDp,
+            onBackPressed = onBackClick,
+            title = category.title,
+            titlePaddingRange = titlePaddingRange
+        )
+    }
+
+    // Dialogs
+    FileExplorerDialog(
+        visible = showExplorerSheet,
+        currentPath = currentPath,
+        directoryChildren = directoryChildren,
+        availableStorages = availableStorages,
+        selectedStorageIndex = selectedStorageIndex,
+        isLoading = isLoadingDirectories,
+        isAtRoot = settingsViewModel.isAtRoot(),
+        rootDirectory = explorerRoot,
+        onNavigateTo = settingsViewModel::loadDirectory,
+        onNavigateUp = settingsViewModel::navigateUp,
+        onNavigateHome = { settingsViewModel.loadDirectory(explorerRoot) },
+        onToggleAllowed = settingsViewModel::toggleDirectoryAllowed,
+        onRefresh = settingsViewModel::refreshExplorer,
+        onStorageSelected = settingsViewModel::selectStorage,
+        onDone = { showExplorerSheet = false },
+        onDismiss = { showExplorerSheet = false }
+    )
+    
+     // Dialogs logic (copied)
+    if (showClearLyricsDialog) {
+        AlertDialog(
+            icon = { Icon(Icons.Outlined.Warning, null) },
+            title = { Text("Reset imported lyrics?") },
+            text = { Text("This action cannot be undone.") },
+            onDismissRequest = { showClearLyricsDialog = false },
+            confirmButton = { TextButton(onClick = { showClearLyricsDialog = false; playerViewModel.resetAllLyrics() }) { Text("Confirm") } },
+            dismissButton = { TextButton(onClick = { showClearLyricsDialog = false }) { Text("Cancel") } }
+        )
+    }
+}
