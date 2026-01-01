@@ -62,6 +62,9 @@ interface MusicDao {
     @Query("SELECT * FROM songs WHERE id = :songId")
     fun getSongById(songId: Long): Flow<SongEntity?>
 
+    @Query("SELECT * FROM songs WHERE file_path = :path LIMIT 1")
+    suspend fun getSongByPath(path: String): SongEntity?
+
     //@Query("SELECT * FROM songs WHERE id IN (:songIds)")
     @Query("""
         SELECT * FROM songs

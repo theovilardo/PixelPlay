@@ -36,6 +36,7 @@ import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -75,6 +76,7 @@ fun LibraryActionRow(
     showGenerateButton: Boolean = true,
     isPlaylistTab: Boolean,
     onGenerateWithAiClick: () -> Unit,
+    onImportM3uClick: () -> Unit = {},
     isFoldersTab: Boolean,
     modifier: Modifier = Modifier,
     // Breadcrumb parameters
@@ -226,6 +228,21 @@ fun LibraryActionRow(
                                             fontWeight = FontWeight.Medium
                                         )
                                     }
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                FilledTonalIconButton(
+                                    onClick = onImportM3uClick,
+                                    shape = CircleShape,
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.rounded_upload_file_24),
+                                        contentDescription = "Import M3U",
+                                        modifier = Modifier.size(20.dp)
+                                    )
                                 }
                             }
                         }

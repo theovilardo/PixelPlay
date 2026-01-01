@@ -78,6 +78,13 @@ interface MusicRepository {
     fun getSongsByIds(songIds: List<String>): Flow<List<Song>>
 
     /**
+     * Obtiene una canción por su ruta de archivo.
+     * @param path Ruta del archivo.
+     * @return El objeto Song o null si no se encuentra.
+     */
+    suspend fun getSongByPath(path: String): Song?
+
+    /**
      * Obtiene todos los directorios únicos que contienen archivos de audio.
      * Esto se usa principalmente para la configuración inicial de directorios.
      * También gestiona el guardado inicial de directorios permitidos si es la primera vez.

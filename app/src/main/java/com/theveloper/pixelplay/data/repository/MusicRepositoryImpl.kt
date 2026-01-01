@@ -467,6 +467,12 @@ class MusicRepositoryImpl @Inject constructor(
         }.conflate().flowOn(Dispatchers.IO)
     }
 
+    override suspend fun getSongByPath(path: String): Song? {
+        return withContext(Dispatchers.IO) {
+            musicDao.getSongByPath(path)?.toSong()
+        }
+    }
+
     override suspend fun invalidateCachesDependentOnAllowedDirectories() {
         Log.i("MusicRepo", "invalidateCachesDependentOnAllowedDirectories called. Reactive flows will update automatically.")
     }

@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.theveloper.pixelplay.data.model.Playlist
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.model.SortOption
+import com.theveloper.pixelplay.data.playlist.M3uManager
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.OutputStreamWriter
 import javax.inject.Inject
 
 data class PlaylistUiState(
@@ -47,7 +49,8 @@ sealed class PlaylistSongsOrderMode {
 @HiltViewModel
 class PlaylistViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val musicRepository: MusicRepository
+    private val musicRepository: MusicRepository,
+    private val m3uManager: M3uManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PlaylistUiState())
@@ -312,6 +315,35 @@ class PlaylistViewModel @Inject constructor(
         if (isFolderPlaylistId(playlistId)) return
         viewModelScope.launch {
             userPreferencesRepository.deletePlaylist(playlistId)
+        }
+    }
+
+    fun importM3u(uri: Uri) {
+        viewModelScope.launch {
+            try {
+                val (name, songIds) = m3uManager.parseM3u(uri)
+                if (songIds.isNotEmpty()) {
+                    userPreferencesRepository.createPlaylist(name, songIds)
+                }
+            } catch (e: Exception) {
+                Log.e("PlaylistViewModel", "Error importing M3U", e)
+            }
+        }
+    }
+
+    fun exportM3u(playlist: Playlist, uri: Uri, context: android.content.Context) {
+        viewModelScope.launch {
+            try {
+                val songs = musicRepository.getSongsByIds(playlist.songIds).first()
+                val m3uContent = m3uManager.generateM3u(playlist, songs)
+                context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                    OutputStreamWriter(outputStream).use { writer ->
+                        writer.write(m3uContent)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("PlaylistViewModel", "Error exporting M3U", e)
+            }
         }
     }
 

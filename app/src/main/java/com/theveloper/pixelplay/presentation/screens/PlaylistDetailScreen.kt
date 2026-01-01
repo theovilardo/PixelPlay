@@ -1,5 +1,7 @@
 package com.theveloper.pixelplay.presentation.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
@@ -86,6 +88,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
@@ -136,6 +139,7 @@ fun PlaylistDetailScreen(
     val uiState by playlistViewModel.uiState.collectAsState()
     val playerStableState by playerViewModel.stablePlayerState.collectAsState()
     val playerSheetState by playerViewModel.sheetState.collectAsState()
+    val context = LocalContext.current
     val currentPlaylist = uiState.currentPlaylistDetails
     val isFolderPlaylist = currentPlaylist?.id?.startsWith(FOLDER_PLAYLIST_PREFIX) == true
     val songsInPlaylist = uiState.currentPlaylistSongs
@@ -155,6 +159,17 @@ fun PlaylistDetailScreen(
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     var showPlaylistOptionsSheet by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
+
+    val m3uExportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("audio/x-mpegurl")
+    ) { uri ->
+        uri?.let {
+            currentPlaylist?.let { playlist ->
+                playlistViewModel.exportM3u(playlist, it, context)
+            }
+        }
+    }
+
     val selectedSongForInfo by playerViewModel.selectedSongForInfo.collectAsState()
     val favoriteIds by playerViewModel.favoriteSongIds.collectAsState() // Reintroducir favoriteIds aquí
     val stableOnMoreOptionsClick: (Song) -> Unit = remember {
@@ -685,6 +700,14 @@ fun PlaylistDetailScreen(
                     onClick = {
                         showPlaylistOptionsSheet = false
                         navController.navigate(Screen.EditTransition.createRoute(playlistId))
+                    }
+                )
+                PlaylistActionItem(
+                    icon = painterResource(R.drawable.rounded_attach_file_24),
+                    label = "Export M3U",
+                    onClick = {
+                        showPlaylistOptionsSheet = false
+                        m3uExportLauncher.launch("${currentPlaylist?.name ?: "playlist"}.m3u")
                     }
                 )
             }

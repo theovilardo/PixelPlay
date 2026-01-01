@@ -200,6 +200,13 @@ fun LibraryScreen(
     val libraryNavigationMode by playerViewModel.libraryNavigationMode.collectAsState()
     val isSortSheetVisible by playerViewModel.isSortingSheetVisible.collectAsState()
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+
+    val m3uImportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let { playlistViewModel.importM3u(it) }
+    }
+
     var showReorderTabsSheet by remember { mutableStateOf(false) }
     var showTabSwitcherSheet by remember { mutableStateOf(false) }
 
@@ -485,6 +492,7 @@ fun LibraryScreen(
                             isPlaylistTab = currentTabId == LibraryTabId.PLAYLISTS,
                             isFoldersTab = currentTabId == LibraryTabId.FOLDERS && (!playerUiState.isFoldersPlaylistView || playerUiState.currentFolder != null),
                             onGenerateWithAiClick = { playerViewModel.showAiPlaylistSheet() },
+                            onImportM3uClick = { m3uImportLauncher.launch("audio/x-mpegurl") },
                             //onFilterClick = { playerViewModel.toggleFolderFilter() },
                             currentFolder = playerUiState.currentFolder,
                             onFolderClick = { playerViewModel.navigateToFolder(it) },
