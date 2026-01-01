@@ -54,9 +54,13 @@ fun ExpressiveTopBarContent(
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    lineHeight = MaterialTheme.typography.headlineMedium.fontSize * 1.1f, // Slight breathing room
                     modifier = Modifier.graphicsLayer {
                         scaleX = titleScale
                         scaleY = titleScale
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f) // Scale from left center
                     }
                 )
                 if (!subtitle.isNullOrEmpty()) {

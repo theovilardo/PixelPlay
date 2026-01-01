@@ -121,21 +121,22 @@ fun HomeGradientTopBar(
                 modifier = Modifier.padding(start = 12.dp)
             ) {
                 // Hamburger menu button
-                FilledIconButton(
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        contentColor = MaterialTheme.colorScheme.onSurface
-                    ),
-                    onClick = onMenuClick
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.rounded_menu_24),
-                        contentDescription = "Menu"
-                    )
-                }
+//                FilledIconButton(
+//                    colors = IconButtonDefaults.filledIconButtonColors(
+//                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+//                        contentColor = MaterialTheme.colorScheme.onSurface
+//                    ),
+//                    onClick = onMenuClick
+//                ) {
+//                    Icon(
+//                        painter = painterResource(R.drawable.rounded_menu_24),
+//                        contentDescription = "Menu"
+//                    )
+//                }
                 
                 // Beta button
                 FilledTonalButton(
+                    modifier = Modifier.padding(start = 4.dp),
                     shape = CircleShape,
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
                     colors = ButtonDefaults.filledTonalButtonColors(
