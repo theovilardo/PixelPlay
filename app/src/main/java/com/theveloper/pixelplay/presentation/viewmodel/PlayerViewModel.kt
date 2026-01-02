@@ -666,7 +666,7 @@ class PlayerViewModel @Inject constructor(
                 }
             }
                 .distinctBy { it.id }
-                .sortedBy { it.name }
+                .sortedBy { it.name.lowercase() }
                 .toImmutableList()
         }
         .stateIn(
@@ -741,10 +741,10 @@ class PlayerViewModel @Inject constructor(
     ) { ids, allSongsList, sortOption ->
         val favoriteSongsList = allSongsList.filter { song -> ids.contains(song.id) }
         when (sortOption) {
-            SortOption.LikedSongTitleAZ -> favoriteSongsList.sortedBy { it.title }
-            SortOption.LikedSongTitleZA -> favoriteSongsList.sortedByDescending { it.title }
-            SortOption.LikedSongArtist -> favoriteSongsList.sortedBy { it.artist }
-            SortOption.LikedSongAlbum -> favoriteSongsList.sortedBy { it.album }
+            SortOption.LikedSongTitleAZ -> favoriteSongsList.sortedBy { it.title.lowercase() }
+            SortOption.LikedSongTitleZA -> favoriteSongsList.sortedByDescending { it.title.lowercase() }
+            SortOption.LikedSongArtist -> favoriteSongsList.sortedBy { it.artist.lowercase() }
+            SortOption.LikedSongAlbum -> favoriteSongsList.sortedBy { it.album.lowercase() }
             SortOption.LikedSongDateLiked -> favoriteSongsList.sortedByDescending { it.id }
             else -> favoriteSongsList
         }.toImmutableList()
@@ -4425,10 +4425,10 @@ class PlayerViewModel @Inject constructor(
     //Sorting
     fun sortSongs(sortOption: SortOption, persist: Boolean = true) {
         val sortedSongs = when (sortOption) {
-            SortOption.SongTitleAZ -> _masterAllSongs.value.sortedBy { it.title }
-            SortOption.SongTitleZA -> _masterAllSongs.value.sortedByDescending { it.title }
-            SortOption.SongArtist -> _masterAllSongs.value.sortedBy { it.artist }
-            SortOption.SongAlbum -> _masterAllSongs.value.sortedBy { it.album }
+            SortOption.SongTitleAZ -> _masterAllSongs.value.sortedBy { it.title.lowercase() }
+            SortOption.SongTitleZA -> _masterAllSongs.value.sortedByDescending { it.title.lowercase() }
+            SortOption.SongArtist -> _masterAllSongs.value.sortedBy { it.artist.lowercase() }
+            SortOption.SongAlbum -> _masterAllSongs.value.sortedBy { it.album.lowercase() }
             SortOption.SongDateAdded -> _masterAllSongs.value.sortedByDescending { it.dateAdded }
             SortOption.SongDuration -> _masterAllSongs.value.sortedBy { it.duration }
             else -> _masterAllSongs.value
@@ -4449,9 +4449,9 @@ class PlayerViewModel @Inject constructor(
 
     fun sortAlbums(sortOption: SortOption, persist: Boolean = true) {
         val sortedAlbums = when (sortOption) {
-            SortOption.AlbumTitleAZ -> _playerUiState.value.albums.sortedBy { it.title }
-            SortOption.AlbumTitleZA -> _playerUiState.value.albums.sortedByDescending { it.title }
-            SortOption.AlbumArtist -> _playerUiState.value.albums.sortedBy { it.artist }
+            SortOption.AlbumTitleAZ -> _playerUiState.value.albums.sortedBy { it.title.lowercase() }
+            SortOption.AlbumTitleZA -> _playerUiState.value.albums.sortedByDescending { it.title.lowercase() }
+            SortOption.AlbumArtist -> _playerUiState.value.albums.sortedBy { it.artist.lowercase() }
             SortOption.AlbumReleaseYear -> _playerUiState.value.albums.sortedByDescending { it.year }
             else -> _playerUiState.value.albums
         }.toImmutableList()
@@ -4471,8 +4471,8 @@ class PlayerViewModel @Inject constructor(
 
     fun sortArtists(sortOption: SortOption, persist: Boolean = true) {
         val sortedArtists = when (sortOption) {
-            SortOption.ArtistNameAZ -> _playerUiState.value.artists.sortedBy { it.name }
-            SortOption.ArtistNameZA -> _playerUiState.value.artists.sortedByDescending { it.name }
+            SortOption.ArtistNameAZ -> _playerUiState.value.artists.sortedBy { it.name.lowercase() }
+            SortOption.ArtistNameZA -> _playerUiState.value.artists.sortedByDescending { it.name.lowercase() }
             else -> _playerUiState.value.artists
         }.toImmutableList()
         _playerUiState.update {
@@ -4502,8 +4502,8 @@ class PlayerViewModel @Inject constructor(
 
     fun sortFolders(sortOption: SortOption) {
         val sortedFolders = when (sortOption) {
-            SortOption.FolderNameAZ -> _playerUiState.value.musicFolders.sortedBy { it.name }
-            SortOption.FolderNameZA -> _playerUiState.value.musicFolders.sortedByDescending { it.name }
+            SortOption.FolderNameAZ -> _playerUiState.value.musicFolders.sortedBy { it.name.lowercase() }
+            SortOption.FolderNameZA -> _playerUiState.value.musicFolders.sortedByDescending { it.name.lowercase() }
             else -> _playerUiState.value.musicFolders
         }.toImmutableList()
         _playerUiState.update {
