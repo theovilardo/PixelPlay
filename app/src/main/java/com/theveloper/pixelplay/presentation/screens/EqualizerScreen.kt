@@ -459,6 +459,7 @@ fun EqualizerTopBar(
             ExpressiveTopBarContent(
                 title = "Equalizer",
                 collapseFraction = collapseFraction,
+                collapsedTitleStartPadding = 68.dp,
                 modifier = Modifier.fillMaxSize().padding(start = 0.dp, end = 0.dp)
             )
         }

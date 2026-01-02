@@ -66,6 +66,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
+import androidx.compose.ui.util.lerp
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
@@ -86,7 +88,9 @@ fun SettingsTopBar(
         headerHeight: Dp,
         onBackPressed: () -> Unit,
         title: String = "Settings",
-        titlePaddingRange: Pair<Dp, Dp> = 16.dp to 64.dp // Default optimized for 2 lines/back button
+        expandedStartPadding: Dp = 20.dp,
+        collapsedStartPadding: Dp = 68.dp,
+        maxLines: Int = 1
 ) {
     val surfaceColor = MaterialTheme.colorScheme.surface
 
@@ -99,7 +103,9 @@ fun SettingsTopBar(
         Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
             FilledIconButton(
                     modifier =
-                            Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 4.dp),
+                            Modifier.align(Alignment.TopStart)
+                                .padding(start = 12.dp, top = 4.dp)
+                                .zIndex(1f), // Ensure icon stays on top of animated text
                     onClick = onBackPressed,
                     colors =
                             IconButtonDefaults.filledIconButtonColors(
@@ -113,7 +119,9 @@ fun SettingsTopBar(
                     title = title,
                     collapseFraction = collapseFraction,
                     modifier = Modifier.fillMaxSize(),
-                    titlePaddingRange = titlePaddingRange
+                    collapsedTitleStartPadding = collapsedStartPadding,
+                    expandedTitleStartPadding = expandedStartPadding,
+                    maxLines = maxLines
             )
         }
     }
@@ -256,7 +264,7 @@ fun SettingsScreen(
                     }
                 }
                 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 
                 // Equalizer Category (Standalone)
                 ExpressiveCategoryItem(
@@ -265,7 +273,7 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(24.dp)
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 
                 // About Category (Standalone)
                 ExpressiveCategoryItem(
@@ -273,6 +281,9 @@ fun SettingsScreen(
                     onClick = { navController.navigate("about") }, // Direct navigation
                     shape = RoundedCornerShape(24.dp)
                 )
+
+                // for player active:
+                Spacer(modifier = Modifier.height(32.dp))
             }
         }
         SettingsTopBar(

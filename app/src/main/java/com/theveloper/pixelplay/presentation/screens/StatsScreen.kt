@@ -310,12 +310,12 @@ private fun StatsTopBar(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .padding(horizontal = 12.dp)
         ) {
             FilledIconButton(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(top = 8.dp),
+                    .padding(start = 12.dp, top = 8.dp)
+                    .zIndex(1f),
                 onClick = onBackClick,
                 colors = IconButtonDefaults.filledIconButtonColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
@@ -328,11 +328,10 @@ private fun StatsTopBar(
             ExpressiveTopBarContent(
                 title = "Listening Stats",
                 collapseFraction = collapseFraction,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(start = 0.dp, end = 0.dp),
+                modifier = Modifier.fillMaxSize(),
                 containerHeightRange = 80.dp to 56.dp,
-                titlePaddingRange = 28.dp to 44.dp,
+                expandedTitleStartPadding = 20.dp,
+                collapsedTitleStartPadding = 68.dp,
                 collapsedTitleVerticalBias = -0.4f
             )
         }

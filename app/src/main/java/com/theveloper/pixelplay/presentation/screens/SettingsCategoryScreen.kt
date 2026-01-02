@@ -125,16 +125,16 @@ fun SettingsCategoryScreen(
     val coroutineScope = rememberCoroutineScope()
     val lazyListState = rememberLazyListState()
     
-    val isLongTitle = category.title.length > 15
+    val isLongTitle = category.title.length > 13
     
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val minTopBarHeight = 64.dp + statusBarHeight
-    val maxTopBarHeight = if (isLongTitle) 220.dp else 180.dp
+    val maxTopBarHeight = if (isLongTitle) 200.dp else 180.dp //for 2 lines use 220 and make text use \n
 
     val minTopBarHeightPx = with(density) { minTopBarHeight.toPx() }
     val maxTopBarHeightPx = with(density) { maxTopBarHeight.toPx() }
     
-    val titlePaddingRange = if (isLongTitle) 16.dp to 64.dp else 24.dp to 64.dp // Slightly more padding for short titles? Or consistent? User said "too much padding... when expanded". 16dp is good.
+    val titleMaxLines = if (isLongTitle) 2 else 1
 
     val topBarHeight = remember(maxTopBarHeightPx) { Animatable(maxTopBarHeightPx) }
     var collapseFraction by remember { mutableStateOf(0f) }
@@ -450,7 +450,9 @@ fun SettingsCategoryScreen(
             headerHeight = currentTopBarHeightDp,
             onBackPressed = onBackClick,
             title = category.title,
-            titlePaddingRange = titlePaddingRange
+            expandedStartPadding = 20.dp,
+            collapsedStartPadding = 68.dp,
+            maxLines = titleMaxLines
         )
     }
 

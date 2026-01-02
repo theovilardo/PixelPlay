@@ -49,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -318,7 +319,8 @@ fun ExpressiveSettingsGroup(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(24.dp)) // Large corners for the group
-            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .background(Color.Transparent),
+        //verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         content()
     }
