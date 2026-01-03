@@ -216,8 +216,9 @@ fun LibraryScreen(
             showSongInfoBottomSheet = true
         }
     }
+    // Pull-to-refresh uses incremental sync for speed
     val onRefresh: () -> Unit = remember {
-        { syncManager.sync() }
+        { syncManager.incrementalSync() }
     }
     LaunchedEffect(isSyncing) {
         isRefreshing = isSyncing
@@ -1275,6 +1276,7 @@ fun LibraryFoldersTab(
     AnimatedContent(
         targetState = Pair(isPlaylistView, currentFolder?.path ?: "root"),
         label = "FolderNavigation",
+        modifier = Modifier.fillMaxSize(),
         transitionSpec = {
             (slideInHorizontally { width -> width } + fadeIn())
                 .togetherWith(slideOutHorizontally { width -> -width } + fadeOut())

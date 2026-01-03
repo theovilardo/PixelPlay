@@ -107,6 +107,47 @@ class SyncManager @Inject constructor(
     }
 
     /**
+     * Performs an incremental sync, only processing files that have changed
+     * since the last sync. Much faster for large libraries with few changes.
+     * This is the recommended sync method for pull-to-refresh actions.
+     */
+    fun incrementalSync() {
+        val syncRequest = SyncWorker.incrementalSyncWork()
+        workManager.enqueueUniqueWork(
+            SyncWorker.WORK_NAME,
+            ExistingWorkPolicy.REPLACE,
+            syncRequest
+        )
+    }
+
+    /**
+     * Performs a full library rescan, ignoring the last sync timestamp.
+     * Use this when the user explicitly wants to force a complete rescan.
+     */
+    fun fullSync() {
+        val syncRequest = SyncWorker.fullSyncWork(deepScan = false)
+        workManager.enqueueUniqueWork(
+            SyncWorker.WORK_NAME,
+            ExistingWorkPolicy.REPLACE,
+            syncRequest
+        )
+    }
+
+    /**
+     * Completely rebuilds the database from scratch.
+     * Clears all existing data including user edits (lyrics, etc.) and rescans.
+     * Use when database is corrupted or songs are missing.
+     */
+    fun rebuildDatabase() {
+        val syncRequest = SyncWorker.rebuildDatabaseWork()
+        workManager.enqueueUniqueWork(
+            SyncWorker.WORK_NAME,
+            ExistingWorkPolicy.REPLACE,
+            syncRequest
+        )
+    }
+
+    /**
      * Fuerza una nueva sincronización, reemplazando cualquier trabajo de sincronización
      * existente. Ideal para el botón de "Refrescar Biblioteca".
      */

@@ -388,6 +388,40 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Performs an incremental sync - only scans for new and modified files.
+     * Much faster for large libraries with few changes.
+     */
+    fun quickSyncLibrary() {
+        viewModelScope.launch {
+            if (isSyncing.value) return@launch
+            syncManager.incrementalSync()
+        }
+    }
+
+    /**
+     * Performs a full library rescan - rescans all files from scratch.
+     * Use when songs are missing or metadata is incorrect.
+     */
+    fun fullSyncLibrary() {
+        viewModelScope.launch {
+            if (isSyncing.value) return@launch
+            syncManager.fullSync()
+        }
+    }
+
+    /**
+     * Completely rebuilds the database from scratch.
+     * Clears all data including user edits (lyrics, favorites) and rescans.
+     * Use when database is corrupted or as a last resort.
+     */
+    fun rebuildDatabase() {
+        viewModelScope.launch {
+            if (isSyncing.value) return@launch
+            syncManager.rebuildDatabase()
+        }
+    }
+
     fun onGeminiApiKeyChange(apiKey: String) {
         viewModelScope.launch {
             userPreferencesRepository.setGeminiApiKey(apiKey)
