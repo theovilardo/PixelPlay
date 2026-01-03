@@ -30,7 +30,7 @@
 ---
 
 ## ‼️ DISCLAIMER
-- No fork of this project will recieve support, if you use a fork, ask the forker to support you
+- No fork of this project will recieve support, if you use a fork, ask the forker to support you.
 
 ---
 
@@ -76,13 +76,13 @@
 
 ### 📲 Connectivity
 - **Chromecast** - Stream to your TV or smart speakers
-- **Android Auto** - Full Android Auto support for in-car playback
+- **Android Auto** - Full Android Auto support for in-car playback (Soon)
 - **Widgets** - Home screen control with Glance widgets
 
 ### ⚙️ Advanced Features
 - **Tag Editor** - Edit metadata with TagLib (MP3, FLAC, M4A support)
 - **AI Playlists** - Generate playlists with Gemini AI
-- **Audio Waveforms** - Visual representation with Amplituda
+- **Audio Waveforms** - Visual representation with Amplituda (Soon)
 
 ---
 
@@ -108,7 +108,7 @@
 
 ## 📱 Requirements
 
-- **Android 10** (API 29) or higher
+- **Android 11** (API 30) or higher
 - **4GB RAM** recommended for smooth performance
 
 ---
