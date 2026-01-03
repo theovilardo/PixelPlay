@@ -138,6 +138,12 @@ import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.worker.SyncManager
 import com.theveloper.pixelplay.presentation.components.MiniPlayerBottomSpacer
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
+import com.theveloper.pixelplay.presentation.components.AppSidebarDrawer
+import com.theveloper.pixelplay.presentation.components.DrawerDestination
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @Immutable
@@ -445,7 +451,9 @@ class MainActivity : ComponentActivity() {
                 Screen.Stats.route,
                 Screen.EditTransition.route,
                 Screen.Experimental.route,
-                Screen.ArtistSettings.route
+                Screen.ArtistSettings.route,
+                Screen.Equalizer.route,
+                Screen.SettingsCategory.route
             )
         }
         val shouldHideNavigationBar by remember(currentRoute, isSearchBarActive) {
@@ -476,7 +484,24 @@ class MainActivity : ComponentActivity() {
             0.dp
         }
 
-        Scaffold(
+        val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+        val scope = rememberCoroutineScope()
+
+        AppSidebarDrawer(
+            drawerState = drawerState,
+            selectedRoute = currentRoute ?: Screen.Home.route,
+            onDestinationSelected = { destination ->
+                scope.launch { drawerState.close() }
+                when (destination) {
+                    DrawerDestination.Home -> navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                    }
+                    DrawerDestination.Equalizer -> navController.navigate(Screen.Equalizer.route)
+                    DrawerDestination.Settings -> navController.navigate(Screen.Settings.route)
+                }
+            }
+        ) {
+            Scaffold(
             modifier = Modifier.fillMaxSize(),
             bottomBar = {
                 if (!shouldHideNavigationBar) {
@@ -619,7 +644,8 @@ class MainActivity : ComponentActivity() {
                     navController = navController,
                     paddingValues = innerPadding,
                     userPreferencesRepository = userPreferencesRepository,
-                    onSearchBarActiveChange = { isSearchBarActive = it }
+                    onSearchBarActiveChange = { isSearchBarActive = it },
+                    onOpenSidebar = { scope.launch { drawerState.open() } }
                 )
 
                 UnifiedPlayerSheet(
@@ -659,7 +685,8 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        Trace.endSection()
+    }
+    Trace.endSection()
     }
 
     @Composable

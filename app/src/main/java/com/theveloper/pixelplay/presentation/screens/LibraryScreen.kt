@@ -1263,8 +1263,8 @@ fun LibraryFoldersTab(
     val flattenedFolders = remember(folders, currentSortOption) {
         val flattened = flattenFolders(folders)
         when (currentSortOption) {
-            SortOption.FolderNameZA -> flattened.sortedByDescending { it.name }
-            else -> flattened.sortedBy { it.name }
+            SortOption.FolderNameZA -> flattened.sortedByDescending { it.name.lowercase() }
+            else -> flattened.sortedBy { it.name.lowercase() }
         }
     }
 
@@ -1288,14 +1288,14 @@ fun LibraryFoldersTab(
                 showPlaylistCards -> flattenedFolders
                 activeFolder != null -> {
                     when (currentSortOption) {
-                        SortOption.FolderNameZA -> activeFolder.subFolders.sortedByDescending { it.name }
-                        else -> activeFolder.subFolders.sortedBy { it.name }
+                        SortOption.FolderNameZA -> activeFolder.subFolders.sortedByDescending { it.name.lowercase() }
+                        else -> activeFolder.subFolders.sortedBy { it.name.lowercase() }
                     }
                 }
                 else -> {
                      when (currentSortOption) {
-                        SortOption.FolderNameZA -> folders.sortedByDescending { it.name }
-                        else -> folders.sortedBy { it.name }
+                        SortOption.FolderNameZA -> folders.sortedByDescending { it.name.lowercase() }
+                        else -> folders.sortedBy { it.name.lowercase() }
                     }
                 }
             }
@@ -1304,8 +1304,8 @@ fun LibraryFoldersTab(
         val songsToShow = remember(activeFolder, currentSortOption) {
             val songs = activeFolder?.songs ?: emptyList()
             when (currentSortOption) {
-                SortOption.FolderNameZA -> songs.sortedByDescending { it.title }
-                else -> songs.sortedBy { it.title }
+                SortOption.FolderNameZA -> songs.sortedByDescending { it.title.lowercase() }
+                else -> songs.sortedBy { it.title.lowercase() }
             }
         }.toImmutableList()
         val shouldShowLoading = isLoading && itemsToShow.isEmpty() && songsToShow.isEmpty() && isRoot

@@ -26,14 +26,16 @@ fun ExpressiveTopBarContent(
     collapseFraction: Float,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
+    collapsedTitleStartPadding: Dp = 56.dp, // Default safe for standard Nav Icon
+    expandedTitleStartPadding: Dp = 16.dp,
     containerHeightRange: Pair<Dp, Dp> = 88.dp to 56.dp,
-    titlePaddingRange: Pair<Dp, Dp> = 32.dp to 58.dp,
     collapsedTitleVerticalBias: Float = -1f,
+    maxLines: Int = 2,
     supportingContent: (@Composable () -> Unit)? = null
 ) {
     val clampedFraction = collapseFraction.coerceIn(0f, 1f)
     val titleScale = lerp(1.2f, 0.8f, clampedFraction)
-    val titlePaddingStart = lerp(titlePaddingRange.first, titlePaddingRange.second, clampedFraction)
+    val titlePaddingStart = lerp(expandedTitleStartPadding, collapsedTitleStartPadding, clampedFraction)
     val titleVerticalBias = lerp(1f, collapsedTitleVerticalBias, clampedFraction)
     val animatedTitleAlignment = BiasAlignment(horizontalBias = -1f, verticalBias = titleVerticalBias)
     val titleContainerHeight = lerp(containerHeightRange.first, containerHeightRange.second, clampedFraction)
@@ -54,9 +56,13 @@ fun ExpressiveTopBarContent(
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = maxLines,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    lineHeight = MaterialTheme.typography.headlineMedium.fontSize * 1.1f, // Slight breathing room
                     modifier = Modifier.graphicsLayer {
                         scaleX = titleScale
                         scaleY = titleScale
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f) // Scale from left center
                     }
                 )
                 if (!subtitle.isNullOrEmpty()) {

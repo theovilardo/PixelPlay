@@ -207,44 +207,40 @@ fun FloatingToolBar(
         cornerRadiusBL = 22.dp,
         smoothnessAsPercentBR = 60
     )
-    Surface(
+    Box(
         modifier = modifier
-    ) {
-        Box(
+            .padding(8.dp)
+            .background(
+                shape = backgroundShape,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh
+            )
+    ){
+        Row(
             modifier = Modifier
-                .padding(8.dp)
-                .background(
-                    shape = backgroundShape,
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh
-                )
-        ){
-            Row(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically
+                .align(Alignment.Center)
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                modifier = Modifier.align(Alignment.CenterVertically),
+                onClick = onReset // This now calls the lambda from the parent
             ) {
-                IconButton(
-                    modifier = Modifier.align(Alignment.CenterVertically),
-                    onClick = onReset // This now calls the lambda from the parent
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.outline_restart_alt_24),
-                        contentDescription = "Reset",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                MediumExtendedFloatingActionButton(
-                    modifier = Modifier
-                        .align(Alignment.CenterVertically),
-                    shape = CircleShape,
-                    onClick = onClick,
-                    icon = { Icon(Icons.Rounded.Check, contentDescription = "Done") },
-                    text = { Text("Done") }
+                Icon(
+                    painter = painterResource(R.drawable.outline_restart_alt_24),
+                    contentDescription = "Reset",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+
+            MediumExtendedFloatingActionButton(
+                modifier = Modifier
+                    .align(Alignment.CenterVertically),
+                shape = CircleShape,
+                onClick = onClick,
+                icon = { Icon(Icons.Rounded.Check, contentDescription = "Done") },
+                text = { Text("Done") }
+            )
         }
     }
 }

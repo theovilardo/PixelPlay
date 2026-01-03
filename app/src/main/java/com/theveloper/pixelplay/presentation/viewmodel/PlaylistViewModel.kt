@@ -101,10 +101,10 @@ class PlaylistViewModel @Inject constructor(
                 val currentSortOption =
                     _uiState.value.currentPlaylistSortOption // Use the most up-to-date sort option
                 val sortedPlaylists = when (currentSortOption) {
-                    SortOption.PlaylistNameAZ -> playlists.sortedBy { it.name }
-                    SortOption.PlaylistNameZA -> playlists.sortedByDescending { it.name }
+                    SortOption.PlaylistNameAZ -> playlists.sortedBy { it.name.lowercase() }
+                    SortOption.PlaylistNameZA -> playlists.sortedByDescending { it.name.lowercase() }
                     SortOption.PlaylistDateCreated -> playlists.sortedByDescending { it.lastModified }
-                    else -> playlists.sortedBy { it.name } // Default to NameAZ
+                    else -> playlists.sortedBy { it.name.lowercase() } // Default to NameAZ
                 }
                 _uiState.update { it.copy(playlists = sortedPlaylists) }
             }
@@ -433,8 +433,8 @@ class PlaylistViewModel @Inject constructor(
 
         val currentPlaylists = _uiState.value.playlists
         val sortedPlaylists = when (sortOption) {
-            SortOption.PlaylistNameAZ -> currentPlaylists.sortedBy { it.name }
-            SortOption.PlaylistNameZA -> currentPlaylists.sortedByDescending { it.name }
+            SortOption.PlaylistNameAZ -> currentPlaylists.sortedBy { it.name.lowercase() }
+            SortOption.PlaylistNameZA -> currentPlaylists.sortedByDescending { it.name.lowercase() }
             SortOption.PlaylistDateCreated -> currentPlaylists.sortedByDescending { it.lastModified }
             else -> currentPlaylists
         }.toList()
@@ -451,10 +451,10 @@ class PlaylistViewModel @Inject constructor(
 
         val currentSongs = _uiState.value.currentPlaylistSongs
         val sortedSongs = when (sortOption) {
-            SortOption.SongTitleAZ -> currentSongs.sortedBy { it.title }
-            SortOption.SongTitleZA -> currentSongs.sortedByDescending { it.title }
-            SortOption.SongArtist -> currentSongs.sortedBy { it.artist }
-            SortOption.SongAlbum -> currentSongs.sortedBy { it.album }
+            SortOption.SongTitleAZ -> currentSongs.sortedBy { it.title.lowercase() }
+            SortOption.SongTitleZA -> currentSongs.sortedByDescending { it.title.lowercase() }
+            SortOption.SongArtist -> currentSongs.sortedBy { it.artist.lowercase() }
+            SortOption.SongAlbum -> currentSongs.sortedBy { it.album.lowercase() }
             SortOption.SongDuration -> currentSongs.sortedBy { it.duration }
             SortOption.SongDateAdded -> currentSongs.sortedByDescending { it.dateAdded } // Or dateModified if available/relevant
             else -> currentSongs
@@ -511,10 +511,10 @@ class PlaylistViewModel @Inject constructor(
 
     private fun applySortToSongs(songs: List<Song>, sortOption: SortOption): List<Song> {
         return when (sortOption) {
-            SortOption.SongTitleAZ -> songs.sortedBy { it.title }
-            SortOption.SongTitleZA -> songs.sortedByDescending { it.title }
-            SortOption.SongArtist -> songs.sortedBy { it.artist }
-            SortOption.SongAlbum -> songs.sortedBy { it.album }
+            SortOption.SongTitleAZ -> songs.sortedBy { it.title.lowercase() }
+            SortOption.SongTitleZA -> songs.sortedByDescending { it.title.lowercase() }
+            SortOption.SongArtist -> songs.sortedBy { it.artist.lowercase() }
+            SortOption.SongAlbum -> songs.sortedBy { it.album.lowercase() }
             SortOption.SongDuration -> songs.sortedBy { it.duration }
             SortOption.SongDateAdded -> songs.sortedByDescending { it.dateAdded }
             else -> songs

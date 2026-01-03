@@ -370,8 +370,7 @@ fun ExperimentalSettingsScreen(
             collapseFraction = collapseFraction,
             headerHeight = currentTopBarHeightDp,
             onBackPressed = onNavigationIconClick,
-            title = "Experimental",
-            expandedTitleStartPadding = 6.dp
+            title = "Experimental"
         )
     }
 }

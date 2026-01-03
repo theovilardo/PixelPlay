@@ -562,7 +562,7 @@ class MusicRepositoryImpl @Inject constructor(
                     darkColorHex = darkColorHex,
                     onDarkColorHex = "#FFFFFF"  // Default white for dark theme text
                 )
-            }.sortedBy { it.name }
+            }.sortedBy { it.name.lowercase() }
 
             // Ensure "Unknown" genre is last if it exists.
             val unknownGenre = dynamicGenres.find { it.id == "unknown" }
@@ -675,7 +675,7 @@ class MusicRepositoryImpl @Inject constructor(
                 val tempFolder = tempFolders[path] ?: return null
                 val subFolders = tempFolder.subFolderPaths
                     .mapNotNull { subPath -> buildImmutableFolder(subPath, visited.toMutableSet()) }
-                    .sortedBy { it.name }
+                    .sortedBy { it.name.lowercase() }
                     .toImmutableList()
                 return MusicFolder(
                     path = tempFolder.path,
@@ -695,7 +695,7 @@ class MusicRepositoryImpl @Inject constructor(
 
             val result = rootTempFolder?.subFolderPaths?.mapNotNull { path ->
                 buildImmutableFolder(path, mutableSetOf())
-            }?.filter { it.totalSongCount > 0 }?.sortedBy { it.name } ?: emptyList()
+            }?.filter { it.totalSongCount > 0 }?.sortedBy { it.name.lowercase() } ?: emptyList()
 
             // Fallback for devices that might not use the standard storage root path
             if (result.isEmpty() && tempFolders.isNotEmpty()) {
@@ -704,7 +704,7 @@ class MusicRepositoryImpl @Inject constructor(
                  return@combine topLevelPaths
                      .mapNotNull { buildImmutableFolder(it, mutableSetOf()) }
                      .filter { it.totalSongCount > 0 }
-                    .sortedBy { it.name }
+                    .sortedBy { it.name.lowercase() }
              }
 
             result

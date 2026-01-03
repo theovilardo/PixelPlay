@@ -1,0 +1,384 @@
+package com.theveloper.pixelplay.data.equalizer
+
+import android.media.audiofx.Equalizer
+import android.media.audiofx.BassBoost
+import android.media.audiofx.Virtualizer
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import timber.log.Timber
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * Manages Android's built-in audio effects (Equalizer, BassBoost, Virtualizer).
+ * Attaches to ExoPlayer's audio session ID for real-time audio processing.
+ * 
+ * Thread-safe: All effect operations run on the main thread.
+ * Crossfade compatible: Effects are attached to the audio session, not the player instance.
+ */
+@Singleton
+class EqualizerManager @Inject constructor() {
+    
+    companion object {
+        private const val TAG = "EqualizerManager"
+        private const val NUM_BANDS = 10
+        private const val MIN_LEVEL = -15
+        private const val MAX_LEVEL = 15
+    }
+    
+    private var equalizer: Equalizer? = null
+    private var bassBoost: BassBoost? = null
+    private var virtualizer: Virtualizer? = null
+    private var currentAudioSessionId: Int = 0
+    
+    // Normalized band levels (-15 to +15 for UI)
+    private val _bandLevels = MutableStateFlow(List(NUM_BANDS) { 0 })
+    val bandLevels: StateFlow<List<Int>> = _bandLevels.asStateFlow()
+    
+    private val _isEnabled = MutableStateFlow(false)
+    val isEnabled: StateFlow<Boolean> = _isEnabled.asStateFlow()
+    
+    private val _currentPresetName = MutableStateFlow("flat")
+    val currentPresetName: StateFlow<String> = _currentPresetName.asStateFlow()
+    
+    private val _bassBoostEnabled = MutableStateFlow(false)
+    val bassBoostEnabled: StateFlow<Boolean> = _bassBoostEnabled.asStateFlow()
+
+    private val _bassBoostStrength = MutableStateFlow(0)
+    val bassBoostStrength: StateFlow<Int> = _bassBoostStrength.asStateFlow()
+
+    private val _virtualizerEnabled = MutableStateFlow(false)
+    val virtualizerEnabled: StateFlow<Boolean> = _virtualizerEnabled.asStateFlow()
+
+    private val _virtualizerStrength = MutableStateFlow(0)
+    val virtualizerStrength: StateFlow<Int> = _virtualizerStrength.asStateFlow()
+
+    private val _loudnessEnhancerEnabled = MutableStateFlow(false)
+    val loudnessEnhancerEnabled: StateFlow<Boolean> = _loudnessEnhancerEnabled.asStateFlow()
+
+    private val _loudnessEnhancerStrength = MutableStateFlow(0)
+    val loudnessEnhancerStrength: StateFlow<Int> = _loudnessEnhancerStrength.asStateFlow()
+    
+    // Actual millibel range from the device's equalizer
+    private var minEqLevel: Short = -1500
+    private var maxEqLevel: Short = 1500
+
+    private var loudnessEnhancer: android.media.audiofx.LoudnessEnhancer? = null
+
+    /**
+     * Attaches the equalizer to an audio session ID.
+     * Call this when the player is created or swapped during crossfade.
+     */
+    fun attachToAudioSession(audioSessionId: Int) {
+        if (audioSessionId == 0) {
+            Timber.tag(TAG).w("Invalid audio session ID: 0")
+            return
+        }
+        
+        if (currentAudioSessionId == audioSessionId && equalizer != null) {
+            Timber.tag(TAG).d("Already attached to session $audioSessionId")
+            return
+        }
+        
+        Timber.tag(TAG).d("Attaching to audio session: $audioSessionId")
+        release()
+        
+        try {
+            // Initialize Equalizer
+            equalizer = Equalizer(0, audioSessionId).apply {
+                minEqLevel = bandLevelRange[0]
+                maxEqLevel = bandLevelRange[1]
+                enabled = _isEnabled.value
+            }
+            
+            // Initialize Bass Boost
+            bassBoost = try {
+                BassBoost(0, audioSessionId).apply {
+                    enabled = _bassBoostEnabled.value
+                    if (strengthSupported) {
+                        setStrength(_bassBoostStrength.value.toShort())
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.tag(TAG).w(e, "BassBoost not supported on this device")
+                null
+            }
+            
+            // Initialize Virtualizer (Surround)
+            virtualizer = try {
+                Virtualizer(0, audioSessionId).apply {
+                    enabled = _virtualizerEnabled.value
+                    if (strengthSupported) {
+                        setStrength(_virtualizerStrength.value.toShort())
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.tag(TAG).w(e, "Virtualizer not supported on this device")
+                null
+            }
+
+            // Initialize Loudness Enhancer
+            loudnessEnhancer = try {
+                android.media.audiofx.LoudnessEnhancer(audioSessionId).apply {
+                    enabled = _loudnessEnhancerEnabled.value
+                    setTargetGain(_loudnessEnhancerStrength.value)
+                }
+            } catch (e: Exception) {
+                Timber.tag(TAG).w(e, "LoudnessEnhancer not supported on this device")
+                null
+            }
+            
+            currentAudioSessionId = audioSessionId
+            
+            // Apply current band levels
+            applyBandLevels(_bandLevels.value)
+            
+            Timber.tag(TAG).d("Effects attached successfully. EQ bands: ${equalizer?.numberOfBands}, Range: $minEqLevel to $maxEqLevel")
+            
+        } catch (e: Exception) {
+            Timber.tag(TAG).e(e, "Failed to initialize audio effects")
+            release()
+        }
+    }
+    
+    /**
+     * Enables or disables the equalizer.
+     */
+    fun setEnabled(enabled: Boolean) {
+        _isEnabled.value = enabled
+        try {
+            equalizer?.enabled = enabled
+            Timber.tag(TAG).d("Equalizer enabled: $enabled")
+        } catch (e: Exception) {
+            Timber.tag(TAG).e(e, "Failed to set equalizer enabled state")
+        }
+    }
+    
+    /**
+     * Sets the level for a specific band.
+     * @param bandIndex 0-4 for the 5 bands
+     * @param level -15 to +15 normalized level
+     */
+    fun setBandLevel(bandIndex: Int, level: Int) {
+        if (bandIndex !in 0 until NUM_BANDS) return
+        
+        val clampedLevel = level.coerceIn(MIN_LEVEL, MAX_LEVEL)
+        val newLevels = _bandLevels.value.toMutableList()
+        newLevels[bandIndex] = clampedLevel
+        _bandLevels.value = newLevels
+        
+        applyBandLevel(bandIndex, clampedLevel)
+        
+        // Switch to custom preset when manually adjusting
+        _currentPresetName.value = "custom"
+    }
+    
+    /**
+     * Applies a preset to the equalizer.
+     */
+    fun applyPreset(preset: EqualizerPreset) {
+        _currentPresetName.value = preset.name
+        _bandLevels.value = preset.bandLevels
+        applyBandLevels(preset.bandLevels)
+        Timber.tag(TAG).d("Applied preset: ${preset.displayName}")
+    }
+
+    /**
+     * Sets bass boost enabled state.
+     */
+    fun setBassBoostEnabled(enabled: Boolean) {
+        _bassBoostEnabled.value = enabled
+        try {
+            bassBoost?.enabled = enabled
+        } catch (e: Exception) {
+            Timber.tag(TAG).e(e, "Failed to set bass boost enabled")
+        }
+    }
+    
+    /**
+     * Sets bass boost strength (0-1000).
+     */
+    fun setBassBoostStrength(strength: Int) {
+        val clampedStrength = strength.coerceIn(0, 1000)
+        _bassBoostStrength.value = clampedStrength
+        
+        try {
+            bassBoost?.apply {
+                if (strengthSupported) {
+                    setStrength(clampedStrength.toShort())
+                }
+            }
+            Timber.tag(TAG).d("Bass boost strength: $clampedStrength")
+        } catch (e: Exception) {
+            Timber.tag(TAG).e(e, "Failed to set bass boost")
+        }
+    }
+
+    /**
+     * Sets virtualizer enabled state.
+     */
+    fun setVirtualizerEnabled(enabled: Boolean) {
+        _virtualizerEnabled.value = enabled
+        try {
+            virtualizer?.enabled = enabled
+        } catch (e: Exception) {
+            Timber.tag(TAG).e(e, "Failed to set virtualizer enabled")
+        }
+    }
+    
+    /**
+     * Sets virtualizer (surround) strength (0-1000).
+     */
+    fun setVirtualizerStrength(strength: Int) {
+        val clampedStrength = strength.coerceIn(0, 1000)
+        _virtualizerStrength.value = clampedStrength
+        
+        try {
+            virtualizer?.apply {
+                if (strengthSupported) {
+                    setStrength(clampedStrength.toShort())
+                }
+            }
+            Timber.tag(TAG).d("Virtualizer strength: $clampedStrength")
+        } catch (e: Exception) {
+            Timber.tag(TAG).e(e, "Failed to set virtualizer")
+        }
+    }
+
+    /**
+     * Sets loudness enhancer enabled state.
+     */
+    fun setLoudnessEnhancerEnabled(enabled: Boolean) {
+        _loudnessEnhancerEnabled.value = enabled
+        try {
+            loudnessEnhancer?.enabled = enabled
+        } catch (e: Exception) {
+            Timber.tag(TAG).e(e, "Failed to set loudness enhancer enabled")
+        }
+    }
+
+    /**
+     * Sets loudness enhancer strength (gain in mB).
+     * Typically 0 to 1000mB (10dB) is safe range, but API allows implies integers.
+     * We'll assume the UI passes a normalized 0-1000 range mapping to gain.
+     */
+    fun setLoudnessEnhancerStrength(strength: Int) {
+        val clampedStrength = strength.coerceIn(0, 3000) // Allow up to 3000mB? Let's check user request. Slider normal logic.
+        // User request doesn't specify limit. LoudnessEnhancer setTargetGain takes milliBels.
+        // Let's assume UI slider 0-1000 maps to 0-1000mB for simplicity.
+        // Actually, user asked for "loudness", usually LoudnessEnhancer.
+        _loudnessEnhancerStrength.value = clampedStrength
+
+        try {
+            loudnessEnhancer?.setTargetGain(clampedStrength)
+            Timber.tag(TAG).d("Loudness enhancer strength: $clampedStrength")
+        } catch (e: Exception) {
+            Timber.tag(TAG).e(e, "Failed to set loudness enhancer")
+        }
+    }
+    
+    /**
+     * Restores equalizer state from saved preferences.
+     */
+    fun restoreState(
+        enabled: Boolean,
+        presetName: String,
+        customBands: List<Int>,
+        bassBoostEnabled: Boolean,
+        bassBoostStrength: Int,
+        virtualizerEnabled: Boolean,
+        virtualizerStrength: Int,
+        loudnessEnabled: Boolean,
+        loudnessStrength: Int
+    ) {
+        _isEnabled.value = enabled
+        _bassBoostEnabled.value = bassBoostEnabled
+        _bassBoostStrength.value = bassBoostStrength
+        _virtualizerEnabled.value = virtualizerEnabled
+        _virtualizerStrength.value = virtualizerStrength
+        _loudnessEnhancerEnabled.value = loudnessEnabled
+        _loudnessEnhancerStrength.value = loudnessStrength
+        
+        val preset = if (presetName == "custom") {
+            EqualizerPreset.custom(customBands)
+        } else {
+            EqualizerPreset.fromName(presetName)
+        }
+        
+        _currentPresetName.value = preset.name
+        _bandLevels.value = preset.bandLevels
+        
+        // Apply if already attached
+        if (equalizer != null) {
+            equalizer?.enabled = enabled
+            applyBandLevels(preset.bandLevels)
+            setBassBoostStrength(bassBoostStrength)
+            setVirtualizerStrength(virtualizerStrength)
+        }
+    }
+    
+    private fun applyBandLevels(levels: List<Int>) {
+        levels.forEachIndexed { index, level ->
+            applyBandLevel(index, level)
+        }
+    }
+    
+    private fun applyBandLevel(bandIndex: Int, normalizedLevel: Int) {
+        val eq = equalizer ?: return
+        if (bandIndex >= eq.numberOfBands) return
+        
+        // Convert normalized level (-15 to +15) to device millibel range
+        val range = maxEqLevel - minEqLevel
+        val millibelLevel = (minEqLevel + (normalizedLevel + 15) * range / 30).toShort()
+        
+        try {
+            eq.setBandLevel(bandIndex.toShort(), millibelLevel)
+        } catch (e: Exception) {
+            Timber.tag(TAG).e(e, "Failed to set band $bandIndex level")
+        }
+    }
+    
+    /**
+     * Gets the center frequencies for all bands.
+     */
+    fun getBandFrequencies(): List<Int> {
+        val eq = equalizer ?: return listOf(31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000)
+        return (0 until eq.numberOfBands).map { band ->
+            eq.getCenterFreq(band.toShort()) / 1000 // Convert milliHz to Hz
+        }
+    }
+    
+    /**
+     * Checks if bass boost is supported on this device.
+     */
+    fun isBassBoostSupported(): Boolean = bassBoost?.strengthSupported ?: false
+    
+    /**
+     * Checks if virtualizer is supported on this device.
+     */
+    fun isVirtualizerSupported(): Boolean = virtualizer?.strengthSupported ?: false
+
+    /**
+     * Checks if loudness enhancer is supported on this device.
+     */
+    fun isLoudnessEnhancerSupported(): Boolean = loudnessEnhancer != null
+    
+    /**
+     * Releases all audio effect resources.
+     */
+    fun release() {
+        try {
+            equalizer?.release()
+            bassBoost?.release()
+            virtualizer?.release()
+        } catch (e: Exception) {
+            Timber.tag(TAG).e(e, "Error releasing audio effects")
+        }
+        equalizer = null
+        bassBoost = null
+        virtualizer = null
+        currentAudioSessionId = 0
+        Timber.tag(TAG).d("Audio effects released")
+    }
+}

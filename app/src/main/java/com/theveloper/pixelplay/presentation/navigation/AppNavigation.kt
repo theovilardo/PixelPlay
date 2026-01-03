@@ -37,6 +37,8 @@ import com.theveloper.pixelplay.presentation.screens.AboutScreen
 import com.theveloper.pixelplay.presentation.screens.SearchScreen
 import com.theveloper.pixelplay.presentation.screens.StatsScreen
 import com.theveloper.pixelplay.presentation.screens.SettingsScreen
+import com.theveloper.pixelplay.presentation.screens.SettingsCategoryScreen
+import com.theveloper.pixelplay.presentation.screens.EqualizerScreen
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 import kotlinx.coroutines.flow.first
@@ -49,7 +51,8 @@ fun AppNavigation(
     navController: NavHostController,
     paddingValues: PaddingValues,
     userPreferencesRepository: UserPreferencesRepository,
-    onSearchBarActiveChange: (Boolean) -> Unit
+    onSearchBarActiveChange: (Boolean) -> Unit,
+    onOpenSidebar: () -> Unit
 ) {
     var startDestination by remember { mutableStateOf<String?>(null) }
 
@@ -71,7 +74,12 @@ fun AppNavigation(
                 popEnterTransition = { enterTransition() },
                 popExitTransition = { exitTransition() },
             ) {
-                HomeScreen(navController = navController, paddingValuesParent = paddingValues, playerViewModel = playerViewModel)
+                HomeScreen(
+                    navController = navController, 
+                    paddingValuesParent = paddingValues, 
+                    playerViewModel = playerViewModel,
+                    onOpenSidebar = onOpenSidebar
+                )
             }
             composable(
                 Screen.Search.route,
@@ -110,6 +118,24 @@ fun AppNavigation(
                         navController.popBackStack()
                     }
                 )
+            }
+            composable(
+                route = Screen.SettingsCategory.route,
+                arguments = listOf(navArgument("categoryId") { type = NavType.StringType }),
+                enterTransition = { enterTransition() },
+                exitTransition = { exitTransition() },
+                popEnterTransition = { enterTransition() },
+                popExitTransition = { exitTransition() },
+            ) { backStackEntry ->
+                val categoryId = backStackEntry.arguments?.getString("categoryId")
+                if (categoryId != null) {
+                    SettingsCategoryScreen(
+                        categoryId = categoryId,
+                        navController = navController,
+                        playerViewModel = playerViewModel,
+                        onBackClick = { navController.popBackStack() }
+                    )
+                }
             }
             composable(
                 Screen.Experimental.route,
@@ -281,6 +307,18 @@ fun AppNavigation(
                 popExitTransition = { exitTransition() },
             ) {
                 DelimiterConfigScreen(navController = navController)
+            }
+            composable(
+                Screen.Equalizer.route,
+                enterTransition = { enterTransition() },
+                exitTransition = { exitTransition() },
+                popEnterTransition = { enterTransition() },
+                popExitTransition = { exitTransition() },
+            ) {
+                EqualizerScreen(
+                    navController = navController,
+                    playerViewModel = playerViewModel
+                )
             }
         }
     }

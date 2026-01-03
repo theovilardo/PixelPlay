@@ -25,9 +25,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -203,13 +207,11 @@ fun StatsScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                if (showDailyRhythm) {
-                    item {
-                        DailyListeningDistributionSection(
-                            summary = summary,
-                            modifier = Modifier.padding(horizontal = 20.dp)
-                        )
-                    }
+                item(key = "hero_section") {
+                    StatsHeroSection(
+                        summary = summary,
+                        modifier = Modifier.padding(horizontal = 20.dp)
+                    )
                 }
                 item {
                     ListeningTimelineSection(
@@ -227,13 +229,7 @@ fun StatsScreen(
                         modifier = Modifier.padding(horizontal = 20.dp)
                     )
                 }
-                item {
-                    StatsSummaryCard(
-                        summary = summary,
-                        isLoading = uiState.isLoading,
-                        modifier = Modifier.padding(horizontal = 20.dp)
-                    )
-                }
+
                 item {
                     ListeningHabitsCard(
                         summary = summary,
@@ -310,12 +306,12 @@ private fun StatsTopBar(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .padding(horizontal = 12.dp)
         ) {
             FilledIconButton(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(top = 8.dp),
+                    .padding(start = 12.dp, top = 8.dp)
+                    .zIndex(1f),
                 onClick = onBackClick,
                 colors = IconButtonDefaults.filledIconButtonColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
@@ -328,11 +324,10 @@ private fun StatsTopBar(
             ExpressiveTopBarContent(
                 title = "Listening Stats",
                 collapseFraction = collapseFraction,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(start = 0.dp, end = 0.dp),
+                modifier = Modifier.fillMaxSize(),
                 containerHeightRange = 80.dp to 56.dp,
-                titlePaddingRange = 28.dp to 44.dp,
+                expandedTitleStartPadding = 20.dp,
+                collapsedTitleStartPadding = 68.dp,
                 collapsedTitleVerticalBias = -0.4f
             )
         }
@@ -341,63 +336,62 @@ private fun StatsTopBar(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun StatsSummaryCard(
+
+private fun StatsHeroSection(
     summary: PlaybackStatsRepository.PlaybackStatsSummary?,
-    isLoading: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val shape = AbsoluteSmoothCornerShape(
-        cornerRadiusTL = 20.dp,
-        smoothnessAsPercentBR = 60,
-        cornerRadiusTR = 20.dp,
-        smoothnessAsPercentBL = 60,
-        cornerRadiusBL = 20.dp,
-        smoothnessAsPercentTR = 60,
-        cornerRadiusBR = 20.dp,
-        smoothnessAsPercentTL = 60
-    )
-    Card(
+    Row(
         modifier = modifier.fillMaxWidth(),
-        shape = shape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
-                            //MaterialTheme.colorScheme.tertiary.copy(alpha = 0.14f),
-                            MaterialTheme.colorScheme.surfaceContainerLow
-                        )
-                    )
-                )
-                .padding(horizontal = 28.dp, vertical = 26.dp)
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = summary?.range?.displayName ?: "No listening yet",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = formatListeningDurationLong(summary?.totalDurationMs ?: 0L),
-                        style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    if (summary != null) {
-                        Text(
-                            text = "Across ${summary.totalPlayCount} plays",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        }
+        // Time Card
+        HeroCard(
+            title = "Listening Time",
+            value = formatListeningDurationCompact(summary?.totalDurationMs ?: 0L),
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            modifier = Modifier.weight(1f)
+        )
+
+        // Plays Card
+        HeroCard(
+            title = "Total Plays",
+            value = "${summary?.totalPlayCount ?: 0}",
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer, // Vivid contrast
+            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun HeroCard(
+    title: String,
+    value: String,
+    containerColor: Color,
+    contentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(28.dp)) // Expressive large corners
+            .background(containerColor)
+            .padding(24.dp), // Spacious padding
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Medium,
+            color = contentColor.copy(alpha = 0.7f)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.headlineMedium, // Large and bold
+            fontWeight = FontWeight.Bold,
+            color = contentColor
+        )
     }
 }
 
@@ -811,152 +805,7 @@ private data class CategoryMetricEntry(
     val supporting: String
 )
 
-@Composable
-private fun DailyListeningDistributionSection(
-    summary: PlaybackStatsRepository.PlaybackStatsSummary?,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text(
-            text = "Daily rhythm",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Text(
-            text = "See when you listen most across the day.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
 
-        val distribution = summary?.dayListeningDistribution
-        val isWeeklyRange = summary?.range == StatsTimeRange.WEEK
-        if (distribution == null || distribution.buckets.isEmpty()) {
-            Text(
-                text = "Press play to build your daily listening fingerprint.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        } else {
-            val peakBucket = distribution.buckets.maxByOrNull { it.totalDurationMs }
-            if (peakBucket != null) {
-                HighlightRow(
-                    title = "Peak window",
-                    value = formatMinutesWindowLabel(peakBucket.startMinute, peakBucket.endMinuteExclusive),
-                    supporting = formatListeningDurationCompact(peakBucket.totalDurationMs),
-                    icon = Icons.Outlined.Bolt
-                )
-            }
-            if (isWeeklyRange) {
-                WeeklyDailyListeningTimeline(
-                    distribution = distribution,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            } else {
-                DailyListeningTimeline(
-                    buckets = distribution.buckets,
-                    maxBucketDurationMs = distribution.maxBucketDurationMs,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            HourMarkersRow()
-        }
-    }
-}
-
-@Composable
-private fun WeeklyDailyListeningTimeline(
-    distribution: PlaybackStatsRepository.DayListeningDistribution,
-    modifier: Modifier = Modifier
-) {
-    val locale = Locale.getDefault()
-    val dateFormatter = remember(locale) { DateTimeFormatter.ofPattern("MMM d", locale) }
-    val perDayMax = remember(distribution.days) {
-        distribution.days.maxOfOrNull { day ->
-            day.buckets.maxOfOrNull { it.totalDurationMs } ?: 0L
-        }?.coerceAtLeast(1L) ?: 1L
-    }
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        distribution.days.forEach { day ->
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                val dayOfWeek = day.date.dayOfWeek.getDisplayName(TextStyle.SHORT, locale)
-                val formattedDate = day.date.format(dateFormatter)
-                Text(
-                    text = "$dayOfWeek · $formattedDate",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                DailyListeningTimeline(
-                    buckets = day.buckets,
-                    maxBucketDurationMs = perDayMax,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun DailyListeningTimeline(
-    buckets: List<PlaybackStatsRepository.DailyListeningBucket>,
-    maxBucketDurationMs: Long,
-    modifier: Modifier = Modifier
-) {
-    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
-    val gradientStart = MaterialTheme.colorScheme.primary
-    val gradientEnd = MaterialTheme.colorScheme.tertiary
-    Box(
-        modifier = modifier
-            .height(52.dp)
-            .clip(RoundedCornerShape(999.dp))
-            .background(trackColor)
-    ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val totalMinutes = 24f * 60f
-            val maxDuration = maxBucketDurationMs.coerceAtLeast(1L).toFloat()
-            buckets.forEach { bucket ->
-                val startFraction = bucket.startMinute.coerceIn(0, 24 * 60).toFloat() / totalMinutes
-                val endFraction = bucket.endMinuteExclusive.coerceIn(0, 24 * 60).toFloat() / totalMinutes
-                val left = size.width * startFraction
-                val right = size.width * endFraction
-                if (right <= left) return@forEach
-                val intensity = (bucket.totalDurationMs.toFloat() / maxDuration).coerceIn(0f, 1f)
-                val color = lerp(
-                    gradientStart.copy(alpha = 0.3f),
-                    gradientEnd.copy(alpha = 0.9f),
-                    intensity
-                )
-                drawRect(
-                    color = color,
-                    topLeft = Offset(left, 0f),
-                    size = Size(right - left, size.height)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun HourMarkersRow(modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        listOf(0, 6 * 60, 12 * 60, 18 * 60, 24 * 60).forEach { minute ->
-            Text(
-                text = formatHourLabel(minute),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
 
 @Composable
 private fun ListeningTimelineSection(
@@ -1226,21 +1075,12 @@ private fun CategoryVerticalBarChart(
                                 .fillMaxWidth()
                                 .fillMaxHeight(progress)
                                 .clip(CircleShape)
+                                .clip(CircleShape)
                                 .background(
                                     if (isHighlight) {
-                                        Brush.verticalGradient(
-                                            listOf(
-                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
-                                                MaterialTheme.colorScheme.tertiary
-                                            )
-                                        )
+                                        MaterialTheme.colorScheme.primary
                                     } else {
-                                        Brush.verticalGradient(
-                                            listOf(
-                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                                                MaterialTheme.colorScheme.primary
-                                            )
-                                        )
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
                                     }
                                 )
                         )
@@ -1351,54 +1191,59 @@ private fun TimelineBarChart(
     metric: TimelineMetric,
     modifier: Modifier = Modifier
 ) {
+    if (entries.isEmpty()) return
     val maxMetricValue = entries.maxOfOrNull { metric.extractValue(it) }?.coerceAtLeast(0.0) ?: 0.0
+    // Simple heuristic: if fewer than 10 items, stick to screen width. If more, allow scrolling.
+    val isScrollable = entries.size > 14
+    val rowModifier = if (isScrollable) {
+        Modifier
+            .wrapContentWidth()
+            .horizontalScroll(rememberScrollState())
+    } else {
+        Modifier.fillMaxWidth()
+    }
+
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        entries.forEach { entry ->
-            val value = metric.extractValue(entry)
-            val progress = if (maxMetricValue > 0) (value / maxMetricValue).toFloat().coerceIn(0f, 1f) else 0f
-            val formattedValue = metric.formatValue(entry)
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+        Row(
+            modifier = rowModifier
+                .height(180.dp)
+                .padding(horizontal = 4.dp), // Breathing room
+            horizontalArrangement = if (isScrollable) Arrangement.spacedBy(16.dp) else Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom
+        ) {
+            entries.forEach { entry ->
+                val value = metric.extractValue(entry)
+                val progress = if (maxMetricValue > 0) (value / maxMetricValue).toFloat().coerceIn(0f, 1f) else 0f
+                val isZero = value == 0.0
+                val formattedLabel = entry.label.take(3) // Abbreviate labels (e.g. "Mon", "Jan")
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = if (isScrollable) Modifier.width(32.dp) else Modifier.weight(1f)
                 ) {
-                    Text(
-                        text = entry.label,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = formattedValue,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(14.dp)
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(MaterialTheme.colorScheme.surfaceContainerLowest)
-                ) {
+                   // Value Label (Optional, maybe only for max or on click? Leaving out for clean look like image)
+                    
+                    // Bar
                     Box(
                         modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(progress)
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(
-                                        MaterialTheme.colorScheme.primary,
-                                        MaterialTheme.colorScheme.tertiary
-                                    )
-                                )
-                            )
+                            .width(if (isScrollable) 24.dp else 16.dp) // Thicker bars if scrollable
+                            .weight(1f, fill = false) // Allow it to shrink
+                            .fillMaxHeight(if (isZero) 0.02f else progress) // Min height if zero? Or just 0.
+                            .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+                            .background(MaterialTheme.colorScheme.primary)
+                    )
+
+                    // X-Axis Label
+                    Text(
+                        text = formattedLabel,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Visible
                     )
                 }
             }

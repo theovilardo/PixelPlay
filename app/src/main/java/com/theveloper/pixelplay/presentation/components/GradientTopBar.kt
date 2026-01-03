@@ -92,6 +92,7 @@ fun HomeGradientTopBar(
     onNavigationIconClick: () -> Unit,
     onMoreOptionsClick: () -> Unit,
     onBetaClick: () -> Unit,
+    onMenuClick: () -> Unit = {},
 ) {
     // 1) Pinta la status bar con el color surface
     val surfaceColor = MaterialTheme.colorScheme.surface
@@ -114,30 +115,51 @@ fun HomeGradientTopBar(
             .background(brush = gradientBrush),
         title = { /* nada, usamos solo acciones */ },
         navigationIcon = {
-            FilledTonalButton(
-                modifier = Modifier.padding(start = 18.dp),
-                shape = CircleShape,
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    contentColor = MaterialTheme.colorScheme.onSurface
-                ),
-                onClick = onBetaClick
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(start = 12.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                // Hamburger menu button
+//                FilledIconButton(
+//                    colors = IconButtonDefaults.filledIconButtonColors(
+//                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+//                        contentColor = MaterialTheme.colorScheme.onSurface
+//                    ),
+//                    onClick = onMenuClick
+//                ) {
+//                    Icon(
+//                        painter = painterResource(R.drawable.rounded_menu_24),
+//                        contentDescription = "Menu"
+//                    )
+//                }
+                
+                // Beta button
+                FilledTonalButton(
+                    modifier = Modifier.padding(start = 4.dp),
+                    shape = CircleShape,
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    onClick = onBetaClick
                 ) {
-                    Text(
-                        text = "β",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Black
-                    )
-                    Text(
-                        text = "Beta",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "β",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Black
+                        )
+                        Text(
+                            text = "Beta",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
             }
         },

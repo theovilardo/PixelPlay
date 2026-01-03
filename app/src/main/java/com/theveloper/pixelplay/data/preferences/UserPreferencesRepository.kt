@@ -15,6 +15,7 @@ import androidx.media3.common.Player
 import com.theveloper.pixelplay.data.model.Playlist
 import com.theveloper.pixelplay.data.model.SortOption // Added import
 import com.theveloper.pixelplay.data.model.TransitionSettings
+import com.theveloper.pixelplay.data.equalizer.EqualizerPreset // Added import
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -110,6 +111,30 @@ constructor(
         val GROUP_BY_ALBUM_ARTIST = booleanPreferencesKey("group_by_album_artist")
         val ARTIST_SETTINGS_RESCAN_REQUIRED =
                 booleanPreferencesKey("artist_settings_rescan_required")
+
+        // Equalizer Settings
+        val EQUALIZER_ENABLED = booleanPreferencesKey("equalizer_enabled")
+        val EQUALIZER_PRESET = stringPreferencesKey("equalizer_preset")
+        val EQUALIZER_CUSTOM_BANDS = stringPreferencesKey("equalizer_custom_bands")
+        val BASS_BOOST_STRENGTH = intPreferencesKey("bass_boost_strength")
+        val VIRTUALIZER_STRENGTH = intPreferencesKey("virtualizer_strength")
+        val BASS_BOOST_ENABLED = booleanPreferencesKey("bass_boost_enabled")
+        val VIRTUALIZER_ENABLED = booleanPreferencesKey("virtualizer_enabled")
+        val LOUDNESS_ENHANCER_ENABLED = booleanPreferencesKey("loudness_enhancer_enabled")
+        val LOUDNESS_ENHANCER_STRENGTH = intPreferencesKey("loudness_enhancer_strength")
+        
+        // Dismissed Warning States
+        val BASS_BOOST_DISMISSED = booleanPreferencesKey("bass_boost_dismissed")
+        val VIRTUALIZER_DISMISSED = booleanPreferencesKey("virtualizer_dismissed")
+        val LOUDNESS_DISMISSED = booleanPreferencesKey("loudness_dismissed")
+        
+        // View Mode
+        // val IS_GRAPH_VIEW = booleanPreferencesKey("is_graph_view") // Deprecated
+        val VIEW_MODE = stringPreferencesKey("equalizer_view_mode")
+
+        // Custom Presets
+        val CUSTOM_PRESETS = stringPreferencesKey("custom_presets_json") // List<EqualizerPreset>
+        val PINNED_PRESETS = stringPreferencesKey("pinned_presets_json") // List<String> (names)
     }
 
     val appRebrandDialogShownFlow: Flow<Boolean> =
@@ -131,6 +156,93 @@ constructor(
     suspend fun setCrossfadeEnabled(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.IS_CROSSFADE_ENABLED] = enabled
+        }
+    }
+
+    // Effects Settings
+    val bassBoostEnabledFlow: Flow<Boolean> =
+        dataStore.data.map { preferences ->
+            preferences[PreferencesKeys.BASS_BOOST_ENABLED] ?: false
+        }
+
+    suspend fun setBassBoostEnabled(enabled: Boolean) {
+        dataStore.edit { preferences -> preferences[PreferencesKeys.BASS_BOOST_ENABLED] = enabled }
+    }
+
+    val virtualizerEnabledFlow: Flow<Boolean> =
+        dataStore.data.map { preferences ->
+            preferences[PreferencesKeys.VIRTUALIZER_ENABLED] ?: false
+        }
+
+    suspend fun setVirtualizerEnabled(enabled: Boolean) {
+        dataStore.edit { preferences -> preferences[PreferencesKeys.VIRTUALIZER_ENABLED] = enabled }
+    }
+
+    val loudnessEnhancerEnabledFlow: Flow<Boolean> =
+        dataStore.data.map { preferences ->
+            preferences[PreferencesKeys.LOUDNESS_ENHANCER_ENABLED] ?: false
+        }
+
+    val loudnessEnhancerStrengthFlow: Flow<Int> =
+        dataStore.data.map { preferences ->
+            preferences[PreferencesKeys.LOUDNESS_ENHANCER_STRENGTH] ?: 0
+        }
+
+    suspend fun setLoudnessEnhancerEnabled(enabled: Boolean) {
+        dataStore.edit { preferences -> preferences[PreferencesKeys.LOUDNESS_ENHANCER_ENABLED] = enabled }
+    }
+
+    suspend fun setLoudnessEnhancerStrength(strength: Int) {
+        dataStore.edit { preferences -> preferences[PreferencesKeys.LOUDNESS_ENHANCER_STRENGTH] = strength }
+    }
+
+    // Dismissed Warning Flows & Setters
+    val bassBoostDismissedFlow: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.BASS_BOOST_DISMISSED] ?: false
+    }
+
+    suspend fun setBassBoostDismissed(dismissed: Boolean) {
+        dataStore.edit { preferences -> preferences[PreferencesKeys.BASS_BOOST_DISMISSED] = dismissed }
+    }
+
+    val virtualizerDismissedFlow: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.VIRTUALIZER_DISMISSED] ?: false
+    }
+
+    suspend fun setVirtualizerDismissed(dismissed: Boolean) {
+        dataStore.edit { preferences -> preferences[PreferencesKeys.VIRTUALIZER_DISMISSED] = dismissed }
+    }
+
+    val loudnessDismissedFlow: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.LOUDNESS_DISMISSED] ?: false
+    }
+
+    suspend fun setLoudnessDismissed(dismissed: Boolean) {
+        dataStore.edit { preferences -> preferences[PreferencesKeys.LOUDNESS_DISMISSED] = dismissed }
+    }
+
+    enum class EqualizerViewMode {
+        SLIDERS, GRAPH, HYBRID
+    }
+
+    val equalizerViewModeFlow: Flow<EqualizerViewMode> = dataStore.data.map { preferences ->
+        val modeString = preferences[PreferencesKeys.VIEW_MODE]
+        if (modeString != null) {
+            try {
+                EqualizerViewMode.valueOf(modeString)
+            } catch (e: Exception) {
+                EqualizerViewMode.SLIDERS
+            }
+        } else {
+            // Migration: Check legacy boolean
+            val isGraph = preferences[booleanPreferencesKey("is_graph_view")] ?: false
+            if (isGraph) EqualizerViewMode.GRAPH else EqualizerViewMode.SLIDERS
+        }
+    }
+
+    suspend fun setEqualizerViewMode(mode: EqualizerViewMode) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.VIEW_MODE] = mode.name
         }
     }
 
@@ -956,6 +1068,139 @@ constructor(
     suspend fun setFoldersPlaylistView(isPlaylistView: Boolean) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.IS_FOLDERS_PLAYLIST_VIEW] = isPlaylistView
+        }
+    }
+
+    // ===== Equalizer Settings =====
+
+    val equalizerEnabledFlow: Flow<Boolean> =
+            dataStore.data.map { preferences ->
+                preferences[PreferencesKeys.EQUALIZER_ENABLED] ?: false
+            }
+
+    suspend fun setEqualizerEnabled(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.EQUALIZER_ENABLED] = enabled
+        }
+    }
+
+    val equalizerPresetFlow: Flow<String> =
+            dataStore.data.map { preferences ->
+                preferences[PreferencesKeys.EQUALIZER_PRESET] ?: "flat"
+            }
+
+    suspend fun setEqualizerPreset(preset: String) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.EQUALIZER_PRESET] = preset
+        }
+    }
+
+    val equalizerCustomBandsFlow: Flow<List<Int>> =
+            dataStore.data.map { preferences ->
+                val stored = preferences[PreferencesKeys.EQUALIZER_CUSTOM_BANDS]
+                if (stored != null) {
+                    try {
+                        json.decodeFromString<List<Int>>(stored)
+                    } catch (e: Exception) {
+                        listOf(0, 0, 0, 0, 0)
+                    }
+                } else {
+                    listOf(0, 0, 0, 0, 0)
+                }
+            }
+
+    suspend fun setEqualizerCustomBands(bands: List<Int>) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.EQUALIZER_CUSTOM_BANDS] = json.encodeToString(bands)
+        }
+    }
+
+    val bassBoostStrengthFlow: Flow<Int> =
+            dataStore.data.map { preferences ->
+                preferences[PreferencesKeys.BASS_BOOST_STRENGTH] ?: 0
+            }
+
+    suspend fun setBassBoostStrength(strength: Int) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.BASS_BOOST_STRENGTH] = strength.coerceIn(0, 1000)
+        }
+    }
+
+    val virtualizerStrengthFlow: Flow<Int> =
+            dataStore.data.map { preferences ->
+                preferences[PreferencesKeys.VIRTUALIZER_STRENGTH] ?: 0
+            }
+
+    suspend fun setVirtualizerStrength(strength: Int) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.VIRTUALIZER_STRENGTH] = strength.coerceIn(0, 1000)
+        }
+    }
+
+    // ===== End Equalizer Settings =====
+    // ===== Custom Presets Persistence =====
+
+    val customPresetsFlow: Flow<List<EqualizerPreset>> =
+        dataStore.data.map { preferences ->
+            val jsonString = preferences[PreferencesKeys.CUSTOM_PRESETS]
+            if (jsonString != null) {
+                try {
+                    json.decodeFromString<List<EqualizerPreset>>(jsonString)
+                } catch (e: Exception) {
+                    emptyList()
+                }
+            } else {
+                emptyList()
+            }
+        }
+        
+    suspend fun saveCustomPreset(preset: EqualizerPreset) {
+        val current = customPresetsFlow.first().toMutableList()
+        // Remove existing if overwriting (by name)
+        current.removeAll { it.name == preset.name }
+        current.add(preset)
+        
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.CUSTOM_PRESETS] = json.encodeToString(current)
+        }
+    }
+    
+    suspend fun deleteCustomPreset(presetName: String) {
+        val current = customPresetsFlow.first().toMutableList()
+        current.removeAll { it.name == presetName }
+        
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.CUSTOM_PRESETS] = json.encodeToString(current)
+        }
+        
+        // Also remove from pinned if present
+        val pinned = pinnedPresetsFlow.first().toMutableList()
+        if (pinned.remove(presetName)) {
+            setPinnedPresets(pinned)
+        }
+    }
+    
+    // ===== Pinned Presets Persistence =====
+    
+    val pinnedPresetsFlow: Flow<List<String>> =
+        dataStore.data.map { preferences ->
+            val jsonString = preferences[PreferencesKeys.PINNED_PRESETS]
+            if (jsonString != null) {
+                try {
+                    json.decodeFromString<List<String>>(jsonString)
+                } catch (e: Exception) {
+                    // Default pinned: All standard presets
+                    EqualizerPreset.ALL_PRESETS.map { it.name }
+                }
+            } else {
+                 // Default pinned: All standard presets
+                 EqualizerPreset.ALL_PRESETS.map { it.name }
+            }
+        }
+        
+    suspend fun setPinnedPresets(presetNames: List<String>) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.PINNED_PRESETS] = json.encodeToString(presetNames)
         }
     }
 }

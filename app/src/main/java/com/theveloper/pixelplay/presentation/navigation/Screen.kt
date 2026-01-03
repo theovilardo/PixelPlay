@@ -8,7 +8,10 @@ sealed class Screen(val route: String) {
     object Home : Screen("home")
     object Search : Screen("search")
     object Library : Screen("library")
-    object Settings : Screen("settings") // Nueva pantalla,
+    object Settings : Screen("settings")
+    object SettingsCategory : Screen("settings_category/{categoryId}") {
+        fun createRoute(categoryId: String) = "settings_category/$categoryId"
+    }
     object Experimental : Screen("experimental_settings")
     object NavBarCrRad : Screen("nav_bar_corner_radius")
     object PlaylistDetail : Screen("playlist_detail/{playlistId}") { // Nueva pantalla
@@ -39,5 +42,6 @@ sealed class Screen(val route: String) {
 
     object ArtistSettings : Screen("artist_settings")
     object DelimiterConfig : Screen("delimiter_config")
+    object Equalizer : Screen("equalizer")
 
 }

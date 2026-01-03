@@ -90,7 +90,7 @@ class GeminiModelService @Inject constructor() {
             }
 
             return if (models.isNotEmpty()) {
-                models.sortedBy { it.displayName }
+                models.sortedBy { it.displayName.lowercase() }
             } else {
                 getDefaultModels()
             }
