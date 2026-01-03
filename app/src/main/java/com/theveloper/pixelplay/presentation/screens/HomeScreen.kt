@@ -170,7 +170,7 @@ fun HomeScreen(
                         showBetaInfoBottomSheet = true
                     },
                     onMenuClick = {
-                        onOpenSidebar()
+                        // onOpenSidebar() // Disabled
                     }
                 )
             }

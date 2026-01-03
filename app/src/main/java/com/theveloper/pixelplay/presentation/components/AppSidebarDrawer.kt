@@ -45,6 +45,7 @@ fun AppSidebarDrawer(
 ) {
     ModalNavigationDrawer(
         drawerState = drawerState,
+        gesturesEnabled = false,
         drawerContent = {
             ModalDrawerSheet(
                 modifier = Modifier

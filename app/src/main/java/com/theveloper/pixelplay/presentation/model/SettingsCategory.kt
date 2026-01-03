@@ -3,7 +3,10 @@ package com.theveloper.pixelplay.presentation.model
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Style
+import androidx.compose.material.icons.rounded.DeveloperMode
 import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.SmartToy
@@ -21,7 +24,7 @@ enum class SettingsCategory(
         id = "library",
         title = "Music Management",
         subtitle = "Manage folders, refresh library, parsing options",
-        icon = Icons.Rounded.MusicNote
+        icon = Icons.Rounded.LibraryMusic
     ),
     APPEARANCE(
         id = "appearance",
@@ -45,7 +48,7 @@ enum class SettingsCategory(
         id = "developer",
         title = "Developer Options",
         subtitle = "Experimental features and debugging",
-        icon = Icons.Outlined.Style
+        icon = Icons.Rounded.DeveloperMode
     ),
     EQUALIZER(
         id = "equalizer",
@@ -57,7 +60,7 @@ enum class SettingsCategory(
         id = "about",
         title = "About",
         subtitle = "App info, version, and credits",
-        icon = Icons.Outlined.Info
+        icon = Icons.Rounded.Info
     );
 
     companion object {

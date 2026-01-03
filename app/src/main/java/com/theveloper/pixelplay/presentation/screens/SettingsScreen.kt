@@ -269,7 +269,6 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(12.dp))
                 
                 // Equalizer Category (Standalone)
-                // Equalizer Category (Standalone)
                 ExpressiveCategoryItem(
                     category = SettingsCategory.EQUALIZER,
                     customColors = getCategoryColors(SettingsCategory.EQUALIZER, isSystemInDarkTheme()),
@@ -279,7 +278,6 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
                 
-                // About Category (Standalone)
                 // About Category (Standalone)
                 ExpressiveCategoryItem(
                     category = SettingsCategory.ABOUT,
@@ -387,7 +385,7 @@ fun ExpressiveSettingsGroup(content: @Composable () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .background(Color.Transparent)
     ) {
         content()
     }
