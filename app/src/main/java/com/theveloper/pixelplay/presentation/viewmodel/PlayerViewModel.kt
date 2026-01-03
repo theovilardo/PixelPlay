@@ -4247,10 +4247,18 @@ class PlayerViewModel @Inject constructor(
                 if (controller.isPlaying) {
                     controller.pause()
                 } else {
+                    val currentQueue = _playerUiState.value.currentPlaybackQueue
+                    val currentSong = _stablePlayerState.value.currentSong
+
                     if (controller.currentMediaItem == null) {
-                        val currentQueue = _playerUiState.value.currentPlaybackQueue
-                        val currentSong = _stablePlayerState.value.currentSong
+                        val controllerItemCount = controller.mediaItemCount
                         when {
+                            controllerItemCount > 0 -> {
+                                updateCurrentPlaybackQueueFromPlayer(controller)
+                                controller.prepare()
+                                controller.play()
+                            }
+
                             currentQueue.isNotEmpty() && currentSong != null -> {
                                 viewModelScope.launch {
                                     transitionSchedulerJob?.cancel()
@@ -4261,12 +4269,42 @@ class PlayerViewModel @Inject constructor(
                                     )
                                 }
                             }
+
+                            currentQueue.isNotEmpty() -> {
+                                val startSong = currentQueue.first()
+                                viewModelScope.launch {
+                                    transitionSchedulerJob?.cancel()
+                                    internalPlaySongs(
+                                        currentQueue.toList(),
+                                        startSong,
+                                        _playerUiState.value.currentQueueSourceName
+                                    )
+                                }
+                            }
+
                             currentSong != null -> {
-                                loadAndPlaySong(currentSong)
+                                viewModelScope.launch {
+                                    transitionSchedulerJob?.cancel()
+                                    internalPlaySongs(
+                                        listOf(currentSong),
+                                        currentSong,
+                                        _playerUiState.value.currentQueueSourceName
+                                    )
+                                }
                             }
+
                             _playerUiState.value.allSongs.isNotEmpty() -> {
-                                loadAndPlaySong(_playerUiState.value.allSongs.first())
+                                val fallbackSong = _playerUiState.value.allSongs.first()
+                                viewModelScope.launch {
+                                    transitionSchedulerJob?.cancel()
+                                    internalPlaySongs(
+                                        listOf(fallbackSong),
+                                        fallbackSong,
+                                        _playerUiState.value.currentQueueSourceName
+                                    )
+                                }
                             }
+
                             else -> {
                                 controller.play()
                             }
