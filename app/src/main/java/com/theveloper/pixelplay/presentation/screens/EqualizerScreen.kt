@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.presentation.screens
 
+import android.annotation.SuppressLint
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -928,6 +929,7 @@ private fun VerticalBandSlider(
 // ... imports ...
 
 
+@SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
 private fun CustomVerticalSlider(
     value: Float,
@@ -1531,8 +1533,8 @@ private fun HybridBandSliders(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(140.dp) // Compact
-                .padding(horizontal = 16.dp) // Added Padding to container
+                .height(220.dp) // Enlarged from 140.dp
+                .padding(horizontal = 4.dp) // Reduced outer padding
                 .clip(RoundedCornerShape(24.dp))
                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 .padding(16.dp)
@@ -1564,7 +1566,7 @@ private fun HybridBandSliders(
              }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         // 2. Tabs & Sliders
         // Calculate pages (max 3 per page)
@@ -1642,7 +1644,7 @@ private fun HybridBandSliders(
                  val indices = start until end
                  
                  Column(
-                     verticalArrangement = Arrangement.spacedBy(24.dp), // More spacing between sliders
+                     verticalArrangement = Arrangement.spacedBy(16.dp), // Reduced from 24.dp
                      modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)

@@ -11,7 +11,7 @@ import androidx.compose.animation.core.rememberTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,7 +29,6 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -56,21 +55,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.lerp
-import androidx.compose.ui.util.lerp
 import androidx.compose.ui.zIndex
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.media3.common.util.UnstableApi
-import androidx.navigation.NavController
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.components.ExpressiveTopBarContent
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
@@ -81,6 +75,9 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.SettingsViewModel
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.media3.common.util.UnstableApi
+import androidx.navigation.NavController
 
 @Composable
 fun SettingsTopBar(
@@ -245,9 +242,14 @@ fun SettingsScreen(
             item {
                 ExpressiveSettingsGroup {
                     val mainCategories = SettingsCategory.entries.filter { it != SettingsCategory.ABOUT && it != SettingsCategory.EQUALIZER }
+                    val isDark = isSystemInDarkTheme()
+                    
                     mainCategories.forEachIndexed { index, category ->
+                        val colors = getCategoryColors(category, isDark)
+                        
                         ExpressiveCategoryItem(
                             category = category,
+                            customColors = colors,
                             onClick = {
                                 navController.navigate(Screen.SettingsCategory.createRoute(category.id))
                             },
@@ -267,8 +269,10 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(12.dp))
                 
                 // Equalizer Category (Standalone)
+                // Equalizer Category (Standalone)
                 ExpressiveCategoryItem(
                     category = SettingsCategory.EQUALIZER,
+                    customColors = getCategoryColors(SettingsCategory.EQUALIZER, isSystemInDarkTheme()),
                     onClick = { navController.navigate(Screen.Equalizer.route) }, // Direct navigation
                     shape = RoundedCornerShape(24.dp)
                 )
@@ -276,8 +280,10 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(12.dp))
                 
                 // About Category (Standalone)
+                // About Category (Standalone)
                 ExpressiveCategoryItem(
                     category = SettingsCategory.ABOUT,
+                    customColors = getCategoryColors(SettingsCategory.ABOUT, isSystemInDarkTheme()),
                     onClick = { navController.navigate("about") }, // Direct navigation
                     shape = RoundedCornerShape(24.dp)
                 )
@@ -298,7 +304,8 @@ fun SettingsScreen(
 fun ExpressiveCategoryItem(
     category: SettingsCategory,
     onClick: () -> Unit,
-    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(24.dp)
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(24.dp),
+    customColors: Pair<Color, Color>? = null
 ) {
     Surface(
         onClick = onClick,
@@ -306,7 +313,6 @@ fun ExpressiveCategoryItem(
         color = MaterialTheme.colorScheme.surfaceContainer,
         modifier = Modifier.fillMaxWidth().height(88.dp) 
     ) {
-// ... content logic unchanged ...
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(16.dp).fillMaxSize()
@@ -317,20 +323,20 @@ fun ExpressiveCategoryItem(
                 modifier = Modifier
                     .size(56.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .background(customColors?.first ?: MaterialTheme.colorScheme.primaryContainer)
             ) {
                 if (category.icon != null) {
                     Icon(
                         imageVector = category.icon,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        tint = customColors?.second ?: MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.size(24.dp)
                     )
                 } else if (category.iconRes != null) {
                     Icon(
                         painter = painterResource(id = category.iconRes),
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        tint = customColors?.second ?: MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -347,6 +353,7 @@ fun ExpressiveCategoryItem(
                 )
                 Text(
                     text = category.subtitle,
+                    overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1
@@ -370,6 +377,42 @@ fun ExpressiveCategoryItem(
                     modifier = Modifier.size(20.dp)
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun ExpressiveSettingsGroup(content: @Composable () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+    ) {
+        content()
+    }
+}
+
+private fun getCategoryColors(category: SettingsCategory, isDark: Boolean): Pair<Color, Color> {
+    return if (isDark) {
+        when (category) {
+            SettingsCategory.LIBRARY -> Color(0xFF004A77) to Color(0xFFC2E7FF) 
+            SettingsCategory.APPEARANCE -> Color(0xFF7D5260) to Color(0xFFFFD8E4) 
+            SettingsCategory.PLAYBACK -> Color(0xFF633B48) to Color(0xFFFFD8EC) 
+            SettingsCategory.AI_INTEGRATION -> Color(0xFF004F58) to Color(0xFF88FAFF) 
+            SettingsCategory.DEVELOPER -> Color(0xFF324F34) to Color(0xFFCBEFD0) 
+            SettingsCategory.EQUALIZER -> Color(0xFF6E4E13) to Color(0xFFFFDEAC) 
+            SettingsCategory.ABOUT -> Color(0xFF3F474D) to Color(0xFFDEE3EB) 
+        }
+    } else {
+        when (category) {
+            SettingsCategory.LIBRARY -> Color(0xFFD7E3FF) to Color(0xFF005AC1)
+            SettingsCategory.APPEARANCE -> Color(0xFFFFD8E4) to Color(0xFF631835)
+            SettingsCategory.PLAYBACK -> Color(0xFFFFD8EC) to Color(0xFF631B4B)
+            SettingsCategory.AI_INTEGRATION -> Color(0xFFCCE8EA) to Color(0xFF004F58)
+            SettingsCategory.DEVELOPER -> Color(0xFFCBEFD0) to Color(0xFF042106)
+            SettingsCategory.EQUALIZER -> Color(0xFFFFDEAC) to Color(0xFF281900)
+            SettingsCategory.ABOUT -> Color(0xFFEFF1F7) to Color(0xFF44474F)
         }
     }
 }
