@@ -833,6 +833,13 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun playRandomSong() {
+        val allSongs = _playerUiState.value.allSongs
+        if (allSongs.isNotEmpty()) {
+            playSongsShuffled(allSongs, "All Songs (Shuffled)")
+        }
+    }
+
     fun shuffleFavoriteSongs() {
         Log.d("ShuffleDebug", "shuffleFavoriteSongs called.")
         // Don't use ExoPlayer's shuffle mode - we manually shuffle instead

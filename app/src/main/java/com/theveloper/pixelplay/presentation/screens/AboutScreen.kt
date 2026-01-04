@@ -146,16 +146,18 @@ private fun AboutTopBar(
 @Composable
 fun AboutScreen(
     navController: NavController,
+    viewModel: com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel,
     onNavigationIconClick: () -> Unit
 ) {
     val context = LocalContext.current
+    // ... existing version name logic ...
     val versionName = try {
         val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
         packageInfo.versionName
     } catch (e: Exception) {
         "N/A"
     }
-
+    // ... existing code ...
     val authors = listOf(
         Contributor(name = "Theo Vilardo", githubUrl = "https://github.com/theovilardo", telegramUrl = "https://t.me/thevelopersupport", avatarUrl = "https://avatars.githubusercontent.com/u/26845343?v=4"),
     )
@@ -270,6 +272,8 @@ fun AboutScreen(
     }
 
     var showBrickBreaker by remember { mutableStateOf(false) }
+    val stablePlayerState by viewModel.stablePlayerState.collectAsState()
+    val currentSong = stablePlayerState.currentSong
 
     Box(
         modifier = Modifier
@@ -437,6 +441,8 @@ fun AboutScreen(
         if (showBrickBreaker) {
             BackHandler { showBrickBreaker = false }
             BrickBreakerOverlay(
+                isMiniPlayerVisible = currentSong != null,
+                onPlayRandom = { viewModel.playRandomSong() },
                 onClose = { showBrickBreaker = false }
             )
         }

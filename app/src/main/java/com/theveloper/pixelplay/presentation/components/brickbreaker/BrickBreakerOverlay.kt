@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,12 +20,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -65,6 +68,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import kotlinx.coroutines.isActive
 import kotlin.math.abs
 import kotlin.math.max
@@ -87,19 +91,30 @@ private data class BrickState(
     val color: Color
 )
 
+private data class Particle(
+    val position: Offset,
+    val velocity: Offset,
+    val color: Color,
+    val radius: Float,
+    val alpha: Float = 1f,
+    val life: Float = 1.0f // 1.0 to 0.0
+)
+
 // --- Composable ---
 
 @Composable
 fun BrickBreakerOverlay(
     modifier: Modifier = Modifier,
+    isMiniPlayerVisible: Boolean = false,
+    onPlayRandom: () -> Unit,
     onClose: () -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val density = LocalDensity.current
+    val view = androidx.compose.ui.platform.LocalView.current
 
-    // Game Physics Constants (Scaled by Density usually, but here dynamic)
-    // Aumentamos la velocidad base significativamente (antes 380f)
-    val baseBallVelocity = 500f
+    // Game Physics Constants
+    val baseBallVelocity = 800f
 
     // Game State
     var areaSize by remember { mutableStateOf(IntSize.Zero) }
@@ -108,7 +123,7 @@ fun BrickBreakerOverlay(
     // Dynamic Difficulty Props
     var level by remember { mutableIntStateOf(1) }
     var currentSpeedMult by remember { mutableFloatStateOf(1f) }
-    var paddleWidthPx by remember { mutableFloatStateOf(0f) } // Will be set based on screen
+    var paddleWidthPx by remember { mutableFloatStateOf(0f) }
 
     val paddleHeightPx = with(density) { 16.dp.toPx() }
     val paddleBottomInset = with(density) { 32.dp.toPx() }
@@ -123,11 +138,12 @@ fun BrickBreakerOverlay(
     var isGameOver by remember { mutableStateOf(false) }
 
     val bricks = remember { mutableStateListOf<BrickState>() }
+    val particles = remember { mutableStateListOf<Particle>() }
 
     // Initialization of dimensions
     LaunchedEffect(areaSize) {
         if (areaSize != IntSize.Zero && paddleWidthPx == 0f) {
-            paddleWidthPx = areaSize.width * 0.25f // Paddle is 25% of screen width initially
+            paddleWidthPx = areaSize.width * 0.25f
         }
     }
 
@@ -140,40 +156,59 @@ fun BrickBreakerOverlay(
         if (areaSize == IntSize.Zero) return
         val paddleTop = areaSize.height - paddleBottomInset - paddleHeightPx
         ballPosition = Offset(paddleX + paddleWidthPx / 2f, paddleTop - ballRadius - 4f)
-        // Reset vertical direction but keep horizontal momentum feels weird, so strict reset:
         val speed = baseBallVelocity * currentSpeedMult
-        // Launch at a slight random angle to prevent boring straight vertical loops
         val randomX = Random.nextDouble(-0.5, 0.5).toFloat() * speed
         ballVelocity = Offset(randomX, -speed)
+    }
+
+    fun spawnParticles(rect: Rect, color: Color, count: Int = 8) {
+        val centerX = rect.center.x
+        val centerY = rect.center.y
+        for (i in 0 until count) {
+            val angle = Random.nextFloat() * 360f
+            val speed = Random.nextFloat() * 300f + 100f
+            val rad = Math.toRadians(angle.toDouble())
+            val vx = (Math.cos(rad) * speed).toFloat()
+            val vy = (Math.sin(rad) * speed).toFloat()
+            
+            particles.add(
+                Particle(
+                    position = Offset(
+                        centerX + Random.nextFloat() * rect.width * 0.5f - rect.width * 0.25f,
+                        centerY + Random.nextFloat() * rect.height * 0.5f - rect.height * 0.25f
+                    ),
+                    velocity = Offset(vx, vy),
+                    color = color,
+                    radius = Random.nextFloat() * 8f + 4f
+                )
+            )
+        }
     }
 
     fun generateLevel(lvl: Int) {
         if (areaSize == IntSize.Zero) return
         bricks.clear()
+        particles.clear()
 
         // Difficulty scaling
-        // Cada nivel aumenta la velocidad base un 10%
         currentSpeedMult = 1f + (lvl - 1) * 0.1f
-        val widthFactor = (0.25f - (lvl * 0.02f)).coerceAtLeast(0.10f) // Shrink paddle
+        val widthFactor = (0.25f - (lvl * 0.02f)).coerceAtLeast(0.10f)
         paddleWidthPx = areaSize.width * widthFactor
 
         val padding = 8.dp.value * density.density
         val topOffset = 20.dp.value * density.density
-        val rows = min(5 + lvl, 10) // More rows on higher levels
-        val cols = 8 // Keep even for symmetry
+        val rows = min(5 + lvl, 10)
+        val cols = 8
         val brickHeight = 24.dp.value * density.density
         val totalPaddingX = padding * (cols + 1)
         val brickWidth = max((areaSize.width - totalPaddingX) / cols, 10f)
 
         // Generate grid
         for (row in 0 until rows) {
-            // Symmetry logic: Only decide for half the columns, then mirror
             for (col in 0 until cols / 2) {
-
-                // Randomness factors
-                val shouldSkip = Random.nextFloat() < (0.1f * (lvl * 0.5f)).coerceAtMost(0.3f) // Holes in grid
+                val shouldSkip = Random.nextFloat() < (0.1f * (lvl * 0.5f)).coerceAtMost(0.3f)
                 val isHard = Random.nextFloat() < (0.1f * lvl).coerceAtMost(0.4f)
-                val isSolid = lvl > 2 && Random.nextFloat() < 0.05f && row > 1 // Rare solid blocks, not at bottom
+                val isSolid = lvl > 2 && Random.nextFloat() < 0.05f && row > 1
 
                 if (!shouldSkip) {
                     val type = when {
@@ -184,18 +219,14 @@ fun BrickBreakerOverlay(
 
                     val hits = if (type == BrickType.Hard) 2 else 1
 
-                    // Colors
+                    // Distinct Material 3 Colors
                     val baseColor = when(type) {
-                        BrickType.Solid -> Color(0xFF555555)
-                        BrickType.Hard -> colorScheme.error
-                        else -> {
-                            // Gradient from top to bottom based on Tertiary
-                            val hueShift = row * 0.1f
-                            colorScheme.tertiary.copy(alpha = 1f - hueShift.coerceAtMost(0.5f))
-                        }
+                        BrickType.Solid -> colorScheme.outlineVariant
+                        BrickType.Hard -> colorScheme.secondary
+                        else -> colorScheme.primaryContainer
                     }
 
-                    // Create Left Side Brick
+                    // Left Side Brick
                     val leftX = padding + col * (brickWidth + padding)
                     val topY = topOffset + row * (brickHeight + padding)
 
@@ -207,7 +238,7 @@ fun BrickBreakerOverlay(
                         color = baseColor
                     ))
 
-                    // Create Right Side Mirror Brick
+                    // Right Side Mirror Brick
                     val mirrorCol = cols - 1 - col
                     val mirrorLeftX = padding + mirrorCol * (brickWidth + padding)
 
@@ -227,6 +258,7 @@ fun BrickBreakerOverlay(
         isGameOver = false
         hasWon = false
         ballLaunched = false
+        particles.clear()
 
         if (fullReset) {
             score = 0
@@ -256,15 +288,32 @@ fun BrickBreakerOverlay(
 
     // Game Loop
     LaunchedEffect(ballLaunched, lives, hasWon, isGameOver, areaSize) {
-        if (areaSize == IntSize.Zero || !ballLaunched || isGameOver || hasWon) return@LaunchedEffect
-
+        if (areaSize == IntSize.Zero || isGameOver || hasWon) return@LaunchedEffect
+        
+        // Loop runs even if ball not launched to update particles
         var lastFrameNanos = withFrameNanos { it }
 
         while (isActive) {
             val frameNanos = withFrameNanos { it }
-            // Cap delta time to prevent tunneling on lag spikes
             val deltaTime = ((frameNanos - lastFrameNanos) / 1_000_000_000f).coerceAtMost(0.04f)
             lastFrameNanos = frameNanos
+
+            // --- Update Particles ---
+            val particleIterator = particles.listIterator()
+            while (particleIterator.hasNext()) {
+                val p = particleIterator.next()
+                if (p.life <= 0) {
+                    particleIterator.remove()
+                } else {
+                    val newLife = p.life - deltaTime * 1.5f // Fade out speed
+                    val grav = 800f // Gravity
+                    val newVy = p.velocity.y + grav * deltaTime
+                    val newPos = p.position + Offset(p.velocity.x * deltaTime, newVy * deltaTime)
+                    particleIterator.set(p.copy(position = newPos, velocity = Offset(p.velocity.x, newVy), life = newLife))
+                }
+            }
+
+            if (!ballLaunched) continue
 
             var nextPos = ballPosition + ballVelocity * deltaTime
             var nextVelocity = ballVelocity
@@ -291,30 +340,21 @@ fun BrickBreakerOverlay(
             val paddleRect = Rect(paddleX, paddleTop, paddleX + paddleWidthPx, paddleTop + paddleHeightPx)
 
             if (nextVelocity.y > 0 && circleIntersectsRect(nextPos, ballRadius, paddleRect)) {
-                // Calculate impact point (-1 left, 0 center, 1 right)
                 val hitPoint = ((nextPos.x - paddleRect.center.x) / (paddleWidthPx / 2f)).coerceIn(-1f, 1f)
-
-                // Add English/Spin to the ball based on where it hit
                 val currentSpeed = nextVelocity.getDistance()
-                // Slightly increase speed on paddle hit to keep game moving (ahora 3% en vez de 2%)
                 val newSpeed = (currentSpeed * 1.03f).coerceAtMost(baseBallVelocity * 3f)
-
-                // Deflect angle (Max 60 degrees)
                 val deflectionFactor = 0.6f
                 val newVx = newSpeed * hitPoint * deflectionFactor
-                // Ensure Vy is large enough to move up
                 val vyComponent = -kotlin.math.sqrt(max(0f, (newSpeed * newSpeed) - (newVx * newVx)))
 
                 nextVelocity = Offset(newVx, vyComponent)
                 nextPos = nextPos.copy(y = paddleRect.top - ballRadius - 1f)
+                
+                // Haptic on paddle hit
+                view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
             }
 
             // --- Brick Collisions ---
-            // Simple iteration - checks all bricks. Optimization: Spatial partition if > 100 bricks
-            var hitOccurred = false
-
-            // We use an iterator to safely modify hits inside loop if needed,
-            // though here we just modify state
             val bricksIterator = bricks.listIterator()
 
             while (bricksIterator.hasNext()) {
@@ -324,9 +364,7 @@ fun BrickBreakerOverlay(
                 if (brick.hitsRemaining <= 0 && brick.type != BrickType.Solid) continue
 
                 if (circleIntersectsRect(nextPos, ballRadius, brick.rect)) {
-                    hitOccurred = true
-
-                    // Determine bounce direction
+                    // Collision Logic
                     val overlapLeft = nextPos.x - brick.rect.left
                     val overlapRight = brick.rect.right - nextPos.x
                     val overlapTop = nextPos.y - brick.rect.top
@@ -341,28 +379,37 @@ fun BrickBreakerOverlay(
                         nextVelocity = nextVelocity.copy(y = -nextVelocity.y)
                     }
 
-                    // Logic based on type
+                    // Haptic on impact
+                   view.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+
                     if (brick.type != BrickType.Solid) {
                         val newHits = brick.hitsRemaining - 1
-                        bricks[index] = brick.copy(hitsRemaining = newHits)
+                        
+                        // Spawn particles
+                        spawnParticles(brick.rect, brick.color)
 
-                        score += if (brick.type == BrickType.Hard) 100 else 50
-
-                        // Acelerar un poco la bola cada vez que se rompe algo para evitar que sea monótono
+                        if (newHits > 0) {
+                            // Update brick color for visual damage (e.g., secondary -> tertiary)
+                             val newColor = if (newHits == 1) colorScheme.tertiary else brick.color
+                            bricks[index] = brick.copy(hitsRemaining = newHits, color = newColor)
+                        } else {
+                            bricks[index] = brick.copy(hitsRemaining = newHits) // Will be skipped next frame
+                            score += if (brick.type == BrickType.Hard) 100 else 50
+                            
+                             // Stronger haptic on break
+                            view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                        }
+                        
                         nextVelocity = nextVelocity * 1.015f
 
-                        // Check Win Condition
                         if (bricks.none { it.type != BrickType.Solid && it.hitsRemaining > 0 }) {
                             hasWon = true
                             ballLaunched = false
                         }
                     } else {
-                        // Solid brick hit sound?
-                        // Add slight shake?
+                        // Solid hit particles (grey)
+                        spawnParticles(brick.rect, Color.Gray, 3)
                     }
-
-                    // Only process one brick collision per frame to prevent weird sticking
-                    // Or process closest. Here 'break' simplifies it.
                     break
                 }
             }
@@ -388,10 +435,10 @@ fun BrickBreakerOverlay(
         color = colorScheme.surface
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
+            modifier = Modifier.fillMaxSize()
         ) {
-            // 1. Header & Status Bar Padding
+            // ... (Header and Stats logic remains similar) ...
+            // 1. Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -401,7 +448,7 @@ fun BrickBreakerOverlay(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         Icons.Rounded.Star,
                         contentDescription = null,
@@ -439,7 +486,7 @@ fun BrickBreakerOverlay(
                 ),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Row(
+                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 12.dp),
@@ -447,7 +494,6 @@ fun BrickBreakerOverlay(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     GameStat("SCORE", score.toString())
-                    // Level Indicator
                     Surface(
                         color = colorScheme.primary,
                         shape = CircleShape,
@@ -469,14 +515,9 @@ fun BrickBreakerOverlay(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f) // Takes remaining space
+                    .weight(1f)
                     .padding(16.dp)
-                    .clip(RoundedCornerShape(
-                        topStart = 24.dp,
-                        topEnd = 24.dp,
-                        bottomStart = 24.dp,
-                        bottomEnd = 24.dp
-                    ))
+                    .clip(RoundedCornerShape(24.dp)) // Uniform radius
                     .background(colorScheme.surfaceContainerLow)
                     .onSizeChanged { areaSize = it }
             ) {
@@ -522,21 +563,20 @@ fun BrickBreakerOverlay(
                             drawBrick(brick)
                         }
                     }
+                    
+                    // Draw Particles
+                    particles.forEach { p ->
+                        drawCircle(
+                            color = p.color.copy(alpha = p.alpha * p.life),
+                            radius = p.radius * p.life,
+                            center = p.position
+                        )
+                    }
 
-                    // Draw Paddle (Capsule shape for modern look)
+                    // Draw Paddle (Flat, Pill Shape)
                     drawRoundRect(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(colorScheme.primary, colorScheme.primaryContainer)
-                        ),
+                        color = colorScheme.primary,
                         topLeft = paddleRect.topLeft,
-                        size = paddleRect.size,
-                        cornerRadius = CornerRadius(paddleRect.height / 2, paddleRect.height / 2)
-                    )
-
-                    // Paddle Glow (Subtle)
-                    drawRoundRect(
-                        color = colorScheme.primary.copy(alpha = 0.3f),
-                        topLeft = paddleRect.topLeft.copy(y = paddleRect.top + 4),
                         size = paddleRect.size,
                         cornerRadius = CornerRadius(paddleRect.height / 2, paddleRect.height / 2)
                     )
@@ -547,19 +587,10 @@ fun BrickBreakerOverlay(
                         radius = ballRadius,
                         center = ballPosition
                     )
-
-                    // Simple Trail/Shadow for speed indication
-                    if (ballLaunched) {
-                        drawCircle(
-                            color = colorScheme.onSurface.copy(alpha = 0.2f),
-                            radius = ballRadius * 0.8f,
-                            center = ballPosition - (ballVelocity * 0.03f)
-                        )
-                    }
                 }
 
-                // Game Over / Win Overlays
-                if (isGameOver || hasWon) {
+                // ... (Overlays remain same) ...
+                 if (isGameOver || hasWon) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -612,7 +643,6 @@ fun BrickBreakerOverlay(
                         }
                     }
                 } else if (!ballLaunched) {
-                    // Tap to start hint
                     Text(
                         text = "TAP TO LAUNCH",
                         modifier = Modifier.align(Alignment.Center).padding(bottom = 100.dp),
@@ -621,6 +651,41 @@ fun BrickBreakerOverlay(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 2.sp
                     )
+                }
+            }
+            
+            // Dynamic Bottom Section
+             if (isMiniPlayerVisible) {
+                Spacer(Modifier.height(MiniPlayerHeight + 16.dp))
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 16.dp)
+                        .height(MiniPlayerHeight)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(colorScheme.primaryContainer)
+                        .clickable { onPlayRandom() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Shuffle,
+                            contentDescription = null,
+                            tint = colorScheme.onPrimaryContainer
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Play Random Music",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = colorScheme.onPrimaryContainer,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
@@ -632,7 +697,7 @@ fun BrickBreakerOverlay(
 @Composable
 private fun GameStat(label: String, value: String, isLives: Boolean = false) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
+         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
@@ -648,7 +713,7 @@ private fun GameStat(label: String, value: String, isLives: Boolean = false) {
                 )
                 Spacer(modifier = Modifier.size(4.dp))
             }
-            Text(
+             Text(
                 text = value,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
@@ -659,41 +724,22 @@ private fun GameStat(label: String, value: String, isLives: Boolean = false) {
 }
 
 private fun DrawScope.drawBrick(brick: BrickState) {
-    val cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+    val cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
 
-    // Fill
-    val alpha = if (brick.hitsRemaining < brick.maxHits && brick.type == BrickType.Hard) 0.5f else 1f
+    // Solid Flat Color
+    drawRoundRect(
+        color = brick.color,
+        topLeft = brick.rect.topLeft,
+        size = brick.rect.size,
+        cornerRadius = cornerRadius
+    )
 
     if (brick.type == BrickType.Solid) {
-        drawRoundRect(
-            color = brick.color,
-            topLeft = brick.rect.topLeft,
-            size = brick.rect.size,
-            cornerRadius = cornerRadius
-        )
-        // Add "bolt" or structure detail for solid
-        drawCircle(
+        // Simple subtle logic for solid bricks to distinguish them
+         drawCircle(
             color = Color.Black.copy(alpha = 0.2f),
-            radius = 3.dp.toPx(),
+            radius = 4.dp.toPx(),
             center = brick.rect.center
-        )
-    } else {
-        drawRoundRect(
-            color = brick.color.copy(alpha = alpha),
-            topLeft = brick.rect.topLeft,
-            size = brick.rect.size,
-            cornerRadius = cornerRadius
-        )
-
-        // Bevel/Highlight effect for 3D feel
-        drawPath(
-            path = Path().apply {
-                moveTo(brick.rect.left, brick.rect.bottom)
-                lineTo(brick.rect.left, brick.rect.top)
-                lineTo(brick.rect.right, brick.rect.top)
-            },
-            color = Color.White.copy(alpha = 0.2f),
-            style = Stroke(width = 2.dp.toPx())
         )
     }
 }

@@ -80,6 +80,7 @@ import com.theveloper.pixelplay.data.preferences.ThemePreference
 import com.theveloper.pixelplay.data.worker.SyncProgress
 import com.theveloper.pixelplay.presentation.components.ExpressiveTopBarContent
 import com.theveloper.pixelplay.presentation.components.FileExplorerDialog
+import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.model.SettingsCategory
 import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.viewmodel.LyricsRefreshProgress
@@ -250,7 +251,9 @@ fun SettingsCategoryScreen(
                                     showRebuildDatabaseWarning = true
                                 }
                             )
+
                             Spacer(Modifier.height(4.dp))
+
                             SettingsItem(
                                 title = "Reset Imported Lyrics",
                                 subtitle = "Remove all imported lyrics from the database.",

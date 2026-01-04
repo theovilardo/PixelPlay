@@ -287,6 +287,7 @@ fun AppNavigation(
             ) {
                 AboutScreen(
                     navController = navController,
+                    viewModel = playerViewModel,
                     onNavigationIconClick = { navController.popBackStack() }
                 )
             }
