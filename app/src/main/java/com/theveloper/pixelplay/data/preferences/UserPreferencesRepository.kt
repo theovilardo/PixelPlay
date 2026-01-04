@@ -135,6 +135,9 @@ constructor(
         // Custom Presets
         val CUSTOM_PRESETS = stringPreferencesKey("custom_presets_json") // List<EqualizerPreset>
         val PINNED_PRESETS = stringPreferencesKey("pinned_presets_json") // List<String> (names)
+        
+        // Library Sync
+        val LAST_SYNC_TIMESTAMP = longPreferencesKey("last_sync_timestamp")
     }
 
     val appRebrandDialogShownFlow: Flow<Boolean> =
@@ -320,6 +323,25 @@ constructor(
             preferences[PreferencesKeys.ARTIST_SETTINGS_RESCAN_REQUIRED] = false
         }
     }
+
+    // ===== Library Sync Settings =====
+    
+    val lastSyncTimestampFlow: Flow<Long> =
+            dataStore.data.map { preferences ->
+                preferences[PreferencesKeys.LAST_SYNC_TIMESTAMP] ?: 0L
+            }
+
+    suspend fun getLastSyncTimestamp(): Long {
+        return lastSyncTimestampFlow.first()
+    }
+
+    suspend fun setLastSyncTimestamp(timestamp: Long) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.LAST_SYNC_TIMESTAMP] = timestamp
+        }
+    }
+
+    // ===== End Library Sync Settings =====
 
     // ===== End Multi-Artist Settings =====
 

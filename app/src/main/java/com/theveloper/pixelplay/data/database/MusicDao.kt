@@ -47,6 +47,59 @@ interface MusicDao {
     @Query("DELETE FROM artists")
     suspend fun clearAllArtists()
 
+    // --- Incremental Sync Operations ---
+    @Query("SELECT id FROM songs")
+    suspend fun getAllSongIds(): List<Long>
+
+    @Query("DELETE FROM songs WHERE id IN (:songIds)")
+    suspend fun deleteSongsByIds(songIds: List<Long>)
+
+    @Query("DELETE FROM song_artist_cross_ref WHERE song_id IN (:songIds)")
+    suspend fun deleteCrossRefsBySongIds(songIds: List<Long>)
+
+    /**
+     * Incrementally sync music data: upsert new/modified songs and remove deleted ones.
+     * More efficient than clear-and-replace for large libraries with few changes.
+     */
+    @Transaction
+    suspend fun incrementalSyncMusicData(
+        songs: List<SongEntity>,
+        albums: List<AlbumEntity>,
+        artists: List<ArtistEntity>,
+        crossRefs: List<SongArtistCrossRef>,
+        deletedSongIds: List<Long>
+    ) {
+        // Delete removed songs and their cross-refs
+        if (deletedSongIds.isNotEmpty()) {
+            deletedSongIds.chunked(CROSS_REF_BATCH_SIZE).forEach { chunk ->
+                deleteCrossRefsBySongIds(chunk)
+                deleteSongsByIds(chunk)
+            }
+        }
+        
+        // Upsert artists, albums, and songs (REPLACE strategy handles updates)
+        insertArtists(artists)
+        insertAlbums(albums)
+        
+        // Insert songs in chunks to allow concurrent reads
+        songs.chunked(SONG_BATCH_SIZE).forEach { chunk ->
+            insertSongs(chunk)
+        }
+        
+        // Delete old cross-refs for updated songs and insert new ones
+        val updatedSongIds = songs.map { it.id }
+        updatedSongIds.chunked(CROSS_REF_BATCH_SIZE).forEach { chunk ->
+            deleteCrossRefsBySongIds(chunk)
+        }
+        crossRefs.chunked(CROSS_REF_BATCH_SIZE).forEach { chunk ->
+            insertSongArtistCrossRefs(chunk)
+        }
+        
+        // Clean up orphaned albums and artists
+        deleteOrphanedAlbums()
+        deleteOrphanedArtists()
+    }
+
     // --- Song Queries ---
     // Updated getSongs to potentially filter by parent_directory_path
     @Query("""
@@ -474,5 +527,11 @@ interface MusicDao {
         private const val SQLITE_MAX_VARIABLE_NUMBER = 999 // Increase if you know your SQLite version supports more
         private const val CROSS_REF_FIELDS_PER_OBJECT = 3
         val CROSS_REF_BATCH_SIZE: Int = SQLITE_MAX_VARIABLE_NUMBER / CROSS_REF_FIELDS_PER_OBJECT
+        
+        /**
+         * Batch size for song inserts during incremental sync.
+         * Allows database reads to interleave with writes for better UX.
+         */
+        const val SONG_BATCH_SIZE = 500
     }
 }

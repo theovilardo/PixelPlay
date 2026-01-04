@@ -8,6 +8,8 @@ import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.room.Room
 import coil.ImageLoader
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
 import com.theveloper.pixelplay.PixelPlayApplication
 import com.theveloper.pixelplay.data.database.AlbumArtThemeDao
 import com.theveloper.pixelplay.data.database.MusicDao
@@ -123,6 +125,18 @@ object AppModule {
         return ImageLoader.Builder(context)
             .dispatcher(Dispatchers.Default) // Use CPU-bound dispatcher for decoding
             .allowHardware(true) // Re-enable hardware bitmaps for better performance
+            .memoryCache {
+                MemoryCache.Builder(context)
+                    .maxSizePercent(0.20) // Use 20% of app memory for image cache
+                    .build()
+            }
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(context.cacheDir.resolve("image_cache"))
+                    .maxSizeBytes(100L * 1024 * 1024) // 100 MB disk cache
+                    .build()
+            }
+            .respectCacheHeaders(false) // Ignore server cache headers, always cache
             .build()
     }
 

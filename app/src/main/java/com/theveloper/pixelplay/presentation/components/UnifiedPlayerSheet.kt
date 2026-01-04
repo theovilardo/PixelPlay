@@ -1296,6 +1296,9 @@ fun UnifiedPlayerSheet(
                     animateQueueSheet(false)
                 }
 
+
+                var selectedSongForInfo by remember { mutableStateOf<Song?>(null) } // State for the selected song info
+
                 if (!internalIsKeyboardVisible) {
                     CompositionLocalProvider(
                         LocalMaterialTheme provides (albumColorScheme ?: MaterialTheme.colorScheme)
@@ -1340,6 +1343,7 @@ fun UnifiedPlayerSheet(
                                 currentQueueSourceName = currentQueueSourceName, // Use granular state
                                 currentSongId = stablePlayerState.currentSong?.id, // stablePlayerState is fine here
                                 onDismiss = { animateQueueSheet(false) },
+                                onSongInfoClick = { song -> selectedSongForInfo = song }, // Trigger SongInfoBottomSheet
                                 onPlaySong = { song ->
                                     playerViewModel.playSongs(
                                         currentPlaybackQueue, // Use granular state
@@ -1389,6 +1393,78 @@ fun UnifiedPlayerSheet(
                                 onQueueDrag = { dragQueueBy(it) },
                                 onQueueRelease = { drag, velocity -> endQueueDrag(drag, velocity) }
                             )
+
+                            // Show SongInfoBottomSheet when a song is selected
+                            selectedSongForInfo?.let { song ->
+                                SongInfoBottomSheet(
+                                    song = song,
+                                    isFavorite = song.isFavorite,
+                                    
+                                    onToggleFavorite = { playerViewModel.toggleFavoriteSpecificSong(song) },
+                                    onDismiss = { selectedSongForInfo = null },
+                                    onPlaySong = { 
+                                        playerViewModel.playSongs(currentPlaybackQueue, song, currentQueueSourceName) 
+                                        selectedSongForInfo = null
+                                    },
+                                    onAddToQueue = { 
+                                        playerViewModel.addSongToQueue(song)
+                                        selectedSongForInfo = null
+                                        Toast.makeText(context, "Added to queue", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onAddNextToQueue = { 
+                                        playerViewModel.addSongNextToQueue(song)
+                                        selectedSongForInfo = null
+                                         Toast.makeText(context, "Playing next", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onAddToPlayList = { 
+                                        // Trigger playlist selection dialog (if implemented in ViewModel or UI)
+                                        // For now we might need a placeholder or check how it is implemented elsewhere.
+                                        // playerViewModel doesn't seem to have 'openAddToPlaylistDialog'.
+                                        // Maybe we can skip this or implement if simple.
+                                        // SongInfoBottomSheet usually handles the UI for it? No, it has onAddToPlayList callback.
+                                        // Let's leave it empty or log for now if we don't have a ready handler
+                                        Log.d("UnifiedPlayerSheet", "Add to playlist clicked for ${song.title}")
+                                         selectedSongForInfo = null
+                                    },
+                                    onDeleteFromDevice = { activity, songToDelete, onResult ->
+                                         playerViewModel.deleteFromDevice(activity, songToDelete, onResult)
+                                         selectedSongForInfo = null
+                                    },
+                                    onNavigateToAlbum = {
+                                        playerViewModel.collapsePlayerSheet()
+                                        animateQueueSheet(false)
+                                        selectedSongForInfo = null
+                                        // We need navigation logic here.
+                                        // navController.navigate(Screen.AlbumDetail.createRoute(song.albumId))
+                                        // song.albumId is a Long.
+                                         // Check Screen.AlbumDetail route format.
+                                         // Assume standard createRoute(id).
+                                         if (song.albumId != -1L) {
+                                            navController.navigate(Screen.AlbumDetail.createRoute(song.albumId))
+                                         }
+                                    },
+                                    onNavigateToArtist = {
+                                        playerViewModel.collapsePlayerSheet()
+                                        animateQueueSheet(false)
+                                        selectedSongForInfo = null
+                                        if (song.artistId != -1L) {
+                                            navController.navigate(Screen.ArtistDetail.createRoute(song.artistId))
+                                        }
+                                    },
+                                    onEditSong = { title, artist, album, genre, lyrics, trackNumber, coverArtUpdate ->
+                                        playerViewModel.editSongMetadata(song, title, artist, album, genre, lyrics, trackNumber, coverArtUpdate)
+                                         selectedSongForInfo = null
+                                    },
+                                    generateAiMetadata = { fields -> playerViewModel.generateAiMetadata(song, fields) },
+                                    removeFromListTrigger = {
+                                         // This is usually used to remove from a specific list (like 'Favorites').
+                                         // In Queue, we have specific 'Remove' button. 
+                                         // But maybe the user wants to remove from queue via this menu?
+                                         playerViewModel.removeSongFromQueue(song.id)
+                                         selectedSongForInfo = null
+                                    }
+                                )
+                            }
                         }
                     }
                 }

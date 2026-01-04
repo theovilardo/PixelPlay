@@ -187,6 +187,7 @@ fun QueueBottomSheet(
     repeatMode: Int,
     isShuffleOn: Boolean,
     onDismiss: () -> Unit,
+    onSongInfoClick: (Song) -> Unit,
     onPlaySong: (Song) -> Unit,
     onRemoveSong: (String) -> Unit,
     onReorder: (from: Int, to: Int) -> Unit,
@@ -233,21 +234,24 @@ fun QueueBottomSheet(
         queue.indexOfFirst { it.id == currentSongId }
     }
 
-    val displayStartIndex = remember(currentSongIndex) { if (currentSongIndex >= 0) currentSongIndex else 0 }
-    val displayQueue = remember(queue, currentSongId, currentSongIndex) {
-        queue.drop(displayStartIndex)
+    // Show full queue including history (Apple Music style)
+    val displayQueue = remember(queue, currentSongId) {
+        queue
     }
 
     val queueSnapshot = remember(queue) { queue.toList() }
 
-    var items by remember { mutableStateOf(displayQueue) }
-    LaunchedEffect(displayQueue) {
-        items = displayQueue
-    }
-
     val listState = rememberLazyListState()
     val queueListScope = rememberCoroutineScope()
     var scrollToTopJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+
+    var items by remember { mutableStateOf(displayQueue) }
+    LaunchedEffect(displayQueue, currentSongId) {
+        items = displayQueue
+        if (currentSongIndex > 0) {
+            listState.scrollToItem(currentSongIndex)
+        }
+    }
     val canDragSheetFromList by remember {
         derivedStateOf {
             listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
@@ -306,10 +310,11 @@ fun QueueBottomSheet(
             pendingReorderSongId = null
 
             if (fromIndex != null && toIndex != null && movedSongId != null) {
-                val fromOriginalIndex = displayStartIndex + fromIndex
+                // Since we display the full queue, local index maps directly to queue index
+                val fromOriginalIndex = fromIndex
                 val resolvedTargetLocalIndex = items.indexOfFirst { it.id == movedSongId }
                     .takeIf { it != -1 } ?: toIndex
-                val toOriginalIndex = displayStartIndex + resolvedTargetLocalIndex
+                val toOriginalIndex = resolvedTargetLocalIndex
 
                 val fromWithinQueue = fromOriginalIndex in queue.indices
                 val toWithinQueue = toOriginalIndex in queue.indices
@@ -587,7 +592,7 @@ fun QueueBottomSheet(
                             ReorderableItem(
                                 state = reorderableState,
                                 key = song.id,
-                                enabled = index != 0
+                                    enabled = index > currentSongIndex
                             ) { isDragging ->
                                 val scale by animateFloatAsState(
                                     targetValue = if (isDragging) 1.05f else 1f,
@@ -610,12 +615,12 @@ fun QueueBottomSheet(
                                     isDragging = isDragging,
                                     onRemoveClick = { onRemoveSong(song.id) },
                                     isReorderModeEnabled = false,
-                                    isDragHandleVisible = index != 0,
+                                    isDragHandleVisible = index > currentSongIndex,
                                     isRemoveButtonVisible = false,
-                                    enableSwipeToDismiss = index != 0,
+                                    enableSwipeToDismiss = index > currentSongIndex,
                                     onDismiss = { onRemoveSong(song.id) },
-                                    isFromPlaylist = false,
-                                    onMoreOptionsClick = {},
+                                    isFromPlaylist = true,
+                                    onMoreOptionsClick = { onSongInfoClick(song) },
                                     dragHandle = {
                                         IconButton(
                                             onClick = {},

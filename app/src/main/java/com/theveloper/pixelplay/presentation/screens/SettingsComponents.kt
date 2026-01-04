@@ -2,6 +2,7 @@ package com.theveloper.pixelplay.presentation.screens
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -12,15 +13,21 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.outlined.DeleteForever
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -28,12 +35,14 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -42,6 +51,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,6 +62,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.worker.SyncProgress
@@ -364,7 +375,8 @@ fun SliderSettingsItem(
 fun RefreshLibraryItem(
         isSyncing: Boolean,
         syncProgress: SyncProgress,
-        onRefresh: () -> Unit
+        onFullSync: () -> Unit,
+        onRebuild: () -> Unit
 ) {
     Surface(
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
@@ -396,26 +408,49 @@ fun RefreshLibraryItem(
                             color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                            text = "Tap the sync button to rescan and update your library.",
+                            text = "Scan entire library for new and modified files.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
 
-                FilledIconButton(
-                        onClick = onRefresh,
-                        enabled = !isSyncing,
-                        colors =
-                                IconButtonDefaults.filledIconButtonColors(
-                                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                                )
-                ) {
-                    Icon(
-                            imageVector = Icons.Outlined.Sync,
-                            contentDescription = "Refresh library",
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // Full Rescan button
+            FilledTonalButton(
+                    onClick = onFullSync,
+                    enabled = !isSyncing,
+                    modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                        imageVector = Icons.Outlined.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Full Rescan")
+            }
+             
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Rebuild Database button - full width, destructive action
+            OutlinedButton(
+                    onClick = onRebuild,
+                    enabled = !isSyncing,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
+            ) {
+                Icon(
+                        imageVector = Icons.Outlined.DeleteForever,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Rebuild Database")
             }
 
             if (isSyncing) {
