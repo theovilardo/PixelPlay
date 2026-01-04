@@ -79,7 +79,10 @@ class SyncWorker @AssistedInject constructor(
                 musicDao.clearAllMusicDataWithCrossRefs()
             }
 
-            val mediaStoreSongs = fetchAllMusicData { current, total ->
+            // Use granular progress updates (1 by 1) for Full and Rebuild modes as requested
+            val progressBatchSize = if (syncMode == SyncMode.FULL || syncMode == SyncMode.REBUILD) 1 else 50
+            
+            val mediaStoreSongs = fetchAllMusicData(progressBatchSize) { current, total ->
                 setProgress(workDataOf(
                     PROGRESS_CURRENT to current,
                     PROGRESS_TOTAL to total
@@ -90,9 +93,10 @@ class SyncWorker @AssistedInject constructor(
             if (mediaStoreSongs.isNotEmpty()) {
                 // Fetch existing local songs to preserve their editable metadata
                 val localSongsMap = musicDao.getAllSongsList().associateBy { it.id }
+                val isFreshInstall = localSongsMap.isEmpty()
                 
                 // For incremental sync, identify which songs actually need processing
-                val songsToProcess = if (syncMode == SyncMode.INCREMENTAL && !rescanRequired) {
+                val songsToProcess = if (syncMode == SyncMode.INCREMENTAL && !rescanRequired && !isFreshInstall) {
                     mediaStoreSongs.filter { mediaStoreSong ->
                         val localSong = localSongsMap[mediaStoreSong.id]
                         // Process if song is new OR if it was modified since last sync
@@ -102,7 +106,7 @@ class SyncWorker @AssistedInject constructor(
                     mediaStoreSongs
                 }
                 
-                Log.i(TAG, "Processing ${songsToProcess.size} songs (${mediaStoreSongs.size - songsToProcess.size} skipped).")
+                Log.i(TAG, "Processing ${songsToProcess.size} songs (${mediaStoreSongs.size - songsToProcess.size} skipped). Hash: ${songsToProcess.hashCode()}")
 
                 // Prepare the final list of songs for insertion
                 val songsToInsert = songsToProcess.map { mediaStoreSong ->
@@ -149,7 +153,7 @@ class SyncWorker @AssistedInject constructor(
                     existingArtistImageUrls = existingArtistImageUrls
                 )
 
-                if (syncMode == SyncMode.INCREMENTAL && !rescanRequired) {
+                if (syncMode == SyncMode.INCREMENTAL && !rescanRequired && !isFreshInstall) {
                     // Identify deleted songs
                     val mediaStoreIds = mediaStoreSongs.map { it.id }.toSet()
                     val deletedSongIds = localSongsMap.keys.filter { it !in mediaStoreIds }
@@ -164,9 +168,15 @@ class SyncWorker @AssistedInject constructor(
                     Log.i(TAG, "Incremental sync completed. ${correctedSongs.size} upserted, ${deletedSongIds.size} deleted.")
                 } else {
                     // Perform the "clear and insert" operation with cross-references
-                    musicDao.clearAllMusicDataWithCrossRefs()
+                    if (!isFreshInstall && syncMode != SyncMode.INCREMENTAL) {
+                         // Only clear if explicitly requested (FULL/REBUILD) and not a fresh start.
+                         // If it's a fresh start (INCREMENTAL turned FULL), no need to clear.
+                         // Actually, if it's FULL or REBUILD, we SHOULD clear to be safe, unless it IS fresh.
+                         // But if it was INCREMENTAL and we promoted it because it's fresh, we definitely don't need to clear.
+                         musicDao.clearAllMusicDataWithCrossRefs()
+                    }
                     musicDao.insertMusicDataWithCrossRefs(correctedSongs, albums, artists, crossRefs)
-                    Log.i(TAG, "Full sync completed. ${correctedSongs.size} songs, ${artists.size} artists processed.")
+                    Log.i(TAG, "Full sync completed (Fresh: $isFreshInstall). ${correctedSongs.size} songs, ${artists.size} artists processed.")
                 }
                 
                 // Clear the rescan required flag
@@ -357,7 +367,7 @@ class SyncWorker @AssistedInject constructor(
         }
     }
 
-    private suspend fun fetchAllMusicData(onProgress: suspend (current: Int, total: Int) -> Unit): List<SongEntity> {
+    private suspend fun fetchAllMusicData(progressBatchSize: Int, onProgress: suspend (current: Int, total: Int) -> Unit): List<SongEntity> {
         Trace.beginSection("SyncWorker.fetchAllMusicData")
         val songs = mutableListOf<SongEntity>()
         // Removed genre mapping from initial sync for performance.
@@ -498,7 +508,7 @@ class SyncWorker @AssistedInject constructor(
                 
                 // Report progress in batches to avoid excessive updates
                 processedCount++
-                if (processedCount - lastReportedCount >= PROGRESS_UPDATE_BATCH_SIZE || processedCount == totalCount) {
+                if (processedCount - lastReportedCount >= progressBatchSize || processedCount == totalCount) {
                     lastReportedCount = processedCount
                     onProgress(processedCount, totalCount)
                 }
@@ -514,7 +524,7 @@ class SyncWorker @AssistedInject constructor(
         private const val TAG = "SyncWorker"
         const val INPUT_FORCE_METADATA = "input_force_metadata"
         const val INPUT_SYNC_MODE = "input_sync_mode"
-        private const val PROGRESS_UPDATE_BATCH_SIZE = 50
+
         
         // Progress reporting constants
         const val PROGRESS_CURRENT = "progress_current"

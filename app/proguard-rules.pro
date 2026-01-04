@@ -14,11 +14,15 @@
 
 # Uncomment this to preserve the line number information for
 # debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+-keepattributes SourceFile,LineNumberTable
 
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
-#-renamesourcefileattribute SourceFile
+-renamesourcefileattribute SourceFile
+
+# Disable obfuscation - keep class/method names readable
+# (App is open source, no need to hide code)
+-dontobfuscate
 
 # Keep javax.lang.model classes (often needed by annotation processors or code generation libraries)
 -keep class javax.lang.model.** { *; }

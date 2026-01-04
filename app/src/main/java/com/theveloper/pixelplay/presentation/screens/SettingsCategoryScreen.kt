@@ -110,14 +110,11 @@ fun SettingsCategoryScreen(
     val isSyncing by settingsViewModel.isSyncing.collectAsState()
     val syncProgress by settingsViewModel.syncProgress.collectAsState()
     val explorerRoot = settingsViewModel.explorerRoot()
-    val isRefreshingLyrics by settingsViewModel.isRefreshingLyrics.collectAsState()
-    val lyricsRefreshProgress by settingsViewModel.lyricsRefreshProgress.collectAsState()
 
     // Local State
     var showExplorerSheet by remember { mutableStateOf(false) }
     var refreshRequested by remember { mutableStateOf(false) }
     var showClearLyricsDialog by remember { mutableStateOf(false) }
-    var showLyricsRefreshWarning by remember { mutableStateOf(false) }
     var showRebuildDatabaseWarning by remember { mutableStateOf(false) }
 
     // TopBar Animations (identical to SettingsScreen)
@@ -241,12 +238,6 @@ fun SettingsCategoryScreen(
                             RefreshLibraryItem(
                                 isSyncing = isSyncing,
                                 syncProgress = syncProgress,
-                                onQuickSync = {
-                                    if (isSyncing) return@RefreshLibraryItem
-                                    refreshRequested = true
-                                    Toast.makeText(context, "Quick sync started…", Toast.LENGTH_SHORT).show()
-                                    settingsViewModel.quickSyncLibrary()
-                                },
                                 onFullSync = {
                                     if (isSyncing) return@RefreshLibraryItem
                                     refreshRequested = true
@@ -258,16 +249,7 @@ fun SettingsCategoryScreen(
                                     showRebuildDatabaseWarning = true
                                 }
                             )
-                            Spacer(Modifier.height(4.dp))
-                            RefreshLyricsItem(
-                                isRefreshing = isRefreshingLyrics,
-                                progress = lyricsRefreshProgress,
-                                onRefresh = {
-                                    if (isRefreshingLyrics) return@RefreshLyricsItem
-                                    showLyricsRefreshWarning = true
-                                }
-                            )
-                            Spacer(Modifier.height(4.dp))
+
                             SettingsItem(
                                 title = "Reset Imported Lyrics",
                                 subtitle = "Remove all imported lyrics from the database.",
@@ -498,24 +480,7 @@ fun SettingsCategoryScreen(
             dismissButton = { TextButton(onClick = { showClearLyricsDialog = false }) { Text("Cancel") } }
         )
     }
-    
-    if (showLyricsRefreshWarning) {
-        AlertDialog(
-            icon = { Icon(Icons.Rounded.MusicNote, null) },
-            title = { Text("Refresh all lyrics?") },
-            text = { Text("This will fetch lyrics for all songs that don't have lyrics yet. Songs with existing lyrics will be skipped. This may take a while for large libraries.") },
-            onDismissRequest = { showLyricsRefreshWarning = false },
-            confirmButton = { 
-                TextButton(onClick = { 
-                    showLyricsRefreshWarning = false
-                    settingsViewModel.refreshAllLyrics() 
-                }) { 
-                    Text("Refresh") 
-                } 
-            },
-            dismissButton = { TextButton(onClick = { showLyricsRefreshWarning = false }) { Text("Cancel") } }
-        )
-    }
+
     
     if (showRebuildDatabaseWarning) {
         AlertDialog(

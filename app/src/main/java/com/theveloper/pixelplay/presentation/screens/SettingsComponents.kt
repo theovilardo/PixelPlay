@@ -375,7 +375,6 @@ fun SliderSettingsItem(
 fun RefreshLibraryItem(
         isSyncing: Boolean,
         syncProgress: SyncProgress,
-        onQuickSync: () -> Unit,
         onFullSync: () -> Unit,
         onRebuild: () -> Unit
 ) {
@@ -409,7 +408,7 @@ fun RefreshLibraryItem(
                             color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                            text = "Scan for new and changed files, or rescan entire library.",
+                            text = "Scan entire library for new and modified files.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -418,42 +417,21 @@ fun RefreshLibraryItem(
 
             Spacer(modifier = Modifier.height(12.dp))
             
-            // Sync buttons - Quick and Full side by side
-            Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // Full Rescan button
+            FilledTonalButton(
+                    onClick = onFullSync,
+                    enabled = !isSyncing,
+                    modifier = Modifier.fillMaxWidth()
             ) {
-                // Quick Sync button
-                FilledTonalButton(
-                        onClick = onQuickSync,
-                        enabled = !isSyncing,
-                        modifier = Modifier.weight(1f)
-                ) {
-                    Icon(
-                            imageVector = Icons.Outlined.Sync,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Quick Sync")
-                }
-                
-                // Full Rescan button
-                OutlinedButton(
-                        onClick = onFullSync,
-                        enabled = !isSyncing,
-                        modifier = Modifier.weight(1f)
-                ) {
-                    Icon(
-                            imageVector = Icons.Outlined.Refresh,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Full Rescan")
-                }
+                Icon(
+                        imageVector = Icons.Outlined.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Full Rescan")
             }
-            
+             
             Spacer(modifier = Modifier.height(8.dp))
             
             // Rebuild Database button - full width, destructive action
