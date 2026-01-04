@@ -473,17 +473,22 @@ fun LibraryScreen(
                         }
 
                         //val playerUiState by playerViewModel.playerUiState.collectAsState()
+                            //val playerUiState by playerViewModel.playerUiState.collectAsState()
                         LibraryActionRow(
-                            modifier = Modifier.padding(
-                                top = 10.dp,
-                                start = 10.dp,
-                                end = 10.dp
-                            ),
+                            modifier = Modifier
+                                .padding(
+                                    top = 10.dp,
+                                    start = 10.dp,
+                                    end = 10.dp
+                                )
+                                .heightIn(min = 56.dp), // Fix for height jump
                             //currentPage = pagerState.currentPage,
                             onMainActionClick = {
                                 when (tabTitles.getOrNull(pagerState.currentPage)?.toLibraryTabIdOrNull()) {
                                     LibraryTabId.PLAYLISTS -> showCreatePlaylistDialog = true
                                     LibraryTabId.LIKED -> playerViewModel.shuffleFavoriteSongs()
+                                    LibraryTabId.ALBUMS -> playerViewModel.shuffleRandomAlbum()
+                                    LibraryTabId.ARTISTS -> playerViewModel.shuffleRandomArtist()
                                     else -> playerViewModel.shuffleAllSongs()
                                 }
                             },
@@ -492,7 +497,7 @@ fun LibraryScreen(
                             onSortClick = { playerViewModel.showSortingSheet() },
                             isPlaylistTab = currentTabId == LibraryTabId.PLAYLISTS,
                             isFoldersTab = currentTabId == LibraryTabId.FOLDERS && (!playerUiState.isFoldersPlaylistView || playerUiState.currentFolder != null),
-                            onGenerateWithAiClick = { playerViewModel.showAiPlaylistSheet() },
+                            onGenerateWithAiClick = { /* Unused now */ },
                             onImportM3uClick = { m3uImportLauncher.launch("audio/x-mpegurl") },
                             //onFilterClick = { playerViewModel.toggleFolderFilter() },
                             currentFolder = playerUiState.currentFolder,
@@ -776,6 +781,10 @@ fun LibraryScreen(
             onCreate = { name ->
                 playlistViewModel.createPlaylist(name) // Pass the actual name
                 showCreatePlaylistDialog = false
+            },
+            onGenerateClick = {
+                showCreatePlaylistDialog = false
+                playerViewModel.showAiPlaylistSheet()
             }
         )
     }

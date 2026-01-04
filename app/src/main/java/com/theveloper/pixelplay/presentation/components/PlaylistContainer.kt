@@ -28,6 +28,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -316,18 +317,19 @@ fun PlaylistItem(
 @Composable
 fun CreatePlaylistDialogRedesigned(
     onDismiss: () -> Unit,
-    onCreate: (String) -> Unit
+    onCreate: (String) -> Unit,
+    onGenerateClick: () -> Unit
 ) {
     var playlistName by remember { mutableStateOf("") }
 
     BasicAlertDialog(
         onDismissRequest = onDismiss,
-        //shape = RoundedCornerShape(28.dp)
     ) {
         Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            tonalElevation = 6.dp
+            shape = RoundedCornerShape(32.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 6.dp,
+            modifier = Modifier.padding(16.dp)
         ) {
             Column(
                 modifier = Modifier
@@ -335,9 +337,10 @@ fun CreatePlaylistDialogRedesigned(
                     .fillMaxWidth()
             ) {
                 Text(
-                    text = "New Playlist",
+                    text = "New playlist",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
+                    fontFamily = GoogleSansRounded,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
 
@@ -345,36 +348,69 @@ fun CreatePlaylistDialogRedesigned(
                     value = playlistName,
                     onValueChange = { playlistName = it },
                     label = { Text("Playlist Name") },
-                    placeholder = { Text("Mi playlist") },
+                    placeholder = { Text("My playlist") },
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 24.dp),
-                    singleLine = true
+                    singleLine = true,
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    )
                 )
 
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    TextButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.padding(end = 8.dp)
+                    // Generate with AI Button (New Feature Integration)
+                    FilledTonalButton(
+                        onClick = {
+                            onDismiss()
+                            onGenerateClick()
+                        },
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        ),
+                        contentPadding = PaddingValues(vertical = 12.dp)
                     ) {
-                        Text("Cancel")
+                        Icon(
+                            painter = painterResource(R.drawable.generate_playlist_ai),
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Generate with AI")
                     }
 
-                    Button(
-                        onClick = { onCreate(playlistName) },
-                        enabled = playlistName.isNotEmpty(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
+                    // Standard Actions
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Create")
+                        TextButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.padding(end = 8.dp)
+                        ) {
+                            Text("Cancel", fontWeight = FontWeight.SemiBold)
+                        }
+
+                        Button(
+                            onClick = { onCreate(playlistName) },
+                            enabled = playlistName.isNotEmpty(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        ) {
+                            Text("Create", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }

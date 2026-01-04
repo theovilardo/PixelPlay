@@ -173,6 +173,10 @@ fun PlaylistBottomSheet(
                         onCreate = { name ->
                             playlistViewModel.createPlaylist(name) // Pass the actual name
                             showCreatePlaylistDialog = false
+                        },
+                        onGenerateClick = {
+                            showCreatePlaylistDialog = false
+                            playerViewModel.showAiPlaylistSheet()
                         }
                     )
                 }

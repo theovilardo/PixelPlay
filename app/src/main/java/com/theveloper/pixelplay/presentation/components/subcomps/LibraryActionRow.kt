@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -145,7 +146,8 @@ fun LibraryActionRow(
                             contentColor = buttonContentColor
                         ),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 6.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+                        modifier = Modifier.height(48.dp)
                     ) {
                         val icon = if (isPlaylistTab) Icons.Rounded.PlaylistAdd else Icons.Rounded.Shuffle
                         val text = if (isPlaylistTab) "New" else if (isShuffleEnabled) "Shuffle On" else "Shuffle"
@@ -190,10 +192,11 @@ fun LibraryActionRow(
                         )
                     ) {
                         if (showGenerateButton) {
-                            Row {
+                            // Replaced "Generate" with "Import M3U" maintaining layout and animation
+                            Row(modifier = Modifier.height(48.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Spacer(modifier = Modifier.width(8.dp))
                                 FilledTonalButton(
-                                    onClick = onGenerateWithAiClick,
+                                    onClick = onImportM3uClick,
                                     shape = RoundedCornerShape(
                                         topStart = generateButtonStartCorner,
                                         bottomStart = generateButtonStartCorner,
@@ -211,38 +214,25 @@ fun LibraryActionRow(
                                     contentPadding = PaddingValues(
                                         horizontal = 16.dp,
                                         vertical = 10.dp
-                                    )
+                                    ),
+                                    modifier = Modifier.height(48.dp)
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         Icon(
-                                            painter = painterResource(R.drawable.generate_playlist_ai),
-                                            contentDescription = "Generate with AI",
+                                            painter = painterResource(R.drawable.rounded_upload_file_24),
+                                            contentDescription = "Import M3U",
                                             modifier = Modifier.size(20.dp)
                                         )
                                         Text(
-                                            text = "Generate",
+                                            text = "Import M3U",
+                                            overflow = TextOverflow.Ellipsis,
                                             style = MaterialTheme.typography.labelLarge,
                                             fontWeight = FontWeight.Medium
                                         )
                                     }
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                FilledTonalIconButton(
-                                    onClick = onImportM3uClick,
-                                    shape = CircleShape,
-                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                                    )
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.rounded_upload_file_24),
-                                        contentDescription = "Import M3U",
-                                        modifier = Modifier.size(20.dp)
-                                    )
                                 }
                             }
                         }

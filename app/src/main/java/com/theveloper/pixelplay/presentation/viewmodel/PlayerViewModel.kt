@@ -861,6 +861,28 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun shuffleRandomAlbum() {
+        val allAlbums = _playerUiState.value.albums
+        if (allAlbums.isNotEmpty()) {
+            val randomAlbum = allAlbums.random()
+            val albumSongs = _playerUiState.value.allSongs.filter { it.albumId == randomAlbum.id }
+            if (albumSongs.isNotEmpty()) {
+                playSongsShuffled(albumSongs, randomAlbum.title)
+            }
+        }
+    }
+
+    fun shuffleRandomArtist() {
+        val allArtists = _playerUiState.value.artists
+        if (allArtists.isNotEmpty()) {
+            val randomArtist = allArtists.random()
+            val artistSongs = _playerUiState.value.allSongs.filter { it.artistId == randomArtist.id }
+            if (artistSongs.isNotEmpty()) {
+                playSongsShuffled(artistSongs, randomArtist.name)
+            }
+        }
+    }
+
     private fun loadPersistedDailyMix() {
         viewModelScope.launch {
             // Combine the flow of persisted IDs with the flow of all songs
