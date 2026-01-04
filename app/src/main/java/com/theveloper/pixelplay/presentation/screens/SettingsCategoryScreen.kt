@@ -59,6 +59,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -454,6 +455,26 @@ fun SettingsCategoryScreen(
             collapsedStartPadding = 68.dp,
             maxLines = titleMaxLines
         )
+
+        // Block interaction during transition
+        var isTransitioning by remember { mutableStateOf(true) }
+        LaunchedEffect(Unit) {
+            kotlinx.coroutines.delay(com.theveloper.pixelplay.presentation.navigation.TRANSITION_DURATION.toLong())
+            isTransitioning = false
+        }
+        
+        if (isTransitioning) {
+            Box(modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                   awaitPointerEventScope {
+                        while (true) {
+                            awaitPointerEvent()
+                        }
+                    }
+                }
+            )
+        }
     }
 
     // Dialogs

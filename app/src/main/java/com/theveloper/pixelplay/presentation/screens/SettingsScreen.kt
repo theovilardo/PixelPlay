@@ -58,6 +58,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -295,6 +296,26 @@ fun SettingsScreen(
                 headerHeight = currentTopBarHeightDp,
                 onBackPressed = onNavigationIconClick
         )
+
+        // Block interaction during transition
+        var isTransitioning by remember { mutableStateOf(true) }
+        LaunchedEffect(Unit) {
+            kotlinx.coroutines.delay(com.theveloper.pixelplay.presentation.navigation.TRANSITION_DURATION.toLong())
+            isTransitioning = false
+        }
+
+        if (isTransitioning) {
+            Box(modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                     awaitPointerEventScope {
+                        while (true) {
+                            awaitPointerEvent()
+                        }
+                    }
+                }
+            )
+        }
     }
 }
 
