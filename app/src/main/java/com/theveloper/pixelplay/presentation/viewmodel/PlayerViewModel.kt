@@ -123,6 +123,7 @@ import com.theveloper.pixelplay.data.service.MusicService
 import com.theveloper.pixelplay.data.service.player.CastPlayer
 import com.theveloper.pixelplay.data.stats.PlaybackStatsRepository
 import com.theveloper.pixelplay.data.service.http.MediaFileHttpServerService
+import com.theveloper.pixelplay.data.service.player.DualPlayerEngine
 import com.theveloper.pixelplay.data.worker.SyncManager
 import com.theveloper.pixelplay.ui.theme.DarkColorScheme
 import com.theveloper.pixelplay.ui.theme.GenreColors
@@ -293,7 +294,8 @@ class PlayerViewModel @Inject constructor(
     private val playbackStatsRepository: PlaybackStatsRepository,
     private val aiPlaylistGenerator: AiPlaylistGenerator,
     private val aiMetadataGenerator: AiMetadataGenerator,
-    private val artistImageRepository: ArtistImageRepository
+    private val artistImageRepository: ArtistImageRepository,
+    private val dualPlayerEngine: DualPlayerEngine
 ) : ViewModel() {
 
     private val _playerUiState = MutableStateFlow(PlayerUiState())
@@ -3058,28 +3060,68 @@ class PlayerViewModel @Inject constructor(
     }
 
     private suspend fun rebuildPlayerQueue(
-        player: MediaController,
         targetQueue: List<Song>,
         targetIndex: Int,
         positionMs: Long
     ) {
-        val existingItems = withContext(Dispatchers.Main) {
-            List(player.mediaItemCount) { index -> player.getMediaItemAt(index) }
-        }
-
-        val (reorderedItems, safeIndex) = withContext(Dispatchers.Default) {
-            val itemsById = HashMap<String, MediaItem>(existingItems.size)
-            existingItems.forEach { item -> itemsById[item.mediaId] = item }
-
-            val reordered = targetQueue.map { song ->
-                itemsById[song.id] ?: buildMediaItemFromSong(song)
-            }
-            val index = targetIndex.coerceIn(reordered.indices)
-            Pair(reordered, index)
-        }
+        val enginePlayer = dualPlayerEngine.masterPlayer
 
         withContext(Dispatchers.Main) {
-            player.setMediaItems(reorderedItems, safeIndex, positionMs)
+            val currentIndex = enginePlayer.currentMediaItemIndex
+            val listSize = enginePlayer.mediaItemCount
+            
+            // If the player is empty or index is out of bounds, fall back to full reset
+            if (listSize == 0 || currentIndex < 0 || currentIndex >= listSize) {
+                val (mediaItems, safeIndex) = withContext(Dispatchers.Default) {
+                    val items = targetQueue.map { buildMediaItemFromSong(it) }
+                    val index = targetIndex.coerceIn(items.indices)
+                    Pair(items, index)
+                }
+                enginePlayer.setMediaItems(mediaItems, safeIndex, positionMs)
+                enginePlayer.prepare()
+                return@withContext
+            }
+
+            // Optimization: Preserve the currently playing MediaItem instance to prevent audio glitches/re-buffering.
+            // When we shuffle, we essentially just want to replace the neighbors of the current song.
+            
+            // Calculate ranges to replace
+            // 1. Items AFTER the current song
+            val itemsAfter = withContext(Dispatchers.Default) {
+                if (targetIndex + 1 < targetQueue.size) {
+                    targetQueue.subList(targetIndex + 1, targetQueue.size).map { buildMediaItemFromSong(it) }
+                } else {
+                    emptyList()
+                }
+            }
+            
+            // 2. Items BEFORE the current song
+            val itemsBefore = withContext(Dispatchers.Default) {
+                if (targetIndex > 0) {
+                     targetQueue.subList(0, targetIndex).map { buildMediaItemFromSong(it) }
+                } else {
+                    emptyList()
+                }
+            }
+
+            // Replace items AFTER current index first (indices > currentIndex)
+            if (currentIndex + 1 < listSize) {
+                enginePlayer.removeMediaItems(currentIndex + 1, listSize)
+            }
+            if (itemsAfter.isNotEmpty()) {
+                enginePlayer.addMediaItems(currentIndex + 1, itemsAfter)
+            }
+
+            // Replace items BEFORE current index (indices < currentIndex)
+            if (currentIndex > 0) {
+                 enginePlayer.removeMediaItems(0, currentIndex)
+            }
+            if (itemsBefore.isNotEmpty()) {
+                enginePlayer.addMediaItems(0, itemsBefore)
+            }
+            
+            // Note: We intentionally DO NOT touch the item at 'currentIndex'.
+            // This ensures playback continues seamlessly.
         }
     }
 
@@ -3546,45 +3588,50 @@ class PlayerViewModel @Inject constructor(
             }
         } else {
             val playSongsAction = {
-                mediaController?.let { controller ->
-                    val mediaItems = songsToPlay.map { song ->
-                        val metadataBuilder = MediaMetadata.Builder()
-                            .setTitle(song.title)
-                            .setArtist(song.displayArtist)
-                        playlistId?.let {
-                            val extras = Bundle()
-                            extras.putString("playlistId", it)
-                            metadataBuilder.setExtras(extras)
-                        }
-                        song.albumArtUriString?.toUri()?.let { uri ->
-                            metadataBuilder.setArtworkUri(uri)
-                        }
-                        val metadata = metadataBuilder.build()
-                        MediaItem.Builder()
-                            .setMediaId(song.id)
-                            .setUri(song.contentUriString.toUri())
-                            .setMediaMetadata(metadata)
-                            .build()
+                // Use Direct Engine Access to avoid TransactionTooLargeException on Binder
+                val enginePlayer = dualPlayerEngine.masterPlayer
+                
+                val mediaItems = songsToPlay.map { song ->
+                    val metadataBuilder = MediaMetadata.Builder()
+                        .setTitle(song.title)
+                        .setArtist(song.displayArtist)
+                    playlistId?.let {
+                        val extras = Bundle()
+                        extras.putString("playlistId", it)
+                        metadataBuilder.setExtras(extras)
                     }
-                    val startIndex = songsToPlay.indexOf(startSong).coerceAtLeast(0)
+                    song.albumArtUriString?.toUri()?.let { uri ->
+                        metadataBuilder.setArtworkUri(uri)
+                    }
+                    val metadata = metadataBuilder.build()
+                    MediaItem.Builder()
+                        .setMediaId(song.id)
+                        .setUri(song.contentUriString.toUri())
+                        .setMediaMetadata(metadata)
+                        .build()
+                }
+                val startIndex = songsToPlay.indexOf(startSong).coerceAtLeast(0)
 
-                    if (mediaItems.isNotEmpty()) {
-                        controller.setMediaItems(mediaItems, startIndex, 0L)
-                        controller.prepare()
-                        controller.play()
-                        _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
-                        _stablePlayerState.update {
-                            it.copy(
-                                currentSong = startSong,
-                                isPlaying = true,
-                                totalDuration = startSong.duration.coerceAtLeast(0L)
-                            )
-                        }
+                if (mediaItems.isNotEmpty()) {
+                    // Direct access: No IPC limit involved
+                    enginePlayer.setMediaItems(mediaItems, startIndex, 0L)
+                    enginePlayer.prepare()
+                    enginePlayer.play()
+                    
+                    _playerUiState.update { it.copy(currentPlaybackQueue = songsToPlay.toImmutableList(), currentQueueSourceName = queueName) }
+                    _stablePlayerState.update {
+                        it.copy(
+                            currentSong = startSong,
+                            isPlaying = true,
+                            totalDuration = startSong.duration.coerceAtLeast(0L)
+                        )
                     }
                 }
                 _playerUiState.update { it.copy(isLoadingInitialSongs = false) }
             }
 
+            // We still check for mediaController to ensure the Service is bound and active
+            // even though we aren't using it for the heavy lifting anymore.
             if (mediaController == null) {
                 Timber.w("MediaController not available. Queuing playback action.")
                 pendingPlaybackAction = playSongsAction
@@ -3706,7 +3753,7 @@ class PlayerViewModel @Inject constructor(
                     val targetIndex = shuffledQueue.indexOfFirst { it.id == currentMediaId }
                         .takeIf { it != -1 } ?: currentIndex
 
-                    rebuildPlayerQueue(player, shuffledQueue, targetIndex, currentPosition)
+                    rebuildPlayerQueue(shuffledQueue, targetIndex, currentPosition)
 
                     _playerUiState.update { it.copy(currentPlaybackQueue = shuffledQueue.toImmutableList()) }
                     _stablePlayerState.update { it.copy(isShuffleEnabled = true) }
@@ -3731,7 +3778,7 @@ class PlayerViewModel @Inject constructor(
                         return@launch
                     }
 
-                    rebuildPlayerQueue(player, originalQueue, originalIndex, currentPosition)
+                    rebuildPlayerQueue(originalQueue, originalIndex, currentPosition)
 
                     _playerUiState.update { 
                         it.copy(
