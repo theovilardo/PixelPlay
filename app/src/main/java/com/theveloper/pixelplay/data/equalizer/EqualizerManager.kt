@@ -66,11 +66,36 @@ class EqualizerManager @Inject constructor() {
 
     private var loudnessEnhancer: android.media.audiofx.LoudnessEnhancer? = null
 
+    // Global device capabilities (Checking existence of effect UUIDs)
+    private var isBassBoostSupportedGlobal = false
+    private var isVirtualizerSupportedGlobal = false
+    
+    init {
+        checkDeviceSupport()
+    }
+    
+    private fun checkDeviceSupport() {
+        try {
+            val effects = android.media.audiofx.AudioEffect.queryEffects()
+            isBassBoostSupportedGlobal = effects.any { it.type == android.media.audiofx.AudioEffect.EFFECT_TYPE_BASS_BOOST }
+            isVirtualizerSupportedGlobal = effects.any { it.type == android.media.audiofx.AudioEffect.EFFECT_TYPE_VIRTUALIZER }
+            Timber.tag(TAG).d("Global Support Check - BassBoost: $isBassBoostSupportedGlobal, Virtualizer: $isVirtualizerSupportedGlobal")
+        } catch (e: Exception) {
+            Timber.tag(TAG).e(e, "Failed to query global audio effects")
+            // Fallback to assuming false until proven otherwise? Or true? 
+            // Better false to avoid broken UI, but unlikely to fail.
+        }
+    }
+
     /**
      * Attaches the equalizer to an audio session ID.
      * Call this when the player is created or swapped during crossfade.
      */
-    fun attachToAudioSession(audioSessionId: Int) {
+    /**
+     * Attaches the equalizer to an audio session ID.
+     * Call this when the player is created or swapped during crossfade.
+     */
+    suspend fun attachToAudioSession(audioSessionId: Int) {
         if (audioSessionId == 0) {
             Timber.tag(TAG).w("Invalid audio session ID: 0")
             return
@@ -92,33 +117,45 @@ class EqualizerManager @Inject constructor() {
                 enabled = _isEnabled.value
             }
             
-            // Initialize Bass Boost
-            bassBoost = try {
-                BassBoost(0, audioSessionId).apply {
-                    enabled = _bassBoostEnabled.value
-                    if (strengthSupported) {
-                        setStrength(_bassBoostStrength.value.toShort())
-                    }
-                }
-            } catch (e: Exception) {
-                Timber.tag(TAG).w(e, "BassBoost not supported on this device")
-                null
-            }
+            // Retry loop for effects that might fail initially
+            val maxRetries = 3
+            var retryCount = 0
             
-            // Initialize Virtualizer (Surround)
-            virtualizer = try {
-                Virtualizer(0, audioSessionId).apply {
-                    enabled = _virtualizerEnabled.value
-                    if (strengthSupported) {
-                        setStrength(_virtualizerStrength.value.toShort())
+            while (bassBoost == null && retryCount < maxRetries) {
+                try {
+                    bassBoost = BassBoost(0, audioSessionId).apply {
+                        enabled = _bassBoostEnabled.value
+                        if (strengthSupported) {
+                            setStrength(_bassBoostStrength.value.toShort())
+                        }
                     }
+                    if (bassBoost != null) Timber.tag(TAG).d("BassBoost initialized on attempt ${retryCount + 1}")
+                } catch (e: Exception) {
+                    Timber.tag(TAG).w("BassBoost init failed (attempt ${retryCount + 1}): ${e.message}")
+                    if (retryCount < maxRetries - 1) kotlinx.coroutines.delay(300)
                 }
-            } catch (e: Exception) {
-                Timber.tag(TAG).w(e, "Virtualizer not supported on this device")
-                null
+                retryCount++
+            }
+            if (bassBoost == null) Timber.tag(TAG).w("BassBoost gave up after $maxRetries attempts")
+            
+            retryCount = 0
+            while (virtualizer == null && retryCount < maxRetries) {
+                 try {
+                    virtualizer = Virtualizer(0, audioSessionId).apply {
+                        enabled = _virtualizerEnabled.value
+                        if (strengthSupported) {
+                            setStrength(_virtualizerStrength.value.toShort())
+                        }
+                    }
+                    if (virtualizer != null) Timber.tag(TAG).d("Virtualizer initialized on attempt ${retryCount + 1}")
+                } catch (e: Exception) {
+                    Timber.tag(TAG).w("Virtualizer init failed (attempt ${retryCount + 1}): ${e.message}")
+                    if (retryCount < maxRetries - 1) kotlinx.coroutines.delay(300)
+                }
+                retryCount++
             }
 
-            // Initialize Loudness Enhancer
+            // Initialize Loudness Enhancer (usually robust, but let's be safe)
             loudnessEnhancer = try {
                 android.media.audiofx.LoudnessEnhancer(audioSessionId).apply {
                     enabled = _loudnessEnhancerEnabled.value
@@ -352,17 +389,17 @@ class EqualizerManager @Inject constructor() {
     /**
      * Checks if bass boost is supported on this device.
      */
-    fun isBassBoostSupported(): Boolean = bassBoost?.strengthSupported ?: false
+    fun isBassBoostSupported(): Boolean = isBassBoostSupportedGlobal
     
     /**
      * Checks if virtualizer is supported on this device.
      */
-    fun isVirtualizerSupported(): Boolean = virtualizer?.strengthSupported ?: false
+    fun isVirtualizerSupported(): Boolean = isVirtualizerSupportedGlobal
 
     /**
      * Checks if loudness enhancer is supported on this device.
      */
-    fun isLoudnessEnhancerSupported(): Boolean = loudnessEnhancer != null
+    fun isLoudnessEnhancerSupported(): Boolean = loudnessEnhancer != null || android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT
     
     /**
      * Releases all audio effect resources.

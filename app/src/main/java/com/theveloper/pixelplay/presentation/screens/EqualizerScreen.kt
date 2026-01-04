@@ -1162,6 +1162,7 @@ private fun EffectControlsSection(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
+            .height(androidx.compose.foundation.layout.IntrinsicSize.Max) // Ensure equal heights
             .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -1232,7 +1233,7 @@ private fun EffectCard(
     onEnabledChange: (Boolean) -> Unit
 ) {
     Card(
-        modifier = Modifier.width(150.dp),
+        modifier = Modifier.width(150.dp).fillMaxHeight(), // Match parent intrinsic height
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
@@ -1248,12 +1249,12 @@ private fun EffectCard(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .width(150.dp)
-                    .height(110.dp) // Constrain height to crop empty space
+                    .height(110.dp) 
             ) {
                 Box(
                     modifier = Modifier
                         .requiredSize(150.dp) // Force render size
-                        .offset(y = (10).dp), // Shift up to remove top padding
+                        .offset(y = (5).dp), // Shift UP slightly to center clearer
                     contentAlignment = Alignment.Center
                 ) {
                     WavyArcSlider(
@@ -1299,7 +1300,7 @@ private fun UnsupportedEffectCard(
     onDismiss: () -> Unit
 ) {
      Card(
-        modifier = Modifier.width(140.dp).height(240.dp), // Match approx height of EffectCard
+        modifier = Modifier.width(150.dp).fillMaxHeight(), // Match parent intrinsic height
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
         ),
