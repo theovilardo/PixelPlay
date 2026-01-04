@@ -156,6 +156,50 @@ object LyricsUtils {
         val withoutTags = LRC_TIMESTAMP_TAG_REGEX.replace(value, "")
         return withoutTags.trimStart()
     }
+
+    /**
+     * Converts synced lyrics to LRC format string.
+     * Each line is formatted as [mm:ss.xx]text
+     * @param syncedLines The list of synced lines to convert.
+     * @return A string in LRC format.
+     */
+    fun syncedToLrcString(syncedLines: List<SyncedLine>): String {
+        return syncedLines.sortedBy { it.time }.joinToString("\n") { line ->
+            val totalMs = line.time
+            val minutes = totalMs / 60000
+            val seconds = (totalMs % 60000) / 1000
+            val hundredths = (totalMs % 1000) / 10
+            "[%02d:%02d.%02d]%s".format(minutes, seconds, hundredths, line.line)
+        }
+    }
+
+    /**
+     * Converts plain lyrics (list of lines) to a plain text string.
+     * @param plainLines The list of plain text lines.
+     * @return A string with each line separated by newline.
+     */
+    fun plainToString(plainLines: List<String>): String {
+        return plainLines.joinToString("\n")
+    }
+
+    /**
+     * Converts Lyrics object to LRC or plain text format based on available data.
+     * Prefers synced lyrics if available.
+     * @param lyrics The Lyrics object to convert.
+     * @param preferSynced Whether to prefer synced lyrics over plain. Default true.
+     * @return A string representation of the lyrics.
+     */
+    fun toLrcString(lyrics: Lyrics, preferSynced: Boolean = true): String {
+        return if (preferSynced && !lyrics.synced.isNullOrEmpty()) {
+            syncedToLrcString(lyrics.synced)
+        } else if (!lyrics.plain.isNullOrEmpty()) {
+            plainToString(lyrics.plain)
+        } else if (!lyrics.synced.isNullOrEmpty()) {
+            syncedToLrcString(lyrics.synced)
+        } else {
+            ""
+        }
+    }
 }
 
 private fun sanitizeLrcLine(rawLine: String): String {

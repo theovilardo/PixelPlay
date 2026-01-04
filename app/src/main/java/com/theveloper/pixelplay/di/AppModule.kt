@@ -188,6 +188,7 @@ object AppModule {
 
     /**
      * Provee una instancia singleton de OkHttpClient con un interceptor de logging.
+     * Configured with 10s timeout and retry logic (2 retries).
      */
     @Provides
     @Singleton
@@ -195,6 +196,34 @@ object AppModule {
         val loggingInterceptor = HttpLoggingInterceptor()
         loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY)
         return OkHttpClient.Builder()
+            .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+            .addInterceptor { chain ->
+                var request = chain.request()
+                var response: okhttp3.Response? = null
+                var lastException: java.io.IOException? = null
+                
+                // Retry up to 2 times
+                repeat(3) { attempt ->
+                    try {
+                        response?.close()
+                        response = chain.proceed(request)
+                        if (response!!.isSuccessful || response!!.code == 404) {
+                            return@addInterceptor response!!
+                        }
+                    } catch (e: java.io.IOException) {
+                        lastException = e
+                        if (attempt < 2) {
+                            // Exponential backoff: 500ms, 1000ms
+                            Thread.sleep((500L * (attempt + 1)))
+                        }
+                    }
+                }
+                
+                // If we have a response, return it; otherwise throw the last exception
+                response ?: throw (lastException ?: java.io.IOException("Unknown network error"))
+            }
             .addInterceptor(loggingInterceptor)
             .build()
     }

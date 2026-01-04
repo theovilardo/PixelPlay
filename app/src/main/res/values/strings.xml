@@ -18,6 +18,10 @@
     <string name="lyrics_not_found">Lyrics not found</string>
     <string name="search_lyrics_online_prompt">Would you like to search for lyrics online?</string>
     <string name="failed_to_search_for_lyrics">Failed to search for lyrics</string>
+    <string name="failed_to_fetch_lyrics_from_remote">Failed to fetch lyrics from remote</string>
+    <string name="lyrics_fetch_timeout">Connection timed out. Please check your internet connection.</string>
+    <string name="lyrics_network_error">Network error. Please check your internet connection.</string>
+    <string name="lyrics_server_error">Server error (code %d). Please try again later.</string>
     <string name="found_n_matches_format">Found %d match(es)</string>
     <string name="searched_for_x_format">Searched for \"%s\"</string>
     <string name="search">Search</string>
@@ -41,4 +45,18 @@
     <string name="pause_playback">Pause playback</string>
     <string name="play_playback">Play</string>
     <string name="playlist_not_found">Playlist not found.</string>
+    <string name="save_lyrics_as_lrc">Save lyrics as .lrc</string>
+    <string name="save_lyrics_dialog_title">Save Lyrics</string>
+    <string name="save_lyrics_dialog_message">Choose which version to save:</string>
+    <string name="save_synced_lyrics">Synced (with timestamps)</string>
+    <string name="save_plain_lyrics">Plain (text only)</string>
+    <string name="lyrics_saved_successfully">Lyrics saved successfully</string>
+    <string name="lyrics_save_failed">Failed to save lyrics</string>
+    <string name="no_lyrics_to_save">No lyrics available to save</string>
+    <string name="reset_imported_lyrics">Reset imported lyrics</string>
+    <string name="lyrics_sync_offset">Lyrics sync offset</string>
+    <string name="lyrics_sync_offset_format">%+.1fs</string>
+    <string name="lyrics_sync_offset_reset">Reset</string>
+    <string name="lyrics_earlier">Earlier</string>
+    <string name="lyrics_later">Later</string>
 </resources>

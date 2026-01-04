@@ -177,6 +177,7 @@ fun FullPlayerContent(
     val stablePlayerState by playerViewModel.stablePlayerState.collectAsState()
     val lyricsSearchUiState by playerViewModel.lyricsSearchUiState.collectAsState()
     val currentSongArtists by playerViewModel.currentSongArtists.collectAsState()
+    val lyricsSyncOffset by playerViewModel.currentSongLyricsSyncOffset.collectAsState()
 
     var showFetchLyricsDialog by remember { mutableStateOf(false) }
     var totalDrag by remember { mutableStateOf(0f) }
@@ -802,6 +803,8 @@ fun FullPlayerContent(
             onPickResult = { playerViewModel.acceptLyricsSearchResultForCurrentSong(it) },
             onImportLyrics = { filePickerLauncher.launch("*/*") },
             onDismissLyricsSearch = { playerViewModel.resetLyricsSearchState() },
+            lyricsSyncOffset = lyricsSyncOffset,
+            onLyricsSyncOffsetChange = { currentSong?.id?.let { songId -> playerViewModel.setLyricsSyncOffset(songId, it) } },
             lyricsTextStyle = MaterialTheme.typography.titleLarge,
             backgroundColor = LocalMaterialTheme.current.background,
             onBackgroundColor = LocalMaterialTheme.current.onBackground,

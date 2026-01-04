@@ -138,6 +138,9 @@ constructor(
         
         // Library Sync
         val LAST_SYNC_TIMESTAMP = longPreferencesKey("last_sync_timestamp")
+        
+        // Lyrics Sync Offset per song (Map<songId, offsetMs> as JSON)
+        val LYRICS_SYNC_OFFSETS = stringPreferencesKey("lyrics_sync_offsets_json")
     }
 
     val appRebrandDialogShownFlow: Flow<Boolean> =
@@ -342,6 +345,55 @@ constructor(
     }
 
     // ===== End Library Sync Settings =====
+
+    // ===== Lyrics Sync Offset Settings =====
+    
+    /**
+     * Lyrics sync offset per song in milliseconds.
+     * Stored as a JSON map: { "songId": offsetMs, ... }
+     * Positive values = lyrics appear later (use when lyrics are ahead of audio)
+     * Negative values = lyrics appear earlier (use when lyrics are behind audio)
+     */
+    private val lyricsSyncOffsetsFlow: Flow<Map<String, Int>> =
+            dataStore.data.map { preferences ->
+                preferences[PreferencesKeys.LYRICS_SYNC_OFFSETS]?.let { jsonString ->
+                    try {
+                        json.decodeFromString<Map<String, Int>>(jsonString)
+                    } catch (e: Exception) {
+                        emptyMap()
+                    }
+                } ?: emptyMap()
+            }
+
+    fun getLyricsSyncOffsetFlow(songId: String): Flow<Int> {
+        return lyricsSyncOffsetsFlow.map { offsets -> offsets[songId] ?: 0 }
+    }
+
+    suspend fun getLyricsSyncOffset(songId: String): Int {
+        return getLyricsSyncOffsetFlow(songId).first()
+    }
+
+    suspend fun setLyricsSyncOffset(songId: String, offsetMs: Int) {
+        dataStore.edit { preferences ->
+            val currentOffsets = preferences[PreferencesKeys.LYRICS_SYNC_OFFSETS]?.let { jsonString ->
+                try {
+                    json.decodeFromString<Map<String, Int>>(jsonString).toMutableMap()
+                } catch (e: Exception) {
+                    mutableMapOf()
+                }
+            } ?: mutableMapOf()
+            
+            if (offsetMs == 0) {
+                currentOffsets.remove(songId) // Don't store default value
+            } else {
+                currentOffsets[songId] = offsetMs
+            }
+            
+            preferences[PreferencesKeys.LYRICS_SYNC_OFFSETS] = json.encodeToString(currentOffsets)
+        }
+    }
+
+    // ===== End Lyrics Sync Offset Settings =====
 
     // ===== End Multi-Artist Settings =====
 

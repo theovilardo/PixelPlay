@@ -381,6 +381,29 @@ class PlayerViewModel @Inject constructor(
             initialValue = false
         )
 
+    // Lyrics sync offset per song in milliseconds (positive = lyrics later, negative = lyrics earlier)
+    // This is derived from the current song's ID
+    private val _currentSongLyricsSyncOffset = MutableStateFlow(0)
+    val currentSongLyricsSyncOffset: StateFlow<Int> = _currentSongLyricsSyncOffset.asStateFlow()
+
+    fun setLyricsSyncOffset(songId: String, offsetMs: Int) {
+        viewModelScope.launch {
+            userPreferencesRepository.setLyricsSyncOffset(songId, offsetMs)
+            _currentSongLyricsSyncOffset.value = offsetMs
+        }
+    }
+
+    private fun observeCurrentSongLyricsOffset() {
+        viewModelScope.launch {
+            stablePlayerState.collect { state ->
+                state.currentSong?.id?.let { songId ->
+                    val offset = userPreferencesRepository.getLyricsSyncOffset(songId)
+                    _currentSongLyricsSyncOffset.value = offset
+                }
+            }
+        }
+    }
+
     private val _isInitialThemePreloadComplete = MutableStateFlow(false)
     val isInitialThemePreloadComplete: StateFlow<Boolean> = _isInitialThemePreloadComplete.asStateFlow()
 
@@ -1179,6 +1202,9 @@ class PlayerViewModel @Inject constructor(
             castPlayer = CastPlayer(currentSession)
             _isRemotePlaybackActive.value = true
         }
+
+        // Observe current song lyrics offset
+        observeCurrentSongLyricsOffset()
 
         viewModelScope.launch {
             userPreferencesRepository.migrateTabOrder()

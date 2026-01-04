@@ -168,7 +168,9 @@ class EqualizerManager @Inject constructor() {
             
             currentAudioSessionId = audioSessionId
             
-            // Apply current band levels
+            // Apply current band levels with proper mapping
+            val deviceBandCount = equalizer?.numberOfBands?.toInt() ?: 0
+            Timber.tag(TAG).d("Device supports $deviceBandCount bands, UI has ${_bandLevels.value.size} bands")
             applyBandLevels(_bandLevels.value)
             
             Timber.tag(TAG).d("Effects attached successfully. EQ bands: ${equalizer?.numberOfBands}, Range: $minEqLevel to $maxEqLevel")
@@ -356,12 +358,47 @@ class EqualizerManager @Inject constructor() {
     }
     
     private fun applyBandLevels(levels: List<Int>) {
-        levels.forEachIndexed { index, level ->
-            applyBandLevel(index, level)
+        val eq = equalizer ?: return
+        val deviceBandCount = eq.numberOfBands.toInt()
+        
+        if (deviceBandCount <= 0) return
+        
+        // Map UI bands (10) to device bands (typically 5)
+        // If device has fewer bands than UI, we need to average/map appropriately
+        val uiBandCount = levels.size
+        
+        if (deviceBandCount >= uiBandCount) {
+            // Device has same or more bands than UI - apply directly
+            levels.forEachIndexed { index, level ->
+                applyBandLevelDirect(index, level)
+            }
+        } else {
+            // Device has fewer bands than UI - map UI bands to device bands
+            // Calculate how many UI bands map to each device band
+            val ratio = uiBandCount.toFloat() / deviceBandCount.toFloat()
+            
+            for (deviceBand in 0 until deviceBandCount) {
+                // Calculate which UI bands this device band covers
+                val startUiBand = (deviceBand * ratio).toInt()
+                val endUiBand = ((deviceBand + 1) * ratio).toInt().coerceAtMost(uiBandCount)
+                
+                // Average the UI band levels for this device band
+                var sum = 0
+                var count = 0
+                for (uiBand in startUiBand until endUiBand) {
+                    if (uiBand < levels.size) {
+                        sum += levels[uiBand]
+                        count++
+                    }
+                }
+                
+                val averageLevel = if (count > 0) sum / count else 0
+                applyBandLevelDirect(deviceBand, averageLevel)
+            }
         }
     }
     
-    private fun applyBandLevel(bandIndex: Int, normalizedLevel: Int) {
+    private fun applyBandLevelDirect(bandIndex: Int, normalizedLevel: Int) {
         val eq = equalizer ?: return
         if (bandIndex >= eq.numberOfBands) return
         
@@ -371,8 +408,18 @@ class EqualizerManager @Inject constructor() {
         
         try {
             eq.setBandLevel(bandIndex.toShort(), millibelLevel)
+            Timber.tag(TAG).v("Set band $bandIndex to $millibelLevel mB (normalized: $normalizedLevel)")
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Failed to set band $bandIndex level")
+        }
+    }
+    
+    private fun applyBandLevel(bandIndex: Int, normalizedLevel: Int) {
+        // This now triggers a full reapply to ensure proper mapping
+        val currentLevels = _bandLevels.value.toMutableList()
+        if (bandIndex < currentLevels.size) {
+            currentLevels[bandIndex] = normalizedLevel.coerceIn(MIN_LEVEL, MAX_LEVEL)
+            applyBandLevels(currentLevels)
         }
     }
     

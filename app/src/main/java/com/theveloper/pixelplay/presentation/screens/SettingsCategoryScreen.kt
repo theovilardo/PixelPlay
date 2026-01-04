@@ -250,7 +250,7 @@ fun SettingsCategoryScreen(
                                     showRebuildDatabaseWarning = true
                                 }
                             )
-
+                            Spacer(Modifier.height(4.dp))
                             SettingsItem(
                                 title = "Reset Imported Lyrics",
                                 subtitle = "Remove all imported lyrics from the database.",

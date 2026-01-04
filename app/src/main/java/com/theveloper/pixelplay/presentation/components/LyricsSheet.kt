@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.presentation.components
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
@@ -39,12 +40,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.theveloper.pixelplay.R
+import com.theveloper.pixelplay.data.model.Lyrics
 import com.theveloper.pixelplay.data.model.SyncedLine
 import com.theveloper.pixelplay.data.model.SyncedWord
 import com.theveloper.pixelplay.data.repository.LyricsSearchResult
@@ -66,8 +70,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
+import java.io.File
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.HorizontalDivider
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -80,6 +88,8 @@ fun LyricsSheet(
     onPickResult: (LyricsSearchResult) -> Unit,
     onImportLyrics: () -> Unit,
     onDismissLyricsSearch: () -> Unit,
+    lyricsSyncOffset: Int,
+    onLyricsSyncOffsetChange: (Int) -> Unit,
     lyricsTextStyle: TextStyle,
     backgroundColor: Color,
     onBackgroundColor: Color,
@@ -110,6 +120,8 @@ fun LyricsSheet(
     var showFetchLyricsDialog by remember { mutableStateOf(false) }
     // Flag to prevent dialog from showing briefly after reset
     var wasResetTriggered by remember { mutableStateOf(false) }
+    // Save lyrics dialog state
+    var showSaveLyricsDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(currentSong, lyrics, isLoadingLyrics) {
         if (currentSong != null && lyrics == null && !isLoadingLyrics) {
@@ -137,6 +149,62 @@ fun LyricsSheet(
                 }
             },
             onImport = onImportLyrics
+        )
+    }
+
+    // Save Lyrics Dialog
+    if (showSaveLyricsDialog && lyrics != null && currentSong != null) {
+        val hasSynced = !lyrics?.synced.isNullOrEmpty()
+        val hasPlain = !lyrics?.plain.isNullOrEmpty()
+        
+        AlertDialog(
+            onDismissRequest = { showSaveLyricsDialog = false },
+            title = { Text(stringResource(R.string.save_lyrics_dialog_title)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.save_lyrics_dialog_message))
+                    Spacer(modifier = Modifier.height(16.dp))
+                    if (hasSynced) {
+                        FilledTonalButton(
+                            onClick = {
+                                showSaveLyricsDialog = false
+                                saveLyricsToFile(
+                                    context = context,
+                                    song = currentSong!!,
+                                    lyrics = lyrics!!,
+                                    preferSynced = true
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(stringResource(R.string.save_synced_lyrics))
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                    if (hasPlain) {
+                        OutlinedButton(
+                            onClick = {
+                                showSaveLyricsDialog = false
+                                saveLyricsToFile(
+                                    context = context,
+                                    song = currentSong!!,
+                                    lyrics = lyrics!!,
+                                    preferSynced = false
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(stringResource(R.string.save_plain_lyrics))
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showSaveLyricsDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
         )
     }
 
@@ -227,6 +295,7 @@ fun LyricsSheet(
                             }
                         },
                         actions = {
+                            
                             var expanded by remember { mutableStateOf(false) }
                             IconButton(
                                 colors = IconButtonDefaults.iconButtonColors(
@@ -254,6 +323,30 @@ fun LyricsSheet(
                                     expanded = expanded,
                                     onDismissRequest = { expanded = false }
                                 ) {
+                                    // Save lyrics as .lrc option
+                                    DropdownMenuItem(
+                                        leadingIcon = {
+                                            Icon(
+                                                painter = painterResource(R.drawable.outline_save_24),
+                                                contentDescription = null
+                                            )
+                                        },
+                                        text = { Text(text = stringResource(R.string.save_lyrics_as_lrc)) },
+                                        enabled = lyrics != null,
+                                        onClick = {
+                                            expanded = false
+                                            if (lyrics != null) {
+                                                showSaveLyricsDialog = true
+                                            } else {
+                                                Toast.makeText(
+                                                    context,
+                                                    context.getString(R.string.no_lyrics_to_save),
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
+                                        }
+                                    )
+                                    // Reset imported lyrics option
                                     DropdownMenuItem(
                                         leadingIcon = {
                                             Icon(
@@ -261,7 +354,7 @@ fun LyricsSheet(
                                                 contentDescription = null
                                             )
                                         },
-                                        text = { Text(text = "Reset imported lyrics") },
+                                        text = { Text(text = stringResource(R.string.reset_imported_lyrics)) },
                                         onClick = {
                                             expanded = false
                                             wasResetTriggered = true
@@ -326,6 +419,84 @@ fun LyricsSheet(
                             }
                         }
                     }
+
+                    // Quick offset controls for synced lyrics
+                    if (lyrics?.synced != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                // -0.5s button
+                                FilledTonalIconButton(
+                                    onClick = { onLyricsSyncOffsetChange(lyricsSyncOffset - 500) },
+                                    modifier = Modifier.size(32.dp),
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = backgroundColor.copy(alpha = 0.7f),
+                                        contentColor = onBackgroundColor
+                                    )
+                                ) {
+                                    Text("−.5", style = MaterialTheme.typography.labelSmall, fontSize = 9.sp)
+                                }
+                                // -0.1s button
+                                FilledTonalIconButton(
+                                    onClick = { onLyricsSyncOffsetChange(lyricsSyncOffset - 100) },
+                                    modifier = Modifier.size(32.dp),
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = backgroundColor.copy(alpha = 0.7f),
+                                        contentColor = onBackgroundColor
+                                    )
+                                ) {
+                                    Text("−.1", style = MaterialTheme.typography.labelSmall, fontSize = 9.sp)
+                                }
+                                // Current offset display / Reset button
+                                FilledTonalIconButton(
+                                    onClick = { onLyricsSyncOffsetChange(0) },
+                                    modifier = Modifier.width(48.dp).height(32.dp),
+                                    enabled = lyricsSyncOffset != 0,
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = if (lyricsSyncOffset != 0) accentColor.copy(alpha = 0.3f) else backgroundColor.copy(alpha = 0.7f),
+                                        contentColor = onBackgroundColor
+                                    )
+                                ) {
+                                    Text(
+                                        text = if (lyricsSyncOffset == 0) "0s" else String.format("%+.1fs", lyricsSyncOffset / 1000f),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                // +0.1s button
+                                FilledTonalIconButton(
+                                    onClick = { onLyricsSyncOffsetChange(lyricsSyncOffset + 100) },
+                                    modifier = Modifier.size(32.dp),
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = backgroundColor.copy(alpha = 0.7f),
+                                        contentColor = onBackgroundColor
+                                    )
+                                ) {
+                                    Text("+.1", style = MaterialTheme.typography.labelSmall, fontSize = 9.sp)
+                                }
+                                // +0.5s button
+                                FilledTonalIconButton(
+                                    onClick = { onLyricsSyncOffsetChange(lyricsSyncOffset + 500) },
+                                    modifier = Modifier.size(32.dp),
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = backgroundColor.copy(alpha = 0.7f),
+                                        contentColor = onBackgroundColor
+                                    )
+                                ) {
+                                    Text("+.5", style = MaterialTheme.typography.labelSmall, fontSize = 9.sp)
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
                 }
             }
         },
@@ -362,8 +533,9 @@ fun LyricsSheet(
         val syncedListState = rememberLazyListState()
         val staticListState = rememberLazyListState()
         val playerUiState by playerUiStateFlow.collectAsState()
-        val positionFlow = remember(playerUiStateFlow) {
-            playerUiStateFlow.map { it.currentPosition }
+        // Apply lyrics sync offset to the position flow
+        val positionFlow = remember(playerUiStateFlow, lyricsSyncOffset) {
+            playerUiStateFlow.map { (it.currentPosition + lyricsSyncOffset).coerceAtLeast(0L) }
         }
 
         LaunchedEffect(lyrics) {
@@ -817,5 +989,66 @@ internal suspend fun animateToSnapIndex(
             previous = value
             if (abs(delta - consumed) > 0.5f) cancelAnimation()
         }
+    }
+}
+
+/**
+ * Saves lyrics to a .lrc file in the same directory as the song.
+ * @param context The Android context.
+ * @param song The song whose lyrics are being saved.
+ * @param lyrics The lyrics to save.
+ * @param preferSynced Whether to prefer synced lyrics over plain.
+ */
+private fun saveLyricsToFile(
+    context: android.content.Context,
+    song: com.theveloper.pixelplay.data.model.Song,
+    lyrics: Lyrics,
+    preferSynced: Boolean
+) {
+    try {
+        val songFile = File(song.path)
+        val songDir = songFile.parentFile
+        
+        if (songDir == null || !songDir.exists()) {
+            Toast.makeText(
+                context,
+                context.getString(R.string.lyrics_save_failed),
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+        
+        // Create .lrc filename based on song filename
+        val songNameWithoutExtension = songFile.nameWithoutExtension
+        val lrcFileName = "$songNameWithoutExtension.lrc"
+        val lrcFile = File(songDir, lrcFileName)
+        
+        // Convert lyrics to LRC format
+        val lrcContent = LyricsUtils.toLrcString(lyrics, preferSynced)
+        
+        if (lrcContent.isEmpty()) {
+            Toast.makeText(
+                context,
+                context.getString(R.string.no_lyrics_to_save),
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+        
+        // Write to file
+        lrcFile.writeText(lrcContent, Charsets.UTF_8)
+        
+        Toast.makeText(
+            context,
+            context.getString(R.string.lyrics_saved_successfully),
+            Toast.LENGTH_SHORT
+        ).show()
+    } catch (e: Exception) {
+        e.printStackTrace()
+        Toast.makeText(
+            context,
+            context.getString(R.string.lyrics_save_failed),
+            Toast.LENGTH_SHORT
+        ).show()
     }
 }

@@ -21,6 +21,9 @@ import kotlinx.coroutines.withContext
 import retrofit2.HttpException
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
@@ -87,10 +90,13 @@ class LyricsRepositoryImpl @Inject constructor(
             LogUtils.e(this@LyricsRepositoryImpl, e, "Error fetching lyrics from remote")
             // If no lyrics are found lrclib returns a 404 which also raises an exception.
             // We still want to present that info nicely to the user.
-            if (e is HttpException && e.code() == 404) {
-                Result.failure(NoLyricsFoundException())
-            } else {
-                Result.failure(LyricsException("Failed to fetch lyrics from remote", e))
+            when {
+                e is HttpException && e.code() == 404 -> Result.failure(NoLyricsFoundException())
+                e is SocketTimeoutException -> Result.failure(LyricsException(context.getString(R.string.lyrics_fetch_timeout), e))
+                e is UnknownHostException -> Result.failure(LyricsException(context.getString(R.string.lyrics_network_error), e))
+                e is IOException -> Result.failure(LyricsException(context.getString(R.string.lyrics_network_error), e))
+                e is HttpException -> Result.failure(LyricsException(context.getString(R.string.lyrics_server_error, e.code()), e))
+                else -> Result.failure(LyricsException(context.getString(R.string.failed_to_fetch_lyrics_from_remote), e))
             }
         }
     }
@@ -165,7 +171,13 @@ class LyricsRepositoryImpl @Inject constructor(
             }
         } catch (e: Exception) {
             LogUtils.e(this@LyricsRepositoryImpl, e, "Error searching remote for lyrics")
-            Result.failure(LyricsException(context.getString(R.string.failed_to_search_for_lyrics), e))
+            when {
+                e is SocketTimeoutException -> Result.failure(LyricsException(context.getString(R.string.lyrics_fetch_timeout), e))
+                e is UnknownHostException -> Result.failure(LyricsException(context.getString(R.string.lyrics_network_error), e))
+                e is IOException -> Result.failure(LyricsException(context.getString(R.string.lyrics_network_error), e))
+                e is HttpException -> Result.failure(LyricsException(context.getString(R.string.lyrics_server_error, e.code()), e))
+                else -> Result.failure(LyricsException(context.getString(R.string.failed_to_search_for_lyrics), e))
+            }
         }
     }
 
