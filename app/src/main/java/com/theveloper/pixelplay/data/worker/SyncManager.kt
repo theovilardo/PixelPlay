@@ -126,7 +126,12 @@ class SyncManager @Inject constructor(
 
             if (lastSyncTime == 0L || (currentTime - lastSyncTime) >= MIN_SYNC_INTERVAL_MS) {
                 Log.d(TAG, "Syncing library (last sync: ${(currentTime - lastSyncTime) / 1000}s ago)")
-                val syncRequest = SyncWorker.startUpSyncWork()
+                val syncRequest = if (lastSyncTime == 0L) {
+                    Log.d(TAG, "Initial sync detected. Using REBUILD mode for maximum speed.")
+                    SyncWorker.rebuildDatabaseWork()
+                } else {
+                    SyncWorker.startUpSyncWork()
+                }
                 workManager.enqueueUniqueWork(
                     SyncWorker.WORK_NAME,
                     ExistingWorkPolicy.REPLACE,
