@@ -255,11 +255,11 @@ fun QueueBottomSheet(
     var items by remember { mutableStateOf(displayQueue) }
     LaunchedEffect(displayQueue, currentSongId) {
         items = displayQueue
-        if (!isFirstOpen && currentSongIndex > 0) {
+        if (isFirstOpen && currentSongIndex >= 0) {
             listState.scrollToItem(currentSongIndex)
-        }
-        if (isFirstOpen) {
             isFirstOpen = false
+        } else if (!isFirstOpen && currentSongIndex > 0) {
+            listState.scrollToItem(currentSongIndex)
         }
     }
     val canDragSheetFromList by remember {
