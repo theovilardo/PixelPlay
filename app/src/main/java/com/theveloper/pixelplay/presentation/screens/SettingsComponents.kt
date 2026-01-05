@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -274,11 +276,13 @@ fun ThemeSelectorItem(
                     fontWeight = FontWeight.Bold
                 )
                 
-                Column(
-                    modifier = Modifier.padding(horizontal = 16.dp),
+                LazyColumn(
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .heightIn(max = 400.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    options.forEach { (key, optionLabel) ->
+                    items(options.entries.toList()) { (key, optionLabel) ->
                         val isSelected = key == selectedKey
                         val containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer
                         val contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
@@ -288,9 +292,9 @@ fun ThemeSelectorItem(
                                 onSelectionChanged(key)
                                 showSheet = false
                             },
-                            shape = RoundedCornerShape(24.dp), // Expressive full round
+                            shape = RoundedCornerShape(24.dp),
                             color = containerColor,
-                            modifier = Modifier.fillMaxWidth().height(72.dp) // Thick/Tall item
+                            modifier = Modifier.fillMaxWidth().height(72.dp)
                         ) {
                             Row(
                                 modifier = Modifier
@@ -612,6 +616,84 @@ fun GeminiApiKeyItem(
                     enabled = hasChanges
                 ) {
                     Text("Save")
+                }
+                if (showSaved) {
+                    Text(
+                        text = "Saved!",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun GeminiSystemPromptItem(
+    systemPrompt: String,
+    defaultPrompt: String,
+    onSystemPromptSave: (String) -> Unit,
+    onReset: () -> Unit,
+    title: String,
+    subtitle: String
+) {
+    var localPrompt by remember(systemPrompt) { mutableStateOf(systemPrompt) }
+    val hasChanges = localPrompt != systemPrompt
+    val isDefault = systemPrompt == defaultPrompt
+    var showSaved by remember { mutableStateOf(false) }
+
+    LaunchedEffect(showSaved) {
+        if (showSaved) {
+            kotlinx.coroutines.delay(2000)
+            showSaved = false
+        }
+    }
+
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = localPrompt,
+                onValueChange = { localPrompt = it },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp, max = 200.dp),
+                placeholder = { Text("Enter system prompt...") },
+                minLines = 3,
+                maxLines = 6
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                FilledTonalButton(
+                    onClick = {
+                        onSystemPromptSave(localPrompt)
+                        showSaved = true
+                    },
+                    enabled = hasChanges
+                ) {
+                    Text("Save")
+                }
+                if (!isDefault) {
+                    OutlinedButton(onClick = onReset) {
+                        Text("Reset")
+                    }
                 }
                 if (showSaved) {
                     Text(

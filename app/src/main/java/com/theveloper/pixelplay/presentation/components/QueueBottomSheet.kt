@@ -241,7 +241,9 @@ fun QueueBottomSheet(
     )
 
     // Show full queue including history (Apple Music style)
-    val displayQueue = remember(queue, currentSongId) {
+    // Only regenerate when queue changes, NOT when currentSongId changes
+    // This preserves item identity (UUIDs) for smooth scroll animation
+    val displayQueue = remember(queue) {
         queue.map { QueueUiItem(song = it) }
     }
 
@@ -252,8 +254,14 @@ fun QueueBottomSheet(
     var scrollToTopJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
     var items by remember { mutableStateOf(displayQueue) }
-    LaunchedEffect(displayQueue, currentSongId) {
+    
+    // Update items when queue changes
+    LaunchedEffect(displayQueue) {
         items = displayQueue
+    }
+    
+    // Animate scroll when current song changes
+    LaunchedEffect(currentSongId) {
         if (currentSongIndex > 0) {
             listState.animateScrollToItem(currentSongIndex)
         }
