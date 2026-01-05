@@ -136,6 +136,7 @@ import com.theveloper.pixelplay.data.preferences.AppThemeMode
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.worker.SyncManager
+import com.theveloper.pixelplay.data.worker.SyncProgress
 import com.theveloper.pixelplay.presentation.components.MiniPlayerBottomSpacer
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import com.theveloper.pixelplay.presentation.components.AppSidebarDrawer
@@ -389,6 +390,7 @@ class MainActivity : ComponentActivity() {
         val navController = rememberNavController()
         val isSyncing by mainViewModel.isSyncing.collectAsState()
         val isLibraryEmpty by mainViewModel.isLibraryEmpty.collectAsState()
+        val syncProgress by mainViewModel.syncProgress.collectAsState()
 
         // Estado para controlar si el indicador de carga puede mostrarse después de un delay
         var canShowLoadingIndicator by remember { mutableStateOf(false) }
@@ -416,7 +418,7 @@ class MainActivity : ComponentActivity() {
 
             // Muestra el LoadingOverlay solo si las condiciones se cumplen Y el delay ha pasado
             if (shouldPotentiallyShowLoading && canShowLoadingIndicator) {
-                LoadingOverlay()
+                LoadingOverlay(syncProgress)
             }
         }
         Trace.endSection() // End MainActivity.MainAppContent
@@ -691,7 +693,7 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun LoadingOverlay() {
+    private fun LoadingOverlay(syncProgress: SyncProgress) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -699,7 +701,10 @@ class MainActivity : ComponentActivity() {
                 .clickable(enabled = false, onClick = {}),
             contentAlignment = Alignment.Center
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(horizontal = 32.dp)
+            ) {
                 CircularProgressIndicator()
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
@@ -707,6 +712,20 @@ class MainActivity : ComponentActivity() {
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onBackground
                 )
+                
+                if (syncProgress.hasProgress) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    androidx.compose.material3.LinearProgressIndicator(
+                        progress = { syncProgress.progress },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Scanned ${syncProgress.currentCount} of ${syncProgress.totalCount} songs",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
