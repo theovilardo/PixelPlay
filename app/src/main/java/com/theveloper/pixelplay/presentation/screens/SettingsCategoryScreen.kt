@@ -210,7 +210,7 @@ fun SettingsCategoryScreen(
                     modifier = Modifier
                         .clip(RoundedCornerShape(24.dp))
                         .background(Color.Transparent) 
-                ) {
+               ) {
                     when (category) {
                         SettingsCategory.LIBRARY -> {
                              SettingsItem(
@@ -439,6 +439,10 @@ fun SettingsCategoryScreen(
 
                     }
                 }
+            }
+
+            item {
+                Spacer(Modifier.height(MiniPlayerHeight + 16.dp))
             }
         }
 

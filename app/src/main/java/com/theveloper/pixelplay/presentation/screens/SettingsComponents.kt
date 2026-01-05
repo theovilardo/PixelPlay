@@ -98,7 +98,7 @@ fun SettingsItem(
         onClick: () -> Unit
 ) {
     Surface(
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+            color = MaterialTheme.colorScheme.surfaceContainer,
             modifier =
                     Modifier.fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
@@ -146,7 +146,7 @@ fun SwitchSettingItem(
         enabled: Boolean = true
 ) {
     Surface(
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+            color = MaterialTheme.colorScheme.surfaceContainer,
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
     ) {
         Row(
@@ -211,7 +211,7 @@ fun ThemeSelectorItem(
     val selectedOption = options[selectedKey] ?: selectedKey
 
     Surface(
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+            color = MaterialTheme.colorScheme.surfaceContainer,
             modifier =
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable {
                         showSheet = true
@@ -243,7 +243,7 @@ fun ThemeSelectorItem(
                     
                     // Selected Value Badge
                     Surface(
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        color = MaterialTheme.colorScheme.surfaceContainerLowest,
                         shape = androidx.compose.foundation.shape.CircleShape,
                         modifier = Modifier.align(Alignment.Start)
                     ) {
@@ -346,7 +346,7 @@ fun SliderSettingsItem(
         valueText: (Float) -> String
 ) {
     Surface(
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+            color = MaterialTheme.colorScheme.surfaceContainer,
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -379,7 +379,7 @@ fun RefreshLibraryItem(
         onRebuild: () -> Unit
 ) {
     Surface(
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+            color = MaterialTheme.colorScheme.surfaceContainer,
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -565,7 +565,7 @@ fun GeminiApiKeyItem(
     subtitle: String
 ) {
     Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+        color = MaterialTheme.colorScheme.surfaceContainer,
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {

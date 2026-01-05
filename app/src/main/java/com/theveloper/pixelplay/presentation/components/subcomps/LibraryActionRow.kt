@@ -227,7 +227,7 @@ fun LibraryActionRow(
                                             modifier = Modifier.size(20.dp)
                                         )
                                         Text(
-                                            text = "Import M3U",
+                                            text = "Import",
                                             overflow = TextOverflow.Ellipsis,
                                             style = MaterialTheme.typography.labelLarge,
                                             fontWeight = FontWeight.Medium
