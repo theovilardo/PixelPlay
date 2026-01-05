@@ -3797,20 +3797,27 @@ class PlayerViewModel @Inject constructor(
                         _originalQueueName = _playerUiState.value.currentQueueSourceName
                     }
 
-                    val currentIndex = player.currentMediaItemIndex.coerceIn(0, (currentQueue.size - 1).coerceAtLeast(0))
+                    val effectiveSongId = currentSongOverride?.id
+                        ?: player.currentMediaItem?.mediaId
+                        ?: _stablePlayerState.value.currentSong?.id
+                    val anchorIndex = effectiveSongId?.let { id ->
+                        currentQueue.indexOfFirst { it.id == id }.coerceAtLeast(0)
+                    } ?: player.currentMediaItemIndex.coerceIn(0, (currentQueue.size - 1).coerceAtLeast(0))
                     val currentPosition = player.currentPosition
-                    val currentMediaId = player.currentMediaItem?.mediaId
 
                     val shuffledQueue = withContext(Dispatchers.Default) {
-                        buildAnchoredShuffleQueue(currentQueue, currentIndex)
+                        buildAnchoredShuffleQueue(currentQueue, anchorIndex)
                     }
 
-                    val targetIndex = shuffledQueue.indexOfFirst { it.id == currentMediaId }
-                        .takeIf { it != -1 } ?: currentIndex
+                    val rotatedQueue = withContext(Dispatchers.Default) {
+                        val tail = shuffledQueue.subList(anchorIndex, shuffledQueue.size)
+                        val head = shuffledQueue.subList(0, anchorIndex)
+                        (tail + head)
+                    }
 
-                    rebuildPlayerQueue(shuffledQueue, targetIndex, currentPosition)
+                    rebuildPlayerQueue(rotatedQueue, 0, currentPosition)
 
-                    _playerUiState.update { it.copy(currentPlaybackQueue = shuffledQueue.toImmutableList()) }
+                    _playerUiState.update { it.copy(currentPlaybackQueue = rotatedQueue.toImmutableList()) }
                     _stablePlayerState.update { it.copy(isShuffleEnabled = true) }
                     Log.d("ShuffleDebug", "Shuffle enabled - queue size: ${shuffledQueue.size}")
                 } else {

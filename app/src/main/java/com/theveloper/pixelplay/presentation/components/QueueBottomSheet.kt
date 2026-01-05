@@ -250,12 +250,16 @@ fun QueueBottomSheet(
     val listState = rememberLazyListState()
     val queueListScope = rememberCoroutineScope()
     var scrollToTopJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var isFirstOpen by rememberSaveable(queueSnapshot) { mutableStateOf(true) }
 
     var items by remember { mutableStateOf(displayQueue) }
     LaunchedEffect(displayQueue, currentSongId) {
         items = displayQueue
-        if (currentSongIndex > 0) {
+        if (!isFirstOpen && currentSongIndex > 0) {
             listState.scrollToItem(currentSongIndex)
+        }
+        if (isFirstOpen) {
+            isFirstOpen = false
         }
     }
     val canDragSheetFromList by remember {
