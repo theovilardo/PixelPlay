@@ -234,9 +234,15 @@ fun QueueBottomSheet(
         queue.indexOfFirst { it.id == currentSongId }
     }
 
+    // Generic wrapper to ensure unique keys for LazyColumn even with duplicate songs
+    data class QueueUiItem(
+        val uniqueId: String = java.util.UUID.randomUUID().toString(),
+        val song: Song
+    )
+
     // Show full queue including history (Apple Music style)
     val displayQueue = remember(queue, currentSongId) {
-        queue
+        queue.map { QueueUiItem(song = it) }
     }
 
     val queueSnapshot = remember(queue) { queue.toList() }
@@ -268,8 +274,8 @@ fun QueueBottomSheet(
     val updatedReorderHandleInUse by rememberUpdatedState(reorderHandleInUse)
 
     fun mapKeyToLocalIndex(key: Any?): Int? {
-        val songId = key as? String ?: return null
-        val localIndex = items.indexOfFirst { it.id == songId }
+        val uid = key as? String ?: return null
+        val localIndex = items.indexOfFirst { it.uniqueId == uid }
         return localIndex.takeIf { it != -1 }
     }
 
@@ -278,7 +284,8 @@ fun QueueBottomSheet(
         onMove = { from, to ->
             val fromLocalIndex = mapKeyToLocalIndex(from.key) ?: return@rememberReorderableLazyListState
             val toLocalIndex = mapKeyToLocalIndex(to.key) ?: return@rememberReorderableLazyListState
-            val movingSongId = items.getOrNull(fromLocalIndex)?.id
+            val movingItem = items.getOrNull(fromLocalIndex)
+            val movingSongId = movingItem?.song?.id
             items = items.toMutableList().apply {
                 add(toLocalIndex, removeAt(fromLocalIndex))
             }
@@ -312,9 +319,11 @@ fun QueueBottomSheet(
             if (fromIndex != null && toIndex != null && movedSongId != null) {
                 // Since we display the full queue, local index maps directly to queue index
                 val fromOriginalIndex = fromIndex
-                val resolvedTargetLocalIndex = items.indexOfFirst { it.id == movedSongId }
-                    .takeIf { it != -1 } ?: toIndex
-                val toOriginalIndex = resolvedTargetLocalIndex
+                // For logic purposes, we trust the mapped/moved indices.
+                // Note: resolving strictly by ID `indexOfFirst` works if IDs unique, but fails here.
+                // But `displayQueue` matches `queue` indices 1:1.
+                // So simple index usage is safer here than ID lookup for target.
+                val toOriginalIndex = toIndex
 
                 val fromWithinQueue = fromOriginalIndex in queue.indices
                 val toWithinQueue = toOriginalIndex in queue.indices
@@ -588,10 +597,11 @@ fun QueueBottomSheet(
                             Spacer(modifier = Modifier.height(6.dp))
                         }
 
-                        itemsIndexed(items, key = { _, s -> s.id }) { index, song ->
+                        itemsIndexed(items, key = { _, item -> item.uniqueId }) { index, item ->
+                            val song = item.song
                             ReorderableItem(
                                 state = reorderableState,
-                                key = song.id,
+                                key = item.uniqueId,
                                     enabled = index > currentSongIndex
                             ) { isDragging ->
                                 val scale by animateFloatAsState(

@@ -67,6 +67,7 @@ import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import java.io.File
 
 val defaultShape = RoundedCornerShape(26.dp) // Fallback shape
+val genHeight = 42.dp
 
 @Composable
 fun LibraryActionRow(
@@ -147,7 +148,7 @@ fun LibraryActionRow(
                         ),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 6.dp),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
-                        modifier = Modifier.height(48.dp)
+                        modifier = Modifier.height(genHeight)
                     ) {
                         val icon = if (isPlaylistTab) Icons.Rounded.PlaylistAdd else Icons.Rounded.Shuffle
                         val text = if (isPlaylistTab) "New" else if (isShuffleEnabled) "Shuffle On" else "Shuffle"
@@ -193,7 +194,7 @@ fun LibraryActionRow(
                     ) {
                         if (showGenerateButton) {
                             // Replaced "Generate" with "Import M3U" maintaining layout and animation
-                            Row(modifier = Modifier.height(48.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(modifier = Modifier.height(genHeight), verticalAlignment = Alignment.CenterVertically) {
                                 Spacer(modifier = Modifier.width(8.dp))
                                 FilledTonalButton(
                                     onClick = onImportM3uClick,
@@ -215,7 +216,7 @@ fun LibraryActionRow(
                                         horizontal = 16.dp,
                                         vertical = 10.dp
                                     ),
-                                    modifier = Modifier.height(48.dp)
+                                    modifier = Modifier.height(genHeight)
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,

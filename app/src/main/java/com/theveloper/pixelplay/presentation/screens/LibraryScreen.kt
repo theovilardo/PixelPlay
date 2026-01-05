@@ -477,7 +477,7 @@ fun LibraryScreen(
                         LibraryActionRow(
                             modifier = Modifier
                                 .padding(
-                                    top = 10.dp,
+                                    top = 6.dp,
                                     start = 10.dp,
                                     end = 10.dp
                                 )
