@@ -79,16 +79,22 @@ class SyncWorker @AssistedInject constructor(
                 musicDao.clearAllMusicDataWithCrossRefs()
             }
 
-            // Use granular progress updates (1 by 1) for Full and Rebuild modes as requested
-            val progressBatchSize = if (syncMode == SyncMode.FULL || syncMode == SyncMode.REBUILD) 1 else 50
-            
-            val mediaStoreSongs = fetchAllMusicData(progressBatchSize) { current, total ->
+            val progressBatchSize = 1
+
+            val mediaStoreSongs = fetchAllMusicData(progressBatchSize) { current, total, phaseOrdinal ->
                 setProgress(workDataOf(
                     PROGRESS_CURRENT to current,
-                    PROGRESS_TOTAL to total
+                    PROGRESS_TOTAL to total,
+                    PROGRESS_PHASE to phaseOrdinal
                 ))
             }
             Log.i(TAG, "Fetched ${mediaStoreSongs.size} songs from MediaStore.")
+
+            setProgress(workDataOf(
+                PROGRESS_CURRENT to 0,
+                PROGRESS_TOTAL to 1,
+                PROGRESS_PHASE to SyncProgress.SyncPhase.PROCESSING_FILES.ordinal
+            ))
 
             if (mediaStoreSongs.isNotEmpty()) {
                 // Fetch existing local songs to preserve their editable metadata
@@ -184,6 +190,7 @@ class SyncWorker @AssistedInject constructor(
                 
                 val endTime = System.currentTimeMillis()
                 Log.i(TAG, "MediaStore synchronization finished successfully in ${endTime - startTime}ms.")
+                userPreferencesRepository.setLastSyncTimestamp(System.currentTimeMillis())
                 Result.success(workDataOf(OUTPUT_TOTAL_SONGS to correctedSongs.size))
             } else {
                 // MediaStore is empty, so clear the local database
@@ -192,6 +199,7 @@ class SyncWorker @AssistedInject constructor(
                 
                 val endTime = System.currentTimeMillis()
                 Log.i(TAG, "MediaStore synchronization finished successfully in ${endTime - startTime}ms.")
+                userPreferencesRepository.setLastSyncTimestamp(System.currentTimeMillis())
                 Result.success(workDataOf(OUTPUT_TOTAL_SONGS to 0))
             }
         } catch (e: Exception) {
@@ -367,7 +375,10 @@ class SyncWorker @AssistedInject constructor(
         }
     }
 
-    private suspend fun fetchAllMusicData(progressBatchSize: Int, onProgress: suspend (current: Int, total: Int) -> Unit): List<SongEntity> {
+    private suspend fun fetchAllMusicData(
+        progressBatchSize: Int,
+        onProgress: suspend (current: Int, total: Int, phaseOrdinal: Int) -> Unit
+    ): List<SongEntity> {
         Trace.beginSection("SyncWorker.fetchAllMusicData")
         val songs = mutableListOf<SongEntity>()
         // Removed genre mapping from initial sync for performance.
@@ -411,7 +422,7 @@ class SyncWorker @AssistedInject constructor(
             var lastReportedCount = 0
             
             // Report initial progress (0 of total)
-            onProgress(0, totalCount)
+            onProgress(0, totalCount, SyncProgress.SyncPhase.FETCHING_MEDIASTORE.ordinal)
             
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
             val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
@@ -510,7 +521,7 @@ class SyncWorker @AssistedInject constructor(
                 processedCount++
                 if (processedCount - lastReportedCount >= progressBatchSize || processedCount == totalCount) {
                     lastReportedCount = processedCount
-                    onProgress(processedCount, totalCount)
+                    onProgress(processedCount, totalCount, SyncProgress.SyncPhase.FETCHING_MEDIASTORE.ordinal)
                 }
             }
         }
@@ -529,6 +540,7 @@ class SyncWorker @AssistedInject constructor(
         // Progress reporting constants
         const val PROGRESS_CURRENT = "progress_current"
         const val PROGRESS_TOTAL = "progress_total"
+        const val PROGRESS_PHASE = "progress_phase"
         const val OUTPUT_TOTAL_SONGS = "output_total_songs"
 
         fun startUpSyncWork(deepScan: Boolean = false) = OneTimeWorkRequestBuilder<SyncWorker>()

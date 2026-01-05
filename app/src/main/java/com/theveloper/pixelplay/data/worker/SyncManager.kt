@@ -1,9 +1,11 @@
 package com.theveloper.pixelplay.data.worker
 
 import android.content.Context
+import android.util.Log
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -11,8 +13,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -23,25 +27,35 @@ data class SyncProgress(
     val isRunning: Boolean = false,
     val currentCount: Int = 0,
     val totalCount: Int = 0,
-    val isCompleted: Boolean = false
+    val isCompleted: Boolean = false,
+    val phase: SyncPhase = SyncPhase.IDLE
 ) {
+    enum class SyncPhase {
+        IDLE,
+        FETCHING_MEDIASTORE,
+        PROCESSING_FILES,
+        SAVING_TO_DATABASE,
+        COMPLETING
+    }
+
     val progress: Float
         get() = if (totalCount > 0) currentCount.toFloat() / totalCount else 0f
-    
+
     val hasProgress: Boolean
         get() = totalCount > 0
-}
+    }
 
 @Singleton
 class SyncManager @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val userPreferencesRepository: UserPreferencesRepository
 ) {
     private val workManager = WorkManager.getInstance(context)
     private val sharingScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     // EXPONE UN FLOW<BOOLEAN> SIMPLE
     val isSyncing: Flow<Boolean> =
-        workManager.getWorkInfosForUniqueWorkFlow(SyncWorker.WORK_NAME) // Use SyncWorker.WORK_NAME
+        workManager.getWorkInfosForUniqueWorkFlow(SyncWorker.WORK_NAME)
             .map { workInfos ->
                 val isRunning = workInfos.any { it.state == WorkInfo.State.RUNNING }
                 val isEnqueued = workInfos.any { it.state == WorkInfo.State.ENQUEUED }
@@ -63,16 +77,23 @@ class SyncManager @Inject constructor(
                 val runningWork = workInfos.firstOrNull { it.state == WorkInfo.State.RUNNING }
                 val succeededWork = workInfos.firstOrNull { it.state == WorkInfo.State.SUCCEEDED }
                 val enqueuedWork = workInfos.firstOrNull { it.state == WorkInfo.State.ENQUEUED }
-                
+
                 when {
                     runningWork != null -> {
                         val current = runningWork.progress.getInt(SyncWorker.PROGRESS_CURRENT, 0)
                         val total = runningWork.progress.getInt(SyncWorker.PROGRESS_TOTAL, 0)
+                        val phaseOrdinal = runningWork.progress.getInt(SyncWorker.PROGRESS_PHASE, 0)
+                        val phase = try {
+                            SyncProgress.SyncPhase.entries[phaseOrdinal]
+                        } catch (e: IndexOutOfBoundsException) {
+                            SyncProgress.SyncPhase.IDLE
+                        }
                         SyncProgress(
                             isRunning = true,
                             currentCount = current,
                             totalCount = total,
-                            isCompleted = false
+                            isCompleted = false,
+                            phase = phase
                         )
                     }
                     succeededWork != null -> {
@@ -81,11 +102,12 @@ class SyncManager @Inject constructor(
                             isRunning = false,
                             currentCount = total,
                             totalCount = total,
-                            isCompleted = true
+                            isCompleted = true,
+                            phase = SyncProgress.SyncPhase.COMPLETING
                         )
                     }
                     enqueuedWork != null -> {
-                        SyncProgress(isRunning = true, isCompleted = false)
+                        SyncProgress(isRunning = true, isCompleted = false, phase = SyncProgress.SyncPhase.IDLE)
                     }
                     else -> SyncProgress()
                 }
@@ -98,12 +120,22 @@ class SyncManager @Inject constructor(
             )
 
     fun sync() {
-        val syncRequest = SyncWorker.startUpSyncWork()
-        workManager.enqueueUniqueWork(
-            SyncWorker.WORK_NAME, // Use SyncWorker.WORK_NAME
-            ExistingWorkPolicy.REPLACE, // Changed to REPLACE for initial sync
-            syncRequest
-        )
+        sharingScope.launch {
+            val lastSyncTime = userPreferencesRepository.getLastSyncTimestamp()
+            val currentTime = System.currentTimeMillis()
+
+            if (lastSyncTime == 0L || (currentTime - lastSyncTime) >= MIN_SYNC_INTERVAL_MS) {
+                Log.d(TAG, "Syncing library (last sync: ${(currentTime - lastSyncTime) / 1000}s ago)")
+                val syncRequest = SyncWorker.startUpSyncWork()
+                workManager.enqueueUniqueWork(
+                    SyncWorker.WORK_NAME,
+                    ExistingWorkPolicy.REPLACE,
+                    syncRequest
+                )
+            } else {
+                Log.d(TAG, "Skipping sync - last sync was ${(currentTime - lastSyncTime) / 1000}s ago (min: ${MIN_SYNC_INTERVAL_MS / 1000}s)")
+            }
+        }
     }
 
     /**
@@ -155,10 +187,13 @@ class SyncManager @Inject constructor(
         val syncRequest = SyncWorker.startUpSyncWork(true)
         workManager.enqueueUniqueWork(
             SyncWorker.WORK_NAME,
-            ExistingWorkPolicy.REPLACE, // La política clave para el refresco
+            ExistingWorkPolicy.REPLACE,
             syncRequest
         )
     }
 
-    // Removed companion object with SYNC_WORK_NAME as SyncWorker.WORK_NAME is now used universally
+    companion object {
+        private const val TAG = "SyncManager"
+        private const val MIN_SYNC_INTERVAL_MS = 5 * 60 * 1000L // 5 minutes
+    }
 }

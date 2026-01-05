@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.data.worker.SyncManager
+import com.theveloper.pixelplay.data.worker.SyncProgress
 import com.theveloper.pixelplay.utils.LogUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -37,6 +38,16 @@ class MainViewModel @Inject constructor(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = true // Asumimos que podría estar sincronizando al inicio
+        )
+
+    /**
+     * Flow that exposes detailed sync progress including file count and phase.
+     */
+    val syncProgress: StateFlow<SyncProgress> = syncManager.syncProgress
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = SyncProgress()
         )
 
     /**

@@ -32,6 +32,15 @@
     <string name="ok">OK</string>
     <string name="cancel">Cancel</string>
     <string name="import_file">Import</string>
+
+    <!-- Sync/Progress strings -->
+    <string name="sync_scanning">Scanning music files…</string>
+    <string name="sync_processing">Processing files…</string>
+    <string name="sync_files_progress">%1$d of %2$d files</string>
+    <string name="sync_in_progress">Syncing library…</string>
+    <string name="sync_complete">Sync complete</string>
+    <string name="sync_pending">Waiting…</string>
+    <string name="syncing_library">Sincronizando biblioteca…</string>
     <string name="unknown_song_title">Unknown track</string>
     <string name="unknown_artist">Unknown artist</string>
     <string name="unknown_album">Unknown album</string>

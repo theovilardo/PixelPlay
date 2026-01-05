@@ -54,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -110,7 +111,7 @@ fun SettingsTopBar(
                                     containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                             )
             ) {
-                Icon(painterResource(R.drawable.rounded_arrow_back_24), contentDescription = "Back")
+                Icon(painterResource(R.drawable.rounded_arrow_back_24), contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
             }
 
             ExpressiveTopBarContent(
@@ -241,9 +242,9 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxSize()
         ) {
             item {
+                val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
                 ExpressiveSettingsGroup {
                     val mainCategories = SettingsCategory.entries.filter { it != SettingsCategory.ABOUT && it != SettingsCategory.EQUALIZER }
-                    val isDark = isSystemInDarkTheme()
                     
                     mainCategories.forEachIndexed { index, category ->
                         val colors = getCategoryColors(category, isDark)
@@ -272,7 +273,7 @@ fun SettingsScreen(
                 // Equalizer Category (Standalone)
                 ExpressiveCategoryItem(
                     category = SettingsCategory.EQUALIZER,
-                    customColors = getCategoryColors(SettingsCategory.EQUALIZER, isSystemInDarkTheme()),
+                    customColors = getCategoryColors(SettingsCategory.EQUALIZER, isDark),
                     onClick = { navController.navigate(Screen.Equalizer.route) }, // Direct navigation
                     shape = RoundedCornerShape(24.dp)
                 )
@@ -282,7 +283,7 @@ fun SettingsScreen(
                 // About Category (Standalone)
                 ExpressiveCategoryItem(
                     category = SettingsCategory.ABOUT,
-                    customColors = getCategoryColors(SettingsCategory.ABOUT, isSystemInDarkTheme()),
+                    customColors = getCategoryColors(SettingsCategory.ABOUT, isDark),
                     onClick = { navController.navigate("about") }, // Direct navigation
                     shape = RoundedCornerShape(24.dp)
                 )

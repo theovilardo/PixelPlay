@@ -46,7 +46,7 @@ import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ContainedLoadingIndicator
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
@@ -107,6 +107,7 @@ import com.theveloper.pixelplay.presentation.components.SmartImage
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.ui.res.stringResource
 import com.theveloper.pixelplay.presentation.components.AiPlaylistSheet
 import com.theveloper.pixelplay.presentation.components.PlaylistArtCollage
 import com.theveloper.pixelplay.presentation.components.ReorderTabsSheet
@@ -121,7 +122,9 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 import com.theveloper.pixelplay.data.model.LibraryTabId
 import com.theveloper.pixelplay.data.model.toLibraryTabIdOrNull
 import com.theveloper.pixelplay.data.preferences.LibraryNavigationMode
+import com.theveloper.pixelplay.data.worker.SyncProgress
 import com.theveloper.pixelplay.presentation.components.LibrarySortBottomSheet
+import com.theveloper.pixelplay.presentation.components.SyncProgressBar
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -158,6 +161,7 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.ripple
@@ -190,6 +194,7 @@ fun LibraryScreen(
     val syncManager = playerViewModel.syncManager
     var isRefreshing by remember { mutableStateOf(false) }
     val isSyncing by syncManager.isSyncing.collectAsState(initial = false)
+    val syncProgress by syncManager.syncProgress.collectAsState(initial = SyncProgress())
 
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     var showPlaylistBottomSheet by remember { mutableStateOf(false) }
@@ -724,7 +729,7 @@ fun LibraryScreen(
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                ContainedLoadingIndicator(modifier = Modifier.size(64.dp))
+                                LoadingIndicator(modifier = Modifier.size(64.dp))
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
                                     text = "Generating metadata with AI...",
@@ -740,14 +745,26 @@ fun LibraryScreen(
                         color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                ContainedLoadingIndicator(modifier = Modifier.size(64.dp))
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = "Sincronizando biblioteca...",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(32.dp)
+                            ) {
+                                if (syncProgress.hasProgress && syncProgress.isRunning) {
+                                    // Show progress bar with file count when we have progress info
+                                    SyncProgressBar(
+                                        syncProgress = syncProgress,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                } else {
+                                    // Show indeterminate loading indicator when scanning starts
+                                    LoadingIndicator(modifier = Modifier.size(64.dp))
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Text(
+                                        text = stringResource(R.string.syncing_library),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
                             }
                         }
                     }
@@ -1325,7 +1342,7 @@ fun LibraryFoldersTab(
             when {
                 shouldShowLoading -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        ContainedLoadingIndicator()
+                        LoadingIndicator()
                     }
                 }
 
@@ -1356,11 +1373,19 @@ fun LibraryFoldersTab(
                 }
 
                 else -> {
+                    val foldersPullToRefreshState = rememberPullToRefreshState()
                     PullToRefreshBox(
                         isRefreshing = isRefreshing,
                         onRefresh = onRefresh,
-                        state = rememberPullToRefreshState(),
-                        modifier = Modifier.fillMaxSize()
+                        state = foldersPullToRefreshState,
+                        modifier = Modifier.fillMaxSize(),
+                        indicator = {
+                            PullToRefreshDefaults.LoadingIndicator(
+                                state = foldersPullToRefreshState,
+                                isRefreshing = isRefreshing,
+                                modifier = Modifier.align(Alignment.TopCenter)
+                            )
+                        }
                     ) {
                         LazyColumn(
                             modifier = Modifier
@@ -1544,11 +1569,19 @@ fun LibraryFavoritesTab(
             .fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
+            val songsPullToRefreshState = rememberPullToRefreshState()
             PullToRefreshBox(
                 isRefreshing = isRefreshing,
                 onRefresh = onRefresh,
-                state = rememberPullToRefreshState(),
-                modifier = Modifier.fillMaxSize()
+                state = songsPullToRefreshState,
+                modifier = Modifier.fillMaxSize(),
+                indicator = {
+                    PullToRefreshDefaults.LoadingIndicator(
+                        state = songsPullToRefreshState,
+                        isRefreshing = isRefreshing,
+                        modifier = Modifier.align(Alignment.TopCenter)
+                    )
+                }
             ) {
                 LazyColumn(
                     modifier = Modifier
@@ -1640,17 +1673,25 @@ fun LibrarySongsTab(
 
     if (isLoadingInitial && songs.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            ContainedLoadingIndicator() // O Shimmer para la lista completa
+            LoadingIndicator() // O Shimmer para la lista completa
         }
     } else {
         // Determine content based on loading state and data availability
         when {
             isLoadingInitial && songs.isEmpty() -> { // Este caso ya está cubierto arriba, pero es bueno para claridad
+                val allSongsPullToRefreshState = rememberPullToRefreshState()
                 PullToRefreshBox(
                     isRefreshing = isRefreshing,
                     onRefresh = onRefresh,
-                    state = rememberPullToRefreshState(),
-                    modifier = Modifier.fillMaxSize()
+                    state = allSongsPullToRefreshState,
+                    modifier = Modifier.fillMaxSize(),
+                    indicator = {
+                        PullToRefreshDefaults.LoadingIndicator(
+                            state = allSongsPullToRefreshState,
+                            isRefreshing = isRefreshing,
+                            modifier = Modifier.align(Alignment.TopCenter)
+                        )
+                    }
                 ) {
                     LazyColumn(
                         modifier = Modifier
@@ -1707,11 +1748,19 @@ fun LibrarySongsTab(
 
             else -> {
                 Box(modifier = Modifier.fillMaxSize()) {
+                    val artistsPullToRefreshState = rememberPullToRefreshState()
                     PullToRefreshBox(
                         isRefreshing = isRefreshing,
                         onRefresh = onRefresh,
-                        state = rememberPullToRefreshState(),
-                        modifier = Modifier.fillMaxSize()
+                        state = artistsPullToRefreshState,
+                        modifier = Modifier.fillMaxSize(),
+                        indicator = {
+                            PullToRefreshDefaults.LoadingIndicator(
+                                state = artistsPullToRefreshState,
+                                isRefreshing = isRefreshing,
+                                modifier = Modifier.align(Alignment.TopCenter)
+                            )
+                        }
                     ) {
                         LazyColumn(
                             modifier = Modifier
@@ -2049,7 +2098,7 @@ fun LibraryAlbumsTab(
     }
 
     if (isLoading && albums.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { ContainedLoadingIndicator() }
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LoadingIndicator() }
     } else if (albums.isEmpty() && !isLoading) { // canLoadMore removed
         Box(modifier = Modifier
             .fillMaxSize()
@@ -2061,11 +2110,19 @@ fun LibraryAlbumsTab(
         }
     } else {
         Box(modifier = Modifier.fillMaxSize()) {
+            val albumsPullToRefreshState = rememberPullToRefreshState()
             PullToRefreshBox(
                 isRefreshing = isRefreshing,
                 onRefresh = onRefresh,
-                state = rememberPullToRefreshState(),
-                modifier = Modifier.fillMaxSize()
+                state = albumsPullToRefreshState,
+                modifier = Modifier.fillMaxSize(),
+                indicator = {
+                    PullToRefreshDefaults.LoadingIndicator(
+                        state = albumsPullToRefreshState,
+                        isRefreshing = isRefreshing,
+                        modifier = Modifier.align(Alignment.TopCenter)
+                    )
+                }
             ) {
                 LazyVerticalGrid(
                     modifier = Modifier
@@ -2269,17 +2326,25 @@ fun LibraryArtistsTab(
     onRefresh: () -> Unit
 ) {
     val listState = rememberLazyListState()
-    if (isLoading && artists.isEmpty()) { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { ContainedLoadingIndicator() } }
+    if (isLoading && artists.isEmpty()) { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LoadingIndicator() } }
     else if (artists.isEmpty() && !isLoading) { /* ... No artists ... */ } // canLoadMore removed
     else {
         Box(
             modifier = Modifier.fillMaxSize()
         ) {
+            val genresPullToRefreshState = rememberPullToRefreshState()
             PullToRefreshBox(
                 isRefreshing = isRefreshing,
                 onRefresh = onRefresh,
-                state = rememberPullToRefreshState(),
-                modifier = Modifier.fillMaxSize()
+                state = genresPullToRefreshState,
+                modifier = Modifier.fillMaxSize(),
+                indicator = {
+                    PullToRefreshDefaults.LoadingIndicator(
+                        state = genresPullToRefreshState,
+                        isRefreshing = isRefreshing,
+                        modifier = Modifier.align(Alignment.TopCenter)
+                    )
+                }
             ) {
                 LazyColumn(
                     modifier = Modifier

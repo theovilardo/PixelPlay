@@ -310,7 +310,7 @@ private fun ArtistSettingsTopBar(
                 onClick = onBackPressed,
                 colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
             ) {
-                Icon(painterResource(R.drawable.rounded_arrow_back_24), contentDescription = "Back")
+                Icon(painterResource(R.drawable.rounded_arrow_back_24), contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
             }
 
             ExpressiveTopBarContent(
