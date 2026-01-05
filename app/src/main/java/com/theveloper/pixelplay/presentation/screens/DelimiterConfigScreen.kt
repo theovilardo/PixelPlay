@@ -390,7 +390,7 @@ private fun DelimiterSettingsTopBar(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                 )
             ) {
-                Icon(painterResource(R.drawable.rounded_arrow_back_24), contentDescription = "Back")
+                Icon(painterResource(R.drawable.rounded_arrow_back_24), contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
             }
 
             ExpressiveTopBarContent(
