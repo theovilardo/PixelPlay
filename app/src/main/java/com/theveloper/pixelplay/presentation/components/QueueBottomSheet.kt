@@ -255,7 +255,7 @@ fun QueueBottomSheet(
     LaunchedEffect(displayQueue, currentSongId) {
         items = displayQueue
         if (currentSongIndex > 0) {
-            listState.scrollToItem(currentSongIndex)
+            listState.animateScrollToItem(currentSongIndex)
         }
     }
     val canDragSheetFromList by remember {

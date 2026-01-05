@@ -560,10 +560,21 @@ fun RefreshLyricsItem(
 @Composable
 fun GeminiApiKeyItem(
     apiKey: String,
-    onApiKeyChange: (String) -> Unit,
+    onApiKeySave: (String) -> Unit,
     title: String,
     subtitle: String
 ) {
+    var localApiKey by remember(apiKey) { mutableStateOf(apiKey) }
+    val hasChanges = localApiKey != apiKey
+    var showSaved by remember { mutableStateOf(false) }
+
+    LaunchedEffect(showSaved) {
+        if (showSaved) {
+            kotlinx.coroutines.delay(2000)
+            showSaved = false
+        }
+    }
+
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainer,
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
@@ -581,12 +592,36 @@ fun GeminiApiKeyItem(
             )
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
-                value = apiKey,
-                onValueChange = onApiKeyChange,
+                value = localApiKey,
+                onValueChange = { localApiKey = it },
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text("Enter API Key") },
                 singleLine = true
             )
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                FilledTonalButton(
+                    onClick = {
+                        onApiKeySave(localApiKey)
+                        showSaved = true
+                    },
+                    enabled = hasChanges
+                ) {
+                    Text("Save")
+                }
+                if (showSaved) {
+                    Text(
+                        text = "Saved!",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
     }
 }

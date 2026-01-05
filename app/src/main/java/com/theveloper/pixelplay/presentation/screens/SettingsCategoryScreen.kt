@@ -395,7 +395,7 @@ fun SettingsCategoryScreen(
                         SettingsCategory.AI_INTEGRATION -> {
                             GeminiApiKeyItem(
                                 apiKey = geminiApiKey,
-                                onApiKeyChange = { settingsViewModel.onGeminiApiKeyChange(it) },
+                                onApiKeySave = { settingsViewModel.onGeminiApiKeyChange(it) },
                                 title = "Gemini API Key",
                                 subtitle = "Needed for AI-powered features."
                             )
