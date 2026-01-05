@@ -107,6 +107,7 @@ import com.theveloper.pixelplay.presentation.components.SmartImage
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.ui.res.stringResource
 import com.theveloper.pixelplay.presentation.components.AiPlaylistSheet
 import com.theveloper.pixelplay.presentation.components.PlaylistArtCollage
 import com.theveloper.pixelplay.presentation.components.ReorderTabsSheet
@@ -121,7 +122,9 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 import com.theveloper.pixelplay.data.model.LibraryTabId
 import com.theveloper.pixelplay.data.model.toLibraryTabIdOrNull
 import com.theveloper.pixelplay.data.preferences.LibraryNavigationMode
+import com.theveloper.pixelplay.data.worker.SyncProgress
 import com.theveloper.pixelplay.presentation.components.LibrarySortBottomSheet
+import com.theveloper.pixelplay.presentation.components.SyncProgressBar
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -190,6 +193,7 @@ fun LibraryScreen(
     val syncManager = playerViewModel.syncManager
     var isRefreshing by remember { mutableStateOf(false) }
     val isSyncing by syncManager.isSyncing.collectAsState(initial = false)
+    val syncProgress by syncManager.syncProgress.collectAsState(initial = SyncProgress())
 
     var showSongInfoBottomSheet by remember { mutableStateOf(false) }
     var showPlaylistBottomSheet by remember { mutableStateOf(false) }
@@ -740,14 +744,26 @@ fun LibraryScreen(
                         color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                ContainedLoadingIndicator(modifier = Modifier.size(64.dp))
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = "Sincronizando biblioteca...",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(32.dp)
+                            ) {
+                                if (syncProgress.hasProgress && syncProgress.isRunning) {
+                                    // Show progress bar with file count when we have progress info
+                                    SyncProgressBar(
+                                        syncProgress = syncProgress,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                } else {
+                                    // Show indeterminate loading indicator when scanning starts
+                                    ContainedLoadingIndicator(modifier = Modifier.size(64.dp))
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Text(
+                                        text = stringResource(R.string.syncing_library),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
                             }
                         }
                     }
