@@ -116,7 +116,13 @@ fun FileExplorerDialog(
 
     if (transitionState.currentState || transitionState.targetState) {
         Dialog(
-            onDismissRequest = onDismiss,
+            onDismissRequest = {
+                if (!isAtRoot) {
+                    onNavigateUp()
+                } else {
+                    onDismiss()
+                }
+            },
             properties = DialogProperties(
                 usePlatformDefaultWidth = false,
                 decorFitsSystemWindows = false
