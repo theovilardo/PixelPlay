@@ -366,9 +366,11 @@ fun ExpressiveCategoryItem(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = category.title,
+                    overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1
                 )
                 Text(
                     text = category.subtitle,
