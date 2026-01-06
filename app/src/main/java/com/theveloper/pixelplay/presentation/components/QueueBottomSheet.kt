@@ -599,7 +599,7 @@ fun QueueBottomSheet(
                             ),
                         userScrollEnabled = !(isReordering || reorderHandleInUse),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(bottom = 110.dp)
+                        contentPadding = PaddingValues(bottom = MiniPlayerHeight + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 32.dp)
                     ) {
                         item("queue_top_spacer") {
                             Spacer(modifier = Modifier.height(6.dp))
@@ -679,17 +679,19 @@ fun QueueBottomSheet(
             Box(
                 modifier = Modifier.fillMaxSize()
             ) {
-                val fabSpacing = 24.dp
+                val fabSpacing = 16.dp
                 val menuSpacing = 20.dp
                 val fabRotation by animateFloatAsState(
                     targetValue = if (isFabExpanded) 45f else 0f,
                     label = "fabRotation"
                 )
 
+                val navigationBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+
                 Row(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = fabSpacing)
+                        .padding(bottom = fabSpacing + navigationBarHeight)
                         // Usamos IntrinsicSize.Min o una altura fija para asegurar igualdad
                         .height(70.dp)
                         .then(directSheetDragModifier),

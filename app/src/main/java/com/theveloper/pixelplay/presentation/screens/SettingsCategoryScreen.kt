@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ClearAll
@@ -218,7 +219,12 @@ fun SettingsCategoryScreen(
         LazyColumn(
             state = lazyListState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = currentTopBarHeightDp, start = 16.dp, end = 16.dp, bottom = 16.dp)
+            contentPadding = PaddingValues(
+                top = currentTopBarHeightDp,
+                start = 16.dp,
+                end = 16.dp,
+                bottom = MiniPlayerHeight + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 8.dp
+            )
         ) {
             item {
                // Use a simple Column for now, or ExpressiveSettingsGroup if preferred strictly for items
@@ -519,7 +525,8 @@ fun SettingsCategoryScreen(
             }
 
             item {
-                Spacer(Modifier.height(MiniPlayerHeight + 16.dp))
+                // Spacer handled by contentPadding
+                Spacer(Modifier.height(1.dp))
             }
         }
 

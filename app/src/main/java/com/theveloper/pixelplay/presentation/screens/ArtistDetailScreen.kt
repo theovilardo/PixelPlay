@@ -195,7 +195,10 @@ fun ArtistDetailScreen(
                     val albumSections = uiState.albumSections
                     LazyColumn(
                         state = lazyListState,
-                        contentPadding = PaddingValues(top = currentTopBarHeightDp, bottom = 16.dp),
+                        contentPadding = PaddingValues(
+                            top = currentTopBarHeightDp,
+                            bottom = MiniPlayerHeight + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 8.dp
+                        ),
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(horizontal = 0.dp)
@@ -248,9 +251,7 @@ fun ArtistDetailScreen(
                             }
                         }
 
-                        item(key = "bottom_spacer") {
-                            Spacer(modifier = Modifier.height(MiniPlayerHeight + 16.dp))
-                        }
+
                     }
 
                     CustomCollapsingTopBar(
@@ -391,6 +392,7 @@ private fun AlbumSectionHeader(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun CustomCollapsingTopBar(
     artist: Artist,

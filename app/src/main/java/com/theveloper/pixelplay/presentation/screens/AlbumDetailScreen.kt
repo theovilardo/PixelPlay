@@ -231,7 +231,7 @@ fun AlbumDetailScreen(
                     state = lazyListState,
                     contentPadding = PaddingValues(
                         top = currentTopBarHeightDp,
-                        bottom = MiniPlayerHeight + 28.dp
+                        bottom = MiniPlayerHeight + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 8.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier

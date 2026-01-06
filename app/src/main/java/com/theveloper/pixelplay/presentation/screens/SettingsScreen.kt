@@ -23,10 +23,12 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -237,7 +239,12 @@ fun SettingsScreen(
         val currentTopBarHeightDp = with(density) { topBarHeight.value.toDp() }
         LazyColumn(
                 state = lazyListState,
-                contentPadding = PaddingValues(top = currentTopBarHeightDp, start = 16.dp, end = 16.dp, bottom = MiniPlayerHeight + 16.dp),
+                contentPadding = PaddingValues(
+                    top = currentTopBarHeightDp,
+                    start = 16.dp,
+                    end = 16.dp,
+                    bottom = MiniPlayerHeight + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 8.dp
+                ),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxSize()
         ) {

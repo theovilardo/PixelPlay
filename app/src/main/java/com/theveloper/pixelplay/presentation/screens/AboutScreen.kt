@@ -287,7 +287,10 @@ fun AboutScreen(
         val currentTopBarHeightDp = with(density) { topBarHeight.value.toDp() }
         LazyColumn(
             state = lazyListState,
-            contentPadding = PaddingValues(top = currentTopBarHeightDp, bottom = MiniPlayerHeight + 36.dp),
+            contentPadding = PaddingValues(
+                top = currentTopBarHeightDp,
+                bottom = MiniPlayerHeight + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 8.dp
+            ),
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {

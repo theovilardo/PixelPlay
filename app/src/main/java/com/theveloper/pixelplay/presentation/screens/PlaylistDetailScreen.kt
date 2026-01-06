@@ -541,11 +541,7 @@ fun PlaylistDetailScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(
                             top = 12.dp,
-                            bottom = if (playerStableState.isPlaying || playerStableState.currentSong != null) {
-                                MiniPlayerHeight + 32.dp + actionButtonsHeight
-                            } else {
-                                10.dp + actionButtonsHeight
-                            }
+                            bottom = MiniPlayerHeight + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 8.dp
                         )
                     ) {
                         itemsIndexed(

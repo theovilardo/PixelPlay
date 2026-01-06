@@ -255,54 +255,6 @@ fun FileExplorerContent(
                 .fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(7.2.dp)
         ) {
-//            Row(
-//                modifier = Modifier
-//                    .fillMaxWidth()
-//                    .padding(top = 10.dp)
-//                    .padding(horizontal = 16.dp),
-//                verticalAlignment = Alignment.CenterVertically,
-//                horizontalArrangement = Arrangement.SpaceBetween
-//            ) {
-//                Row(
-//                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-//                    verticalAlignment = Alignment.CenterVertically
-//                ) {
-//                    FilledIconButton(
-//                        onClick = onDismiss,
-//                        colors = IconButtonDefaults.filledIconButtonColors(
-//                            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-//                            contentColor = MaterialTheme.colorScheme.onSurface
-//                        )
-//                    ) {
-//                        Icon(
-//                            imageVector = Icons.Rounded.Close,
-//                            contentDescription = "Close"
-//                        )
-//                    }
-//                    leadingContent?.invoke()
-//                    Text(
-//                        text = title,
-//                        style = MaterialTheme.typography.titleLarge.copy(fontSize = 24.sp),
-//                        color = MaterialTheme.colorScheme.onSurface,
-//                        modifier = Modifier.padding(start = 6.dp)
-//                    )
-//                }
-//
-//                FilledIconButton(
-//                    modifier = Modifier.padding(end = 4.dp),
-//                    onClick = onRefresh,
-//                    colors = IconButtonDefaults.filledIconButtonColors(
-//                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-//                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-//                    )
-//                ) {
-//                    Icon(
-//                        imageVector = Icons.Rounded.Refresh,
-//                        contentDescription = "Refresh"
-//                    )
-//                }
-//            }
-
             // Only show storage tabs if there's more than one storage
             if (availableStorages.size > 1) {
                 TabRow(
@@ -396,9 +348,9 @@ fun FileExplorerContent(
                                             topStart = 20.dp
                                         )
                                     ),
-//                                contentPadding = PaddingValues(
-//                                    horizontal = 16.dp
-//                                ),
+                                contentPadding = PaddingValues(
+                                    bottom = 24.dp
+                                ),
                                 verticalArrangement = Arrangement.spacedBy(10.dp),
                                 state = listState
                             ) {
