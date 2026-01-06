@@ -1286,18 +1286,8 @@ fun LibraryFoldersTab(
     isRefreshing: Boolean,
     onRefresh: () -> Unit
 ) {
-    val listState = rememberLazyListState()
-    val flattenedFolders = remember(folders, currentSortOption) {
-        val flattened = flattenFolders(folders)
-        when (currentSortOption) {
-            SortOption.FolderNameZA -> flattened.sortedByDescending { it.name.lowercase() }
-            else -> flattened.sortedBy { it.name.lowercase() }
-        }
-    }
+    // List state moved inside AnimatedContent to prevent state sharing issues during transitions
 
-    LaunchedEffect(currentSortOption) {
-        listState.scrollToItem(0)
-    }
 
     AnimatedContent(
         targetState = Pair(isPlaylistView, currentFolder?.path ?: "root"),
@@ -1308,6 +1298,22 @@ fun LibraryFoldersTab(
                 .togetherWith(slideOutHorizontally { width -> -width } + fadeOut())
         }
     ) { (playlistMode, targetPath) ->
+        // Each navigation destination gets its own independant ListState
+        val listState = rememberLazyListState()
+        
+        // Scroll to top when sort option changes
+        LaunchedEffect(currentSortOption) {
+            listState.scrollToItem(0)
+        }
+
+        val flattenedFolders = remember(folders, currentSortOption) {
+            val flattened = flattenFolders(folders)
+            when (currentSortOption) {
+                SortOption.FolderNameZA -> flattened.sortedByDescending { it.name.lowercase() }
+                else -> flattened.sortedBy { it.name.lowercase() }
+            }
+        }
+
         val isRoot = targetPath == "root"
         val activeFolder = if (isRoot) null else currentFolder
         val showPlaylistCards = playlistMode && activeFolder == null
