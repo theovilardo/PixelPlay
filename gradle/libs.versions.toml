@@ -53,6 +53,8 @@ roomRuntime = "2.7.1"
 accompanist = "0.37.3"
 checkerframework = "3.49.5" # O la versión más reciente que encuentres
 taglib = "1.0.5"
+jaudiotagger = "3.0.1"
+vorbisjava = "0.8"
 datastore = "1.1.1"
 androidxTestCore = "1.6.1"
 
@@ -166,6 +168,8 @@ timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
 wavy-slider = { module = "ir.mahozad.multiplatform:wavy-slider", version.ref = "wavySlider" }
 checker-qual = { group = "org.checkerframework", name = "checker-qual", version.ref = "checkerframework" }
 taglib = { group = "io.github.kyant0", name = "taglib", version.ref = "taglib" }
+jaudiotagger = { group = "net.jthink", name = "jaudiotagger", version.ref = "jaudiotagger" }
+vorbisjava-core = { group = "org.gagravarr", name = "vorbis-java-core", version.ref = "vorbisjava" }
 reorderables = { group = "sh.calvin.reorderable", name = "reorderable", version.ref = "reorderables" }
 generativeai = { group = "com.google.ai.client.generativeai", name = "generativeai", version.ref = "generativeai" }
 retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }

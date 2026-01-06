@@ -248,6 +248,8 @@ dependencies {
 
     // TagLib for metadata editing (supports mp3, flac, m4a, etc.)
     implementation(libs.taglib)
+    // VorbisJava for Opus/Ogg metadata editing (TagLib has issues with Opus via file descriptors)
+    implementation(libs.vorbisjava.core)
 
     // Retrofit & OkHttp
     implementation(libs.retrofit)
