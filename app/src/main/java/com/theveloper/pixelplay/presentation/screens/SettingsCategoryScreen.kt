@@ -223,7 +223,7 @@ fun SettingsCategoryScreen(
                 top = currentTopBarHeightDp,
                 start = 16.dp,
                 end = 16.dp,
-                bottom = MiniPlayerHeight + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 8.dp
+                bottom = MiniPlayerHeight + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 16.dp
             )
         ) {
             item {
@@ -521,7 +521,7 @@ fun SettingsCategoryScreen(
                         }
 
                     }
-                }
+               }
             }
 
             item {

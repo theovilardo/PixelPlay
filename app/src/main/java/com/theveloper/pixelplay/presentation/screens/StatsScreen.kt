@@ -1234,7 +1234,7 @@ private fun TimelineBarChart(
                             .width(if (isScrollable) 24.dp else 16.dp) // Thicker bars if scrollable
                             .weight(1f, fill = false) // Allow it to shrink
                             .fillMaxHeight(if (isZero) 0.02f else progress) // Min height if zero? Or just 0.
-                            .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+                            .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.primary)
                     )
 
