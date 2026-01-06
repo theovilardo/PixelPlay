@@ -2595,7 +2595,10 @@ class PlayerViewModel @Inject constructor(
 
     fun showAndPlaySong(song: Song) {
         Log.d("ShuffleDebug", "showAndPlaySong (single song overload) called for '${song.title}'")
-        showAndPlaySong(song, playerUiState.value.allSongs.toList(), "Library")
+        val allSongs = playerUiState.value.allSongs.toList()
+        // Look up the current version of the song in allSongs to get the most up-to-date metadata
+        val currentSong = allSongs.find { it.id == song.id } ?: song
+        showAndPlaySong(currentSong, allSongs, "Library")
     }
 
     private fun List<Song>.matchesSongOrder(contextSongs: List<Song>): Boolean {
@@ -5365,12 +5368,13 @@ class PlayerViewModel @Inject constructor(
         coverArtUpdate: CoverArtUpdate?,
     ) {
         viewModelScope.launch {
-            Timber.d("Editing metadata for song: ${song.title} with URI: ${song.contentUriString}")
-            Timber.d("New metadata: title=$newTitle, artist=$newArtist, album=$newAlbum, genre=$newGenre, lyrics=$newLyrics, trackNumber=$newTrackNumber")
+            Log.e("PlayerViewModel", "METADATA_EDIT_VM: Starting editSongMetadata for song: ${song.title} (${song.contentUriString})")
+            Log.e("PlayerViewModel", "METADATA_EDIT_VM: New metadata - title=$newTitle, artist=$newArtist, album=$newAlbum")
             val previousAlbumArt = song.albumArtUriString
             val trimmedLyrics = newLyrics.trim()
             val normalizedLyrics = trimmedLyrics.takeIf { it.isNotBlank() }
             val parsedLyrics = normalizedLyrics?.let { LyricsUtils.parseLyrics(it) }
+            Log.e("PlayerViewModel", "METADATA_EDIT_VM: Calling songMetadataEditor.editSongMetadata...")
             val result = withContext(Dispatchers.IO) {
                 songMetadataEditor.editSongMetadata(
                     newTitle = newTitle,
@@ -5383,6 +5387,7 @@ class PlayerViewModel @Inject constructor(
                     songId = song.id.toLong(),
                 )
             }
+            Log.e("PlayerViewModel", "METADATA_EDIT_VM: Result received - success=${result.success}")
 
             if (result.success) {
                 val refreshedAlbumArtUri = result.updatedAlbumArtUri ?: song.albumArtUriString
