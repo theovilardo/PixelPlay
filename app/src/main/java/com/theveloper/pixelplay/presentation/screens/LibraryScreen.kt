@@ -1890,11 +1890,11 @@ fun EnhancedSongListItem(
     }
 
     val colors = MaterialTheme.colorScheme
-    val containerColor = if ((isCurrentSong) && !isLoading) colors.primaryContainer.copy(alpha = 0.34f) else colors.surfaceContainerLow
-    val contentColor = if ((isCurrentSong) && !isLoading) colors.primary else colors.onSurface
+    val containerColor = if ((isCurrentSong) && !isLoading) colors.primaryContainer else colors.surfaceContainerLow
+    val contentColor = if ((isCurrentSong) && !isLoading) colors.onPrimaryContainer else colors.onSurface
 
-    val mvContainerColor = if ((isCurrentSong) && !isLoading) colors.primaryContainer.copy(alpha = 0.44f) else colors.surfaceContainerHigh
-    val mvContentColor = if ((isCurrentSong) && !isLoading) colors.onPrimaryContainer else colors.onSurface
+    val mvContainerColor = if ((isCurrentSong) && !isLoading) colors.primaryContainer else colors.onSurface
+    val mvContentColor = if ((isCurrentSong) && !isLoading) colors.onPrimaryContainer else colors.surfaceContainerHigh
 
     if (isLoading) {
         // Shimmer Placeholder Layout
@@ -2031,7 +2031,7 @@ fun EnhancedSongListItem(
                          modifier = Modifier
                              .padding(start = 8.dp)
                              .size(width = 18.dp, height = 16.dp),
-                         color = colors.primary,
+                         color = contentColor,
                          isPlaying = isPlaying
                      )
                 }
@@ -2039,8 +2039,8 @@ fun EnhancedSongListItem(
                 FilledIconButton(
                     onClick = { onMoreOptionsClick(song) },
                     colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = mvContainerColor,
-                        contentColor = mvContentColor.copy(alpha = 0.7f)
+                        containerColor = mvContentColor,
+                        contentColor = mvContainerColor
                     ),
                     modifier = Modifier
                         .size(36.dp)
