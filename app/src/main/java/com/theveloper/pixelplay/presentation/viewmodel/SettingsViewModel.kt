@@ -39,6 +39,7 @@ data class SettingsUiState(
     val launchTab: String = LaunchTab.HOME,
     val keepPlayingInBackground: Boolean = true,
     val disableCastAutoplay: Boolean = false,
+    val showQueueHistory: Boolean = true,
     val isCrossfadeEnabled: Boolean = true,
     val crossfadeDuration: Int = 6000,
     val blockedDirectories: Set<String> = emptySet(),
@@ -184,6 +185,12 @@ class SettingsViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            userPreferencesRepository.showQueueHistoryFlow.collect { show ->
+                _uiState.update { it.copy(showQueueHistory = show) }
+            }
+        }
+
+        viewModelScope.launch {
             userPreferencesRepository.isCrossfadeEnabledFlow.collect { enabled ->
                 _uiState.update { it.copy(isCrossfadeEnabled = enabled) }
             }
@@ -299,6 +306,12 @@ class SettingsViewModel @Inject constructor(
     fun setDisableCastAutoplay(disabled: Boolean) {
         viewModelScope.launch {
             userPreferencesRepository.setDisableCastAutoplay(disabled)
+        }
+    }
+
+    fun setShowQueueHistory(show: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setShowQueueHistory(show)
         }
     }
 

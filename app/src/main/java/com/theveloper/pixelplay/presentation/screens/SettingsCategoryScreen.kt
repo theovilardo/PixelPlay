@@ -413,6 +413,14 @@ fun SettingsCategoryScreen(
                                     valueText = { value -> "${(value / 1000).toInt()}s" }
                                 )
                             }
+                            Spacer(Modifier.height(4.dp))
+                            SwitchSettingItem(
+                                title = "Show queue history",
+                                subtitle = "Show previously played songs in the queue.",
+                                checked = uiState.showQueueHistory,
+                                onCheckedChange = { settingsViewModel.setShowQueueHistory(it) },
+                                leadingIcon = { Icon(painterResource(R.drawable.rounded_queue_music_24), null, tint = MaterialTheme.colorScheme.secondary) }
+                            )
                         }
                         SettingsCategory.AI_INTEGRATION -> {
                             GeminiApiKeyItem(

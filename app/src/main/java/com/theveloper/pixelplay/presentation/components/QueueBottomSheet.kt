@@ -143,6 +143,7 @@ import com.theveloper.pixelplay.presentation.components.SmartImage
 import com.theveloper.pixelplay.presentation.components.subcomps.PlayingEqIcon
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
+import com.theveloper.pixelplay.presentation.viewmodel.SettingsViewModel
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import sh.calvin.reorderable.ReorderableItem
@@ -181,6 +182,7 @@ import coil.size.Size
 fun QueueBottomSheet(
     viewModel: PlayerViewModel = hiltViewModel(),
     playlistViewModel: PlaylistViewModel = hiltViewModel(),
+    settingsViewModel: SettingsViewModel = hiltViewModel(),
     queue: List<Song>,
     currentQueueSourceName: String,
     currentSongId: String?,
@@ -240,11 +242,25 @@ fun QueueBottomSheet(
         val song: Song
     )
 
-    // Show full queue including history (Apple Music style)
+    // Read show queue history preference
+    val settingsState by settingsViewModel.uiState.collectAsState()
+    val showQueueHistory = settingsState.showQueueHistory
+
+    // Show full queue including history (Apple Music style) OR only from current song
     // Only regenerate when queue changes, NOT when currentSongId changes
     // This preserves item identity (UUIDs) for smooth scroll animation
-    val displayQueue = remember(queue) {
-        queue.map { QueueUiItem(song = it) }
+    val displayQueue = remember(queue, showQueueHistory, currentSongIndex) {
+        val songsToShow = if (showQueueHistory || currentSongIndex < 0) {
+            queue
+        } else {
+            queue.drop(currentSongIndex)
+        }
+        songsToShow.map { QueueUiItem(song = it) }
+    }
+
+    // Calculate the display index of the current song (depends on whether we show history or not)
+    val currentSongDisplayIndex = remember(displayQueue, currentSongId) {
+        displayQueue.indexOfFirst { it.song.id == currentSongId }
     }
 
     val queueSnapshot = remember(queue) { queue.toList() }
@@ -261,9 +277,9 @@ fun QueueBottomSheet(
     }
     
     // Animate scroll when current song changes
-    LaunchedEffect(currentSongId) {
-        if (currentSongIndex > 0) {
-            listState.animateScrollToItem(currentSongIndex)
+    LaunchedEffect(currentSongDisplayIndex) {
+        if (currentSongDisplayIndex > 0) {
+            listState.animateScrollToItem(currentSongDisplayIndex)
         }
     }
     val canDragSheetFromList by remember {
@@ -491,12 +507,18 @@ fun QueueBottomSheet(
                             scrollToTopJob?.cancel()
                             scrollToTopJob = queueListScope.launch {
                                 try {
-                                    val currentIndex = listState.firstVisibleItemIndex
-                                    if (currentIndex > 6) {
-                                        val warmupIndex = (currentIndex - 6).coerceAtLeast(0)
+                                    val targetIndex = currentSongDisplayIndex.coerceAtLeast(0)
+                                    val currentVisibleIndex = listState.firstVisibleItemIndex
+                                    // Use warm-up scroll for large jumps to ensure smooth animation
+                                    if (kotlin.math.abs(currentVisibleIndex - targetIndex) > 6) {
+                                        val warmupIndex = if (targetIndex > currentVisibleIndex) {
+                                            (targetIndex - 6).coerceAtLeast(0)
+                                        } else {
+                                            (targetIndex + 6).coerceAtMost(items.size - 1)
+                                        }
                                         listState.scrollToItem(warmupIndex)
                                     }
-                                    listState.animateScrollToItem(0)
+                                    listState.animateScrollToItem(targetIndex)
                                 } finally {
                                     scrollToTopJob = null
                                 }

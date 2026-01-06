@@ -97,6 +97,7 @@ constructor(
         val CROSSFADE_DURATION = intPreferencesKey("crossfade_duration")
         val REPEAT_MODE = intPreferencesKey("repeat_mode")
         val DISABLE_CAST_AUTOPLAY = booleanPreferencesKey("disable_cast_autoplay")
+        val SHOW_QUEUE_HISTORY = booleanPreferencesKey("show_queue_history")
         val FULL_PLAYER_DELAY_ALL = booleanPreferencesKey("full_player_delay_all")
         val FULL_PLAYER_DELAY_ALBUM = booleanPreferencesKey("full_player_delay_album")
         val FULL_PLAYER_DELAY_METADATA = booleanPreferencesKey("full_player_delay_metadata")
@@ -486,6 +487,17 @@ constructor(
             dataStore.data.map { preferences ->
                 preferences[PreferencesKeys.DISABLE_CAST_AUTOPLAY] ?: false
             }
+
+    val showQueueHistoryFlow: Flow<Boolean> =
+            dataStore.data.map { preferences ->
+                preferences[PreferencesKeys.SHOW_QUEUE_HISTORY] ?: true
+            }
+
+    suspend fun setShowQueueHistory(show: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.SHOW_QUEUE_HISTORY] = show
+        }
+    }
 
     val fullPlayerLoadingTweaksFlow: Flow<FullPlayerLoadingTweaks> = dataStore.data
         .map { preferences ->
