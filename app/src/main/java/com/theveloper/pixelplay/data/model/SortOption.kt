@@ -19,6 +19,8 @@ sealed class SortOption(val storageKey: String, val displayName: String) {
     object AlbumTitleZA : SortOption("album_title_za", "Title (Z-A)")
     object AlbumArtist : SortOption("album_artist", "Artist")
     object AlbumReleaseYear : SortOption("album_release_year", "Release Year")
+    object AlbumSizeAsc : SortOption("album_size_asc", "Fewest Songs")
+    object AlbumSizeDesc : SortOption("album_size_desc", "Most Songs")
 
     // Artist Sort Options
     object ArtistNameAZ : SortOption("artist_name_az", "Name (A-Z)")
@@ -56,7 +58,9 @@ sealed class SortOption(val storageKey: String, val displayName: String) {
             AlbumTitleAZ,
             AlbumTitleZA,
             AlbumArtist,
-            AlbumReleaseYear
+            AlbumReleaseYear,
+            AlbumSizeAsc,
+            AlbumSizeDesc
         )
         val ARTISTS: List<SortOption> = listOf(
             ArtistNameAZ,
