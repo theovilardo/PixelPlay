@@ -295,7 +295,8 @@ class PlayerViewModel @Inject constructor(
     private val aiPlaylistGenerator: AiPlaylistGenerator,
     private val aiMetadataGenerator: AiMetadataGenerator,
     private val artistImageRepository: ArtistImageRepository,
-    private val dualPlayerEngine: DualPlayerEngine
+    private val dualPlayerEngine: DualPlayerEngine,
+    private val appShortcutManager: com.theveloper.pixelplay.utils.AppShortcutManager
 ) : ViewModel() {
 
     private val _playerUiState = MutableStateFlow(PlayerUiState())
@@ -3605,6 +3606,11 @@ class PlayerViewModel @Inject constructor(
     }
 
     private suspend fun internalPlaySongs(songsToPlay: List<Song>, startSong: Song, queueName: String = "None", playlistId: String? = null) {
+        // Update dynamic shortcut for last played playlist
+        if (playlistId != null && queueName != "None") {
+            appShortcutManager.updateLastPlaylistShortcut(playlistId, queueName)
+        }
+        
         val castSession = _castSession.value
         if (castSession != null && castSession.remoteMediaClient != null) {
             if (!ensureHttpServerRunning()) return

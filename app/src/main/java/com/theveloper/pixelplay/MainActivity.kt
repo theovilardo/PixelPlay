@@ -164,7 +164,11 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var userPreferencesRepository: UserPreferencesRepository // Inject here
     @Inject
-    lateinit var syncManager: SyncManager;
+    lateinit var syncManager: SyncManager
+    
+    // For handling shortcut navigation - using StateFlow so composables can observe changes
+    private val _pendingPlaylistNavigation = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+    private val _pendingShuffleAll = kotlinx.coroutines.flow.MutableStateFlow(false)
 
     private val requestAllFilesAccessLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { _ ->
         // Handle the result in onResume
@@ -268,6 +272,20 @@ class MainActivity : ComponentActivity() {
         if (intent == null) return
 
         when {
+            // Handle shuffle all shortcut
+            intent.action == ACTION_SHUFFLE_ALL -> {
+                _pendingShuffleAll.value = true
+                intent.action = null // Clear action to prevent re-triggering
+            }
+            
+            // Handle playlist shortcut
+            intent.action == ACTION_OPEN_PLAYLIST -> {
+                intent.getStringExtra(EXTRA_PLAYLIST_ID)?.let { playlistId ->
+                    _pendingPlaylistNavigation.value = playlistId
+                }
+                intent.action = null
+            }
+
             intent.getBooleanExtra("ACTION_SHOW_PLAYER", false) -> {
                 playerViewModel.showPlayer()
             }
@@ -288,6 +306,12 @@ class MainActivity : ComponentActivity() {
                 clearExternalIntentPayload(intent)
             }
         }
+    }
+    
+    companion object {
+        const val ACTION_SHUFFLE_ALL = "com.theveloper.pixelplay.ACTION_SHUFFLE_ALL"
+        const val ACTION_OPEN_PLAYLIST = "com.theveloper.pixelplay.ACTION_OPEN_PLAYLIST"
+        const val EXTRA_PLAYLIST_ID = "playlist_id"
     }
 
     private fun resolveStreamUri(intent: Intent): Uri? {
@@ -391,6 +415,50 @@ class MainActivity : ComponentActivity() {
         val isSyncing by mainViewModel.isSyncing.collectAsState()
         val isLibraryEmpty by mainViewModel.isLibraryEmpty.collectAsState()
         val syncProgress by mainViewModel.syncProgress.collectAsState()
+        
+        // Observe pending shuffle action
+        val pendingShuffleAll by _pendingShuffleAll.collectAsState()
+        var processedShuffle by remember { mutableStateOf(false) }
+        
+        LaunchedEffect(pendingShuffleAll) {
+            if (pendingShuffleAll && !processedShuffle) {
+                processedShuffle = true
+                // Wait a bit for the library to be ready
+                kotlinx.coroutines.delay(500)
+                playerViewModel.shuffleAllSongs()
+                _pendingShuffleAll.value = false
+            } else if (!pendingShuffleAll) {
+                processedShuffle = false
+            }
+        }
+        
+        // Observe pending playlist navigation
+        val pendingPlaylistNav by _pendingPlaylistNavigation.collectAsState()
+        var processedPlaylistId by remember { mutableStateOf<String?>(null) }
+        
+        LaunchedEffect(pendingPlaylistNav) {
+            val playlistId = pendingPlaylistNav
+            // Only process if we have a new playlist ID that hasn't been processed yet
+            if (playlistId != null && playlistId != processedPlaylistId) {
+                processedPlaylistId = playlistId
+                // Wait for navigation graph to be ready (retry with delay)
+                var success = false
+                var attempts = 0
+                while (!success && attempts < 50) { // 5 seconds max
+                    try {
+                        navController.navigate(Screen.PlaylistDetail.createRoute(playlistId))
+                        success = true
+                        _pendingPlaylistNavigation.value = null
+                    } catch (e: IllegalArgumentException) {
+                        kotlinx.coroutines.delay(100)
+                        attempts++
+                    }
+                }
+            } else if (playlistId == null) {
+                // Reset so the same playlist can be opened again
+                processedPlaylistId = null
+            }
+        }
 
         // Estado para controlar si el indicador de carga puede mostrarse después de un delay
         var canShowLoadingIndicator by remember { mutableStateOf(false) }
@@ -439,6 +507,7 @@ class MainActivity : ComponentActivity() {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = navBackStackEntry?.destination?.route
         var isSearchBarActive by remember { mutableStateOf(false) }
+
         val routesWithHiddenNavigationBar = remember {
             setOf(
                 Screen.Settings.route,
@@ -675,10 +744,6 @@ class MainActivity : ComponentActivity() {
                     DismissUndoBar(
                         modifier = Modifier
                             .fillMaxWidth()
-//                            .background(
-//                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-//                                shape = CircleShape
-//                            )
                             .height(MiniPlayerHeight)
                             .padding(horizontal = 14.dp),
                         onUndo = { playerViewModel.undoDismissPlaylist() },

@@ -68,4 +68,10 @@
     <string name="lyrics_sync_offset_reset">Reset</string>
     <string name="lyrics_earlier">Earlier</string>
     <string name="lyrics_later">Later</string>
+
+    <!-- Launcher Shortcuts -->
+    <string name="shortcut_shuffle_short">Shuffle</string>
+    <string name="shortcut_shuffle_long">Shuffle all songs</string>
+    <string name="shortcut_playlist_short">Playlist</string>
+    <string name="shortcut_playlist_long">Last played playlist</string>
 </resources>
