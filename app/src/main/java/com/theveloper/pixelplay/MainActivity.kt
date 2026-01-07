@@ -29,7 +29,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.CircularWavyProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -757,8 +758,19 @@ class MainActivity : ComponentActivity() {
     Trace.endSection()
     }
 
+    @OptIn(ExperimentalMaterial3ExpressiveApi::class)
     @Composable
     private fun LoadingOverlay(syncProgress: SyncProgress) {
+        // Animate progress smoothly instead of jumping in steps
+        val animatedProgress by androidx.compose.animation.core.animateFloatAsState(
+            targetValue = syncProgress.progress,
+            animationSpec = androidx.compose.animation.core.spring(
+                dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+                stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+            ),
+            label = "SyncProgressAnimation"
+        )
+        
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -770,7 +782,7 @@ class MainActivity : ComponentActivity() {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.padding(horizontal = 32.dp)
             ) {
-                CircularProgressIndicator()
+                CircularWavyProgressIndicator()
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = "Preparing your library...",
@@ -780,8 +792,8 @@ class MainActivity : ComponentActivity() {
                 
                 if (syncProgress.hasProgress) {
                     Spacer(modifier = Modifier.height(16.dp))
-                    androidx.compose.material3.LinearProgressIndicator(
-                        progress = { syncProgress.progress },
+                    androidx.compose.material3.LinearWavyProgressIndicator(
+                        progress = { animatedProgress },
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(8.dp))

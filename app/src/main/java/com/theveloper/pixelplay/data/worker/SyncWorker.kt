@@ -70,8 +70,13 @@ class SyncWorker @AssistedInject constructor(
 
             Log.d(TAG, "Artist parsing delimiters: $artistDelimiters, groupByAlbumArtist: $groupByAlbumArtist, rescanRequired: $rescanRequired")
 
-            // Fetch existing artist image URLs to preserve them
-            val existingArtistImageUrls = musicDao.getAllArtistsListRaw().associate { it.id to it.imageUrl }
+            // For REBUILD mode, we don't need to fetch existing data since DB will be cleared
+            // This optimization significantly speeds up initial sync
+            val existingArtistImageUrls = if (syncMode == SyncMode.REBUILD) {
+                emptyMap()
+            } else {
+                musicDao.getAllArtistsListRaw().associate { it.id to it.imageUrl }
+            }
 
             // If rebuilding, clear everything first
             if (syncMode == SyncMode.REBUILD) {
@@ -79,7 +84,9 @@ class SyncWorker @AssistedInject constructor(
                 musicDao.clearAllMusicDataWithCrossRefs()
             }
 
-            val progressBatchSize = 1
+            // Use larger batch size for progress updates to reduce overhead
+            // Update every 50 songs or ~5% of library, whichever is larger
+            val progressBatchSize = 50
 
             val mediaStoreSongs = fetchAllMusicData(progressBatchSize) { current, total, phaseOrdinal ->
                 setProgress(workDataOf(
@@ -97,8 +104,13 @@ class SyncWorker @AssistedInject constructor(
             ))
 
             if (mediaStoreSongs.isNotEmpty()) {
-                // Fetch existing local songs to preserve their editable metadata
-                val localSongsMap = musicDao.getAllSongsList().associateBy { it.id }
+                // For REBUILD mode, skip fetching local songs since DB is empty
+                // This is a major optimization for initial sync
+                val localSongsMap = if (syncMode == SyncMode.REBUILD) {
+                    emptyMap()
+                } else {
+                    musicDao.getAllSongsList().associateBy { it.id }
+                }
                 val isFreshInstall = localSongsMap.isEmpty()
                 
                 // For incremental sync, identify which songs actually need processing
@@ -375,15 +387,30 @@ class SyncWorker @AssistedInject constructor(
         }
     }
 
+    /**
+     * Raw data extracted from cursor - lightweight class for fast iteration
+     */
+    private data class RawSongData(
+        val id: Long,
+        val albumId: Long,
+        val artistId: Long,
+        val filePath: String,
+        val title: String,
+        val artist: String,
+        val album: String,
+        val albumArtist: String?,
+        val duration: Long,
+        val trackNumber: Int,
+        val year: Int,
+        val dateModified: Long
+    )
+
     private suspend fun fetchAllMusicData(
         progressBatchSize: Int,
         onProgress: suspend (current: Int, total: Int, phaseOrdinal: Int) -> Unit
     ): List<SongEntity> {
         Trace.beginSection("SyncWorker.fetchAllMusicData")
-        val songs = mutableListOf<SongEntity>()
-        // Removed genre mapping from initial sync for performance.
-        // Genre will be "Unknown Genre" or from static genres for now.
-
+        
         val deepScan = inputData.getBoolean(INPUT_FORCE_METADATA, false)
         val albumArtByAlbumId = if (!deepScan) fetchAlbumArtUrisByAlbumId() else emptyMap()
 
@@ -394,7 +421,7 @@ class SyncWorker @AssistedInject constructor(
             MediaStore.Audio.Media.ARTIST_ID,
             MediaStore.Audio.Media.ALBUM,
             MediaStore.Audio.Media.ALBUM_ID,
-            MediaStore.Audio.Media.ALBUM_ARTIST, // Added for multi-artist support
+            MediaStore.Audio.Media.ALBUM_ARTIST,
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.DATA,
             MediaStore.Audio.Media.TRACK,
@@ -408,20 +435,18 @@ class SyncWorker @AssistedInject constructor(
                 "OR ${MediaStore.Audio.Media.DATA} LIKE '%.opus' " +
                 "OR ${MediaStore.Audio.Media.DATA} LIKE '%.ogg')"
         val selectionArgs = arrayOf("10000")
-        val sortOrder = null // Avoid extra sorting work; we'll sort downstream if needed
 
+        // Phase 1: Fast cursor iteration to collect raw data
+        val rawDataList = mutableListOf<RawSongData>()
+        
         contentResolver.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
             projection,
             selection,
             selectionArgs,
-            sortOrder
+            null
         )?.use { cursor ->
             val totalCount = cursor.count
-            var processedCount = 0
-            var lastReportedCount = 0
-            
-            // Report initial progress (0 of total)
             onProgress(0, totalCount, SyncProgress.SyncPhase.FETCHING_MEDIASTORE.ordinal)
             
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
@@ -437,96 +462,137 @@ class SyncWorker @AssistedInject constructor(
             val yearCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
             val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
 
-
             while (cursor.moveToNext()) {
-                val id = cursor.getLong(idCol)
-                val albumId = cursor.getLong(albumIdCol)
-                val songArtistId = cursor.getLong(artistIdCol)
-                val filePath = cursor.getString(dataCol) ?: ""
-                val parentDir = java.io.File(filePath).parent ?: ""
-
-                val contentUriString = ContentUris.withAppendedId(
-                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id
-                ).toString()
-
-                var albumArtUriString = albumArtByAlbumId[albumId]
-                if (deepScan) {
-                    albumArtUriString = AlbumArtUtils.getAlbumArtUri(applicationContext, musicDao, filePath, albumId, id, true)
-                        ?: albumArtUriString
-                }
-                val audioMetadata = if (deepScan) getAudioMetadata(musicDao, id, filePath, true) else null
-
-                var title = cursor.getString(titleCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Title" }
-                var artist = cursor.getString(artistCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Artist" }
-                var album = cursor.getString(albumCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Album" }
-                var albumArtist = cursor.getString(albumArtistCol)?.normalizeMetadataTextOrEmpty()?.takeIf { it.isNotBlank() }
-                var trackNumber = cursor.getInt(trackCol)
-                var year = cursor.getInt(yearCol)
-                var genre: String? = null
-
-
-                val shouldAugmentMetadata = deepScan || filePath.endsWith(".wav", true) ||
-                        filePath.endsWith(".opus", true) || filePath.endsWith(".ogg", true) ||
-                        filePath.endsWith(".oga", true) || filePath.endsWith(".aiff", true)
-                if (shouldAugmentMetadata) {
-                    val file = java.io.File(filePath)
-                    if (file.exists()) {
-                        try {
-                            AudioMetadataReader.read(file)?.let { meta ->
-                                if (!meta.title.isNullOrBlank()) title = meta.title
-                                if (!meta.artist.isNullOrBlank()) artist = meta.artist
-                                if (!meta.album.isNullOrBlank()) album = meta.album
-                                if (!meta.genre.isNullOrBlank()) genre = meta.genre
-                                if (meta.trackNumber != null) trackNumber = meta.trackNumber
-                                if (meta.year != null) year = meta.year
-
-                                meta.artwork?.let { art ->
-                                    val uri = AlbumArtUtils.saveAlbumArtToCache(applicationContext, art.bytes, id)
-                                    albumArtUriString = uri.toString()
-                                }
-                            }
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Failed to read metadata via TagLib for $filePath", e)
-                        }
-                    }
-                }
-
-                songs.add(
-                    SongEntity(
-                        id = id,
-                        title = title,
-                        artistName = artist,
-                        artistId = songArtistId,
-                        albumArtist = albumArtist,
-                        albumName = album,
-                        albumId = albumId,
-                        contentUriString = contentUriString,
-                        albumArtUriString = albumArtUriString,
+                rawDataList.add(
+                    RawSongData(
+                        id = cursor.getLong(idCol),
+                        albumId = cursor.getLong(albumIdCol),
+                        artistId = cursor.getLong(artistIdCol),
+                        filePath = cursor.getString(dataCol) ?: "",
+                        title = cursor.getString(titleCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Title" },
+                        artist = cursor.getString(artistCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Artist" },
+                        album = cursor.getString(albumCol).normalizeMetadataTextOrEmpty().ifEmpty { "Unknown Album" },
+                        albumArtist = cursor.getString(albumArtistCol)?.normalizeMetadataTextOrEmpty()?.takeIf { it.isNotBlank() },
                         duration = cursor.getLong(durationCol),
-                        genre = genre,
-                        filePath = filePath,
-                        parentDirectoryPath = parentDir,
-                        trackNumber = trackNumber,
-                        year = year,
-                        dateAdded = cursor.getLong(dateAddedCol).let { seconds ->
-                            if (seconds > 0) TimeUnit.SECONDS.toMillis(seconds) else System.currentTimeMillis()
-                        },
-                        mimeType = audioMetadata?.mimeType,
-                        sampleRate = audioMetadata?.sampleRate,
-                        bitrate = audioMetadata?.bitrate
+                        trackNumber = cursor.getInt(trackCol),
+                        year = cursor.getInt(yearCol),
+                        dateModified = cursor.getLong(dateAddedCol)
                     )
                 )
-                
-                // Report progress in batches to avoid excessive updates
-                processedCount++
-                if (processedCount - lastReportedCount >= progressBatchSize || processedCount == totalCount) {
-                    lastReportedCount = processedCount
-                    onProgress(processedCount, totalCount, SyncProgress.SyncPhase.FETCHING_MEDIASTORE.ordinal)
+            }
+        }
+
+        val totalCount = rawDataList.size
+        if (totalCount == 0) {
+            Trace.endSection()
+            return emptyList()
+        }
+
+        // Phase 2: Parallel processing of songs
+        val processedCount = AtomicInteger(0)
+        val concurrencyLimit = 8 // Limit parallel operations to prevent resource exhaustion
+        val semaphore = Semaphore(concurrencyLimit)
+
+        val songs = coroutineScope {
+            rawDataList.map { raw ->
+                async {
+                    semaphore.withPermit {
+                        val song = processSongData(raw, albumArtByAlbumId, deepScan)
+                        
+                        // Report progress
+                        val count = processedCount.incrementAndGet()
+                        if (count % progressBatchSize == 0 || count == totalCount) {
+                            onProgress(count, totalCount, SyncProgress.SyncPhase.FETCHING_MEDIASTORE.ordinal)
+                        }
+                        
+                        song
+                    }
+                }
+            }.awaitAll()
+        }
+
+        Trace.endSection()
+        return songs
+    }
+
+    /**
+     * Process a single song's raw data into a SongEntity.
+     * This is the CPU/IO intensive work that benefits from parallelization.
+     */
+    private suspend fun processSongData(
+        raw: RawSongData,
+        albumArtByAlbumId: Map<Long, String>,
+        deepScan: Boolean
+    ): SongEntity {
+        val parentDir = java.io.File(raw.filePath).parent ?: ""
+        val contentUriString = ContentUris.withAppendedId(
+            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, raw.id
+        ).toString()
+
+        var albumArtUriString = albumArtByAlbumId[raw.albumId]
+        if (deepScan) {
+            albumArtUriString = AlbumArtUtils.getAlbumArtUri(applicationContext, musicDao, raw.filePath, raw.albumId, raw.id, true)
+                ?: albumArtUriString
+        }
+        val audioMetadata = if (deepScan) getAudioMetadata(musicDao, raw.id, raw.filePath, true) else null
+
+        var title = raw.title
+        var artist = raw.artist
+        var album = raw.album
+        var trackNumber = raw.trackNumber
+        var year = raw.year
+        var genre: String? = null
+
+        val shouldAugmentMetadata = deepScan || raw.filePath.endsWith(".wav", true) ||
+                raw.filePath.endsWith(".opus", true) || raw.filePath.endsWith(".ogg", true) ||
+                raw.filePath.endsWith(".oga", true) || raw.filePath.endsWith(".aiff", true)
+        
+        if (shouldAugmentMetadata) {
+            val file = java.io.File(raw.filePath)
+            if (file.exists()) {
+                try {
+                    AudioMetadataReader.read(file)?.let { meta ->
+                        if (!meta.title.isNullOrBlank()) title = meta.title
+                        if (!meta.artist.isNullOrBlank()) artist = meta.artist
+                        if (!meta.album.isNullOrBlank()) album = meta.album
+                        if (!meta.genre.isNullOrBlank()) genre = meta.genre
+                        if (meta.trackNumber != null) trackNumber = meta.trackNumber
+                        if (meta.year != null) year = meta.year
+
+                        meta.artwork?.let { art ->
+                            val uri = AlbumArtUtils.saveAlbumArtToCache(applicationContext, art.bytes, raw.id)
+                            albumArtUriString = uri.toString()
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to read metadata via TagLib for ${raw.filePath}", e)
                 }
             }
         }
-        Trace.endSection() // End SyncWorker.fetchAllMusicData
-        return songs
+
+        return SongEntity(
+            id = raw.id,
+            title = title,
+            artistName = artist,
+            artistId = raw.artistId,
+            albumArtist = raw.albumArtist,
+            albumName = album,
+            albumId = raw.albumId,
+            contentUriString = contentUriString,
+            albumArtUriString = albumArtUriString,
+            duration = raw.duration,
+            genre = genre,
+            filePath = raw.filePath,
+            parentDirectoryPath = parentDir,
+            trackNumber = trackNumber,
+            year = year,
+            dateAdded = raw.dateModified.let { seconds ->
+                if (seconds > 0) TimeUnit.SECONDS.toMillis(seconds) else System.currentTimeMillis()
+            },
+            mimeType = audioMetadata?.mimeType,
+            sampleRate = audioMetadata?.sampleRate,
+            bitrate = audioMetadata?.bitrate
+        )
     }
 
 
