@@ -257,6 +257,9 @@ fun QueueBottomSheet(
         }
         songsToShow.map { QueueUiItem(song = it) }
     }
+    
+    // Offset to convert display indices to queue indices when history is hidden
+    val queueIndexOffset = if (showQueueHistory || currentSongIndex < 0) 0 else currentSongIndex
 
     // Calculate the display index of the current song (depends on whether we show history or not)
     val currentSongDisplayIndex = remember(displayQueue, currentSongId) {
@@ -270,10 +273,15 @@ fun QueueBottomSheet(
     var scrollToTopJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
     var items by remember { mutableStateOf(displayQueue) }
+    var justReordered by remember { mutableStateOf(false) }
     
-    // Update items when queue changes
+    // Update items when queue changes, but skip if we just reordered to avoid flicker
     LaunchedEffect(displayQueue) {
-        items = displayQueue
+        if (justReordered) {
+            justReordered = false
+        } else {
+            items = displayQueue
+        }
     }
     
     // Animate scroll when current song changes
@@ -341,19 +349,16 @@ fun QueueBottomSheet(
             pendingReorderSongId = null
 
             if (fromIndex != null && toIndex != null && movedSongId != null) {
-                // Since we display the full queue, local index maps directly to queue index
-                val fromOriginalIndex = fromIndex
-                // For logic purposes, we trust the mapped/moved indices.
-                // Note: resolving strictly by ID `indexOfFirst` works if IDs unique, but fails here.
-                // But `displayQueue` matches `queue` indices 1:1.
-                // So simple index usage is safer here than ID lookup for target.
-                val toOriginalIndex = toIndex
+                // Convert display indices to queue indices by adding the offset
+                val fromQueueIndex = fromIndex + queueIndexOffset
+                val toQueueIndex = toIndex + queueIndexOffset
 
-                val fromWithinQueue = fromOriginalIndex in queue.indices
-                val toWithinQueue = toOriginalIndex in queue.indices
+                val fromWithinQueue = fromQueueIndex in queue.indices
+                val toWithinQueue = toQueueIndex in queue.indices
 
-                if (fromWithinQueue && toWithinQueue && fromOriginalIndex != toOriginalIndex) {
-                    onReorder(fromOriginalIndex, toOriginalIndex)
+                if (fromWithinQueue && toWithinQueue && fromQueueIndex != toQueueIndex) {
+                    justReordered = true
+                    onReorder(fromQueueIndex, toQueueIndex)
                     return@LaunchedEffect
                 }
             }
@@ -629,10 +634,12 @@ fun QueueBottomSheet(
 
                         itemsIndexed(items, key = { _, item -> item.uniqueId }) { index, item ->
                             val song = item.song
+                            // Use currentSongDisplayIndex for comparison since index is in displayQueue
+                            val canReorder = index > currentSongDisplayIndex
                             ReorderableItem(
                                 state = reorderableState,
                                 key = item.uniqueId,
-                                    enabled = index > currentSongIndex
+                                enabled = canReorder
                             ) { isDragging ->
                                 val scale by animateFloatAsState(
                                     targetValue = if (isDragging) 1.05f else 1f,
@@ -655,9 +662,9 @@ fun QueueBottomSheet(
                                     isDragging = isDragging,
                                     onRemoveClick = { onRemoveSong(song.id) },
                                     isReorderModeEnabled = false,
-                                    isDragHandleVisible = index > currentSongIndex,
+                                    isDragHandleVisible = canReorder,
                                     isRemoveButtonVisible = false,
-                                    enableSwipeToDismiss = index > currentSongIndex,
+                                    enableSwipeToDismiss = canReorder,
                                     onDismiss = { onRemoveSong(song.id) },
                                     isFromPlaylist = true,
                                     onMoreOptionsClick = { onSongInfoClick(song) },
