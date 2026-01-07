@@ -1,37 +1,46 @@
 package com.theveloper.pixelplay.presentation.components
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Send
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -41,17 +50,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.LinearGradient
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.theveloper.pixelplay.R
+import androidx.compose.ui.unit.sp
+import com.theveloper.pixelplay.ui.theme.ExpTitleTypography
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun AiPlaylistSheet(
     onDismiss: () -> Unit,
@@ -67,160 +81,336 @@ fun AiPlaylistSheet(
         skipPartiallyExpanded = true,
     )
 
+    val colors = MaterialTheme.colorScheme
+    val haptic = LocalHapticFeedback.current
+
     val textFieldColors = TextFieldDefaults.colors(
-        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        focusedContainerColor = colors.surfaceContainerHigh,
+        unfocusedContainerColor = colors.surfaceContainerHigh,
+        disabledContainerColor = colors.surfaceContainerHigh,
         focusedIndicatorColor = Color.Transparent,
         unfocusedIndicatorColor = Color.Transparent,
         disabledIndicatorColor = Color.Transparent,
     )
 
-    val textFieldShape = AbsoluteSmoothCornerShape(
-        cornerRadiusTL = 10.dp,
+    val smoothCornerShape = AbsoluteSmoothCornerShape(
+        cornerRadiusTL = 16.dp,
         smoothnessAsPercentBL = 60,
-        cornerRadiusTR = 10.dp,
+        cornerRadiusTR = 16.dp,
         smoothnessAsPercentBR = 60,
-        cornerRadiusBL = 10.dp,
+        cornerRadiusBL = 16.dp,
         smoothnessAsPercentTL = 60,
-        cornerRadiusBR = 10.dp,
+        cornerRadiusBR = 16.dp,
         smoothnessAsPercentTR = 60
     )
 
-    val animatedColors = listOf(
-        MaterialTheme.colorScheme.primary,
-        MaterialTheme.colorScheme.secondary,
-        MaterialTheme.colorScheme.tertiary,
+    val promptFieldShape = AbsoluteSmoothCornerShape(
+        cornerRadiusTL = 24.dp,
+        smoothnessAsPercentBL = 60,
+        cornerRadiusTR = 24.dp,
+        smoothnessAsPercentBR = 60,
+        cornerRadiusBL = 24.dp,
+        smoothnessAsPercentTL = 60,
+        cornerRadiusBR = 24.dp,
+        smoothnessAsPercentTR = 60
     )
 
-    val brush = Brush.horizontalGradient(
-        colors = animatedColors
+    // Animation for AI icon when generating
+    val infiniteTransition = rememberInfiniteTransition(label = "ai_animation")
+    val iconRotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
+    val iconScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.15f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
     )
 
-
+    // Button press animation state
+    var isPressed by remember { mutableStateOf(false) }
+    
+    // Animated scale for the button - shrinks when pressed, bounces back when released
+    val buttonScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.92f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "buttonScale"
+    )
+    
+    // Animated corner radius - more squared when pressed
+    val buttonCornerRadius by animateDpAsState(
+        targetValue = if (isPressed || isGenerating) 24.dp else 50.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "buttonCorner"
+    )
+    
+    val buttonShape = AbsoluteSmoothCornerShape(
+        cornerRadiusTL = buttonCornerRadius,
+        smoothnessAsPercentBL = 60,
+        cornerRadiusTR = buttonCornerRadius,
+        smoothnessAsPercentBR = 60,
+        cornerRadiusBL = buttonCornerRadius,
+        smoothnessAsPercentTL = 60,
+        cornerRadiusBR = buttonCornerRadius,
+        smoothnessAsPercentTR = 60
+    )
 
     ModalBottomSheet(
         sheetState = sheetState,
         onDismissRequest = onDismiss,
-        //containerColor = Color.Transparent,
-        modifier = Modifier //.background(brush)
+        containerColor = colors.surfaceContainerLow
     ) {
         Column(
             modifier = Modifier
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(horizontal = 20.dp, vertical = 8.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Header with AI Icon
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 4.dp),
+                    .padding(bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text(
-                    text = "Generate with AI",
-                    fontFamily = GoogleSansRounded,
-                    style = MaterialTheme.typography.headlineMedium
-                )
+                // Animated AI Icon
+                Surface(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .then(
+                            if (isGenerating) Modifier
+                                .rotate(iconRotation)
+                                .scale(iconScale)
+                            else Modifier
+                        ),
+                    shape = AbsoluteSmoothCornerShape(
+                        cornerRadiusTL = 22.dp,
+                        smoothnessAsPercentBL = 60,
+                        cornerRadiusTR = 22.dp,
+                        smoothnessAsPercentBR = 60,
+                        cornerRadiusBL = 22.dp,
+                        smoothnessAsPercentTL = 60,
+                        cornerRadiusBR = 22.dp,
+                        smoothnessAsPercentTR = 60
+                    ),
+                    color = if (isGenerating) colors.primaryContainer else colors.tertiaryContainer,
+                    tonalElevation = 2.dp
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Rounded.AutoAwesome,
+                            contentDescription = "AI",
+                            modifier = Modifier.size(32.dp),
+                            tint = if (isGenerating) colors.onPrimaryContainer else colors.onTertiaryContainer
+                        )
+                    }
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "AI",
+                        style = ExpTitleTypography.displayMedium.copy(
+                            fontSize = 32.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = colors.primary
+                    )
+                    Text(
+                        text = "Playlist Generator",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontFamily = GoogleSansRounded,
+                        color = colors.onSurfaceVariant
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            // Description text
+            Text(
+                text = "Describe the vibe, mood, or activity and let AI curate the perfect playlist from your library.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth()
+            )
 
-            Row(
+            // Number inputs in styled container
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                shape = smoothCornerShape,
+                color = colors.surfaceContainer,
+                tonalElevation = 1.dp
             ) {
-                OutlinedTextField(
-                    value = minLength,
-                    onValueChange = { minLength = it.filter { char -> char.isDigit() } },
-                    label = { Text("Min songs") },
-                    modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    shape = textFieldShape,
-                    colors = textFieldColors,
-                )
-                OutlinedTextField(
-                    value = maxLength,
-                    onValueChange = { maxLength = it.filter { char -> char.isDigit() } },
-                    label = { Text("Max songs") },
-                    modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    shape = textFieldShape,
-                    colors = textFieldColors,
-                )
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Playlist size",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontFamily = GoogleSansRounded,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.onSurface
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = minLength,
+                            onValueChange = { minLength = it.filter { char -> char.isDigit() } },
+                            label = { Text("Min songs") },
+                            modifier = Modifier.weight(1f),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            shape = smoothCornerShape,
+                            colors = textFieldColors,
+                        )
+                        OutlinedTextField(
+                            value = maxLength,
+                            onValueChange = { maxLength = it.filter { char -> char.isDigit() } },
+                            label = { Text("Max songs") },
+                            modifier = Modifier.weight(1f),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            shape = smoothCornerShape,
+                            colors = textFieldColors,
+                        )
+                    }
+                }
+            }
+
+            // Prompt field (without send button - using the main Generate button instead)
+            OutlinedTextField(
+                value = prompt,
+                shape = promptFieldShape,
+                colors = textFieldColors,
+                onValueChange = { prompt = it },
+                placeholder = { 
+                    Text(
+                        "e.g. Chill evening vibes, upbeat workout energy...",
+                        color = colors.onSurfaceVariant.copy(alpha = 0.6f)
+                    ) 
+                },
+                modifier = Modifier.fillMaxWidth(),
+                isError = error != null,
+                singleLine = false,
+                minLines = 2,
+                maxLines = 4
+            )
+
+            // Error message
+            AnimatedVisibility(
+                visible = error != null,
+                enter = fadeIn() + scaleIn(initialScale = 0.9f),
+                exit = fadeOut() + scaleOut(targetScale = 0.9f)
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = smoothCornerShape,
+                    color = colors.errorContainer
+                ) {
+                    Text(
+                        text = error ?: "",
+                        color = colors.onErrorContainer,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            OutlinedTextField(
-                value = prompt,
-                shape = CircleShape,
-                colors = textFieldColors,
-                onValueChange = { prompt = it },
-                placeholder = { Text("Describe the playlist you want...") },
-                modifier = Modifier.fillMaxWidth(),
-                isError = error != null,
-                singleLine = false,
-                maxLines = 3,
-                trailingIcon = {
-                    FilledTonalIconButton(
-                        modifier = Modifier.padding(end = 4.dp),
-                        onClick = {
-                            val minLengthInt = minLength.toIntOrNull() ?: 5
-                            val maxLengthInt = maxLength.toIntOrNull() ?: 15
-                            onGenerateClick(prompt, minLengthInt, maxLengthInt)
-                        }
-                    ) {
+            // Generate Button with bouncy animation
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .height(56.dp)
+                    .scale(buttonScale)
+                    .clip(buttonShape)
+                    .background(
+                        if (prompt.isBlank() && !isGenerating) 
+                            colors.surfaceContainerHighest 
+                        else 
+                            colors.primaryContainer
+                    )
+                    .pointerInput(prompt, isGenerating) {
+                        detectTapGestures(
+                            onPress = {
+                                if (prompt.isNotBlank() && !isGenerating) {
+                                    isPressed = true
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    tryAwaitRelease()
+                                    isPressed = false
+                                    val minLengthInt = minLength.toIntOrNull() ?: 5
+                                    val maxLengthInt = maxLength.toIntOrNull() ?: 15
+                                    onGenerateClick(prompt, minLengthInt, maxLengthInt)
+                                }
+                            }
+                        )
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (isGenerating) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(22.dp),
+                            strokeWidth = 2.5.dp,
+                            color = colors.onPrimaryContainer
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "Generating...",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontFamily = GoogleSansRounded,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.onPrimaryContainer
+                        )
+                    } else {
                         Icon(
-                            modifier = Modifier.padding(start = 2.dp),
-                            painter = painterResource(R.drawable.rounded_send_24),
-                            contentDescription = "Generate Playlist"
+                            imageVector = Icons.Rounded.AutoAwesome,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp),
+                            tint = if (prompt.isBlank()) 
+                                colors.onSurfaceVariant 
+                            else 
+                                colors.onPrimaryContainer
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "Generate Playlist",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontFamily = GoogleSansRounded,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (prompt.isBlank()) 
+                                colors.onSurfaceVariant 
+                            else 
+                                colors.onPrimaryContainer
                         )
                     }
                 }
-            )
-
-
-            if (error != null) {
-                Text(
-                    text = error,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier
-                        .padding(top = 8.dp)
-                        .fillMaxWidth()
-                )
             }
 
             Spacer(modifier = Modifier.height(24.dp))
-
-            if (isGenerating) {
-                CircularProgressIndicator()
-            } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    FilledTonalButton(onClick = onDismiss) {
-                        Text("Cancel")
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-//                    Button(
-//                        onClick = {
-//                            val minLengthInt = minLength.toIntOrNull() ?: 5
-//                            val maxLengthInt = maxLength.toIntOrNull() ?: 15
-//                            onGenerateClick(prompt, minLengthInt, maxLengthInt)
-//                        },
-//                        enabled = prompt.isNotBlank()
-//                    ) {
-//                        Text("Generate")
-//                    }
-                }
-            }
         }
     }
 }
