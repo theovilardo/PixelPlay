@@ -70,8 +70,11 @@ class MainViewModel @Inject constructor(
     fun startSync() {
         LogUtils.i(this, "startSync called")
         viewModelScope.launch {
-            if (isSetupComplete.value) return@launch
-            syncManager.sync()
+            // For fresh installs after setup, SetupViewModel.setSetupComplete() triggers sync
+            // For returning users (setup already complete), we trigger sync here
+            if (isSetupComplete.value) {
+                syncManager.sync()
+            }
         }
     }
 }

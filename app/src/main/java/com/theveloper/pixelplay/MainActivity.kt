@@ -463,6 +463,9 @@ class MainActivity : ComponentActivity() {
 
         // Estado para controlar si el indicador de carga puede mostrarse después de un delay
         var canShowLoadingIndicator by remember { mutableStateOf(false) }
+        // Track when the loading indicator was first shown for minimum display time
+        var loadingShownTimestamp by remember { mutableStateOf(0L) }
+        val minimumDisplayDuration = 1500L // Show loading for at least 1.5 seconds
 
         val shouldPotentiallyShowLoading = isSyncing && isLibraryEmpty
 
@@ -475,10 +478,19 @@ class MainActivity : ComponentActivity() {
                 // ya que el estado podría haber cambiado.
                 if (mainViewModel.isSyncing.value && mainViewModel.isLibraryEmpty.value) {
                     canShowLoadingIndicator = true
+                    loadingShownTimestamp = System.currentTimeMillis()
                 }
             } else {
-                // Si las condiciones ya no se cumplen, asegúrate de que no se muestre
+                // Ensure minimum display time before hiding
+                if (canShowLoadingIndicator && loadingShownTimestamp > 0) {
+                    val elapsed = System.currentTimeMillis() - loadingShownTimestamp
+                    val remaining = minimumDisplayDuration - elapsed
+                    if (remaining > 0) {
+                        delay(remaining)
+                    }
+                }
                 canShowLoadingIndicator = false
+                loadingShownTimestamp = 0L
             }
         }
 
@@ -486,7 +498,7 @@ class MainActivity : ComponentActivity() {
             MainUI(playerViewModel, navController)
 
             // Muestra el LoadingOverlay solo si las condiciones se cumplen Y el delay ha pasado
-            if (shouldPotentiallyShowLoading && canShowLoadingIndicator) {
+            if (canShowLoadingIndicator) {
                 LoadingOverlay(syncProgress)
             }
         }

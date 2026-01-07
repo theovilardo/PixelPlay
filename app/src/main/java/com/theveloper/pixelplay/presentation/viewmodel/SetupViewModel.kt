@@ -144,7 +144,8 @@ class SetupViewModel @Inject constructor(
     fun setSetupComplete() {
         viewModelScope.launch {
             userPreferencesRepository.setInitialSetupDone(true)
-            syncManager.forceRefresh()
+            // Use fullSync which bypasses MIN_SYNC_INTERVAL check and uses FULL mode
+            syncManager.fullSync()
         }
     }
 }
