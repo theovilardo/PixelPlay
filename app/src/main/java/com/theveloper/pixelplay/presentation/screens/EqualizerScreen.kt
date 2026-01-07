@@ -1469,6 +1469,9 @@ private fun VolumeControlCard(
     volume: Float, 
     onVolumeChange: (Float) -> Unit
 ) {
+    val haptic = LocalHapticFeedback.current
+    var lastHapticValue by remember { mutableStateOf(volume) }
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1502,7 +1505,16 @@ private fun VolumeControlCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Slider(
                         value = volume,
-                        onValueChange = onVolumeChange,
+                        onValueChange = { newValue ->
+                            // Subtle haptic feedback on each 5% change
+                            val currentPercent = (newValue * 100).roundToInt()
+                            val lastPercent = (lastHapticValue * 100).roundToInt()
+                            if (currentPercent / 5 != lastPercent / 5) {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                lastHapticValue = newValue
+                            }
+                            onVolumeChange(newValue)
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         track = { sliderState ->
                             SliderDefaults.Track(

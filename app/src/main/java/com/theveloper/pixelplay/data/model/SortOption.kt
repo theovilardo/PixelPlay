@@ -6,6 +6,7 @@ import androidx.compose.runtime.Immutable
 @Immutable
 sealed class SortOption(val storageKey: String, val displayName: String) {
     // Song Sort Options
+    object SongDefaultOrder : SortOption("song_default_order", "Default Order")
     object SongTitleAZ : SortOption("song_title_az", "Title (A-Z)")
     object SongTitleZA : SortOption("song_title_za", "Title (Z-A)")
     object SongArtist : SortOption("song_artist", "Artist")
@@ -43,6 +44,7 @@ sealed class SortOption(val storageKey: String, val displayName: String) {
 
     companion object {
         val SONGS: List<SortOption> = listOf(
+            SongDefaultOrder,
             SongTitleAZ,
             SongTitleZA,
             SongArtist,

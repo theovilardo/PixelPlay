@@ -426,6 +426,11 @@ fun SettingsCategoryScreen(
                                 title = "Battery Optimization",
                                 subtitle = "Disable battery optimization to prevent playback interruptions.",
                                 onClick = {
+                                    val powerManager = context.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+                                    if (powerManager.isIgnoringBatteryOptimizations(context.packageName)) {
+                                        Toast.makeText(context, "Battery optimization is already disabled", Toast.LENGTH_SHORT).show()
+                                        return@SettingsItem
+                                    }
                                     try {
                                         val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
                                             data = "package:${context.packageName}".toUri()

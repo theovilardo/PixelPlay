@@ -78,6 +78,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -115,12 +116,14 @@ import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel.Companion.FOLDER_PLAYLIST_PREFIX
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
+import com.theveloper.pixelplay.presentation.viewmodel.PlaylistSongsOrderMode
 import com.theveloper.pixelplay.utils.formatTotalDuration
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import com.theveloper.pixelplay.presentation.components.LibrarySortBottomSheet
 import com.theveloper.pixelplay.data.model.SortOption
+import kotlinx.coroutines.launch
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(
@@ -184,6 +187,7 @@ fun PlaylistDetailScreen(
     var localReorderableSongs by remember(songsInPlaylist) { mutableStateOf(songsInPlaylist) }
 
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
     val view = LocalView.current
     var lastMovedFrom by remember { mutableStateOf<Int?>(null) }
     var lastMovedTo by remember { mutableStateOf<Int?>(null) }
@@ -830,12 +834,21 @@ fun PlaylistDetailScreen(
     val isSortSheetVisible by playerViewModel.isSortingSheetVisible.collectAsState()
 
     if (isSortSheetVisible) {
+        // Check if playlist is in Manual mode (which corresponds to Default Order)
+        val isManualMode = uiState.playlistSongsOrderMode is PlaylistSongsOrderMode.Manual
         val rawOption = uiState.currentPlaylistSongsSortOption
-        // Defensive check: ensure we never pass a null, even if one somehow slipped into the state
-        val currentSortOption = if ((isFolderPlaylist || currentPlaylist != null) && rawOption != null) rawOption else SortOption.SongTitleAZ
+        // If in Manual mode, show SongDefaultOrder as selected; otherwise use the stored sort option
+        val currentSortOption = if (isManualMode) {
+            SortOption.SongDefaultOrder
+        } else if ((isFolderPlaylist || currentPlaylist != null) && rawOption != null) {
+            rawOption
+        } else {
+            SortOption.SongTitleAZ
+        }
 
         // Build options list inline to avoid potential static initialization issues
         val songSortOptions = listOf(
+            SortOption.SongDefaultOrder,
             SortOption.SongTitleAZ,
             SortOption.SongTitleZA,
             SortOption.SongArtist,
@@ -852,6 +865,11 @@ fun PlaylistDetailScreen(
             onOptionSelected = { option ->
                  playlistViewModel.sortPlaylistSongs(option)
                  playerViewModel.hideSortingSheet()
+                 // Auto-scroll to first item after sorting (delay to allow list to update)
+                 scope.launch {
+                     kotlinx.coroutines.delay(100)
+                     listState.animateScrollToItem(0)
+                 }
             },
             showViewToggle = false 
         )

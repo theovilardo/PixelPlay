@@ -201,13 +201,13 @@ fun AiPlaylistSheet(
                             else Modifier
                         ),
                     shape = AbsoluteSmoothCornerShape(
-                        cornerRadiusTL = 22.dp,
+                        cornerRadiusTL = 10.dp,
                         smoothnessAsPercentBL = 60,
-                        cornerRadiusTR = 22.dp,
+                        cornerRadiusTR = 52.dp,
                         smoothnessAsPercentBR = 60,
-                        cornerRadiusBL = 22.dp,
+                        cornerRadiusBL = 52.dp,
                         smoothnessAsPercentTL = 60,
-                        cornerRadiusBR = 22.dp,
+                        cornerRadiusBR = 52.dp,
                         smoothnessAsPercentTR = 60
                     ),
                     color = if (isGenerating) colors.primaryContainer else colors.tertiaryContainer,

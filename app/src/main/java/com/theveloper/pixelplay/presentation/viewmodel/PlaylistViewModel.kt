@@ -448,6 +448,22 @@ class PlaylistViewModel @Inject constructor(
 
     fun sortPlaylistSongs(sortOption: SortOption) {
         val playlistId = _uiState.value.currentPlaylistDetails?.id
+        
+        // If SongDefaultOrder is selected, reload the playlist to get original order
+        if (sortOption == SortOption.SongDefaultOrder) {
+            if (playlistId != null) {
+                viewModelScope.launch {
+                    // Set order mode to Manual (which preserves original order)
+                    userPreferencesRepository.setPlaylistSongOrderMode(
+                        playlistId,
+                        MANUAL_ORDER_MODE
+                    )
+                    // Reload the playlist to get original song order
+                    loadPlaylistDetails(playlistId)
+                }
+            }
+            return
+        }
 
         val currentSongs = _uiState.value.currentPlaylistSongs
         val sortedSongs = when (sortOption) {
@@ -456,7 +472,7 @@ class PlaylistViewModel @Inject constructor(
             SortOption.SongArtist -> currentSongs.sortedBy { it.artist.lowercase() }
             SortOption.SongAlbum -> currentSongs.sortedBy { it.album.lowercase() }
             SortOption.SongDuration -> currentSongs.sortedBy { it.duration }
-            SortOption.SongDateAdded -> currentSongs.sortedByDescending { it.dateAdded } // Or dateModified if available/relevant
+            SortOption.SongDateAdded -> currentSongs.sortedByDescending { it.dateAdded }
             else -> currentSongs
         }
 
