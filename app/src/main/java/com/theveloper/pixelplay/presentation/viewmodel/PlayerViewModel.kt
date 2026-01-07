@@ -4558,6 +4558,8 @@ class PlayerViewModel @Inject constructor(
             SortOption.AlbumTitleZA -> _playerUiState.value.albums.sortedByDescending { it.title.lowercase() }
             SortOption.AlbumArtist -> _playerUiState.value.albums.sortedBy { it.artist.lowercase() }
             SortOption.AlbumReleaseYear -> _playerUiState.value.albums.sortedByDescending { it.year }
+            SortOption.AlbumSizeAsc -> _playerUiState.value.albums.sortedWith(compareBy<Album> { it.songCount }.thenBy { it.title.lowercase() })
+            SortOption.AlbumSizeDesc -> _playerUiState.value.albums.sortedWith(compareByDescending<Album> { it.songCount }.thenBy { it.title.lowercase() })
             else -> _playerUiState.value.albums
         }.toImmutableList()
         _playerUiState.update {
