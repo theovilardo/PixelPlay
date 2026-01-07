@@ -71,7 +71,6 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -145,6 +144,8 @@ fun SetupScreen(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             list.add(SetupPage.NotificationsPermission)
         }
+        // Add battery optimization page (optional step)
+        list.add(SetupPage.BatteryOptimization)
         list.add(SetupPage.Finish)
         list
     }
@@ -232,6 +233,13 @@ fun SetupScreen(
                     )
                     SetupPage.NotificationsPermission -> NotificationsPermissionPage(uiState)
                     SetupPage.AllFilesPermission -> AllFilesPermissionPage(uiState)
+                    SetupPage.BatteryOptimization -> BatteryOptimizationPage(
+                        onSkip = {
+                            scope.launch {
+                                pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                            }
+                        }
+                    )
                     SetupPage.Finish -> FinishPage()
                 }
             }
@@ -320,6 +328,7 @@ sealed class SetupPage {
     object DirectorySelection : SetupPage()
     object NotificationsPermission : SetupPage()
     object AllFilesPermission : SetupPage()
+    object BatteryOptimization : SetupPage()
     object Finish : SetupPage()
 }
 
@@ -532,6 +541,73 @@ fun AllFilesPermissionPage(uiState: SetupUiState) {
             }
         }
     )
+}
+
+@Composable
+fun BatteryOptimizationPage(
+    onSkip: () -> Unit
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val powerManager = remember { context.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager }
+    
+    // Track whether battery optimization is ignored
+    var isIgnoringBatteryOptimizations by remember { 
+        mutableStateOf(powerManager.isIgnoringBatteryOptimizations(context.packageName)) 
+    }
+    
+    // Re-check when resuming (user comes back from settings)
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isIgnoringBatteryOptimizations = powerManager.isIgnoringBatteryOptimizations(context.packageName)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+    
+    val batteryIcons = persistentListOf(
+        R.drawable.rounded_music_note_24,
+        R.drawable.rounded_play_arrow_24,
+        R.drawable.rounded_all_inclusive_24,
+        R.drawable.rounded_pause_24,
+        R.drawable.rounded_check_circle_24
+    )
+
+    PermissionPageLayout(
+        title = "Battery Optimization",
+        granted = isIgnoringBatteryOptimizations,
+        description = "Some Android devices aggressively kill background apps. Disable battery optimization for PixelPlayer to prevent unexpected playback interruptions.",
+        buttonText = if (isIgnoringBatteryOptimizations) "Permission Granted" else "Disable Optimization",
+        icons = batteryIcons,
+        onGrantClicked = {
+            if (!isIgnoringBatteryOptimizations) {
+                try {
+                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                        data = "package:${context.packageName}".toUri()
+                    }
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    // Fallback to general battery settings if direct intent fails
+                    try {
+                        val fallbackIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                        context.startActivity(fallbackIntent)
+                    } catch (e2: Exception) {
+                        Toast.makeText(context, "Could not open battery settings", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    ) {
+        if (!isIgnoringBatteryOptimizations) {
+            TextButton(onClick = onSkip) {
+                Text("Skip for now")
+            }
+        }
+    }
 }
 
 @Composable

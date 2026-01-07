@@ -421,6 +421,27 @@ fun SettingsCategoryScreen(
                                 onCheckedChange = { settingsViewModel.setShowQueueHistory(it) },
                                 leadingIcon = { Icon(painterResource(R.drawable.rounded_queue_music_24), null, tint = MaterialTheme.colorScheme.secondary) }
                             )
+                            Spacer(Modifier.height(4.dp))
+                            SettingsItem(
+                                title = "Battery Optimization",
+                                subtitle = "Disable battery optimization to prevent playback interruptions.",
+                                onClick = {
+                                    try {
+                                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                            data = "package:${context.packageName}".toUri()
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        try {
+                                            val fallbackIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                            context.startActivity(fallbackIntent)
+                                        } catch (e2: Exception) {
+                                            Toast.makeText(context, "Could not open battery settings", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                },
+                                leadingIcon = { Icon(painterResource(R.drawable.rounded_all_inclusive_24), null, tint = MaterialTheme.colorScheme.secondary) }
+                            )
                         }
                         SettingsCategory.AI_INTEGRATION -> {
                             GeminiApiKeyItem(

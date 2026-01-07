@@ -369,6 +369,14 @@ class EqualizerViewModel @Inject constructor(
         }
     }
     
+    fun resetPinnedPresetsToDefault() {
+        viewModelScope.launch {
+            // Reset to default order: all standard presets visible, in original order
+            val defaultOrder = EqualizerPreset.ALL_PRESETS.map { it.name }
+            userPreferencesRepository.setPinnedPresets(defaultOrder)
+        }
+    }
+    
     fun togglePinPreset(presetName: String) {
         viewModelScope.launch {
             val currentPinned = _uiState.value.pinnedPresetsNames.toMutableList()

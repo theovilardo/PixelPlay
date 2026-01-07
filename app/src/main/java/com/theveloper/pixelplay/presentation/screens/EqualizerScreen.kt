@@ -184,15 +184,14 @@ fun EqualizerScreen(
         )
     }
     
-    if (showReorderSheet) {
-        ReorderPresetsSheet(
-            allAvailablePresets = uiState.allAvailablePresets,
-            pinnedPresetsNames = uiState.pinnedPresetsNames,
-            onSave = { newOrder -> equalizerViewModel.updatePinnedPresetsOrder(newOrder) },
-            onReset = { /* Reset to default if needed, or implement ViewModel method */ },
-            onDismiss = { showReorderSheet = false }
-        )
-    }
+    ReorderPresetsSheet(
+        visible = showReorderSheet,
+        allAvailablePresets = uiState.allAvailablePresets,
+        pinnedPresetsNames = uiState.pinnedPresetsNames,
+        onSave = { newOrder -> equalizerViewModel.updatePinnedPresetsOrder(newOrder) },
+        onReset = { equalizerViewModel.resetPinnedPresetsToDefault() },
+        onDismiss = { showReorderSheet = false }
+    )
     
     BackHandler(enabled = playerSheetState == PlayerSheetState.EXPANDED) {
         playerViewModel.collapsePlayerSheet()
