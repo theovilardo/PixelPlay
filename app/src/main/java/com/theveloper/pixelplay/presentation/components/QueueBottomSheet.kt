@@ -1607,8 +1607,8 @@ fun QueuePlaylistSongItem(
         targetValue = if (isCurrentSong) colors.surfaceContainerLowest else colors.surfaceContainerLowest,
         label = "backgroundColorAnimation"
     )
-    val mvContainerColor = if (isCurrentSong) colors.primaryContainer.copy(alpha = 0.44f) else colors.surfaceContainerHigh
-    val mvContentColor = if (isCurrentSong) colors.onPrimaryContainer else colors.onSurface
+    val mvContainerColor = if (isCurrentSong) colors.tertiaryContainer else colors.surfaceContainerHigh
+    val mvContentColor = if (isCurrentSong) colors.onTertiaryContainer else colors.onSurface
 
     val density = LocalDensity.current
 
@@ -1800,7 +1800,7 @@ fun QueuePlaylistSongItem(
                                 modifier = Modifier
                                     .padding(start = 8.dp)
                                     .size(width = 18.dp, height = 16.dp),
-                                color = colors.primary,
+                                color = colors.secondary,
                                 isPlaying = isPlaying
                             )
                             Spacer(Modifier.width(4.dp))
@@ -1817,7 +1817,7 @@ fun QueuePlaylistSongItem(
                             onClick = { onMoreOptionsClick(song) },
                             colors = IconButtonDefaults.filledIconButtonColors(
                                 containerColor = mvContainerColor,
-                                contentColor = mvContentColor.copy(alpha = 0.7f)
+                                contentColor = mvContentColor //.copy(alpha = 0.7f)
                             ),
                             modifier = Modifier
                                 .size(36.dp)
