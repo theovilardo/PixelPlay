@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Static shortcut: Shuffle all songs -->
+    <shortcut
+        android:shortcutId="shuffle_all"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_shuffle"
+        android:shortcutShortLabel="@string/shortcut_shuffle_short"
+        android:shortcutLongLabel="@string/shortcut_shuffle_long">
+        <intent
+            android:action="com.theveloper.pixelplay.ACTION_SHUFFLE_ALL"
+            android:targetPackage="com.theveloper.pixelplay"
+            android:targetClass="com.theveloper.pixelplay.MainActivity" />
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+</shortcuts>
