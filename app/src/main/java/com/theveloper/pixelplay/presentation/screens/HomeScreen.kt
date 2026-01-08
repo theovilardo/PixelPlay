@@ -63,7 +63,6 @@ import androidx.navigation.NavController
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.presentation.components.AlbumArtCollage
-import com.theveloper.pixelplay.presentation.components.AppRebrandDialog
 import com.theveloper.pixelplay.presentation.components.AppSidebarDrawer
 import com.theveloper.pixelplay.presentation.components.DailyMixSection
 import com.theveloper.pixelplay.presentation.components.DrawerDestination
@@ -145,13 +144,6 @@ fun HomeScreen(
 
     // Drawer state for sidebar
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-
-    if (!settingsUiState.appRebrandDialogShown && !isBenchmarkMode) {
-        AppRebrandDialog(
-            onDismiss = { settingsViewModel.setAppRebrandDialogShown(true) },
-            onDoNotShowAgain = { settingsViewModel.setAppRebrandDialogShown(it) }
-        )
-    }
 
     Box(
         modifier = Modifier.fillMaxSize()

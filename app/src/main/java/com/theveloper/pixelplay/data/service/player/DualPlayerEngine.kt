@@ -352,6 +352,13 @@ class DualPlayerEngine @Inject constructor(
         // 4. Swap References
         playerA = incomingPlayer
         playerB = outgoingPlayer
+        
+        // Critical: Reset pauseAtEndOfMediaItems on both players after swap.
+        // The outgoing player (now B) had pauseAtEndOfMediaItems=true set before the transition started.
+        // If we don't disable it, the outgoing player will pause itself when it reaches the end,
+        // causing the "stops then restarts" glitch during crossfade.
+        playerB.pauseAtEndOfMediaItems = false
+        playerA.pauseAtEndOfMediaItems = false
 
         playerA.addListener(masterPlayerListener)
         // Ensure we hold focus for the new master

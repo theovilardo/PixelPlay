@@ -17,6 +17,8 @@ import com.theveloper.pixelplay.utils.LogUtils
 import com.theveloper.pixelplay.utils.LyricsUtils
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import retrofit2.HttpException
 import java.io.File
@@ -60,6 +62,27 @@ class LyricsRepositoryImpl @Inject constructor(
     override suspend fun fetchFromRemote(song: Song): Result<Pair<Lyrics, String>> = withContext(Dispatchers.IO) {
         try {
             LogUtils.d(this@LyricsRepositoryImpl, "Fetching lyrics from remote for: ${song.title}")
+            
+            // First, try the search API which is more flexible, then pick the best match
+            val searchResult = searchRemote(song)
+            if (searchResult.isSuccess) {
+                val (_, results) = searchResult.getOrThrow()
+                if (results.isNotEmpty()) {
+                    // Pick the first result (already sorted by synced priority)
+                    val best = results.first()
+                    val rawLyricsToSave = best.rawLyrics
+                    
+                    musicDao.updateLyrics(song.id.toLong(), rawLyricsToSave)
+                    
+                    val cacheKey = generateCacheKey(song.id)
+                    lyricsCache.put(cacheKey, best.lyrics)
+                    LogUtils.d(this@LyricsRepositoryImpl, "Fetched and cached remote lyrics for: ${song.title}")
+                    
+                    return@withContext Result.success(Pair(best.lyrics, rawLyricsToSave))
+                }
+            }
+            
+            // Fallback: Try the exact match API (less likely to succeed, but worth a shot)
             val response = lrcLibApiService.getLyrics(
                 trackName = song.title,
                 artistName = song.displayArtist,
@@ -79,7 +102,7 @@ class LyricsRepositoryImpl @Inject constructor(
                 
                 val cacheKey = generateCacheKey(song.id)
                 lyricsCache.put(cacheKey, parsedLyrics)
-                LogUtils.d(this@LyricsRepositoryImpl, "Fetched and cached remote lyrics for: ${song.title}")
+                LogUtils.d(this@LyricsRepositoryImpl, "Fetched and cached remote lyrics (exact match) for: ${song.title}")
                 
                 Result.success(Pair(parsedLyrics, rawLyricsToSave))
             } else {
@@ -105,41 +128,66 @@ class LyricsRepositoryImpl @Inject constructor(
         try {
             LogUtils.d(this@LyricsRepositoryImpl, "Searching remote for lyrics for: ${song.title} by ${song.displayArtist}")
             
-            // Strategy 1: Search with q parameter combining title and artist
             val combinedQuery = "${song.title} ${song.displayArtist}"
-            var responses = lrcLibApiService.searchLyrics(
-                query = combinedQuery,
-                artistName = song.displayArtist
-            )
-            LogUtils.d(this@LyricsRepositoryImpl, "  Strategy 1 (q + artist): Found ${responses?.size ?: 0} responses")
             
-            // Strategy 2: Search with track_name and artist_name
-            if (responses.isNullOrEmpty()) {
-                responses = lrcLibApiService.searchLyrics(
-                    trackName = song.title,
-                    artistName = song.displayArtist
-                )
-                LogUtils.d(this@LyricsRepositoryImpl, "  Strategy 2 (track + artist): Found ${responses?.size ?: 0} responses")
+            // Run search strategies in 2 PARALLEL BATCHES to avoid overwhelming the server
+            // Batch 1: More specific searches (with artist info)
+            val batch1Results = coroutineScope {
+                val strategy1 = async {
+                    runCatching { 
+                        lrcLibApiService.searchLyrics(query = combinedQuery, artistName = song.displayArtist)
+                    }.getOrNull()
+                }
+                val strategy2 = async {
+                    runCatching { 
+                        lrcLibApiService.searchLyrics(trackName = song.title, artistName = song.displayArtist)
+                    }.getOrNull()
+                }
+                listOf(strategy1.await(), strategy2.await())
             }
             
-            // Strategy 3: Search with just track_name (original behavior)
-            if (responses.isNullOrEmpty()) {
-                responses = lrcLibApiService.searchLyrics(trackName = song.title)
-                LogUtils.d(this@LyricsRepositoryImpl, "  Strategy 3 (track only): Found ${responses?.size ?: 0} responses")
+            val (results1, results2) = batch1Results
+            LogUtils.d(this@LyricsRepositoryImpl, "  Batch 1 - Strategy 1 (q + artist): ${results1?.size ?: 0}, Strategy 2 (track + artist): ${results2?.size ?: 0}")
+            
+            // Use first non-empty result from batch 1, otherwise try batch 2
+            var responses: Array<LrcLibResponse>? = when {
+                results1 != null && results1.isNotEmpty() -> results1
+                results2 != null && results2.isNotEmpty() -> results2
+                else -> null
             }
             
-            // Strategy 4: Search with just q parameter (most flexible)
-            if (responses.isNullOrEmpty()) {
-                responses = lrcLibApiService.searchLyrics(query = song.title)
-                LogUtils.d(this@LyricsRepositoryImpl, "  Strategy 4 (q only): Found ${responses?.size ?: 0} responses")
+            // Batch 2: Less specific searches (only if batch 1 failed)
+            if (responses == null) {
+                val batch2Results = coroutineScope {
+                    val strategy3 = async {
+                        runCatching { 
+                            lrcLibApiService.searchLyrics(trackName = song.title)
+                        }.getOrNull()
+                    }
+                    val strategy4 = async {
+                        runCatching { 
+                            lrcLibApiService.searchLyrics(query = song.title)
+                        }.getOrNull()
+                    }
+                    listOf(strategy3.await(), strategy4.await())
+                }
+                
+                val (results3, results4) = batch2Results
+                LogUtils.d(this@LyricsRepositoryImpl, "  Batch 2 - Strategy 3 (track only): ${results3?.size ?: 0}, Strategy 4 (q only): ${results4?.size ?: 0}")
+                
+                responses = when {
+                    results3 != null && results3.isNotEmpty() -> results3
+                    results4 != null && results4.isNotEmpty() -> results4
+                    else -> null
+                }
             }
 
             if (responses != null && responses.isNotEmpty()) {
                 val songDurationSeconds = song.duration / 1000
                 val results = responses.mapNotNull { response ->
-                    // Increased duration tolerance from 2 to 5 seconds
+                    // Increased duration tolerance from 5 to 15 seconds for better matching
                     val durationDiff = abs(response.duration - songDurationSeconds)
-                    if (durationDiff > 5) {
+                    if (durationDiff > 15) {
                         LogUtils.d(this@LyricsRepositoryImpl, "  Skipping '${response.name}' - duration mismatch: ${response.duration}s vs ${songDurationSeconds}s (diff: ${durationDiff}s)")
                         return@mapNotNull null
                     }

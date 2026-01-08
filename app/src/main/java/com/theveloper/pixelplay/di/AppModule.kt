@@ -195,10 +195,28 @@ object AppModule {
     fun provideOkHttpClient(): OkHttpClient {
         val loggingInterceptor = HttpLoggingInterceptor()
         loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY)
+        
+        // Connection pool with limited connections to avoid overwhelming servers
+        val connectionPool = okhttp3.ConnectionPool(
+            maxIdleConnections = 2,
+            keepAliveDuration = 30,
+            timeUnit = java.util.concurrent.TimeUnit.SECONDS
+        )
+        
         return OkHttpClient.Builder()
-            .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-            .writeTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+            .connectionPool(connectionPool)
+            .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+            // Add User-Agent header (required by some APIs)
+            .addInterceptor { chain ->
+                val originalRequest = chain.request()
+                val requestWithUserAgent = originalRequest.newBuilder()
+                    .header("User-Agent", "PixelPlayer/1.0 (Android; Music Player)")
+                    .build()
+                chain.proceed(requestWithUserAgent)
+            }
+            // Retry interceptor
             .addInterceptor { chain ->
                 var request = chain.request()
                 var response: okhttp3.Response? = null
