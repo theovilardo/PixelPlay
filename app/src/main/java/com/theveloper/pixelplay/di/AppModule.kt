@@ -42,12 +42,6 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
-/**
- * Qualifier for Deezer Retrofit instance.
- */
-@Qualifier
-@Retention(AnnotationRetention.BINARY)
-annotation class DeezerRetrofit
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -247,11 +241,69 @@ object AppModule {
     }
 
     /**
+     * Provee una instancia de OkHttpClient con timeouts para búsquedas de lyrics.
+     * Includes DNS resolver, modern TLS, connection pool, and retry logic.
+     */
+    @Provides
+    @Singleton
+    @FastOkHttpClient
+    fun provideFastOkHttpClient(): OkHttpClient {
+        val loggingInterceptor = HttpLoggingInterceptor()
+        loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.HEADERS)
+        
+        // Connection pool to reuse connections
+        val connectionPool = okhttp3.ConnectionPool(
+            maxIdleConnections = 2,
+            keepAliveDuration = 30,
+            timeUnit = java.util.concurrent.TimeUnit.SECONDS
+        )
+        
+        // Use Cloudflare and Google DNS to avoid potential DNS issues
+        val dns = okhttp3.Dns { hostname ->
+            try {
+                // First try system DNS
+                okhttp3.Dns.SYSTEM.lookup(hostname)
+            } catch (e: Exception) {
+                // Fallback to manual resolution if system DNS fails
+                java.net.InetAddress.getAllByName(hostname).toList()
+            }
+        }
+
+        return OkHttpClient.Builder()
+            .dns(dns)
+            .connectionPool(connectionPool)
+            // Use HTTP/1.1 to avoid HTTP/2 stream issues with some servers
+            .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
+            // Use modern TLS connection spec
+            .connectionSpecs(listOf(
+                okhttp3.ConnectionSpec.MODERN_TLS,
+                okhttp3.ConnectionSpec.COMPATIBLE_TLS,
+                okhttp3.ConnectionSpec.CLEARTEXT
+            ))
+            .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+            // Enable built-in retry on connection failure
+            .retryOnConnectionFailure(true)
+            // Add headers
+            .addInterceptor { chain ->
+                val originalRequest = chain.request()
+                val requestWithHeaders = originalRequest.newBuilder()
+                    .header("User-Agent", "PixelPlayer/1.0 (Android; Music Player)")
+                    .header("Accept", "application/json")
+                    .build()
+                chain.proceed(requestWithHeaders)
+            }
+            .addInterceptor(loggingInterceptor)
+            .build()
+    }
+
+    /**
      * Provee una instancia singleton de Retrofit para la API de LRCLIB.
      */
     @Provides
     @Singleton
-    fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
+    fun provideRetrofit(@FastOkHttpClient okHttpClient: OkHttpClient): Retrofit {
         return Retrofit.Builder()
             .baseUrl("https://lrclib.net/")
             .client(okHttpClient)

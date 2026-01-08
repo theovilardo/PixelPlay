@@ -17,8 +17,6 @@ import com.theveloper.pixelplay.utils.LogUtils
 import com.theveloper.pixelplay.utils.LyricsUtils
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import retrofit2.HttpException
 import java.io.File
@@ -130,61 +128,38 @@ class LyricsRepositoryImpl @Inject constructor(
             
             val combinedQuery = "${song.title} ${song.displayArtist}"
             
-            // Run search strategies in 2 PARALLEL BATCHES to avoid overwhelming the server
-            // Batch 1: More specific searches (with artist info)
-            val batch1Results = coroutineScope {
-                val strategy1 = async {
-                    runCatching { 
-                        lrcLibApiService.searchLyrics(query = combinedQuery, artistName = song.displayArtist)
-                    }.getOrNull()
-                }
-                val strategy2 = async {
-                    runCatching { 
-                        lrcLibApiService.searchLyrics(trackName = song.title, artistName = song.displayArtist)
-                    }.getOrNull()
-                }
-                listOf(strategy1.await(), strategy2.await())
-            }
+            // SEQUENTIAL STRATEGY: Try each search strategy one by one
+            // This avoids rate limiting issues that can occur with parallel requests
+            // Stop as soon as we get a valid result
+            val strategies: List<suspend () -> Array<LrcLibResponse>?> = listOf(
+                // Strategy 1: Combined query with artist (most specific)
+                { runCatching { lrcLibApiService.searchLyrics(query = combinedQuery, artistName = song.displayArtist) }.getOrNull() },
+                // Strategy 2: Track name with artist
+                { runCatching { lrcLibApiService.searchLyrics(trackName = song.title, artistName = song.displayArtist) }.getOrNull() },
+                // Strategy 3: Track name only
+                { runCatching { lrcLibApiService.searchLyrics(trackName = song.title) }.getOrNull() },
+                // Strategy 4: Simple query (fallback)
+                { runCatching { lrcLibApiService.searchLyrics(query = song.title) }.getOrNull() }
+            )
             
-            val (results1, results2) = batch1Results
-            LogUtils.d(this@LyricsRepositoryImpl, "  Batch 1 - Strategy 1 (q + artist): ${results1?.size ?: 0}, Strategy 2 (track + artist): ${results2?.size ?: 0}")
-            
-            // Use first non-empty result from batch 1, otherwise try batch 2
-            var responses: Array<LrcLibResponse>? = when {
-                results1 != null && results1.isNotEmpty() -> results1
-                results2 != null && results2.isNotEmpty() -> results2
-                else -> null
-            }
-            
-            // Batch 2: Less specific searches (only if batch 1 failed)
-            if (responses == null) {
-                val batch2Results = coroutineScope {
-                    val strategy3 = async {
-                        runCatching { 
-                            lrcLibApiService.searchLyrics(trackName = song.title)
-                        }.getOrNull()
-                    }
-                    val strategy4 = async {
-                        runCatching { 
-                            lrcLibApiService.searchLyrics(query = song.title)
-                        }.getOrNull()
-                    }
-                    listOf(strategy3.await(), strategy4.await())
+            var allResults: List<LrcLibResponse> = emptyList()
+            for ((index, strategy) in strategies.withIndex()) {
+                LogUtils.d(this@LyricsRepositoryImpl, "Trying search strategy ${index + 1}/4...")
+                val result = strategy()
+                if (!result.isNullOrEmpty()) {
+                    LogUtils.d(this@LyricsRepositoryImpl, "Strategy ${index + 1} returned ${result.size} results")
+                    allResults = result.toList()
+                    break // Stop on first successful result
                 }
-                
-                val (results3, results4) = batch2Results
-                LogUtils.d(this@LyricsRepositoryImpl, "  Batch 2 - Strategy 3 (track only): ${results3?.size ?: 0}, Strategy 4 (q only): ${results4?.size ?: 0}")
-                
-                responses = when {
-                    results3 != null && results3.isNotEmpty() -> results3
-                    results4 != null && results4.isNotEmpty() -> results4
-                    else -> null
-                }
+                LogUtils.d(this@LyricsRepositoryImpl, "Strategy ${index + 1} returned no results, trying next...")
             }
 
-            if (responses != null && responses.isNotEmpty()) {
+            // Results are already flattened since we use sequential strategy
+            val uniqueResults = allResults.distinctBy { it.id }
+
+            if (uniqueResults.isNotEmpty()) {
                 val songDurationSeconds = song.duration / 1000
-                val results = responses.mapNotNull { response ->
+                val results = uniqueResults.mapNotNull { response ->
                     // Increased duration tolerance from 5 to 15 seconds for better matching
                     val durationDiff = abs(response.duration - songDurationSeconds)
                     if (durationDiff > 15) {
